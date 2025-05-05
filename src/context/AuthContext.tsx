@@ -106,7 +106,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${process.env.VITE_APP_URL}/dashboard`,
         },
       });
 
