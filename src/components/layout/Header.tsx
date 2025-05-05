@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useRouterState } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
 import { Menu as MenuIcon, X, User, LogOut } from 'lucide-react';
@@ -14,7 +14,7 @@ const navigation: NavigationItem[] = [
 
 export const Header = () => {
   const { state: { user }, signOut } = useAuth();
-  const location = useLocation();
+  const { location } = useRouterState();
 
   return (
     <Disclosure as="nav" className="sticky top-0 z-50 w-full flex justify-center px-4 py-2">

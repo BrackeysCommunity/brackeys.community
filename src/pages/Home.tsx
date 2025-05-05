@@ -1,11 +1,11 @@
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LoginButton } from '../components/auth/LoginButton';
 import { Calendar, Bell, BotMessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ComponentType, useEffect } from 'react';
 import { DiscordLogo } from '../components/icons/DiscordLogo';
+import { Link } from '@tanstack/react-router';
 
 type FeatureItem = {
   title: string;

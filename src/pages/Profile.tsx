@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { formatDate } from '../lib/utils';
 import { DiscordProfileButton } from '../components/ui/DiscordProfileButton';
 import { useEffect } from 'react';
+import { AuthGuard } from '../components/auth/AuthGuard';
 
-export const Profile = () => {
+const ProfileContent = () => {
   const { state: { user } } = useAuth();
 
   useEffect(() => {
@@ -150,5 +151,13 @@ export const Profile = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+export const Profile = () => {
+  return (
+    <AuthGuard>
+      <ProfileContent />
+    </AuthGuard>
   );
 };

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldQuestion } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 
 export const NotFound = () => {
   const { state: { user } } = useAuth();

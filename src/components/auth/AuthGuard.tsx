@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useRouter, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../../context/AuthContext';
 import { Loading } from '../ui/Loading';
 
@@ -9,14 +9,18 @@ interface AuthGuardProps {
 
 export const AuthGuard = ({ children }: AuthGuardProps) => {
   const { state: { user, isLoading } } = useAuth();
-  const location = useLocation();
+  const router = useRouter();
+  const navigate = useNavigate();
 
   if (isLoading) {
     return <Loading />;
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Store current location for redirect after login
+    const currentPath = router.state.location.pathname;
+    navigate({ to: '/login', search: { redirect: currentPath } });
+    return null;
   }
 
   return children;

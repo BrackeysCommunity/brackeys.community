@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { AppRouter } from './AppRouter';
+import { RouterProvider } from '@tanstack/react-router';
+import { router } from './router';
 import { SplashScreen } from './components/SplashScreen';
+import { AuthProvider } from './context/AuthContext';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -12,7 +14,11 @@ function App() {
   return (
     <>
       {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
-      {!showSplash && <AppRouter />}
+      {!showSplash && (
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      )}
     </>
   );
 }

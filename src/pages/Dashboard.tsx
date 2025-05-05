@@ -3,6 +3,7 @@ import { Users, MessageSquare, FileWarning, List } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { ComponentType, useEffect } from 'react';
+import { AuthGuard } from '../components/auth/AuthGuard';
 
 type StatItem = {
   name: string;
@@ -24,7 +25,7 @@ const recentActivity: RecentActivityItem[] = [
   { id: 3, action: 'Infraction', description: 'Impersonating a staff member', time: '2 days ago' },
 ];
 
-export const Dashboard = () => {
+const DashboardContent = () => {
   const { state: { user } } = useAuth();
 
   useEffect(() => {
@@ -207,5 +208,13 @@ export const Dashboard = () => {
         </motion.div>
       </div>
     </div>
+  );
+};
+
+export const Dashboard = () => {
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
   );
 };
