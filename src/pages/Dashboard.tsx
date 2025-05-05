@@ -28,7 +28,7 @@ export const Dashboard = () => {
   const { state: { user } } = useAuth();
 
   useEffect(() => {
-    document.title = 'Brackeys Community - Dashboard';
+    document.title = 'Dashboard - Brackeys Community';
   }, []);
 
   return (

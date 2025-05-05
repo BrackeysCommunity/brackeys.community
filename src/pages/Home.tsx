@@ -35,7 +35,7 @@ export const Home = () => {
   const { state: { user } } = useAuth();
 
   useEffect(() => {
-    document.title = 'Brackeys Community - Web';
+    document.title = 'Home - Brackeys Community';
   }, []);
 
   return (

@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
+import { Games } from './pages/Games';
 
 export const AppRouter = () => {
   return (
@@ -14,11 +15,9 @@ export const AppRouter = () => {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            {/* Public Routes */}
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />
-
-            {/* Protected Routes */}
+            <Route path="games" element={<Games />} />
             <Route
               path="dashboard"
               element={
@@ -36,7 +35,6 @@ export const AppRouter = () => {
               }
             />
 
-            {/* 404 Page */}
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

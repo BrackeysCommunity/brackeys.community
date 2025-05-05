@@ -14,7 +14,7 @@ export const Login = () => {
   const from = location.state?.from?.pathname || '/dashboard';
 
   useEffect(() => {
-    document.title = 'Brackeys Community - Login';
+    document.title = 'Login - Brackeys Community';
   }, []);
 
   useEffect(() => {
