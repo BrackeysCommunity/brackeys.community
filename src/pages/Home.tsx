@@ -77,7 +77,7 @@ export const Home = () => {
           )}
 
           <a
-            href="https://github.com"
+            href="https://github.com/josh-complex/brackeys-web"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center px-6 py-3 border border-gray-700 text-base font-medium rounded-lg shadow-xs text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-indigo-500 transition-colors"
