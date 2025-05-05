@@ -9,7 +9,7 @@ export const Profile = () => {
   const { state: { user } } = useAuth();
 
   useEffect(() => {
-    document.title = 'Brackeys Community - Profile';
+    document.title = 'Profile - Brackeys Community';
   }, []);
 
   if (!user) {

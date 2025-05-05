@@ -9,6 +9,7 @@ const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
   { name: 'Dashboard', href: '/dashboard' },
   { name: 'Profile', href: '/profile' },
+  { name: 'Games', href: '/games' },
 ];
 
 export const Header = () => {
