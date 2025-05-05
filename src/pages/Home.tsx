@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { LoginButton } from '../components/auth/LoginButton';
 import { Calendar, Bell, BotMessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';

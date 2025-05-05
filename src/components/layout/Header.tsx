@@ -2,8 +2,13 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
 import { Menu as MenuIcon, X, User, LogOut } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { cn } from '../../lib/utils';
+
+type NavigationItem = {
+  name: string;
+  href: string;
+};
 
 const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },

@@ -7,12 +7,10 @@ import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 
-// Create the root route with MainLayout component
 const rootRoute = createRootRoute({
   component: MainLayout,
 });
 
-// Create public routes
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
@@ -31,7 +29,6 @@ const gamesRoute = createRoute({
   component: Games,
 });
 
-// Protected routes - We'll handle auth protection in the component itself
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard',
@@ -50,7 +47,6 @@ const notFoundRoute = createRoute({
   component: NotFound,
 });
 
-// Create and export the router
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -62,7 +58,6 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({ routeTree });
 
-// Register the router for type safety
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router;

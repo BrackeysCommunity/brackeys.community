@@ -1,14 +1,22 @@
 import { motion } from 'motion/react';
 import { Users, MessageSquare, FileWarning, List } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { ComponentType, useEffect } from 'react';
 import { AuthGuard } from '../components/auth/AuthGuard';
+import { useAuth } from '../context/useAuth';
 
 type StatItem = {
   name: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
+}
+
+type RecentActivityItem = {
+  id: number;
+  action: string;
+  description: string;
+  channel?: string;
+  time: string;
 }
 
 const stats: StatItem[] = [

@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { ShieldQuestion } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 

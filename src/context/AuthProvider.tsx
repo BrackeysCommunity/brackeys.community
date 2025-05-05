@@ -1,26 +1,9 @@
-import { createContext, useReducer, useContext, useEffect, PropsWithChildren } from 'react';
+import { useReducer, useEffect, PropsWithChildren } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { AuthState, AuthAction, User, AuthContext, authInitialState } from './authContext';
 
-const initialState: AuthState = {
-  user: null,
-  isLoading: true,
-  error: null,
-};
-
-const AuthContext = createContext<{
-  state: AuthState;
-  dispatch: React.Dispatch<AuthAction>;
-  signInWithDiscord: () => Promise<void>;
-  signOut: () => Promise<void>;
-}>({
-  state: initialState,
-  dispatch: () => null,
-  signInWithDiscord: async () => { },
-  signOut: async () => { },
-});
-
-function authReducer(state: AuthState, action: AuthAction): AuthState {
+const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   switch (action.type) {
     case 'LOGIN_START':
       return { ...state, isLoading: true, error: null };
@@ -38,7 +21,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 }
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
-  const [state, dispatch] = useReducer(authReducer, initialState);
+  const [state, dispatch] = useReducer(authReducer, authInitialState);
 
   useEffect(() => {
     const fetchInitialSession = async () => {
@@ -153,12 +136,4 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

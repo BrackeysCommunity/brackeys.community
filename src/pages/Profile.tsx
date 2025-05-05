@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { User, Mail, Calendar, Clock, Info } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { formatDate } from '../lib/utils';
 import { DiscordProfileButton } from '../components/ui/DiscordProfileButton';
 import { useEffect } from 'react';

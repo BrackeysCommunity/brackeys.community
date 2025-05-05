@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { LoginButton } from '../components/auth/LoginButton';
 import { DiscordLogo } from '../components/icons/DiscordLogo';
 import { CircleX } from 'lucide-react';
@@ -9,10 +9,10 @@ import { CircleX } from 'lucide-react';
 export const Login = () => {
   const { state: { user, isLoading, error } } = useAuth();
   const navigate = useNavigate();
-  const { location } = useRouterState();
+  const { location: { search } } = useRouterState();
 
   // Get redirect param from search params if available
-  const searchParams = new URLSearchParams(location.search);
+  const searchParams = new URLSearchParams(search);
   const from = searchParams.get('redirect') || '/dashboard';
 
   useEffect(() => {
@@ -21,7 +21,6 @@ export const Login = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
-      // TanStack Router uses a different navigate API
       navigate({ to: from, replace: true });
     }
   }, [user, isLoading, navigate, from]);
