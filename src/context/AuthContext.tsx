@@ -103,7 +103,6 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const signInWithDiscord = async () => {
     try {
       dispatch({ type: 'LOGIN_START' });
-      console.log(import.meta.env.VITE_APP_URL);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
