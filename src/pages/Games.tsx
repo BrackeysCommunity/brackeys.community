@@ -4,18 +4,6 @@ import { Gamepad2, Trophy, Brain, Building, Skull, WholeWord, Swords } from 'luc
 import { cn } from '../lib/utils';
 import { ComponentType } from 'react';
 
-type GameItem = {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  category: 'action' | 'puzzle' | 'adventure' | 'simulation' | 'strategy' | 'survival';
-  releaseDate: string;
-  developer: string;
-  developerUrl: string;
-  gameUrl: string;
-};
-
 const games: GameItem[] = [
   {
     id: 'perfect-day',
@@ -26,7 +14,7 @@ const games: GameItem[] = [
     releaseDate: '2025-02',
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://qntn.be/',
+    gameUrl: 'https://computer-q.itch.io/brackeys-13-nothing-can-go-wrong',
   },
   {
     id: 'amalgablade',
@@ -38,17 +26,6 @@ const games: GameItem[] = [
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
     gameUrl: 'https://computer-q.itch.io/pirate16-you-are-the-weapon',
-  },
-  {
-    id: 'rusty-arcane-machine',
-    title: 'Rusty & The Arcane Machine',
-    description: 'Is your brain and/or notepad up to the task of remembering how to manage the steam machine?',
-    imageUrl: 'https://qntn.be/img/portfolio/gwFbNU.png',
-    category: 'puzzle',
-    releaseDate: '2024-12',
-    developer: 'Quinten',
-    developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/gb-kitbash-jam-1-steampunk',
   },
   {
     id: 'guardians-chaos',
@@ -71,17 +48,6 @@ const games: GameItem[] = [
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
     gameUrl: 'https://computer-q.itch.io/brackeys-12-calm-before-the-storm',
-  },
-  {
-    id: 'biggerer-smallerer-battler',
-    title: 'Biggerer Smallerer Battler',
-    description: 'A deck-building rogue-like rpg, where stuff either get biggerer or smallerer.',
-    imageUrl: 'https://qntn.be/img/portfolio/R19S9u.png',
-    category: 'strategy',
-    releaseDate: '2024-08',
-    developer: 'Quinten',
-    developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/gmtk-2024-built-to-scale',
   },
   {
     id: 'alchemist-shadowland',
