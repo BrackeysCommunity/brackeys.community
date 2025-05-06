@@ -6,6 +6,7 @@ import { Games } from './pages/Games';
 import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
+import { Snake } from './components/games/snake/Snake';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -47,12 +48,19 @@ const notFoundRoute = createRoute({
   component: NotFound,
 });
 
+const snakeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/games/snake',
+  component: Snake,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   gamesRoute,
   dashboardRoute,
   profileRoute,
+  snakeRoute,
   notFoundRoute,
 ]);
 
