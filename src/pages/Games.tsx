@@ -3,17 +3,18 @@ import { useEffect } from 'react';
 import { Gamepad2, Trophy, Brain, Building, Skull, WholeWord, Swords } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ComponentType } from 'react';
+import { Link } from '@tanstack/react-router';
 
 type GameItem = {
   id: string;
   title: string;
   description: string;
-  imageUrl: string;
+  imageUrl?: string;
   category: 'action' | 'puzzle' | 'adventure' | 'simulation' | 'strategy' | 'survival';
   releaseDate: string;
   developer: string;
   developerUrl: string;
-  gameUrl: string;
+  gameUrl: URL | string;
 };
 
 const games: GameItem[] = [
@@ -23,10 +24,10 @@ const games: GameItem[] = [
     description: 'Nothing must go wrong!',
     imageUrl: 'https://qntn.be/img/portfolio/NEqBrb.png',
     category: 'simulation',
-    releaseDate: '2025-02',
+    releaseDate: '2025-02-01',
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/brackeys-13-nothing-can-go-wrong',
+    gameUrl: new URL('https://computer-q.itch.io/brackeys-13-nothing-can-go-wrong'),
   },
   {
     id: 'amalgablade',
@@ -37,7 +38,7 @@ const games: GameItem[] = [
     releaseDate: '2025-01-01',
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/pirate16-you-are-the-weapon',
+    gameUrl: new URL('https://computer-q.itch.io/pirate16-you-are-the-weapon'),
   },
   {
     id: 'guardians-chaos',
@@ -45,10 +46,10 @@ const games: GameItem[] = [
     description: 'Defend the wizards tower from monsters in an exciting retro-style tower-defense bullet-hell!',
     imageUrl: 'https://qntn.be/img/portfolio/ItCBjo.gif',
     category: 'survival',
-    releaseDate: '2024-10',
+    releaseDate: '2024-10-01',
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/1-bit-jam-4-tower',
+    gameUrl: new URL('https://computer-q.itch.io/1-bit-jam-4-tower'),
   },
   {
     id: 'lighthouse-shepard',
@@ -56,10 +57,10 @@ const games: GameItem[] = [
     description: 'Lead your armies to victory through strategic planning and tactical battlefield decisions.',
     imageUrl: 'https://qntn.be/img/portfolio/b8F72I.gif',
     category: 'strategy',
-    releaseDate: '2024-09',
+    releaseDate: '2024-09-01',
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/brackeys-12-calm-before-the-storm',
+    gameUrl: new URL('https://computer-q.itch.io/brackeys-12-calm-before-the-storm'),
   },
   {
     id: 'alchemist-shadowland',
@@ -67,11 +68,21 @@ const games: GameItem[] = [
     description: '',
     imageUrl: 'https://qntn.be/img/portfolio/lux7Lg.png',
     category: 'strategy',
-    releaseDate: '2024-08',
+    releaseDate: '2024-08-01',
     developer: 'Quinten',
     developerUrl: 'https://qntn.be/',
-    gameUrl: 'https://computer-q.itch.io/shadows-alchemy',
+    gameUrl: new URL('https://computer-q.itch.io/shadows-alchemy'),
   },
+  {
+    id: 'snake',
+    title: 'Brackeys Snake',
+    description: 'A classic snake game.',
+    category: 'strategy',
+    releaseDate: '2025-05-01',
+    developer: 'Joshua Shevach',
+    developerUrl: 'https://www.joshe.app',
+    gameUrl: '/games/snake',
+  }
 ];
 
 type CategoryInfo = {
@@ -202,14 +213,22 @@ export const Games = () => {
                 </div>
 
                 <div className="p-4 border-t border-gray-700 bg-gray-900">
-                  <a
-                    href={game.gameUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500"
-                  >
-                    Play Now
-                  </a>
+                  {game.gameUrl instanceof URL ? (
+                    <a
+                      href={game.gameUrl.toString()}
+                      className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500"
+                    >
+                      Play Now
+                    </a>
+                  ) : (
+                    <Link
+                      to={game.gameUrl}
+                      className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500"
+                      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    >
+                      Play Now
+                    </Link>
+                  )}
                 </div>
               </motion.div>
             );
