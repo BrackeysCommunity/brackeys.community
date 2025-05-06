@@ -169,13 +169,13 @@ export const Games = () => {
         </div>
 
         <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {games.map((game, index) => {
-            const category = categories[game.category];
-            const CategoryIcon = category.icon;
+          {games.map(({ category, id, title, description, imageUrl, releaseDate, developer, gameUrl }, index) => {
+            const categoryInfo = categories[category];
+            const CategoryIcon = categoryInfo.icon;
 
             return (
               <motion.div
-                key={game.id}
+                key={id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.05 * index }}
@@ -184,10 +184,10 @@ export const Games = () => {
                 className="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700 h-full flex flex-col"
               >
                 <div className="relative w-full h-48 bg-gray-700">
-                  {game.imageUrl ? (
+                  {imageUrl ? (
                     <img
-                      src={game.imageUrl}
-                      alt={game.title}
+                      src={imageUrl}
+                      alt={title}
                       className="w-full h-full object-contain"
                     />
                   ) : (
@@ -199,30 +199,30 @@ export const Games = () => {
 
                 <div className="p-6 flex-grow flex flex-col">
                   <div className="flex items-center gap-2 mb-2">
-                    <CategoryIcon className={cn("h-4 w-4", category.color)} />
-                    <span className="text-xs font-medium text-gray-400">{category.label}</span>
+                    <CategoryIcon className={cn("h-4 w-4", categoryInfo.color)} />
+                    <span className="text-xs font-medium text-gray-400">{categoryInfo.label}</span>
                   </div>
 
-                  <h3 className="text-xl font-bold text-white mb-2">{game.title}</h3>
-                  <p className="text-gray-300 text-sm flex-grow">{game.description}</p>
+                  <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+                  <p className="text-gray-300 text-sm flex-grow">{description}</p>
 
                   <div className="mt-4 flex justify-between items-center text-xs text-gray-400">
-                    <span>By {game.developer}</span>
-                    <span>Released: {new Date(game.releaseDate).toLocaleDateString()}</span>
+                    <span>By {developer}</span>
+                    <span>Released: {new Date(releaseDate).toLocaleDateString()}</span>
                   </div>
                 </div>
 
                 <div className="p-4 border-t border-gray-700 bg-gray-900">
-                  {game.gameUrl instanceof URL ? (
+                  {gameUrl instanceof URL ? (
                     <a
-                      href={game.gameUrl.toString()}
+                      href={gameUrl.toString()}
                       className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500"
                     >
                       Play Now
                     </a>
                   ) : (
                     <Link
-                      to={game.gameUrl}
+                      to={gameUrl}
                       className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500"
                       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                     >
