@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '../../context/useAuth';
 import { Loading } from '../ui/Loading';
@@ -12,12 +12,17 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
   const { location: { pathname } } = useRouterState();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate({ to: '/login', search: { redirect: pathname } });
+    }
+  }, [user, isLoading, navigate, pathname]);
+
   if (isLoading) {
     return <Loading />;
   }
 
   if (!user) {
-    navigate({ to: '/login', search: { redirect: pathname } });
     return null;
   }
 
