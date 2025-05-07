@@ -1,4 +1,3 @@
--- V1__initial_schema.sql
 CREATE TABLE IF NOT EXISTS `AltAccount` (
     `UserId` BIGINT NOT NULL,
     `AltId` BIGINT NOT NULL,
@@ -12,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `BlockedReporter` (
     `UserId` BIGINT NOT NULL,
     `BlockedAt` BLOB NOT NULL,
     `StaffMemberId` BIGINT NOT NULL,
-    CONSTRAINT `PK_BlockedReporter` PRIMARY KEY (`UserId`, `GuildId`)
+    PRIMARY KEY (`UserId`, `GuildId`)
 );
 
 CREATE TABLE IF NOT EXISTS `DeletedMessage` (
@@ -25,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `DeletedMessage` (
     `DeletionTimestamp` BLOB NOT NULL,
     `GuildId` BIGINT NOT NULL,
     `StaffMemberId` BIGINT NOT NULL,
-    CONSTRAINT `PK_DeletedMessage` PRIMARY KEY (`MessageId`)
+    PRIMARY KEY (`MessageId`)
 );
 
 CREATE TABLE IF NOT EXISTS `Infraction` (
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `Infraction` (
     `Type` INT NOT NULL,
     `UserId` BIGINT NOT NULL,
     `AdditionalInformation` TEXT,
-    CONSTRAINT `PK_Infraction` PRIMARY KEY(`Id`)
+    PRIMARY KEY(`Id`)
 );
 
 CREATE TABLE IF NOT EXISTS `MemberNote` (
@@ -50,14 +49,14 @@ CREATE TABLE IF NOT EXISTS `MemberNote` (
     `GuildId` BIGINT NOT NULL,
     `Type` INT NOT NULL,
     `UserId` BIGINT NOT NULL,
-    CONSTRAINT `PK_MemberNote` PRIMARY KEY (`Id`)
+    PRIMARY KEY (`Id`)
 );
 
 CREATE TABLE IF NOT EXISTS `Mute` (
     `GuildId` BIGINT NOT NULL,
     `UserId` BIGINT NOT NULL,
     `ExpiresAt` BLOB NULL,
-    CONSTRAINT `PK_Mute` PRIMARY KEY (`UserId`, `GuildId`)
+    PRIMARY KEY (`UserId`, `GuildId`)
 );
 
 CREATE TABLE IF NOT EXISTS `ReportedMessage` (
@@ -69,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `ReportedMessage` (
     `GuildId` BIGINT NOT NULL,
     `MessageId` BIGINT NOT NULL,
     `ReporterId` BIGINT NOT NULL,
-    CONSTRAINT `PK_ReportedMessage` PRIMARY KEY (`Id`)
+    PRIMARY KEY (`Id`)
 );
 
 CREATE TABLE IF NOT EXISTS `Rule` (
@@ -77,7 +76,7 @@ CREATE TABLE IF NOT EXISTS `Rule` (
     `Id` BIGINT NOT NULL,
     `Brief` TEXT NULL,
     `Description` TEXT NOT NULL,
-    CONSTRAINT `PK_Rule` PRIMARY KEY (`Id`, `GuildId`)
+    PRIMARY KEY (`Id`, `GuildId`)
 );
 
 CREATE TABLE IF NOT EXISTS `StaffMessage` (
@@ -87,14 +86,14 @@ CREATE TABLE IF NOT EXISTS `StaffMessage` (
     `RecipientId` BIGINT NOT NULL,
     `SentAt` TEXT NOT NULL,
     `StaffMemberId` BIGINT NOT NULL,
-    CONSTRAINT `PK_StaffMessage` PRIMARY KEY (`Id`)
+    PRIMARY KEY (`Id`)
 );
 
 CREATE TABLE IF NOT EXISTS `TemporaryBan` (
     `GuildId` BIGINT NOT NULL,
     `UserId` BIGINT NOT NULL,
     `ExpiresAt` BLOB NOT NULL,
-    CONSTRAINT `PK_TemporaryBan` PRIMARY KEY (`UserId`, `GuildId`)
+    PRIMARY KEY (`UserId`, `GuildId`)
 );
 
 CREATE TABLE IF NOT EXISTS `TrackedMessages` (
@@ -107,5 +106,5 @@ CREATE TABLE IF NOT EXISTS `TrackedMessages` (
     `DeletionTimestamp` BLOB NULL,
     `IsDeleted` INT NOT NULL,
     `GuildId` BIGINT NOT NULL,
-    CONSTRAINT `PK_TrackedMessages` PRIMARY KEY (`Id`)
+    PRIMARY KEY (`Id`)
 );
