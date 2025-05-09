@@ -9,6 +9,6 @@ const router = Router();
  */
 
 router.get('/:guildId/infractions', authenticate, authorizeAdminAccess('Access denied: Only admins can access this route'), InfractionController.getInfractions.bind(InfractionController));
-router.get('/:guildId/infractions/:userId', authenticate, authorizeUserAccess, InfractionController.getInfractionsByUserId.bind(InfractionController));
+router.get('/:guildId/users/:userId/infractions', authenticate, authorizeUserAccess, InfractionController.getInfractionsByUserId.bind(InfractionController));
 
 export default router;
