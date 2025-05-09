@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Brackeys Community API
+  title: Hammer API
   description: API for managing Brackeys Discord community data including rules, infractions, and member notes
   version: 1.0.0
   contact:
