@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
         if (session) {
           const userData = mapSessionToUser(session);
-          dispatch({ type: 'LOGIN_SUCCESS', payload: userData });
+          updateDiscordProviderDataAndDispatchSuccess(session, userData, dispatch);
         } else {
           dispatch({ type: 'LOGOUT' });
         }
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
           const userData = mapSessionToUser(session);
-          dispatch({ type: 'LOGIN_SUCCESS', payload: userData });
+          updateDiscordProviderDataAndDispatchSuccess(session, userData, dispatch);
         } else if (event === 'SIGNED_OUT') {
           dispatch({ type: 'LOGOUT' });
         }
@@ -137,3 +137,9 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     </AuthContext.Provider>
   );
 };
+
+const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, payload: User, dispatch: React.Dispatch<AuthAction>) => {
+  const { error } = await supabase.auth.updateUser({ data: { provider_token: session.provider_token, provider_refresh_token: session.provider_refresh_token } });
+  if (error) dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to update discord provider data on user' });
+  else dispatch({ type: 'LOGIN_SUCCESS', payload });
+}
