@@ -41,19 +41,6 @@ const getByUserId = async (userId: bigint): Promise<MemberNote[] | null> => {
   return results.map(mapRowToMemberNote);
 };
 
-const countUserNotes = async (guildId: bigint, userId: bigint, type?: MemberNoteType): Promise<number> => {
-  let query = 'SELECT COUNT(*) as count FROM `MemberNote` WHERE `GuildId` = ? AND `UserId` = ?';
-  const params: any[] = [guildId, userId];
-
-  if (type !== undefined) {
-    query += ' AND `Type` = ?';
-    params.push(type);
-  }
-
-  const result = await db.query<[{ count: number }]>(query, params);
-  return result[0].count;
-};
-
 const mapRowToMemberNote = (row: MemberNoteDb): MemberNote => {
   return {
     id: BigInt(row.Id),
@@ -69,5 +56,4 @@ const mapRowToMemberNote = (row: MemberNoteDb): MemberNote => {
 export default {
   getMemberNotes,
   getByUserId,
-  countUserNotes,
 };

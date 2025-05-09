@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import ruleService from '../services/rule-service.js';
+import RuleService from '../services/rule-service.js';
 import { z } from 'zod';
 
 const getAllRules = async (req: Request, res: Response): Promise<void> => {
@@ -7,7 +7,7 @@ const getAllRules = async (req: Request, res: Response): Promise<void> => {
     const guildIdSchema = z.string().regex(/^\d+$/).transform(val => BigInt(val));
     const guildId = guildIdSchema.parse(req.params.guildId);
 
-    const rules = await ruleService.getAllByGuildId(guildId);
+    const rules = await RuleService.getAllByGuildId(guildId);
 
     res.status(200).json({
       success: true,
@@ -42,7 +42,7 @@ const getRuleById = async (req: Request, res: Response): Promise<void> => {
     });
 
     const { guildId, ruleId } = paramsSchema.parse(req.params);
-    const rule = await ruleService.getById(ruleId, guildId);
+    const rule = await RuleService.getById(ruleId, guildId);
 
     if (!rule) {
       res.status(404).json({

@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import memberNoteController from '../controllers/member-note-controller.js';
+import MemberNoteController from '../controllers/member-note-controller.js';
+import { authenticate, authorizeUserAccess, authorizeAdminAccess } from '../middleware/auth-middleware.js';
 
 const router = Router();
 
@@ -7,8 +8,7 @@ const router = Router();
  * Base path: /api/guilds
  */
 
-router.get('/:guildId/notes', memberNoteController.getMemberNotes.bind(memberNoteController));
-router.get('/notes/:id', memberNoteController.getNotesByUserId.bind(memberNoteController));
-router.get('/:guildId/users/:userId/notes/count', memberNoteController.getUserNoteCount.bind(memberNoteController));
+router.get('/:guildId/notes', authenticate, authorizeAdminAccess('Access denied: Only admins can access this route'), MemberNoteController.getMemberNotes.bind(MemberNoteController));
+router.get('/:guildId/notes/:userId', authenticate, authorizeUserAccess, MemberNoteController.getNotesByUserId.bind(MemberNoteController));
 
 export default router;

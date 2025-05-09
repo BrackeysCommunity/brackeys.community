@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import ruleController from '../controllers/rule-controller.js';
+import RuleController from '../controllers/rule-controller.js';
 
 const router = Router();
 
@@ -7,7 +7,7 @@ const router = Router();
  * Base path: /api/guilds
  */
 
-router.get('/:guildId/rules', ruleController.getAllRules.bind(ruleController));
-router.get('/:guildId/rules/:ruleId', ruleController.getRuleById.bind(ruleController));
+router.get('/:guildId/rules', RuleController.getAllRules.bind(RuleController));
+router.get('/:guildId/rules/:ruleId', RuleController.getRuleById.bind(RuleController));
 
 export default router;

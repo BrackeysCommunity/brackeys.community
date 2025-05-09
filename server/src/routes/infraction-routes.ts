@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import * as infractionController from '../controllers/infraction-controller.js';
+import InfractionController from '../controllers/infraction-controller.js';
+import { authenticate, authorizeUserAccess, authorizeAdminAccess } from '../middleware/auth-middleware.js';
 
 const router = Router();
 
@@ -7,8 +8,7 @@ const router = Router();
  * Base path: /api/guilds
  */
 
-router.get('/:guildId/infractions', infractionController.getInfractions.bind(infractionController));
-router.get('/infractions/:id', infractionController.getInfractionsByUserId.bind(infractionController));
-router.get('/:guildId/users/:userId/infractions/count', infractionController.getUserInfractionCount.bind(infractionController));
+router.get('/:guildId/infractions', authenticate, authorizeAdminAccess('Access denied: Only admins can access this route'), InfractionController.getInfractions.bind(InfractionController));
+router.get('/:guildId/infractions/:userId', authenticate, authorizeUserAccess, InfractionController.getInfractionsByUserId.bind(InfractionController));
 
 export default router;

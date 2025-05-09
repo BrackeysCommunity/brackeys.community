@@ -10,7 +10,7 @@ type InfractionQueryParams = {
   readonly offset?: number;
 };
 
-export const getInfractions = async (params: InfractionQueryParams): Promise<Infraction[]> => {
+const getInfractions = async (params: InfractionQueryParams): Promise<Infraction[]> => {
   const { guildId, userId, type, limit = 50, offset = 0 } = params;
 
   let query = 'SELECT * FROM `Infraction` WHERE `GuildId` = ?';
@@ -34,7 +34,7 @@ export const getInfractions = async (params: InfractionQueryParams): Promise<Inf
   return results.map(mapRowToInfraction);
 };
 
-export const getByUserId = async (userId: bigint): Promise<Infraction[] | null> => {
+const getByUserId = async (userId: bigint): Promise<Infraction[] | null> => {
   const query = 'SELECT * FROM `Infraction` WHERE `UserId` = ?';
   const results = await db.query<InfractionDb[]>(query, [userId]);
 
@@ -43,19 +43,6 @@ export const getByUserId = async (userId: bigint): Promise<Infraction[] | null> 
   }
 
   return results.map(mapRowToInfraction);
-};
-
-export const countUserInfractions = async (guildId: bigint, userId: bigint, type?: InfractionType): Promise<number> => {
-  let query = 'SELECT COUNT(*) as count FROM `Infraction` WHERE `GuildId` = ? AND `UserId` = ?';
-  const params: any[] = [guildId, userId];
-
-  if (type !== undefined) {
-    query += ' AND `Type` = ?';
-    params.push(type);
-  }
-
-  const result = await db.query<[{ count: number }]>(query, params);
-  return result[0].count;
 };
 
 const mapRowToInfraction = (row: InfractionDb): Infraction => {
@@ -72,3 +59,6 @@ const mapRowToInfraction = (row: InfractionDb): Infraction => {
     additionalInformation: row.AdditionalInformation
   };
 };
+
+export default { getInfractions, getByUserId };
+
