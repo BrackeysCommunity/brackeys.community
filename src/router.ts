@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
+import { Api } from './pages/Api';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -42,6 +43,12 @@ const profileRoute = createRoute({
   component: Profile,
 });
 
+const apiRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/api',
+  component: Api,
+});
+
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '*',
@@ -60,6 +67,7 @@ const routeTree = rootRoute.addChildren([
   gamesRoute,
   dashboardRoute,
   profileRoute,
+  apiRoute,
   snakeRoute,
   notFoundRoute,
 ]);

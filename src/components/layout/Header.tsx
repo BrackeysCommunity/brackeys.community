@@ -15,6 +15,7 @@ const navigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard' },
   { name: 'Profile', href: '/profile' },
   { name: 'Games', href: '/games' },
+  { name: 'API', href: '/api' },
 ];
 
 export const Header = () => {
