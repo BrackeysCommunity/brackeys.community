@@ -17,7 +17,7 @@ const createColorSetting = (
 });
 
 // Theme configuration based on Brackeys Tailwind colors
-const brackeyTheme: ResolvedThemeInterface = {
+const brackeysTheme: ResolvedThemeInterface = {
   spacing: {
     unit: 4,
     sectionHorizontal: 40,
@@ -202,11 +202,11 @@ export const Api = () => {
         transition={{ duration: 0.3 }}
       >
         <RedocStandalone
-          specUrl="/swagger.yml"
+          specUrl="swagger.yml"
           options={{
-            theme: brackeyTheme,
+            theme: brackeysTheme,
             hideDownloadButton: true,
-            disableSearch: false,
+            disableSearch: true,
             expandResponses: "200,201",
             requiredPropsFirst: true,
             sortPropsAlphabetically: false,

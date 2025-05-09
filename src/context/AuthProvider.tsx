@@ -89,6 +89,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
+          scopes: 'identify guilds guilds.members.read',
           redirectTo: `${import.meta.env.VITE_APP_URL}/dashboard`,
         },
       });

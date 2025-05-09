@@ -1,7 +1,7 @@
 module.exports = {
   'brackeys-api': {
     input: {
-      target: './swagger.yml',
+      target: './public/swagger.yml',
     },
     output: {
       mode: 'split',
