@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import memberNoteService from '../services/member-note-service.js';
 import { z } from 'zod';
-import { MemberNoteType } from '../models/types.js';
+import { MemberNoteType } from '../models/hammer.js';
 import { serializeBigInt } from '../utils/serializer.js';
 
 class MemberNoteController {
@@ -27,7 +27,7 @@ class MemberNoteController {
 
       res.status(200).json({
         success: true,
-        data: notes.map(note => serializeBigInt(note))
+        data: notes.map(serializeBigInt)
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -47,14 +47,14 @@ class MemberNoteController {
     }
   }
 
-  public async getNoteById(req: Request, res: Response): Promise<void> {
+  public async getNotesByUserId(req: Request, res: Response): Promise<void> {
     try {
       const idSchema = z.string().regex(/^\d+$/).transform(val => BigInt(val));
       const id = idSchema.parse(req.params.id);
 
-      const note = await memberNoteService.getById(id);
+      const notes = await memberNoteService.getByUserId(id);
 
-      if (!note) {
+      if (!notes) {
         res.status(404).json({
           success: false,
           error: 'Member note not found'
@@ -64,21 +64,21 @@ class MemberNoteController {
 
       res.status(200).json({
         success: true,
-        data: serializeBigInt(note)
+        data: notes.map(serializeBigInt)
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
           success: false,
-          error: 'Invalid note ID format'
+          error: 'Invalid user ID format'
         });
         return;
       }
 
-      console.error('Error fetching member note:', error);
+      console.error('Error fetching member notes:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to fetch member note'
+        error: 'Failed to fetch member notes'
       });
     }
   }
