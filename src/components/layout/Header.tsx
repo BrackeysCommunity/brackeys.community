@@ -8,12 +8,12 @@ import { cn } from '../../lib/utils';
 type NavigationItem = {
   name: string;
   href: string;
+  requiresAuth?: boolean;
 };
 
 const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
-  { name: 'Dashboard', href: '/dashboard' },
-  { name: 'Profile', href: '/profile' },
+  { name: 'Dashboard', href: '/dashboard', requiresAuth: true },
   { name: 'Games', href: '/games' },
   { name: 'API', href: '/api' },
 ];
@@ -55,7 +55,7 @@ export const Header = () => {
                     </Link>
                   </div>
                   <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
-                    {navigation.map((item) => (
+                    {navigation.filter((item) => !item.requiresAuth || user).map((item) => (
                       <Link
                         key={item.name}
                         to={item.href}
