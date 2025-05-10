@@ -15,7 +15,11 @@ module.exports = {
           useSuspenseInfiniteQuery: true,
           useInfinite: true,
           useInfiniteQueryParam: 'limit',
-        }
+        },
+        mutator: {
+          path: './src/api/mutator/custom-instance.ts',
+          name: 'customInstance',
+        },
       },
       mock: true,
       prettier: true,

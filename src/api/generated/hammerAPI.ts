@@ -31,13 +31,6 @@ import type {
   UseSuspenseQueryResult
 } from '@tanstack/react-query';
 
-import * as axios from 'axios';
-import type {
-  AxiosError,
-  AxiosRequestConfig,
-  AxiosResponse
-} from 'axios';
-
 import type {
   Error,
   GetGuildsGuildIdInfractions200,
@@ -53,6 +46,7 @@ import type {
   HealthCheck
 } from '../models';
 
+import { customInstance } from '../mutator/custom-instance';
 
 
 
@@ -62,31 +56,33 @@ import type {
  * @summary Health check endpoint
  */
 export const getHealth = (
-     options?: AxiosRequestConfig
- ): Promise<AxiosResponse<HealthCheck>> => {
     
-    
-    return axios.default.get(
-      `/health`,options
-    );
-  }
-
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<HealthCheck>(
+      {url: `/health`, method: 'GET', signal
+    },
+      );
+    }
+  
 
 export const getGetHealthQueryKey = () => {
     return [`/health`] as const;
     }
 
     
-export const getGetHealthInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>( options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetHealthInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>( options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetHealthQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth({ signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth(signal);
 
       
 
@@ -96,39 +92,39 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetHealthInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getHealth>>>
-export type GetHealthInfiniteQueryError = AxiosError<unknown>
+export type GetHealthInfiniteQueryError = unknown
 
 
-export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
+export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
   options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getHealth>>,
           TError,
           Awaited<ReturnType<typeof getHealth>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
+export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
   options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getHealth>>,
           TError,
           Awaited<ReturnType<typeof getHealth>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
+  options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Health check endpoint
  */
 
-export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
+  options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -143,16 +139,16 @@ export function useGetHealthInfinite<TData = InfiniteData<Awaited<ReturnType<typ
 
 
 
-export const getGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetHealthQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth({ signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth(signal);
 
       
 
@@ -162,39 +158,39 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getHealth>>>
-export type GetHealthQueryError = AxiosError<unknown>
+export type GetHealthQueryError = unknown
 
 
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getHealth>>,
           TError,
           Awaited<ReturnType<typeof getHealth>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getHealth>>,
           TError,
           Awaited<ReturnType<typeof getHealth>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Health check endpoint
  */
 
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -209,16 +205,16 @@ export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TErr
 
 
 
-export const getGetHealthSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>( options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetHealthSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>( options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetHealthQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth({ signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth(signal);
 
       
 
@@ -228,27 +224,27 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetHealthSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getHealth>>>
-export type GetHealthSuspenseQueryError = AxiosError<unknown>
+export type GetHealthSuspenseQueryError = unknown
 
 
-export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
-  options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+  options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+  options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+  options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Health check endpoint
  */
 
-export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+  options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -263,16 +259,16 @@ export function useGetHealthSuspense<TData = Awaited<ReturnType<typeof getHealth
 
 
 
-export const getGetHealthSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>( options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetHealthSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>( options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetHealthQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth({ signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth(signal);
 
       
 
@@ -282,27 +278,27 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetHealthSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getHealth>>>
-export type GetHealthSuspenseInfiniteQueryError = AxiosError<unknown>
+export type GetHealthSuspenseInfiniteQueryError = unknown
 
 
-export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
-  options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
+  options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
+  options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
+  options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Health check endpoint
  */
 
-export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = AxiosError<unknown>>(
-  options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getHealth>>>, TError = unknown>(
+  options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -323,31 +319,33 @@ export function useGetHealthSuspenseInfinite<TData = InfiniteData<Awaited<Return
  * @summary Get all rules for a guild
  */
 export const getGuildsGuildIdRules = (
-    guildId: string, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<GetGuildsGuildIdRules200>> => {
-    
-    
-    return axios.default.get(
-      `/guilds/${guildId}/rules`,options
-    );
-  }
-
+    guildId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<GetGuildsGuildIdRules200>(
+      {url: `/guilds/${guildId}/rules`, method: 'GET', signal
+    },
+      );
+    }
+  
 
 export const getGetGuildsGuildIdRulesQueryKey = (guildId: string,) => {
     return [`/guilds/${guildId}/rules`] as const;
     }
 
     
-export const getGetGuildsGuildIdRulesInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesQueryKey(guildId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, signal);
 
       
 
@@ -357,39 +355,39 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>
-export type GetGuildsGuildIdRulesInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
  guildId: string, options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>,
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
  guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>,
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all rules for a guild
  */
 
-export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -404,16 +402,16 @@ export function useGetGuildsGuildIdRulesInfinite<TData = InfiniteData<Awaited<Re
 
 
 
-export const getGetGuildsGuildIdRulesQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesQueryKey(guildId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, signal);
 
       
 
@@ -423,39 +421,39 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>
-export type GetGuildsGuildIdRulesQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesQueryError = Error
 
 
-export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
  guildId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>,
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
  guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>,
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRules>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all rules for a guild
  */
 
-export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -470,16 +468,16 @@ export function useGetGuildsGuildIdRules<TData = Awaited<ReturnType<typeof getGu
 
 
 
-export const getGetGuildsGuildIdRulesSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesQueryKey(guildId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, signal);
 
       
 
@@ -489,27 +487,27 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>
-export type GetGuildsGuildIdRulesSuspenseQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesSuspenseQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
- guildId: string, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
+ guildId: string, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all rules for a guild
  */
 
-export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -524,16 +522,16 @@ export function useGetGuildsGuildIdRulesSuspense<TData = Awaited<ReturnType<type
 
 
 
-export const getGetGuildsGuildIdRulesSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesQueryKey(guildId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRules>>> = ({ signal }) => getGuildsGuildIdRules(guildId, signal);
 
       
 
@@ -543,27 +541,27 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>
-export type GetGuildsGuildIdRulesSuspenseInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesSuspenseInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
- guildId: string, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
+ guildId: string, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all rules for a guild
  */
 
-export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = AxiosError<Error>>(
- guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, axios?: AxiosRequestConfig}
+export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRules>>>, TError = Error>(
+ guildId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRules>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -585,15 +583,17 @@ export function useGetGuildsGuildIdRulesSuspenseInfinite<TData = InfiniteData<Aw
  */
 export const getGuildsGuildIdRulesRuleId = (
     guildId: string,
-    ruleId: string, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<GetGuildsGuildIdRulesRuleId200>> => {
-    
-    
-    return axios.default.get(
-      `/guilds/${guildId}/rules/${ruleId}`,options
-    );
-  }
-
+    ruleId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<GetGuildsGuildIdRulesRuleId200>(
+      {url: `/guilds/${guildId}/rules/${ruleId}`, method: 'GET', signal
+    },
+      );
+    }
+  
 
 export const getGetGuildsGuildIdRulesRuleIdQueryKey = (guildId: string,
     ruleId: string,) => {
@@ -601,17 +601,17 @@ export const getGetGuildsGuildIdRulesRuleIdQueryKey = (guildId: string,
     }
 
     
-export const getGetGuildsGuildIdRulesRuleIdInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(guildId: string,
-    ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesRuleIdInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(guildId: string,
+    ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesRuleIdQueryKey(guildId,ruleId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, signal);
 
       
 
@@ -621,10 +621,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesRuleIdInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>
-export type GetGuildsGuildIdRulesRuleIdInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesRuleIdInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
     ruleId: string, options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -632,10 +632,10 @@ export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awai
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
     ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -643,21 +643,21 @@ export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awai
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get rule by ID
  */
 
-export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -672,17 +672,17 @@ export function useGetGuildsGuildIdRulesRuleIdInfinite<TData = InfiniteData<Awai
 
 
 
-export const getGetGuildsGuildIdRulesRuleIdQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(guildId: string,
-    ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesRuleIdQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(guildId: string,
+    ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesRuleIdQueryKey(guildId,ruleId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, signal);
 
       
 
@@ -692,10 +692,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesRuleIdQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>
-export type GetGuildsGuildIdRulesRuleIdQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesRuleIdQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
     ruleId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -703,10 +703,10 @@ export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
     ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -714,21 +714,21 @@ export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get rule by ID
  */
 
-export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -743,17 +743,17 @@ export function useGetGuildsGuildIdRulesRuleId<TData = Awaited<ReturnType<typeof
 
 
 
-export const getGetGuildsGuildIdRulesRuleIdSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesRuleIdSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(guildId: string,
+    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesRuleIdQueryKey(guildId,ruleId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, signal);
 
       
 
@@ -763,31 +763,31 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesRuleIdSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>
-export type GetGuildsGuildIdRulesRuleIdSuspenseQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesRuleIdSuspenseQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
-    ruleId: string, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get rule by ID
  */
 
-export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -802,17 +802,17 @@ export function useGetGuildsGuildIdRulesRuleIdSuspense<TData = Awaited<ReturnTyp
 
 
 
-export const getGetGuildsGuildIdRulesRuleIdSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdRulesRuleIdSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(guildId: string,
+    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdRulesRuleIdQueryKey(guildId,ruleId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>> = ({ signal }) => getGuildsGuildIdRulesRuleId(guildId,ruleId, signal);
 
       
 
@@ -822,31 +822,31 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdRulesRuleIdSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>
-export type GetGuildsGuildIdRulesRuleIdSuspenseInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdRulesRuleIdSuspenseInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
-    ruleId: string, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get rule by ID
  */
 
-export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>>, TError = Error>(
  guildId: string,
-    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, axios?: AxiosRequestConfig}
+    ruleId: string, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdRulesRuleId>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -868,17 +868,18 @@ export function useGetGuildsGuildIdRulesRuleIdSuspenseInfinite<TData = InfiniteD
  */
 export const getGuildsGuildIdInfractions = (
     guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<GetGuildsGuildIdInfractions200>> => {
-    
-    
-    return axios.default.get(
-      `/guilds/${guildId}/infractions`,{
-    ...options,
-        params: {...params, ...options?.params},}
-    );
-  }
-
+    params?: GetGuildsGuildIdInfractionsParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<GetGuildsGuildIdInfractions200>(
+      {url: `/guilds/${guildId}/infractions`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
 
 export const getGetGuildsGuildIdInfractionsQueryKey = (guildId: string,
     params?: GetGuildsGuildIdInfractionsParams,) => {
@@ -886,17 +887,17 @@ export const getGetGuildsGuildIdInfractionsQueryKey = (guildId: string,
     }
 
     
-export const getGetGuildsGuildIdInfractionsInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdInfractionsInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdInfractionsQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdInfractions(guildId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdInfractions(guildId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -906,10 +907,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdInfractionsInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>>
-export type GetGuildsGuildIdInfractionsInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdInfractionsInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     params: undefined |  GetGuildsGuildIdInfractionsParams, options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>> & Pick<
         DefinedInitialDataOptions<
@@ -917,10 +918,10 @@ export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awai
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>> & Pick<
         UndefinedInitialDataOptions<
@@ -928,21 +929,21 @@ export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awai
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all infractions for a guild
  */
 
-export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -957,17 +958,17 @@ export function useGetGuildsGuildIdInfractionsInfinite<TData = InfiniteData<Awai
 
 
 
-export const getGetGuildsGuildIdInfractionsQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdInfractionsQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdInfractionsQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>> = ({ signal }) => getGuildsGuildIdInfractions(guildId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>> = ({ signal }) => getGuildsGuildIdInfractions(guildId,params, signal);
 
       
 
@@ -977,10 +978,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdInfractionsQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>>
-export type GetGuildsGuildIdInfractionsQueryError = AxiosError<Error>
+export type GetGuildsGuildIdInfractionsQueryError = Error
 
 
-export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
     params: undefined |  GetGuildsGuildIdInfractionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -988,10 +989,10 @@ export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
     params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -999,21 +1000,21 @@ export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all infractions for a guild
  */
 
-export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1028,17 +1029,17 @@ export function useGetGuildsGuildIdInfractions<TData = Awaited<ReturnType<typeof
 
 
 
-export const getGetGuildsGuildIdInfractionsSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdInfractionsSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdInfractionsQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>> = ({ signal }) => getGuildsGuildIdInfractions(guildId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>> = ({ signal }) => getGuildsGuildIdInfractions(guildId,params, signal);
 
       
 
@@ -1048,31 +1049,31 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdInfractionsSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>>
-export type GetGuildsGuildIdInfractionsSuspenseQueryError = AxiosError<Error>
+export type GetGuildsGuildIdInfractionsSuspenseQueryError = Error
 
 
-export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
-    params: undefined |  GetGuildsGuildIdInfractionsParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdInfractionsParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all infractions for a guild
  */
 
-export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1087,17 +1088,17 @@ export function useGetGuildsGuildIdInfractionsSuspense<TData = Awaited<ReturnTyp
 
 
 
-export const getGetGuildsGuildIdInfractionsSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdInfractionsSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdInfractionsQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdInfractions(guildId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdInfractions(guildId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -1107,31 +1108,31 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdInfractionsSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>>
-export type GetGuildsGuildIdInfractionsSuspenseInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdInfractionsSuspenseInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
-    params: undefined |  GetGuildsGuildIdInfractionsParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdInfractionsParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all infractions for a guild
  */
 
-export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, GetGuildsGuildIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdInfractions>>, QueryKey, GetGuildsGuildIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1154,17 +1155,18 @@ export function useGetGuildsGuildIdInfractionsSuspenseInfinite<TData = InfiniteD
 export const getGuildsGuildIdUsersUserIdInfractions = (
     guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<GetGuildsGuildIdUsersUserIdInfractions200>> => {
-    
-    
-    return axios.default.get(
-      `/guilds/${guildId}/users/${userId}/infractions`,{
-    ...options,
-        params: {...params, ...options?.params},}
-    );
-  }
-
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<GetGuildsGuildIdUsersUserIdInfractions200>(
+      {url: `/guilds/${guildId}/users/${userId}/infractions`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
 
 export const getGetGuildsGuildIdUsersUserIdInfractionsQueryKey = (guildId: string,
     userId: string,
@@ -1173,18 +1175,18 @@ export const getGetGuildsGuildIdUsersUserIdInfractionsQueryKey = (guildId: strin
     }
 
     
-export const getGetGuildsGuildIdUsersUserIdInfractionsInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdInfractionsInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdInfractionsQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -1194,10 +1196,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdInfractionsInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>>
-export type GetGuildsGuildIdUsersUserIdInfractionsInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdInfractionsInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
     params: undefined |  GetGuildsGuildIdUsersUserIdInfractionsParams, options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>> & Pick<
@@ -1206,10 +1208,10 @@ export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = Infini
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
     params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>> & Pick<
@@ -1218,23 +1220,23 @@ export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = Infini
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get infractions for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1249,18 +1251,18 @@ export function useGetGuildsGuildIdUsersUserIdInfractionsInfinite<TData = Infini
 
 
 
-export const getGetGuildsGuildIdUsersUserIdInfractionsQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdInfractionsQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdInfractionsQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>> = ({ signal }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>> = ({ signal }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,params, signal);
 
       
 
@@ -1270,10 +1272,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdInfractionsQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>>
-export type GetGuildsGuildIdUsersUserIdInfractionsQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdInfractionsQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
     params: undefined |  GetGuildsGuildIdUsersUserIdInfractionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>> & Pick<
@@ -1282,10 +1284,10 @@ export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<Return
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
     params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>> & Pick<
@@ -1294,23 +1296,23 @@ export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<Return
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get infractions for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1325,18 +1327,18 @@ export function useGetGuildsGuildIdUsersUserIdInfractions<TData = Awaited<Return
 
 
 
-export const getGetGuildsGuildIdUsersUserIdInfractionsSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdInfractionsSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdInfractionsQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>> = ({ signal }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>> = ({ signal }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,params, signal);
 
       
 
@@ -1346,35 +1348,35 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdInfractionsSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>>
-export type GetGuildsGuildIdUsersUserIdInfractionsSuspenseQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdInfractionsSuspenseQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
-    params: undefined |  GetGuildsGuildIdUsersUserIdInfractionsParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdUsersUserIdInfractionsParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get infractions for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1389,18 +1391,18 @@ export function useGetGuildsGuildIdUsersUserIdInfractionsSuspense<TData = Awaite
 
 
 
-export const getGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdInfractionsQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdInfractions(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -1410,35 +1412,35 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdInfractionsSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>>
-export type GetGuildsGuildIdUsersUserIdInfractionsSuspenseInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdInfractionsSuspenseInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params: undefined |  GetGuildsGuildIdUsersUserIdInfractionsParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdUsersUserIdInfractionsParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get infractions for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdInfractionsParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdInfractions>>, QueryKey, GetGuildsGuildIdUsersUserIdInfractionsParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1460,17 +1462,18 @@ export function useGetGuildsGuildIdUsersUserIdInfractionsSuspenseInfinite<TData 
  */
 export const getGuildsGuildIdNotes = (
     guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<GetGuildsGuildIdNotes200>> => {
-    
-    
-    return axios.default.get(
-      `/guilds/${guildId}/notes`,{
-    ...options,
-        params: {...params, ...options?.params},}
-    );
-  }
-
+    params?: GetGuildsGuildIdNotesParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<GetGuildsGuildIdNotes200>(
+      {url: `/guilds/${guildId}/notes`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
 
 export const getGetGuildsGuildIdNotesQueryKey = (guildId: string,
     params?: GetGuildsGuildIdNotesParams,) => {
@@ -1478,17 +1481,17 @@ export const getGetGuildsGuildIdNotesQueryKey = (guildId: string,
     }
 
     
-export const getGetGuildsGuildIdNotesInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdNotesInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdNotesQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdNotes(guildId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdNotes(guildId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -1498,10 +1501,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdNotesInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>>
-export type GetGuildsGuildIdNotesInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdNotesInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     params: undefined |  GetGuildsGuildIdNotesParams, options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>> & Pick<
         DefinedInitialDataOptions<
@@ -1509,10 +1512,10 @@ export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<Re
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>> & Pick<
         UndefinedInitialDataOptions<
@@ -1520,21 +1523,21 @@ export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<Re
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all member notes for a guild
  */
 
-export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1549,17 +1552,17 @@ export function useGetGuildsGuildIdNotesInfinite<TData = InfiniteData<Awaited<Re
 
 
 
-export const getGetGuildsGuildIdNotesQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdNotesQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdNotesQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>> = ({ signal }) => getGuildsGuildIdNotes(guildId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>> = ({ signal }) => getGuildsGuildIdNotes(guildId,params, signal);
 
       
 
@@ -1569,10 +1572,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdNotesQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>>
-export type GetGuildsGuildIdNotesQueryError = AxiosError<Error>
+export type GetGuildsGuildIdNotesQueryError = Error
 
 
-export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
     params: undefined |  GetGuildsGuildIdNotesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -1580,10 +1583,10 @@ export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGu
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdNotes>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
     params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -1591,21 +1594,21 @@ export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGu
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdNotes>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all member notes for a guild
  */
 
-export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1620,17 +1623,17 @@ export function useGetGuildsGuildIdNotes<TData = Awaited<ReturnType<typeof getGu
 
 
 
-export const getGetGuildsGuildIdNotesSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdNotesSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdNotesQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>> = ({ signal }) => getGuildsGuildIdNotes(guildId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>> = ({ signal }) => getGuildsGuildIdNotes(guildId,params, signal);
 
       
 
@@ -1640,31 +1643,31 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdNotesSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>>
-export type GetGuildsGuildIdNotesSuspenseQueryError = AxiosError<Error>
+export type GetGuildsGuildIdNotesSuspenseQueryError = Error
 
 
-export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
-    params: undefined |  GetGuildsGuildIdNotesParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdNotesParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all member notes for a guild
  */
 
-export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1679,17 +1682,17 @@ export function useGetGuildsGuildIdNotesSuspense<TData = Awaited<ReturnType<type
 
 
 
-export const getGetGuildsGuildIdNotesSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+export const getGetGuildsGuildIdNotesSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(guildId: string,
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdNotesQueryKey(guildId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdNotes(guildId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdNotes(guildId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -1699,31 +1702,31 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdNotesSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>>
-export type GetGuildsGuildIdNotesSuspenseInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdNotesSuspenseInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
-    params: undefined |  GetGuildsGuildIdNotesParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdNotesParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get all member notes for a guild
  */
 
-export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, GetGuildsGuildIdNotesParams['limit']>, TError = Error>(
  guildId: string,
-    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdNotes>>, QueryKey, GetGuildsGuildIdNotesParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1746,17 +1749,18 @@ export function useGetGuildsGuildIdNotesSuspenseInfinite<TData = InfiniteData<Aw
 export const getGuildsGuildIdUsersUserIdNotes = (
     guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<GetGuildsGuildIdUsersUserIdNotes200>> => {
-    
-    
-    return axios.default.get(
-      `/guilds/${guildId}/users/${userId}/notes`,{
-    ...options,
-        params: {...params, ...options?.params},}
-    );
-  }
-
+    params?: GetGuildsGuildIdUsersUserIdNotesParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<GetGuildsGuildIdUsersUserIdNotes200>(
+      {url: `/guilds/${guildId}/users/${userId}/notes`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
 
 export const getGetGuildsGuildIdUsersUserIdNotesQueryKey = (guildId: string,
     userId: string,
@@ -1765,18 +1769,18 @@ export const getGetGuildsGuildIdUsersUserIdNotesQueryKey = (guildId: string,
     }
 
     
-export const getGetGuildsGuildIdUsersUserIdNotesInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdNotesInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdNotesQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -1786,10 +1790,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdNotesInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>>
-export type GetGuildsGuildIdUsersUserIdNotesInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdNotesInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
     params: undefined |  GetGuildsGuildIdUsersUserIdNotesParams, options: { query:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>> & Pick<
@@ -1798,10 +1802,10 @@ export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
     params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>> & Pick<
@@ -1810,23 +1814,23 @@ export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get notes for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1841,18 +1845,18 @@ export function useGetGuildsGuildIdUsersUserIdNotesInfinite<TData = InfiniteData
 
 
 
-export const getGetGuildsGuildIdUsersUserIdNotesQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdNotesQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdNotesQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>> = ({ signal }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>> = ({ signal }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,params, signal);
 
       
 
@@ -1862,10 +1866,10 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdNotesQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>>
-export type GetGuildsGuildIdUsersUserIdNotesQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdNotesQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
     params: undefined |  GetGuildsGuildIdUsersUserIdNotesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>> & Pick<
@@ -1874,10 +1878,10 @@ export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<t
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
     params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>> & Pick<
@@ -1886,23 +1890,23 @@ export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<t
           TError,
           Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>
         > , 'initialData'
-      >, axios?: AxiosRequestConfig}
+      >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get notes for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1917,18 +1921,18 @@ export function useGetGuildsGuildIdUsersUserIdNotes<TData = Awaited<ReturnType<t
 
 
 
-export const getGetGuildsGuildIdUsersUserIdNotesSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdNotesSuspenseQueryOptions = <TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdNotesQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>> = ({ signal }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,params, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>> = ({ signal }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,params, signal);
 
       
 
@@ -1938,35 +1942,35 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdNotesSuspenseQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>>
-export type GetGuildsGuildIdUsersUserIdNotesSuspenseQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdNotesSuspenseQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
-    params: undefined |  GetGuildsGuildIdUsersUserIdNotesParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdUsersUserIdNotesParams, options: { query:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get notes for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -1981,18 +1985,18 @@ export function useGetGuildsGuildIdUsersUserIdNotesSuspense<TData = Awaited<Retu
 
 
 
-export const getGetGuildsGuildIdUsersUserIdNotesSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(guildId: string,
+export const getGetGuildsGuildIdUsersUserIdNotesSuspenseInfiniteQueryOptions = <TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
 ) => {
 
-const {query: queryOptions, axios: axiosOptions} = options ?? {};
+const {query: queryOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetGuildsGuildIdUsersUserIdNotesQueryKey(guildId,userId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, { signal, ...axiosOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']> = ({ signal, pageParam }) => getGuildsGuildIdUsersUserIdNotes(guildId,userId,{...params, 'limit': pageParam || params?.['limit']}, signal);
 
       
 
@@ -2002,35 +2006,35 @@ const {query: queryOptions, axios: axiosOptions} = options ?? {};
 }
 
 export type GetGuildsGuildIdUsersUserIdNotesSuspenseInfiniteQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>>
-export type GetGuildsGuildIdUsersUserIdNotesSuspenseInfiniteQueryError = AxiosError<Error>
+export type GetGuildsGuildIdUsersUserIdNotesSuspenseInfiniteQueryError = Error
 
 
-export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params: undefined |  GetGuildsGuildIdUsersUserIdNotesParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params: undefined |  GetGuildsGuildIdUsersUserIdNotesParams, options: { query:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
  , queryClient?: QueryClient
   ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get notes for a specific user
  */
 
-export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = AxiosError<Error>>(
+export function useGetGuildsGuildIdUsersUserIdNotesSuspenseInfinite<TData = InfiniteData<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, GetGuildsGuildIdUsersUserIdNotesParams['limit']>, TError = Error>(
  guildId: string,
     userId: string,
-    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, axios?: AxiosRequestConfig}
+    params?: GetGuildsGuildIdUsersUserIdNotesParams, options?: { query?:Partial<UseSuspenseInfiniteQueryOptions<Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, TError, TData, Awaited<ReturnType<typeof getGuildsGuildIdUsersUserIdNotes>>, QueryKey, GetGuildsGuildIdUsersUserIdNotesParams['limit']>>, }
  , queryClient?: QueryClient 
  ):  UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
