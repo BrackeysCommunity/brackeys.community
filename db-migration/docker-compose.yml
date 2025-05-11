@@ -1,0 +1,40 @@
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: brackeys-mariadb
+    ports:
+      - "3306:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: Brackeys      
+      MARIADB_USER: brackeys
+      MARIADB_PASSWORD: password
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:latest
+    container_name: brackeys-flyway
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/flyway/sql
+      - ./tools/flyway/conf:/flyway/conf
+    command: -configFiles=/flyway/conf/flyway.conf migrate
+
+  sqlite-init:
+    image: alpine:latest
+    container_name: brackeys-sqlite-init
+    volumes:
+      - ./data:/data
+      - ./tools/sqlite-init:/scripts
+    command: /bin/sh -c "apk add --no-cache sqlite && sh /scripts/init.sh"
+
+volumes:
+  mariadb_data:
