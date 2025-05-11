@@ -18,7 +18,6 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
 
     const failsafeTimer = setTimeout(() => {
       if (!animationComplete) {
-        localStorage.setItem('splash-screen-complete', 'true');
         setAnimationComplete(true);
         onComplete();
       }
