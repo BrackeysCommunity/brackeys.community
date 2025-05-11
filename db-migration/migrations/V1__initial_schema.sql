@@ -1,6 +1,3 @@
--- MariaDB Schema for Brackeys database
--- This will be executed by Flyway migration
-
 CREATE DATABASE IF NOT EXISTS `Hammer`;
 
 CREATE TABLE IF NOT EXISTS `Hammer`.`AltAccount` (
