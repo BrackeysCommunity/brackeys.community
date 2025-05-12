@@ -92,4 +92,15 @@
   .hXfztj {
     @apply gap-x-8;
   }
+
+  .iRoSfe {
+    padding-left: 0 !important;
+    @media (max-width: 1200px) {
+      padding-right: 0 !important;
+    }
+  }
+
+  .hpDCrX {
+    background-color: transparent !important;
+  }
 }
