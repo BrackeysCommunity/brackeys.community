@@ -58,3 +58,38 @@
     background-color: var(--color-background);
   }
 }
+
+@layer components {
+  .sc-elFkmj {
+    color: var(--color-gray-300) !important;
+
+    > * {
+      color: var(--color-gray-400) !important;
+    }
+  }
+
+  .gsIrbT,.iQTzrF {
+    fill: var(--color-brackeys-purple-500) !important;
+  }
+
+  .iOskzi {
+    color: var(--color-brackeys-purple-500) !important;
+  }
+
+  .eWPrxV,.bAXpkF,.fAhjOQ,.kYTJOA {
+    border-radius: 8px !important;
+  }
+
+  .fAhjOQ,.kYTJOA {
+    border: 1px solid var(--color-gray-700) !important;
+  }
+
+  .inBEXL {
+    position: absolute !important;
+    width: 100% !important;
+  }
+
+  .hXfztj {
+    @apply gap-x-8;
+  }
+}

@@ -5,7 +5,12 @@ import { ContextProviders } from './context/ContextProviders';
 export const App = () => {
   const [showSplash, setShowSplash] = useState(!localStorage.getItem('splash-screen-complete'));
 
+  const handleSplashComplete = () => {
+    localStorage.setItem('splash-screen-complete', 'true');
+    setShowSplash(false);
+  }
+
   return showSplash
-    ? <SplashScreen onComplete={() => setShowSplash(false)} />
+    ? <SplashScreen onComplete={handleSplashComplete} />
     : <ContextProviders />;
 }
