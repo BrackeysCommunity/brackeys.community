@@ -68,39 +68,39 @@
     }
   }
 
-  .gsIrbT,.iQTzrF {
+  .sc-dibcMh,.sc-dibcMh {
     fill: var(--color-brackeys-purple-500) !important;
   }
 
-  .iOskzi {
+  .sc-byRegH.sc-fJvEKN {
     color: var(--color-brackeys-purple-500) !important;
   }
 
-  .eWPrxV,.bAXpkF,.fAhjOQ,.kYTJOA {
+  .sc-jthNAk,.sc-fnaTjL,.sc-jMpmlX.sc-hoLldG {
     border-radius: 8px !important;
   }
 
-  .fAhjOQ,.kYTJOA {
+  .sc-fnaTjL,.sc-jMpmlX.sc-hoLldG {
     border: 1px solid var(--color-gray-700) !important;
   }
 
-  .inBEXL {
+  .sc-kXtNZI {
     position: absolute !important;
     width: 100% !important;
   }
 
-  .hXfztj {
+  .sc-JNBUd {
     @apply gap-x-8;
   }
 
-  .iRoSfe {
+  .sc-gwsNht {
     padding-left: 0 !important;
     @media (max-width: 1200px) {
       padding-right: 0 !important;
     }
   }
 
-  .hpDCrX {
+  .sc-epRJRH {
     background-color: transparent !important;
   }
 }
