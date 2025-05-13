@@ -8,6 +8,7 @@ import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
 import { Api } from './pages/Api';
+import { Tools } from './pages/Tools';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -61,6 +62,12 @@ const snakeRoute = createRoute({
   component: Snake,
 });
 
+const toolsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/tools',
+  component: Tools,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -69,6 +76,7 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   apiRoute,
   snakeRoute,
+  toolsRoute,
   notFoundRoute,
 ]);
 

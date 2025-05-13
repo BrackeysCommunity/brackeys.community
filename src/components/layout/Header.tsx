@@ -15,6 +15,7 @@ const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
   { name: 'Dashboard', href: '/dashboard', requiresAuth: true },
   { name: 'Games', href: '/games' },
+  { name: 'Tools', href: '/tools' },
   { name: 'API', href: '/api' },
 ];
 
