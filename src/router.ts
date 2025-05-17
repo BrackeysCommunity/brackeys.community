@@ -9,6 +9,7 @@ import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
 import { Api } from './pages/Api';
 import { Tools } from './pages/Tools';
+import { ToolEmbed } from './pages/ToolEmbed';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -68,6 +69,12 @@ const toolsRoute = createRoute({
   component: Tools,
 });
 
+const toolEmbedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/tools/$toolId',
+  component: ToolEmbed,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -77,6 +84,7 @@ const routeTree = rootRoute.addChildren([
   apiRoute,
   snakeRoute,
   toolsRoute,
+  toolEmbedRoute,
   notFoundRoute,
 ]);
 
