@@ -169,16 +169,16 @@ export const Games = () => {
         </div>
 
         <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {games.map(({ category, id, title, description, imageUrl, releaseDate, developer, gameUrl }, index) => {
+          {games.map(({ category, id, title, description, imageUrl, releaseDate, developer, gameUrl }) => {
             const categoryInfo = categories[category];
             const CategoryIcon = categoryInfo.icon;
 
             return (
               <motion.div
-                key={id}
+                key={`gamelist-${id}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.05 * index }}
+                transition={{ duration: 0.3, delay: 0.05 }}
                 whileHover={{ y: -5 }}
                 exit={{ y: 0 }}
                 className="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700 h-full flex flex-col"
