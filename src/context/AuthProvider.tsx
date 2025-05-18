@@ -6,15 +6,15 @@ import { AuthState, AuthAction, User, AuthContext, authInitialState } from './au
 const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   switch (action.type) {
     case 'LOGIN_START':
-      return { ...state, isLoading: true, error: null };
+      return { ...state, isLoading: true, error: undefined };
     case 'LOGIN_SUCCESS':
-      return { ...state, isLoading: false, user: action.payload, error: null };
+      return { ...state, isLoading: false, user: action.payload, error: undefined };
     case 'LOGIN_FAILURE':
       return { ...state, isLoading: false, error: action.payload };
     case 'LOGOUT':
-      return { ...state, user: null, isLoading: false };
+      return { ...state, user: undefined, isLoading: false };
     case 'CLEAR_ERROR':
-      return { ...state, error: null };
+      return { ...state, error: undefined };
     default:
       return state;
   }

@@ -1,6 +1,6 @@
 import { createRouter, createRoute, createRootRoute } from '@tanstack/react-router';
 import { MainLayout } from './components/layout/MainLayout';
-import { Home } from './pages/Home';
+import { HomeContainer } from './pages/Home';
 import { Login } from './pages/Login';
 import { Games } from './pages/Games';
 import { Dashboard } from './pages/Dashboard';
@@ -18,7 +18,7 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: Home,
+  component: HomeContainer,
 });
 
 const loginRoute = createRoute({
