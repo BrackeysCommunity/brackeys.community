@@ -14,7 +14,7 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      navigate({ to: '/login', search: { redirect: pathname } });
+      navigate({ to: '/login', search: { redirect: pathname }, resetScroll: true });
     }
   }, [user, isLoading, navigate, pathname]);
 
