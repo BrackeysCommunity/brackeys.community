@@ -217,7 +217,7 @@ export const Api = () => {
             hideHostname: false,
             hideLoading: false,
             showExtensions: false,
-            scrollYOffset: 115,
+            scrollYOffset: 130,
           }}
           onLoaded={() => {
             window.removeEventListener('scroll', () => { });
