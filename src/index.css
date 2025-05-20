@@ -105,4 +105,22 @@
   .sc-epRJRH {
     background-color: transparent !important;
   }
+
+  .tab-success {
+    color: var(--color-green-500) !important;
+    
+    &.react-tabs__tab--selected {
+      color: var(--color-green-700) !important;
+      background-color: var(--color-green-200) !important;
+    }
+  }
+
+  .tab-error {
+    color: var(--color-red-500) !important;
+    
+    &.react-tabs__tab--selected {
+      color: var(--color-red-700) !important;
+      background-color: var(--color-red-200) !important;
+    }
+  }
 }
