@@ -15,20 +15,20 @@ export const useRemoveAllEventListeners = (type = 'scroll') => {
   useEffect(() => {
     const originalAdd = window.addEventListener;
     const originalRemove = window.removeEventListener;
-    const listeners = new Set();
+    const listeners = new Set<EventListenerOrEventListenerObject>();
 
-    window.addEventListener = function (event: string, cb: EventListenerOrEventListenerObject, opts?: boolean | AddEventListenerOptions) {
+    window.addEventListener = (event: string, cb: EventListenerOrEventListenerObject, opts?: boolean | AddEventListenerOptions) => {
       if (event === type) listeners.add(cb);
       originalAdd.call(this, event, cb, opts);
     };
 
-    window.removeEventListener = function (event: string, cb: EventListenerOrEventListenerObject, opts?: boolean | EventListenerOptions) {
+    window.removeEventListener = (event: string, cb: EventListenerOrEventListenerObject, opts?: boolean | EventListenerOptions) => {
       if (event === type) listeners.delete(cb);
       originalRemove.call(this, event, cb, opts);
     };
 
     return () => {
-      listeners.forEach(cb => window.removeEventListener(type as keyof WindowEventMap, cb as EventListenerOrEventListenerObject));
+      listeners.forEach((cb) => window.removeEventListener(type, cb));
       window.addEventListener = originalAdd;
       window.removeEventListener = originalRemove;
     };

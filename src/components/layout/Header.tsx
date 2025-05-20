@@ -24,10 +24,10 @@ export const Header = () => {
   const { location } = useRouterState();
 
   return (
-    <Disclosure as="nav" className="sticky top-0 z-50 w-full flex justify-center p-4">
+    <Disclosure as="nav" className="sticky top-0 z-50 container mx-auto flex justify-center p-4 transition-all duration-200">
       {({ open }) => (
         <>
-          <div className="w-full max-w-7xl bg-gray-800/60 border border-gray-700 backdrop-blur-md rounded-lg shadow-md transition-all duration-200">
+          <div className="w-full bg-gray-800/60 border border-gray-700 backdrop-blur-md rounded-lg shadow-md">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="flex h-16 justify-between">
                 <div className="flex">

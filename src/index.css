@@ -30,6 +30,8 @@
 
   --transition-property-height: height;
   --transition-property-spacing: margin, padding;
+
+  --shadow-brackeys-purple: 0 0 25px rgba(88,101,242,0.8);
 }
 
 /*
