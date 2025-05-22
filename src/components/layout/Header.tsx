@@ -14,8 +14,7 @@ type NavigationItem = {
 const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
   { name: 'Dashboard', href: '/dashboard', requiresAuth: true },
-  { name: 'Games', href: '/games' },
-  { name: 'Tools', href: '/tools' },
+  { name: 'Cool Stuff', href: '/resources' },
   { name: 'API', href: '/api' },
 ];
 

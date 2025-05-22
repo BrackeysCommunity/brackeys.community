@@ -26,6 +26,9 @@
   --color-brackeys-purple-900: #12143a;
   --color-brackeys-purple: var(--color-brackeys-purple-500);
 
+  --pattern-dot-color: var(--color-gray-700);
+  --pattern-line-color: var(--color-gray-700);
+
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 
   --transition-property-height: height;
@@ -122,5 +125,96 @@
       color: var(--color-red-700) !important;
       background-color: var(--color-red-200) !important;
     }
+  }
+
+
+  .bg-dot-pattern {
+    position: relative;
+    isolation: isolate;
+  }
+  
+  .bg-dot-pattern::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(var(--pattern-dot-color) 1px, transparent 0);
+    background-size: 10px 10px;
+    background-attachment: fixed;
+    mask: var(--pattern-mask, none);
+    -webkit-mask: var(--pattern-mask, none);
+    pointer-events: none;
+    z-index: 0;
+  }
+  
+  .bg-line-pattern {
+    position: relative;
+    isolation: isolate;
+  }
+  
+  .bg-line-pattern::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      315deg,
+      var(--pattern-line-color) 0,
+      var(--pattern-line-color) 1px,
+      transparent 0,
+      transparent 50%
+    );
+    background-size: 10px 10px;
+    background-attachment: fixed;
+    mask: var(--pattern-mask, none);
+    -webkit-mask: var(--pattern-mask, none);
+    pointer-events: none;
+    z-index: 0;
+  }
+  
+  .pattern-mask-full {
+    --pattern-mask: linear-gradient(#fff, #fff);
+  }
+  
+  .pattern-mask-fade-in {
+    --pattern-mask: linear-gradient(to bottom, transparent, #fff);
+  }
+  
+  .pattern-mask-fade-out {
+    --pattern-mask: linear-gradient(to bottom, #fff, transparent);
+  }
+  
+  .pattern-mask-radial {
+    --pattern-mask: radial-gradient(circle, #fff 0%, transparent 100%);
+  }
+  
+  .pattern-opacity-5::before {
+    opacity: 0.05;
+  }
+  
+  .pattern-opacity-10::before {
+    opacity: 0.1;
+  }
+  
+  .pattern-opacity-20::before {
+    opacity: 0.2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 0.5);
+    border-radius: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.7);
+  }
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(75, 85, 99, 0.5) rgba(31, 41, 55, 0.3);
+    scrollbar-gutter: stable;
   }
 }
