@@ -1,14 +1,12 @@
 import { createRouter, createRoute, createRootRoute } from '@tanstack/react-router';
 import { MainLayout } from './components/layout/MainLayout';
-import { HomeContainer } from './pages/Home';
+import { Home } from './pages/Home';
 import { Login } from './pages/Login';
-import { Games } from './pages/Games';
 import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
 import { Api } from './pages/Api';
-import { Tools } from './pages/Tools';
 import { ToolEmbed } from './pages/ToolEmbed';
 import { Resources } from './pages/Resources';
 
@@ -19,19 +17,13 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: HomeContainer,
+  component: Home,
 });
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: Login,
-});
-
-const gamesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/games',
-  component: Games,
 });
 
 const dashboardRoute = createRoute({
@@ -64,12 +56,6 @@ const snakeRoute = createRoute({
   component: Snake,
 });
 
-const toolsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/tools',
-  component: Tools,
-});
-
 const resourcesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/resources',
@@ -85,12 +71,10 @@ const toolEmbedRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
-  gamesRoute,
   dashboardRoute,
   profileRoute,
   apiRoute,
   snakeRoute,
-  toolsRoute,
   resourcesRoute,
   toolEmbedRoute,
   notFoundRoute,

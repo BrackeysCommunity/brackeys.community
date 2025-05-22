@@ -37,17 +37,17 @@ type HomeProps = {
   user?: User;
 };
 
-export const HomeContainer = () => {
+const HomeContainer = () => {
   const { state: { user } } = useAuth();
 
   useEffect(() => {
     document.title = 'Home - Brackeys Community';
   }, []);
 
-  return <Home user={user} />;
+  return <HomeView user={user} />;
 };
 
-export const Home = ({ user }: HomeProps) => (
+const HomeView = ({ user }: HomeProps) => (
   <div
     className="flex flex-col items-center justify-start min-h-screen"
     data-testid="home-page"
@@ -67,3 +67,5 @@ export const Home = ({ user }: HomeProps) => (
     <CtaSection />
   </div>
 );
+
+export const Home = HomeContainer;

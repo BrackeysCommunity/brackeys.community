@@ -92,7 +92,7 @@ const ResourcesContainer = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
-    document.title = 'Resources - Brackeys Community';
+    document.title = 'Games & Tools - Brackeys Community';
   }, []);
 
   const typeFilteredResources = resources.filter(resource => {
