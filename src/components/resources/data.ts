@@ -101,7 +101,7 @@ export const resources: ResourceItem[] = [
     categories: ['game-development'],
     type: 'tool',
     tags: ['popular'],
-    resourceUrl: 'https://unity.com',
+    resourceUrl: new URL('https://unity.com'),
   },
   {
     id: 'blender',
@@ -110,7 +110,7 @@ export const resources: ResourceItem[] = [
     categories: ['graphics-art'],
     type: 'tool',
     tags: ['popular', 'free', 'open-source'],
-    resourceUrl: 'https://www.blender.org',
+    resourceUrl: new URL('https://www.blender.org'),
   },
   {
     id: 'vscode',
@@ -119,7 +119,7 @@ export const resources: ResourceItem[] = [
     categories: ['code-editors', 'development-tools'],
     type: 'tool',
     tags: ['popular', 'free', 'open-source'],
-    resourceUrl: 'https://code.visualstudio.com',
+    resourceUrl: new URL('https://code.visualstudio.com'),
   },
   {
     id: 'godot',
@@ -128,7 +128,7 @@ export const resources: ResourceItem[] = [
     categories: ['game-development'],
     type: 'tool',
     tags: ['free', 'open-source', 'beginner-friendly'],
-    resourceUrl: 'https://godotengine.org',
+    resourceUrl: new URL('https://godotengine.org'),
   },
   {
     id: 'aseprite',
@@ -137,7 +137,7 @@ export const resources: ResourceItem[] = [
     categories: ['graphics-art'],
     type: 'tool',
     tags: [],
-    resourceUrl: 'https://www.aseprite.org',
+    resourceUrl: new URL('https://www.aseprite.org'),
   },
   {
     id: 'github',
@@ -146,7 +146,7 @@ export const resources: ResourceItem[] = [
     categories: ['development-tools'],
     type: 'tool',
     tags: ['popular'],
-    resourceUrl: 'https://github.com',
+    resourceUrl: new URL('https://github.com'),
   },
   {
     id: 'trello',
@@ -155,7 +155,7 @@ export const resources: ResourceItem[] = [
     categories: ['project-management'],
     type: 'tool',
     tags: [],
-    resourceUrl: 'https://trello.com',
+    resourceUrl: new URL('https://trello.com'),
   },
   {
     id: 'linear',
@@ -164,7 +164,7 @@ export const resources: ResourceItem[] = [
     categories: ['project-management'],
     type: 'tool',
     tags: ['free'],
-    resourceUrl: 'https://linear.com'
+    resourceUrl: new URL('https://linear.com')
   },
   {
     id: 'visual-studio',
@@ -173,7 +173,16 @@ export const resources: ResourceItem[] = [
     categories: ['code-editors'],
     type: 'tool',
     tags: ['free'],
-    resourceUrl: 'https://visualstudio.microsoft.com',
+    resourceUrl: new URL('https://visualstudio.microsoft.com'),
+  },
+  {
+    id: 'pastemyst',
+    title: 'Paste Myst',
+    description: 'Paste text or files to share with others',
+    categories: ['development-tools'],
+    type: 'tool',
+    tags: ['free', 'open-source'],
+    resourceUrl: '/tools/paste-myst',
   },
 ];
 

@@ -140,7 +140,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
             className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500 z-10 relative"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
-            {type === 'game' ? 'Play Now' : 'Visit Website'}
+            {type === 'game' ? 'Play Now' : 'View Tool'}
           </Link>
         )}
       </div>
