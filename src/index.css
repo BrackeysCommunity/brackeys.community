@@ -136,9 +136,9 @@
   .bg-dot-pattern::before {
     content: "";
     position: absolute;
-    inset: 0;
+    inset: 0px;
     background-image: radial-gradient(var(--pattern-dot-color) 1px, transparent 0);
-    background-size: 10px 10px;
+    background-size: 13px 13px;
     background-attachment: fixed;
     mask: var(--pattern-mask, none);
     -webkit-mask: var(--pattern-mask, none);
@@ -162,7 +162,7 @@
       transparent 0,
       transparent 50%
     );
-    background-size: 10px 10px;
+    background-size: 15px 15px;
     background-attachment: fixed;
     mask: var(--pattern-mask, none);
     -webkit-mask: var(--pattern-mask, none);

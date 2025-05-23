@@ -54,7 +54,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
       data-testid={`resource-card-${id}`}
     >
       <div className="relative w-full h-48 bg-gray-900">
-        <div className="absolute inset-0 bg-line-pattern pattern-mask-full pattern-opacity-100 z-0" />
+        <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-in pattern-opacity-100 z-0" />
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -124,7 +124,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
       </div>
 
       <div className="relative p-4 border-t border-gray-700 bg-gray-900">
-        <div className="absolute inset-0 bg-dot-pattern pattern-mask-full pattern-opacity-100 z-0" />
+        <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-out pattern-opacity-100 z-0" />
         {resourceUrl instanceof URL ? (
           <a
             href={resourceUrl.toString()}
