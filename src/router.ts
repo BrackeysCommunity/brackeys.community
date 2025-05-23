@@ -82,7 +82,7 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
-  scrollRestorationBehavior: 'smooth',
+  scrollRestorationBehavior: 'instant',
   scrollRestoration: true,
 });
 
