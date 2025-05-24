@@ -28,7 +28,7 @@ export const Header = () => {
         <>
           <div className="w-full bg-gray-800/60 border border-gray-700 backdrop-blur-md rounded-lg shadow-md">
             <div className="px-4 sm:px-6 lg:px-8">
-              <div className="flex h-16 justify-between">
+              <div className="flex h-16 justify-between items-center">
                 <div className="flex">
                   <div className="flex shrink-0 items-center">
                     <Link to="/" className="flex items-center gap-2">
@@ -71,6 +71,9 @@ export const Header = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Variable width dot grid spacer */}
+                <div className="hidden sm:block flex-1 min-w-0 h-full bg-dot-pattern pattern-mask-radial pattern-opacity-100 mt-1" />
 
                 <div className="flex items-center">
                   {user ? (

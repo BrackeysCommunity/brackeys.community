@@ -118,9 +118,9 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
       <div className="relative flex border-t border-gray-700 bg-gray-900 overflow-hidden">
         <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-out pattern-opacity-100 z-0" />
         <motion.div
-          initial={{ margin: "16px", padding: "16px 16px", fontSize: "1rem" }}
-          whileHover={{ margin: "0px", padding: "32px 16px", fontSize: "1.25rem", borderTopLeftRadius: "0px", borderTopRightRadius: "0px", transition: { type: "tween", duration: 0.2, ease: "easeOut" } }}
-          whileTap={{ margin: "8px", padding: "24px 16px", fontSize: "1.15rem", borderTopLeftRadius: "6px", borderTopRightRadius: "6px" }}
+          initial={{ margin: "16px", padding: "16px 16px" }}
+          whileHover={{ margin: "0px", padding: "32px 16px", borderTopLeftRadius: "0px", borderTopRightRadius: "0px", transition: { type: "tween", duration: 0.2, ease: "easeOut" } }}
+          whileTap={{ margin: "8px", padding: "24px 16px", borderTopLeftRadius: "6px", borderTopRightRadius: "6px" }}
           transition={{ type: "spring", stiffness: 400, damping: 17 }}
           className="relative inline-flex grow items-center justify-center border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-brackeys-purple-500 z-10 overflow-hidden"
         >

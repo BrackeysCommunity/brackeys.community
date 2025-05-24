@@ -138,7 +138,7 @@
     position: absolute;
     inset: 0px;
     background-image: radial-gradient(var(--pattern-dot-color) 1px, transparent 0);
-    background-size: 13px 13px;
+    background-size: 10px 10px;
     background-attachment: fixed;
     mask: var(--pattern-mask, none);
     -webkit-mask: var(--pattern-mask, none);
@@ -183,7 +183,7 @@
   }
   
   .pattern-mask-radial {
-    --pattern-mask: radial-gradient(circle, #fff 0%, transparent 100%);
+    --pattern-mask: radial-gradient(closest-side, #fff 0%, transparent 100%);
   }
   
   .pattern-opacity-5::before {
