@@ -12,9 +12,9 @@ export type User = {
 };
 
 export type AuthState = {
-  user: User | null;
+  user?: User;
   isLoading: boolean;
-  error: string | null;
+  error?: string;
 };
 
 export type AuthAction =
@@ -25,9 +25,7 @@ export type AuthAction =
   | { type: 'CLEAR_ERROR' };
 
 export const authInitialState: AuthState = {
-  user: null,
   isLoading: true,
-  error: null,
 };
 
 export const AuthContext = createContext<{

@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { useEffect } from 'react';
 import { RedocStandalone } from 'redoc';
 import type { ResolvedThemeInterface } from 'redoc';
+import { useRemoveAllEventListeners } from '../hooks/useRemoveAllEventListeners';
 
 // Create color settings using Brackeys brand colors
 const createColorSetting = (
@@ -190,6 +191,8 @@ const brackeysTheme: ResolvedThemeInterface = {
 };
 
 export const Api = () => {
+  // TODO: Remove this when Redoc is fixed
+  useRemoveAllEventListeners('scroll');
   useEffect(() => {
     document.title = 'API - Brackeys Community';
   }, []);
@@ -214,7 +217,10 @@ export const Api = () => {
             hideHostname: false,
             hideLoading: false,
             showExtensions: false,
-            scrollYOffset: 115,
+            scrollYOffset: 130,
+          }}
+          onLoaded={() => {
+            window.removeEventListener('scroll', () => { });
           }}
         />
       </motion.div>

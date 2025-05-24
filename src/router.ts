@@ -2,12 +2,13 @@ import { createRouter, createRoute, createRootRoute } from '@tanstack/react-rout
 import { MainLayout } from './components/layout/MainLayout';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
-import { Games } from './pages/Games';
 import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
 import { Api } from './pages/Api';
+import { ToolEmbed } from './pages/ToolEmbed';
+import { Resources } from './pages/Resources';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -23,12 +24,6 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: Login,
-});
-
-const gamesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/games',
-  component: Games,
 });
 
 const dashboardRoute = createRoute({
@@ -61,18 +56,35 @@ const snakeRoute = createRoute({
   component: Snake,
 });
 
+const resourcesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/resources',
+  component: Resources,
+});
+
+const toolEmbedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/tools/$toolId',
+  component: ToolEmbed,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
-  gamesRoute,
   dashboardRoute,
   profileRoute,
   apiRoute,
   snakeRoute,
+  resourcesRoute,
+  toolEmbedRoute,
   notFoundRoute,
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({
+  routeTree,
+  scrollRestorationBehavior: 'instant',
+  scrollRestoration: true,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

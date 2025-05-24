@@ -21,7 +21,7 @@ export const Login = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
-      navigate({ to: from, replace: true });
+      navigate({ to: from, replace: true, resetScroll: true });
     }
   }, [user, isLoading, navigate, from]);
 
