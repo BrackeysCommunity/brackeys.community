@@ -32,14 +32,6 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
       key={`resource-${id}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{
-        y: -5,
-        transition: { delay: 0 }
-      }}
-      whileTap={{
-        scale: 0.98,
-        transition: { delay: 0 }
-      }}
       transition={{
         duration: 0.3,
         type: 'spring',
@@ -123,26 +115,34 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
         )}
       </div>
 
-      <div className="relative p-4 border-t border-gray-700 bg-gray-900">
+      <div className="relative flex border-t border-gray-700 bg-gray-900 overflow-hidden">
         <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-out pattern-opacity-100 z-0" />
-        {resourceUrl instanceof URL ? (
-          <a
-            href={resourceUrl.toString()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500 z-10 relative"
-          >
-            {type === 'game' ? 'Play Now' : 'Visit Website'}
-          </a>
-        ) : (
-          <Link
-            to={resourceUrl.toString()}
-            className="inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-brackeys-purple-500 z-10 relative"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          >
-            {type === 'game' ? 'Play Now' : 'View Tool'}
-          </Link>
-        )}
+        <motion.div
+          initial={{ margin: "16px", padding: "16px 16px", fontSize: "1rem" }}
+          whileHover={{ margin: "0px", padding: "32px 16px", fontSize: "1.25rem", borderTopLeftRadius: "0px", borderTopRightRadius: "0px", transition: { type: "tween", duration: 0.2, ease: "easeOut" } }}
+          whileTap={{ margin: "8px", padding: "24px 16px", fontSize: "1.15rem", borderTopLeftRadius: "6px", borderTopRightRadius: "6px" }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          className="relative inline-flex grow items-center justify-center border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-brackeys-purple-500 z-10 overflow-hidden"
+        >
+          {resourceUrl instanceof URL ? (
+            <a
+              href={resourceUrl.toString()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              {type === 'game' ? 'Play Now' : 'Visit Website'}
+            </a>
+          ) : (
+            <Link
+              to={resourceUrl.toString()}
+              className="absolute inset-0 flex items-center justify-center"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            >
+              {type === 'game' ? 'Play Now' : 'View Tool'}
+            </Link>
+          )}
+        </motion.div>
       </div>
     </motion.div>
   );

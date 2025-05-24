@@ -162,7 +162,7 @@
       transparent 0,
       transparent 50%
     );
-    background-size: 15px 15px;
+    background-size: 30px 30px;
     background-attachment: fixed;
     mask: var(--pattern-mask, none);
     -webkit-mask: var(--pattern-mask, none);
