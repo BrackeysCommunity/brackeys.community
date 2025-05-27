@@ -1,7 +1,8 @@
-import { useReducer, useEffect, PropsWithChildren } from 'react';
+import { useReducer, useEffect, PropsWithChildren, Dispatch } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { AuthState, AuthAction, User, AuthContext, authInitialState } from './authContext';
+import { AuthState, AuthAction, User, AuthContext, authInitialState, DiscordGuildMemberData } from './authContext';
+import axios from 'axios';
 
 const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   switch (action.type) {
@@ -139,8 +140,61 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
-const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, payload: User, dispatch: React.Dispatch<AuthAction>) => {
-  const { error } = await supabase.auth.updateUser({ data: { provider_token: session.provider_token, provider_refresh_token: session.provider_refresh_token } });
-  if (error) dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to update discord provider data on user' });
-  else dispatch({ type: 'LOGIN_SUCCESS', payload });
+const fetchDiscordGuildMemberData = async (accessToken: string) => {
+  const guildId = import.meta.env.VITE_BRACKEYS_GUILD_ID;
+
+  if (!guildId) {
+    console.error('VITE_BRACKEYS_GUILD_ID is not set in environment variables');
+    return null;
+  }
+
+  try {
+    const response = await axios.get<DiscordGuildMemberData>(
+      `https://discord.com/api/users/@me/guilds/${guildId}/member`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error(`Discord API error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching Discord guild member data:', error);
+    return null;
+  }
+};
+
+const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, payload: User, dispatch: Dispatch<AuthAction>) => {
+  const guildId = import.meta.env.VITE_BRACKEYS_GUILD_ID;
+
+  if (session.provider_token && guildId) {
+    const guildMemberData = await fetchDiscordGuildMemberData(session.provider_token);
+
+    console.log(guildMemberData);
+
+    if (guildMemberData) {
+      payload = {
+        ...payload,
+        avatar_url: guildMemberData.avatar
+          ? `https://cdn.discordapp.com/guilds/${guildId}/users/${payload.discord_id}/avatars/${guildMemberData.avatar}.webp?size=160`
+          : payload.avatar_url,
+        [guildId]: guildMemberData
+      }
+      const { error } = await supabase.auth.updateUser({
+        data: payload
+      });
+
+      if (error) {
+        console.error('Error updating user guild data:', error);
+        dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to update user guild data' });
+      }
+    }
+  }
+
+  dispatch({ type: 'LOGIN_SUCCESS', payload });
 }

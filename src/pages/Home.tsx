@@ -49,7 +49,7 @@ const HomeContainer = () => {
 
 const HomeView = ({ user }: HomeProps) => (
   <div
-    className="flex flex-col items-center justify-start min-h-screen"
+    className="flex flex-col items-center justify-start min-h-screen overflow-visible"
     data-testid="home-page"
   >
     <HeroSection user={user} />

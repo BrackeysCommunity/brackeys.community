@@ -54,13 +54,13 @@ export const Header = () => {
                       </span>
                     </Link>
                   </div>
-                  <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
+                  <div className="hidden sm:ml-2 md:ml-6 sm:flex sm:items-center sm:space-x-2 md:space-x-4">
                     {navigation.filter((item) => !item.requiresAuth || user).map((item) => (
                       <Link
                         key={item.name}
                         to={item.href}
                         className={cn(
-                          'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                          'px-3 py-2 rounded-md text-sm font-medium transition-colors text-nowrap',
                           location.pathname === item.href
                             ? 'bg-brackeys-purple-800 text-brackeys-purple-200'
                             : 'text-gray-300 hover:bg-gray-800'
@@ -77,7 +77,7 @@ export const Header = () => {
 
                 <div className="flex items-center">
                   {user ? (
-                    <div className="hidden sm:ml-6 sm:flex sm:items-center">
+                    <div className="hidden sm:flex sm:items-center">
                       <Menu as="div" className="relative ml-3">
                         <div>
                           <MenuButton className="flex rounded-full bg-gray-800 text-sm focus:outline-hidden focus:ring-2 focus:ring-brackeys-purple-500 focus:ring-offset-2 focus:ring-offset-background">

@@ -11,6 +11,23 @@ export type User = {
   discord_id?: string;
 };
 
+export interface DiscordGuildMemberData {
+  avatar: string;
+  banner: null;
+  communication_disabled_until: null;
+  flags: number;
+  joined_at: Date;
+  nick: null;
+  pending: boolean;
+  premium_since: null;
+  roles: string[];
+  unusual_dm_activity_until: null;
+  user: User;
+  mute: boolean;
+  deaf: boolean;
+  bio: string;
+}
+
 export type AuthState = {
   user?: User;
   isLoading: boolean;

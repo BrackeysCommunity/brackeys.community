@@ -17,14 +17,14 @@ const BUTTON_CONTENT = {
 };
 
 const BackgroundShapes = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+  <div className="absolute inset-0 overflow-visible pointer-events-none" aria-hidden="true">
     {/* larger purple blob */}
     <motion.div
       className="absolute top-20 right-[20%] w-72 h-72 rounded-full bg-brackeys-purple-600/15 blur-3xl"
       animate={{
-        x: [0, 25, -10, 15, 0],
-        y: [0, -15, 20, 5, 0],
-        scale: [1, 1.15, 0.95, 1.1, 1],
+        x: [0, 35, -15, 25, 0],
+        y: [0, -25, 30, 10, 0],
+        scale: [1, 1.2, 0.9, 1.15, 1],
       }}
       transition={{
         repeat: Infinity,
@@ -37,8 +37,8 @@ const BackgroundShapes = () => (
     <motion.div
       className="absolute top-40 right-[30%] w-24 h-24 rounded-full bg-brackeys-purple-400/10 blur-xl"
       animate={{
-        x: [0, -15, 15, -5, 0],
-        scale: [1, 1.3, 1.1, 1.2, 1],
+        x: [0, -25, 25, -10, 0],
+        scale: [1, 1.4, 1.1, 1.3, 1],
       }}
       transition={{
         repeat: Infinity,
@@ -51,10 +51,10 @@ const BackgroundShapes = () => (
     <motion.div
       className="absolute bottom-32 left-[15%] w-80 h-80 rounded-full bg-indigo-500/15 blur-3xl"
       animate={{
-        x: [0, -30, 15, -20, 0],
-        y: [0, 25, -15, 10, 0],
-        scale: [1, 1.1, 0.9, 1.05, 1],
-        rotate: [0, 5, -3, 2, 0]
+        x: [0, -40, 25, -30, 0],
+        y: [0, 35, -25, 20, 0],
+        scale: [1, 1.15, 0.85, 1.1, 1],
+        rotate: [0, 8, -5, 4, 0]
       }}
       transition={{
         repeat: Infinity,
@@ -67,8 +67,8 @@ const BackgroundShapes = () => (
     <motion.div
       className="absolute bottom-60 left-[25%] w-32 h-32 rounded-full bg-indigo-400/10 blur-2xl"
       animate={{
-        y: [0, 30, -10, 15, 0],
-        scale: [1, 1.2, 0.9, 1.1, 1],
+        y: [0, 40, -20, 25, 0],
+        scale: [1, 1.3, 0.85, 1.2, 1],
       }}
       transition={{
         repeat: Infinity,
@@ -81,9 +81,9 @@ const BackgroundShapes = () => (
     <motion.div
       className="absolute top-1/2 left-[10%] w-28 h-28 rounded-md rotate-45 bg-brackeys-yellow/20 blur-2xl"
       animate={{
-        rotate: [45, 100, 35, 80, 45],
-        scale: [1, 1.3, 0.9, 1.2, 1],
-        opacity: [0.7, 0.9, 0.6, 0.8, 0.7]
+        rotate: [45, 110, 25, 90, 45],
+        scale: [1, 1.4, 0.85, 1.3, 1],
+        opacity: [0.7, 0.95, 0.5, 0.85, 0.7]
       }}
       transition={{
         repeat: Infinity,
@@ -96,8 +96,8 @@ const BackgroundShapes = () => (
     <motion.div
       className="absolute top-40 left-[40%] w-12 h-12 rounded-md rotate-12 bg-brackeys-yellow/15 blur-xl"
       animate={{
-        rotate: [12, 45, 0, 30, 12],
-        scale: [1, 1.4, 0.8, 1.2, 1],
+        rotate: [12, 55, -10, 40, 12],
+        scale: [1, 1.5, 0.7, 1.3, 1],
       }}
       transition={{
         repeat: Infinity,
@@ -107,25 +107,27 @@ const BackgroundShapes = () => (
     />
 
     {/* shimmer */}
-    {[...Array(5)].map((_, i) => (
+    {[...Array(12)].map((_, i) => (
       <motion.div
         key={`particle-${i}`}
-        className="absolute bg-white rounded-full opacity-70"
+        className="absolute bg-white rounded-full opacity-80"
         style={{
-          width: `${Math.random() * 3 + 1}px`,
-          height: `${Math.random() * 3 + 1}px`,
+          width: `${Math.random() * 4 + 1}px`,
+          height: `${Math.random() * 4 + 1}px`,
           left: `${Math.random() * 100}%`,
           top: `${Math.random() * 100}%`,
-          filter: 'blur(1px)',
+          filter: 'blur(0.5px)',
         }}
         animate={{
-          y: [-20, 20],
-          opacity: [0, 0.5, 0],
+          y: [-30, 30],
+          x: [-10, 10],
+          opacity: [0, 0.8, 0],
+          scale: [0.5, 1.2, 0.5],
         }}
         transition={{
           repeat: Infinity,
-          duration: Math.random() * 5 + 8,
-          delay: Math.random() * 5,
+          duration: Math.random() * 4 + 6,
+          delay: Math.random() * 3,
           ease: "easeInOut"
         }}
       />
@@ -139,7 +141,7 @@ type HeroSectionProps = {
 
 export const HeroSection = ({ user }: HeroSectionProps) => (
   <section
-    className="w-full flex flex-col items-center justify-center py-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
+    className="w-full flex flex-col items-center justify-center py-24 px-4 sm:px-6 lg:px-8 relative overflow-visible"
     aria-labelledby="hero-heading"
     data-testid="hero-section"
   >
