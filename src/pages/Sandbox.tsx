@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Users, MousePointer2 } from 'lucide-react';
-import { useSpacetimeDB } from '../hooks/useSpacetimeDB';
 import { Cursors } from '../components/sandbox/Cursors';
 import { TypingBubbles } from '../components/sandbox/TypingBubbles';
+import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider';
+import { useSpacetimeDB } from '../context/spacetimeDBContext';
 
-export const Sandbox = () => {
+export const SandboxView = () => {
   const [userName, setUserName] = useState<string>('');
   const [showNameDialog, setShowNameDialog] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
@@ -24,10 +25,6 @@ export const Sandbox = () => {
     updateCursor,
     updateTyping,
   } = useSpacetimeDB();
-
-  useEffect(() => {
-    document.title = 'Sandbox - Brackeys Community';
-  }, []);
 
   useEffect(() => {
     if (!canvasRef.current || !isConnected || showNameDialog) return;
@@ -98,7 +95,7 @@ export const Sandbox = () => {
       if (e.key === 'Escape') {
         resetTyping();
       } else if (e.key === 'Enter') {
-        // figure out what to do with enter
+        // TODO: figure out what to do with enter
         resetTyping();
       } else if (e.key === 'Backspace') {
         setTypingText(prev => {
@@ -119,7 +116,7 @@ export const Sandbox = () => {
       }
       typingTimeoutRef.current = setTimeout(() => {
         resetTyping();
-      }, 5000); // could probably make this user configurable
+      }, 5000); // TODO: should probably make this user configurable
     };
 
     let lastX = -1;
@@ -229,7 +226,7 @@ export const Sandbox = () => {
           </span>
         </div>
 
-        <div ref={canvasRef} className="relative w-full h-full bg-gray-850 outline-none">
+        <div ref={canvasRef} className="relative w-full h-full bg-gray-850 outline-none cursor-none">
           {showNameDialog ? (
             <div className="w-full h-full flex items-center justify-center text-gray-400">
               <div className="text-center">
@@ -296,4 +293,18 @@ export const Sandbox = () => {
       </motion.div>
     </div>
   );
-}; 
+};
+
+const SandboxContainer = () => {
+  useEffect(() => {
+    document.title = 'Sandbox - Brackeys Community';
+  }, []);
+
+  return (
+    <SpacetimeDBProvider>
+      <SandboxView />
+    </SpacetimeDBProvider>
+  )
+}
+
+export const Sandbox = SandboxContainer;

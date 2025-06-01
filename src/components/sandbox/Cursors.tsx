@@ -4,10 +4,8 @@ import { SandboxUser } from '../../api/spacetime-db'
 
 // Static content
 const CURSOR_ANIMATION_CONFIG = {
-  opacity: { duration: 0.2 },
-  scale: { duration: 0.2 },
-  left: { type: "spring", stiffness: 300, damping: 30 },
-  top: { type: "spring", stiffness: 300, damping: 30 },
+  opacity: { duration: 0.05 },
+  scale: { duration: 0.05 },
 } as const
 
 const CURSOR_SHADOW_FILTER = 'drop-shadow(0 2px 8px rgba(0,0,0,0.6)) drop-shadow(0 0 0 1px rgba(255,255,255,0.8))'
@@ -15,6 +13,7 @@ const CURSOR_PATH = "M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"
 
 type CursorProps = {
   user: SandboxUser
+  isCurrentUser?: boolean
 }
 
 type CursorLayerProps = {
@@ -29,28 +28,39 @@ type CursorPosition = {
 
 const getUserPosition = (user: SandboxUser): CursorPosition => ({ x: user.cursorX, y: user.cursorY })
 
-const Cursor = ({ user }: CursorProps) => {
+const Cursor = ({ user, isCurrentUser }: CursorProps) => {
   const [position, setPosition] = useState<CursorPosition>(() => getUserPosition(user))
 
   useEffect(() => {
     setPosition(getUserPosition(user))
-  }, [user.cursorX, user.cursorY]) // I don't think we want to update on other user state
+  }, [user.cursorX, user.cursorY])
+
+  const CursorWrapper = isCurrentUser ? 'div' : motion.div
+  const cursorStyles = {
+    position: 'absolute',
+    pointerEvents: 'none',
+    zIndex: 10,
+    left: `${position.x}%`,
+    top: `${position.y}%`,
+    transform: 'translate(0, 0)'
+  } as const
 
   return (
-    <motion.div
+    <CursorWrapper
       className="absolute pointer-events-none z-10"
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{
-        opacity: 1,
-        scale: 1,
-        left: `${position.x}%`,
-        top: `${position.y}%`,
-      }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      transition={CURSOR_ANIMATION_CONFIG}
-      style={{
-        transform: 'translate(-50%, -50%)',
-      }}
+      {...(!isCurrentUser && {
+        initial: { opacity: 0, scale: 0.8 },
+        animate: {
+          opacity: 1,
+          scale: 1,
+          left: `${position.x}%`,
+          top: `${position.y}%`,
+        },
+        exit: { opacity: 0, scale: 0.8 },
+        transition: CURSOR_ANIMATION_CONFIG,
+        style: { transform: 'translate(-50%, -50%)' },
+      })}
+      style={isCurrentUser ? cursorStyles : undefined}
     >
       <div className="relative">
         <svg
@@ -85,20 +95,22 @@ const Cursor = ({ user }: CursorProps) => {
           )}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </CursorWrapper>
   )
 }
 
 export const Cursors = ({ users, currentUserId }: CursorLayerProps) => {
-  const otherUsers = users.filter(user => user.identity.toHexString() !== currentUserId);
+  const currentUser = users.find(user => user.identity.toHexString() === currentUserId)
+  const otherUsers = users.filter(user => user.identity.toHexString() !== currentUserId)
 
   return (
-    <div className="absolute inset-0 pointer-events-none">
+    <div className="absolute inset-0 pointer-events-none [&:hover]:cursor-none">
       <AnimatePresence>
         {otherUsers.map(user => (
           <Cursor key={user.identity.toHexString()} user={user} />
         ))}
       </AnimatePresence>
+      {currentUser && <Cursor user={currentUser} isCurrentUser />}
     </div>
   )
-} 
+}
