@@ -1,9 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { DbConnection, SandboxUser, LiveTyping } from '../api/spacetime-db';
 
-const SPACETIME_MODULE = import.meta.env.VITE_SPACETIME_MODULE;
-const SPACETIME_HOST = import.meta.env.VITE_SPACETIME_HOST;
-
 export type SpacetimeState = {
   isConnected: boolean;
   currentUser: SandboxUser | null;
@@ -47,8 +44,8 @@ export const useSpacetimeDB = () => {
     };
 
     const connection = DbConnection.builder()
-      .withUri(SPACETIME_HOST)
-      .withModuleName(SPACETIME_MODULE)
+      .withUri(import.meta.env.VITE_SPACETIME_HOST)
+      .withModuleName(import.meta.env.VITE_SPACETIME_MODULE)
       .onConnect((conn, identity) => {
         connectionRef.current = conn;
         identityRef.current = identity.toHexString();

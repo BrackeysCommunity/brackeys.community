@@ -3,18 +3,26 @@ import { motion } from 'motion/react';
 import { Users, MousePointer2 } from 'lucide-react';
 import { useSpacetimeDB } from '../hooks/useSpacetimeDB';
 import { Cursors } from '../components/sandbox/Cursors';
+import { TypingBubbles } from '../components/sandbox/TypingBubbles';
 
 export const Sandbox = () => {
   const [userName, setUserName] = useState<string>('');
   const [showNameDialog, setShowNameDialog] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
+  const [typingPosition, setTypingPosition] = useState({ x: 0, y: 0 });
+
   const canvasRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     isConnected,
     currentUser,
     users,
+    typingStates,
     setDisplayName,
     updateCursor,
+    updateTyping,
   } = useSpacetimeDB();
 
   useEffect(() => {
@@ -50,6 +58,92 @@ export const Sandbox = () => {
       canvas.removeEventListener('mousemove', handleMouseMove);
     };
   }, [isConnected, showNameDialog, updateCursor]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !isConnected || showNameDialog) return;
+
+    const canvas = canvasRef.current;
+
+    const resetTyping = () => {
+      setIsTyping(false);
+      setTypingText('');
+      updateTyping('', 0, 0);
+    }
+
+    const handleClick = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+      setTypingPosition({ x, y });
+      setIsTyping(true);
+      setTypingText('');
+
+      canvas.focus();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isTyping) {
+        if (e.key === '/') {
+          e.preventDefault();
+          const x = lastX >= 0 ? lastX : 50;
+          const y = lastY >= 0 ? lastY : 50;
+          setTypingPosition({ x, y });
+          setIsTyping(true);
+          setTypingText('/');
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        resetTyping();
+      } else if (e.key === 'Enter') {
+        // figure out what to do with enter
+        resetTyping();
+      } else if (e.key === 'Backspace') {
+        setTypingText(prev => {
+          const newText = prev.slice(0, -1);
+          updateTyping(newText, typingPosition.x, typingPosition.y);
+          return newText;
+        });
+      } else if (e.key.length === 1) {
+        setTypingText(prev => {
+          const newText = prev + e.key;
+          updateTyping(newText, typingPosition.x, typingPosition.y);
+          return newText;
+        });
+      }
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      typingTimeoutRef.current = setTimeout(() => {
+        resetTyping();
+      }, 5000); // could probably make this user configurable
+    };
+
+    let lastX = -1;
+    let lastY = -1;
+    const updateLastPosition = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      lastX = ((e.clientX - rect.left) / rect.width) * 100;
+      lastY = ((e.clientY - rect.top) / rect.height) * 100;
+    };
+
+    canvas.addEventListener('click', handleClick);
+    canvas.addEventListener('keydown', handleKeyDown);
+    canvas.addEventListener('mousemove', updateLastPosition);
+    canvas.tabIndex = 0;
+
+    return () => {
+      canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('keydown', handleKeyDown);
+      canvas.removeEventListener('mousemove', updateLastPosition);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [isConnected, showNameDialog, isTyping, typingPosition, updateTyping]);
 
   const handleSetName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,7 +229,7 @@ export const Sandbox = () => {
           </span>
         </div>
 
-        <div ref={canvasRef} className="relative w-full h-full bg-gray-850">
+        <div ref={canvasRef} className="relative w-full h-full bg-gray-850 outline-none">
           {showNameDialog ? (
             <div className="w-full h-full flex items-center justify-center text-gray-400">
               <div className="text-center">
@@ -146,12 +240,56 @@ export const Sandbox = () => {
             </div>
           ) : (
             <>
-              {/* Background pattern */}
-              <div className="absolute inset-0 bg-dot-pattern pattern-mask-full pattern-opacity-10" />
+              <div className="absolute inset-0 bg-dot-pattern pattern-mask-radial pattern-opacity-40" />
+
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center pointer-events-none">
+                <p className="text-xs text-gray-500">
+                  Click anywhere or press "/" to start typing
+                </p>
+              </div>
+
               <Cursors
                 users={users}
                 currentUserId={currentUser?.identity.toHexString()}
               />
+
+              <TypingBubbles
+                typingStates={typingStates}
+                users={users}
+                currentUserId={currentUser?.identity.toHexString()}
+              />
+
+              {isTyping && typingText && (
+                <motion.div
+                  className="absolute pointer-events-none z-20"
+                  initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    y: 0,
+                  }}
+                  style={{
+                    left: `${typingPosition.x}%`,
+                    top: `${typingPosition.y}%`,
+                  }}
+                >
+                  <div
+                    className="relative bg-gray-900 text-white px-3 py-2 rounded-lg shadow-2xl border border-gray-700 max-w-xs"
+                    style={{
+                      boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px ${currentUser?.color || '#fff'}40`,
+                    }}
+                  >
+                    <div className="text-sm font-mono whitespace-pre-wrap break-words">
+                      {typingText}
+                      <motion.span
+                        animate={{ opacity: [1, 0] }}
+                        transition={{ duration: 0.5, repeat: Infinity, repeatType: "reverse" }}
+                        className="inline-block w-0.5 h-4 bg-white ml-0.5 align-middle"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </>
           )}
         </div>
