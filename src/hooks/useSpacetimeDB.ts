@@ -1,15 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { DbConnection, SandboxUser, LiveTyping } from '../api/spacetime-db';
 
-const SPACETIME_MODULE = 'brackeys-sandbox';
-const SPACETIME_HOST = 'ws://localhost:3000';
+const SPACETIME_MODULE = import.meta.env.VITE_SPACETIME_MODULE;
+const SPACETIME_HOST = import.meta.env.VITE_SPACETIME_HOST;
 
-export interface SpacetimeState {
+export type SpacetimeState = {
   isConnected: boolean;
   currentUser: SandboxUser | null;
   users: SandboxUser[];
   typingStates: Map<string, LiveTyping>;
-}
+};
 
 export const useSpacetimeDB = () => {
   const [state, setState] = useState<SpacetimeState>({
@@ -23,35 +23,11 @@ export const useSpacetimeDB = () => {
   const connectionRef = useRef<DbConnection | null>(null);
 
   useEffect(() => {
-    // Connect to SpacetimeDB
-    const connection = DbConnection.builder()
-      .withUri(SPACETIME_HOST)
-      .withModuleName(SPACETIME_MODULE)
-      .onConnect((conn, identity, token) => {
-        console.log('Connected to SpacetimeDB');
-        connectionRef.current = conn;
-        identityRef.current = identity.toHexString();
-
-        setState(prev => ({ ...prev, isConnected: true }));
-      })
-      .onDisconnect(() => {
-        console.log('Disconnected from SpacetimeDB');
-        setState(prev => ({ ...prev, isConnected: false }));
-      })
-      .build();
-
-    // Set up event listeners for table updates
-    connection.db.sandboxUser.onInsert(() => updateState());
-    connection.db.sandboxUser.onUpdate(() => updateState());
-    connection.db.sandboxUser.onDelete(() => updateState());
-
-    connection.db.liveTyping.onInsert(() => updateState());
-    connection.db.liveTyping.onUpdate(() => updateState());
-    connection.db.liveTyping.onDelete(() => updateState());
-
     const updateState = () => {
-      const users = Array.from(connection.db.sandboxUser.iter()) as SandboxUser[];
-      const typingData = Array.from(connection.db.liveTyping.iter()) as LiveTyping[];
+      if (!connectionRef.current) return;
+
+      const users = Array.from(connectionRef.current.db.sandboxUser.iter()) as SandboxUser[];
+      const typingData = Array.from(connectionRef.current.db.liveTyping.iter()) as LiveTyping[];
 
       const typingStates = new Map<string, LiveTyping>();
       typingData.forEach((typing: LiveTyping) => {
@@ -69,6 +45,36 @@ export const useSpacetimeDB = () => {
         typingStates,
       });
     };
+
+    const connection = DbConnection.builder()
+      .withUri(SPACETIME_HOST)
+      .withModuleName(SPACETIME_MODULE)
+      .onConnect((conn, identity) => {
+        connectionRef.current = conn;
+        identityRef.current = identity.toHexString();
+
+        setState(prev => ({ ...prev, isConnected: true }));
+
+        conn
+          .subscriptionBuilder()
+          .onApplied(updateState)
+          .subscribe([
+            'SELECT * FROM sandbox_user',
+            'SELECT * FROM live_typing'
+          ]);
+      })
+      .onDisconnect(() => {
+        setState(prev => ({ ...prev, isConnected: false }));
+      })
+      .build();
+
+    connection.db.sandboxUser.onInsert(updateState);
+    connection.db.sandboxUser.onUpdate(updateState);
+    connection.db.sandboxUser.onDelete(updateState);
+
+    connection.db.liveTyping.onInsert(updateState);
+    connection.db.liveTyping.onUpdate(updateState);
+    connection.db.liveTyping.onDelete(updateState);
 
     return () => {
       connection.disconnect();
