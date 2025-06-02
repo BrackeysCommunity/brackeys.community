@@ -36,6 +36,8 @@ export type LiveTyping = {
   positionX: number,
   positionY: number,
   isTyping: boolean,
+  selectionStart: number,
+  selectionEnd: number,
   updatedAt: Timestamp,
 };
 
@@ -54,6 +56,8 @@ export namespace LiveTyping {
       new ProductTypeElement("positionX", AlgebraicType.createF32Type()),
       new ProductTypeElement("positionY", AlgebraicType.createF32Type()),
       new ProductTypeElement("isTyping", AlgebraicType.createBoolType()),
+      new ProductTypeElement("selectionStart", AlgebraicType.createU32Type()),
+      new ProductTypeElement("selectionEnd", AlgebraicType.createU32Type()),
       new ProductTypeElement("updatedAt", AlgebraicType.createTimestampType()),
     ]);
   }

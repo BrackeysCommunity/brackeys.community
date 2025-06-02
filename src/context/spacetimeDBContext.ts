@@ -8,7 +8,7 @@ export type SpacetimeState = {
   typingStates: Map<string, LiveTyping>;
   setDisplayName: (name: string) => Promise<void>;
   updateCursor: (x: number, y: number) => Promise<void>;
-  updateTyping: (text: string, x: number, y: number) => Promise<void>;
+  updateTyping: (text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => Promise<void>;
 };
 
 const SpacetimeDBContext = createContext<SpacetimeState | null>(null);

@@ -174,19 +174,19 @@ export class RemoteReducers {
     this.connection.offReducer("update_cursor", callback);
   }
 
-  updateTyping(text: string, x: number, y: number) {
-    const __args = { text, x, y };
+  updateTyping(text: string, x: number, y: number, selectionStart: number, selectionEnd: number) {
+    const __args = { text, x, y, selectionStart, selectionEnd };
     let __writer = new BinaryWriter(1024);
     UpdateTyping.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("update_typing", __argsBuffer, this.setCallReducerFlags.updateTypingFlags);
   }
 
-  onUpdateTyping(callback: (ctx: ReducerEventContext, text: string, x: number, y: number) => void) {
+  onUpdateTyping(callback: (ctx: ReducerEventContext, text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => void) {
     this.connection.onReducer("update_typing", callback);
   }
 
-  removeOnUpdateTyping(callback: (ctx: ReducerEventContext, text: string, x: number, y: number) => void) {
+  removeOnUpdateTyping(callback: (ctx: ReducerEventContext, text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => void) {
     this.connection.offReducer("update_typing", callback);
   }
 

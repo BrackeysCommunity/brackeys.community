@@ -1,10 +1,10 @@
 import { motion } from 'motion/react';
-import { useEffect } from 'react';
-import { RedocStandalone } from 'redoc';
 import type { ResolvedThemeInterface } from 'redoc';
+import { RedocStandalone } from 'redoc';
+import { useLayoutProps } from '../context/layoutContext';
+import { useDocTitle } from '../hooks/useDocTitle';
 import { useRemoveAllEventListeners } from '../hooks/useRemoveAllEventListeners';
 
-// Create color settings using Brackeys brand colors
 const createColorSetting = (
   main: string,
   light: string,
@@ -17,7 +17,6 @@ const createColorSetting = (
   contrastText
 });
 
-// Theme configuration based on Brackeys Tailwind colors
 const brackeysTheme: ResolvedThemeInterface = {
   spacing: {
     unit: 4,
@@ -191,11 +190,15 @@ const brackeysTheme: ResolvedThemeInterface = {
 };
 
 export const Api = () => {
+  useLayoutProps({
+    showFooter: false,
+    containerized: false,
+    mainClassName: "px-0 pt-0"
+  });
+
   // TODO: Remove this when Redoc is fixed
   useRemoveAllEventListeners('scroll');
-  useEffect(() => {
-    document.title = 'API - Brackeys Community';
-  }, []);
+  useDocTitle('API - Brackeys Community');
 
   return (
     <div className="w-full">

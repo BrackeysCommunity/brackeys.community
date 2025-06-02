@@ -19,6 +19,8 @@ pub struct LiveTyping {
     position_x: f32,
     position_y: f32,
     is_typing: bool,
+    selection_start: u32,
+    selection_end: u32,
     updated_at: Timestamp,
 }
 
@@ -54,6 +56,8 @@ pub fn client_connected(ctx: &ReducerContext) {
         position_x: 0.0,
         position_y: 0.0,
         is_typing: false,
+        selection_start: 0,
+        selection_end: 0,
         updated_at: ctx.timestamp,
     });
     
@@ -84,7 +88,7 @@ pub fn update_cursor(ctx: &ReducerContext, x: f32, y: f32) -> Result<(), String>
 }
 
 #[reducer]
-pub fn update_typing(ctx: &ReducerContext, text: String, x: f32, y: f32) -> Result<(), String> {
+pub fn update_typing(ctx: &ReducerContext, text: String, x: f32, y: f32, selection_start: u32, selection_end: u32) -> Result<(), String> {
     let text = if text.len() > 200 {
         text.chars().take(200).collect()
     } else {
@@ -100,6 +104,8 @@ pub fn update_typing(ctx: &ReducerContext, text: String, x: f32, y: f32) -> Resu
             position_x: x,
             position_y: y,
             is_typing,
+            selection_start,
+            selection_end,
             updated_at: ctx.timestamp,
         });
         Ok(())

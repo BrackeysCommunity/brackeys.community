@@ -35,6 +35,8 @@ export type UpdateTyping = {
   text: string,
   x: number,
   y: number,
+  selectionStart: number,
+  selectionEnd: number,
 };
 
 /**
@@ -50,6 +52,8 @@ export namespace UpdateTyping {
       new ProductTypeElement("text", AlgebraicType.createStringType()),
       new ProductTypeElement("x", AlgebraicType.createF32Type()),
       new ProductTypeElement("y", AlgebraicType.createF32Type()),
+      new ProductTypeElement("selectionStart", AlgebraicType.createU32Type()),
+      new ProductTypeElement("selectionEnd", AlgebraicType.createU32Type()),
     ]);
   }
 

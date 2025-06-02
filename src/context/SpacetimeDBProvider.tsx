@@ -133,10 +133,10 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const updateTyping = async (text: string, x: number, y: number) => {
+  const updateTyping = async (text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => {
     if (!connectionRef.current) return;
     try {
-      connectionRef.current.reducers.updateTyping(text, x, y);
+      connectionRef.current.reducers.updateTyping(text, x, y, selectionStart, selectionEnd);
     } catch (error) {
       console.error('Failed to update typing:', error);
     }
