@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { SandboxUser, LiveTyping } from '../../api/spacetime-db'
+import { cn } from '../../lib/utils'
 
 const CURSOR_ANIMATION_CONFIG = {
   opacity: { duration: 0.05 },
@@ -125,7 +126,7 @@ const Cursor = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClos
 
   return (
     <CursorWrapper
-      className={`absolute z-10 ${(isCurrentUser && isTyping) ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      className={cn("absolute z-10", isCurrentUser && isTyping ? 'pointer-events-auto' : 'pointer-events-none')}
       {...(!isCurrentUser && {
         initial: { opacity: 0, scale: 0.8 },
         animate: {
@@ -157,7 +158,6 @@ const Cursor = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClos
           />
         </svg>
 
-        {/* Label that expands into typing bubble */}
         <motion.div
           className="absolute top-3.5 left-3.5 whitespace-nowrap"
           initial={false}
@@ -190,7 +190,6 @@ const Cursor = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClos
               damping: 25,
             }}
           >
-            {/* User name - always visible */}
             <motion.div
               className="text-xs font-medium flex justify-between"
               style={{ color: isTyping ? user.color : 'white' }}
@@ -202,7 +201,6 @@ const Cursor = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClos
               {isTyping && isCurrentUser && <span className="text-xs text-gray-400">ESC to cancel</span>}
             </motion.div>
 
-            {/* Typing content - only visible when typing */}
             <AnimatePresence>
               {isTyping && typingState && (
                 <motion.div
