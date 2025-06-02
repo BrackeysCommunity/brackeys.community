@@ -36,7 +36,7 @@ export const useLayout = () => {
 export const useLayoutProps = (props: LayoutProps) => {
   const { setLayoutProps } = useLayout();
   useEffect(() => {
-    setLayoutProps(props);
+    setLayoutProps({ ...defaultLayoutProps, ...props });
     return () => { setLayoutProps(defaultLayoutProps) };
-  }, [setLayoutProps, props]);
+  }, [setLayoutProps]);
 }

@@ -42,17 +42,38 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
         user.identity.toHexString() === identityRef.current
       ) || null;
 
-      console.log('Current users:', users.map(u => ({
-        id: u.identity.toHexString().substring(0, 8),
-        name: u.name,
-        isCurrentUser: u.identity.toHexString() === identityRef.current
-      })));
+      setState(prev => {
+        // only update if data actually changed
+        const hasUsersChanged = prev.users.length !== users.length ||
+          prev.users.some((prevUser, i) => {
+            const newUser = users[i];
+            return !newUser ||
+              prevUser.identity.toHexString() !== newUser.identity.toHexString() ||
+              prevUser.cursorX !== newUser.cursorX ||
+              prevUser.cursorY !== newUser.cursorY ||
+              prevUser.name !== newUser.name;
+          });
 
-      setState({
-        isConnected: true,
-        currentUser,
-        users,
-        typingStates,
+        const hasTypingChanged = prev.typingStates.size !== typingStates.size ||
+          Array.from(typingStates.entries()).some(([id, typing]) => {
+            const prevTyping = prev.typingStates.get(id);
+            return !prevTyping ||
+              prevTyping.text !== typing.text ||
+              prevTyping.isTyping !== typing.isTyping;
+          });
+
+        const hasCurrentUserChanged = prev.currentUser?.identity.toHexString() !== currentUser?.identity.toHexString();
+
+        if (hasUsersChanged || hasTypingChanged || hasCurrentUserChanged) {
+          return {
+            isConnected: true,
+            currentUser,
+            users,
+            typingStates,
+          };
+        }
+
+        return { ...prev, isConnected: true };
       });
     };
 
@@ -88,14 +109,22 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
 
       connectionRef.current = connection;
 
-      // Set up event listeners
-      connection.db.sandboxUser.onInsert(updateState);
-      connection.db.sandboxUser.onUpdate(updateState);
-      connection.db.sandboxUser.onDelete(updateState);
+      let updateTimeout: NodeJS.Timeout | null = null;
+      const throttledUpdate = () => {
+        if (updateTimeout) return;
+        updateTimeout = setTimeout(() => {
+          updateState();
+          updateTimeout = null;
+        }, 7); // ~140fps
+      };
 
-      connection.db.liveTyping.onInsert(updateState);
-      connection.db.liveTyping.onUpdate(updateState);
-      connection.db.liveTyping.onDelete(updateState);
+      connection.db.sandboxUser.onInsert(throttledUpdate);
+      connection.db.sandboxUser.onUpdate(throttledUpdate);
+      connection.db.sandboxUser.onDelete(throttledUpdate);
+
+      connection.db.liveTyping.onInsert(throttledUpdate);
+      connection.db.liveTyping.onUpdate(throttledUpdate);
+      connection.db.liveTyping.onDelete(throttledUpdate);
     } catch (error) {
       console.error('Error creating connection:', error);
     }
