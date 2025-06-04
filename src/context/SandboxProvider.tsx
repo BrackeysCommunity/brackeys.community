@@ -1,9 +1,15 @@
-import { useState, useCallback, PropsWithChildren } from 'react';
+import { useState, useCallback, PropsWithChildren, useRef } from 'react';
 import { CursorState, Provider } from './sandboxContext';
 
 export const SandboxProvider = ({ children }: PropsWithChildren) => {
   const [cursorState, setCursorState] = useState<CursorState>('default');
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
+  const [showNameDialog, setShowNameDialog] = useState(true);
+
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const lastCursorPosition = useRef({ x: 50, y: 50 });
 
   const setCursorDefault = useCallback(() => {
     if (hoveredElementId) setCursorState('interactive');
@@ -30,6 +36,14 @@ export const SandboxProvider = ({ children }: PropsWithChildren) => {
       setCursorTyping,
       hoveredElementId,
       setHoveredElement,
+      isTyping,
+      setIsTyping,
+      typingText,
+      setTypingText,
+      canvasRef,
+      lastCursorPosition,
+      showNameDialog,
+      setShowNameDialog,
     }}>
       {children}
     </Provider>

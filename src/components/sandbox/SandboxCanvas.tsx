@@ -1,11 +1,15 @@
-import { useEffect, useMemo, forwardRef } from 'react'
+import { forwardRef } from 'react'
 import { MousePointer2 } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import { SandboxUser, LiveTyping, SandboxMessage } from '../../spacetime-bindings'
 import { Cursors } from './cursors/Cursors'
 import { StatusIndicators } from './StatusIndicators'
 import { MessageGroup } from './MessageGroup'
-import { CURSOR_UPDATE_THRESHOLD, CURSOR_UPDATE_INTERVAL, MESSAGE_POSITION_TOLERANCE_PX } from './constants'
+
+type MessageGroupData = {
+  position: { x: number; y: number }
+  messages: SandboxMessage[]
+}
 
 type SandboxCanvasProps = {
   isConnected: boolean
@@ -13,12 +17,11 @@ type SandboxCanvasProps = {
   users: SandboxUser[]
   currentUserId?: string
   typingStates: Map<string, LiveTyping>
-  messages: SandboxMessage[]
+  messageGroups: Map<string, MessageGroupData>
+  usersMap: Map<string, SandboxUser>
   isTyping: boolean
   typingText: string
-  lastCursorPosition: { x: number; y: number }
-  onCursorMove: (x: number, y: number) => void
-  onTypingStart: () => void
+  activeUserCount: number
   onTypingChange: (text: string, selectionStart: number, selectionEnd: number) => void
   onTypingClose: () => void
   onSendMessage: (text: string, x: number, y: number) => void
@@ -32,114 +35,24 @@ export const SandboxCanvas = forwardRef<HTMLDivElement, SandboxCanvasProps>(({
   users,
   currentUserId,
   typingStates,
-  messages,
+  messageGroups,
+  usersMap,
   isTyping,
   typingText,
-  lastCursorPosition,
-  onCursorMove,
-  onTypingStart,
+  activeUserCount,
   onTypingChange,
   onTypingClose,
   onSendMessage,
   onDismissMessage,
   onDismissGroup
 }, ref) => {
-  const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users])
-
-  // group messages by position (with some tolerance for grouping nearby messages)
-  const messageGroups = useMemo(() => {
-    const groups = new Map<string, { position: { x: number; y: number }; messages: SandboxMessage[] }>()
-    const tolerance = MESSAGE_POSITION_TOLERANCE_PX
-
-    messages.forEach(message => {
-      let foundGroup = false
-
-      for (const [, group] of groups) {
-        if (
-          Math.abs(group.position.x - message.positionX) < tolerance &&
-          Math.abs(group.position.y - message.positionY) < tolerance
-        ) {
-          group.messages.push(message)
-          foundGroup = true
-          break
-        }
-      }
-
-      if (!foundGroup) {
-        const key = `${Math.round(message.positionX)}-${Math.round(message.positionY)}`
-        groups.set(key, {
-          position: { x: message.positionX, y: message.positionY },
-          messages: [message]
-        })
-      }
-    })
-
-    return groups
-  }, [messages])
-
-  const handleTypingClose = () => {
-    onTypingClose()
-    if (ref && 'current' in ref && ref.current) {
-      ref.current.focus()
-    }
-  }
-
-  useEffect(() => {
-    if (!ref || !('current' in ref) || !ref.current || !isConnected || showNameDialog) return
-
-    const canvas = ref.current
-    let lastUpdate = Date.now()
-    let lastX = -1
-    let lastY = -1
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const now = Date.now()
-      const rect = canvas.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width) * 100
-      const y = ((e.clientY - rect.top) / rect.height) * 100
-
-      lastCursorPosition.x = x
-      lastCursorPosition.y = y
-
-      const distance = Math.sqrt(Math.pow(x - lastX, 2) + Math.pow(y - lastY, 2))
-      if (distance > CURSOR_UPDATE_THRESHOLD || now - lastUpdate > CURSOR_UPDATE_INTERVAL) {
-        onCursorMove(x, y)
-        lastUpdate = now
-        lastX = x
-        lastY = y
-      }
-    }
-
-    canvas.addEventListener('mousemove', handleMouseMove)
-    return () => {
-      canvas.removeEventListener('mousemove', handleMouseMove)
-    }
-  }, [isConnected, showNameDialog, onCursorMove, lastCursorPosition, ref])
-
-  useEffect(() => {
-    if (!ref || !('current' in ref) || !ref.current || !isConnected || showNameDialog) return
-
-    const canvas = ref.current
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isTyping && e.key === '/') {
-        e.preventDefault()
-        onTypingStart()
-      }
-    }
-
-    canvas.addEventListener('keydown', handleKeyDown)
-    canvas.tabIndex = 0
-
-    return () => {
-      canvas.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isConnected, showNameDialog, isTyping, onTypingStart, ref])
-
-  const activeUserCount = users.length;
 
   return (
-    <div ref={ref} className="absolute inset-0 outline-none cursor-none">
+    <div
+      ref={ref}
+      className="absolute inset-0 outline-none cursor-none"
+      tabIndex={0}
+    >
       <div className="absolute w-full px-4">
         <div className="relative w-full container mx-auto">
           <StatusIndicators
@@ -183,7 +96,7 @@ export const SandboxCanvas = forwardRef<HTMLDivElement, SandboxCanvasProps>(({
             isTyping={isTyping}
             typingText={typingText}
             onTypingChange={onTypingChange}
-            onTypingClose={handleTypingClose}
+            onTypingClose={onTypingClose}
             onSendMessage={onSendMessage}
           />
 
