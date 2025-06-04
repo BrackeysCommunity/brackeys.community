@@ -5,7 +5,6 @@ import { SandboxUser, LiveTyping, SandboxMessage } from '../../spacetime-binding
 import { Cursors } from './cursors/Cursors'
 import { StatusIndicators } from './StatusIndicators'
 import { MessageGroup } from './MessageGroup'
-import { useCursor } from '../../context/cursorContext'
 import { CURSOR_UPDATE_THRESHOLD, CURSOR_UPDATE_INTERVAL, MESSAGE_POSITION_TOLERANCE_PX } from './constants'
 
 type SandboxCanvasProps = {
@@ -44,7 +43,7 @@ export const SandboxCanvas = ({
   onDismissMessage
 }: SandboxCanvasProps) => {
   const canvasRef = useRef<HTMLDivElement>(null)
-  const { cursorState } = useCursor()
+
   const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users])
 
   // group messages by position (with some tolerance for grouping nearby messages)
@@ -135,23 +134,10 @@ export const SandboxCanvas = ({
     }
   }, [isConnected, showNameDialog, isTyping, onTypingStart])
 
-  const activeUserCount = users.length
-
-  // Dynamic cursor styling based on state
-  const cursorStyle = useMemo(() => {
-    const baseStyle = 'absolute inset-0 outline-none cursor-none'
-    switch (cursorState) {
-      case 'interactive':
-        return `${baseStyle}`
-      case 'typing':
-        return `${baseStyle} saturate-110`
-      default:
-        return baseStyle
-    }
-  }, [cursorState])
+  const activeUserCount = users.length;
 
   return (
-    <div ref={canvasRef} className={cursorStyle}>
+    <div ref={canvasRef} className="absolute inset-0 outline-none cursor-none">
       <div className="absolute w-full px-4">
         <div className="relative w-full container mx-auto">
           <StatusIndicators

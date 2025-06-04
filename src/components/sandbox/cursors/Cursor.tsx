@@ -5,6 +5,7 @@ import { cn } from '../../../lib/utils'
 import { CursorIcon } from './CursorIcon'
 import { TypingBubble } from '../TypingBubble'
 import { CURSOR_ANIMATION_CONFIG } from '../constants'
+import { useSandbox } from '../../../context/sandboxContext'
 
 type SimpleTypingState = {
   text: string
@@ -31,7 +32,7 @@ const getUserPosition = (user: SandboxUser): CursorPosition => ({ x: user.cursor
 
 export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClose, onSendMessage }: CursorContainerProps) => {
   const [position, setPosition] = useState<CursorPosition>(() => getUserPosition(user))
-  const isTyping = typingState?.isTyping || false
+  const { cursorState } = useSandbox()
 
   useEffect(() => {
     const newPosition = getUserPosition(user)
@@ -44,6 +45,7 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
     })
   }, [user.cursorX, user.cursorY])
 
+  const isTyping = typingState?.isTyping || false
   const CursorWrapper = isCurrentUser ? 'div' : motion.div
   const cursorStyles = {
     position: 'absolute',
@@ -53,6 +55,19 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
     top: `${position.y}%`,
     transform: 'translate(0, 0)'
   } as const
+
+  const cursorIconAnimation = isCurrentUser ? {
+    scale: [
+      cursorState === 'interactive' ? 1.2 : 1,
+      cursorState === 'typing' ? 0.9 : 1
+    ],
+    padding: [
+      cursorState === 'interactive' ? '0 4px 4px 0' : '0',
+      cursorState === 'typing' ? '0' : '0'
+    ],
+    opacity: cursorState === 'typing' ? 0.5 : 1,
+    filter: cursorState === 'interactive' ? 'brightness(1.5)' : 'brightness(1)'
+  } : undefined
 
   return (
     <CursorWrapper
@@ -72,7 +87,12 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
       style={isCurrentUser ? cursorStyles : undefined}
     >
       <div className="relative">
-        <CursorIcon user={user} isCurrentUser={isCurrentUser} />
+        <motion.div
+          animate={cursorIconAnimation}
+          transition={{ duration: 0.2 }}
+        >
+          <CursorIcon user={user} isCurrentUser={isCurrentUser} />
+        </motion.div>
 
         {typingState && (
           <TypingBubble
@@ -87,4 +107,4 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
       </div>
     </CursorWrapper>
   )
-} 
+}

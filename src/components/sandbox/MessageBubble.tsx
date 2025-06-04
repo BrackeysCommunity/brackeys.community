@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { SandboxMessage } from '../../spacetime-bindings';
-import { useCursor } from '../../context/cursorContext';
+import { useSandbox } from '../../context/sandboxContext';
+import { useEffect } from 'react';
 
 interface MessageBubbleProps {
   message: SandboxMessage;
@@ -19,19 +20,31 @@ export const MessageBubble = ({
   onDismiss,
 }: MessageBubbleProps) => {
   const isOwnMessage = currentUserId === message.senderIdentity.toHexString();
-  const { setCursorInteractive, setCursorDefault, hoveredElementId, cursorState } = useCursor();
+  const { setCursorInteractive, setCursorDefault, hoveredElementId, setHoveredElement } = useSandbox();
   const messageId = message.id.toString();
-  const isThisMessageHovered = cursorState === 'interactive' && hoveredElementId === messageId;
+  const isThisMessageHovered = hoveredElementId === messageId;
+
+  useEffect(() => {
+    return () => {
+      if (isThisMessageHovered) setHoveredElement(null);
+    };
+  }, [isThisMessageHovered, setHoveredElement]);
 
   const handleDismiss = () => {
     onDismiss?.(message.id);
+    if (isThisMessageHovered) {
+      setHoveredElement(null);
+      setCursorDefault();
+    }
   };
 
   const handleButtonMouseEnter = () => {
-    setCursorInteractive(messageId);
+    setHoveredElement(messageId);
+    setCursorInteractive();
   };
 
   const handleButtonMouseLeave = () => {
+    setHoveredElement(null);
     setCursorDefault();
   };
 

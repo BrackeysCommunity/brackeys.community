@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react'
 import { useRef, useEffect } from 'react'
 import { SandboxUser, LiveTyping } from '../../spacetime-bindings'
-import { useCursor } from '../../context/cursorContext'
+import { useSandbox } from '../../context/sandboxContext'
 import { TYPING_ANIMATION_CONFIG, TYPING_BUBBLE_TRANSITIONS, TYPING_BLUR_TIMEOUT, MAX_TYPING_LENGTH } from './constants'
 
 type SimpleTypingState = {
@@ -49,7 +49,7 @@ export const TypingBubble = ({
   onSendMessage
 }: TypingBubbleProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { setCursorTyping, setCursorDefault } = useCursor()
+  const { setCursorTyping, setCursorDefault } = useSandbox()
   const isTyping = typingState?.isTyping || false
 
   useEffect(() => {
