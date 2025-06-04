@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'motion/react'
-import { SandboxUser, LiveTyping } from '../../../api/spacetime-db'
+import { SandboxUser, LiveTyping } from '../../../spacetime-bindings'
 import { CursorContainer } from './Cursor'
 
 type SimpleTypingState = {
@@ -17,6 +17,7 @@ type CursorLayerProps = {
   typingText?: string
   onTypingChange?: (text: string, selectionStart: number, selectionEnd: number) => void
   onTypingClose?: () => void
+  onSendMessage?: (text: string, x: number, y: number) => void
 }
 
 export const Cursors = ({
@@ -26,7 +27,8 @@ export const Cursors = ({
   isTyping,
   typingText,
   onTypingChange,
-  onTypingClose
+  onTypingClose,
+  onSendMessage
 }: CursorLayerProps) => {
   const currentUser = users.find(user => user.identity.toHexString() === currentUserId)
   const otherUsers = users.filter(user => user.identity.toHexString() !== currentUserId)
@@ -61,6 +63,7 @@ export const Cursors = ({
           typingState={currentUserTypingState}
           onTypingChange={onTypingChange}
           onTypingClose={onTypingClose}
+          onSendMessage={onSendMessage}
         />
       )}
     </div>

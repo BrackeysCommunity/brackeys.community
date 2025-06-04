@@ -1,4 +1,4 @@
-import { SandboxUser } from '../../../api/spacetime-db'
+import { SandboxUser } from '../../../spacetime-bindings'
 import { CURSOR_SHADOW_FILTER, CURSOR_PATH } from '../constants'
 
 type CursorIconProps = {

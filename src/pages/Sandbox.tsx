@@ -19,9 +19,11 @@ export const SandboxView = () => {
     currentUser,
     users,
     typingStates,
+    messages,
     setDisplayName,
     updateCursor,
     updateTyping,
+    sendMessage,
   } = useSpacetimeDB();
 
   const handleSetName = async (name: string) => {
@@ -76,6 +78,7 @@ export const SandboxView = () => {
           users={users}
           currentUserId={currentUser?.identity.toHexString()}
           typingStates={typingStates}
+          messages={messages}
           isTyping={isTyping}
           typingText={typingText}
           lastCursorPosition={lastCursorPosition.current}
@@ -83,6 +86,7 @@ export const SandboxView = () => {
           onTypingStart={handleTypingStart}
           onTypingChange={handleTypingChange}
           onTypingClose={handleTypingClose}
+          onSendMessage={sendMessage}
         />
       </motion.div>
     </div>

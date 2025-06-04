@@ -1,16 +1,17 @@
 import { PropsWithChildren, useEffect, useRef, useState } from 'react';
-import { DbConnection, SandboxUser, LiveTyping } from '../api/spacetime-db';
+import { DbConnection, SandboxUser, LiveTyping, SandboxMessage } from '../spacetime-bindings';
 import { Provider, SpacetimeState } from './spacetimeDBContext';
 
 const SPACETIME_HOST = import.meta.env.VITE_SPACETIME_HOST || 'ws://localhost:3000';
 const SPACETIME_MODULE = import.meta.env.VITE_SPACETIME_MODULE || 'brackeys-sandbox';
 
 export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
-  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateCursor' | 'updateTyping'>>({
+  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateCursor' | 'updateTyping' | 'sendMessage'>>({
     isConnected: false,
     currentUser: null,
     users: [],
     typingStates: new Map(),
+    messages: [],
   });
 
   const connectionRef = useRef<DbConnection | null>(null);
@@ -32,6 +33,7 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
 
       const users = Array.from(connection.db.sandboxUser.iter()) as SandboxUser[];
       const typingData = Array.from(connection.db.liveTyping.iter()) as LiveTyping[];
+      const messages = Array.from(connection.db.sandboxMessage.iter()) as SandboxMessage[];
 
       const typingStates = new Map<string, LiveTyping>();
       typingData.forEach((typing: LiveTyping) => {
@@ -64,12 +66,19 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
 
         const hasCurrentUserChanged = prev.currentUser?.identity.toHexString() !== currentUser?.identity.toHexString();
 
-        if (hasUsersChanged || hasTypingChanged || hasCurrentUserChanged) {
+        const hasMessagesChanged = prev.messages.length !== messages.length ||
+          prev.messages.some((prevMsg, i) => {
+            const newMsg = messages[i];
+            return !newMsg || Number(prevMsg.id) !== Number(newMsg.id);
+          });
+
+        if (hasUsersChanged || hasTypingChanged || hasCurrentUserChanged || hasMessagesChanged) {
           return {
             isConnected: true,
             currentUser,
             users,
             typingStates,
+            messages,
           };
         }
 
@@ -91,7 +100,8 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
               .onApplied(updateState)
               .subscribe([
                 'SELECT * FROM sandbox_user',
-                'SELECT * FROM live_typing'
+                'SELECT * FROM live_typing',
+                'SELECT * FROM sandbox_message'
               ]);
           } else {
             console.warn('Component unmounted before connection completed');
@@ -125,6 +135,9 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
       connection.db.liveTyping.onInsert(throttledUpdate);
       connection.db.liveTyping.onUpdate(throttledUpdate);
       connection.db.liveTyping.onDelete(throttledUpdate);
+
+      connection.db.sandboxMessage.onInsert(throttledUpdate);
+      connection.db.sandboxMessage.onDelete(throttledUpdate);
     } catch (error) {
       console.error('Error creating connection:', error);
     }
@@ -171,11 +184,22 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
+  const sendMessage = async (text: string, x: number, y: number) => {
+    if (!connectionRef.current) throw new Error('Not connected');
+    try {
+      connectionRef.current.reducers.sendMessage(text, x, y);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      throw error;
+    }
+  };
+
   const value: SpacetimeState = {
     ...state,
     setDisplayName,
     updateCursor,
     updateTyping,
+    sendMessage,
   };
 
   return (

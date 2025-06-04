@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
-import { SandboxUser, LiveTyping } from '../../../api/spacetime-db'
+import { SandboxUser, LiveTyping } from '../../../spacetime-bindings'
 import { cn } from '../../../lib/utils'
 import { CursorIcon } from './CursorIcon'
 import { TypingBubble } from '../TypingBubble'
@@ -19,6 +19,7 @@ type CursorContainerProps = {
   typingState?: LiveTyping | SimpleTypingState
   onTypingChange?: (text: string, selectionStart: number, selectionEnd: number) => void
   onTypingClose?: () => void
+  onSendMessage?: (text: string, x: number, y: number) => void
 }
 
 type CursorPosition = {
@@ -28,7 +29,7 @@ type CursorPosition = {
 
 const getUserPosition = (user: SandboxUser): CursorPosition => ({ x: user.cursorX, y: user.cursorY })
 
-export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClose }: CursorContainerProps) => {
+export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChange, onTypingClose, onSendMessage }: CursorContainerProps) => {
   const [position, setPosition] = useState<CursorPosition>(() => getUserPosition(user))
   const isTyping = typingState?.isTyping || false
 
@@ -80,6 +81,7 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
             typingState={typingState}
             onTypingChange={onTypingChange}
             onTypingClose={onTypingClose}
+            onSendMessage={onSendMessage ? (text) => onSendMessage(text, position.x, position.y) : undefined}
           />
         )}
       </div>

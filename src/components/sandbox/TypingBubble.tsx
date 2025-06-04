@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react'
 import { useRef, useEffect } from 'react'
-import { SandboxUser, LiveTyping } from '../../api/spacetime-db'
+import { SandboxUser, LiveTyping } from '../../spacetime-bindings'
 import { TYPING_ANIMATION_CONFIG, TYPING_BUBBLE_TRANSITIONS, TYPING_BLUR_TIMEOUT, MAX_TYPING_LENGTH } from './constants'
 
 type SimpleTypingState = {
@@ -16,6 +16,7 @@ type TypingBubbleProps = {
   typingState: LiveTyping | SimpleTypingState
   onTypingChange?: (text: string, selectionStart: number, selectionEnd: number) => void
   onTypingClose?: () => void
+  onSendMessage?: (text: string) => void
 }
 
 const renderTextWithSelection = (text: string, selectionStart: number, selectionEnd: number) => {
@@ -43,7 +44,8 @@ export const TypingBubble = ({
   isCurrentUser,
   typingState,
   onTypingChange,
-  onTypingClose
+  onTypingClose,
+  onSendMessage
 }: TypingBubbleProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isTyping = typingState?.isTyping || false
@@ -71,13 +73,13 @@ export const TypingBubble = ({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!onTypingClose) return
     if (e.key === 'Escape') {
       e.preventDefault()
-      onTypingClose()
+      onTypingClose?.()
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      onTypingClose()
+      onSendMessage?.(e.currentTarget.value.trim())
+      onTypingClose?.()
     }
   }
 
@@ -123,7 +125,7 @@ export const TypingBubble = ({
           }}
         >
           {user.name || 'Anonymous'}
-          {isTyping && isCurrentUser && <span className="text-xs text-gray-400">ESC to cancel</span>}
+          {isTyping && isCurrentUser && <span className="text-xs text-gray-400">Enter to send • ESC to cancel</span>}
         </motion.div>
 
         <AnimatePresence>

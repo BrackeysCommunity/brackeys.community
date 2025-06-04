@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { MousePointer2 } from 'lucide-react'
-import { SandboxUser, LiveTyping } from '../../api/spacetime-db'
+import { AnimatePresence } from 'motion/react'
+import { SandboxUser, LiveTyping, SandboxMessage } from '../../spacetime-bindings'
 import { Cursors } from './cursors/Cursors'
 import { StatusIndicators } from './StatusIndicators'
-import { CURSOR_UPDATE_THRESHOLD, CURSOR_UPDATE_INTERVAL } from './constants'
+import { MessageGroup } from './MessageGroup'
+import { CURSOR_UPDATE_THRESHOLD, CURSOR_UPDATE_INTERVAL, MESSAGE_POSITION_TOLERANCE_PX } from './constants'
 
 type SandboxCanvasProps = {
   isConnected: boolean
@@ -11,6 +13,7 @@ type SandboxCanvasProps = {
   users: SandboxUser[]
   currentUserId?: string
   typingStates: Map<string, LiveTyping>
+  messages: SandboxMessage[]
   isTyping: boolean
   typingText: string
   lastCursorPosition: { x: number; y: number }
@@ -18,6 +21,7 @@ type SandboxCanvasProps = {
   onTypingStart: () => void
   onTypingChange: (text: string, selectionStart: number, selectionEnd: number) => void
   onTypingClose: () => void
+  onSendMessage: (text: string, x: number, y: number) => void
 }
 
 export const SandboxCanvas = ({
@@ -26,15 +30,49 @@ export const SandboxCanvas = ({
   users,
   currentUserId,
   typingStates,
+  messages,
   isTyping,
   typingText,
   lastCursorPosition,
   onCursorMove,
   onTypingStart,
   onTypingChange,
-  onTypingClose
+  onTypingClose,
+  onSendMessage
 }: SandboxCanvasProps) => {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users])
+
+  // group messages by position (with some tolerance for grouping nearby messages)
+  const messageGroups = useMemo(() => {
+    const groups = new Map<string, { position: { x: number; y: number }; messages: SandboxMessage[] }>()
+    const tolerance = MESSAGE_POSITION_TOLERANCE_PX
+
+    messages.forEach(message => {
+      let foundGroup = false
+
+      for (const [, group] of groups) {
+        if (
+          Math.abs(group.position.x - message.positionX) < tolerance &&
+          Math.abs(group.position.y - message.positionY) < tolerance
+        ) {
+          group.messages.push(message)
+          foundGroup = true
+          break
+        }
+      }
+
+      if (!foundGroup) {
+        const key = `${Math.round(message.positionX)}-${Math.round(message.positionY)}`
+        groups.set(key, {
+          position: { x: message.positionX, y: message.positionY },
+          messages: [message]
+        })
+      }
+    })
+
+    return groups
+  }, [messages])
 
   const handleTypingClose = () => {
     onTypingClose()
@@ -132,7 +170,19 @@ export const SandboxCanvas = ({
             typingText={typingText}
             onTypingChange={onTypingChange}
             onTypingClose={handleTypingClose}
+            onSendMessage={onSendMessage}
           />
+
+          <AnimatePresence>
+            {Array.from(messageGroups.entries()).map(([key, group]) => (
+              <MessageGroup
+                key={key}
+                messages={group.messages}
+                position={group.position}
+                users={usersMap}
+              />
+            ))}
+          </AnimatePresence>
         </>
       )}
     </div>

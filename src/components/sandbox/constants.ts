@@ -24,3 +24,6 @@ export const CURSOR_SHADOW_FILTER = 'drop-shadow(0 2px 8px rgba(0,0,0,0.6)) drop
 export const CURSOR_PATH = "M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"
 
 export const TYPING_BLUR_TIMEOUT = 200
+
+export const MESSAGE_FADE_OUT_DELAY_MS = 8000
+export const MESSAGE_POSITION_TOLERANCE_PX = 5
