@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'motion/react'
+import { AnimationControls, motion, TargetAndTransition, VariantLabels } from 'motion/react'
 import { SandboxUser, LiveTyping } from '../../../spacetime-bindings'
 import { cn } from '../../../lib/utils'
 import { CursorIcon } from './CursorIcon'
 import { TypingBubble } from '../TypingBubble'
-import { CURSOR_ANIMATION_CONFIG } from '../constants'
 import { useSandbox } from '../../../context/sandboxContext'
 
 type SimpleTypingState = {
@@ -45,46 +44,28 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
     })
   }, [user.cursorX, user.cursorY])
 
-  const isTyping = typingState?.isTyping || false
-  const CursorWrapper = isCurrentUser ? 'div' : motion.div
-  const cursorStyles = {
-    position: 'absolute',
-    pointerEvents: (isCurrentUser && isTyping) ? 'auto' : 'none',
-    zIndex: 10,
-    left: `${position.x}%`,
-    top: `${position.y}%`,
-    transform: 'translate(0, 0)'
-  } as const
+  const isTyping = typingState?.isTyping || false;
 
-  const cursorIconAnimation = isCurrentUser ? {
+  const cursorIconAnimation: AnimationControls | TargetAndTransition | VariantLabels | undefined = isCurrentUser ? {
     scale: [
       cursorState === 'interactive' ? 1.2 : 1,
-      cursorState === 'typing' ? 0.9 : 1
+      cursorState === 'typing' ? 0.8 : 1
     ],
     padding: [
       cursorState === 'interactive' ? '0 4px 4px 0' : '0',
       cursorState === 'typing' ? '0' : '0'
     ],
-    opacity: cursorState === 'typing' ? 0.5 : 1,
+    opacity: cursorState === 'typing' ? 0.4 : 1,
     filter: cursorState === 'interactive' ? 'brightness(1.5)' : 'brightness(1)'
-  } : undefined
+  } : undefined;
 
   return (
-    <CursorWrapper
+    <div
       className={cn("absolute z-10", isCurrentUser && isTyping ? 'pointer-events-auto' : 'pointer-events-none')}
-      {...(!isCurrentUser && {
-        initial: { opacity: 0, scale: 0.8 },
-        animate: {
-          opacity: 1,
-          scale: 1,
-          left: `${position.x}%`,
-          top: `${position.y}%`,
-        },
-        exit: { opacity: 0, scale: 0.8 },
-        transition: CURSOR_ANIMATION_CONFIG,
-        style: { transform: 'translate(-50%, -50%)' },
-      })}
-      style={isCurrentUser ? cursorStyles : undefined}
+      style={{
+        left: `${position.x}%`,
+        top: `${position.y}%`,
+      }}
     >
       <div className="relative">
         <motion.div
@@ -105,6 +86,6 @@ export const CursorContainer = ({ user, isCurrentUser, typingState, onTypingChan
           />
         )}
       </div>
-    </CursorWrapper>
+    </div>
   )
 }
