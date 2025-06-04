@@ -66,10 +66,23 @@ export const TypingBubble = ({
     onTypingChange(textarea.value, textarea.selectionStart || 0, textarea.selectionEnd || 0)
   }
 
-  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+  const handleSelectionChange = (textarea: HTMLTextAreaElement) => {
     if (!onTypingChange) return
-    const textarea = e.currentTarget
-    onTypingChange(textarea.value, textarea.selectionStart || 0, textarea.selectionEnd || 0)
+    const start = textarea.selectionStart || 0
+    const end = textarea.selectionEnd || 0
+    onTypingChange(textarea.value, start, end)
+  }
+
+  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    handleSelectionChange(e.currentTarget)
+  }
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    handleSelectionChange(e.currentTarget)
+  }
+
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    handleSelectionChange(e.currentTarget)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -143,6 +156,9 @@ export const TypingBubble = ({
                   onChange={handleChange}
                   onSelect={handleSelect}
                   onKeyDown={handleKeyDown}
+                  onKeyUp={handleKeyUp}
+                  onMouseUp={handleMouseUp}
+                  onClick={handleSelect}
                   onBlur={handleBlur}
                   className="bg-transparent text-white text-sm font-mono resize-none outline-none w-full min-w-50 min-h-4 max-h-36 h-auto placeholder-gray-500"
                   placeholder="Start typing..."
@@ -153,8 +169,8 @@ export const TypingBubble = ({
                 <div className="text-sm font-mono whitespace-pre-wrap break-words text-white w-fit max-w-[400px]">
                   {renderTextWithSelection(
                     typingState.text,
-                    'selectionStart' in typingState ? typingState.selectionStart : 0,
-                    'selectionEnd' in typingState ? typingState.selectionEnd : 0
+                    typingState.selectionStart || 0,
+                    typingState.selectionEnd || 0
                   )}
                 </div>
               )}

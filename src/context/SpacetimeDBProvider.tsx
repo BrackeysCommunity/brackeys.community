@@ -61,7 +61,9 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
             const prevTyping = prev.typingStates.get(id);
             return !prevTyping ||
               prevTyping.text !== typing.text ||
-              prevTyping.isTyping !== typing.isTyping;
+              prevTyping.isTyping !== typing.isTyping ||
+              prevTyping.selectionStart !== typing.selectionStart ||
+              prevTyping.selectionEnd !== typing.selectionEnd;
           });
 
         const hasCurrentUserChanged = prev.currentUser?.identity.toHexString() !== currentUser?.identity.toHexString();
