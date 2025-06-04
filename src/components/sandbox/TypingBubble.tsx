@@ -32,7 +32,7 @@ const renderTextWithSelection = (text: string, selectionStart: number, selection
   return (
     <>
       {beforeSelection}
-      <span className="bg-blue-500/30 text-blue-100 rounded-sm px-0.5">
+      <span className="bg-white/30 text-white rounded-sm px-0.5">
         {selection}
       </span>
       {afterSelection}
@@ -97,7 +97,6 @@ export const TypingBubble = ({
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       onSendMessage?.(e.currentTarget.value.trim())
-      onTypingClose?.()
     }
   }
 
@@ -122,14 +121,8 @@ export const TypingBubble = ({
       transition={TYPING_ANIMATION_CONFIG}
     >
       <motion.div
-        className="overflow-hidden rounded-lg shadow-lg border"
-        style={{
-          backgroundColor: isTyping ? '#111827' : user.color,
-          borderColor: isTyping ? '#374151' : 'rgba(255,255,255,0.2)',
-          boxShadow: isTyping
-            ? `0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px ${user.color}40`
-            : '0 4px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.2)',
-        }}
+        className="overflow-hidden rounded-lg shadow-lg"
+        style={{ backgroundColor: user.color }}
         animate={{
           padding: isTyping ? '8px 12px' : '4px 8px',
         }}
@@ -137,13 +130,12 @@ export const TypingBubble = ({
       >
         <motion.div
           className="text-xs font-medium flex justify-between"
-          style={{ color: isTyping ? user.color : 'white' }}
+          style={{ color: 'white' }}
           animate={{
             marginBottom: isTyping ? '4px' : '0px',
           }}
         >
           {user.name || 'Anonymous'}
-          {isTyping && isCurrentUser && <span className="text-xs text-gray-400">Enter to send • ESC to cancel</span>}
         </motion.div>
 
         <AnimatePresence>
@@ -165,7 +157,7 @@ export const TypingBubble = ({
                   onMouseUp={handleMouseUp}
                   onClick={handleSelect}
                   onBlur={handleBlur}
-                  className="bg-transparent text-white text-sm font-mono resize-none outline-none w-full min-w-50 min-h-4 max-h-36 h-auto placeholder-gray-500"
+                  className="bg-transparent text-white text-sm font-mono resize-none outline-none w-full min-w-50 min-h-4 max-h-36 h-auto placeholder-gray-300"
                   placeholder="Start typing..."
                   maxLength={MAX_TYPING_LENGTH}
                   rows={1}

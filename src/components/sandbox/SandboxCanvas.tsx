@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useMemo, forwardRef } from 'react'
 import { MousePointer2 } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import { SandboxUser, LiveTyping, SandboxMessage } from '../../spacetime-bindings'
@@ -23,9 +23,10 @@ type SandboxCanvasProps = {
   onTypingClose: () => void
   onSendMessage: (text: string, x: number, y: number) => void
   onDismissMessage: (messageId: bigint) => void
+  onDismissGroup?: (messageIds: bigint[]) => void
 }
 
-export const SandboxCanvas = ({
+export const SandboxCanvas = forwardRef<HTMLDivElement, SandboxCanvasProps>(({
   isConnected,
   showNameDialog,
   users,
@@ -40,10 +41,9 @@ export const SandboxCanvas = ({
   onTypingChange,
   onTypingClose,
   onSendMessage,
-  onDismissMessage
-}: SandboxCanvasProps) => {
-  const canvasRef = useRef<HTMLDivElement>(null)
-
+  onDismissMessage,
+  onDismissGroup
+}, ref) => {
   const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users])
 
   // group messages by position (with some tolerance for grouping nearby messages)
@@ -79,13 +79,15 @@ export const SandboxCanvas = ({
 
   const handleTypingClose = () => {
     onTypingClose()
-    canvasRef.current?.focus()
+    if (ref && 'current' in ref && ref.current) {
+      ref.current.focus()
+    }
   }
 
   useEffect(() => {
-    if (!canvasRef.current || !isConnected || showNameDialog) return
+    if (!ref || !('current' in ref) || !ref.current || !isConnected || showNameDialog) return
 
-    const canvas = canvasRef.current
+    const canvas = ref.current
     let lastUpdate = Date.now()
     let lastX = -1
     let lastY = -1
@@ -112,12 +114,12 @@ export const SandboxCanvas = ({
     return () => {
       canvas.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [isConnected, showNameDialog, onCursorMove, lastCursorPosition])
+  }, [isConnected, showNameDialog, onCursorMove, lastCursorPosition, ref])
 
   useEffect(() => {
-    if (!canvasRef.current || !isConnected || showNameDialog) return
+    if (!ref || !('current' in ref) || !ref.current || !isConnected || showNameDialog) return
 
-    const canvas = canvasRef.current
+    const canvas = ref.current
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isTyping && e.key === '/') {
@@ -132,12 +134,12 @@ export const SandboxCanvas = ({
     return () => {
       canvas.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isConnected, showNameDialog, isTyping, onTypingStart])
+  }, [isConnected, showNameDialog, isTyping, onTypingStart, ref])
 
   const activeUserCount = users.length;
 
   return (
-    <div ref={canvasRef} className="absolute inset-0 outline-none cursor-none">
+    <div ref={ref} className="absolute inset-0 outline-none cursor-none">
       <div className="absolute w-full px-4">
         <div className="relative w-full container mx-auto">
           <StatusIndicators
@@ -159,9 +161,18 @@ export const SandboxCanvas = ({
         <>
           <div className="absolute inset-0 bg-dot-pattern pattern-mask-radial pattern-opacity-40" />
 
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center pointer-events-none">
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-baseline pointer-events-none">
             <p className="text-xs text-gray-500">
-              Press "/" to start typing
+              <kbd className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded-md">
+                /
+              </kbd>
+              {" "}to start typing • <kbd className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded-md">
+                Enter
+              </kbd>
+              {" "}to send • <kbd className="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded-md">
+                ESC
+              </kbd>
+              {" "}to cancel
             </p>
           </div>
 
@@ -185,6 +196,7 @@ export const SandboxCanvas = ({
                 users={usersMap}
                 currentUserId={currentUserId}
                 onDismissMessage={onDismissMessage}
+                onDismissGroup={onDismissGroup}
               />
             ))}
           </AnimatePresence>
@@ -192,4 +204,4 @@ export const SandboxCanvas = ({
       )}
     </div>
   )
-} 
+}) 

@@ -11,6 +11,7 @@ import { useSandbox } from '../context/sandboxContext'
 import { LiveTyping, SandboxMessage, SandboxUser } from '../spacetime-bindings'
 
 type SandboxViewProps = {
+  canvasRef: React.RefObject<HTMLDivElement | null>;
   showNameDialog: boolean;
   isConnected: boolean;
   isTyping: boolean;
@@ -27,10 +28,12 @@ type SandboxViewProps = {
   onTypingClose: () => void;
   onSendMessage: (text: string, x: number, y: number) => void;
   onDismissMessage: (messageId: bigint) => void;
+  onDismissGroup: (messageIds: bigint[]) => void;
 }
 
 // Pure presentational component
 export const SandboxView = ({
+  canvasRef,
   showNameDialog,
   isConnected,
   isTyping,
@@ -46,7 +49,8 @@ export const SandboxView = ({
   onTypingChange,
   onTypingClose,
   onSendMessage,
-  onDismissMessage
+  onDismissMessage,
+  onDismissGroup
 }: SandboxViewProps) => {
   return (
     <div className="flex flex-col grow">
@@ -64,6 +68,7 @@ export const SandboxView = ({
         className="flex-1 relative bg-gray-850 overflow-hidden"
       >
         <SandboxCanvas
+          ref={canvasRef}
           isConnected={isConnected}
           showNameDialog={showNameDialog}
           users={users}
@@ -79,6 +84,7 @@ export const SandboxView = ({
           onTypingClose={onTypingClose}
           onSendMessage={onSendMessage}
           onDismissMessage={onDismissMessage}
+          onDismissGroup={onDismissGroup}
         />
       </motion.div>
     </div>
@@ -87,6 +93,7 @@ export const SandboxView = ({
 
 // Container component handling state and logic
 const SandboxContainer = () => {
+  const canvasRef = useRef<HTMLDivElement>(null)
   const [showNameDialog, setShowNameDialog] = useState(true)
   const [isTyping, setIsTyping] = useState(false)
   const [typingText, setTypingText] = useState('')
@@ -118,6 +125,10 @@ const SandboxContainer = () => {
   }
 
   const handleCursorMove = (x: number, y: number) => {
+    if (isTyping && !typingText) {
+      canvasRef.current?.focus()
+      setIsTyping(false)
+    }
     setCursorDefault()
     updateCursor(x, y)
   }
@@ -134,6 +145,11 @@ const SandboxContainer = () => {
     updateTyping(text, x, y, selectionStart, selectionEnd)
   }
 
+  const handleSendMessage = (text: string, x: number, y: number) => {
+    sendMessage(text, x, y);
+    setTypingText('');
+  }
+
   const handleTypingClose = () => {
     setIsTyping(false)
     setCursorDefault()
@@ -141,8 +157,20 @@ const SandboxContainer = () => {
     updateTyping('', 0, 0, 0, 0)
   }
 
+  const handleDismissGroup = async (messageIds: bigint[]) => {
+    try {
+      // Dismiss all messages in the group sequentially
+      for (const messageId of messageIds) {
+        await dismissMessage(messageId)
+      }
+    } catch (error) {
+      console.error('Failed to dismiss group:', error)
+    }
+  }
+
   return (
     <SandboxView
+      canvasRef={canvasRef}
       showNameDialog={showNameDialog}
       isConnected={isConnected}
       isTyping={isTyping}
@@ -157,8 +185,9 @@ const SandboxContainer = () => {
       onTypingStart={handleTypingStart}
       onTypingChange={handleTypingChange}
       onTypingClose={handleTypingClose}
-      onSendMessage={sendMessage}
+      onSendMessage={handleSendMessage}
       onDismissMessage={dismissMessage}
+      onDismissGroup={handleDismissGroup}
     />
   )
 }
