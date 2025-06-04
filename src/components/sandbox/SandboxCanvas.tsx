@@ -5,6 +5,7 @@ import { SandboxUser, LiveTyping, SandboxMessage } from '../../spacetime-binding
 import { Cursors } from './cursors/Cursors'
 import { StatusIndicators } from './StatusIndicators'
 import { MessageGroup } from './MessageGroup'
+import { useCursor } from '../../context/cursorContext'
 import { CURSOR_UPDATE_THRESHOLD, CURSOR_UPDATE_INTERVAL, MESSAGE_POSITION_TOLERANCE_PX } from './constants'
 
 type SandboxCanvasProps = {
@@ -22,6 +23,7 @@ type SandboxCanvasProps = {
   onTypingChange: (text: string, selectionStart: number, selectionEnd: number) => void
   onTypingClose: () => void
   onSendMessage: (text: string, x: number, y: number) => void
+  onDismissMessage: (messageId: bigint) => void
 }
 
 export const SandboxCanvas = ({
@@ -38,9 +40,11 @@ export const SandboxCanvas = ({
   onTypingStart,
   onTypingChange,
   onTypingClose,
-  onSendMessage
+  onSendMessage,
+  onDismissMessage
 }: SandboxCanvasProps) => {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const { cursorState } = useCursor()
   const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users])
 
   // group messages by position (with some tolerance for grouping nearby messages)
@@ -133,8 +137,21 @@ export const SandboxCanvas = ({
 
   const activeUserCount = users.length
 
+  // Dynamic cursor styling based on state
+  const cursorStyle = useMemo(() => {
+    const baseStyle = 'absolute inset-0 outline-none cursor-none'
+    switch (cursorState) {
+      case 'interactive':
+        return `${baseStyle}`
+      case 'typing':
+        return `${baseStyle} saturate-110`
+      default:
+        return baseStyle
+    }
+  }, [cursorState])
+
   return (
-    <div ref={canvasRef} className="absolute inset-0 outline-none cursor-none">
+    <div ref={canvasRef} className={cursorStyle}>
       <div className="absolute w-full px-4">
         <div className="relative w-full container mx-auto">
           <StatusIndicators
@@ -180,6 +197,8 @@ export const SandboxCanvas = ({
                 messages={group.messages}
                 position={group.position}
                 users={usersMap}
+                currentUserId={currentUserId}
+                onDismissMessage={onDismissMessage}
               />
             ))}
           </AnimatePresence>

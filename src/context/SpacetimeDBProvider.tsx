@@ -6,7 +6,7 @@ const SPACETIME_HOST = import.meta.env.VITE_SPACETIME_HOST || 'ws://localhost:30
 const SPACETIME_MODULE = import.meta.env.VITE_SPACETIME_MODULE || 'brackeys-sandbox';
 
 export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
-  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateCursor' | 'updateTyping' | 'sendMessage'>>({
+  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateCursor' | 'updateTyping' | 'sendMessage' | 'dismissMessage'>>({
     isConnected: false,
     currentUser: null,
     users: [],
@@ -196,12 +196,23 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
+  const dismissMessage = async (messageId: bigint) => {
+    if (!connectionRef.current) throw new Error('Not connected');
+    try {
+      connectionRef.current.reducers.dismissMessage(BigInt(messageId));
+    } catch (error) {
+      console.error('Failed to dismiss message:', error);
+      throw error;
+    }
+  };
+
   const value: SpacetimeState = {
     ...state,
     setDisplayName,
     updateCursor,
     updateTyping,
     sendMessage,
+    dismissMessage,
   };
 
   return (

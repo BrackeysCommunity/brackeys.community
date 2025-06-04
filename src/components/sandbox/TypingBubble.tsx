@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react'
 import { useRef, useEffect } from 'react'
 import { SandboxUser, LiveTyping } from '../../spacetime-bindings'
+import { useCursor } from '../../context/cursorContext'
 import { TYPING_ANIMATION_CONFIG, TYPING_BUBBLE_TRANSITIONS, TYPING_BLUR_TIMEOUT, MAX_TYPING_LENGTH } from './constants'
 
 type SimpleTypingState = {
@@ -48,6 +49,7 @@ export const TypingBubble = ({
   onSendMessage
 }: TypingBubbleProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { setCursorTyping, setCursorDefault } = useCursor()
   const isTyping = typingState?.isTyping || false
 
   useEffect(() => {
@@ -55,8 +57,11 @@ export const TypingBubble = ({
       textareaRef.current.focus()
       const len = typingState?.text?.length || 0
       textareaRef.current.setSelectionRange(len, len)
+      setCursorTyping()
+    } else if (isCurrentUser && !isTyping) {
+      setCursorDefault()
     }
-  }, [isCurrentUser, isTyping])
+  }, [isCurrentUser, isTyping, setCursorTyping, setCursorDefault])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!onTypingChange) return

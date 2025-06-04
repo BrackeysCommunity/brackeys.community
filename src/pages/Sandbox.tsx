@@ -3,6 +3,7 @@ import React, { useRef, useState } from 'react';
 import { NameDialog } from '../components/sandbox/NameDialog';
 import { SandboxCanvas } from '../components/sandbox/SandboxCanvas';
 import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider';
+import { CursorProvider } from '../context/cursorContext';
 import { useLayoutProps } from '../context/layoutContext';
 import { useSpacetimeDB } from '../context/spacetimeDBContext';
 import { useDocTitle } from '../hooks/useDocTitle';
@@ -24,6 +25,7 @@ export const SandboxView = () => {
     updateCursor,
     updateTyping,
     sendMessage,
+    dismissMessage,
   } = useSpacetimeDB();
 
   const handleSetName = async (name: string) => {
@@ -87,6 +89,7 @@ export const SandboxView = () => {
           onTypingChange={handleTypingChange}
           onTypingClose={handleTypingClose}
           onSendMessage={sendMessage}
+          onDismissMessage={dismissMessage}
         />
       </motion.div>
     </div>
@@ -105,7 +108,9 @@ const SandboxContainer = () => {
 
   return (
     <SpacetimeDBProvider>
-      <SandboxView />
+      <CursorProvider>
+        <SandboxView />
+      </CursorProvider>
     </SpacetimeDBProvider>
   )
 }

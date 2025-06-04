@@ -11,6 +11,7 @@ export type SpacetimeState = {
   updateCursor: (x: number, y: number) => Promise<void>;
   updateTyping: (text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => Promise<void>;
   sendMessage: (text: string, x: number, y: number) => Promise<void>;
+  dismissMessage: (messageId: bigint) => Promise<void>;
 };
 
 const SpacetimeDBContext = createContext<SpacetimeState | null>(null);

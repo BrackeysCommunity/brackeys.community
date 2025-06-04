@@ -32,10 +32,14 @@ import {
 } from "@clockworklabs/spacetimedb-sdk";
 
 // Import and reexport all reducer arg types
+import { CleanupOldMessages } from "./cleanup_old_messages_reducer.ts";
+export { CleanupOldMessages };
 import { ClientConnected } from "./client_connected_reducer.ts";
 export { ClientConnected };
 import { ClientDisconnected } from "./client_disconnected_reducer.ts";
 export { ClientDisconnected };
+import { DismissMessage } from "./dismiss_message_reducer.ts";
+export { DismissMessage };
 import { SendMessage } from "./send_message_reducer.ts";
 export { SendMessage };
 import { SetDisplayName } from "./set_display_name_reducer.ts";
@@ -46,6 +50,8 @@ import { UpdateTyping } from "./update_typing_reducer.ts";
 export { UpdateTyping };
 
 // Import and reexport all table handle types
+import { CleanupScheduleTableHandle } from "./cleanup_schedule_table.ts";
+export { CleanupScheduleTableHandle };
 import { LiveTypingTableHandle } from "./live_typing_table.ts";
 export { LiveTypingTableHandle };
 import { SandboxMessageTableHandle } from "./sandbox_message_table.ts";
@@ -54,6 +60,8 @@ import { SandboxUserTableHandle } from "./sandbox_user_table.ts";
 export { SandboxUserTableHandle };
 
 // Import and reexport all types
+import { CleanupSchedule } from "./cleanup_schedule_type.ts";
+export { CleanupSchedule };
 import { LiveTyping } from "./live_typing_type.ts";
 export { LiveTyping };
 import { SandboxMessage } from "./sandbox_message_type.ts";
@@ -63,6 +71,11 @@ export { SandboxUser };
 
 const REMOTE_MODULE = {
   tables: {
+    cleanup_schedule: {
+      tableName: "cleanup_schedule",
+      rowType: CleanupSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduledId",
+    },
     live_typing: {
       tableName: "live_typing",
       rowType: LiveTyping.getTypeScriptAlgebraicType(),
@@ -80,6 +93,10 @@ const REMOTE_MODULE = {
     },
   },
   reducers: {
+    cleanup_old_messages: {
+      reducerName: "cleanup_old_messages",
+      argsType: CleanupOldMessages.getTypeScriptAlgebraicType(),
+    },
     client_connected: {
       reducerName: "client_connected",
       argsType: ClientConnected.getTypeScriptAlgebraicType(),
@@ -87,6 +104,10 @@ const REMOTE_MODULE = {
     client_disconnected: {
       reducerName: "client_disconnected",
       argsType: ClientDisconnected.getTypeScriptAlgebraicType(),
+    },
+    dismiss_message: {
+      reducerName: "dismiss_message",
+      argsType: DismissMessage.getTypeScriptAlgebraicType(),
     },
     send_message: {
       reducerName: "send_message",
@@ -131,8 +152,10 @@ const REMOTE_MODULE = {
 
 // A type representing all the possible variants of a reducer.
 export type Reducer = never
+| { name: "CleanupOldMessages", args: CleanupOldMessages }
 | { name: "ClientConnected", args: ClientConnected }
 | { name: "ClientDisconnected", args: ClientDisconnected }
+| { name: "DismissMessage", args: DismissMessage }
 | { name: "SendMessage", args: SendMessage }
 | { name: "SetDisplayName", args: SetDisplayName }
 | { name: "UpdateCursor", args: UpdateCursor }
@@ -141,6 +164,22 @@ export type Reducer = never
 
 export class RemoteReducers {
   constructor(private connection: DbConnectionImpl, private setCallReducerFlags: SetReducerFlags) {}
+
+  cleanupOldMessages(arg: CleanupSchedule) {
+    const __args = { arg };
+    let __writer = new BinaryWriter(1024);
+    CleanupOldMessages.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("cleanup_old_messages", __argsBuffer, this.setCallReducerFlags.cleanupOldMessagesFlags);
+  }
+
+  onCleanupOldMessages(callback: (ctx: ReducerEventContext, arg: CleanupSchedule) => void) {
+    this.connection.onReducer("cleanup_old_messages", callback);
+  }
+
+  removeOnCleanupOldMessages(callback: (ctx: ReducerEventContext, arg: CleanupSchedule) => void) {
+    this.connection.offReducer("cleanup_old_messages", callback);
+  }
 
   onClientConnected(callback: (ctx: ReducerEventContext) => void) {
     this.connection.onReducer("client_connected", callback);
@@ -156,6 +195,22 @@ export class RemoteReducers {
 
   removeOnClientDisconnected(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("client_disconnected", callback);
+  }
+
+  dismissMessage(messageId: bigint) {
+    const __args = { messageId };
+    let __writer = new BinaryWriter(1024);
+    DismissMessage.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("dismiss_message", __argsBuffer, this.setCallReducerFlags.dismissMessageFlags);
+  }
+
+  onDismissMessage(callback: (ctx: ReducerEventContext, messageId: bigint) => void) {
+    this.connection.onReducer("dismiss_message", callback);
+  }
+
+  removeOnDismissMessage(callback: (ctx: ReducerEventContext, messageId: bigint) => void) {
+    this.connection.offReducer("dismiss_message", callback);
   }
 
   sendMessage(text: string, x: number, y: number) {
@@ -225,6 +280,16 @@ export class RemoteReducers {
 }
 
 export class SetReducerFlags {
+  cleanupOldMessagesFlags: CallReducerFlags = 'FullUpdate';
+  cleanupOldMessages(flags: CallReducerFlags) {
+    this.cleanupOldMessagesFlags = flags;
+  }
+
+  dismissMessageFlags: CallReducerFlags = 'FullUpdate';
+  dismissMessage(flags: CallReducerFlags) {
+    this.dismissMessageFlags = flags;
+  }
+
   sendMessageFlags: CallReducerFlags = 'FullUpdate';
   sendMessage(flags: CallReducerFlags) {
     this.sendMessageFlags = flags;
@@ -249,6 +314,10 @@ export class SetReducerFlags {
 
 export class RemoteTables {
   constructor(private connection: DbConnectionImpl) {}
+
+  get cleanupSchedule(): CleanupScheduleTableHandle {
+    return new CleanupScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CleanupSchedule>(REMOTE_MODULE.tables.cleanup_schedule));
+  }
 
   get liveTyping(): LiveTypingTableHandle {
     return new LiveTypingTableHandle(this.connection.clientCache.getOrCreateTable<LiveTyping>(REMOTE_MODULE.tables.live_typing));

@@ -6,12 +6,16 @@ interface MessageGroupProps {
   messages: SandboxMessage[];
   position: { x: number; y: number };
   users: Map<string, SandboxUser>;
+  currentUserId?: string;
+  onDismissMessage?: (messageId: bigint) => void;
 }
 
 export const MessageGroup = ({
   messages,
   position,
   users,
+  currentUserId,
+  onDismissMessage,
 }: MessageGroupProps) => {
   // sort messages by creation time (newest at bottom)
   // so that motion pushes the older messages up
@@ -54,6 +58,8 @@ export const MessageGroup = ({
                   message={message}
                   userName={userName}
                   userColor={userColor}
+                  currentUserId={currentUserId}
+                  onDismiss={onDismissMessage}
                 />
               </motion.div>
             );

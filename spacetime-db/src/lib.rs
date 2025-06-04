@@ -212,6 +212,24 @@ pub fn send_message(ctx: &ReducerContext, text: String, x: f32, y: f32) -> Resul
 }
 
 #[reducer]
+pub fn dismiss_message(ctx: &ReducerContext, message_id: u64) -> Result<(), String> {
+    // Find the message
+    if let Some(message) = ctx.db.sandbox_message().id().find(message_id) {
+        // Only allow the sender to dismiss their own message
+        if message.sender_identity != ctx.sender {
+            return Err("You can only dismiss your own messages".to_string());
+        }
+        
+        // Delete the message
+        ctx.db.sandbox_message().id().delete(message_id);
+        log::info!("🗑️ Message {} dismissed by user {:?}", message_id, ctx.sender);
+        Ok(())
+    } else {
+        Err("Message not found".to_string())
+    }
+}
+
+#[reducer]
 pub fn cleanup_old_messages(ctx: &ReducerContext, _arg: CleanupSchedule) -> Result<(), String> {
     // Only allow the module itself to call this reducer
     if ctx.sender != ctx.identity() {
