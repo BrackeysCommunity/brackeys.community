@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
-import { useMemo, useCallback } from 'react'
-import { NameDialog } from '../components/sandbox/NameDialog'
+import { useMemo, useCallback, useState, useEffect } from 'react'
 import { SandboxCanvas } from '../components/sandbox/SandboxCanvas'
+import { RoomManager } from '../components/RoomManager'
 import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider'
 import { SandboxProvider } from '../context/SandboxProvider'
 import { useLayoutProps } from '../context/layoutContext'
@@ -15,10 +15,10 @@ import { useTypingHandlers } from '../hooks/sandbox/useTypingHandlers'
 
 // Container component handling state and logic
 const SandboxContainer = () => {
+  const [showRoomSettings, setShowRoomSettings] = useState(false)
+
   const {
     canvasRef,
-    showNameDialog,
-    setShowNameDialog,
     lastCursorPosition,
     setCursorDefault
   } = useSandbox()
@@ -26,10 +26,10 @@ const SandboxContainer = () => {
   const {
     isConnected,
     currentUser,
+    currentRoom,
     users,
     typingStates,
     messages,
-    setDisplayName,
     updateCursor,
     dismissMessage,
   } = useSpacetimeDB()
@@ -53,7 +53,6 @@ const SandboxContainer = () => {
     canvasRef,
     lastCursorPosition,
     isConnected,
-    showNameDialog,
     isTyping,
     typingText,
     onCursorUpdate: (x, y) => {
@@ -67,21 +66,19 @@ const SandboxContainer = () => {
   useKeyboardShortcuts({
     canvasRef,
     isConnected,
-    showNameDialog,
     isTyping,
     onTypingStart: handleTypingStart
   })
 
-  const handleSetName = useCallback(async (name: string) => {
-    try {
-      await setDisplayName(name)
-      setShowNameDialog(false)
-      canvasRef.current?.focus();
-    } catch (error) {
-      console.error('Failed to set name:', error)
-      throw error
+  // Focus canvas when entering a room and canvas is rendered
+  useEffect(() => {
+    if (currentRoom && canvasRef.current && !showRoomSettings) {
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        canvasRef.current?.focus();
+      });
     }
-  }, [setDisplayName, setShowNameDialog, canvasRef])
+  }, [currentRoom, canvasRef, showRoomSettings]);
 
   const handleDismissGroup = useCallback(async (messageIds: bigint[]) => {
     try {
@@ -106,20 +103,40 @@ const SandboxContainer = () => {
     }
   }, [dismissMessage, canvasRef])
 
+  // Override handleSendMessage to check if messages are enabled
+  const handleSendMessageWithCheck = useCallback((text: string, x: number, y: number) => {
+    if (!currentRoom?.messagesEnabled) {
+      // Clear typing if messages are disabled
+      handleTypingClose()
+      return
+    }
+    handleSendMessage(text, x, y)
+  }, [currentRoom?.messagesEnabled, handleSendMessage, handleTypingClose])
+
+  // Show room manager if user is not in a room or showing room settings
+  if (!currentRoom || showRoomSettings) {
+    return (
+      <div className="flex flex-col grow bg-gray-900">
+        <RoomManager
+          onClose={showRoomSettings ? () => {
+            setShowRoomSettings(false);
+          } : undefined}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col grow">
-      {showNameDialog && <NameDialog isConnected={isConnected} onSubmit={handleSetName} />}
-
       <motion.div
         initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: showNameDialog ? 0.3 : 1, y: 0 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex-1 relative bg-gray-850 overflow-hidden"
+        className="flex-1 relative bg-gray-900 overflow-hidden"
       >
         <SandboxCanvas
           ref={canvasRef}
           isConnected={isConnected}
-          showNameDialog={showNameDialog}
           users={users}
           currentUserId={currentUser?.identity.toHexString()}
           typingStates={typingStates}
@@ -128,11 +145,14 @@ const SandboxContainer = () => {
           isTyping={isTyping}
           typingText={typingText}
           activeUserCount={activeUserCount}
+          roomCode={currentRoom.code}
+          messagesEnabled={currentRoom.messagesEnabled}
           onTypingChange={handleTypingChange}
           onTypingClose={handleTypingClose}
-          onSendMessage={handleSendMessage}
+          onSendMessage={handleSendMessageWithCheck}
           onDismissMessage={handleDismissMessage}
           onDismissGroup={handleDismissGroup}
+          onRoomClick={() => setShowRoomSettings(true)}
         />
       </motion.div>
     </div>

@@ -30,44 +30,34 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type SandboxMessage = {
-  id: bigint,
-  senderIdentity: Identity,
-  text: string,
-  positionX: number,
-  positionY: number,
-  createdAt: Timestamp,
-  roomCode: string,
+
+export type UpdateRoomConfig = {
+  messageTtlSeconds: number,
+  messagesEnabled: boolean,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace SandboxMessage {
+export namespace UpdateRoomConfig {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("id", AlgebraicType.createU64Type()),
-      new ProductTypeElement("senderIdentity", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("text", AlgebraicType.createStringType()),
-      new ProductTypeElement("positionX", AlgebraicType.createF32Type()),
-      new ProductTypeElement("positionY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("createdAt", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("roomCode", AlgebraicType.createStringType()),
+      new ProductTypeElement("messageTtlSeconds", AlgebraicType.createU32Type()),
+      new ProductTypeElement("messagesEnabled", AlgebraicType.createBoolType()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: SandboxMessage): void {
-    SandboxMessage.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: UpdateRoomConfig): void {
+    UpdateRoomConfig.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): SandboxMessage {
-    return SandboxMessage.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): UpdateRoomConfig {
+    return UpdateRoomConfig.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }
-
 

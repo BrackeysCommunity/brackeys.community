@@ -30,42 +30,42 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type SandboxUser = {
-  identity: Identity,
-  name: string | undefined,
-  cursorX: number,
-  cursorY: number,
-  color: string,
+export type Room = {
+  code: string,
+  hostIdentity: Identity,
+  passwordHash: string,
+  messageTtlSeconds: number,
+  messagesEnabled: boolean,
+  createdAt: Timestamp,
   lastActivity: Timestamp,
-  roomCode: string | undefined,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace SandboxUser {
+export namespace Room {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("identity", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("name", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
-      new ProductTypeElement("cursorX", AlgebraicType.createF32Type()),
-      new ProductTypeElement("cursorY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("color", AlgebraicType.createStringType()),
+      new ProductTypeElement("code", AlgebraicType.createStringType()),
+      new ProductTypeElement("hostIdentity", AlgebraicType.createIdentityType()),
+      new ProductTypeElement("passwordHash", AlgebraicType.createStringType()),
+      new ProductTypeElement("messageTtlSeconds", AlgebraicType.createU32Type()),
+      new ProductTypeElement("messagesEnabled", AlgebraicType.createBoolType()),
+      new ProductTypeElement("createdAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("lastActivity", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("roomCode", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: SandboxUser): void {
-    SandboxUser.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: Room): void {
+    Room.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): SandboxUser {
-    return SandboxUser.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): Room {
+    return Room.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

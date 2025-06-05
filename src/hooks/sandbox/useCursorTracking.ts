@@ -5,7 +5,6 @@ interface UseCursorTrackingOptions {
   canvasRef: React.RefObject<HTMLDivElement | null>
   lastCursorPosition: React.MutableRefObject<{ x: number; y: number }>
   isConnected: boolean
-  showNameDialog: boolean
   isTyping: boolean
   typingText: string
   onCursorUpdate: (x: number, y: number) => void
@@ -16,14 +15,13 @@ export function useCursorTracking({
   canvasRef,
   lastCursorPosition,
   isConnected,
-  showNameDialog,
   isTyping,
   typingText,
   onCursorUpdate,
   onMouseMoveWhileTyping
 }: UseCursorTrackingOptions) {
   useEffect(() => {
-    if (!canvasRef.current || !isConnected || showNameDialog) return
+    if (!canvasRef.current || !isConnected) return
 
     const canvas = canvasRef.current
     let lastUpdate = Date.now()
@@ -57,5 +55,5 @@ export function useCursorTracking({
     return () => {
       canvas.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [canvasRef, lastCursorPosition, isConnected, showNameDialog, isTyping, typingText, onCursorUpdate, onMouseMoveWhileTyping])
+  }, [canvasRef, lastCursorPosition, isConnected, isTyping, typingText, onCursorUpdate, onMouseMoveWhileTyping])
 } 

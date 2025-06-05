@@ -6,7 +6,6 @@ export const SandboxProvider = ({ children }: PropsWithChildren) => {
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [typingText, setTypingText] = useState('');
-  const [showNameDialog, setShowNameDialog] = useState(true);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastCursorPosition = useRef({ x: 50, y: 50 });
@@ -42,8 +41,6 @@ export const SandboxProvider = ({ children }: PropsWithChildren) => {
       setTypingText,
       canvasRef,
       lastCursorPosition,
-      showNameDialog,
-      setShowNameDialog,
     }}>
       {children}
     </Provider>

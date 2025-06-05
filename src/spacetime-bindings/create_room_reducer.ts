@@ -30,48 +30,38 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type LiveTyping = {
-  identity: Identity,
-  text: string,
-  positionX: number,
-  positionY: number,
-  isTyping: boolean,
-  selectionStart: number,
-  selectionEnd: number,
-  updatedAt: Timestamp,
+
+export type CreateRoom = {
   roomCode: string,
+  passwordHash: string,
+  messageTtlSeconds: number,
+  messagesEnabled: boolean,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace LiveTyping {
+export namespace CreateRoom {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("identity", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("text", AlgebraicType.createStringType()),
-      new ProductTypeElement("positionX", AlgebraicType.createF32Type()),
-      new ProductTypeElement("positionY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("isTyping", AlgebraicType.createBoolType()),
-      new ProductTypeElement("selectionStart", AlgebraicType.createU32Type()),
-      new ProductTypeElement("selectionEnd", AlgebraicType.createU32Type()),
-      new ProductTypeElement("updatedAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("roomCode", AlgebraicType.createStringType()),
+      new ProductTypeElement("passwordHash", AlgebraicType.createStringType()),
+      new ProductTypeElement("messageTtlSeconds", AlgebraicType.createU32Type()),
+      new ProductTypeElement("messagesEnabled", AlgebraicType.createBoolType()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: LiveTyping): void {
-    LiveTyping.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: CreateRoom): void {
+    CreateRoom.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): LiveTyping {
-    return LiveTyping.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): CreateRoom {
+    return CreateRoom.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }
-
 

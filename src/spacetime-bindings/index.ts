@@ -38,14 +38,22 @@ import { ClientConnected } from "./client_connected_reducer.ts";
 export { ClientConnected };
 import { ClientDisconnected } from "./client_disconnected_reducer.ts";
 export { ClientDisconnected };
+import { CreateRoom } from "./create_room_reducer.ts";
+export { CreateRoom };
 import { DismissMessage } from "./dismiss_message_reducer.ts";
 export { DismissMessage };
+import { JoinRoom } from "./join_room_reducer.ts";
+export { JoinRoom };
+import { LeaveRoom } from "./leave_room_reducer.ts";
+export { LeaveRoom };
 import { SendMessage } from "./send_message_reducer.ts";
 export { SendMessage };
 import { SetDisplayName } from "./set_display_name_reducer.ts";
 export { SetDisplayName };
 import { UpdateCursor } from "./update_cursor_reducer.ts";
 export { UpdateCursor };
+import { UpdateRoomConfig } from "./update_room_config_reducer.ts";
+export { UpdateRoomConfig };
 import { UpdateTyping } from "./update_typing_reducer.ts";
 export { UpdateTyping };
 
@@ -54,6 +62,8 @@ import { CleanupScheduleTableHandle } from "./cleanup_schedule_table.ts";
 export { CleanupScheduleTableHandle };
 import { LiveTypingTableHandle } from "./live_typing_table.ts";
 export { LiveTypingTableHandle };
+import { RoomTableHandle } from "./room_table.ts";
+export { RoomTableHandle };
 import { SandboxMessageTableHandle } from "./sandbox_message_table.ts";
 export { SandboxMessageTableHandle };
 import { SandboxUserTableHandle } from "./sandbox_user_table.ts";
@@ -64,6 +74,8 @@ import { CleanupSchedule } from "./cleanup_schedule_type.ts";
 export { CleanupSchedule };
 import { LiveTyping } from "./live_typing_type.ts";
 export { LiveTyping };
+import { Room } from "./room_type.ts";
+export { Room };
 import { SandboxMessage } from "./sandbox_message_type.ts";
 export { SandboxMessage };
 import { SandboxUser } from "./sandbox_user_type.ts";
@@ -80,6 +92,11 @@ const REMOTE_MODULE = {
       tableName: "live_typing",
       rowType: LiveTyping.getTypeScriptAlgebraicType(),
       primaryKey: "identity",
+    },
+    room: {
+      tableName: "room",
+      rowType: Room.getTypeScriptAlgebraicType(),
+      primaryKey: "code",
     },
     sandbox_message: {
       tableName: "sandbox_message",
@@ -105,9 +122,21 @@ const REMOTE_MODULE = {
       reducerName: "client_disconnected",
       argsType: ClientDisconnected.getTypeScriptAlgebraicType(),
     },
+    create_room: {
+      reducerName: "create_room",
+      argsType: CreateRoom.getTypeScriptAlgebraicType(),
+    },
     dismiss_message: {
       reducerName: "dismiss_message",
       argsType: DismissMessage.getTypeScriptAlgebraicType(),
+    },
+    join_room: {
+      reducerName: "join_room",
+      argsType: JoinRoom.getTypeScriptAlgebraicType(),
+    },
+    leave_room: {
+      reducerName: "leave_room",
+      argsType: LeaveRoom.getTypeScriptAlgebraicType(),
     },
     send_message: {
       reducerName: "send_message",
@@ -120,6 +149,10 @@ const REMOTE_MODULE = {
     update_cursor: {
       reducerName: "update_cursor",
       argsType: UpdateCursor.getTypeScriptAlgebraicType(),
+    },
+    update_room_config: {
+      reducerName: "update_room_config",
+      argsType: UpdateRoomConfig.getTypeScriptAlgebraicType(),
     },
     update_typing: {
       reducerName: "update_typing",
@@ -155,10 +188,14 @@ export type Reducer = never
 | { name: "CleanupOldMessages", args: CleanupOldMessages }
 | { name: "ClientConnected", args: ClientConnected }
 | { name: "ClientDisconnected", args: ClientDisconnected }
+| { name: "CreateRoom", args: CreateRoom }
 | { name: "DismissMessage", args: DismissMessage }
+| { name: "JoinRoom", args: JoinRoom }
+| { name: "LeaveRoom", args: LeaveRoom }
 | { name: "SendMessage", args: SendMessage }
 | { name: "SetDisplayName", args: SetDisplayName }
 | { name: "UpdateCursor", args: UpdateCursor }
+| { name: "UpdateRoomConfig", args: UpdateRoomConfig }
 | { name: "UpdateTyping", args: UpdateTyping }
 ;
 
@@ -197,6 +234,22 @@ export class RemoteReducers {
     this.connection.offReducer("client_disconnected", callback);
   }
 
+  createRoom(roomCode: string, passwordHash: string, messageTtlSeconds: number, messagesEnabled: boolean) {
+    const __args = { roomCode, passwordHash, messageTtlSeconds, messagesEnabled };
+    let __writer = new BinaryWriter(1024);
+    CreateRoom.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("create_room", __argsBuffer, this.setCallReducerFlags.createRoomFlags);
+  }
+
+  onCreateRoom(callback: (ctx: ReducerEventContext, roomCode: string, passwordHash: string, messageTtlSeconds: number, messagesEnabled: boolean) => void) {
+    this.connection.onReducer("create_room", callback);
+  }
+
+  removeOnCreateRoom(callback: (ctx: ReducerEventContext, roomCode: string, passwordHash: string, messageTtlSeconds: number, messagesEnabled: boolean) => void) {
+    this.connection.offReducer("create_room", callback);
+  }
+
   dismissMessage(messageId: bigint) {
     const __args = { messageId };
     let __writer = new BinaryWriter(1024);
@@ -211,6 +264,34 @@ export class RemoteReducers {
 
   removeOnDismissMessage(callback: (ctx: ReducerEventContext, messageId: bigint) => void) {
     this.connection.offReducer("dismiss_message", callback);
+  }
+
+  joinRoom(roomCode: string, passwordHash: string) {
+    const __args = { roomCode, passwordHash };
+    let __writer = new BinaryWriter(1024);
+    JoinRoom.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("join_room", __argsBuffer, this.setCallReducerFlags.joinRoomFlags);
+  }
+
+  onJoinRoom(callback: (ctx: ReducerEventContext, roomCode: string, passwordHash: string) => void) {
+    this.connection.onReducer("join_room", callback);
+  }
+
+  removeOnJoinRoom(callback: (ctx: ReducerEventContext, roomCode: string, passwordHash: string) => void) {
+    this.connection.offReducer("join_room", callback);
+  }
+
+  leaveRoom() {
+    this.connection.callReducer("leave_room", new Uint8Array(0), this.setCallReducerFlags.leaveRoomFlags);
+  }
+
+  onLeaveRoom(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("leave_room", callback);
+  }
+
+  removeOnLeaveRoom(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("leave_room", callback);
   }
 
   sendMessage(text: string, x: number, y: number) {
@@ -261,6 +342,22 @@ export class RemoteReducers {
     this.connection.offReducer("update_cursor", callback);
   }
 
+  updateRoomConfig(messageTtlSeconds: number, messagesEnabled: boolean) {
+    const __args = { messageTtlSeconds, messagesEnabled };
+    let __writer = new BinaryWriter(1024);
+    UpdateRoomConfig.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_room_config", __argsBuffer, this.setCallReducerFlags.updateRoomConfigFlags);
+  }
+
+  onUpdateRoomConfig(callback: (ctx: ReducerEventContext, messageTtlSeconds: number, messagesEnabled: boolean) => void) {
+    this.connection.onReducer("update_room_config", callback);
+  }
+
+  removeOnUpdateRoomConfig(callback: (ctx: ReducerEventContext, messageTtlSeconds: number, messagesEnabled: boolean) => void) {
+    this.connection.offReducer("update_room_config", callback);
+  }
+
   updateTyping(text: string, x: number, y: number, selectionStart: number, selectionEnd: number) {
     const __args = { text, x, y, selectionStart, selectionEnd };
     let __writer = new BinaryWriter(1024);
@@ -285,9 +382,24 @@ export class SetReducerFlags {
     this.cleanupOldMessagesFlags = flags;
   }
 
+  createRoomFlags: CallReducerFlags = 'FullUpdate';
+  createRoom(flags: CallReducerFlags) {
+    this.createRoomFlags = flags;
+  }
+
   dismissMessageFlags: CallReducerFlags = 'FullUpdate';
   dismissMessage(flags: CallReducerFlags) {
     this.dismissMessageFlags = flags;
+  }
+
+  joinRoomFlags: CallReducerFlags = 'FullUpdate';
+  joinRoom(flags: CallReducerFlags) {
+    this.joinRoomFlags = flags;
+  }
+
+  leaveRoomFlags: CallReducerFlags = 'FullUpdate';
+  leaveRoom(flags: CallReducerFlags) {
+    this.leaveRoomFlags = flags;
   }
 
   sendMessageFlags: CallReducerFlags = 'FullUpdate';
@@ -303,6 +415,11 @@ export class SetReducerFlags {
   updateCursorFlags: CallReducerFlags = 'FullUpdate';
   updateCursor(flags: CallReducerFlags) {
     this.updateCursorFlags = flags;
+  }
+
+  updateRoomConfigFlags: CallReducerFlags = 'FullUpdate';
+  updateRoomConfig(flags: CallReducerFlags) {
+    this.updateRoomConfigFlags = flags;
   }
 
   updateTypingFlags: CallReducerFlags = 'FullUpdate';
@@ -321,6 +438,10 @@ export class RemoteTables {
 
   get liveTyping(): LiveTypingTableHandle {
     return new LiveTypingTableHandle(this.connection.clientCache.getOrCreateTable<LiveTyping>(REMOTE_MODULE.tables.live_typing));
+  }
+
+  get room(): RoomTableHandle {
+    return new RoomTableHandle(this.connection.clientCache.getOrCreateTable<Room>(REMOTE_MODULE.tables.room));
   }
 
   get sandboxMessage(): SandboxMessageTableHandle {
