@@ -289,9 +289,7 @@ pub fn cleanup_old_messages(ctx: &ReducerContext, _arg: CleanupSchedule) -> Resu
     if ctx.sender != ctx.identity() {
         return Err("Cleanup reducer may only be called by the scheduler".to_string());
     }
-    
-    log::info!("🧹 Cleanup reducer running at {}", ctx.timestamp.to_micros_since_unix_epoch());
-    
+        
     let now = ctx.timestamp;
     
     // Clean up messages based on room TTL settings
@@ -335,8 +333,7 @@ pub fn create_room(ctx: &ReducerContext, room_code: String, password_hash: Strin
         return Err("Room code must be exactly 6 characters".to_string());
     }
     
-    log::info!("🏠 Creating room {} with password_hash length: {}", room_code, password_hash.len());
-    log::info!("🏠 Password hash preview: {}", if password_hash.is_empty() { "(empty)".to_string() } else { format!("{}...", &password_hash[..16.min(password_hash.len())]) });
+
     
     // Password hash can be empty for public rooms
     
@@ -374,20 +371,10 @@ pub fn join_room(ctx: &ReducerContext, room_code: String, password_hash: String)
     let room = ctx.db.room().code().find(&room_code)
         .ok_or("Room not found")?;
     
-    log::info!("🔑 Join attempt for room {}", room_code);
-    log::info!("🔑 Provided password_hash length: {}", password_hash.len());
-    log::info!("🔑 Provided password_hash preview: {}", if password_hash.is_empty() { "(empty)".to_string() } else { format!("{}...", &password_hash[..16.min(password_hash.len())]) });
-    log::info!("🔑 Stored password_hash length: {}", room.password_hash.len());
-    log::info!("🔑 Stored password_hash preview: {}", if room.password_hash.is_empty() { "(empty)".to_string() } else { format!("{}...", &room.password_hash[..16.min(room.password_hash.len())]) });
-    log::info!("🔑 Hashes match: {}", password_hash == room.password_hash);
-    
     // Verify password hash matches (both are already hashed by client)
     if password_hash != room.password_hash {
-        log::info!("🔑 Password verification failed for room {}", room_code);
         return Err("Invalid password".to_string());
     }
-    
-    log::info!("🔑 Password verification successful for room {}", room_code);
     
     join_room_internal(ctx, &room_code)?;
     

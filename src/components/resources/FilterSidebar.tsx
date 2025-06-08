@@ -22,7 +22,7 @@ export const FilterSidebar = ({
     className={cn(
       "w-full md:w-80 lg:w-96 shrink-0 md:sticky md:top-24 md:self-start",
       "md:max-h-[calc(100dvh-7rem)]",
-      "custom-scrollbar md:overflow-hidden md:hover:overflow-y-auto",
+      "custom-scrollbar scrollbar-stable md:overflow-hidden md:hover:overflow-y-auto",
       "rounded-lg"
     )}
     initial={{ opacity: 0, x: -10 }}

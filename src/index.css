@@ -202,19 +202,22 @@
     width: 5px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(31, 41, 55, 0.3);
+    background: #1f29374d;
     border-radius: 8px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(75, 85, 99, 0.5);
+    background: #4b556380;
     border-radius: 8px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(107, 114, 128, 0.7);
+    background: #6b7280b3;
   }
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(75, 85, 99, 0.5) rgba(31, 41, 55, 0.3);
-    scrollbar-gutter: stable;
+    scrollbar-color: #4b556380 #1f29374d;
+    
+    .scrollbar-stable {
+      scrollbar-gutter: stable;
+    }
   }
 }

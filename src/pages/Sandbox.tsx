@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { useMemo, useCallback, useState, useEffect } from 'react'
 import { SandboxCanvas } from '../components/sandbox/SandboxCanvas'
-import { RoomManager } from '../components/RoomManager'
+import { RoomManager } from '../components/sandbox/RoomManager'
 import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider'
 import { SandboxProvider } from '../context/SandboxProvider'
 import { useLayoutProps } from '../context/layoutContext'
@@ -116,7 +116,7 @@ const SandboxContainer = () => {
   // Show room manager if user is not in a room or showing room settings
   if (!currentRoom || showRoomSettings) {
     return (
-      <div className="flex flex-col grow bg-gray-900">
+      <div className="flex flex-col grow bg-gray-900 overflow-hidden relative">
         <RoomManager
           onClose={showRoomSettings ? () => {
             setShowRoomSettings(false);
@@ -127,7 +127,7 @@ const SandboxContainer = () => {
   }
 
   return (
-    <div className="flex flex-col grow">
+    <div className="flex flex-col grow relative">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -163,7 +163,7 @@ export const Sandbox = () => {
   useLayoutProps({
     showFooter: false,
     containerized: false,
-    mainClassName: "flex",
+    mainClassName: "flex h-full overflow-hidden",
     fullHeight: true
   })
 

@@ -295,41 +295,62 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     throw new Error('Failed to generate unique room code after 10 attempts');
   };
 
-  const joinRoom = async (roomCode: string, password: string) => {
+  const joinRoom = async (roomCode: string, password: string): Promise<void> => {
     if (!connectionRef.current) throw new Error('Not connected');
 
-    // Get current user state before join attempt  
-    const usersBefore = Array.from(connectionRef.current.db.sandboxUser.iter());
-    usersBefore.find((user: SandboxUser) =>
-      user.identity.toHexString() === identityRef.current
-    );
+    return new Promise<void>((resolve, reject) => {
+      const connection = connectionRef.current!;
+      const userIdentity = identityRef.current!;
 
-    try {
-      await connectionRef.current.reducers.joinRoom(roomCode, password);
+      // Set up a timeout for the operation
+      const timeout = setTimeout(() => {
+        connection.reducers.removeOnJoinRoom(onJoinRoomComplete);
+        reject(new Error('Join room operation timed out'));
+      }, 10000);
 
-      // Wait a moment for the state to update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const onJoinRoomComplete = () => {
+        clearTimeout(timeout);
+        connection.reducers.removeOnJoinRoom(onJoinRoomComplete);
 
-      // Check if we actually joined the room by examining user state
-      const usersAfter = Array.from(connectionRef.current.db.sandboxUser.iter());
-      const currentUserAfter = usersAfter.find((user: SandboxUser) =>
-        user.identity.toHexString() === identityRef.current
-      );
+        // Wait a brief moment for state to update, then check if we joined successfully
+        setTimeout(async () => {
+          try {
+            const users = Array.from(connection.db.sandboxUser.iter()) as SandboxUser[];
+            const currentUser = users.find(user => user.identity.toHexString() === userIdentity);
 
-      // If we're still not in the room, the join failed
-      if (!currentUserAfter?.roomCode || currentUserAfter.roomCode !== roomCode) {
-        throw new Error('Invalid password');
-      }
+            if (!currentUser?.roomCode || currentUser.roomCode !== roomCode) {
+              // If we're not in the room, the join failed - assume it was due to room not found or invalid password
+              // We need to determine which based on whether the room exists
+              const rooms = Array.from(connection.db.room.iter()) as Room[];
+              const roomExists = rooms.some(room => room.code === roomCode);
 
-      // Subscribe to room-specific data
-      await subscribe([
-        `SELECT * FROM live_typing WHERE room_code = '${roomCode}'`,
-        `SELECT * FROM sandbox_message WHERE room_code = '${roomCode}'`
-      ]);
-    } catch (error) {
-      console.error('Failed to join room:', error instanceof Error ? error.message : String(error));
-      throw error;
-    }
+              if (!roomExists) {
+                reject(new Error('Room not found'));
+              } else {
+                reject(new Error('Invalid password'));
+              }
+              return;
+            }
+
+            // Successfully joined - subscribe to room-specific data
+            await subscribe([
+              `SELECT * FROM live_typing WHERE room_code = '${roomCode}'`,
+              `SELECT * FROM sandbox_message WHERE room_code = '${roomCode}'`
+            ]);
+
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        }, 200); // Wait 200ms for state to propagate
+      };
+
+      // Listen for the reducer completion
+      connection.reducers.onJoinRoom(onJoinRoomComplete);
+
+      // Fire the reducer
+      connection.reducers.joinRoom(roomCode, password);
+    });
   };
 
   const leaveRoom = async () => {

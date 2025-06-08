@@ -20,7 +20,7 @@ export const App = () => {
       <Toaster
         position="bottom-left"
         expand={false}
-        duration={500000}
+        duration={7000}
         visibleToasts={5}
         className="!font-sans"
       />
