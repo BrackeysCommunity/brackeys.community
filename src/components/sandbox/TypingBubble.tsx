@@ -96,7 +96,11 @@ export const TypingBubble = ({
       onTypingClose?.()
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      onSendMessage?.(e.currentTarget.value.trim())
+      const message = e.currentTarget.value.trim()
+      if (message) {
+        onSendMessage?.(message)
+        e.currentTarget.value = ''
+      }
     }
   }
 
