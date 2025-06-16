@@ -48,58 +48,121 @@ export const TypingBubble = ({
   onTypingClose,
   onSendMessage
 }: TypingBubbleProps) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editableRef = useRef<HTMLDivElement>(null)
   const { setCursorTyping, setCursorDefault } = useSandbox()
   const isTyping = typingState?.isTyping || false
 
   useEffect(() => {
-    if (isCurrentUser && isTyping && textareaRef.current) {
-      textareaRef.current.focus()
-      const len = typingState?.text?.length || 0
-      textareaRef.current.setSelectionRange(len, len)
+    if (isCurrentUser && isTyping && editableRef.current) {
+      editableRef.current.focus()
+
+      // Place cursor at the end
+      const range = document.createRange()
+      const sel = window.getSelection()
+      range.selectNodeContents(editableRef.current)
+      range.collapse(false)
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+
       setCursorTyping()
     } else if (isCurrentUser && !isTyping) {
       setCursorDefault()
     }
   }, [isCurrentUser, isTyping, setCursorTyping, setCursorDefault])
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!onTypingChange) return
-    const textarea = e.target
-    textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 124)}px`
-    onTypingChange(textarea.value, textarea.selectionStart || 0, textarea.selectionEnd || 0)
+  // Add global selection change listener for better selection tracking
+  useEffect(() => {
+    if (!isCurrentUser || !isTyping) return
+
+    const handleGlobalSelectionChange = () => {
+      if (document.activeElement === editableRef.current) {
+        handleSelectionChange()
+      }
+    }
+
+    document.addEventListener('selectionchange', handleGlobalSelectionChange)
+    return () => {
+      document.removeEventListener('selectionchange', handleGlobalSelectionChange)
+    }
+  }, [isCurrentUser, isTyping])
+
+  // Keep content in sync with state
+  useEffect(() => {
+    if (isCurrentUser && editableRef.current && typingState) {
+      const currentText = editableRef.current.textContent || ''
+      if (currentText !== typingState.text) {
+        editableRef.current.textContent = typingState.text
+      }
+    }
+  }, [typingState?.text, isCurrentUser])
+
+  const getCaretPosition = (): { start: number; end: number } => {
+    if (!editableRef.current) return { start: 0, end: 0 }
+
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return { start: 0, end: 0 }
+
+    const range = selection.getRangeAt(0)
+    const preCaretRange = document.createRange()
+    preCaretRange.selectNodeContents(editableRef.current)
+    preCaretRange.setEnd(range.startContainer, range.startOffset)
+
+    const start = preCaretRange.toString().length
+    const end = start + range.toString().length
+
+    return { start, end }
   }
 
-  const handleSelectionChange = (textarea: HTMLTextAreaElement) => {
-    if (!onTypingChange) return
-    const start = textarea.selectionStart || 0
-    const end = textarea.selectionEnd || 0
-    onTypingChange(textarea.value, start, end)
+  const handleInput = () => {
+    if (!onTypingChange || !editableRef.current) return
+
+    const text = editableRef.current.textContent || ''
+    const { start, end } = getCaretPosition()
+
+    // If we're over the limit, truncate and maintain cursor position
+    if (text.length > MAX_TYPING_LENGTH) {
+      const truncatedText = text.slice(0, MAX_TYPING_LENGTH)
+      editableRef.current.textContent = truncatedText
+
+      // Restore cursor position, but clamp it to the new text length
+      const newStart = Math.min(start, truncatedText.length)
+      const newEnd = Math.min(end, truncatedText.length)
+
+      // Set cursor position
+      const range = document.createRange()
+      const sel = window.getSelection()
+      if (editableRef.current.firstChild) {
+        range.setStart(editableRef.current.firstChild, newStart)
+        range.setEnd(editableRef.current.firstChild, newEnd)
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+      }
+
+      onTypingChange(truncatedText, newStart, newEnd)
+    } else {
+      onTypingChange(text, start, end)
+    }
   }
 
-  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-    handleSelectionChange(e.currentTarget)
+  const handleSelectionChange = () => {
+    if (!onTypingChange || !editableRef.current) return
+
+    const text = editableRef.current.textContent || ''
+    const { start, end } = getCaretPosition()
+
+    onTypingChange(text, start, end)
   }
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    handleSelectionChange(e.currentTarget)
-  }
-
-  const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    handleSelectionChange(e.currentTarget)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       onTypingClose?.()
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      const message = e.currentTarget.value.trim()
+      const message = (e.currentTarget.textContent || '').trim()
       if (message) {
         onSendMessage?.(message)
-        e.currentTarget.value = ''
+        e.currentTarget.textContent = ''
       }
     }
   }
@@ -107,7 +170,7 @@ export const TypingBubble = ({
   const handleBlur = () => {
     if (!onTypingClose) return
     setTimeout(() => {
-      if (document.activeElement !== textareaRef.current) {
+      if (document.activeElement !== editableRef.current) {
         onTypingClose()
       }
     }, TYPING_BLUR_TIMEOUT)
@@ -115,13 +178,8 @@ export const TypingBubble = ({
 
   return (
     <motion.div
-      className="absolute top-3.5 left-3.5 whitespace-nowrap"
+      className="absolute top-3.5 left-3.5 max-w-[400px]"
       initial={false}
-      animate={{
-        width: isTyping ? 'auto' : 'auto',
-        height: isTyping ? 'auto' : 'auto',
-        minWidth: isTyping && !isCurrentUser ? '200px' : 'auto',
-      }}
       transition={TYPING_ANIMATION_CONFIG}
     >
       <motion.div
@@ -132,52 +190,56 @@ export const TypingBubble = ({
         }}
         transition={TYPING_ANIMATION_CONFIG}
       >
-        <motion.div
-          className="text-xs font-medium flex justify-between"
-          style={{ color: 'white' }}
-          animate={{
-            marginBottom: isTyping ? '4px' : '0px',
-          }}
-        >
-          {user.name || 'Anonymous'}
-        </motion.div>
-
-        <AnimatePresence>
-          {isTyping && typingState && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={TYPING_BUBBLE_TRANSITIONS}
-            >
-              {isCurrentUser ? (
-                <textarea
-                  ref={textareaRef}
-                  value={typingState.text}
-                  onChange={handleChange}
-                  onSelect={handleSelect}
-                  onKeyDown={handleKeyDown}
-                  onKeyUp={handleKeyUp}
-                  onMouseUp={handleMouseUp}
-                  onClick={handleSelect}
-                  onBlur={handleBlur}
-                  className="bg-transparent text-white text-sm font-mono resize-none outline-none w-full min-w-50 min-h-4 max-h-36 h-auto placeholder-gray-300"
-                  placeholder="Start typing..."
-                  maxLength={MAX_TYPING_LENGTH}
-                  rows={1}
-                />
-              ) : (
-                <div className="text-sm font-mono whitespace-pre-wrap break-words text-white w-fit max-w-[400px]">
-                  {renderTextWithSelection(
-                    typingState.text,
-                    typingState.selectionStart || 0,
-                    typingState.selectionEnd || 0
-                  )}
-                </div>
+        <div className="w-max">
+          <div className="flex items-baseline gap-1">
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white flex-shrink-0">
+                {user.name || 'Anonymous'}
+                {isTyping && ':'}
+              </span>
+              {isCurrentUser && isTyping && typingState && (MAX_TYPING_LENGTH - typingState.text.length) <= 40 && (
+                <span className="text-xs text-white/70 mt-1 text-right">
+                  {MAX_TYPING_LENGTH - typingState.text.length}
+                </span>
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+
+            <AnimatePresence>
+              {isTyping && typingState && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={TYPING_BUBBLE_TRANSITIONS}
+                  className="inline-block"
+                >
+                  {isCurrentUser ? (
+                    <div
+                      ref={editableRef}
+                      contentEditable
+                      onInput={handleInput}
+                      onKeyDown={handleKeyDown}
+                      onKeyUp={handleSelectionChange}
+                      onMouseUp={handleSelectionChange}
+                      onClick={handleSelectionChange}
+                      onBlur={handleBlur}
+                      className="bg-transparent text-white text-sm outline-none empty:before:content-['Start_typing...'] empty:before:text-gray-300 min-w-[50px] max-w-80 w-max min-h-4 max-h-36 overflow-y-auto whitespace-pre-wrap break-words"
+                      suppressContentEditableWarning
+                    />
+                  ) : (
+                    <div className="text-sm whitespace-pre-wrap break-words text-white max-w-80 w-max">
+                      {renderTextWithSelection(
+                        typingState.text,
+                        typingState.selectionStart || 0,
+                        typingState.selectionEnd || 0
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </motion.div>
     </motion.div>
   )
