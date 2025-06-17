@@ -14,6 +14,13 @@ const config: StorybookConfig = {
   "framework": {
     "name": "@storybook/react-vite",
     "options": {}
+  },
+  "viteFinal": async (config) => {
+    // Configure base URL for GitHub Pages
+    if (process.env.NODE_ENV === 'production') {
+      config.base = '/BrackeysCommunity/brackeys.community/';
+    }
+    return config;
   }
 };
 export default config;
