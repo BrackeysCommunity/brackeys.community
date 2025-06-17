@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from 'motion/react'
-import { useRef, useEffect } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { SandboxUser, LiveTyping } from '../../spacetime-bindings'
 import { useSandbox } from '../../context/sandboxContext'
 import { TYPING_ANIMATION_CONFIG, TYPING_BUBBLE_TRANSITIONS, TYPING_BLUR_TIMEOUT, MAX_TYPING_LENGTH } from './constants'
+import { cn } from '../../lib/utils'
 
 type SimpleTypingState = {
   text: string
@@ -22,7 +23,7 @@ type TypingBubbleProps = {
 
 const renderTextWithSelection = (text: string, selectionStart: number, selectionEnd: number) => {
   if (selectionStart === selectionEnd || selectionStart < 0 || selectionEnd < 0) {
-    return <span>{text}</span>
+    return <AnimatedText text={text} />
   }
 
   const beforeSelection = text.slice(0, selectionStart)
@@ -31,11 +32,86 @@ const renderTextWithSelection = (text: string, selectionStart: number, selection
 
   return (
     <>
-      {beforeSelection}
+      <AnimatedText text={beforeSelection} />
       <span className="bg-white/30 text-white rounded-sm px-0.5">
-        {selection}
+        <AnimatedText text={selection} />
       </span>
-      {afterSelection}
+      <AnimatedText text={afterSelection} />
+    </>
+  )
+}
+
+const AnimatedText = ({ text }: { text: string }) => {
+  // Split text into words and spaces, preserving word boundaries
+  const words = React.useMemo(() => {
+    const wordPattern = /(\S+|\s+)/g
+    const matches = text.match(wordPattern) || []
+    let charIndex = 0
+
+    return matches.map((word, wordIndex) => {
+      const wordStartIndex = charIndex
+      const chars = word.split('').map((char, index) => ({
+        // Use position in full text for stable keys
+        id: `char-${wordStartIndex + index}`,
+        char,
+        globalIndex: wordStartIndex + index
+      }))
+      charIndex += word.length
+
+      return {
+        id: `word-${wordIndex}`,
+        chars,
+        isSpace: /^\s+$/.test(word)
+      }
+    })
+  }, [text])
+
+  return (
+    <>
+      {words.map(({ id, chars, isSpace }) => (
+        <span key={id} className={isSpace ? "inline" : "inline-block"}>
+          <AnimatePresence mode="popLayout">
+            {chars.map(({ id: charId, char }) => (
+              <motion.span
+                key={charId}
+                layout
+                initial={{
+                  opacity: 0,
+                  y: -10,
+                  scale: 0.6,
+                  rotateZ: -10
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  scale: 1,
+                  rotateZ: 0,
+                  transition: {
+                    duration: 0.05,
+                    type: "spring",
+                    damping: 12,
+                    stiffness: 300,
+                    mass: .8 * Math.random(),
+                  }
+                }}
+                exit={{
+                  opacity: [1, 1, 0],
+                  y: 5,
+                  scale: 0.9,
+                  transition: {
+                    duration: 0.1,
+                    ease: "easeOut",
+                    times: [0, 0.5, 1],
+                  }
+                }}
+                className="inline-block origin-center"
+              >
+                {char === ' ' ? '\u00A0' : char}
+              </motion.span>
+            ))}
+          </AnimatePresence>
+        </span>
+      ))}
     </>
   )
 }
@@ -157,8 +233,11 @@ export const TypingBubble = ({
     if (e.key === 'Escape') {
       e.preventDefault()
       onTypingClose?.()
-    } else if (e.key === 'Enter' && !e.shiftKey) {
+    } else if (e.key === 'Enter') {
       e.preventDefault()
+
+      if (e.shiftKey) return;
+
       const message = (e.currentTarget.textContent || '').trim()
       if (message) {
         onSendMessage?.(message)
@@ -191,8 +270,8 @@ export const TypingBubble = ({
         transition={TYPING_ANIMATION_CONFIG}
       >
         <div className="w-max">
-          <div className="flex items-baseline gap-1">
-            <div className="flex flex-col">
+          <div className={cn("flex gap-1", isCurrentUser && "items-baseline")}>
+            <div className={cn("flex flex-col", !isCurrentUser && "pt-0.75")}>
               <span className="text-xs font-semibold text-white flex-shrink-0">
                 {user.name || 'Anonymous'}
                 {isTyping && ':'}
