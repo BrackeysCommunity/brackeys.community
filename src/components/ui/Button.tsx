@@ -5,7 +5,7 @@ import { Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'transition-all focus:ring-2 focus:ring-offset-2',
+  'transition-all focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center leading-none',
   {
     variants: {
       variant: {
@@ -13,10 +13,10 @@ const buttonVariants = cva(
         secondary: 'focus:outline-none bg-gray-700 hover:bg-gray-600 text-white border border-gray-600 focus:ring-gray-500 focus:ring-offset-gray-800',
         success: 'focus:outline-none bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 focus:ring-offset-green-800',
         danger: 'focus:outline-none bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-red-800',
-        ghost: 'bg-transparent hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0 focus:!outline-2 focus:!outline-offset-2 focus:!outline-gray-500',
-        card: 'focus:outline-none border bg-gray-700',
+        ghost: 'bg-transparent hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0',
+        card: 'focus:outline-none border bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800',
         checkbox: 'focus:outline-none bg-gray-700 hover:bg-gray-600',
-        'checkbox-card': 'focus:outline-none border bg-gray-700',
+        'checkbox-card': 'focus:outline-none border bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800',
       },
       size: {
         icon: 'p-1.5',
@@ -26,9 +26,9 @@ const buttonVariants = cva(
         card: 'p-4',
       },
       layout: {
-        default: 'flex items-center justify-center space-x-2',
-        horizontal: 'flex flex-col items-center text-center',
-        vertical: 'flex items-start space-x-3',
+        default: 'space-x-2',
+        vertical: 'flex flex-col items-center text-center',
+        horizontal: 'flex items-start space-x-3',
       },
       fullWidth: {
         true: 'w-full',
@@ -229,7 +229,7 @@ export const Button = ({
         className={buttonVariants({
           variant,
           size: 'card',
-          layout: layout || 'horizontal',
+          layout: layout || 'vertical',
           fullWidth,
           disabled: disabled || loading,
           selected,
@@ -242,13 +242,17 @@ export const Button = ({
           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
         ) : (
           <>
-            {layout === 'vertical' ? (
+            {layout === 'horizontal' ? (
               <>
                 {icon && (
                   <div className={`p-2 rounded-lg ${selected || (colorizeHover && cardColor)
                     ? colorStyles[cardColor || 'purple'].selected.iconBg
                     : 'bg-gray-600'}`}>
-                    {icon}
+                    <div className={shouldApplyColoredStyles
+                      ? colorStyles[cardColor || 'purple'].selected.icon
+                      : 'text-gray-400'}>
+                      {icon}
+                    </div>
                   </div>
                 )}
                 <div className="flex-1">
@@ -291,11 +295,11 @@ export const Button = ({
                   </p>
                 )}
                 {subtitle && (
-                  <p className={`text-sm text-left text-gray-500 mt-1 ${shouldApplyColoredStyles
+                  <p className={`text-sm text-center mt-1 ${shouldApplyColoredStyles
                     ? colorStyles[cardColor || 'purple'].selected.textLight
-                    : 'text-gray-300'}`}>{subtitle}</p>
+                    : 'text-gray-400'}`}>{subtitle}</p>
                 )}
-                {isCheckbox && selected && showCheckmark && layout === 'horizontal' && (
+                {isCheckbox && selected && showCheckmark && layout === 'vertical' && (
                   <Check className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
                 )}
               </>
@@ -324,7 +328,7 @@ export const Button = ({
       })}
     >
       {loading && (
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
       )}
       {children}
     </HeadlessButton>

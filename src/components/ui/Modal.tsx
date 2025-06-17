@@ -114,7 +114,7 @@ export const Modal = ({
             ${actions ? '[&>*:not(:last-child)]:px-6' : 'px-6 pb-6'}
           `}>
             {(internalTitle || (showCloseButton && (onClose || onBack || allowEscape))) && (
-              <div className={cn("sticky top-0 flex items-center justify-between py-4 bg-gradient-to-b from-gray-800 from-30% to-transparent")}>
+              <div className={cn("sticky top-0 flex items-center justify-between py-4 bg-gradient-to-b from-gray-800 from-40% to-transparent")}>
                 {onBack ? (
                   <Button
                     variant="ghost"
@@ -125,7 +125,7 @@ export const Modal = ({
                     <ArrowLeft className="w-6 h-6" />
                   </Button>
                   // 36px (w/h-9) is the width of the button
-                ) : <div className="w-9 h-9" />}
+                ) : showCloseButton ? <div className="w-9 h-9" /> : null}
                 {internalTitle && (
                   <DialogTitle className="text-xl font-semibold text-white">
                     {internalTitle}

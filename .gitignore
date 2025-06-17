@@ -26,3 +26,6 @@ dist-ssr
 *.sw?
 .env
 .vercel
+
+*storybook.log
+storybook-static
