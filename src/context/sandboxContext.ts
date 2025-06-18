@@ -13,7 +13,7 @@ export type SandboxContextType = {
   setIsTyping: (isTyping: boolean) => void;
   typingText: string;
   setTypingText: (text: string) => void;
-  canvasRef: RefObject<HTMLDivElement>;
+  canvasRef: RefObject<HTMLDivElement | null>;
   lastCursorPosition: RefObject<{ x: number; y: number }>;
 };
 

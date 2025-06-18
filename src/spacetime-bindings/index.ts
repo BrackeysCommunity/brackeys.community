@@ -50,6 +50,8 @@ import { SendMessage } from "./send_message_reducer.ts";
 export { SendMessage };
 import { SetDisplayName } from "./set_display_name_reducer.ts";
 export { SetDisplayName };
+import { UpdateColor } from "./update_color_reducer.ts";
+export { UpdateColor };
 import { UpdateCursor } from "./update_cursor_reducer.ts";
 export { UpdateCursor };
 import { UpdateRoomConfig } from "./update_room_config_reducer.ts";
@@ -146,6 +148,10 @@ const REMOTE_MODULE = {
       reducerName: "set_display_name",
       argsType: SetDisplayName.getTypeScriptAlgebraicType(),
     },
+    update_color: {
+      reducerName: "update_color",
+      argsType: UpdateColor.getTypeScriptAlgebraicType(),
+    },
     update_cursor: {
       reducerName: "update_cursor",
       argsType: UpdateCursor.getTypeScriptAlgebraicType(),
@@ -194,6 +200,7 @@ export type Reducer = never
 | { name: "LeaveRoom", args: LeaveRoom }
 | { name: "SendMessage", args: SendMessage }
 | { name: "SetDisplayName", args: SetDisplayName }
+| { name: "UpdateColor", args: UpdateColor }
 | { name: "UpdateCursor", args: UpdateCursor }
 | { name: "UpdateRoomConfig", args: UpdateRoomConfig }
 | { name: "UpdateTyping", args: UpdateTyping }
@@ -310,20 +317,36 @@ export class RemoteReducers {
     this.connection.offReducer("send_message", callback);
   }
 
-  setDisplayName(name: string) {
-    const __args = { name };
+  setDisplayName(name: string, color: string) {
+    const __args = { name, color };
     let __writer = new BinaryWriter(1024);
     SetDisplayName.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("set_display_name", __argsBuffer, this.setCallReducerFlags.setDisplayNameFlags);
   }
 
-  onSetDisplayName(callback: (ctx: ReducerEventContext, name: string) => void) {
+  onSetDisplayName(callback: (ctx: ReducerEventContext, name: string, color: string) => void) {
     this.connection.onReducer("set_display_name", callback);
   }
 
-  removeOnSetDisplayName(callback: (ctx: ReducerEventContext, name: string) => void) {
+  removeOnSetDisplayName(callback: (ctx: ReducerEventContext, name: string, color: string) => void) {
     this.connection.offReducer("set_display_name", callback);
+  }
+
+  updateColor(color: string) {
+    const __args = { color };
+    let __writer = new BinaryWriter(1024);
+    UpdateColor.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_color", __argsBuffer, this.setCallReducerFlags.updateColorFlags);
+  }
+
+  onUpdateColor(callback: (ctx: ReducerEventContext, color: string) => void) {
+    this.connection.onReducer("update_color", callback);
+  }
+
+  removeOnUpdateColor(callback: (ctx: ReducerEventContext, color: string) => void) {
+    this.connection.offReducer("update_color", callback);
   }
 
   updateCursor(x: number, y: number) {
@@ -410,6 +433,11 @@ export class SetReducerFlags {
   setDisplayNameFlags: CallReducerFlags = 'FullUpdate';
   setDisplayName(flags: CallReducerFlags) {
     this.setDisplayNameFlags = flags;
+  }
+
+  updateColorFlags: CallReducerFlags = 'FullUpdate';
+  updateColor(flags: CallReducerFlags) {
+    this.updateColorFlags = flags;
   }
 
   updateCursorFlags: CallReducerFlags = 'FullUpdate';

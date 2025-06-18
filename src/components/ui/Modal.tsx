@@ -114,7 +114,7 @@ export const Modal = ({
             ${actions ? '[&>*:not(:last-child)]:px-6' : 'px-6 pb-6'}
           `}>
             {(internalTitle || (showCloseButton && (onClose || onBack || allowEscape))) && (
-              <div className={cn("sticky top-0 flex items-center justify-between py-4 bg-gradient-to-b from-gray-800 from-40% to-transparent")}>
+              <div className={cn("sticky top-0 flex items-center justify-between py-4 bg-gradient-to-b from-gray-800 from-40% to-transparent z-10")}>
                 {onBack ? (
                   <Button
                     variant="ghost"

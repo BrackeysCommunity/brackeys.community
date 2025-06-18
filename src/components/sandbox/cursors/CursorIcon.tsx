@@ -1,5 +1,7 @@
 import { SandboxUser } from '../../../spacetime-bindings'
 import { CURSOR_SHADOW_FILTER, CURSOR_PATH } from '../constants'
+import { generateColorScheme } from '../../../lib/colors'
+import { useMemo } from 'react'
 
 type CursorIconProps = {
   user: SandboxUser
@@ -7,6 +9,9 @@ type CursorIconProps = {
 }
 
 export const CursorIcon = ({ user }: CursorIconProps) => {
+  // Generate color scheme for this user
+  const colorScheme = useMemo(() => generateColorScheme(user.color), [user.color])
+
   return (
     <svg
       width="24"
@@ -19,7 +24,7 @@ export const CursorIcon = ({ user }: CursorIconProps) => {
       <path
         d={CURSOR_PATH}
         fill={user.color}
-        stroke="rgba(255,255,255,0.9)"
+        stroke={colorScheme.outline}
         strokeWidth="1.5"
       />
     </svg>

@@ -13,6 +13,9 @@ import {
   type FormData,
 } from './room-steps';
 import { MessageCircle, Clock, Check } from 'lucide-react';
+import { RAINBOW_PALETTE } from '../../lib/colors';
+import { ColorPicker } from '../ColorPicker';
+import { useMounted } from '../../hooks/useMounted';
 
 const ROOM_SECRET_KEY = import.meta.env.VITE_SPACETIME_ROOM_KEY || 'brackeys-default-key';
 
@@ -21,12 +24,15 @@ interface RoomManagerProps {
 }
 
 export const RoomManager = ({ onClose }: RoomManagerProps) => {
-  const { currentUser, currentRoom, createRoom, joinRoom, leaveRoom, updateRoomConfig, setDisplayName } = useSpacetimeDB();
+  const { currentUser, currentRoom, createRoom, joinRoom, leaveRoom, updateRoomConfig, setDisplayName, updateColor } = useSpacetimeDB();
   const [step, setStep] = useState<StepType>('choice');
   const [loading, setLoading] = useState(false);
+  const [selectedColor, setSelectedColor] = useState(currentUser?.color || RAINBOW_PALETTE[0]);
+  const isMounted = useMounted();
   const [formData, setFormData] = useState<FormData>({
     action: 'join',
     userName: currentUser?.name || '',
+    userColor: currentUser?.color || RAINBOW_PALETTE[Math.floor(Math.random() * RAINBOW_PALETTE.length)],
     roomCode: '',
     password: '',
     usePassword: false,
@@ -101,7 +107,7 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
     try {
       // Set display name first if needed
       if (!currentUser?.name && currentFormData.userName?.trim()) {
-        await setDisplayName(currentFormData.userName.trim());
+        await setDisplayName(currentFormData.userName.trim(), currentFormData.userColor);
       }
 
       // Handle step navigation first
@@ -202,6 +208,29 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
             </div>
           </div>
 
+          {/* User Color Selection */}
+          <div className="mb-6">
+            <label className="block text-sm text-gray-300 mb-2">Your Color</label>
+            <ColorPicker
+              selectedColor={selectedColor}
+              onColorSelect={async (color) => {
+                setSelectedColor(color);
+                setLoading(true);
+                try {
+                  await updateColor(color);
+                  toast.success('Color updated!');
+                } catch (err: unknown) {
+                  console.error('Failed to update color:', err);
+                  toast.error(err instanceof Error ? err.message : 'Failed to update color');
+                  // Revert color on error
+                  setSelectedColor(currentUser?.color || RAINBOW_PALETTE[0]);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            />
+          </div>
+
           {isHost && (
             <div className="mb-6 space-y-6">
               <div className="flex items-center space-x-3">
@@ -278,6 +307,7 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
                           className="font-mono"
                           min={1}
                           placeholder="30"
+                          tabIndex={isMounted ? 0 : -1}
                         />
                         <p className="text-xs text-gray-500 mt-1">
                           How long messages stay visible before disappearing
@@ -307,7 +337,6 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
                     fullWidth
                   >
                     {loading ? 'Updating...' : 'Update Settings'}
-                    {!loading && <Check className="w-5 h-5" />}
                   </Button>
                 </div>
               </div>

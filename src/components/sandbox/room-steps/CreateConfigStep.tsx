@@ -12,16 +12,20 @@ import { Button, Input } from '../../ui';
 import { useModalContext } from '../../../context/modalContext';
 import { useEffect, useState } from 'react';
 import type { StepProps } from './types';
+import { ColorPickerInput } from '../../ColorPickerInput';
+import { RAINBOW_PALETTE } from '../../../lib/colors';
 
 export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProps) => {
   const { setActions, setTitle, resetTitle } = useModalContext();
   const [validFields, setValidFields] = useState({
     userName: false,
+    userColor: !!formData.userColor,
     password: true,
   });
   const form = useForm({
     defaultValues: {
       userName: formData.userName,
+      userColor: formData.userColor || RAINBOW_PALETTE[0],
       usePassword: formData.usePassword,
       password: formData.password,
       messageMode: formData.messageMode,
@@ -41,7 +45,7 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
     setActions(
       <Button
         onClick={() => form.handleSubmit()}
-        disabled={!validFields.userName || !validFields.password}
+        disabled={!validFields.userName || !validFields.userColor || !validFields.password}
         loading={loading}
         fullWidth
         variant="success"
@@ -65,35 +69,50 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
         form.handleSubmit();
       }} noValidate>
         <div>
-          {/* User Name */}
-          <form.Field
-            name="userName"
-            validators={{
-              onChange: ({ value }) => {
-                const isValid = !!value?.trim();
-                setValidFields({ ...validFields, userName: isValid });
-                return isValid ? undefined : 'Name is required';
-              },
-            }}
-          >
-            {(field) => (
-              <div>
-                <label className="block text-sm text-gray-300 mb-2">Your Name</label>
-                <Input
-                  type="text"
-                  value={field.state.value}
-                  onChange={field.handleChange}
-                  onBlur={field.handleBlur}
-                  placeholder="Enter your name..."
-                  autoFocus
-                  error={!!field.state.meta.errors?.length}
-                />
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+          {/* User Name & Color */}
+          <form.Field name="userName">
+            {(nameField) => (
+              <form.Field name="userColor">
+                {(colorField) => {
+                  const handleNameChange = (value: string) => {
+                    nameField.handleChange(value);
+                    const isValid = !!value?.trim();
+                    setValidFields(prev => ({ ...prev, userName: isValid }));
+                  };
+
+                  const handleColorChange = (value: string) => {
+                    colorField.handleChange(value);
+                    const isValid = RAINBOW_PALETTE.includes(value);
+                    setValidFields(prev => ({ ...prev, userColor: isValid }));
+                  };
+
+                  return (
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">Your Name & Color</label>
+                      <ColorPickerInput
+                        value={nameField.state.value}
+                        onChange={handleNameChange}
+                        onBlur={nameField.handleBlur}
+                        selectedColor={colorField.state.value}
+                        onColorSelect={handleColorChange}
+                        placeholder="Enter your name..."
+                        autoFocus
+                        error={!!nameField.state.meta.errors?.length || !!colorField.state.meta.errors?.length}
+                      />
+                      {nameField.state.meta.errors && nameField.state.meta.errors.length > 0 && (
+                        <p className="text-red-400 text-sm mt-1">
+                          {typeof nameField.state.meta.errors[0] === 'string' ? nameField.state.meta.errors[0] : nameField.state.meta.errors[0]?.message || 'Invalid input'}
+                        </p>
+                      )}
+                      {colorField.state.meta.errors && colorField.state.meta.errors.length > 0 && (
+                        <p className="text-red-400 text-sm mt-1">
+                          {typeof colorField.state.meta.errors[0] === 'string' ? colorField.state.meta.errors[0] : colorField.state.meta.errors[0]?.message || 'Invalid input'}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }}
+              </form.Field>
             )}
           </form.Field>
 

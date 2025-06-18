@@ -1,5 +1,5 @@
-import { Input as HeadlessInput } from '@headlessui/react';
-import { forwardRef, useState } from 'react';
+import { Button, Input as HeadlessInput } from '@headlessui/react';
+import { forwardRef, useState, ReactNode } from 'react';
 import { Eye, EyeOff, LucideIcon } from 'lucide-react';
 
 interface InputProps {
@@ -15,6 +15,8 @@ interface InputProps {
   min?: number;
   error?: boolean;
   prefixIcon?: LucideIcon;
+  prefixButton?: ReactNode;
+  tabIndex?: number;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(({
@@ -30,6 +32,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   min,
   error = false,
   prefixIcon: PrefixIcon,
+  prefixButton,
+  tabIndex,
 }, ref) => {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
@@ -41,8 +45,17 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   };
 
   return (
-    <div className="relative">
-      {PrefixIcon && (
+    <div className={`relative flex items-stretch bg-gray-700 border ${error ? 'border-red-500' : 'border-gray-600'} rounded-lg focus-within:ring-2 focus-within:ring-brackeys-purple-500 overflow-hidden`}>
+      {prefixButton && (
+        <>
+          <div className="flex">
+            {prefixButton}
+          </div>
+          <div className="w-px bg-brackeys-gray-600 self-stretch" />
+        </>
+      )}
+
+      {PrefixIcon && !prefixButton && (
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
           <PrefixIcon className="w-5 h-5" />
         </div>
@@ -58,19 +71,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
         disabled={disabled}
         maxLength={maxLength}
         min={min}
+        tabIndex={tabIndex}
         data-autofocus={autoFocus}
         className={`
-          w-full py-3 
-          ${PrefixIcon ? 'pl-11' : 'pl-4'}
+          flex-1 py-3 
+          ${prefixButton ? 'pl-3' : PrefixIcon ? 'pl-11' : 'pl-4'}
           ${isPasswordType ? 'pr-12' : 'pr-4'}
-          bg-gray-700 
-          border ${error ? 'border-red-500' : 'border-gray-600'}
-          rounded-lg 
+          bg-transparent
           text-white text-sm
           placeholder-gray-400 
           focus:outline-none 
-          focus:ring-2 
-          focus:ring-brackeys-purple-500
           disabled:opacity-50 
           disabled:cursor-not-allowed
           ${className}
@@ -78,7 +88,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
       />
 
       {isPasswordType && (
-        <button
+        <Button
           type="button"
           onClick={togglePasswordVisibility}
           disabled={disabled}
@@ -96,7 +106,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           ) : (
             <Eye className="w-5 h-5" />
           )}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
-import { User, Mail, Lock, Search, Phone, Calendar, CreditCard } from 'lucide-react';
+import { User, Mail, Lock, Search, Phone, Calendar, CreditCard, Copy, Send, Filter, Settings } from 'lucide-react';
 import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 
 const meta = {
   title: 'UI/Input',
@@ -386,6 +387,46 @@ export const AllVariations: Story = {
           </div>
         </div>
 
+        {/* With Button Prefixes */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">With Button Prefixes</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              type="text"
+              placeholder="Search with action..."
+              value={searchInput}
+              onChange={setSearchInput}
+              prefixButton={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => alert('Search clicked!')}
+                  className="border-none bg-transparent hover:bg-gray-600 px-3 py-3 rounded-none"
+                >
+                  <Search className="w-4 h-4" />
+                </Button>
+              }
+            />
+            <Input
+              type="text"
+              placeholder="Copy to clipboard..."
+              value={cardInput}
+              onChange={setCardInput}
+              prefixButton={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigator.clipboard.writeText(cardInput)}
+                  disabled={!cardInput}
+                  className="border-none bg-transparent hover:bg-gray-600 disabled:hover:bg-transparent px-3 py-3 rounded-none"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              }
+            />
+          </div>
+        </div>
+
         {/* States */}
         <div>
           <h3 className="text-lg font-semibold text-white mb-4">States</h3>
@@ -416,6 +457,276 @@ export const AllVariations: Story = {
               onChange={setValueInput}
             />
           </div>
+        </div>
+      </div>
+    );
+  },
+};
+
+// Button Prefix Examples
+export const WithButtonPrefix: Story = {
+  render: () => {
+    const [searchValue, setSearchValue] = useState('');
+    const [urlValue, setUrlValue] = useState('');
+    const [messageValue, setMessageValue] = useState('');
+    const [filterValue, setFilterValue] = useState('');
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(urlValue);
+      alert('Copied to clipboard!');
+    };
+
+    const handleSend = () => {
+      alert(`Sending message: ${messageValue}`);
+      setMessageValue('');
+    };
+
+    const handleFilter = () => {
+      alert(`Filtering by: ${filterValue}`);
+    };
+
+    const handleSettings = () => {
+      alert('Opening search settings...');
+    };
+
+    return (
+      <div className="flex flex-col gap-4 w-96">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Search with settings</label>
+          <Input
+            type="text"
+            placeholder="Search with advanced options..."
+            value={searchValue}
+            onChange={setSearchValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSettings}
+                className="border-none bg-transparent hover:bg-gray-600 px-3 py-3 rounded-none"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">URL with copy</label>
+          <Input
+            type="text"
+            placeholder="Enter URL to copy..."
+            value={urlValue}
+            onChange={setUrlValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopy}
+                disabled={!urlValue}
+                className="border-none bg-transparent hover:bg-gray-600 disabled:hover:bg-transparent px-3 py-3 rounded-none"
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Message with send</label>
+          <Input
+            type="text"
+            placeholder="Type your message..."
+            value={messageValue}
+            onChange={setMessageValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSend}
+                disabled={!messageValue.trim()}
+                className="border-none bg-transparent hover:bg-purple-600 disabled:hover:bg-transparent px-3 py-3 rounded-none"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Filter input</label>
+          <Input
+            type="text"
+            placeholder="Enter filter criteria..."
+            value={filterValue}
+            onChange={setFilterValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleFilter}
+                className="border-none bg-transparent hover:bg-gray-600 px-3 py-3 rounded-none"
+              >
+                <Filter className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    );
+  },
+};
+
+export const ButtonPrefixStates: Story = {
+  render: () => {
+    const [normalValue, setNormalValue] = useState('');
+    const [errorValue, setErrorValue] = useState('Error state');
+    const [disabledValue, setDisabledValue] = useState('Disabled input');
+
+    const handleAction = () => {
+      alert('Button clicked!');
+    };
+
+    return (
+      <div className="flex flex-col gap-4 w-96">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Normal state</label>
+          <Input
+            type="text"
+            placeholder="Normal input with button..."
+            value={normalValue}
+            onChange={setNormalValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAction}
+                className="border-none bg-transparent hover:bg-gray-600 px-3 py-3 rounded-none"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Error state</label>
+          <Input
+            type="text"
+            placeholder="Error input with button..."
+            value={errorValue}
+            onChange={setErrorValue}
+            error
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAction}
+                className="border-none bg-transparent hover:bg-gray-600 px-3 py-3 rounded-none"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Disabled state</label>
+          <Input
+            type="text"
+            placeholder="Disabled input with button..."
+            value={disabledValue}
+            onChange={setDisabledValue}
+            disabled
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAction}
+                disabled
+                className="border-none bg-transparent hover:bg-gray-600 disabled:hover:bg-transparent px-3 py-3 rounded-none"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    );
+  },
+};
+
+export const ButtonPrefixVariations: Story = {
+  render: () => {
+    const [textValue, setTextValue] = useState('');
+    const [passwordValue, setPasswordValue] = useState('');
+    const [numberValue, setNumberValue] = useState('');
+
+    const handleAction = (action: string) => {
+      alert(`${action} clicked!`);
+    };
+
+    return (
+      <div className="flex flex-col gap-4 w-96">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Text input with button</label>
+          <Input
+            type="text"
+            placeholder="Search documents..."
+            value={textValue}
+            onChange={setTextValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleAction('Search')}
+                className="border-none bg-transparent hover:bg-blue-600 px-3 py-3 rounded-none"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Password input with button</label>
+          <Input
+            type="password"
+            placeholder="Enter secure password..."
+            value={passwordValue}
+            onChange={setPasswordValue}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleAction('Generate Password')}
+                className="border-none bg-transparent hover:bg-green-600 px-3 py-3 rounded-none"
+              >
+                <Lock className="w-4 h-4" />
+              </Button>
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Number input with button</label>
+          <Input
+            type="number"
+            placeholder="Enter amount..."
+            value={numberValue}
+            onChange={setNumberValue}
+            min={0}
+            prefixButton={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleAction('Calculate')}
+                className="border-none bg-transparent hover:bg-yellow-600 px-3 py-3 rounded-none text-xs"
+              >
+                $
+              </Button>
+            }
+          />
         </div>
       </div>
     );

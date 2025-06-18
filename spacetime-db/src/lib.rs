@@ -168,7 +168,7 @@ pub fn update_typing(ctx: &ReducerContext, text: String, x: f32, y: f32, selecti
 }
 
 #[reducer]
-pub fn set_display_name(ctx: &ReducerContext, name: String) -> Result<(), String> {
+pub fn set_display_name(ctx: &ReducerContext, name: String, color: String) -> Result<(), String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("Name cannot be empty".to_string());
@@ -177,9 +177,31 @@ pub fn set_display_name(ctx: &ReducerContext, name: String) -> Result<(), String
         return Err("Name too long (max 20 characters)".to_string());
     }
     
+    if color.is_empty() {
+        return Err("Color cannot be empty".to_string());
+    }
+    
     if let Some(user) = ctx.db.sandbox_user().identity().find(ctx.sender) {
         ctx.db.sandbox_user().identity().update(SandboxUser {
             name: Some(name),
+            color,
+            ..user
+        });
+        Ok(())
+    } else {
+        Err("User not found in sandbox".to_string())
+    }
+}
+
+#[reducer]
+pub fn update_color(ctx: &ReducerContext, color: String) -> Result<(), String> {
+    if color.is_empty() {
+        return Err("Color cannot be empty".to_string());
+    }
+    
+    if let Some(user) = ctx.db.sandbox_user().identity().find(ctx.sender) {
+        ctx.db.sandbox_user().identity().update(SandboxUser {
+            color,
             ..user
         });
         Ok(())

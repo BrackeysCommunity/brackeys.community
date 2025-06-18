@@ -2,7 +2,8 @@ import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { SandboxMessage } from '../../spacetime-bindings';
 import { useSandbox } from '../../context/sandboxContext';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { generateColorScheme } from '../../lib/colors';
 
 interface MessageBubbleProps {
   message: SandboxMessage;
@@ -23,6 +24,9 @@ export const MessageBubble = ({
   const { setCursorInteractive, setCursorDefault, hoveredElementId, setHoveredElement } = useSandbox();
   const messageId = message.id.toString();
   const isThisMessageHovered = hoveredElementId === messageId;
+
+  // Generate color scheme for the message
+  const colorScheme = useMemo(() => generateColorScheme(userColor), [userColor]);
 
   useEffect(() => {
     return () => {
@@ -78,17 +82,17 @@ export const MessageBubble = ({
         transition={{ duration: 0.2 }}
         className="px-3 py-2 rounded-lg shadow-lg max-w-xs transition-all duration-200"
         style={{
-          backgroundColor: userColor,
+          backgroundColor: isThisMessageHovered ? colorScheme.hover : userColor,
           boxShadow: isThisMessageHovered
-            ? '0 4px 20px rgba(220, 38, 38, 0.3), 0 0 0 2px #dc262640'
-            : '0 4px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)',
+            ? `0 4px 20px ${colorScheme.shadow}, 0 0 0 2px ${colorScheme.outline}`
+            : `0 4px 12px ${colorScheme.shadow}, 0 0 0 1px ${colorScheme.outline}`,
         }}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-white mb-0.5">
+          <p className="text-xs font-medium mb-0.5" style={{ color: colorScheme.contrastText }}>
             {userName}
           </p>
-          <p className="text-sm text-white break-words">
+          <p className="text-sm break-words" style={{ color: colorScheme.contrastText }}>
             {message.text}
           </p>
         </div>

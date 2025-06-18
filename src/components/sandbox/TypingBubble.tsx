@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from 'motion/react'
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useMemo } from 'react'
 import { SandboxUser, LiveTyping } from '../../spacetime-bindings'
 import { useSandbox } from '../../context/sandboxContext'
 import { TYPING_ANIMATION_CONFIG, TYPING_BUBBLE_TRANSITIONS, TYPING_BLUR_TIMEOUT, MAX_TYPING_LENGTH } from './constants'
 import { cn } from '../../lib/utils'
+import { generateColorScheme } from '../../lib/colors'
 
 type SimpleTypingState = {
   text: string
@@ -21,7 +22,7 @@ type TypingBubbleProps = {
   onSendMessage?: (text: string) => void
 }
 
-const renderTextWithSelection = (text: string, selectionStart: number, selectionEnd: number) => {
+const renderTextWithSelection = (text: string, selectionStart: number, selectionEnd: number, selectionColor?: string, selectionTextColor?: string) => {
   if (selectionStart === selectionEnd || selectionStart < 0 || selectionEnd < 0) {
     return <AnimatedText text={text} />
   }
@@ -33,7 +34,13 @@ const renderTextWithSelection = (text: string, selectionStart: number, selection
   return (
     <>
       <AnimatedText text={beforeSelection} />
-      <span className="bg-white/30 text-white rounded-sm px-0.5">
+      <span
+        className="rounded-sm px-0.5"
+        style={{
+          backgroundColor: selectionColor || 'rgba(255, 255, 255, 0.6)',
+          color: selectionTextColor || 'white'
+        }}
+      >
         <AnimatedText text={selection} />
       </span>
       <AnimatedText text={afterSelection} />
@@ -77,7 +84,7 @@ const AnimatedText = ({ text }: { text: string }) => {
                 layout
                 initial={{
                   opacity: 0,
-                  y: -10,
+                  y: -3,
                   scale: 0.6,
                   rotateZ: -10
                 }}
@@ -90,8 +97,8 @@ const AnimatedText = ({ text }: { text: string }) => {
                     duration: 0.05,
                     type: "spring",
                     damping: 12,
-                    stiffness: 300,
-                    mass: .8 * Math.random(),
+                    stiffness: 400,
+                    mass: .8 * Math.min(Math.random() * 1.2, 1),
                   }
                 }}
                 exit={{
@@ -127,6 +134,9 @@ export const TypingBubble = ({
   const editableRef = useRef<HTMLDivElement>(null)
   const { setCursorTyping, setCursorDefault } = useSandbox()
   const isTyping = typingState?.isTyping || false
+
+  // Generate color scheme for this user
+  const colorScheme = useMemo(() => generateColorScheme(user.color), [user.color])
 
   useEffect(() => {
     if (isCurrentUser && isTyping && editableRef.current) {
@@ -272,7 +282,7 @@ export const TypingBubble = ({
         <div className="w-max">
           <div className={cn("flex gap-1", isCurrentUser && "items-baseline")}>
             <div className={cn("flex flex-col", !isCurrentUser && "pt-0.75")}>
-              <span className="text-xs font-semibold text-white flex-shrink-0">
+              <span className="text-xs font-semibold flex-shrink-0" style={{ color: colorScheme?.baseText || 'white' }}>
                 {user.name || 'Anonymous'}
                 {isTyping && ':'}
               </span>
@@ -296,21 +306,33 @@ export const TypingBubble = ({
                     <div
                       ref={editableRef}
                       contentEditable
+                      spellCheck={false}
                       onInput={handleInput}
                       onKeyDown={handleKeyDown}
                       onKeyUp={handleSelectionChange}
                       onMouseUp={handleSelectionChange}
                       onClick={handleSelectionChange}
                       onBlur={handleBlur}
-                      className="bg-transparent text-white text-sm outline-none empty:before:content-['Start_typing...'] empty:before:text-gray-300 min-w-[50px] max-w-80 w-max min-h-4 max-h-36 overflow-y-auto whitespace-pre-wrap break-words"
+                      className="bg-transparent text-sm outline-none  min-w-0 max-w-80 w-max min-h-4 max-h-36 overflow-y-auto whitespace-pre-wrap break-words"
                       suppressContentEditableWarning
+                      style={{
+                        caretColor: colorScheme?.caretColor || 'white',
+                        color: colorScheme?.baseText || 'white',
+                      }}
                     />
                   ) : (
-                    <div className="text-sm whitespace-pre-wrap break-words text-white max-w-80 w-max">
+                    <div
+                      className="text-sm whitespace-pre-wrap break-words text-white max-w-80 w-max"
+                      style={{
+                        color: colorScheme?.baseText || 'white'
+                      }}
+                    >
                       {renderTextWithSelection(
                         typingState.text,
                         typingState.selectionStart || 0,
-                        typingState.selectionEnd || 0
+                        typingState.selectionEnd || 0,
+                        colorScheme?.selection,
+                        colorScheme?.selectionText
                       )}
                     </div>
                   )}

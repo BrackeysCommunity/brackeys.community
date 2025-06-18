@@ -31,32 +31,30 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type SetDisplayName = {
-  name: string,
+export type UpdateColor = {
   color: string,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace SetDisplayName {
+export namespace UpdateColor {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("name", AlgebraicType.createStringType()),
       new ProductTypeElement("color", AlgebraicType.createStringType()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: SetDisplayName): void {
-    SetDisplayName.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: UpdateColor): void {
+    UpdateColor.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): SetDisplayName {
-    return SetDisplayName.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): UpdateColor {
+    return UpdateColor.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

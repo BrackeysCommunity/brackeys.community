@@ -31,7 +31,7 @@ export const ChoiceStep = ({ onNext }: Pick<StepProps, 'onNext'>) => {
         <Button
           type="button"
           variant="card"
-          layout="vertical"
+          layout="horizontal"
           cardColor="purple"
           colorizeHover
           onClick={() => onNext({ action: 'join' })}
@@ -45,7 +45,7 @@ export const ChoiceStep = ({ onNext }: Pick<StepProps, 'onNext'>) => {
         <Button
           type="button"
           variant="card"
-          layout="vertical"
+          layout="horizontal"
           cardColor="green"
           colorizeHover
           onClick={() => onNext({ action: 'create' })}

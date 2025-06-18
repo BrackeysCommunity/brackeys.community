@@ -16,7 +16,7 @@ function generateRoomCode(): string {
 }
 
 export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
-  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateCursor' | 'updateTyping' | 'sendMessage' | 'dismissMessage' | 'createRoom' | 'joinRoom' | 'leaveRoom' | 'updateRoomConfig' | 'subscribe' | 'unsubscribe'>>({
+  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateColor' | 'updateCursor' | 'updateTyping' | 'sendMessage' | 'dismissMessage' | 'createRoom' | 'joinRoom' | 'leaveRoom' | 'updateRoomConfig' | 'subscribe' | 'unsubscribe'>>({
     isConnected: false,
     currentUser: null,
     currentRoom: null,
@@ -221,12 +221,22 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     console.warn('Unsubscribe not fully supported by SpacetimeDB SDK');
   };
 
-  const setDisplayName = async (name: string) => {
+  const setDisplayName = async (name: string, color: string) => {
     if (!connectionRef.current) throw new Error('Not connected');
     try {
-      connectionRef.current.reducers.setDisplayName(name);
+      connectionRef.current.reducers.setDisplayName(name, color);
     } catch (error) {
       console.error('Failed to set display name:', error);
+      throw error;
+    }
+  };
+
+  const updateColor = async (color: string) => {
+    if (!connectionRef.current) throw new Error('Not connected');
+    try {
+      connectionRef.current.reducers.updateColor(color);
+    } catch (error) {
+      console.error('Failed to update color:', error);
       throw error;
     }
   };
@@ -379,6 +389,7 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
   const value: SpacetimeState = {
     ...state,
     setDisplayName,
+    updateColor,
     updateCursor,
     updateTyping,
     sendMessage,
