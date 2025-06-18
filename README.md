@@ -4,7 +4,7 @@
 
 Our UI components are documented and showcased using Storybook:
 
-- **[View Live Storybook](https://yourusername.github.io/BrackeysCommunity/brackeys.community/)** (Replace with your GitHub username)
+- **[View Live Storybook](https://brackeyscommunity.github.io/brackeys.community/)**
 - **Local Development:** `bun run storybook` → [http://localhost:6006](http://localhost:6006)
 
 For detailed Storybook setup and deployment information, see [STORYBOOK.md](./STORYBOOK.md).

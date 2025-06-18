@@ -46,7 +46,7 @@ Our Storybook includes comprehensive documentation and examples for:
 
 Storybook is automatically deployed to GitHub Pages when code is pushed to the `main` branch via GitHub Actions.
 
-**Live Storybook:** [https://yourusername.github.io/BrackeysCommunity/brackeys.community/](https://yourusername.github.io/BrackeysCommunity/brackeys.community/)
+**Live Storybook:** [https://brackeyscommunity.github.io/brackeys.community/](https://brackeyscommunity.github.io/brackeys.community/)
 
 ### Manual Deployment
 

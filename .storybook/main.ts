@@ -18,7 +18,7 @@ const config: StorybookConfig = {
   "viteFinal": async (config) => {
     // Configure base URL for GitHub Pages
     if (process.env.NODE_ENV === 'production') {
-      config.base = '/BrackeysCommunity/brackeys.community/';
+      config.base = '/brackeys.community/';
     }
     return config;
   }
