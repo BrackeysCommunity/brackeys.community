@@ -34,6 +34,10 @@ type Story = StoryObj<typeof meta>;
 
 // Basic Modal
 export const Basic: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -62,6 +66,10 @@ export const Basic: Story = {
 
 // Modal with Actions
 export const WithActions: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -99,6 +107,10 @@ export const WithActions: Story = {
 
 // Modal with Back Button
 export const WithBackButton: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -130,6 +142,10 @@ export const WithBackButton: Story = {
 
 // Different Sizes
 export const Sizes: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [openModal, setOpenModal] = useState<string | null>(null);
 
@@ -180,6 +196,10 @@ export const Sizes: Story = {
 
 // Form Modal
 export const FormModal: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
     const [formData, setFormData] = useState({
@@ -215,7 +235,7 @@ export const FormModal: Story = {
               <Button variant="secondary" onClick={() => setIsOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="primary" type="submit" form="user-form">
+              <Button variant="primary" type="submit">
                 Add User
               </Button>
             </div>
@@ -250,6 +270,10 @@ export const FormModal: Story = {
 
 // Scrollable Content
 export const ScrollableContent: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -293,6 +317,10 @@ export const ScrollableContent: Story = {
 
 // Danger Modal
 export const DangerModal: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -349,6 +377,10 @@ export const DangerModal: Story = {
 
 // No Close Button
 export const NoCloseButton: Story = {
+  args: {
+    isOpen: false,
+    children: <div />,
+  },
   render: () => {
     const [isOpen, setIsOpen] = useState(false);
 
