@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, Clock, Info } from 'lucide-react';
+import { User, Mail, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { formatDate } from '../lib/utils';
 import { DiscordProfileButton } from '../components/ui/DiscordProfileButton';
+import { Alert } from '../components/ui/Alert';
 import { useEffect } from 'react';
 import { AuthGuard } from '../components/auth/AuthGuard';
 
@@ -137,18 +138,11 @@ const ProfileContent = () => {
           </div>
         </motion.div>
 
-        <div className="mt-6 bg-blue-900/20 border border-blue-800 rounded-md p-4">
-          <div className="flex">
-            <div className="shrink-0">
-              <Info className="h-5 w-5 text-blue-400" />
-            </div>
-            <div className="ml-3 flex-1 md:flex md:justify-between">
-              <p className="text-sm text-blue-300">
-                This information is synchronized from your Discord account. Changes made on Discord will be reflected here.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert
+          variant="info"
+          description="This information is synchronized from your Discord account. Changes made on Discord will be reflected here."
+          className="mt-6"
+        />
       </div>
     </div>
   );

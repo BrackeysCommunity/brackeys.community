@@ -4,7 +4,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '../context/useAuth';
 import { LoginButton } from '../components/auth/LoginButton';
 import { DiscordLogo } from '../components/icons/DiscordLogo';
-import { CircleX } from 'lucide-react';
+import { Alert } from '../components/ui/Alert';
 
 export const Login = () => {
   const { state: { user, isLoading, error } } = useAuth();
@@ -56,21 +56,12 @@ export const Login = () => {
             <LoginButton />
 
             {error && (
-              <div className="bg-red-900/20 border border-red-800 rounded-md p-4 w-full">
-                <div className="flex">
-                  <div className="shrink-0">
-                    <CircleX className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-200">
-                      Authentication Error
-                    </h3>
-                    <div className="mt-2 text-sm text-red-300">
-                      <p>{error}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Alert
+                variant="error"
+                title="Authentication Error"
+                description={error}
+                className="w-full"
+              />
             )}
           </div>
 

@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink, Maximize } from 'lucide-react';
 import { Link, useParams } from '@tanstack/react-router';
 import { ToolPortal } from '../components/tools/ToolPortal';
 import { ToolFrame } from '../components/tools/ToolFrame';
+import { Button } from '../components/ui/Button';
 
 type Tool = {
   id: string;
@@ -96,20 +97,21 @@ export const ToolEmbed = () => {
             </h1>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Maximize className="h-4 w-4" />}
               onClick={toggleFullscreen}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
               title="Fullscreen Mode"
             >
-              <Maximize className="h-4 w-4" />
               <span className="hidden sm:inline">Fullscreen</span>
-            </button>
+            </Button>
             {tool.url && (
               <a
                 href={tool.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-brackeys-purple-600 text-white hover:bg-brackeys-purple-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-brackeys-purple-600 text-white hover:bg-brackeys-purple-700 transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800"
               >
                 <ExternalLink className="h-4 w-4" />
                 <span className="hidden sm:inline">Open Original</span>

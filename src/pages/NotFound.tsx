@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useAuth } from '../context/useAuth';
 import { ShieldQuestion } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
+import { LinkButton } from '../components/ui/LinkButton';
 
 export const NotFound = () => {
   const { state: { user } } = useAuth();
@@ -24,27 +24,30 @@ export const NotFound = () => {
         </motion.div>
 
         <div className="mt-6 flex flex-col items-center justify-center space-y-4">
-          <Link
+          <LinkButton
             to="/"
-            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-brackeys-purple-500"
+            variant="primary"
+            size="lg"
           >
             Go to Home Page
-          </Link>
+          </LinkButton>
 
           {user ? (
-            <Link
+            <LinkButton
               to="/dashboard"
-              className="inline-flex items-center px-6 py-3 border border-gray-600 text-base font-medium rounded-md shadow-xs text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-indigo-500"
+              variant="secondary"
+              size="lg"
             >
               Go to Dashboard
-            </Link>
+            </LinkButton>
           ) : (
-            <Link
+            <LinkButton
               to="/login"
-              className="inline-flex items-center px-6 py-3 border border-gray-600 text-base font-medium rounded-md shadow-xs text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-indigo-500"
+              variant="secondary"
+              size="lg"
             >
               Sign In
-            </Link>
+            </LinkButton>
           )}
         </div>
       </div>

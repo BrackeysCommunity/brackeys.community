@@ -12,6 +12,7 @@ import { useMessageGroups } from '../hooks/sandbox/useMessageGroups'
 import { useCursorTracking } from '../hooks/sandbox/useCursorTracking'
 import { useKeyboardShortcuts } from '../hooks/sandbox/useKeyboardShortcuts'
 import { useTypingHandlers } from '../hooks/sandbox/useTypingHandlers'
+import { toast } from '../lib/toast'
 
 // Container component handling state and logic
 const SandboxContainer = () => {
@@ -88,6 +89,7 @@ const SandboxContainer = () => {
       }
     } catch (error) {
       console.error('Failed to dismiss group:', error)
+      toast.error('Failed to dismiss messages', 'There was an error dismissing the message group. Please try again.')
     } finally {
       canvasRef.current?.focus();
     }
@@ -98,6 +100,7 @@ const SandboxContainer = () => {
       await dismissMessage(messageId);
     } catch (error) {
       console.error('Failed to dismiss message:', error)
+      toast.error('Failed to dismiss message', 'There was an error dismissing the message. Please try again.')
     } finally {
       canvasRef.current?.focus();
     }
