@@ -17,6 +17,7 @@ interface ModalProps {
   showCloseButton?: boolean;
   actions?: ReactNode;
   allowEscape?: boolean;
+  closeOnBackdropClick?: boolean;
 }
 
 const maxWidthClasses = {
@@ -37,6 +38,7 @@ export const Modal = ({
   showCloseButton = true,
   actions: externalActions,
   allowEscape = false,
+  closeOnBackdropClick = true,
 }: ModalProps) => {
   const router = useRouter();
   const [internalActions, setInternalActions] = useState<ReactNode>(null);
@@ -76,7 +78,7 @@ export const Modal = ({
 
   return (
     <Dialog
-      static
+      static={!closeOnBackdropClick}
       open={isOpen}
       onClose={handleClose}
       className="relative z-50"

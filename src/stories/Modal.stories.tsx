@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
-import { Settings, User, Trash2, Download, AlertTriangle } from 'lucide-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import React, { useState } from 'react';
+import { User, Trash2, AlertTriangle } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -21,6 +21,9 @@ const meta = {
       control: 'boolean',
     },
     allowEscape: {
+      control: 'boolean',
+    },
+    closeOnBackdropClick: {
       control: 'boolean',
     },
   },
