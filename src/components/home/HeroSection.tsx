@@ -1,9 +1,8 @@
-import { Link } from '@tanstack/react-router';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
 import { LoginButton } from '../auth/LoginButton';
 import { DiscordLogo } from '../icons/DiscordLogo';
-import { User } from '../../context/authContext';
+import { Button } from '../ui/Button';
 
 const HERO_CONTENT = {
   mainHeading: "Learn, Code, and Play —",
@@ -12,7 +11,6 @@ const HERO_CONTENT = {
 };
 
 const BUTTON_CONTENT = {
-  dashboard: "Go to Dashboard",
   github: "View on GitHub",
 };
 
@@ -135,11 +133,7 @@ const BackgroundShapes = () => (
   </div>
 );
 
-type HeroSectionProps = {
-  user?: User;
-};
-
-export const HeroSection = ({ user }: HeroSectionProps) => (
+export const HeroSection = () => (
   <section
     className="w-full flex flex-col items-center justify-center py-24 px-4 sm:px-6 lg:px-8 relative overflow-visible"
     aria-labelledby="hero-heading"
@@ -171,29 +165,19 @@ export const HeroSection = ({ user }: HeroSectionProps) => (
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full max-w-md mx-auto">
-        {user ? (
-          <Link
-            to="/dashboard"
-            className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 border border-transparent text-base font-medium rounded-lg shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-brackeys-purple-500 transition-colors"
-            aria-label="Go to your dashboard"
-          >
-            {BUTTON_CONTENT.dashboard}
-          </Link>
-        ) : (
-          <LoginButton className="w-full sm:w-auto self-center" />
-        )}
-
-        <a
+      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full mx-auto">
+        <LoginButton className="w-full sm:w-auto self-center" />
+        <Button
           href="https://github.com/josh-complex/brackeys-web"
           target="_blank"
-          rel="noopener noreferrer"
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 border border-gray-700 text-base font-medium rounded-lg shadow-xs text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-indigo-500 transition-colors"
+          variant="secondary"
+          size="lg"
+          className="w-full sm:w-auto flex items-center gap-2"
           aria-label="View source code on GitHub"
         >
           {BUTTON_CONTENT.github}
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
+        </Button>
       </div>
 
       <div className="pt-16 flex justify-center">

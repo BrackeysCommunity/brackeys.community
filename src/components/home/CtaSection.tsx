@@ -1,5 +1,5 @@
-import { Link } from '@tanstack/react-router';
 import { motion } from 'motion/react';
+import { Button } from '../ui';
 
 const BUTTON_CONTENT = {
   exploreCommunity: "Explore Community"
@@ -194,14 +194,16 @@ export const CtaSection = () => {
           Connect with thousands of developers, share your projects, and level up your skills today.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full max-w-md mx-auto">
-          <Link
+          <Button
             to="/login"
-            className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-brackeys-purple-500 transition-colors"
+            variant="primary"
+            size="lg"
+            className="w-full sm:w-auto shadow-lg"
             aria-label="Explore our community"
             data-testid="cta-explore-button"
           >
             {BUTTON_CONTENT.exploreCommunity}
-          </Link>
+          </Button>
         </div>
       </motion.div>
     </section>

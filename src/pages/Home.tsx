@@ -3,8 +3,6 @@ import { useEffect } from 'react';
 import { CtaSection } from '../components/home/CtaSection';
 import { FeatureSection, FeatureSectionItem } from '../components/home/FeatureSection';
 import { HeroSection } from '../components/home/HeroSection';
-import { User } from '../context/authContext';
-import { useAuth } from '../context/useAuth';
 
 const featureSections: FeatureSectionItem[] = [
   {
@@ -33,26 +31,21 @@ const featureSections: FeatureSectionItem[] = [
   },
 ];
 
-type HomeProps = {
-  user?: User;
-};
-
 const HomeContainer = () => {
-  const { state: { user } } = useAuth();
 
   useEffect(() => {
     document.title = 'Home - Brackeys Community';
   }, []);
 
-  return <HomeView user={user} />;
+  return <HomeView />;
 };
 
-const HomeView = ({ user }: HomeProps) => (
+const HomeView = () => (
   <div
     className="flex flex-col items-center justify-start min-h-screen overflow-visible"
     data-testid="home-page"
   >
-    <HeroSection user={user} />
+    <HeroSection />
 
     <div id="features" className="w-full">
       {featureSections.map((feature, index) => (

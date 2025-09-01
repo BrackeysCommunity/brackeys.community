@@ -3,26 +3,28 @@ import { ReactNode, useState } from 'react';
 import { cva, VariantProps } from 'class-variance-authority';
 import { Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { motion, MotionProps } from 'motion/react';
+import { Link } from '@tanstack/react-router';
 
 const buttonVariants = cva(
-  'transition-all focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center leading-none',
+  'transition-all focus:outline-none outline-2 -outline-offset-1 focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center leading-none',
   {
     variants: {
       variant: {
-        primary: 'focus:outline-none bg-brackeys-purple-600 hover:bg-brackeys-purple-700 text-white focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800',
-        secondary: 'focus:outline-none bg-gray-700 hover:bg-gray-600 text-white border border-gray-600 focus:ring-gray-500 focus:ring-offset-gray-800',
-        success: 'focus:outline-none bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 focus:ring-offset-green-800',
-        danger: 'focus:outline-none bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-red-800',
-        ghost: 'bg-transparent hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0',
-        card: 'focus:outline-none border bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800',
-        checkbox: 'focus:outline-none bg-gray-700 hover:bg-gray-600',
-        'checkbox-card': 'focus:outline-none border bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800',
+        primary: 'outline-brackeys-purple-500 bg-brackeys-purple-600 hover:bg-brackeys-purple-500 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800 text-white',
+        secondary: 'outline-gray-600 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500 focus:ring-offset-gray-800 text-white',
+        success: 'outline-green-500 bg-green-600 hover:bg-green-500 text-white focus:ring-green-500 focus:ring-offset-green-800',
+        danger: 'outline-red-500 bg-red-600 hover:bg-red-500 text-white focus:ring-red-500 focus:ring-offset-red-800',
+        ghost: 'bg-transparent outline-none hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0',
+        card: 'outline-gray-600 bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800 rounded-lg',
+        checkbox: 'bg-gray-700 hover:bg-gray-600 rounded-md',
+        'checkbox-card': 'focus:outline-2 outline-gray-600 rounded-lg focus:ring-gray-500 focus:ring-offset-gray-800',
       },
       size: {
         icon: 'p-1.5',
         sm: 'px-3 py-2 text-sm',
         md: 'px-4 py-3',
-        lg: 'px-6 py-4 text-lg',
+        lg: 'px-6 py-4',
         card: 'p-4',
       },
       layout: {
@@ -43,10 +45,10 @@ const buttonVariants = cva(
         true: '',
       },
       cardColor: {
-        green: 'data-[selected=true]:border-green-500 data-[selected=true]:bg-green-500/10 focus:ring-green-500 focus:ring-offset-green-800',
-        yellow: 'data-[selected=true]:border-yellow-500 data-[selected=true]:bg-yellow-500/10 focus:ring-yellow-500 focus:ring-offset-yellow-800',
-        purple: 'data-[selected=true]:border-brackeys-purple-500 data-[selected=true]:bg-brackeys-purple-500/10 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800',
-        blue: 'data-[selected=true]:border-blue-500 data-[selected=true]:bg-blue-500/10 focus:ring-blue-500 focus:ring-offset-blue-800',
+        green: 'data-[selected=true]:outline-green-500 data-[selected=true]:bg-green-500/10 focus:ring-green-500 focus:ring-offset-green-800',
+        yellow: 'data-[selected=true]:outline-yellow-500 data-[selected=true]:bg-yellow-500/10 focus:ring-yellow-500 focus:ring-offset-yellow-800',
+        purple: 'data-[selected=true]:outline-brackeys-purple-500 data-[selected=true]:bg-brackeys-purple-500/10 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800',
+        blue: 'data-[selected=true]:outline-blue-500 data-[selected=true]:bg-blue-500/10 focus:ring-blue-500 focus:ring-offset-blue-800',
       },
     },
     defaultVariants: {
@@ -59,11 +61,6 @@ const buttonVariants = cva(
       colorizeHover: false,
     },
     compoundVariants: [
-      // Card and checkbox-card variants always use rounded-lg
-      {
-        variant: ['card', 'checkbox-card'],
-        className: 'rounded-lg border-gray-600',
-      },
       // Regular buttons use rounded-lg
       {
         variant: ['primary', 'secondary', 'danger', 'ghost', 'success'],
@@ -73,48 +70,6 @@ const buttonVariants = cva(
       {
         variant: 'checkbox',
         className: 'rounded-md',
-      },
-      // Selected card states
-      {
-        variant: ['card', 'checkbox-card'],
-        selected: true,
-        className: 'border-opacity-100',
-      },
-      // Default hover for card variants when colorizeHover is false
-      {
-        variant: ['card', 'checkbox-card'],
-        colorizeHover: false,
-        className: 'hover:border-gray-500',
-      },
-      // Add hover styles for card variants when colorizeHover is true
-      {
-        variant: ['card', 'checkbox-card'],
-        colorizeHover: true,
-        className: 'hover:border-opacity-100 hover:bg-opacity-10',
-      },
-      {
-        variant: ['card', 'checkbox-card'],
-        colorizeHover: true,
-        cardColor: 'green',
-        className: 'hover:border-green-500 hover:bg-green-500/10',
-      },
-      {
-        variant: ['card', 'checkbox-card'],
-        colorizeHover: true,
-        cardColor: 'yellow',
-        className: 'hover:border-yellow-500 hover:bg-yellow-500/10',
-      },
-      {
-        variant: ['card', 'checkbox-card'],
-        colorizeHover: true,
-        cardColor: 'purple',
-        className: 'hover:border-brackeys-purple-500 hover:bg-brackeys-purple-500/10',
-      },
-      {
-        variant: ['card', 'checkbox-card'],
-        colorizeHover: true,
-        cardColor: 'blue',
-        className: 'hover:border-blue-500 hover:bg-blue-500/10',
       },
     ],
   }
@@ -179,7 +134,7 @@ const colorStyles = {
   }
 };
 
-type ButtonProps = VariantProps<typeof buttonVariants> & {
+type ButtonProps = Omit<MotionProps, 'layout'> & VariantProps<typeof buttonVariants> & {
   children?: ReactNode;
   onClick?: () => void;
   type?: 'button' | 'submit' | 'reset';
@@ -189,6 +144,10 @@ type ButtonProps = VariantProps<typeof buttonVariants> & {
   title?: string;
   subtitle?: string;
   showCheckmark?: boolean;
+  href?: string;
+  to?: string;
+  target?: string;
+  rel?: string;
 }
 
 export const Button = ({
@@ -200,7 +159,6 @@ export const Button = ({
   layout,
   disabled = false,
   loading = false,
-  className = '',
   fullWidth,
   selected = false,
   cardColor,
@@ -209,10 +167,39 @@ export const Button = ({
   subtitle,
   showCheckmark = true,
   colorizeHover = false,
+  href,
+  to,
+  target,
+  rel,
+  ...props
 }: ButtonProps) => {
   const [isHovered, setIsHovered] = useState(false);
-  const isCard = variant === 'card' || variant === 'checkbox-card';
-  const isCheckbox = variant === 'checkbox' || variant === 'checkbox-card';
+  const isCard = variant?.includes('card');
+  const isCheckbox = variant?.includes('checkbox');
+  const isDisabled = disabled || loading;
+
+  // If href, to, target, or rel is provided, use the Link component
+  if (href || to || rel) {
+    return (
+      <Link
+        href={href}
+        to={to}
+        target={target}
+        rel={rel}
+        className={buttonVariants({
+          variant,
+          size,
+          layout,
+          fullWidth,
+          disabled: isDisabled,
+          selected,
+          className: props.className,
+        })}
+      >
+        {children}
+      </Link>
+    );
+  }
 
   // For card modes with specific content
   if (isCard && (icon || title || subtitle)) {
@@ -220,9 +207,11 @@ export const Button = ({
 
     return (
       <HeadlessButton
+        as={motion.button}
+        {...props}
         type={type}
         onClick={onClick}
-        disabled={disabled || loading}
+        disabled={isDisabled}
         data-selected={selected}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -231,76 +220,132 @@ export const Button = ({
           size: 'card',
           layout: layout || 'vertical',
           fullWidth,
-          disabled: disabled || loading,
+          disabled: isDisabled,
           selected,
           colorizeHover,
           cardColor,
-          className,
+          className: props.className,
         })}
       >
         {loading ? (
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+          <motion.div
+            className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          />
         ) : (
           <>
             {layout === 'horizontal' ? (
               <>
                 {icon && (
-                  <div className={`p-2 rounded-lg ${selected || (colorizeHover && cardColor)
-                    ? colorStyles[cardColor || 'purple'].selected.iconBg
-                    : 'bg-gray-600'}`}>
-                    <div className={shouldApplyColoredStyles
-                      ? colorStyles[cardColor || 'purple'].selected.icon
-                      : 'text-gray-400'}>
+                  <motion.div
+                    className={`p-2 rounded-lg ${selected || (colorizeHover && cardColor)
+                      ? colorStyles[cardColor || 'purple'].selected.iconBg
+                      : 'bg-gray-600'}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <motion.div
+                      className={shouldApplyColoredStyles
+                        ? colorStyles[cardColor || 'purple'].selected.icon
+                        : 'text-gray-400'}
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
                       {icon}
-                    </div>
-                  </div>
+                    </motion.div>
+                  </motion.div>
                 )}
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     {title && (
-                      <h3 className={cn(
-                        "font-medium",
-                        shouldApplyColoredStyles
-                          ? colorStyles[cardColor || 'purple'].selected.text
-                          : 'text-white'
-                      )}>
+                      <motion.h3
+                        className={cn(
+                          "font-medium",
+                          shouldApplyColoredStyles
+                            ? colorStyles[cardColor || 'purple'].selected.text
+                            : 'text-white'
+                        )}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 }}
+                      >
                         {title}
-                      </h3>
+                      </motion.h3>
                     )}
                     {isCheckbox && selected && showCheckmark && (
-                      <Check className={`w-5 h-5 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
+                      >
+                        <Check className={`w-5 h-5 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
+                      </motion.div>
                     )}
                   </div>
                   {subtitle && (
-                    <p className={`text-sm mt-1 text-left ${shouldApplyColoredStyles
-                      ? colorStyles[cardColor || 'purple'].selected.textLight
-                      : 'text-gray-400'}`}>{subtitle}</p>
+                    <motion.p
+                      className={`text-sm mt-1 text-left ${shouldApplyColoredStyles
+                        ? colorStyles[cardColor || 'purple'].selected.textLight
+                        : 'text-gray-400'}`}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.25 }}
+                    >
+                      {subtitle}
+                    </motion.p>
                   )}
                 </div>
               </>
             ) : (
               <>
                 {icon && (
-                  <div className={`w-6 h-6 mx-auto mb-2 ${shouldApplyColoredStyles
-                    ? colorStyles[cardColor || 'purple'].selected.icon
-                    : 'text-gray-400'}`}>
+                  <motion.div
+                    className={`w-6 h-6 mx-auto mb-2 ${shouldApplyColoredStyles
+                      ? colorStyles[cardColor || 'purple'].selected.icon
+                      : 'text-gray-400'}`}
+                    initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
+                  >
                     {icon}
-                  </div>
+                  </motion.div>
                 )}
                 {title && (
-                  <p className={`font-medium ${shouldApplyColoredStyles
-                    ? colorStyles[cardColor || 'purple'].selected.text
-                    : 'text-gray-300'}`}>
+                  <motion.p
+                    className={`font-medium ${shouldApplyColoredStyles
+                      ? colorStyles[cardColor || 'purple'].selected.text
+                      : 'text-gray-300'}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                  >
                     {title}
-                  </p>
+                  </motion.p>
                 )}
                 {subtitle && (
-                  <p className={`text-sm text-center mt-1 ${shouldApplyColoredStyles
-                    ? colorStyles[cardColor || 'purple'].selected.textLight
-                    : 'text-gray-400'}`}>{subtitle}</p>
+                  <motion.p
+                    className={`text-sm text-center mt-1 ${shouldApplyColoredStyles
+                      ? colorStyles[cardColor || 'purple'].selected.textLight
+                      : 'text-gray-400'}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.25 }}
+                  >
+                    {subtitle}
+                  </motion.p>
                 )}
                 {isCheckbox && selected && showCheckmark && layout === 'vertical' && (
-                  <Check className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
+                  >
+                    <Check className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
+                  </motion.div>
                 )}
               </>
             )}
@@ -313,24 +358,47 @@ export const Button = ({
   // Default button behavior
   return (
     <HeadlessButton
+      as={motion.button}
+      {...props}
       type={type}
       onClick={onClick}
-      disabled={disabled || loading}
+      disabled={isDisabled}
       data-selected={selected}
       className={buttonVariants({
         variant,
         size,
         layout,
         fullWidth,
-        disabled: disabled || loading,
+        disabled: isDisabled,
         selected,
-        className
+        className: props.className,
       })}
     >
       {loading && (
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+        <motion.div
+          className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        />
       )}
-      {children}
+      {icon && !loading && (
+        <motion.span
+          className='mr-2'
+          initial={{ opacity: 0, scale: 0.6, y: -10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        >
+          {icon}
+        </motion.span>
+      )}
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {children}
+      </motion.span>
     </HeadlessButton>
   );
 }; 

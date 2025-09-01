@@ -1,38 +1,32 @@
-import { motion } from 'motion/react';
 import { useAuth } from '../../context/useAuth';
-import { cn } from '../../lib/utils';
+import { Button } from '../ui/Button';
 import { DiscordLogo } from '../icons/DiscordLogo';
+
+const BUTTON_CONTENT = {
+  dashboard: "Go to Dashboard",
+  login: "Login with Discord",
+};
 
 interface LoginButtonProps {
   className?: string;
 }
 
 export const LoginButton = ({ className }: LoginButtonProps) => {
-  const { signInWithDiscord, state: { isLoading } } = useAuth();
+  const { signInWithDiscord, state: { isLoading, user } } = useAuth();
 
   return (
-    <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+    <Button
+      variant="primary"
+      size="lg"
+      to={user ? "/dashboard" : undefined}
       onClick={signInWithDiscord}
-      disabled={isLoading}
-      className={cn(
-        'flex items-center justify-center gap-2 px-6 py-3 text-white font-medium rounded-lg',
-        'bg-[#5865F2] hover:bg-[#4752c4] transition-colors duration-200',
-        'disabled:opacity-70 disabled:cursor-not-allowed',
-        'focus:outline-hidden focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-50',
-        'shadow-xs',
-        className
-      )}
+      loading={isLoading}
+      icon={<DiscordLogo className="w-5 h-5" />}
+      className={className}
+      aria-label={user ? "Go to your dashboard" : "Login with Discord"}
+      fullWidth
     >
-      {isLoading ? (
-        <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-      ) : (
-        <>
-          <DiscordLogo className="w-5 h-5" />
-          <span>Login with Discord</span>
-        </>
-      )}
-    </motion.button>
+      {user ? BUTTON_CONTENT.dashboard : BUTTON_CONTENT.login}
+    </Button>
   );
 };
