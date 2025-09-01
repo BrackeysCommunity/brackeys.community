@@ -18,7 +18,7 @@ const buttonVariants = cva(
         ghost: 'bg-transparent outline-none hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0',
         card: 'outline-gray-600 bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800 rounded-lg',
         checkbox: 'bg-gray-700 hover:bg-gray-600 rounded-md',
-        'checkbox-card': 'focus:outline-2 outline-gray-600 rounded-lg focus:ring-gray-500 focus:ring-offset-gray-800',
+        'checkbox-card': 'focus:outline-2 outline-gray-600 rounded-lg',
       },
       size: {
         icon: 'p-1.5',
@@ -71,6 +71,12 @@ const buttonVariants = cva(
         variant: 'checkbox',
         className: 'rounded-md',
       },
+      // Default focus ring for checkbox-card when no cardColor is specified
+      {
+        variant: 'checkbox-card',
+        cardColor: undefined,
+        className: 'focus:ring-gray-500 focus:ring-offset-gray-800',
+      },
     ],
   }
 );
@@ -78,7 +84,7 @@ const buttonVariants = cva(
 const colorStyles = {
   purple: {
     selected: {
-      border: 'border-brackeys-purple-500',
+      outline: 'outline-brackeys-purple-500',
       bg: 'bg-brackeys-purple-500/10',
       text: 'text-brackeys-purple-300',
       textLight: 'text-brackeys-purple-100',
@@ -86,13 +92,13 @@ const colorStyles = {
       iconBg: 'bg-brackeys-purple-600'
     },
     hover: {
-      border: 'border-brackeys-purple-500',
+      outline: 'outline-brackeys-purple-500',
       bg: 'bg-brackeys-purple-500/10'
     }
   },
   blue: {
     selected: {
-      border: 'border-blue-500',
+      outline: 'outline-blue-500',
       bg: 'bg-blue-500/10',
       text: 'text-blue-300',
       textLight: 'text-blue-100',
@@ -100,13 +106,13 @@ const colorStyles = {
       iconBg: 'bg-blue-600'
     },
     hover: {
-      border: 'hover:border-blue-500',
+      outline: 'hover:outline-blue-500',
       bg: 'hover:bg-blue-500/10'
     }
   },
   green: {
     selected: {
-      border: 'border-green-500',
+      outline: 'outline-green-500',
       bg: 'bg-green-500/10',
       text: 'text-green-300',
       textLight: 'text-green-100',
@@ -114,13 +120,13 @@ const colorStyles = {
       iconBg: 'bg-green-600'
     },
     hover: {
-      border: 'hover:border-green-500',
+      outline: 'hover:outline-green-500',
       bg: 'hover:bg-green-500/10'
     }
   },
   yellow: {
     selected: {
-      border: 'border-yellow-500',
+      outline: 'outline-yellow-500',
       bg: 'bg-yellow-500/10',
       text: 'text-yellow-300',
       textLight: 'text-yellow-100',
@@ -128,7 +134,7 @@ const colorStyles = {
       iconBg: 'bg-yellow-600'
     },
     hover: {
-      border: 'hover:border-yellow-500',
+      outline: 'hover:outline-yellow-500',
       bg: 'hover:bg-yellow-500/10'
     }
   }
