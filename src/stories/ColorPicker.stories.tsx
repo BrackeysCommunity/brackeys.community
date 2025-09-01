@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { ColorPicker } from '../components/ColorPicker';
 import { RAINBOW_PALETTE, getColorGradient } from '../lib/colors';

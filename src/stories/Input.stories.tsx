@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { User, Mail, Lock, Search, Phone, Calendar, CreditCard, Copy, Send, Filter, Settings } from 'lucide-react';
+import { User, Mail, Lock, Search, Phone, CreditCard, Copy, Send, Filter, Settings } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 

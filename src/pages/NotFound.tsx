@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useAuth } from '../context/useAuth';
 import { ShieldQuestion } from 'lucide-react';
-import { LinkButton } from '../components/ui/LinkButton';
+import { Button } from '../components/ui/Button';
 
 export const NotFound = () => {
   const { state: { user } } = useAuth();
@@ -24,30 +24,30 @@ export const NotFound = () => {
         </motion.div>
 
         <div className="mt-6 flex flex-col items-center justify-center space-y-4">
-          <LinkButton
+          <Button
             to="/"
             variant="primary"
             size="lg"
           >
             Go to Home Page
-          </LinkButton>
+          </Button>
 
           {user ? (
-            <LinkButton
+            <Button
               to="/dashboard"
               variant="secondary"
               size="lg"
             >
               Go to Dashboard
-            </LinkButton>
+            </Button>
           ) : (
-            <LinkButton
+            <Button
               to="/login"
               variant="secondary"
               size="lg"
             >
               Sign In
-            </LinkButton>
+            </Button>
           )}
         </div>
       </div>

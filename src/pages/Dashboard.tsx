@@ -1,15 +1,9 @@
 import { motion } from 'motion/react';
-import { Users, MessageSquare, FileWarning, List } from 'lucide-react';
+import { FileWarning, Activity, User as UserIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { ComponentType, useEffect } from 'react';
+import { useEffect } from 'react';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { useAuth } from '../context/useAuth';
-
-type StatItem = {
-  name: string;
-  value: string;
-  icon: ComponentType<{ className?: string }>;
-}
 
 type RecentActivityItem = {
   id: number;
@@ -19,19 +13,14 @@ type RecentActivityItem = {
   time: string;
 }
 
-const stats: StatItem[] = [
-  { name: 'Total Messages', value: '7,765', icon: MessageSquare },
-  { name: 'Active Channels', value: '11', icon: List },
-  { name: 'Most Active Channel', value: '#chat', icon: Users },
-  { name: 'Total Infractions', value: '3', icon: FileWarning },
-];
-
 const recentActivity: RecentActivityItem[] = [
   { id: 1, action: 'Infraction', description: 'Spamming', time: '2 hours ago' },
   { id: 2, action: 'Infraction', description: 'Racist remarks', time: '5 hours ago' },
   { id: 4, action: 'Bot Command', description: '[]collab', channel: '#bot', time: 'Yesterday' },
   { id: 3, action: 'Infraction', description: 'Impersonating a staff member', time: '2 days ago' },
 ];
+
+const infractionCount = recentActivity.filter(activity => activity.action === 'Infraction').length;
 
 const DashboardContent = () => {
   const { state: { user } } = useAuth();
@@ -41,175 +30,157 @@ const DashboardContent = () => {
   }, []);
 
   return (
-    <div className="pb-6 max-w-5xl mx-auto">
+    <div className="pb-6 max-w-6xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
+        className="mb-8"
       >
-        <h1 className="text-2xl font-semibold text-white">
-          Welcome, {user?.full_name ? user.full_name : user?.username}!
+        <h1 className="text-3xl font-bold text-white mb-2">
+          Welcome back, {user?.full_name || user?.username}!
         </h1>
-        <p className="mt-2 text-gray-300">
-          Here's an overview of your server activity.
+        <p className="text-gray-400">
+          Here's your Brackeys Community dashboard
         </p>
       </motion.div>
 
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <motion.div
-              key={stat.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-              className="bg-gray-800 overflow-hidden rounded-lg shadow-sm border border-gray-700"
-            >
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="shrink-0">
-                    <Icon className="h-6 w-6 text-brackeys-purple-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="truncate text-sm font-medium text-gray-400">
-                        {stat.name}
-                      </dt>
-                      <dd>
-                        <div className="text-lg font-semibold text-white">
-                          {stat.value}
-                        </div>
-                      </dd>
-                    </dl>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Overview Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden"
+        >
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Overview</h2>
+              <Activity className="h-5 w-5 text-brackeys-purple-400" />
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gray-900/50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileWarning className="h-8 w-8 text-red-400" />
+                    <div>
+                      <p className="text-sm text-gray-400">Total Infractions</p>
+                      <p className="text-2xl font-bold text-white">{infractionCount}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          );
-        })}
-      </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.4 }}
-          className="bg-gray-800 overflow-hidden rounded-lg shadow-sm border border-gray-700"
-        >
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg font-medium leading-6 text-white">
-              Recent Activity
-            </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-400">
-              Your latest actions across Discord servers.
-            </p>
-          </div>
-          <div className="border-t border-gray-700">
-            <ul className="divide-y divide-gray-700">
-              {recentActivity.map((activity) => (
-                <li key={activity.id} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <p className="truncate text-sm font-medium text-brackeys-purple-400">
-                      {activity.action}
-                    </p>
-                    <div className="ml-2 flex shrink-0">
-                      <p className={cn("inline-flex rounded-full bg-green-800/30 px-2 text-xs font-semibold leading-5 text-green-400", activity.action === "Infraction" && "bg-red-800/30 text-red-400")}>
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2 sm:flex sm:justify-between">
-                    <div className="sm:flex">
-                      <p className="flex items-baseline text-sm text-gray-300">
-                        {activity.description}
-                        {activity.channel && (
-                          <span className="ml-1 text-xs text-gray-500">
-                            • in
-                            <a className="ml-1 text-xs text-brackeys-purple-400 hover:underline" href={`https://discord.com/channels/243005537342586880/433649136370450462`} target="_blank" rel="noopener noreferrer">
-                              {activity.channel}
-                            </a>
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+              <div className="text-sm text-gray-400">
+                <p className="mb-2">Community Status</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-gray-300">Active Member</span>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
 
+        {/* Recent Activity Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.5 }}
-          className="bg-gray-800 overflow-hidden rounded-lg shadow-sm border border-gray-700"
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden"
         >
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg font-medium leading-6 text-white">
-              Discord Profile
-            </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-400">
-              Information from your Discord account.
-            </p>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Recent Activity</h2>
+              <Activity className="h-5 w-5 text-brackeys-purple-400" />
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="bg-gray-900/50 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={cn(
+                      "text-sm font-medium",
+                      activity.action === "Infraction" ? "text-red-400" : "text-brackeys-purple-400"
+                    )}>
+                      {activity.action}
+                    </span>
+                    <span className="text-xs text-gray-500">{activity.time}</span>
+                  </div>
+                  <p className="text-sm text-gray-300">{activity.description}</p>
+                  {activity.channel && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      in <a href={`https://discord.com/channels/243005537342586880/433649136370450462`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brackeys-purple-400 hover:underline">
+                        {activity.channel}
+                      </a>
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="border-t border-gray-700 px-4 py-5 sm:px-6">
-            <div className="flex items-center space-x-4">
+        </motion.div>
+
+        {/* Discord Profile Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+          className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden"
+        >
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Discord Profile</h2>
+              <UserIcon className="h-5 w-5 text-brackeys-purple-400" />
+            </div>
+
+            <div className="flex items-center gap-4 mb-6">
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user.username || 'Avatar'}
-                  className="h-16 w-16 rounded-full"
+                  className="h-20 w-20 rounded-full ring-2 ring-brackeys-purple-400/20"
                 />
               ) : (
-                <div className="h-16 w-16 rounded-full bg-brackeys-purple-800 flex items-center justify-center">
-                  <span className="text-2xl font-semibold text-brackeys-purple-300">
-                    {user?.username?.charAt(0) || 'U'}
+                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-brackeys-purple-800 to-brackeys-purple-600 flex items-center justify-center">
+                  <span className="text-3xl font-bold text-white">
+                    {user?.username?.charAt(0).toUpperCase() || 'U'}
                   </span>
                 </div>
               )}
-              <div>
-                <h4 className="text-lg font-semibold text-white">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white">
                   {user?.username || 'Discord User'}
-                </h4>
+                </h3>
                 <p className="text-sm text-gray-400">
-                  {user?.email || 'No email available'}
+                  {user?.full_name || 'Global name not set'}
                 </p>
               </div>
             </div>
-            <div className="mt-6 grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-400">
-                  Account ID
-                </dt>
-                <dd className="mt-1 text-sm text-gray-300">
-                  {user?.id.substring(0, 8) || 'Not available'}
-                </dd>
+
+            <div className="space-y-3">
+              <div className="bg-gray-900/50 rounded-lg p-3">
+                <p className="text-xs text-gray-400 mb-1">Email</p>
+                <p className="text-sm text-gray-300">{user?.email || 'Not available'}</p>
               </div>
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-400">
-                  Full Name
-                </dt>
-                <dd className="mt-1 text-sm text-gray-300">
-                  {user?.full_name || 'Not provided'}
-                </dd>
-              </div>
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-400">
-                  Account Connected
-                </dt>
-                <dd className="mt-1 text-sm text-gray-300">
-                  {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
-                </dd>
-              </div>
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-400">
-                  Last Login
-                </dt>
-                <dd className="mt-1 text-sm text-gray-300">
-                  {user?.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'Unknown'}
-                </dd>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-900/50 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-1">User ID</p>
+                  <p className="text-sm text-gray-300 font-mono">
+                    {user?.id.substring(0, 8)}...
+                  </p>
+                </div>
+
+                <div className="bg-gray-900/50 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-1">Member Since</p>
+                  <p className="text-sm text-gray-300">
+                    {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

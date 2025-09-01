@@ -172,10 +172,11 @@ const fetchDiscordGuildMemberData = async (accessToken: string) => {
 const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, payload: User, dispatch: Dispatch<AuthAction>) => {
   const guildId = import.meta.env.VITE_BRACKEYS_GUILD_ID;
 
-  if (session.provider_token && guildId) {
-    const guildMemberData = await fetchDiscordGuildMemberData(session.provider_token);
+  // Check if we already have guild member data to prevent redundant API calls
+  const hasGuildData = session.user.user_metadata?.[guildId];
 
-    console.log(guildMemberData);
+  if (session.provider_token && guildId && !hasGuildData) {
+    const guildMemberData = await fetchDiscordGuildMemberData(session.provider_token);
 
     if (guildMemberData) {
       payload = {
@@ -192,6 +193,7 @@ const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, pay
       if (error) {
         console.error('Error updating user guild data:', error);
         dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to update user guild data' });
+        return;
       }
     }
   }

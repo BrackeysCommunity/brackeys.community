@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import {
   User,
@@ -9,7 +9,6 @@ import {
   Heart,
   Star,
   Trash2,
-  Save,
   Edit3,
   Plus
 } from 'lucide-react';
@@ -359,7 +358,7 @@ export const DesignSystemOverview: Story = {
                 <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit" form="signup-form">
+                <Button variant="primary" type="submit">
                   Create Account
                 </Button>
               </div>
