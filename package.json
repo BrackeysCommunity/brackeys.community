@@ -12,6 +12,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@apollo/client": "^4.0.4",
     "@clockworklabs/spacetimedb-sdk": "^1.1.0",
     "@headlessui/react": "^2.2.2",
     "@phaserjs/editor-scripts-base": "^2.0.1",
@@ -25,12 +26,14 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "graphql": "^16.11.0",
     "lucide-react": "^0.507.0",
     "motion": "^12.9.4",
     "phaser": "^3.90.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "redoc": "^2.5.0",
+    "rxjs": "^7.8.2",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.2.0",
     "throttle-debounce": "^5.0.2",

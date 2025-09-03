@@ -28,18 +28,26 @@ export interface DiscordGuildMemberData {
   bio: string;
 }
 
+export type HasuraClaims = {
+  defaultRole: string;
+  allowedRoles: string[];
+};
+
 export type AuthState = {
   user?: User;
+  discordMemberData?: DiscordGuildMemberData;
+  hasuraClaims?: HasuraClaims;
   isLoading: boolean;
   error?: string;
 };
 
 export type AuthAction =
   | { type: 'LOGIN_START' }
-  | { type: 'LOGIN_SUCCESS'; payload: User }
-  | { type: 'LOGIN_FAILURE'; payload: string }
+  | { type: 'LOGIN_SUCCESS'; payload: { user: User; discordMemberData?: DiscordGuildMemberData; hasuraClaims?: HasuraClaims } }
+  | { type: 'LOGIN_FAILURE'; payload: string; error?: unknown }
   | { type: 'LOGOUT' }
-  | { type: 'CLEAR_ERROR' };
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'UPDATE_DISCORD_DATA'; payload: { discordMemberData: DiscordGuildMemberData; hasuraClaims: HasuraClaims } };
 
 export const authInitialState: AuthState = {
   isLoading: true,
