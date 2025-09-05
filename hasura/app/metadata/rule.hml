@@ -1,0 +1,183 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: rule
+  fields:
+    - name: brief
+      type: string
+    - name: description
+      type: string!
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: int32!
+  graphql:
+    typeName: rule
+    inputTypeName: rule_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: Rule
+      fieldMapping:
+        brief:
+          column:
+            name: Brief
+        description:
+          column:
+            name: Description
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: rule
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - brief
+          - description
+          - guild_id
+          - id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: rule_bool_exp
+  operand:
+    object:
+      type: rule
+      comparableFields:
+        - fieldName: brief
+          booleanExpressionType: string_bool_exp
+        - fieldName: description
+          booleanExpressionType: string_bool_exp
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: id
+          booleanExpressionType: int32_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: rule_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: rule_agg_exp
+  operand:
+    object:
+      aggregatedType: rule
+      aggregatableFields:
+        - fieldName: brief
+          aggregateExpression: string_agg_exp
+        - fieldName: description
+          aggregateExpression: string_agg_exp
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: id
+          aggregateExpression: int32_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: rule_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: rule_order_by_exp
+  operand:
+    object:
+      orderedType: rule
+      orderableFields:
+        - fieldName: brief
+          orderByExpression: string_order_by_exp
+        - fieldName: description
+          orderByExpression: string_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: int32_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: rule_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: rule
+  objectType: rule
+  source:
+    dataConnectorName: hammer
+    collection: Rule
+  filterExpressionType: rule_bool_exp
+  aggregateExpression: rule_agg_exp
+  orderByExpression: rule_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: rule
+      subscription:
+        rootField: rule
+    selectUniques:
+      - queryRootField: rule_by_rule_pk
+        uniqueIdentifier:
+          - id
+          - guild_id
+        subscription:
+          rootField: rule_by_rule_pk
+    filterInputTypeName: rule_filter_input
+    aggregate:
+      queryRootField: rule_aggregate
+      subscription:
+        rootField: rule_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: rule
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: infractions
+  sourceType: rule
+  target:
+    model:
+      name: infraction
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: rule_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: All infractions that cite this rule
+

@@ -1,0 +1,273 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: reported_message
+  fields:
+    - name: attachments
+      type: bytes!
+    - name: author_id
+      type: int64!
+    - name: channel_id
+      type: int64!
+    - name: content
+      type: string
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: int64!
+    - name: message_id
+      type: int64!
+    - name: reporter_id
+      type: int64!
+  graphql:
+    typeName: reported_message
+    inputTypeName: reported_message_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: ReportedMessage
+      fieldMapping:
+        attachments:
+          column:
+            name: Attachments
+        author_id:
+          column:
+            name: AuthorId
+        channel_id:
+          column:
+            name: ChannelId
+        content:
+          column:
+            name: Content
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        message_id:
+          column:
+            name: MessageId
+        reporter_id:
+          column:
+            name: ReporterId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: reported_message
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - attachments
+          - author_id
+          - channel_id
+          - content
+          - guild_id
+          - id
+          - message_id
+          - reporter_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: reported_message_bool_exp
+  operand:
+    object:
+      type: reported_message
+      comparableFields:
+        - fieldName: attachments
+          booleanExpressionType: bytes_bool_exp
+        - fieldName: author_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: channel_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: content
+          booleanExpressionType: string_bool_exp
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: message_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: reporter_id
+          booleanExpressionType: int64_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: reported_message_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: reported_message_agg_exp
+  operand:
+    object:
+      aggregatedType: reported_message
+      aggregatableFields:
+        - fieldName: attachments
+          aggregateExpression: bytes_agg_exp
+        - fieldName: author_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: channel_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: content
+          aggregateExpression: string_agg_exp
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: id
+          aggregateExpression: int64_agg_exp
+        - fieldName: message_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: reporter_id
+          aggregateExpression: int64_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: reported_message_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: reported_message_order_by_exp
+  operand:
+    object:
+      orderedType: reported_message
+      orderableFields:
+        - fieldName: attachments
+          orderByExpression: bytes_order_by_exp
+        - fieldName: author_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: channel_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: content
+          orderByExpression: string_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: int64_order_by_exp
+        - fieldName: message_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: reporter_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships:
+        - relationshipName: tracked_message
+        - relationshipName: deleted_message
+        - relationshipName: reporter_blocked_status
+  graphql:
+    expressionTypeName: reported_message_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: reported_message
+  objectType: reported_message
+  source:
+    dataConnectorName: hammer
+    collection: ReportedMessage
+  filterExpressionType: reported_message_bool_exp
+  aggregateExpression: reported_message_agg_exp
+  orderByExpression: reported_message_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: reported_message
+      subscription:
+        rootField: reported_message
+    selectUniques:
+      - queryRootField: reported_message_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: reported_message_by_id
+    filterInputTypeName: reported_message_filter_input
+    aggregate:
+      queryRootField: reported_message_aggregate
+      subscription:
+        rootField: reported_message_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: reported_message
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: tracked_message
+  sourceType: reported_message
+  target:
+    model:
+      name: tracked_messages
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: message_id
+      target:
+        modelField:
+          - fieldName: id
+  description: The original tracked message that was reported
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: deleted_message
+  sourceType: reported_message
+  target:
+    model:
+      name: deleted_message
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: message_id
+      target:
+        modelField:
+          - fieldName: message_id
+  description: The deleted message record if this reported message was deleted
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: reporter_blocked_status
+  sourceType: reported_message
+  target:
+    model:
+      name: blocked_reporter
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: reporter_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: Check if the reporter is blocked from making reports
+

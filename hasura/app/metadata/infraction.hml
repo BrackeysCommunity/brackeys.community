@@ -1,0 +1,281 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: infraction
+  fields:
+    - name: additional_information
+      type: string
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: int64!
+    - name: issued_at
+      type: timestamp!
+    - name: reason
+      type: string
+    - name: rule_id
+      type: int32
+    - name: rule_text
+      type: string
+    - name: staff_member_id
+      type: int64!
+    - name: type
+      type: int32!
+    - name: user_id
+      type: int64!
+  graphql:
+    typeName: infraction
+    inputTypeName: infraction_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: Infraction
+      fieldMapping:
+        additional_information:
+          column:
+            name: AdditionalInformation
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        issued_at:
+          column:
+            name: IssuedAt
+        reason:
+          column:
+            name: Reason
+        rule_id:
+          column:
+            name: RuleId
+        rule_text:
+          column:
+            name: RuleText
+        staff_member_id:
+          column:
+            name: StaffMemberId
+        type:
+          column:
+            name: Type
+        user_id:
+          column:
+            name: UserId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: infraction
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - additional_information
+          - guild_id
+          - id
+          - issued_at
+          - reason
+          - rule_id
+          - rule_text
+          - staff_member_id
+          - type
+          - user_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: infraction_bool_exp
+  operand:
+    object:
+      type: infraction
+      comparableFields:
+        - fieldName: additional_information
+          booleanExpressionType: string_bool_exp
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: issued_at
+          booleanExpressionType: timestamp_bool_exp
+        - fieldName: reason
+          booleanExpressionType: string_bool_exp
+        - fieldName: rule_id
+          booleanExpressionType: int32_bool_exp
+        - fieldName: rule_text
+          booleanExpressionType: string_bool_exp
+        - fieldName: staff_member_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: type
+          booleanExpressionType: int32_bool_exp
+        - fieldName: user_id
+          booleanExpressionType: int64_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: infraction_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: infraction_agg_exp
+  operand:
+    object:
+      aggregatedType: infraction
+      aggregatableFields:
+        - fieldName: additional_information
+          aggregateExpression: string_agg_exp
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: id
+          aggregateExpression: int64_agg_exp
+        - fieldName: issued_at
+          aggregateExpression: timestamp_agg_exp
+        - fieldName: reason
+          aggregateExpression: string_agg_exp
+        - fieldName: rule_id
+          aggregateExpression: int32_agg_exp
+        - fieldName: rule_text
+          aggregateExpression: string_agg_exp
+        - fieldName: staff_member_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: type
+          aggregateExpression: int32_agg_exp
+        - fieldName: user_id
+          aggregateExpression: int64_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: infraction_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: infraction_order_by_exp
+  operand:
+    object:
+      orderedType: infraction
+      orderableFields:
+        - fieldName: additional_information
+          orderByExpression: string_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: int64_order_by_exp
+        - fieldName: issued_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: reason
+          orderByExpression: string_order_by_exp
+        - fieldName: rule_id
+          orderByExpression: int32_order_by_exp
+        - fieldName: rule_text
+          orderByExpression: string_order_by_exp
+        - fieldName: staff_member_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: type
+          orderByExpression: int32_order_by_exp
+        - fieldName: user_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships:
+        - relationshipName: rule
+  graphql:
+    expressionTypeName: infraction_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: infraction
+  objectType: infraction
+  source:
+    dataConnectorName: hammer
+    collection: Infraction
+  filterExpressionType: infraction_bool_exp
+  aggregateExpression: infraction_agg_exp
+  orderByExpression: infraction_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: infraction
+      subscription:
+        rootField: infraction
+    selectUniques:
+      - queryRootField: infraction_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: infraction_by_id
+    filterInputTypeName: infraction_filter_input
+    aggregate:
+      queryRootField: infraction_aggregate
+      subscription:
+        rootField: infraction_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: infraction
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: rule
+  sourceType: infraction
+  target:
+    model:
+      name: rule
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: rule_id
+      target:
+        modelField:
+          - fieldName: id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: The rule that was violated in this infraction
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: member_notes
+  sourceType: infraction
+  target:
+    model:
+      name: member_note
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: Member notes for the user who received this infraction
+

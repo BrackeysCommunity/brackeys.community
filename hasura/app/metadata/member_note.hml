@@ -1,0 +1,272 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: member_note
+  fields:
+    - name: author_id
+      type: int64!
+    - name: content
+      type: string!
+    - name: creation_timestamp
+      type: timestamp!
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: int64!
+    - name: type
+      type: int32!
+    - name: user_id
+      type: int64!
+  graphql:
+    typeName: member_note
+    inputTypeName: member_note_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: MemberNote
+      fieldMapping:
+        author_id:
+          column:
+            name: AuthorId
+        content:
+          column:
+            name: Content
+        creation_timestamp:
+          column:
+            name: CreationTimestamp
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        type:
+          column:
+            name: Type
+        user_id:
+          column:
+            name: UserId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: member_note
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - author_id
+          - content
+          - creation_timestamp
+          - guild_id
+          - id
+          - type
+          - user_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: member_note_bool_exp
+  operand:
+    object:
+      type: member_note
+      comparableFields:
+        - fieldName: author_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: content
+          booleanExpressionType: string_bool_exp
+        - fieldName: creation_timestamp
+          booleanExpressionType: timestamp_bool_exp
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: type
+          booleanExpressionType: int32_bool_exp
+        - fieldName: user_id
+          booleanExpressionType: int64_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: member_note_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: member_note_agg_exp
+  operand:
+    object:
+      aggregatedType: member_note
+      aggregatableFields:
+        - fieldName: author_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: content
+          aggregateExpression: string_agg_exp
+        - fieldName: creation_timestamp
+          aggregateExpression: timestamp_agg_exp
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: id
+          aggregateExpression: int64_agg_exp
+        - fieldName: type
+          aggregateExpression: int32_agg_exp
+        - fieldName: user_id
+          aggregateExpression: int64_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: member_note_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: member_note_order_by_exp
+  operand:
+    object:
+      orderedType: member_note
+      orderableFields:
+        - fieldName: author_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: content
+          orderByExpression: string_order_by_exp
+        - fieldName: creation_timestamp
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: int64_order_by_exp
+        - fieldName: type
+          orderByExpression: int32_order_by_exp
+        - fieldName: user_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships:
+        - relationshipName: user_mute
+        - relationshipName: user_temporary_ban
+  graphql:
+    expressionTypeName: member_note_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: member_note
+  objectType: member_note
+  source:
+    dataConnectorName: hammer
+    collection: MemberNote
+  filterExpressionType: member_note_bool_exp
+  aggregateExpression: member_note_agg_exp
+  orderByExpression: member_note_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: member_note
+      subscription:
+        rootField: member_note
+    selectUniques:
+      - queryRootField: member_note_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: member_note_by_id
+    filterInputTypeName: member_note_filter_input
+    aggregate:
+      queryRootField: member_note_aggregate
+      subscription:
+        rootField: member_note_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: member_note
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: user_infractions
+  sourceType: member_note
+  target:
+    model:
+      name: infraction
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: All infractions for the user this note is about
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: user_mute
+  sourceType: member_note
+  target:
+    model:
+      name: mute
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: Current mute status for the user this note is about
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: user_temporary_ban
+  sourceType: member_note
+  target:
+    model:
+      name: temporary_ban
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: Current temporary ban status for the user this note is about
+

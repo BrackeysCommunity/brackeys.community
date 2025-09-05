@@ -1,0 +1,209 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: blocked_reporter
+  fields:
+    - name: blocked_at
+      type: timestamp!
+    - name: guild_id
+      type: int64!
+    - name: staff_member_id
+      type: int64!
+    - name: user_id
+      type: int64!
+  graphql:
+    typeName: blocked_reporter
+    inputTypeName: blocked_reporter_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: BlockedReporter
+      fieldMapping:
+        blocked_at:
+          column:
+            name: BlockedAt
+        guild_id:
+          column:
+            name: GuildId
+        staff_member_id:
+          column:
+            name: StaffMemberId
+        user_id:
+          column:
+            name: UserId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: blocked_reporter
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - blocked_at
+          - guild_id
+          - staff_member_id
+          - user_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: blocked_reporter_bool_exp
+  operand:
+    object:
+      type: blocked_reporter
+      comparableFields:
+        - fieldName: blocked_at
+          booleanExpressionType: timestamp_bool_exp
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: staff_member_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: user_id
+          booleanExpressionType: int64_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: blocked_reporter_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: blocked_reporter_agg_exp
+  operand:
+    object:
+      aggregatedType: blocked_reporter
+      aggregatableFields:
+        - fieldName: blocked_at
+          aggregateExpression: timestamp_agg_exp
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: staff_member_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: user_id
+          aggregateExpression: int64_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: blocked_reporter_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: blocked_reporter_order_by_exp
+  operand:
+    object:
+      orderedType: blocked_reporter
+      orderableFields:
+        - fieldName: blocked_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: staff_member_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: user_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: blocked_reporter_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: blocked_reporter
+  objectType: blocked_reporter
+  source:
+    dataConnectorName: hammer
+    collection: BlockedReporter
+  filterExpressionType: blocked_reporter_bool_exp
+  aggregateExpression: blocked_reporter_agg_exp
+  orderByExpression: blocked_reporter_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: blocked_reporter
+      subscription:
+        rootField: blocked_reporter
+    selectUniques:
+      - queryRootField: blocked_reporter_by_blocked_reporter_pk
+        uniqueIdentifier:
+          - user_id
+          - guild_id
+        subscription:
+          rootField: blocked_reporter_by_blocked_reporter_pk
+    filterInputTypeName: blocked_reporter_filter_input
+    aggregate:
+      queryRootField: blocked_reporter_aggregate
+      subscription:
+        rootField: blocked_reporter_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: blocked_reporter
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: user_reports
+  sourceType: blocked_reporter
+  target:
+    model:
+      name: reported_message
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: reporter_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: All reports made by this blocked user
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: user_infractions
+  sourceType: blocked_reporter
+  target:
+    model:
+      name: infraction
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: All infractions for this blocked reporter
+

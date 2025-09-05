@@ -1,0 +1,701 @@
+{
+  "jdbcUrl" : {
+    "variable" : "JDBC_URL"
+  },
+  "jdbcProperties" : {
+    "allowMultiQueries" : "true"
+  },
+  "schemas" : [ ],
+  "tables" : [ {
+    "tableName" : "BlockedReporter",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "StaffMemberId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "BlockedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "UserId", "GuildId" ],
+    "fks" : null
+  }, {
+    "tableName" : "TrackedMessages",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : true,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ChannelId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "AuthorId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsDeleted",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Content",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Attachments",
+      "description" : "",
+      "type" : "longblob",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreationTimestamp",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "DeletionTimestamp",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "MemberNote",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 19,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : true,
+      "is_primarykey" : true
+    }, {
+      "name" : "Type",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "AuthorId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreationTimestamp",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Content",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "Infraction",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 19,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : true,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "StaffMemberId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Type",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IssuedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Reason",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "AdditionalInformation",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "RuleId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "RuleText",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "TemporaryBan",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "ExpiresAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "GuildId", "UserId" ],
+    "fks" : null
+  }, {
+    "tableName" : "ReportedMessage",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 19,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : true,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ChannelId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "MessageId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "AuthorId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ReporterId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Content",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Attachments",
+      "description" : "",
+      "type" : "longblob",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "DeletedMessage",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "MessageId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : true,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ChannelId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "AuthorId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "StaffMemberId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Content",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Attachments",
+      "description" : "",
+      "type" : "longblob",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreationTimestamp",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "DeletionTimestamp",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "AddedByBot",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "MessageId" ],
+    "fks" : null
+  }, {
+    "tableName" : "Mute",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "ExpiresAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "GuildId", "UserId" ],
+    "fks" : null
+  }, {
+    "tableName" : "AltAccount",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "AltId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "StaffMemberId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "RegisteredAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "UserId", "AltId" ],
+    "fks" : null
+  }, {
+    "tableName" : "Rule",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "Brief",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Description",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id", "GuildId" ],
+    "fks" : null
+  }, {
+    "tableName" : "StaffMessage",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 19,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : true,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "StaffMemberId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "RecipientId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Content",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "SentAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  } ],
+  "functions" : [ ],
+  "nativeQueries" : { }
+}

@@ -1,0 +1,111 @@
+import {
+  useQuery,
+  useMutation,
+  UseQueryOptions,
+  UseMutationOptions,
+  QueryKey,
+} from '@tanstack/react-query'
+import { request, RequestExtendedOptions } from 'graphql-request'
+import type { Variables } from 'graphql-request'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/useAuth'
+import type { HasuraClaims } from '../context/authContext'
+import { operations, preferredRoles } from '../lib/gql/operations'
+
+interface GraphQLQueryOptions<TData, TVariables extends Variables, TError = Error> {
+  operationName: keyof typeof operations
+  variables?: TVariables
+  headers?: HeadersInit
+  queryOptions?: Omit<
+    UseQueryOptions<TData, TError, TData, QueryKey>,
+    'queryKey' | 'queryFn'
+  >
+}
+
+interface GraphQLMutationOptions<TData, TVariables extends Variables, TError = Error, TContext = unknown> {
+  operationName: keyof typeof operations
+  headers?: HeadersInit
+  mutationOptions?: Omit<
+    UseMutationOptions<TData, TError, TVariables, TContext>,
+    'mutationFn'
+  >
+}
+
+/**
+ * Builds headers with authentication and Hasura role headers
+ */
+const buildAuthHeaders = async (
+  operationName?: keyof typeof operations,
+  hasuraClaims?: HasuraClaims
+): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = {}
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`
+  }
+
+  if (operationName && hasuraClaims) {
+    const preferredRole = preferredRoles[operationName]
+    if (preferredRole && hasuraClaims.allowedRoles.includes(preferredRole)) {
+      headers['x-hasura-role'] = preferredRole
+    }
+  }
+
+  return headers
+}
+
+/**
+ * Custom hook for GraphQL queries using TanStack Query
+ */
+export const useGraphQLQuery = <TData, TVariables extends Variables = Variables, TError = Error>({
+  operationName,
+  variables,
+  queryOptions,
+}: GraphQLQueryOptions<TData, TVariables, TError>) => {
+  const { state: authState } = useAuth()
+  const queryKey = ['graphql', operationName, variables] as const
+
+  return useQuery({
+    queryKey,
+    queryFn: async () => {
+      const authHeaders = await buildAuthHeaders(operationName, authState.hasuraClaims)
+
+      const requestOptions = {
+        url: process.env.VITE_HASURA_GRAPHQL_URL,
+        document: operations[operationName],
+        variables,
+        requestHeaders: authHeaders,
+      } as unknown as RequestExtendedOptions<TVariables, TData>
+
+      return request<TData, TVariables>(requestOptions)
+    },
+    ...queryOptions,
+  })
+}
+
+/**
+ * Custom hook for GraphQL mutations using TanStack Query
+ */
+export const useGraphQLMutation = <TData, TVariables extends Variables = Variables, TError = Error, TContext = unknown>({
+  operationName,
+  mutationOptions,
+}: GraphQLMutationOptions<TData, TVariables, TError, TContext>) => {
+  const { state: authState } = useAuth()
+
+  return useMutation<TData, TError, TVariables, TContext>({
+    mutationFn: async (variables) => {
+      const authHeaders = await buildAuthHeaders(operationName, authState.hasuraClaims)
+
+      const requestOptions = {
+        url: process.env.VITE_HASURA_GRAPHQL_URL,
+        document: operations[operationName],
+        variables,
+        requestHeaders: authHeaders,
+      } as unknown as RequestExtendedOptions<TVariables, TData>
+
+      return request<TData, TVariables>(requestOptions)
+    },
+    ...mutationOptions,
+  })
+}

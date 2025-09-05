@@ -1,0 +1,20 @@
+kind: Connector
+version: v2
+definition:
+  name: hammer
+  subgraph: app
+  source: hasura/mysql:v1.0.18
+  context: .
+  envMapping:
+    FULLY_QUALIFY_NAMES:
+      fromEnv: APP_HAMMER_FULLY_QUALIFY_NAMES
+    HASURA_CONNECTOR_PORT:
+      fromEnv: APP_HAMMER_HASURA_CONNECTOR_PORT
+    HASURA_SERVICE_TOKEN_SECRET:
+      fromEnv: APP_HAMMER_HASURA_SERVICE_TOKEN_SECRET
+    JDBC_URL:
+      fromEnv: APP_HAMMER_JDBC_URL
+    OTEL_EXPORTER_OTLP_ENDPOINT:
+      fromEnv: APP_HAMMER_OTEL_EXPORTER_OTLP_ENDPOINT
+    OTEL_SERVICE_NAME:
+      fromEnv: APP_HAMMER_OTEL_SERVICE_NAME

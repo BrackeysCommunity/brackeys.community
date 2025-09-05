@@ -1,0 +1,295 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: deleted_message
+  fields:
+    - name: added_by_bot
+      type: string!
+    - name: attachments
+      type: bytes!
+    - name: author_id
+      type: int64!
+    - name: channel_id
+      type: int64!
+    - name: content
+      type: string
+    - name: creation_timestamp
+      type: timestamp!
+    - name: deletion_timestamp
+      type: timestamp!
+    - name: guild_id
+      type: int64!
+    - name: message_id
+      type: int64!
+    - name: staff_member_id
+      type: int64!
+  graphql:
+    typeName: deleted_message
+    inputTypeName: deleted_message_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: DeletedMessage
+      fieldMapping:
+        added_by_bot:
+          column:
+            name: AddedByBot
+        attachments:
+          column:
+            name: Attachments
+        author_id:
+          column:
+            name: AuthorId
+        channel_id:
+          column:
+            name: ChannelId
+        content:
+          column:
+            name: Content
+        creation_timestamp:
+          column:
+            name: CreationTimestamp
+        deletion_timestamp:
+          column:
+            name: DeletionTimestamp
+        guild_id:
+          column:
+            name: GuildId
+        message_id:
+          column:
+            name: MessageId
+        staff_member_id:
+          column:
+            name: StaffMemberId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: deleted_message
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - added_by_bot
+          - attachments
+          - author_id
+          - channel_id
+          - content
+          - creation_timestamp
+          - deletion_timestamp
+          - guild_id
+          - message_id
+          - staff_member_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: deleted_message_bool_exp
+  operand:
+    object:
+      type: deleted_message
+      comparableFields:
+        - fieldName: added_by_bot
+          booleanExpressionType: string_bool_exp
+        - fieldName: attachments
+          booleanExpressionType: bytes_bool_exp
+        - fieldName: author_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: channel_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: content
+          booleanExpressionType: string_bool_exp
+        - fieldName: creation_timestamp
+          booleanExpressionType: timestamp_bool_exp
+        - fieldName: deletion_timestamp
+          booleanExpressionType: timestamp_bool_exp
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: message_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: staff_member_id
+          booleanExpressionType: int64_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: deleted_message_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: deleted_message_agg_exp
+  operand:
+    object:
+      aggregatedType: deleted_message
+      aggregatableFields:
+        - fieldName: added_by_bot
+          aggregateExpression: string_agg_exp
+        - fieldName: attachments
+          aggregateExpression: bytes_agg_exp
+        - fieldName: author_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: channel_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: content
+          aggregateExpression: string_agg_exp
+        - fieldName: creation_timestamp
+          aggregateExpression: timestamp_agg_exp
+        - fieldName: deletion_timestamp
+          aggregateExpression: timestamp_agg_exp
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: message_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: staff_member_id
+          aggregateExpression: int64_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: deleted_message_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: deleted_message_order_by_exp
+  operand:
+    object:
+      orderedType: deleted_message
+      orderableFields:
+        - fieldName: added_by_bot
+          orderByExpression: string_order_by_exp
+        - fieldName: attachments
+          orderByExpression: bytes_order_by_exp
+        - fieldName: author_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: channel_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: content
+          orderByExpression: string_order_by_exp
+        - fieldName: creation_timestamp
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: deletion_timestamp
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: message_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: staff_member_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships:
+        - relationshipName: original_tracked_message
+  graphql:
+    expressionTypeName: deleted_message_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: deleted_message
+  objectType: deleted_message
+  source:
+    dataConnectorName: hammer
+    collection: DeletedMessage
+  filterExpressionType: deleted_message_bool_exp
+  aggregateExpression: deleted_message_agg_exp
+  orderByExpression: deleted_message_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: deleted_message
+      subscription:
+        rootField: deleted_message
+    selectUniques:
+      - queryRootField: deleted_message_by_message_id
+        uniqueIdentifier:
+          - message_id
+        subscription:
+          rootField: deleted_message_by_message_id
+    filterInputTypeName: deleted_message_filter_input
+    aggregate:
+      queryRootField: deleted_message_aggregate
+      subscription:
+        rootField: deleted_message_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: deleted_message
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: original_tracked_message
+  sourceType: deleted_message
+  target:
+    model:
+      name: tracked_messages
+      subgraph: null
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: message_id
+      target:
+        modelField:
+          - fieldName: id
+  description: The original tracked message that was deleted
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: reports
+  sourceType: deleted_message
+  target:
+    model:
+      name: reported_message
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: message_id
+      target:
+        modelField:
+          - fieldName: message_id
+  description: All reports made against this deleted message
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: author_infractions
+  sourceType: deleted_message
+  target:
+    model:
+      name: infraction
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: author_id
+      target:
+        modelField:
+          - fieldName: user_id
+    - source:
+        fieldPath:
+          - fieldName: guild_id
+      target:
+        modelField:
+          - fieldName: guild_id
+  description: All infractions for the author of this deleted message
+

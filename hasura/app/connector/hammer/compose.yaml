@@ -1,0 +1,15 @@
+services:
+  app_hammer:
+    build:
+      context: .
+      dockerfile: .hasura-connector/Dockerfile.hammer
+    environment:
+      FULLY_QUALIFY_NAMES: $APP_HAMMER_FULLY_QUALIFY_NAMES
+      HASURA_SERVICE_TOKEN_SECRET: $APP_HAMMER_HASURA_SERVICE_TOKEN_SECRET
+      JDBC_URL: $APP_HAMMER_JDBC_URL
+      OTEL_EXPORTER_OTLP_ENDPOINT: $APP_HAMMER_OTEL_EXPORTER_OTLP_ENDPOINT
+      OTEL_SERVICE_NAME: $APP_HAMMER_OTEL_SERVICE_NAME
+    extra_hosts:
+      - local.hasura.dev:host-gateway
+    ports:
+      - 9403:8080

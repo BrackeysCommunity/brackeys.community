@@ -1,0 +1,197 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: alt_account
+  fields:
+    - name: alt_id
+      type: int64!
+    - name: registered_at
+      type: timestamp!
+    - name: staff_member_id
+      type: int64!
+    - name: user_id
+      type: int64!
+  graphql:
+    typeName: alt_account
+    inputTypeName: alt_account_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: AltAccount
+      fieldMapping:
+        alt_id:
+          column:
+            name: AltId
+        registered_at:
+          column:
+            name: RegisteredAt
+        staff_member_id:
+          column:
+            name: StaffMemberId
+        user_id:
+          column:
+            name: UserId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: alt_account
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - alt_id
+          - registered_at
+          - staff_member_id
+          - user_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: alt_account_bool_exp
+  operand:
+    object:
+      type: alt_account
+      comparableFields:
+        - fieldName: alt_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: registered_at
+          booleanExpressionType: timestamp_bool_exp
+        - fieldName: staff_member_id
+          booleanExpressionType: int64_bool_exp
+        - fieldName: user_id
+          booleanExpressionType: int64_bool_exp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: alt_account_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: alt_account_agg_exp
+  operand:
+    object:
+      aggregatedType: alt_account
+      aggregatableFields:
+        - fieldName: alt_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: registered_at
+          aggregateExpression: timestamp_agg_exp
+        - fieldName: staff_member_id
+          aggregateExpression: int64_agg_exp
+        - fieldName: user_id
+          aggregateExpression: int64_agg_exp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: alt_account_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: alt_account_order_by_exp
+  operand:
+    object:
+      orderedType: alt_account
+      orderableFields:
+        - fieldName: alt_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: registered_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: staff_member_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: user_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: alt_account_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: alt_account
+  objectType: alt_account
+  source:
+    dataConnectorName: hammer
+    collection: AltAccount
+  filterExpressionType: alt_account_bool_exp
+  aggregateExpression: alt_account_agg_exp
+  orderByExpression: alt_account_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: alt_account
+      subscription:
+        rootField: alt_account
+    selectUniques:
+      - queryRootField: alt_account_by_alt_account_pk
+        uniqueIdentifier:
+          - user_id
+          - alt_id
+        subscription:
+          rootField: alt_account_by_alt_account_pk
+    filterInputTypeName: alt_account_filter_input
+    aggregate:
+      queryRootField: alt_account_aggregate
+      subscription:
+        rootField: alt_account_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: alt_account
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: main_user_infractions
+  sourceType: alt_account
+  target:
+    model:
+      name: infraction
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: user_id
+      target:
+        modelField:
+          - fieldName: user_id
+  description: All infractions for the main user account
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: alt_user_infractions
+  sourceType: alt_account
+  target:
+    model:
+      name: infraction
+      subgraph: null
+      relationshipType: Array
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: alt_id
+      target:
+        modelField:
+          - fieldName: user_id
+  description: All infractions for the alt account
+
