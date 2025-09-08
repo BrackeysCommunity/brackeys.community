@@ -16,10 +16,11 @@ const config: StorybookConfig = {
     "options": {}
   },
   "viteFinal": async (config) => {
-    // Configure base URL for GitHub Pages
-    if (process.env.NODE_ENV === 'production') {
+    // Only set base URL for GitHub Pages deployment, not for Chromatic
+    if (process.env.GITHUB_PAGES === 'true') {
       config.base = '/brackeys.community/';
     }
+    config.plugins = (config.plugins ?? []).filter((plugin) => plugin && 'name' in plugin && plugin.name !== 'vite:dts');
     return config;
   }
 };
