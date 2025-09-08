@@ -20,7 +20,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
     tags,
     developer,
     releaseDate,
-    resourceUrl
+    resourceUrl,
   } = resource;
 
   const primaryCategory = categories[0];
@@ -36,23 +36,19 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
         duration: 0.3,
         type: 'spring',
         stiffness: 300,
-        damping: 20
+        damping: 20,
       }}
       className={cn(
-        "flex flex-col h-full",
-        "bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700",
-        "hover:border-brackeys-purple-500 transition-colors"
+        'flex flex-col h-full',
+        'bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700',
+        'hover:border-brackeys-purple-500 transition-colors'
       )}
       data-testid={`resource-card-${id}`}
     >
       <div className="relative w-full h-48 bg-gray-900">
         <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-in pattern-opacity-100 z-0" />
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={title}
-            className="w-full h-full object-contain relative z-10"
-          />
+          <img src={imageUrl} alt={title} className="w-full h-full object-contain relative z-10" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-gray-500 z-10">
             {type === 'game' ? (
@@ -67,7 +63,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
       <div className="p-6 flex-grow flex flex-col">
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <div className="flex items-center gap-1 bg-gray-700 px-2 py-1 rounded-md">
-            <CategoryIcon className={cn("h-4 w-4", categoryData.color)} />
+            <CategoryIcon className={cn('h-4 w-4', categoryData.color)} />
             <span className="text-xs text-gray-300">{categoryData.label}</span>
           </div>
 
@@ -76,7 +72,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
             const CatIcon = catInfo.icon;
             return (
               <div key={cat} className="flex items-center gap-1 bg-gray-700 px-2 py-1 rounded-md">
-                <CatIcon className={cn("h-3 w-3", catInfo.color)} />
+                <CatIcon className={cn('h-3 w-3', catInfo.color)} />
                 <span className="text-xs text-gray-400">{catInfo.label}</span>
               </div>
             );
@@ -94,7 +90,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
               <div
                 key={tag}
                 className={cn(
-                  "flex items-center gap-1 px-2 py-1 rounded-full text-xs",
+                  'flex items-center gap-1 px-2 py-1 rounded-full text-xs',
                   tagData.color
                 )}
               >
@@ -108,9 +104,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
         {developer && (
           <div className="mt-1 flex justify-between items-center text-xs text-gray-400">
             <span>By {developer}</span>
-            {releaseDate && (
-              <span>Released: {new Date(releaseDate).toLocaleDateString()}</span>
-            )}
+            {releaseDate && <span>Released: {new Date(releaseDate).toLocaleDateString()}</span>}
           </div>
         )}
       </div>
@@ -118,10 +112,21 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
       <div className="relative flex border-t border-gray-700 bg-gray-900 overflow-hidden">
         <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-out pattern-opacity-100 z-0" />
         <motion.div
-          initial={{ margin: "16px", padding: "16px 16px" }}
-          whileHover={{ margin: "0px", padding: "32px 16px", borderTopLeftRadius: "0px", borderTopRightRadius: "0px", transition: { type: "tween", duration: 0.2, ease: "easeOut" } }}
-          whileTap={{ margin: "8px", padding: "24px 16px", borderTopLeftRadius: "6px", borderTopRightRadius: "6px" }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          initial={{ margin: '16px', padding: '16px 16px' }}
+          whileHover={{
+            margin: '0px',
+            padding: '32px 16px',
+            borderTopLeftRadius: '0px',
+            borderTopRightRadius: '0px',
+            transition: { type: 'tween', duration: 0.2, ease: 'easeOut' },
+          }}
+          whileTap={{
+            margin: '8px',
+            padding: '24px 16px',
+            borderTopLeftRadius: '6px',
+            borderTopRightRadius: '6px',
+          }}
+          transition={{ type: 'spring', stiffness: 400, damping: 17 }}
           className="relative inline-flex grow items-center justify-center border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-brackeys-purple-500 z-10 overflow-hidden"
         >
           {resourceUrl instanceof URL ? (

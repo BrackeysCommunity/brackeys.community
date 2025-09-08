@@ -7,9 +7,13 @@ import { DiscordLogo } from '../components/icons/DiscordLogo';
 import { Alert } from '../components/ui/Alert';
 
 export const Login = () => {
-  const { state: { user, isLoading, error } } = useAuth();
+  const {
+    state: { user, isLoading, error },
+  } = useAuth();
   const navigate = useNavigate();
-  const { location: { search } } = useRouterState();
+  const {
+    location: { search },
+  } = useRouterState();
 
   // Get redirect param from search params if available
   const searchParams = new URLSearchParams(search);
@@ -71,9 +75,7 @@ export const Login = () => {
                 <div className="w-full border-t border-gray-600" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-gray-800 px-2 text-gray-400">
-                  Why Discord?
-                </span>
+                <span className="bg-gray-800 px-2 text-gray-400">Why Discord?</span>
               </div>
             </div>
 

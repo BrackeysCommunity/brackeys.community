@@ -5,13 +5,14 @@ import { DiscordLogo } from '../icons/DiscordLogo';
 import { Button } from '../ui/Button';
 
 const HERO_CONTENT = {
-  mainHeading: "Learn, Code, and Play —",
-  subHeading: "Level Up in Brackeys Community",
-  description: "A community for developers of all skill levels to learn, share, and collaborate. Join us today and let's make coding fun!"
+  mainHeading: 'Learn, Code, and Play —',
+  subHeading: 'Level Up in Brackeys Community',
+  description:
+    "A community for developers of all skill levels to learn, share, and collaborate. Join us today and let's make coding fun!",
 };
 
 const BUTTON_CONTENT = {
-  github: "View on GitHub",
+  github: 'View on GitHub',
 };
 
 const BackgroundShapes = () => (
@@ -27,7 +28,7 @@ const BackgroundShapes = () => (
       transition={{
         repeat: Infinity,
         duration: 18,
-        ease: "easeInOut"
+        ease: 'easeInOut',
       }}
     />
 
@@ -41,7 +42,7 @@ const BackgroundShapes = () => (
       transition={{
         repeat: Infinity,
         duration: 12.5,
-        ease: "easeInOut"
+        ease: 'easeInOut',
       }}
     />
 
@@ -52,12 +53,12 @@ const BackgroundShapes = () => (
         x: [0, -40, 25, -30, 0],
         y: [0, 35, -25, 20, 0],
         scale: [1, 1.15, 0.85, 1.1, 1],
-        rotate: [0, 8, -5, 4, 0]
+        rotate: [0, 8, -5, 4, 0],
       }}
       transition={{
         repeat: Infinity,
         duration: 24,
-        ease: "easeInOut"
+        ease: 'easeInOut',
       }}
     />
 
@@ -71,7 +72,7 @@ const BackgroundShapes = () => (
       transition={{
         repeat: Infinity,
         duration: 16,
-        ease: "easeInOut"
+        ease: 'easeInOut',
       }}
     />
 
@@ -81,12 +82,12 @@ const BackgroundShapes = () => (
       animate={{
         rotate: [45, 110, 25, 90, 45],
         scale: [1, 1.4, 0.85, 1.3, 1],
-        opacity: [0.7, 0.95, 0.5, 0.85, 0.7]
+        opacity: [0.7, 0.95, 0.5, 0.85, 0.7],
       }}
       transition={{
         repeat: Infinity,
         duration: 20,
-        ease: "easeInOut",
+        ease: 'easeInOut',
       }}
     />
 
@@ -100,7 +101,7 @@ const BackgroundShapes = () => (
       transition={{
         repeat: Infinity,
         duration: 14,
-        ease: "easeInOut",
+        ease: 'easeInOut',
       }}
     />
 
@@ -126,7 +127,7 @@ const BackgroundShapes = () => (
           repeat: Infinity,
           duration: Math.random() * 4 + 6,
           delay: Math.random() * 3,
-          ease: "easeInOut"
+          ease: 'easeInOut',
         }}
       />
     ))}
@@ -156,13 +157,14 @@ export const HeroSection = () => (
         >
           <DiscordLogo className="h-12 w-12 text-white" />
         </motion.div>
-        <h1 id="hero-heading" className="mt-8 text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl">
+        <h1
+          id="hero-heading"
+          className="mt-8 text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl"
+        >
           <span className="block">{HERO_CONTENT.mainHeading}</span>
           <span className="block text-brackeys-purple-600 mt-2">{HERO_CONTENT.subHeading}</span>
         </h1>
-        <p className="mt-8 text-xl text-gray-300 max-w-2xl mx-auto">
-          {HERO_CONTENT.description}
-        </p>
+        <p className="mt-8 text-xl text-gray-300 max-w-2xl mx-auto">{HERO_CONTENT.description}</p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full mx-auto">

@@ -6,13 +6,9 @@ export const LayoutProvider = ({ children }: { children: ReactNode }) => {
     showFooter: true,
     showHeader: true,
     containerized: true,
-    mainClassName: "px-4 pt-8",
-    fullHeight: false
+    mainClassName: 'px-4 pt-8',
+    fullHeight: false,
   });
 
-  return (
-    <Provider value={{ layoutProps, setLayoutProps }}>
-      {children}
-    </Provider>
-  );
-}
+  return <Provider value={{ layoutProps, setLayoutProps }}>{children}</Provider>;
+};

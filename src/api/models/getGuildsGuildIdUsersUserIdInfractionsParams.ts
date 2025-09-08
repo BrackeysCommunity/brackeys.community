@@ -7,12 +7,12 @@
  */
 
 export type GetGuildsGuildIdUsersUserIdInfractionsParams = {
-/**
- * Maximum number of results to return
- */
-limit?: string;
-/**
- * Number of results to skip
- */
-offset?: string;
+  /**
+   * Maximum number of results to return
+   */
+  limit?: string;
+  /**
+   * Number of results to skip
+   */
+  offset?: string;
 };

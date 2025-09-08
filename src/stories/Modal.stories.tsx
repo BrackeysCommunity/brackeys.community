@@ -47,15 +47,10 @@ export const Basic: Story = {
           Open Basic Modal
         </Button>
 
-        <Modal
-          isOpen={isOpen}
-          onClose={() => setIsOpen(false)}
-          title="Basic Modal"
-        >
+        <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Basic Modal">
           <div className="py-4">
             <p className="text-gray-300">
-              This is a basic modal with a title and close button.
-              You can put any content here.
+              This is a basic modal with a title and close button. You can put any content here.
             </p>
           </div>
         </Modal>
@@ -160,18 +155,14 @@ export const Sizes: Story = {
     return (
       <>
         <div className="flex flex-wrap gap-3">
-          {sizes.map((size) => (
-            <Button
-              key={size.key}
-              variant="primary"
-              onClick={() => setOpenModal(size.key)}
-            >
+          {sizes.map(size => (
+            <Button key={size.key} variant="primary" onClick={() => setOpenModal(size.key)}>
               {size.label} Modal
             </Button>
           ))}
         </div>
 
-        {sizes.map((size) => (
+        {sizes.map(size => (
           <Modal
             key={size.key}
             isOpen={openModal === size.key}
@@ -181,7 +172,8 @@ export const Sizes: Story = {
           >
             <div className="py-4">
               <p className="text-gray-300">
-                This is a {size.label.toLowerCase()} modal. The content adjusts to the specified maximum width.
+                This is a {size.label.toLowerCase()} modal. The content adjusts to the specified
+                maximum width.
               </p>
               <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-400">
                 Max width: {size.maxWidth}
@@ -279,9 +271,9 @@ export const ScrollableContent: Story = {
 
     const longContent = Array.from({ length: 50 }, (_, i) => (
       <p key={i} className="text-gray-300 mb-3">
-        This is paragraph {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-        Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
-        veniam, quis nostrud exercitation ullamco laboris.
+        This is paragraph {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
+        eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis
+        nostrud exercitation ullamco laboris.
       </p>
     ));
 
@@ -351,9 +343,7 @@ export const DangerModal: Story = {
             <div className="flex items-start gap-3 mb-4">
               <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-white font-medium mb-2">
-                  This action cannot be undone
-                </h4>
+                <h4 className="text-white font-medium mb-2">This action cannot be undone</h4>
                 <p className="text-gray-300">
                   Deleting your account will permanently remove all your data, including projects,
                   settings, and personal information. Make sure you have downloaded any important
@@ -364,8 +354,8 @@ export const DangerModal: Story = {
 
             <div className="bg-red-900/20 border border-red-800 rounded-lg p-3">
               <p className="text-red-200 text-sm">
-                <strong>Warning:</strong> This will delete your account immediately.
-                There is no way to recover your data after this action.
+                <strong>Warning:</strong> This will delete your account immediately. There is no way
+                to recover your data after this action.
               </p>
             </div>
           </div>
@@ -403,12 +393,12 @@ export const NoCloseButton: Story = {
         >
           <div className="py-4">
             <p className="text-gray-300">
-              This modal doesn't have a close button in the header.
-              You must use the action button to close it.
+              This modal doesn't have a close button in the header. You must use the action button
+              to close it.
             </p>
           </div>
         </Modal>
       </>
     );
   },
-}; 
+};

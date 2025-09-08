@@ -29,64 +29,64 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
+} from '@clockworklabs/spacetimedb-sdk';
 
 // Import and reexport all reducer arg types
-import { ClientConnected } from "./client_connected_reducer.ts";
+import { ClientConnected } from './client_connected_reducer.ts';
 export { ClientConnected };
-import { ClientDisconnected } from "./client_disconnected_reducer.ts";
+import { ClientDisconnected } from './client_disconnected_reducer.ts';
 export { ClientDisconnected };
-import { SetDisplayName } from "./set_display_name_reducer.ts";
+import { SetDisplayName } from './set_display_name_reducer.ts';
 export { SetDisplayName };
-import { UpdateCursor } from "./update_cursor_reducer.ts";
+import { UpdateCursor } from './update_cursor_reducer.ts';
 export { UpdateCursor };
-import { UpdateTyping } from "./update_typing_reducer.ts";
+import { UpdateTyping } from './update_typing_reducer.ts';
 export { UpdateTyping };
 
 // Import and reexport all table handle types
-import { LiveTypingTableHandle } from "./live_typing_table.ts";
+import { LiveTypingTableHandle } from './live_typing_table.ts';
 export { LiveTypingTableHandle };
-import { SandboxUserTableHandle } from "./sandbox_user_table.ts";
+import { SandboxUserTableHandle } from './sandbox_user_table.ts';
 export { SandboxUserTableHandle };
 
 // Import and reexport all types
-import { LiveTyping } from "./live_typing_type.ts";
+import { LiveTyping } from './live_typing_type.ts';
 export { LiveTyping };
-import { SandboxUser } from "./sandbox_user_type.ts";
+import { SandboxUser } from './sandbox_user_type.ts';
 export { SandboxUser };
 
 const REMOTE_MODULE = {
   tables: {
     live_typing: {
-      tableName: "live_typing",
+      tableName: 'live_typing',
       rowType: LiveTyping.getTypeScriptAlgebraicType(),
-      primaryKey: "identity",
+      primaryKey: 'identity',
     },
     sandbox_user: {
-      tableName: "sandbox_user",
+      tableName: 'sandbox_user',
       rowType: SandboxUser.getTypeScriptAlgebraicType(),
-      primaryKey: "identity",
+      primaryKey: 'identity',
     },
   },
   reducers: {
     client_connected: {
-      reducerName: "client_connected",
+      reducerName: 'client_connected',
       argsType: ClientConnected.getTypeScriptAlgebraicType(),
     },
     client_disconnected: {
-      reducerName: "client_disconnected",
+      reducerName: 'client_disconnected',
       argsType: ClientDisconnected.getTypeScriptAlgebraicType(),
     },
     set_display_name: {
-      reducerName: "set_display_name",
+      reducerName: 'set_display_name',
       argsType: SetDisplayName.getTypeScriptAlgebraicType(),
     },
     update_cursor: {
-      reducerName: "update_cursor",
+      reducerName: 'update_cursor',
       argsType: UpdateCursor.getTypeScriptAlgebraicType(),
     },
     update_typing: {
-      reducerName: "update_typing",
+      reducerName: 'update_typing',
       argsType: UpdateTyping.getTypeScriptAlgebraicType(),
     },
   },
@@ -100,8 +100,8 @@ const REMOTE_MODULE = {
   eventContextConstructor: (imp: DbConnectionImpl, event: Event<Reducer>) => {
     return {
       ...(imp as DbConnection),
-      event
-    }
+      event,
+    };
   },
   dbViewConstructor: (imp: DbConnectionImpl) => {
     return new RemoteTables(imp);
@@ -111,35 +111,38 @@ const REMOTE_MODULE = {
   },
   setReducerFlagsConstructor: () => {
     return new SetReducerFlags();
-  }
-}
+  },
+};
 
 // A type representing all the possible variants of a reducer.
-export type Reducer = never
-| { name: "ClientConnected", args: ClientConnected }
-| { name: "ClientDisconnected", args: ClientDisconnected }
-| { name: "SetDisplayName", args: SetDisplayName }
-| { name: "UpdateCursor", args: UpdateCursor }
-| { name: "UpdateTyping", args: UpdateTyping }
-;
+export type Reducer =
+  | never
+  | { name: 'ClientConnected'; args: ClientConnected }
+  | { name: 'ClientDisconnected'; args: ClientDisconnected }
+  | { name: 'SetDisplayName'; args: SetDisplayName }
+  | { name: 'UpdateCursor'; args: UpdateCursor }
+  | { name: 'UpdateTyping'; args: UpdateTyping };
 
 export class RemoteReducers {
-  constructor(private connection: DbConnectionImpl, private setCallReducerFlags: SetReducerFlags) {}
+  constructor(
+    private connection: DbConnectionImpl,
+    private setCallReducerFlags: SetReducerFlags
+  ) {}
 
   onClientConnected(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.onReducer("client_connected", callback);
+    this.connection.onReducer('client_connected', callback);
   }
 
   removeOnClientConnected(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.offReducer("client_connected", callback);
+    this.connection.offReducer('client_connected', callback);
   }
 
   onClientDisconnected(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.onReducer("client_disconnected", callback);
+    this.connection.onReducer('client_disconnected', callback);
   }
 
   removeOnClientDisconnected(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.offReducer("client_disconnected", callback);
+    this.connection.offReducer('client_disconnected', callback);
   }
 
   setDisplayName(name: string) {
@@ -147,15 +150,19 @@ export class RemoteReducers {
     let __writer = new BinaryWriter(1024);
     SetDisplayName.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("set_display_name", __argsBuffer, this.setCallReducerFlags.setDisplayNameFlags);
+    this.connection.callReducer(
+      'set_display_name',
+      __argsBuffer,
+      this.setCallReducerFlags.setDisplayNameFlags
+    );
   }
 
   onSetDisplayName(callback: (ctx: ReducerEventContext, name: string) => void) {
-    this.connection.onReducer("set_display_name", callback);
+    this.connection.onReducer('set_display_name', callback);
   }
 
   removeOnSetDisplayName(callback: (ctx: ReducerEventContext, name: string) => void) {
-    this.connection.offReducer("set_display_name", callback);
+    this.connection.offReducer('set_display_name', callback);
   }
 
   updateCursor(x: number, y: number) {
@@ -163,15 +170,19 @@ export class RemoteReducers {
     let __writer = new BinaryWriter(1024);
     UpdateCursor.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("update_cursor", __argsBuffer, this.setCallReducerFlags.updateCursorFlags);
+    this.connection.callReducer(
+      'update_cursor',
+      __argsBuffer,
+      this.setCallReducerFlags.updateCursorFlags
+    );
   }
 
   onUpdateCursor(callback: (ctx: ReducerEventContext, x: number, y: number) => void) {
-    this.connection.onReducer("update_cursor", callback);
+    this.connection.onReducer('update_cursor', callback);
   }
 
   removeOnUpdateCursor(callback: (ctx: ReducerEventContext, x: number, y: number) => void) {
-    this.connection.offReducer("update_cursor", callback);
+    this.connection.offReducer('update_cursor', callback);
   }
 
   updateTyping(text: string, x: number, y: number, selectionStart: number, selectionEnd: number) {
@@ -179,17 +190,38 @@ export class RemoteReducers {
     let __writer = new BinaryWriter(1024);
     UpdateTyping.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("update_typing", __argsBuffer, this.setCallReducerFlags.updateTypingFlags);
+    this.connection.callReducer(
+      'update_typing',
+      __argsBuffer,
+      this.setCallReducerFlags.updateTypingFlags
+    );
   }
 
-  onUpdateTyping(callback: (ctx: ReducerEventContext, text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => void) {
-    this.connection.onReducer("update_typing", callback);
+  onUpdateTyping(
+    callback: (
+      ctx: ReducerEventContext,
+      text: string,
+      x: number,
+      y: number,
+      selectionStart: number,
+      selectionEnd: number
+    ) => void
+  ) {
+    this.connection.onReducer('update_typing', callback);
   }
 
-  removeOnUpdateTyping(callback: (ctx: ReducerEventContext, text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => void) {
-    this.connection.offReducer("update_typing", callback);
+  removeOnUpdateTyping(
+    callback: (
+      ctx: ReducerEventContext,
+      text: string,
+      x: number,
+      y: number,
+      selectionStart: number,
+      selectionEnd: number
+    ) => void
+  ) {
+    this.connection.offReducer('update_typing', callback);
   }
-
 }
 
 export class SetReducerFlags {
@@ -207,33 +239,61 @@ export class SetReducerFlags {
   updateTyping(flags: CallReducerFlags) {
     this.updateTypingFlags = flags;
   }
-
 }
 
 export class RemoteTables {
   constructor(private connection: DbConnectionImpl) {}
 
   get liveTyping(): LiveTypingTableHandle {
-    return new LiveTypingTableHandle(this.connection.clientCache.getOrCreateTable<LiveTyping>(REMOTE_MODULE.tables.live_typing));
+    return new LiveTypingTableHandle(
+      this.connection.clientCache.getOrCreateTable<LiveTyping>(REMOTE_MODULE.tables.live_typing)
+    );
   }
 
   get sandboxUser(): SandboxUserTableHandle {
-    return new SandboxUserTableHandle(this.connection.clientCache.getOrCreateTable<SandboxUser>(REMOTE_MODULE.tables.sandbox_user));
+    return new SandboxUserTableHandle(
+      this.connection.clientCache.getOrCreateTable<SandboxUser>(REMOTE_MODULE.tables.sandbox_user)
+    );
   }
 }
 
-export class SubscriptionBuilder extends SubscriptionBuilderImpl<RemoteTables, RemoteReducers, SetReducerFlags> { }
+export class SubscriptionBuilder extends SubscriptionBuilderImpl<
+  RemoteTables,
+  RemoteReducers,
+  SetReducerFlags
+> {}
 
 export class DbConnection extends DbConnectionImpl<RemoteTables, RemoteReducers, SetReducerFlags> {
-  static builder = (): DbConnectionBuilder<DbConnection, ErrorContext, SubscriptionEventContext> => {
-    return new DbConnectionBuilder<DbConnection, ErrorContext, SubscriptionEventContext>(REMOTE_MODULE, (imp: DbConnectionImpl) => imp as DbConnection);
-  }
+  static builder = (): DbConnectionBuilder<
+    DbConnection,
+    ErrorContext,
+    SubscriptionEventContext
+  > => {
+    return new DbConnectionBuilder<DbConnection, ErrorContext, SubscriptionEventContext>(
+      REMOTE_MODULE,
+      (imp: DbConnectionImpl) => imp as DbConnection
+    );
+  };
   subscriptionBuilder = (): SubscriptionBuilder => {
     return new SubscriptionBuilder(this);
-  }
+  };
 }
 
-export type EventContext = EventContextInterface<RemoteTables, RemoteReducers, SetReducerFlags, Reducer>;
-export type ReducerEventContext = ReducerEventContextInterface<RemoteTables, RemoteReducers, SetReducerFlags, Reducer>;
-export type SubscriptionEventContext = SubscriptionEventContextInterface<RemoteTables, RemoteReducers, SetReducerFlags>;
+export type EventContext = EventContextInterface<
+  RemoteTables,
+  RemoteReducers,
+  SetReducerFlags,
+  Reducer
+>;
+export type ReducerEventContext = ReducerEventContextInterface<
+  RemoteTables,
+  RemoteReducers,
+  SetReducerFlags,
+  Reducer
+>;
+export type SubscriptionEventContext = SubscriptionEventContextInterface<
+  RemoteTables,
+  RemoteReducers,
+  SetReducerFlags
+>;
 export type ErrorContext = ErrorContextInterface<RemoteTables, RemoteReducers, SetReducerFlags>;

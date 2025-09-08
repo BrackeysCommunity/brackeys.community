@@ -3,22 +3,19 @@ import { cn } from '../../lib/utils';
 import { CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { ReactNode } from 'react';
 
-const alertVariants = cva(
-  'flex p-4 rounded-md',
-  {
-    variants: {
-      variant: {
-        success: 'bg-green-900/20 border border-green-800',
-        error: 'bg-red-900/20 border border-red-800',
-        warning: 'bg-yellow-900/20 border border-yellow-800',
-        info: 'bg-blue-900/20 border border-blue-800',
-      },
+const alertVariants = cva('flex p-4 rounded-md', {
+  variants: {
+    variant: {
+      success: 'bg-green-900/20 border border-green-800',
+      error: 'bg-red-900/20 border border-red-800',
+      warning: 'bg-yellow-900/20 border border-yellow-800',
+      info: 'bg-blue-900/20 border border-blue-800',
     },
-    defaultVariants: {
-      variant: 'info',
-    },
-  }
-);
+  },
+  defaultVariants: {
+    variant: 'info',
+  },
+});
 
 const iconVariants = cva('h-5 w-5 shrink-0', {
   variants: {
@@ -84,7 +81,7 @@ export const Alert = ({
   title,
   description,
   children,
-  className
+  className,
 }: AlertProps) => {
   const Icon = getIconComponent(variant!);
 
@@ -94,24 +91,14 @@ export const Alert = ({
         <Icon className={iconVariants({ variant })} />
       </div>
       <div className="ml-3 flex-1">
-        {title && (
-          <h3 className={titleVariants({ variant })}>
-            {title}
-          </h3>
-        )}
+        {title && <h3 className={titleVariants({ variant })}>{title}</h3>}
         {description && (
-          <div className={cn(
-            descriptionVariants({ variant }),
-            title && 'mt-2'
-          )}>
+          <div className={cn(descriptionVariants({ variant }), title && 'mt-2')}>
             <p>{description}</p>
           </div>
         )}
         {children && (
-          <div className={cn(
-            descriptionVariants({ variant }),
-            (title || description) && 'mt-2'
-          )}>
+          <div className={cn(descriptionVariants({ variant }), (title || description) && 'mt-2')}>
             {children}
           </div>
         )}

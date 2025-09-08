@@ -53,7 +53,7 @@ export const Info: Story = {
   args: {
     id: 'info-toast',
     title: 'Information',
-    description: 'Here\'s some useful information for you.',
+    description: "Here's some useful information for you.",
     variant: 'info',
   },
 };
@@ -75,7 +75,7 @@ export const WithAction: Story = {
 export const InteractiveToasts: Story = {
   render: () => {
     const showSuccessToast = () => {
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Success!"
@@ -86,18 +86,13 @@ export const InteractiveToasts: Story = {
     };
 
     const showErrorToast = () => {
-      toast.custom((t) => (
-        <Toast
-          id={t}
-          title="Error"
-          description="Failed to process your request."
-          variant="error"
-        />
+      toast.custom(t => (
+        <Toast id={t} title="Error" description="Failed to process your request." variant="error" />
       ));
     };
 
     const showWarningToast = () => {
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Warning"
@@ -108,7 +103,7 @@ export const InteractiveToasts: Story = {
     };
 
     const showInfoToast = () => {
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Information"
@@ -119,7 +114,7 @@ export const InteractiveToasts: Story = {
     };
 
     const showToastWithAction = () => {
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="File Upload"
@@ -157,8 +152,8 @@ export const InteractiveToasts: Story = {
         <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
           <p className="font-medium mb-1">Note:</p>
           <p>
-            Click the buttons above to see the toasts appear. They will automatically
-            disappear after a few seconds or can be dismissed manually.
+            Click the buttons above to see the toasts appear. They will automatically disappear
+            after a few seconds or can be dismissed manually.
           </p>
         </div>
       </div>
@@ -172,77 +167,83 @@ export const ToastScenarios: Story = {
     const scenarios = [
       {
         label: 'Save Success',
-        action: () => toast.custom((t) => (
-          <Toast
-            id={t}
-            title="Saved"
-            description="Your changes have been saved."
-            variant="success"
-          />
-        )),
+        action: () =>
+          toast.custom(t => (
+            <Toast
+              id={t}
+              title="Saved"
+              description="Your changes have been saved."
+              variant="success"
+            />
+          )),
       },
       {
         label: 'Network Error',
-        action: () => toast.custom((t) => (
-          <Toast
-            id={t}
-            title="Connection Failed"
-            description="Unable to connect to the server. Check your internet connection."
-            variant="error"
-          />
-        )),
+        action: () =>
+          toast.custom(t => (
+            <Toast
+              id={t}
+              title="Connection Failed"
+              description="Unable to connect to the server. Check your internet connection."
+              variant="error"
+            />
+          )),
       },
       {
         label: 'Storage Warning',
-        action: () => toast.custom((t) => (
-          <Toast
-            id={t}
-            title="Storage Almost Full"
-            description="You're running low on storage space."
-            variant="warning"
-            action={{
-              label: 'Manage Storage',
-              onClick: () => alert('Opening storage management...'),
-            }}
-          />
-        )),
+        action: () =>
+          toast.custom(t => (
+            <Toast
+              id={t}
+              title="Storage Almost Full"
+              description="You're running low on storage space."
+              variant="warning"
+              action={{
+                label: 'Manage Storage',
+                onClick: () => alert('Opening storage management...'),
+              }}
+            />
+          )),
       },
       {
         label: 'Feature Update',
-        action: () => toast.custom((t) => (
-          <Toast
-            id={t}
-            title="New Feature Available"
-            description="Check out the latest updates in your dashboard."
-            variant="info"
-            action={{
-              label: 'Learn More',
-              onClick: () => alert('Opening feature guide...'),
-            }}
-          />
-        )),
+        action: () =>
+          toast.custom(t => (
+            <Toast
+              id={t}
+              title="New Feature Available"
+              description="Check out the latest updates in your dashboard."
+              variant="info"
+              action={{
+                label: 'Learn More',
+                onClick: () => alert('Opening feature guide...'),
+              }}
+            />
+          )),
       },
       {
         label: 'Form Validation',
-        action: () => toast.custom((t) => (
-          <Toast
-            id={t}
-            title="Invalid Input"
-            description="Please check the email address format."
-            variant="error"
-          />
-        )),
+        action: () =>
+          toast.custom(t => (
+            <Toast
+              id={t}
+              title="Invalid Input"
+              description="Please check the email address format."
+              variant="error"
+            />
+          )),
       },
       {
         label: 'Copy to Clipboard',
-        action: () => toast.custom((t) => (
-          <Toast
-            id={t}
-            title="Copied!"
-            description="Link copied to clipboard."
-            variant="success"
-          />
-        )),
+        action: () =>
+          toast.custom(t => (
+            <Toast
+              id={t}
+              title="Copied!"
+              description="Link copied to clipboard."
+              variant="success"
+            />
+          )),
       },
     ];
 
@@ -251,12 +252,7 @@ export const ToastScenarios: Story = {
         <h3 className="text-lg font-semibold text-white mb-2">Common Toast Scenarios</h3>
         <div className="grid grid-cols-1 gap-2">
           {scenarios.map((scenario, index) => (
-            <Button
-              key={index}
-              variant="ghost"
-              onClick={scenario.action}
-              className="justify-start"
-            >
+            <Button key={index} variant="ghost" onClick={scenario.action} className="justify-start">
               {scenario.label}
             </Button>
           ))}
@@ -265,8 +261,8 @@ export const ToastScenarios: Story = {
         <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
           <p className="font-medium mb-1">Usage Examples:</p>
           <p>
-            These represent common scenarios where toasts are used in applications
-            for user feedback and notifications.
+            These represent common scenarios where toasts are used in applications for user feedback
+            and notifications.
           </p>
         </div>
       </div>
@@ -287,7 +283,7 @@ export const MultipleToasts: Story = {
 
       toasts.forEach((toastData, index) => {
         setTimeout(() => {
-          toast.custom((t) => (
+          toast.custom(t => (
             <Toast
               id={t}
               title={toastData.title}
@@ -318,11 +314,11 @@ export const MultipleToasts: Story = {
         <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
           <p className="font-medium mb-1">Demo:</p>
           <p>
-            This will show multiple toasts in sequence. You can also dismiss all
-            toasts at once using the Clear All button.
+            This will show multiple toasts in sequence. You can also dismiss all toasts at once
+            using the Clear All button.
           </p>
         </div>
       </div>
     );
   },
-}; 
+};

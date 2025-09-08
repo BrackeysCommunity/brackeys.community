@@ -1,17 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect } from 'react';
 
 interface UseKeyboardShortcutsOptions {
-  canvasRef: React.RefObject<HTMLDivElement | null>
-  isConnected: boolean
-  isTyping: boolean
-  onTypingStart: () => void
+  canvasRef: React.RefObject<HTMLDivElement | null>;
+  isConnected: boolean;
+  isTyping: boolean;
+  onTypingStart: () => void;
 }
 
 export function useKeyboardShortcuts({
   canvasRef,
   isConnected,
   isTyping,
-  onTypingStart
+  onTypingStart,
 }: UseKeyboardShortcutsOptions) {
   useEffect(() => {
     if (!isConnected) {
@@ -25,22 +25,22 @@ export function useKeyboardShortcuts({
       }
 
       if (!isTyping && e.key === '/') {
-        e.preventDefault()
-        e.stopPropagation()
-        onTypingStart()
+        e.preventDefault();
+        e.stopPropagation();
+        onTypingStart();
       }
-    }
+    };
 
     // Listen on document to catch events globally
-    document.addEventListener('keydown', handleKeyDown, true)
+    document.addEventListener('keydown', handleKeyDown, true);
 
     // Also set tabIndex on canvas if it exists
     if (canvasRef.current) {
-      canvasRef.current.tabIndex = 0
+      canvasRef.current.tabIndex = 0;
     }
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true)
-    }
-  }, [canvasRef, isConnected, isTyping, onTypingStart])
-} 
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [canvasRef, isConnected, isTyping, onTypingStart]);
+}

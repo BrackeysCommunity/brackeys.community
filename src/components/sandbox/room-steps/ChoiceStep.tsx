@@ -35,9 +35,11 @@ export const ChoiceStep = ({ onNext }: Pick<StepProps, 'onNext'>) => {
           cardColor="purple"
           colorizeHover
           onClick={() => onNext({ action: 'join' })}
-          icon={<div className="p-3 bg-brackeys-purple-600 rounded-lg group-hover:bg-brackeys-purple-500 transition-colors">
-            <Users className="w-6 h-6 text-white" />
-          </div>}
+          icon={
+            <div className="p-3 bg-brackeys-purple-600 rounded-lg group-hover:bg-brackeys-purple-500 transition-colors">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+          }
           title="Join Room"
           subtitle="Enter an existing room code to collaborate with others"
           fullWidth
@@ -49,9 +51,11 @@ export const ChoiceStep = ({ onNext }: Pick<StepProps, 'onNext'>) => {
           cardColor="green"
           colorizeHover
           onClick={() => onNext({ action: 'create' })}
-          icon={<div className="p-3 bg-green-600 rounded-lg group-hover:bg-green-500 transition-colors">
-            <UserPlus className="w-6 h-6 text-white" />
-          </div>}
+          icon={
+            <div className="p-3 bg-green-600 rounded-lg group-hover:bg-green-500 transition-colors">
+              <UserPlus className="w-6 h-6 text-white" />
+            </div>
+          }
           title="Create Room"
           subtitle="Set up a new room with custom settings and invite others"
           fullWidth
@@ -59,4 +63,4 @@ export const ChoiceStep = ({ onNext }: Pick<StepProps, 'onNext'>) => {
       </div>
     </motion.div>
   );
-}; 
+};

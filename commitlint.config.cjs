@@ -6,7 +6,7 @@ module.exports = {
       'always',
       [
         'web',
-        'api',
+        'hasura',
         'spacetime',
         'deps',
         'release',
@@ -14,12 +14,12 @@ module.exports = {
         'ci',
         'docs',
         // Multi-scope options
-        'web,api',
-        'api,web',
+        'web,hasura',
         'web,spacetime',
+        'hasura,spacetime',
+        'hasura,web',
         'spacetime,web',
-        'api,spacetime',
-        'spacetime,api',
+        'spacetime,hasura',
         '*', // for changes affecting everything
       ],
     ],

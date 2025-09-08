@@ -17,7 +17,7 @@ export const SnakeController = ({
   onTogglePause,
   isPaused,
   isGameOver,
-  currentDirection
+  currentDirection,
 }: GameControlsProps) => {
   const lastDirectionChange = useRef<number>(0);
   const directionDebounceTime = 100;
@@ -88,7 +88,11 @@ export const SnakeController = ({
 
   const handleDirectionClick = (direction: Direction) => {
     const now = Date.now();
-    if (now - lastDirectionChange.current < directionDebounceTime || isDisabled(direction) || isGameOver) {
+    if (
+      now - lastDirectionChange.current < directionDebounceTime ||
+      isDisabled(direction) ||
+      isGameOver
+    ) {
       return;
     }
 
@@ -99,7 +103,6 @@ export const SnakeController = ({
   return (
     <div className="mt-2 w-full">
       <div className="flex items-center justify-between">
-
         <div className="flex space-x-2">
           <button
             className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center"
@@ -122,10 +125,11 @@ export const SnakeController = ({
           <div />
           <div>
             <button
-              className={`w-full p-2 rounded-lg ${isDisabled(Direction.UP)
-                ? 'bg-gray-700 text-gray-500'
-                : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
+              className={`w-full p-2 rounded-lg ${
+                isDisabled(Direction.UP)
+                  ? 'bg-gray-700 text-gray-500'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
               onClick={() => handleDirectionClick(Direction.UP)}
               disabled={isDisabled(Direction.UP) || isGameOver}
               aria-label="Move Up"
@@ -136,10 +140,11 @@ export const SnakeController = ({
           <div />
           <div>
             <button
-              className={`w-full p-2 rounded-lg ${isDisabled(Direction.LEFT)
-                ? 'bg-gray-700 text-gray-500'
-                : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
+              className={`w-full p-2 rounded-lg ${
+                isDisabled(Direction.LEFT)
+                  ? 'bg-gray-700 text-gray-500'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
               onClick={() => handleDirectionClick(Direction.LEFT)}
               disabled={isDisabled(Direction.LEFT) || isGameOver}
               aria-label="Move Left"
@@ -149,10 +154,11 @@ export const SnakeController = ({
           </div>
           <div>
             <button
-              className={`w-full p-2 rounded-lg ${isDisabled(Direction.DOWN)
-                ? 'bg-gray-700 text-gray-500'
-                : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
+              className={`w-full p-2 rounded-lg ${
+                isDisabled(Direction.DOWN)
+                  ? 'bg-gray-700 text-gray-500'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
               onClick={() => handleDirectionClick(Direction.DOWN)}
               disabled={isDisabled(Direction.DOWN) || isGameOver}
               aria-label="Move Down"
@@ -162,10 +168,11 @@ export const SnakeController = ({
           </div>
           <div>
             <button
-              className={`w-full p-2 rounded-lg ${isDisabled(Direction.RIGHT)
-                ? 'bg-gray-700 text-gray-500'
-                : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
+              className={`w-full p-2 rounded-lg ${
+                isDisabled(Direction.RIGHT)
+                  ? 'bg-gray-700 text-gray-500'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
               onClick={() => handleDirectionClick(Direction.RIGHT)}
               disabled={isDisabled(Direction.RIGHT) || isGameOver}
               aria-label="Move Right"

@@ -14,11 +14,11 @@ export const TypeFilter = ({ activeType, setActiveType, typeCounts }: TypeFilter
       y: 0,
       transition: {
         delay: i * 0.1,
-        duration: 0.2
-      }
+        duration: 0.2,
+      },
     }),
     hover: { scale: 1.02 },
-    tap: { scale: 0.98 }
+    tap: { scale: 0.98 },
   };
 
   return (
@@ -27,10 +27,7 @@ export const TypeFilter = ({ activeType, setActiveType, typeCounts }: TypeFilter
         <>
           <DisclosureButton className="w-full px-4 py-3 flex justify-between items-center text-left">
             <h2 className="text-xl font-semibold text-white">Type</h2>
-            <motion.div
-              animate={{ rotate: open ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
-            >
+            <motion.div animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.2 }}>
               <ChevronDown className="h-5 w-5 text-gray-400" />
             </motion.div>
           </DisclosureButton>

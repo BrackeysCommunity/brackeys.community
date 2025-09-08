@@ -7,12 +7,10 @@ type ResourceGridProps = {
   searchQuery: string;
 };
 
-export const ResourceGrid = ({
-  resources,
-  searchQuery
-}: ResourceGridProps) => {
-  const filteredResources = resources.filter((resource) => {
-    const matchesSearch = searchQuery === '' ||
+export const ResourceGrid = ({ resources, searchQuery }: ResourceGridProps) => {
+  const filteredResources = resources.filter(resource => {
+    const matchesSearch =
+      searchQuery === '' ||
       resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       resource.description.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -39,11 +37,11 @@ export const ResourceGrid = ({
           key={resource.id}
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "200px" }}
+          viewport={{ once: true, margin: '200px' }}
           transition={{
             duration: 0.35,
             delay: Math.min(index * 0.05, 0.3),
-            ease: [0.25, 0.1, 0.25, 1.0]
+            ease: [0.25, 0.1, 0.25, 1.0],
           }}
         >
           <ResourceCard resource={resource} />

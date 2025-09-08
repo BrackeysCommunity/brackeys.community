@@ -1,28 +1,24 @@
-import { motion } from 'motion/react'
-import { useMemo, useCallback, useState, useEffect } from 'react'
-import { SandboxCanvas } from '../components/sandbox/SandboxCanvas'
-import { RoomManager } from '../components/sandbox/RoomManager'
-import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider'
-import { SandboxProvider } from '../context/SandboxProvider'
-import { useLayoutProps } from '../context/layoutContext'
-import { useSpacetimeDB } from '../context/spacetimeDBContext'
-import { useDocTitle } from '../hooks/useDocTitle'
-import { useSandbox } from '../context/sandboxContext'
-import { useMessageGroups } from '../hooks/sandbox/useMessageGroups'
-import { useCursorTracking } from '../hooks/sandbox/useCursorTracking'
-import { useKeyboardShortcuts } from '../hooks/sandbox/useKeyboardShortcuts'
-import { useTypingHandlers } from '../hooks/sandbox/useTypingHandlers'
-import { toast } from '../lib/toast'
+import { motion } from 'motion/react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
+import { SandboxCanvas } from '../components/sandbox/SandboxCanvas';
+import { RoomManager } from '../components/sandbox/RoomManager';
+import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider';
+import { SandboxProvider } from '../context/SandboxProvider';
+import { useLayoutProps } from '../context/layoutContext';
+import { useSpacetimeDB } from '../context/spacetimeDBContext';
+import { useDocTitle } from '../hooks/useDocTitle';
+import { useSandbox } from '../context/sandboxContext';
+import { useMessageGroups } from '../hooks/sandbox/useMessageGroups';
+import { useCursorTracking } from '../hooks/sandbox/useCursorTracking';
+import { useKeyboardShortcuts } from '../hooks/sandbox/useKeyboardShortcuts';
+import { useTypingHandlers } from '../hooks/sandbox/useTypingHandlers';
+import { toast } from '../lib/toast';
 
 // Container component handling state and logic
 const SandboxContainer = () => {
-  const [showRoomSettings, setShowRoomSettings] = useState(false)
+  const [showRoomSettings, setShowRoomSettings] = useState(false);
 
-  const {
-    canvasRef,
-    lastCursorPosition,
-    setCursorDefault
-  } = useSandbox()
+  const { canvasRef, lastCursorPosition, setCursorDefault } = useSandbox();
 
   const {
     isConnected,
@@ -33,7 +29,7 @@ const SandboxContainer = () => {
     messages,
     updateCursor,
     dismissMessage,
-  } = useSpacetimeDB()
+  } = useSpacetimeDB();
 
   const {
     isTyping,
@@ -42,12 +38,12 @@ const SandboxContainer = () => {
     handleTypingChange,
     handleSendMessage,
     handleTypingClose,
-    handleMouseMoveWhileTyping
-  } = useTypingHandlers()
+    handleMouseMoveWhileTyping,
+  } = useTypingHandlers();
 
-  const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users])
-  const messageGroups = useMessageGroups(messages)
-  const activeUserCount = users.length
+  const usersMap = useMemo(() => new Map(users.map(u => [u.identity.toHexString(), u])), [users]);
+  const messageGroups = useMessageGroups(messages);
+  const activeUserCount = users.length;
 
   // Cursor tracking with throttling
   useCursorTracking({
@@ -57,19 +53,19 @@ const SandboxContainer = () => {
     isTyping,
     typingText,
     onCursorUpdate: (x, y) => {
-      setCursorDefault()
-      updateCursor(x, y)
+      setCursorDefault();
+      updateCursor(x, y);
     },
-    onMouseMoveWhileTyping: handleMouseMoveWhileTyping
-  })
+    onMouseMoveWhileTyping: handleMouseMoveWhileTyping,
+  });
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
     canvasRef,
     isConnected,
     isTyping,
-    onTypingStart: handleTypingStart
-  })
+    onTypingStart: handleTypingStart,
+  });
 
   // Focus canvas when entering a room and canvas is rendered
   useEffect(() => {
@@ -81,52 +77,71 @@ const SandboxContainer = () => {
     }
   }, [currentRoom, canvasRef, showRoomSettings]);
 
-  const handleDismissGroup = useCallback(async (messageIds: bigint[]) => {
-    try {
-      for (const messageId of messageIds) {
-        await dismissMessage(messageId)
-        await new Promise(resolve => setTimeout(resolve, 100))
+  const handleDismissGroup = useCallback(
+    async (messageIds: bigint[]) => {
+      try {
+        for (const messageId of messageIds) {
+          await dismissMessage(messageId);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error('Failed to dismiss group:', error);
+        toast.error(
+          'Failed to dismiss messages',
+          'There was an error dismissing the message group. Please try again.'
+        );
+      } finally {
+        canvasRef.current?.focus();
       }
-    } catch (error) {
-      console.error('Failed to dismiss group:', error)
-      toast.error('Failed to dismiss messages', 'There was an error dismissing the message group. Please try again.')
-    } finally {
-      canvasRef.current?.focus();
-    }
-  }, [dismissMessage, canvasRef])
+    },
+    [dismissMessage, canvasRef]
+  );
 
-  const handleDismissMessage = useCallback(async (messageId: bigint) => {
-    try {
-      await dismissMessage(messageId);
-    } catch (error) {
-      console.error('Failed to dismiss message:', error)
-      toast.error('Failed to dismiss message', 'There was an error dismissing the message. Please try again.')
-    } finally {
-      canvasRef.current?.focus();
-    }
-  }, [dismissMessage, canvasRef])
+  const handleDismissMessage = useCallback(
+    async (messageId: bigint) => {
+      try {
+        await dismissMessage(messageId);
+      } catch (error) {
+        console.error('Failed to dismiss message:', error);
+        toast.error(
+          'Failed to dismiss message',
+          'There was an error dismissing the message. Please try again.'
+        );
+      } finally {
+        canvasRef.current?.focus();
+      }
+    },
+    [dismissMessage, canvasRef]
+  );
 
   // Override handleSendMessage to check if messages are enabled
-  const handleSendMessageWithCheck = useCallback((text: string, x: number, y: number) => {
-    if (!currentRoom?.messagesEnabled) {
-      // Clear typing if messages are disabled
-      handleTypingClose()
-      return
-    }
-    handleSendMessage(text, x, y)
-  }, [currentRoom?.messagesEnabled, handleSendMessage, handleTypingClose])
+  const handleSendMessageWithCheck = useCallback(
+    (text: string, x: number, y: number) => {
+      if (!currentRoom?.messagesEnabled) {
+        // Clear typing if messages are disabled
+        handleTypingClose();
+        return;
+      }
+      handleSendMessage(text, x, y);
+    },
+    [currentRoom?.messagesEnabled, handleSendMessage, handleTypingClose]
+  );
 
   // Show room manager if user is not in a room or showing room settings
   if (!currentRoom || showRoomSettings) {
     return (
       <div className="flex flex-col grow bg-gray-900 overflow-hidden relative">
         <RoomManager
-          onClose={showRoomSettings ? () => {
-            setShowRoomSettings(false);
-          } : undefined}
+          onClose={
+            showRoomSettings
+              ? () => {
+                  setShowRoomSettings(false);
+                }
+              : undefined
+          }
         />
       </div>
-    )
+    );
   }
 
   return (
@@ -159,18 +174,18 @@ const SandboxContainer = () => {
         />
       </motion.div>
     </div>
-  )
-}
+  );
+};
 
 export const Sandbox = () => {
   useLayoutProps({
     showFooter: false,
     containerized: false,
-    mainClassName: "flex h-full overflow-hidden",
-    fullHeight: true
-  })
+    mainClassName: 'flex h-full overflow-hidden',
+    fullHeight: true,
+  });
 
-  useDocTitle('Sandbox - Brackeys Community')
+  useDocTitle('Sandbox - Brackeys Community');
 
   return (
     <SpacetimeDBProvider>
@@ -178,5 +193,5 @@ export const Sandbox = () => {
         <SandboxContainer />
       </SandboxProvider>
     </SpacetimeDBProvider>
-  )
-}
+  );
+};

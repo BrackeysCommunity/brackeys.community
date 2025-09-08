@@ -18,14 +18,13 @@ export const TagFilter = ({ activeTag, setActiveTag, tagCounts }: TagFilterProps
       y: 0,
       transition: {
         delay: 0.05 * index,
-        duration: 0.2
-      }
+        duration: 0.2,
+      },
     }),
     hover: { scale: 1.03 },
-    tap: { scale: 0.97 }
+    tap: { scale: 0.97 },
   };
-  const visibleTags = Object.entries(tagCounts)
-    .filter(([tag]) => tag !== 'all');
+  const visibleTags = Object.entries(tagCounts).filter(([tag]) => tag !== 'all');
 
   useEffect(() => {
     if (activeTag !== 'all') {
@@ -59,10 +58,7 @@ export const TagFilter = ({ activeTag, setActiveTag, tagCounts }: TagFilterProps
               <>
                 <DisclosureButton className="w-full px-4 py-3 flex justify-between items-center text-left">
                   <h2 className="text-xl font-semibold text-white">Tags</h2>
-                  <motion.div
-                    animate={{ rotate: open ? 0 : -90 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                  <motion.div animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.2 }}>
                     <ChevronDown className="h-5 w-5 text-gray-400" />
                   </motion.div>
                 </DisclosureButton>
@@ -112,8 +108,7 @@ export const TagFilter = ({ activeTag, setActiveTag, tagCounts }: TagFilterProps
                               />
                             </motion.div>
                           );
-                        })
-                      }
+                        })}
                     </AnimatePresence>
                   </div>
                 </DisclosurePanel>

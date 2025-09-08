@@ -21,7 +21,8 @@ export const MessageBubble = ({
   onDismiss,
 }: MessageBubbleProps) => {
   const isOwnMessage = currentUserId === message.senderIdentity.toHexString();
-  const { setCursorInteractive, setCursorDefault, hoveredElementId, setHoveredElement } = useSandbox();
+  const { setCursorInteractive, setCursorDefault, hoveredElementId, setHoveredElement } =
+    useSandbox();
   const messageId = message.id.toString();
   const isThisMessageHovered = hoveredElementId === messageId;
 

@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { Button } from '../ui';
 
 const BUTTON_CONTENT = {
-  exploreCommunity: "Explore Community"
+  exploreCommunity: 'Explore Community',
 };
 
 const CtaBackgroundAnimation = () => {
@@ -19,15 +19,15 @@ const CtaBackgroundAnimation = () => {
           fill="url(#ctaGradient1)"
           animate={{
             d: [
-              "M0,100 C300,180 500,0 1200,100 L1200,600 L0,600 Z",
-              "M0,150 C400,20 800,200 1200,80 L1200,600 L0,600 Z",
-              "M0,100 C300,180 500,0 1200,100 L1200,600 L0,600 Z"
-            ]
+              'M0,100 C300,180 500,0 1200,100 L1200,600 L0,600 Z',
+              'M0,150 C400,20 800,200 1200,80 L1200,600 L0,600 Z',
+              'M0,100 C300,180 500,0 1200,100 L1200,600 L0,600 Z',
+            ],
           }}
           transition={{
             repeat: Infinity,
             duration: 20,
-            ease: "easeInOut"
+            ease: 'easeInOut',
           }}
         />
         <defs>
@@ -50,15 +50,15 @@ const CtaBackgroundAnimation = () => {
           fill="url(#ctaGradient2)"
           animate={{
             d: [
-              "M0,50 C250,150 700,0 1200,80 L1200,600 L0,600 Z",
-              "M0,120 C500,-50 900,200 1200,30 L1200,600 L0,600 Z",
-              "M0,50 C250,150 700,0 1200,80 L1200,600 L0,600 Z"
-            ]
+              'M0,50 C250,150 700,0 1200,80 L1200,600 L0,600 Z',
+              'M0,120 C500,-50 900,200 1200,30 L1200,600 L0,600 Z',
+              'M0,50 C250,150 700,0 1200,80 L1200,600 L0,600 Z',
+            ],
           }}
           transition={{
             repeat: Infinity,
             duration: 15,
-            ease: "easeInOut"
+            ease: 'easeInOut',
           }}
         />
         <defs>
@@ -81,15 +81,15 @@ const CtaBackgroundAnimation = () => {
           fill="url(#ctaGradient3)"
           animate={{
             d: [
-              "M0,20 C350,180 650,-50 1200,20 L1200,600 L0,600 Z",
-              "M0,80 C200,-100 800,220 1200,0 L1200,600 L0,600 Z",
-              "M0,20 C350,180 650,-50 1200,20 L1200,600 L0,600 Z"
-            ]
+              'M0,20 C350,180 650,-50 1200,20 L1200,600 L0,600 Z',
+              'M0,80 C200,-100 800,220 1200,0 L1200,600 L0,600 Z',
+              'M0,20 C350,180 650,-50 1200,20 L1200,600 L0,600 Z',
+            ],
           }}
           transition={{
             repeat: Infinity,
             duration: 12,
-            ease: "easeInOut"
+            ease: 'easeInOut',
           }}
         />
         <defs>
@@ -118,18 +118,18 @@ const CtaBackgroundAnimation = () => {
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
             filter: 'blur(0.5px)',
-            boxShadow: '0 0 3px 1px rgba(255, 255, 255, 0.3)'
+            boxShadow: '0 0 3px 1px rgba(255, 255, 255, 0.3)',
           }}
           animate={{
             y: [0, -20, 0],
             opacity: [0, i % 3 === 0 ? 0.7 : 0.4, 0],
-            scale: [1, 1.2, 1]
+            scale: [1, 1.2, 1],
           }}
           transition={{
             repeat: Infinity,
             duration: Math.random() * 5 + 5,
             delay: Math.random() * 8,
-            ease: "easeInOut"
+            ease: 'easeInOut',
           }}
         />
       ))}
@@ -146,21 +146,24 @@ const CtaBackgroundAnimation = () => {
             top: `${Math.random() * 100}%`,
             backgroundColor: i === 0 ? '#a78bfa' : i === 1 ? '#93c5fd' : '#fde68a',
             filter: 'blur(1px)',
-            boxShadow: i === 0 ? '0 0 6px 2px rgba(167, 139, 250, 0.3)' :
-              i === 1 ? '0 0 6px 2px rgba(147, 197, 253, 0.3)' :
-                '0 0 6px 2px rgba(253, 230, 138, 0.3)'
+            boxShadow:
+              i === 0
+                ? '0 0 6px 2px rgba(167, 139, 250, 0.3)'
+                : i === 1
+                  ? '0 0 6px 2px rgba(147, 197, 253, 0.3)'
+                  : '0 0 6px 2px rgba(253, 230, 138, 0.3)',
           }}
           animate={{
             y: [0, -30, 0],
             x: [0, i % 2 === 0 ? 15 : -15, 0],
             opacity: [0, 0.5, 0],
-            scale: [1, 1.3, 1]
+            scale: [1, 1.3, 1],
           }}
           transition={{
             repeat: Infinity,
             duration: 12 + i * 4,
             delay: i * 3,
-            ease: "easeInOut"
+            ease: 'easeInOut',
           }}
         />
       ))}
@@ -181,13 +184,10 @@ export const CtaSection = () => {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        viewport={{ once: true, margin: "-100px" }}
+        viewport={{ once: true, margin: '-100px' }}
         className="max-w-4xl w-full mx-auto text-center space-y-8 relative z-10"
       >
-        <h2
-          id="cta-heading"
-          className="text-3xl font-bold text-white"
-        >
+        <h2 id="cta-heading" className="text-3xl font-bold text-white">
           Ready to join our developer community?
         </h2>
         <p className="text-xl text-gray-300 max-w-2xl mx-auto">

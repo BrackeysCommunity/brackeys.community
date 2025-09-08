@@ -1,21 +1,13 @@
 {
-    "plugins": [],
-    "scripts": [
-        "@phaserjs/editor-scripts-base"
-    ],
-    "skip": [
-        "dist",
-        "node_modules",
-        ".git"
-    ],
-    "playUrl": "http://localhost:5173",
-    "libraries": [
-        "node_modules/phaser/dist/phaser.js"
-    ],
-    "typescript": {
-        "enabled": true,
-        "outputLanguage": "TYPE_SCRIPT"
-    },
-    "outputFolder": "src/scenes/platformer",
-    "contentFolder": "src/scenes/platformer"
+  "plugins": [],
+  "scripts": ["@phaserjs/editor-scripts-base"],
+  "skip": ["dist", "node_modules", ".git"],
+  "playUrl": "http://localhost:5173",
+  "libraries": ["node_modules/phaser/dist/phaser.js"],
+  "typescript": {
+    "enabled": true,
+    "outputLanguage": "TYPE_SCRIPT"
+  },
+  "outputFolder": "src/scenes/platformer",
+  "contentFolder": "src/scenes/platformer"
 }

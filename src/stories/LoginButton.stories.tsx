@@ -9,7 +9,7 @@ const meta = {
   },
   tags: ['autodocs'],
   decorators: [
-    (Story) => (
+    Story => (
       <div className="w-80">
         <Story />
       </div>
@@ -33,9 +33,7 @@ export const WithCustomClass: Story = {
 export const InContext: Story = {
   render: () => (
     <div className="bg-gray-800 p-8 rounded-lg space-y-4">
-      <h2 className="text-white text-center text-xl font-semibold mb-4">
-        Welcome Back!
-      </h2>
+      <h2 className="text-white text-center text-xl font-semibold mb-4">Welcome Back!</h2>
       <p className="text-gray-300 text-center text-sm mb-6">
         Sign in to access your dashboard and community features
       </p>

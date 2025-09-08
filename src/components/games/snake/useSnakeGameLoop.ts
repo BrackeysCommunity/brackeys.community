@@ -112,17 +112,22 @@ export const useSnakeGameLoop = () => {
     }
   }, [isGameOver]);
 
-  const handleDirectionChange = useCallback((newDirection: Direction) => {
-    if (
-      isPaused || isGameOver ||
-      (newDirection === Direction.UP && directionRef.current === Direction.DOWN) ||
-      (newDirection === Direction.DOWN && directionRef.current === Direction.UP) ||
-      (newDirection === Direction.LEFT && directionRef.current === Direction.RIGHT) ||
-      (newDirection === Direction.RIGHT && directionRef.current === Direction.LEFT)
-    ) return;
+  const handleDirectionChange = useCallback(
+    (newDirection: Direction) => {
+      if (
+        isPaused ||
+        isGameOver ||
+        (newDirection === Direction.UP && directionRef.current === Direction.DOWN) ||
+        (newDirection === Direction.DOWN && directionRef.current === Direction.UP) ||
+        (newDirection === Direction.LEFT && directionRef.current === Direction.RIGHT) ||
+        (newDirection === Direction.RIGHT && directionRef.current === Direction.LEFT)
+      )
+        return;
 
-    setDirection(newDirection);
-  }, [isPaused, isGameOver]);
+      setDirection(newDirection);
+    },
+    [isPaused, isGameOver]
+  );
 
   return {
     snake,

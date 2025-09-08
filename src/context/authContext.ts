@@ -1,4 +1,4 @@
-import { createContext } from "react";
+import { createContext } from 'react';
 
 export type User = {
   id: string;
@@ -43,11 +43,21 @@ export type AuthState = {
 
 export type AuthAction =
   | { type: 'LOGIN_START' }
-  | { type: 'LOGIN_SUCCESS'; payload: { user: User; discordMemberData?: DiscordGuildMemberData; hasuraClaims?: HasuraClaims } }
+  | {
+      type: 'LOGIN_SUCCESS';
+      payload: {
+        user: User;
+        discordMemberData?: DiscordGuildMemberData;
+        hasuraClaims?: HasuraClaims;
+      };
+    }
   | { type: 'LOGIN_FAILURE'; payload: string; error?: unknown }
   | { type: 'LOGOUT' }
   | { type: 'CLEAR_ERROR' }
-  | { type: 'UPDATE_DISCORD_DATA'; payload: { discordMemberData: DiscordGuildMemberData; hasuraClaims: HasuraClaims } };
+  | {
+      type: 'UPDATE_DISCORD_DATA';
+      payload: { discordMemberData: DiscordGuildMemberData; hasuraClaims: HasuraClaims };
+    };
 
 export const authInitialState: AuthState = {
   isLoading: true,
@@ -61,6 +71,6 @@ export const AuthContext = createContext<{
 }>({
   state: authInitialState,
   dispatch: () => null,
-  signInWithDiscord: async () => { },
-  signOut: async () => { },
+  signInWithDiscord: async () => {},
+  signOut: async () => {},
 });

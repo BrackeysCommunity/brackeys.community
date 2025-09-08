@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useTimeout } from "usehooks-ts";
+import { useState } from 'react';
+import { useTimeout } from 'usehooks-ts';
 
 /**
  * Returns true after a short delay to prevent hydration errors

@@ -2,13 +2,23 @@ import { ComponentType } from 'react';
 
 export type GameGenre = 'action' | 'puzzle' | 'adventure' | 'simulation' | 'strategy' | 'survival';
 
-export type ToolCategory = 'game-development' | 'graphics-art' | 'code-editors' | 'development-tools' | 'project-management';
+export type ToolCategory =
+  | 'game-development'
+  | 'graphics-art'
+  | 'code-editors'
+  | 'development-tools'
+  | 'project-management';
 
 export type ResourceCategory = GameGenre | ToolCategory;
 
 export type ResourceType = 'game' | 'tool';
 
-export type ResourceTag = 'community-made' | 'popular' | 'free' | 'open-source' | 'beginner-friendly';
+export type ResourceTag =
+  | 'community-made'
+  | 'popular'
+  | 'free'
+  | 'open-source'
+  | 'beginner-friendly';
 
 export type ResourceItem = {
   id: string;

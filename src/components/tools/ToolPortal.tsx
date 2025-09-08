@@ -10,25 +10,15 @@ type ToolPortalProps = {
   children: React.ReactNode;
 };
 
-export const ToolPortal = ({
-  toolName,
-  toolUrl,
-  onExitFullscreen,
-  children
-}: ToolPortalProps) => {
+export const ToolPortal = ({ toolName, toolUrl, onExitFullscreen, children }: ToolPortalProps) => {
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-gray-900">
       <div className="bg-gray-800 p-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-4">
-          <Link
-            to="/tools"
-            className="text-gray-400 hover:text-gray-300 transition-colors"
-          >
+          <Link to="/tools" className="text-gray-400 hover:text-gray-300 transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-bold text-white">
-            {toolName}
-          </h1>
+          <h1 className="text-xl font-bold text-white">{toolName}</h1>
         </div>
         <div className="flex gap-2">
           <Button
@@ -53,9 +43,7 @@ export const ToolPortal = ({
           )}
         </div>
       </div>
-      <div className="flex-1 relative">
-        {children}
-      </div>
+      <div className="flex-1 relative">{children}</div>
     </div>,
     document.body
   );

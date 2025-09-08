@@ -1,7 +1,15 @@
 import { useReducer, useEffect, PropsWithChildren, Dispatch } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { AuthState, AuthAction, User, AuthContext, authInitialState, DiscordGuildMemberData, HasuraClaims } from './authContext';
+import {
+  AuthState,
+  AuthAction,
+  User,
+  AuthContext,
+  authInitialState,
+  DiscordGuildMemberData,
+  HasuraClaims,
+} from './authContext';
 import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 
@@ -16,25 +24,31 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         user: action.payload.user,
         discordMemberData: action.payload.discordMemberData,
         hasuraClaims: action.payload.hasuraClaims,
-        error: undefined
+        error: undefined,
       };
     case 'LOGIN_FAILURE':
       console.error(action.payload, action.error);
       return { ...state, isLoading: false, error: action.payload };
     case 'LOGOUT':
-      return { ...state, user: undefined, discordMemberData: undefined, hasuraClaims: undefined, isLoading: false };
+      return {
+        ...state,
+        user: undefined,
+        discordMemberData: undefined,
+        hasuraClaims: undefined,
+        isLoading: false,
+      };
     case 'CLEAR_ERROR':
       return { ...state, error: undefined };
     case 'UPDATE_DISCORD_DATA':
       return {
         ...state,
         discordMemberData: action.payload.discordMemberData,
-        hasuraClaims: action.payload.hasuraClaims
+        hasuraClaims: action.payload.hasuraClaims,
       };
     default:
       return state;
   }
-}
+};
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [state, dispatch] = useReducer(authReducer, authInitialState);
@@ -45,32 +59,42 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       try {
         dispatch({ type: 'LOGIN_START' });
 
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
         if (error) {
           throw error;
         }
         if (session) {
           const userData = mapSessionToUser(session);
-          updateDiscordProviderDataAndDispatchSuccess(session, userData, dispatch, discordMemberData);
+          updateDiscordProviderDataAndDispatchSuccess(
+            session,
+            userData,
+            dispatch,
+            discordMemberData
+          );
         } else {
           dispatch({ type: 'LOGOUT' });
         }
-      } catch (error) { dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to authenticate', error: error }) }
+      } catch (error) {
+        dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to authenticate', error: error });
+      }
     };
 
     fetchInitialSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          const userData = mapSessionToUser(session);
-          updateDiscordProviderDataAndDispatchSuccess(session, userData, dispatch, discordMemberData);
-        } else if (event === 'SIGNED_OUT') {
-          dispatch({ type: 'LOGOUT' });
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        const userData = mapSessionToUser(session);
+        updateDiscordProviderDataAndDispatchSuccess(session, userData, dispatch, discordMemberData);
+      } else if (event === 'SIGNED_OUT') {
+        dispatch({ type: 'LOGOUT' });
       }
-    );
+    });
 
     return () => {
       subscription.unsubscribe();
@@ -110,7 +134,9 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       if (error) {
         throw error;
       }
-    } catch (error) { dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to sign in with Discord', error: error }) }
+    } catch (error) {
+      dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to sign in with Discord', error: error });
+    }
   };
 
   const signOut = async () => {
@@ -123,7 +149,9 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       }
 
       dispatch({ type: 'LOGOUT' });
-    } catch (error) { dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to sign out', error: error }) }
+    } catch (error) {
+      dispatch({ type: 'LOGIN_FAILURE', payload: 'Failed to sign out', error: error });
+    }
   };
 
   return (
@@ -140,42 +168,46 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
-const useDiscordGuildMemberData = (loading?: boolean) => useQuery({
-  queryKey: ['discord-guild-member-data'],
-  queryFn: async () => {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    const guildId = import.meta.env.VITE_BRACKEYS_GUILD_ID;
+const useDiscordGuildMemberData = (loading?: boolean) =>
+  useQuery({
+    queryKey: ['discord-guild-member-data'],
+    queryFn: async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+      const guildId = import.meta.env.VITE_BRACKEYS_GUILD_ID;
 
-    if (error) throw error;
-    if (!guildId) throw new Error('VITE_BRACKEYS_GUILD_ID is not set in environment variables');
-    if (!session?.provider_token) throw new Error('Access token is required');
+      if (error) throw error;
+      if (!guildId) throw new Error('VITE_BRACKEYS_GUILD_ID is not set in environment variables');
+      if (!session?.provider_token) throw new Error('Access token is required');
 
-    const response = await axios.get<DiscordGuildMemberData>(
-      `https://discord.com/api/users/@me/guilds/${guildId}/member`,
-      {
-        headers: {
-          Authorization: `Bearer ${session?.provider_token}`,
-        },
+      const response = await axios.get<DiscordGuildMemberData>(
+        `https://discord.com/api/users/@me/guilds/${guildId}/member`,
+        {
+          headers: {
+            Authorization: `Bearer ${session?.provider_token}`,
+          },
+        }
+      );
+
+      if (response.status !== 200) {
+        throw new Error(`Discord API error: ${response.status} ${response.statusText}`);
       }
-    );
 
-    if (response.status !== 200) {
-      throw new Error(`Discord API error: ${response.status} ${response.statusText}`);
-    }
-
-    return response.data;
-  },
-  enabled: !loading,
-  retry: false,
-  staleTime: 1 * 60 * 60000, // 1 hour
-});
+      return response.data;
+    },
+    enabled: !loading,
+    retry: false,
+    staleTime: 1 * 60 * 60000, // 1 hour
+  });
 
 const discordRoleMap: Record<string, string> = {
-  'brackeys': '491536338525356042',
-  'admin': '451380371284557824',
-  'staff': '756285704061059213',
-  'moderator': '756178968901582859',
-}
+  brackeys: '491536338525356042',
+  admin: '451380371284557824',
+  staff: '756285704061059213',
+  moderator: '756178968901582859',
+};
 
 const generateHasuraClaims = (discordRoles: string[] = []): HasuraClaims => {
   const allowedRoles = Object.keys(discordRoleMap).filter(roleName =>
@@ -191,7 +223,12 @@ const generateHasuraClaims = (discordRoles: string[] = []): HasuraClaims => {
   };
 };
 
-const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, user: User, dispatch: Dispatch<AuthAction>, discordMemberData?: DiscordGuildMemberData) => {
+const updateDiscordProviderDataAndDispatchSuccess = async (
+  session: Session,
+  user: User,
+  dispatch: Dispatch<AuthAction>,
+  discordMemberData?: DiscordGuildMemberData
+) => {
   const guildId = import.meta.env.VITE_BRACKEYS_GUILD_ID;
   let hasuraClaims: HasuraClaims | undefined;
 
@@ -204,7 +241,7 @@ const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, use
         if (discordMemberData.avatar) {
           user = {
             ...user,
-            avatar_url: `https://cdn.discordapp.com/guilds/${guildId}/users/${user.discord_id}/avatars/${discordMemberData.avatar}.webp?size=160`
+            avatar_url: `https://cdn.discordapp.com/guilds/${guildId}/users/${user.discord_id}/avatars/${discordMemberData.avatar}.webp?size=160`,
           };
         }
       }
@@ -224,7 +261,7 @@ const updateDiscordProviderDataAndDispatchSuccess = async (session: Session, use
     payload: {
       user,
       discordMemberData,
-      hasuraClaims
-    }
+      hasuraClaims,
+    },
   });
-}
+};

@@ -11,7 +11,7 @@ type RecentActivityItem = {
   description: string;
   channel?: string;
   time: string;
-}
+};
 
 const recentActivity: RecentActivityItem[] = [
   { id: 1, action: 'Infraction', description: 'Spamming', time: '2 hours ago' },
@@ -23,7 +23,9 @@ const recentActivity: RecentActivityItem[] = [
 const infractionCount = recentActivity.filter(activity => activity.action === 'Infraction').length;
 
 const DashboardContent = () => {
-  const { state: { user } } = useAuth();
+  const {
+    state: { user },
+  } = useAuth();
 
   useEffect(() => {
     document.title = 'Dashboard - Brackeys Community';
@@ -40,9 +42,7 @@ const DashboardContent = () => {
         <h1 className="text-3xl font-bold text-white mb-2">
           Welcome back, {user?.full_name || user?.username}!
         </h1>
-        <p className="text-gray-400">
-          Here's your Brackeys Community dashboard
-        </p>
+        <p className="text-gray-400">Here's your Brackeys Community dashboard</p>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -96,13 +96,17 @@ const DashboardContent = () => {
               <Activity className="h-5 w-5 text-brackeys-purple-400" />
             </div>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {recentActivity.map((activity) => (
+              {recentActivity.map(activity => (
                 <div key={activity.id} className="bg-gray-900/50 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className={cn(
-                      "text-sm font-medium",
-                      activity.action === "Infraction" ? "text-red-400" : "text-brackeys-purple-400"
-                    )}>
+                    <span
+                      className={cn(
+                        'text-sm font-medium',
+                        activity.action === 'Infraction'
+                          ? 'text-red-400'
+                          : 'text-brackeys-purple-400'
+                      )}
+                    >
                       {activity.action}
                     </span>
                     <span className="text-xs text-gray-500">{activity.time}</span>
@@ -110,10 +114,13 @@ const DashboardContent = () => {
                   <p className="text-sm text-gray-300">{activity.description}</p>
                   {activity.channel && (
                     <p className="text-xs text-gray-500 mt-1">
-                      in <a href={`https://discord.com/channels/243005537342586880/433649136370450462`}
+                      in{' '}
+                      <a
+                        href={`https://discord.com/channels/243005537342586880/433649136370450462`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-brackeys-purple-400 hover:underline">
+                        className="text-brackeys-purple-400 hover:underline"
+                      >
                         {activity.channel}
                       </a>
                     </p>
@@ -155,9 +162,7 @@ const DashboardContent = () => {
                 <h3 className="text-lg font-semibold text-white">
                   {user?.username || 'Discord User'}
                 </h3>
-                <p className="text-sm text-gray-400">
-                  {user?.full_name || 'Global name not set'}
-                </p>
+                <p className="text-sm text-gray-400">{user?.full_name || 'Global name not set'}</p>
               </div>
             </div>
 
@@ -170,9 +175,7 @@ const DashboardContent = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-900/50 rounded-lg p-3">
                   <p className="text-xs text-gray-400 mb-1">User ID</p>
-                  <p className="text-sm text-gray-300 font-mono">
-                    {user?.id.substring(0, 8)}...
-                  </p>
+                  <p className="text-sm text-gray-300 font-mono">{user?.id.substring(0, 8)}...</p>
                 </div>
 
                 <div className="bg-gray-900/50 rounded-lg p-3">

@@ -1,4 +1,4 @@
-import { DiscordLogo } from "../icons/DiscordLogo";
+import { DiscordLogo } from '../icons/DiscordLogo';
 
 export const Footer = () => (
   <footer className="bg-gray-900 border-t border-gray-800 py-6">

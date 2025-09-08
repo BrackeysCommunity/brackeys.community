@@ -9,7 +9,7 @@ import {
   Wrench,
   Star,
   Tag,
-  Users
+  Users,
 } from 'lucide-react';
 import { ResourceCategory, ResourceItem, CategoryInfo, TagInfo, ResourceTag } from './types';
 
@@ -44,7 +44,8 @@ export const resources: ResourceItem[] = [
   {
     id: 'guardians-chaos',
     title: 'Guardians of Chaos',
-    description: 'Defend the wizards tower from monsters in an exciting retro-style tower-defense bullet-hell!',
+    description:
+      'Defend the wizards tower from monsters in an exciting retro-style tower-defense bullet-hell!',
     imageUrl: 'https://qntn.be/img/portfolio/ItCBjo.gif',
     categories: ['survival', 'strategy'],
     type: 'game',
@@ -57,7 +58,8 @@ export const resources: ResourceItem[] = [
   {
     id: 'lighthouse-shepard',
     title: 'Lighthouse - The Storm Shepard',
-    description: 'Lead your armies to victory through strategic planning and tactical battlefield decisions.',
+    description:
+      'Lead your armies to victory through strategic planning and tactical battlefield decisions.',
     imageUrl: 'https://qntn.be/img/portfolio/b8F72I.gif',
     categories: ['strategy'],
     type: 'game',
@@ -164,7 +166,7 @@ export const resources: ResourceItem[] = [
     categories: ['project-management'],
     type: 'tool',
     tags: ['free'],
-    resourceUrl: new URL('https://linear.com')
+    resourceUrl: new URL('https://linear.com'),
   },
   {
     id: 'visual-studio',
@@ -191,95 +193,95 @@ export const categoryInfo: Record<ResourceCategory, CategoryInfo> = {
     label: 'Action',
     icon: Swords,
     color: 'text-red-500',
-    type: 'game'
+    type: 'game',
   },
   puzzle: {
     label: 'Puzzle',
     icon: Brain,
     color: 'text-blue-500',
-    type: 'game'
+    type: 'game',
   },
   adventure: {
     label: 'Adventure',
     icon: WholeWord,
     color: 'text-brackeys-purple-600',
-    type: 'game'
+    type: 'game',
   },
   simulation: {
     label: 'Simulation',
     icon: Building,
     color: 'text-green-500',
-    type: 'game'
+    type: 'game',
   },
   strategy: {
     label: 'Strategy',
     icon: Trophy,
     color: 'text-yellow-500',
-    type: 'game'
+    type: 'game',
   },
   survival: {
     label: 'Survival',
     icon: Skull,
     color: 'text-brackeys-fuscia',
-    type: 'game'
+    type: 'game',
   },
 
   'game-development': {
     label: 'Game Development',
     icon: Gamepad2,
     color: 'text-teal-500',
-    type: 'tool'
+    type: 'tool',
   },
   'graphics-art': {
     label: 'Graphics & Art',
     icon: WholeWord,
     color: 'text-pink-500',
-    type: 'tool'
+    type: 'tool',
   },
   'code-editors': {
     label: 'Code Editors',
     icon: Wrench,
     color: 'text-indigo-500',
-    type: 'tool'
+    type: 'tool',
   },
   'development-tools': {
     label: 'Development Tools',
     icon: Wrench,
     color: 'text-orange-500',
-    type: 'tool'
+    type: 'tool',
   },
   'project-management': {
     label: 'Project Management',
     icon: Building,
     color: 'text-cyan-500',
-    type: 'tool'
-  }
+    type: 'tool',
+  },
 };
 
 export const tagInfo: Record<ResourceTag, TagInfo> = {
   'community-made': {
     label: 'Community Made',
     icon: Users,
-    color: 'text-brackeys-fuscia bg-brackeys-purple-500/20'
+    color: 'text-brackeys-fuscia bg-brackeys-purple-500/20',
   },
-  'popular': {
+  popular: {
     label: 'Popular',
     icon: Star,
-    color: 'text-yellow-400 bg-yellow-500/20'
+    color: 'text-yellow-400 bg-yellow-500/20',
   },
-  'free': {
+  free: {
     label: 'Free',
     icon: Tag,
-    color: 'text-green-400 bg-green-500/20'
+    color: 'text-green-400 bg-green-500/20',
   },
   'open-source': {
     label: 'Open Source',
     icon: Tag,
-    color: 'text-blue-400 bg-blue-500/20'
+    color: 'text-blue-400 bg-blue-500/20',
   },
   'beginner-friendly': {
     label: 'Beginner Friendly',
     icon: Tag,
-    color: 'text-teal-400 bg-teal-500/20'
-  }
+    color: 'text-teal-400 bg-teal-500/20',
+  },
 };

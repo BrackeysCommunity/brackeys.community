@@ -1,4 +1,4 @@
-import { gql } from "graphql-request";
+import { gql } from 'graphql-request';
 
 const AltAccounts = gql`
   query AltAccounts {
@@ -9,7 +9,7 @@ const AltAccounts = gql`
       registeredAt
     }
   }
-`
+`;
 
 export const operations = {
   AltAccounts,
@@ -17,4 +17,4 @@ export const operations = {
 
 export const preferredRoles: Record<keyof typeof operations, string> = {
   AltAccounts: 'user',
-}
+};

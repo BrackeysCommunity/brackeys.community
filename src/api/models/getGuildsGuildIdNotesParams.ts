@@ -7,20 +7,20 @@
  */
 
 export type GetGuildsGuildIdNotesParams = {
-/**
- * Filter by user ID
- */
-userId?: string;
-/**
- * Filter by note type
- */
-type?: string;
-/**
- * Maximum number of results to return
- */
-limit?: string;
-/**
- * Number of results to skip
- */
-offset?: string;
+  /**
+   * Filter by user ID
+   */
+  userId?: string;
+  /**
+   * Filter by note type
+   */
+  type?: string;
+  /**
+   * Maximum number of results to return
+   */
+  limit?: string;
+  /**
+   * Number of results to skip
+   */
+  offset?: string;
 };

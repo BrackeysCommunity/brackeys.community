@@ -24,16 +24,16 @@ export const customInstance = async <T>(config: AxiosRequestConfig): Promise<Axi
   }
 
   instance.interceptors.request.use(
-    (config) => {
+    config => {
       return config;
     },
-    (error) => {
+    error => {
       return Promise.reject(error);
     }
   );
 
   instance.interceptors.response.use(
-    (response) => response,
+    response => response,
     (error: AxiosError) => {
       if (error.response?.status === 401) {
         console.error('Authentication error: ', error);

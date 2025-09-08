@@ -24,7 +24,7 @@ export const ColorPicker = ({ selectedColor, onColorSelect, className = '' }: Co
           >
             <button
               type="button"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 e.stopPropagation();
                 onColorSelect(color);
@@ -44,7 +44,7 @@ export const ColorPicker = ({ selectedColor, onColorSelect, className = '' }: Co
                 initial={false}
                 whileHover={{
                   outlineOffset: '2px',
-                  transition: { duration: 0.2 }
+                  transition: { duration: 0.2 },
                 }}
                 whileTap={{ scale: 0.95 }}
               />

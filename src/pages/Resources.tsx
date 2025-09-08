@@ -8,7 +8,7 @@ import {
   ResourceItem,
   FilterSidebar,
   ResourceSearch,
-  ResourceGrid
+  ResourceGrid,
 } from '../components/resources';
 
 type ResourcesViewProps = {
@@ -38,7 +38,7 @@ const ResourcesView = ({
   setActiveType,
   setActiveCategory,
   setActiveTag,
-  setSearchQuery
+  setSearchQuery,
 }: ResourcesViewProps) => (
   <>
     <motion.div
@@ -71,15 +71,9 @@ const ResourcesView = ({
       />
 
       <div className="flex-1">
-        <ResourceSearch
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-        />
+        <ResourceSearch searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
-        <ResourceGrid
-          resources={filteredResources}
-          searchQuery={searchQuery}
-        />
+        <ResourceGrid resources={filteredResources} searchQuery={searchQuery} />
       </div>
     </motion.div>
   </>
@@ -100,30 +94,41 @@ const ResourcesContainer = () => {
   });
 
   const categoryFilteredResources = typeFilteredResources.filter(resource => {
-    return activeCategory === 'all' || resource.categories.includes(activeCategory as ResourceCategory);
+    return (
+      activeCategory === 'all' || resource.categories.includes(activeCategory as ResourceCategory)
+    );
   });
 
   const tagFilteredResources = categoryFilteredResources.filter(resource => {
     return activeTag === 'all' || resource.tags.includes(activeTag as ResourceTag);
   });
-  const typeCounts = resources.reduce<Record<string, number>>((acc, resource) => {
-    acc[resource.type] = (acc[resource.type] || 0) + 1;
-    return acc;
-  }, { all: resources.length });
+  const typeCounts = resources.reduce<Record<string, number>>(
+    (acc, resource) => {
+      acc[resource.type] = (acc[resource.type] || 0) + 1;
+      return acc;
+    },
+    { all: resources.length }
+  );
 
-  const categoryCounts = typeFilteredResources.reduce<Record<string, number>>((acc, resource) => {
-    resource.categories.forEach(category => {
-      acc[category] = (acc[category] || 0) + 1;
-    });
-    return acc;
-  }, { all: typeFilteredResources.length });
+  const categoryCounts = typeFilteredResources.reduce<Record<string, number>>(
+    (acc, resource) => {
+      resource.categories.forEach(category => {
+        acc[category] = (acc[category] || 0) + 1;
+      });
+      return acc;
+    },
+    { all: typeFilteredResources.length }
+  );
 
-  const tagCounts = categoryFilteredResources.reduce<Record<string, number>>((acc, resource) => {
-    resource.tags.forEach(tag => {
-      acc[tag] = (acc[tag] || 0) + 1;
-    });
-    return acc;
-  }, { all: categoryFilteredResources.length });
+  const tagCounts = categoryFilteredResources.reduce<Record<string, number>>(
+    (acc, resource) => {
+      resource.tags.forEach(tag => {
+        acc[tag] = (acc[tag] || 0) + 1;
+      });
+      return acc;
+    },
+    { all: categoryFilteredResources.length }
+  );
 
   return (
     <ResourcesView

@@ -9,7 +9,7 @@ import { joinDetailsSchema } from './types';
 import { ColorPickerInput } from '../../ColorPickerInput';
 import { RAINBOW_PALETTE } from '../../../lib/colors';
 
-export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps) => {
+export const JoinDetailsStep = ({ onNext, loading, formData }: StepProps) => {
   const { setActions, setTitle, resetTitle } = useModalContext();
   const [validFields, setValidFields] = useState({
     userName: false,
@@ -39,7 +39,9 @@ export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps
     setActions(
       <Button
         onClick={() => form.handleSubmit()}
-        disabled={!validFields.userName || !validFields.userColor || !validFields.roomCode || loading}
+        disabled={
+          !validFields.userName || !validFields.userColor || !validFields.roomCode || loading
+        }
         loading={loading}
         fullWidth
       >
@@ -57,15 +59,18 @@ export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps
       exit={{ opacity: 0, y: 20 }}
       className="space-y-6"
     >
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        form.handleSubmit();
-      }} noValidate>
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          form.handleSubmit();
+        }}
+        noValidate
+      >
         <div className="space-y-4">
           <form.Field name="userName">
-            {(nameField) => (
+            {nameField => (
               <form.Field name="userColor">
-                {(colorField) => {
+                {colorField => {
                   const handleNameChange = (value: string) => {
                     nameField.handleChange(value);
                     const isValid = !!value?.trim();
@@ -89,16 +94,23 @@ export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps
                         onColorSelect={handleColorChange}
                         placeholder="Enter your name..."
                         autoFocus
-                        error={!!nameField.state.meta.errors?.length || !!colorField.state.meta.errors?.length}
+                        error={
+                          !!nameField.state.meta.errors?.length ||
+                          !!colorField.state.meta.errors?.length
+                        }
                       />
                       {nameField.state.meta.errors && nameField.state.meta.errors.length > 0 && (
                         <p className="text-red-400 text-sm mt-1">
-                          {typeof nameField.state.meta.errors[0] === 'string' ? nameField.state.meta.errors[0] : nameField.state.meta.errors[0]?.message || 'Invalid input'}
+                          {typeof nameField.state.meta.errors[0] === 'string'
+                            ? nameField.state.meta.errors[0]
+                            : nameField.state.meta.errors[0]?.message || 'Invalid input'}
                         </p>
                       )}
                       {colorField.state.meta.errors && colorField.state.meta.errors.length > 0 && (
                         <p className="text-red-400 text-sm mt-1">
-                          {typeof colorField.state.meta.errors[0] === 'string' ? colorField.state.meta.errors[0] : colorField.state.meta.errors[0]?.message || 'Invalid input'}
+                          {typeof colorField.state.meta.errors[0] === 'string'
+                            ? colorField.state.meta.errors[0]
+                            : colorField.state.meta.errors[0]?.message || 'Invalid input'}
                         </p>
                       )}
                     </div>
@@ -118,13 +130,13 @@ export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps
               },
             }}
           >
-            {(field) => (
+            {field => (
               <div>
                 <label className="block text-sm text-gray-300 mb-2">Room Code</label>
                 <Input
                   type="text"
                   value={field.state.value}
-                  onChange={(value) => field.handleChange(value.toUpperCase())}
+                  onChange={value => field.handleChange(value.toUpperCase())}
                   onBlur={field.handleBlur}
                   className="font-mono text-center text-lg tracking-wider"
                   placeholder="ABC123"
@@ -133,7 +145,9 @@ export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps
                 />
                 {field.state.meta.errors && field.state.meta.errors.length > 0 && (
                   <p className="text-red-400 text-sm mt-1">
-                    {typeof field.state.meta.errors[0] === 'string' ? field.state.meta.errors[0] : field.state.meta.errors[0]?.message || 'Invalid input'}
+                    {typeof field.state.meta.errors[0] === 'string'
+                      ? field.state.meta.errors[0]
+                      : field.state.meta.errors[0]?.message || 'Invalid input'}
                   </p>
                 )}
               </div>
@@ -143,4 +157,4 @@ export const JoinDetailsStep = ({ onNext, onBack, loading, formData }: StepProps
       </form>
     </motion.div>
   );
-}; 
+};

@@ -29,14 +29,14 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
+} from '@clockworklabs/spacetimedb-sdk';
 export type SandboxUser = {
-  identity: Identity,
-  name: string | undefined,
-  cursorX: number,
-  cursorY: number,
-  color: string,
-  lastActivity: Timestamp,
+  identity: Identity;
+  name: string | undefined;
+  cursorX: number;
+  cursorY: number;
+  color: string;
+  lastActivity: Timestamp;
 };
 
 /**
@@ -44,17 +44,20 @@ export type SandboxUser = {
  */
 export namespace SandboxUser {
   /**
-  * A function which returns this type represented as an AlgebraicType.
-  * This function is derived from the AlgebraicType used to generate this type.
-  */
+   * A function which returns this type represented as an AlgebraicType.
+   * This function is derived from the AlgebraicType used to generate this type.
+   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("identity", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("name", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
-      new ProductTypeElement("cursorX", AlgebraicType.createF32Type()),
-      new ProductTypeElement("cursorY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("color", AlgebraicType.createStringType()),
-      new ProductTypeElement("lastActivity", AlgebraicType.createTimestampType()),
+      new ProductTypeElement('identity', AlgebraicType.createIdentityType()),
+      new ProductTypeElement(
+        'name',
+        AlgebraicType.createOptionType(AlgebraicType.createStringType())
+      ),
+      new ProductTypeElement('cursorX', AlgebraicType.createF32Type()),
+      new ProductTypeElement('cursorY', AlgebraicType.createF32Type()),
+      new ProductTypeElement('color', AlgebraicType.createStringType()),
+      new ProductTypeElement('lastActivity', AlgebraicType.createTimestampType()),
     ]);
   }
 
@@ -65,7 +68,4 @@ export namespace SandboxUser {
   export function deserialize(reader: BinaryReader): SandboxUser {
     return SandboxUser.getTypeScriptAlgebraicType().deserialize(reader);
   }
-
 }
-
-

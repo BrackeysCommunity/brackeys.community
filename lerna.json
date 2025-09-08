@@ -2,7 +2,7 @@
   "$schema": "node_modules/lerna/schemas/lerna-schema.json",
   "version": "independent",
   "npmClient": "bun",
-  "packages": [".", "server", "spacetime-db"],
+  "packages": [".", "spacetime-db"],
   "command": {
     "publish": {
       "conventionalCommits": true,

@@ -13,12 +13,22 @@ export type SpacetimeState = {
   setDisplayName: (name: string, color: string) => Promise<void>;
   updateColor: (color: string) => Promise<void>;
   updateCursor: (x: number, y: number) => Promise<void>;
-  updateTyping: (text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => Promise<void>;
+  updateTyping: (
+    text: string,
+    x: number,
+    y: number,
+    selectionStart: number,
+    selectionEnd: number
+  ) => Promise<void>;
   sendMessage: (text: string, x: number, y: number) => Promise<void>;
   dismissMessage: (messageId: bigint) => Promise<void>;
 
   // Room management
-  createRoom: (password: string, messageTtlSeconds: number, messagesEnabled: boolean) => Promise<string>;
+  createRoom: (
+    password: string,
+    messageTtlSeconds: number,
+    messagesEnabled: boolean
+  ) => Promise<string>;
   joinRoom: (roomCode: string, password: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   updateRoomConfig: (messageTtlSeconds: number, messagesEnabled: boolean) => Promise<void>;

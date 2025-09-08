@@ -105,14 +105,8 @@ export const Toast = ({ id, title, description, variant = 'info', action }: Toas
       <Icon className={iconVariants({ variant })} />
 
       <div className={contentVariants({ variant })}>
-        <p className={titleVariants({ variant })}>
-          {title}
-        </p>
-        {description && (
-          <p className={descriptionVariants({ variant })}>
-            {description}
-          </p>
-        )}
+        <p className={titleVariants({ variant })}>{title}</p>
+        {description && <p className={descriptionVariants({ variant })}>{description}</p>}
         {action && (
           <button
             className={cn(
@@ -139,4 +133,4 @@ export const Toast = ({ id, title, description, variant = 'info', action }: Toas
       </button>
     </div>
   );
-}; 
+};

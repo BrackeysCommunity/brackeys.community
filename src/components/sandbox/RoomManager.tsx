@@ -12,7 +12,7 @@ import {
   type StepType,
   type FormData,
 } from './room-steps';
-import { MessageCircle, Clock, Check } from 'lucide-react';
+import { MessageCircle, Clock } from 'lucide-react';
 import { RAINBOW_PALETTE } from '../../lib/colors';
 import { ColorPicker } from '../ColorPicker';
 import { useMounted } from '../../hooks/useMounted';
@@ -24,7 +24,16 @@ interface RoomManagerProps {
 }
 
 export const RoomManager = ({ onClose }: RoomManagerProps) => {
-  const { currentUser, currentRoom, createRoom, joinRoom, leaveRoom, updateRoomConfig, setDisplayName, updateColor } = useSpacetimeDB();
+  const {
+    currentUser,
+    currentRoom,
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    updateRoomConfig,
+    setDisplayName,
+    updateColor,
+  } = useSpacetimeDB();
   const [step, setStep] = useState<StepType>('choice');
   const [loading, setLoading] = useState(false);
   const [selectedColor, setSelectedColor] = useState(currentUser?.color || RAINBOW_PALETTE[0]);
@@ -32,7 +41,8 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
   const [formData, setFormData] = useState<FormData>({
     action: 'join',
     userName: currentUser?.name || '',
-    userColor: currentUser?.color || RAINBOW_PALETTE[Math.floor(Math.random() * RAINBOW_PALETTE.length)],
+    userColor:
+      currentUser?.color || RAINBOW_PALETTE[Math.floor(Math.random() * RAINBOW_PALETTE.length)],
     roomCode: '',
     password: '',
     usePassword: false,
@@ -42,7 +52,9 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
   const [roomMessageMode, setRoomMessageMode] = useState<'live' | 'ephemeral'>(
     currentRoom && currentRoom.messageTtlSeconds === 0 ? 'live' : 'ephemeral'
   );
-  const [roomTtl, setRoomTtl] = useState(currentRoom && currentRoom.messageTtlSeconds > 0 ? currentRoom.messageTtlSeconds : 30);
+  const [roomTtl, setRoomTtl] = useState(
+    currentRoom && currentRoom.messageTtlSeconds > 0 ? currentRoom.messageTtlSeconds : 30
+  );
 
   const hashPassword = async (pwd: string): Promise<string> => {
     if (!pwd) return '';
@@ -54,25 +66,22 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
-  const handleJoinAttempt = async (code: string, pwd: string = ''): Promise<'success' | 'room-not-found' | 'invalid-password' | 'needs-password' | 'error'> => {
+  const handleJoinAttempt = async (
+    code: string,
+    pwd: string = ''
+  ): Promise<'success' | 'room-not-found' | 'invalid-password' | 'needs-password' | 'error'> => {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Room join timeout - please try again')), 10000);
     });
 
     try {
       if (!pwd) {
-        await Promise.race([
-          joinRoom(code.toUpperCase(), ''),
-          timeoutPromise
-        ]);
+        await Promise.race([joinRoom(code.toUpperCase(), ''), timeoutPromise]);
         return 'success';
       }
 
       const hashedPassword = await hashPassword(pwd);
-      await Promise.race([
-        joinRoom(code.toUpperCase(), hashedPassword),
-        timeoutPromise
-      ]);
+      await Promise.race([joinRoom(code.toUpperCase(), hashedPassword), timeoutPromise]);
       return 'success';
     } catch (err: unknown) {
       if (err instanceof Error && err.message?.includes('timeout')) {
@@ -115,8 +124,10 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
         const nextStep = currentFormData.action === 'create' ? 'create-config' : 'join-details';
         setStep(nextStep);
       } else if (currentFormData.action === 'create' && step === 'create-config') {
-        const hashedPassword = currentFormData.usePassword && currentFormData.password ?
-          await hashPassword(currentFormData.password) : '';
+        const hashedPassword =
+          currentFormData.usePassword && currentFormData.password
+            ? await hashPassword(currentFormData.password)
+            : '';
         const messageTtl = currentFormData.messageMode === 'live' ? 0 : currentFormData.messageTtl;
         const code = await createRoom(hashedPassword, messageTtl, true);
         toast.success(`Room created! Code: ${code}`);
@@ -131,7 +142,10 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
           }
           // For 'room-not-found', 'error', etc., error message already shown, stay on current step
         } else if (step === 'join-password') {
-          const result = await handleJoinAttempt(currentFormData.roomCode, currentFormData.password);
+          const result = await handleJoinAttempt(
+            currentFormData.roomCode,
+            currentFormData.password
+          );
           if (result === 'success') {
             onClose?.();
           }
@@ -169,15 +183,11 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
 
   // If already in a room, show room settings
   if (currentRoom) {
-    const isHost = currentUser && currentRoom.hostIdentity.toHexString() === currentUser.identity.toHexString();
+    const isHost =
+      currentUser && currentRoom.hostIdentity.toHexString() === currentUser.identity.toHexString();
 
     return (
-      <Modal
-        isOpen={true}
-        onClose={onClose}
-        title="Room Settings"
-        maxWidth="md"
-      >
+      <Modal isOpen={true} onClose={onClose} title="Room Settings" maxWidth="md">
         <motion.div
           key="room-settings"
           initial={{ opacity: 0, y: -20 }}
@@ -188,11 +198,17 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
           <div className="space-y-3 mb-6 text-gray-300">
             <div className="flex justify-between">
               <span className="text-gray-400">Room Code:</span>
-              <span className="font-mono font-semibold text-brackeys-purple-400">{currentRoom.code}</span>
+              <span className="font-mono font-semibold text-brackeys-purple-400">
+                {currentRoom.code}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Message TTL:</span>
-              <span>{currentRoom.messageTtlSeconds === 0 ? 'Never expire' : `${currentRoom.messageTtlSeconds}s`}</span>
+              <span>
+                {currentRoom.messageTtlSeconds === 0
+                  ? 'Never expire'
+                  : `${currentRoom.messageTtlSeconds}s`}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Messages:</span>
@@ -213,7 +229,7 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
             <label className="block text-sm text-gray-300 mb-2">Your Color</label>
             <ColorPicker
               selectedColor={selectedColor}
-              onColorSelect={async (color) => {
+              onColorSelect={async color => {
                 setSelectedColor(color);
                 setLoading(true);
                 try {
@@ -235,9 +251,24 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
             <div className="mb-6 space-y-6">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-brackeys-purple-600 rounded-lg">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <svg
+                    className="w-5 h-5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">Host Controls</h3>
@@ -303,7 +334,7 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
                         <Input
                           type="number"
                           value={roomTtl}
-                          onChange={(value) => setRoomTtl(Math.max(1, parseInt(value) || 1))}
+                          onChange={value => setRoomTtl(Math.max(1, parseInt(value) || 1))}
                           className="font-mono"
                           min={1}
                           placeholder="30"
@@ -327,7 +358,9 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
                         toast.success('Settings updated successfully!');
                       } catch (err: unknown) {
                         console.error('Failed to update settings:', err);
-                        toast.error(err instanceof Error ? err.message : 'Failed to update settings');
+                        toast.error(
+                          err instanceof Error ? err.message : 'Failed to update settings'
+                        );
                       } finally {
                         setLoading(false);
                       }
@@ -343,12 +376,7 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
             </div>
           )}
 
-          <Button
-            onClick={handleLeaveRoom}
-            loading={loading}
-            variant="danger"
-            fullWidth
-          >
+          <Button onClick={handleLeaveRoom} loading={loading} variant="danger" fullWidth>
             {loading ? 'Leaving...' : 'Leave Room'}
           </Button>
         </motion.div>
@@ -358,12 +386,31 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
 
   const stepComponents = {
     choice: <ChoiceStep onNext={handleNext} />,
-    'join-details': <JoinDetailsStep onNext={handleNext} onBack={handleBack} loading={loading} formData={formData} />,
-    'join-password': <JoinPasswordStep onNext={handleNext} onBack={handleBack} loading={loading} formData={formData} />,
-    'create-config': <CreateConfigStep onNext={handleNext} onBack={handleBack} loading={loading} formData={formData} />,
+    'join-details': (
+      <JoinDetailsStep
+        onNext={handleNext}
+        onBack={handleBack}
+        loading={loading}
+        formData={formData}
+      />
+    ),
+    'join-password': (
+      <JoinPasswordStep
+        onNext={handleNext}
+        onBack={handleBack}
+        loading={loading}
+        formData={formData}
+      />
+    ),
+    'create-config': (
+      <CreateConfigStep
+        onNext={handleNext}
+        onBack={handleBack}
+        loading={loading}
+        formData={formData}
+      />
+    ),
   };
-
-
 
   return (
     <Modal
@@ -374,9 +421,7 @@ export const RoomManager = ({ onClose }: RoomManagerProps) => {
       allowEscape={!onClose}
       maxWidth="md"
     >
-      <AnimatePresence mode="wait">
-        {stepComponents[step]}
-      </AnimatePresence>
+      <AnimatePresence mode="wait">{stepComponents[step]}</AnimatePresence>
     </Modal>
   );
-}; 
+};

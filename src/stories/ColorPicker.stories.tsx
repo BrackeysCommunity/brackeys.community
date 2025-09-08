@@ -25,25 +25,28 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     selectedColor: RAINBOW_PALETTE[0],
+    onColorSelect: () => {},
   },
 };
 
 export const PreselectedColor: Story = {
   args: {
     selectedColor: RAINBOW_PALETTE[5], // Pre-select a different color
+    onColorSelect: () => {},
   },
 };
 
 export const Interactive: Story = {
+  args: {
+    selectedColor: RAINBOW_PALETTE[0],
+    onColorSelect: () => {},
+  },
   render: () => {
     const [selectedColor, setSelectedColor] = useState(RAINBOW_PALETTE[0]);
 
     return (
       <div className="space-y-4">
-        <ColorPicker
-          selectedColor={selectedColor}
-          onColorSelect={setSelectedColor}
-        />
+        <ColorPicker selectedColor={selectedColor} onColorSelect={setSelectedColor} />
         <div className="text-center space-y-2">
           <p className="text-sm text-gray-400">Selected color:</p>
           <div className="flex items-center justify-center gap-2">
@@ -63,6 +66,10 @@ export const Interactive: Story = {
 };
 
 export const WithCustomStyles: Story = {
+  args: {
+    selectedColor: RAINBOW_PALETTE[2],
+    onColorSelect: () => {},
+  },
   render: () => {
     const [selectedColor, setSelectedColor] = useState(RAINBOW_PALETTE[2]);
 
@@ -74,15 +81,17 @@ export const WithCustomStyles: Story = {
           onColorSelect={setSelectedColor}
           className="mb-4"
         />
-        <p className="text-gray-400 text-sm">
-          This color will be used throughout your profile
-        </p>
+        <p className="text-gray-400 text-sm">This color will be used throughout your profile</p>
       </div>
     );
   },
 };
 
 export const MultipleInstances: Story = {
+  args: {
+    selectedColor: RAINBOW_PALETTE[0],
+    onColorSelect: () => {},
+  },
   render: () => {
     const [primaryColor, setPrimaryColor] = useState(RAINBOW_PALETTE[0]);
     const [secondaryColor, setSecondaryColor] = useState(RAINBOW_PALETTE[6]);
@@ -91,17 +100,11 @@ export const MultipleInstances: Story = {
       <div className="space-y-6">
         <div>
           <h4 className="text-white mb-2">Primary Color</h4>
-          <ColorPicker
-            selectedColor={primaryColor}
-            onColorSelect={setPrimaryColor}
-          />
+          <ColorPicker selectedColor={primaryColor} onColorSelect={setPrimaryColor} />
         </div>
         <div>
           <h4 className="text-white mb-2">Secondary Color</h4>
-          <ColorPicker
-            selectedColor={secondaryColor}
-            onColorSelect={setSecondaryColor}
-          />
+          <ColorPicker selectedColor={secondaryColor} onColorSelect={setSecondaryColor} />
         </div>
         <div className="pt-4 border-t border-gray-700">
           <p className="text-sm text-gray-400 mb-2">Color combination preview:</p>
@@ -128,11 +131,15 @@ export const MultipleInstances: Story = {
 };
 
 export const ColorPalette: Story = {
+  args: {
+    selectedColor: RAINBOW_PALETTE[0],
+    onColorSelect: () => {},
+  },
   render: () => (
     <div className="space-y-4">
       <h3 className="text-white text-lg font-semibold">Available Colors</h3>
       <div className="grid grid-cols-6 gap-4">
-        {RAINBOW_PALETTE.map((color, index) => (
+        {RAINBOW_PALETTE.map(color => (
           <div key={color} className="text-center space-y-2">
             <div
               className="w-12 h-12 rounded-full border-2 mx-auto"

@@ -6,10 +6,9 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type GetGuildsGuildIdInfractionsType = typeof GetGuildsGuildIdInfractionsType[keyof typeof GetGuildsGuildIdInfractionsType];
+export type GetGuildsGuildIdInfractionsType =
+  (typeof GetGuildsGuildIdInfractionsType)[keyof typeof GetGuildsGuildIdInfractionsType];
 
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GetGuildsGuildIdInfractionsType = {
   NUMBER_0: '0',
   NUMBER_1: '1',

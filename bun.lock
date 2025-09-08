@@ -21,7 +21,6 @@
         "graphql-request": "7.2.0-next.17",
         "lucide-react": "^0.507.0",
         "motion": "^12.9.4",
-        "phaser": "^3.90.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
         "redoc": "^2.5.0",
@@ -1967,8 +1966,6 @@
     "pathval": ["pathval@2.0.0", "", {}, "sha512-vE7JKRyES09KiunauX7nd2Q9/L7lhok4smP9RZTDeD4MVs72Dp2qNFVz39Nz5a0FVEW0BJR6C0DYrq6unoziZA=="],
 
     "perfect-scrollbar": ["perfect-scrollbar@1.5.6", "", {}, "sha512-rixgxw3SxyJbCaSpo1n35A/fwI1r2rdwMKOTCg/AcG+xOEyZcE8UHVjpZMFCVImzsFoCZeJTT+M/rdEIQYO2nw=="],
-
-    "phaser": ["phaser@3.90.0", "", { "dependencies": { "eventemitter3": "^5.0.1" } }, "sha512-/cziz/5ZIn02uDkC9RzN8VF9x3Gs3XdFFf9nkiMEQT3p7hQlWuyjy4QWosU802qqno2YSLn2BfqwOKLv/sSVfQ=="],
 
     "phaser-asset-pack-hashing": ["phaser-asset-pack-hashing@1.0.6", "", { "dependencies": { "command-line-args": "^5.1.1", "command-line-usage": "^6.1.1", "md5-file": "^5.0.0" }, "bin": { "phaser-asset-pack-hashing": "cli.js" } }, "sha512-5NYvTWRQaTJkJJasvLa6MiYJbYLDjY4NSlq5YESJIi3I3v6DU2S3PYYwwXEozj3f9qXGT041Q0QpnTdZrMgBBg=="],
 

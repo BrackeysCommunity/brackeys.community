@@ -102,11 +102,7 @@ export const Interactive: Story = {
 
     return (
       <div className="flex flex-col items-center gap-4">
-        <Button
-          variant="primary"
-          onClick={simulateLoading}
-          disabled={isLoading}
-        >
+        <Button variant="primary" onClick={simulateLoading} disabled={isLoading}>
           {isLoading ? 'Loading...' : 'Start Loading'}
         </Button>
 
@@ -144,4 +140,4 @@ export const OnDifferentBackgrounds: Story = {
       </div>
     </div>
   ),
-}; 
+};

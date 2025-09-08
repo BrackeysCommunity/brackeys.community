@@ -1,8 +1,13 @@
-import { ReactNode, useEffect, useState } from "react";
-import { QueryClientProvider as Provider, QueryClient, QueryFunction, MutationFunction } from "@tanstack/react-query";
-import { useContext } from "react";
-import { AuthContext } from "./authContext";
-import { supabase } from "../lib/supabase";
+import { ReactNode, useEffect, useState } from 'react';
+import {
+  QueryClientProvider as Provider,
+  QueryClient,
+  QueryFunction,
+  MutationFunction,
+} from '@tanstack/react-query';
+import { useContext } from 'react';
+import { AuthContext } from './authContext';
+import { supabase } from '../lib/supabase';
 
 type MutationVariables = {
   url: string;
@@ -25,17 +30,20 @@ type QueryClientProviderProps = {
 
 export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
   useContext(AuthContext); // Keep the context connection for future use if needed
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: 1,
-        refetchOnWindowFocus: false,
-      },
-      mutations: {
-        retry: 1,
-      },
-    },
-  }));
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: 1,
+            refetchOnWindowFocus: false,
+          },
+          mutations: {
+            retry: 1,
+          },
+        },
+      })
+  );
 
   useEffect(() => {
     const setupAuthInterceptor = async () => {
@@ -100,7 +108,7 @@ export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
 
     setupAuthInterceptor();
 
-    const authStateListener = supabase.auth.onAuthStateChange((event) => {
+    const authStateListener = supabase.auth.onAuthStateChange(event => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         setupAuthInterceptor();
       }
@@ -111,9 +119,5 @@ export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
     };
   }, [queryClient]);
 
-  return (
-    <Provider client={queryClient}>
-      {children}
-    </Provider>
-  );
+  return <Provider client={queryClient}>{children}</Provider>;
 };

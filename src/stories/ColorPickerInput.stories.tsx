@@ -121,12 +121,10 @@ export const FormExample: Story = {
       <div className="w-96">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Display Name
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Display Name</label>
             <ColorPickerInput
               value={name}
-              onChange={(value) => {
+              onChange={value => {
                 setName(value);
                 setError(false);
                 setSubmitted(false);
@@ -136,9 +134,7 @@ export const FormExample: Story = {
               placeholder="Choose a display name..."
               error={error}
             />
-            {error && (
-              <p className="mt-1 text-sm text-red-400">Name is required</p>
-            )}
+            {error && <p className="mt-1 text-sm text-red-400">Name is required</p>}
           </div>
 
           <button
@@ -224,9 +220,7 @@ export const MultipleInputs: Story = {
                 <span className="text-white">{player1Name}</span>
               </div>
             )}
-            {player1Name && player2Name && (
-              <span className="text-gray-400">VS</span>
-            )}
+            {player1Name && player2Name && <span className="text-gray-400">VS</span>}
             {player2Name && (
               <div className="flex items-center gap-2">
                 <div

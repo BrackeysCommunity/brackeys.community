@@ -1,4 +1,4 @@
-import { Position } from "./snakeTypes";
+import { Position } from './snakeTypes';
 
 export const generateFood = (snake: Position[], gridSize: number): Position => {
   let newFood: Position;
@@ -18,12 +18,7 @@ export const checkCollision = (
   snake: Position[],
   gridSize: number
 ): boolean => {
-  if (
-    position.x < 0 ||
-    position.y < 0 ||
-    position.x >= gridSize ||
-    position.y >= gridSize
-  ) {
+  if (position.x < 0 || position.y < 0 || position.x >= gridSize || position.y >= gridSize) {
     return true;
   }
 

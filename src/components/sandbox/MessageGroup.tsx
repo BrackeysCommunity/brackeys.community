@@ -29,16 +29,12 @@ export const MessageGroup = ({
 
   // sort messages by creation time (newest at bottom)
   // so that motion pushes the older messages up
-  const sortedMessages = [...messages].sort((a, b) =>
-    Number(a.createdAt) - Number(b.createdAt)
-  );
+  const sortedMessages = [...messages].sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
 
   // Check if current user can dismiss the group (owns any message in the group)
-  const canDismissGroup = sortedMessages.some(message =>
-    message.senderIdentity.toHexString() === currentUserId
+  const canDismissGroup = sortedMessages.some(
+    message => message.senderIdentity.toHexString() === currentUserId
   );
-
-
 
   const handleGroupDismiss = () => {
     if (onDismissGroup) {
@@ -109,7 +105,7 @@ export const MessageGroup = ({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
               className="absolute inset-0 pointer-events-none"
             >
               {/* Group outline */}
@@ -142,7 +138,7 @@ export const MessageGroup = ({
 
         <div className="flex flex-col gap-2 pointer-events-auto">
           <AnimatePresence mode="sync">
-            {sortedMessages.map((message) => {
+            {sortedMessages.map(message => {
               const user = users.get(message.senderIdentity.toHexString());
               const userName = user?.name || message.senderIdentity.toHexString().slice(0, 8);
               const userColor = user?.color || '#888888';
@@ -155,7 +151,7 @@ export const MessageGroup = ({
                   animate={{ y: 0 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   transition={{
-                    layout: { type: "spring", stiffness: 300, damping: 30 }
+                    layout: { type: 'spring', stiffness: 300, damping: 30 },
                   }}
                   className="w-fit"
                 >
@@ -174,4 +170,4 @@ export const MessageGroup = ({
       </div>
     </motion.div>
   );
-}; 
+};

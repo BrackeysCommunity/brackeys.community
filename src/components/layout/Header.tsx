@@ -1,6 +1,15 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { motion } from 'motion/react';
-import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuItems,
+  Transition,
+} from '@headlessui/react';
 import { Menu as MenuIcon, X, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { cn } from '../../lib/utils';
@@ -19,11 +28,17 @@ const navigation: NavigationItem[] = [
 ];
 
 export const Header = () => {
-  const { state: { user }, signOut } = useAuth();
+  const {
+    state: { user },
+    signOut,
+  } = useAuth();
   const { location } = useRouterState();
 
   return (
-    <Disclosure as="nav" className="sticky top-0 z-50 container mx-auto flex justify-center p-4 transition-all duration-200">
+    <Disclosure
+      as="nav"
+      className="sticky top-0 z-50 container mx-auto flex justify-center p-4 transition-all duration-200"
+    >
       {({ open }) => (
         <>
           <div className="w-full bg-gray-800/60 border border-gray-700 backdrop-blur-md rounded-lg shadow-md">
@@ -35,40 +50,46 @@ export const Header = () => {
                       <motion.div
                         className="h-8 w-8 mask-[url(/svg/brackeys-logo.svg)]"
                         initial={{
-                          backgroundImage: "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
-                          backgroundPosition: "0 0%",
-                          backgroundSize: "100% 500%"
+                          backgroundImage:
+                            'linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))',
+                          backgroundPosition: '0 0%',
+                          backgroundSize: '100% 500%',
                         }}
                         animate={{
-                          backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"]
+                          backgroundPosition: ['0 0%', '0 0%', '0 100%', '0 100%', '0 0%'],
                         }}
                         transition={{
                           duration: 6,
-                          times: [0, .2, .4, .6, .8, 1],
+                          times: [0, 0.2, 0.4, 0.6, 0.8, 1],
                           repeat: Infinity,
-                          ease: "linear"
+                          ease: 'linear',
                         }}
                       />
                       <span className="font-bold text-white text-lg">
-                        Brackeys<span className="bg-gradient-to-r from-brackeys-yellow via-brackeys-fuscia to-brackeys-purple bg-clip-text text-transparent">Community</span>
+                        Brackeys
+                        <span className="bg-gradient-to-r from-brackeys-yellow via-brackeys-fuscia to-brackeys-purple bg-clip-text text-transparent">
+                          Community
+                        </span>
                       </span>
                     </Link>
                   </div>
                   <div className="hidden sm:ml-2 md:ml-6 sm:flex sm:items-center sm:space-x-2 md:space-x-4">
-                    {navigation.filter((item) => !item.requiresAuth || user).map((item) => (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        className={cn(
-                          'px-3 py-2 rounded-md text-sm font-medium transition-colors text-nowrap',
-                          location.pathname === item.href
-                            ? 'bg-brackeys-purple-800 text-brackeys-purple-200'
-                            : 'text-gray-300 hover:bg-gray-800'
-                        )}
-                      >
-                        {item.name}
-                      </Link>
-                    ))}
+                    {navigation
+                      .filter(item => !item.requiresAuth || user)
+                      .map(item => (
+                        <Link
+                          key={item.name}
+                          to={item.href}
+                          className={cn(
+                            'px-3 py-2 rounded-md text-sm font-medium transition-colors text-nowrap',
+                            location.pathname === item.href
+                              ? 'bg-brackeys-purple-800 text-brackeys-purple-200'
+                              : 'text-gray-300 hover:bg-gray-800'
+                          )}
+                        >
+                          {item.name}
+                        </Link>
+                      ))}
                   </div>
                 </div>
 
@@ -112,9 +133,7 @@ export const Header = () => {
                                   to="/profile"
                                   className={cn(
                                     'flex items-center gap-2 px-4 py-2 text-sm',
-                                    focus
-                                      ? 'bg-gray-700 text-white'
-                                      : 'text-gray-300'
+                                    focus ? 'bg-gray-700 text-white' : 'text-gray-300'
                                   )}
                                 >
                                   <User size={16} />
@@ -128,9 +147,7 @@ export const Header = () => {
                                   onClick={signOut}
                                   className={cn(
                                     'flex w-full items-center gap-2 px-4 py-2 text-sm',
-                                    focus
-                                      ? 'bg-gray-700 text-white'
-                                      : 'text-gray-300'
+                                    focus ? 'bg-gray-700 text-white' : 'text-gray-300'
                                   )}
                                 >
                                   <LogOut size={16} />
@@ -167,7 +184,7 @@ export const Header = () => {
 
           <DisclosurePanel className="absolute top-full left-0 right-0 mt-2 mx-auto max-w-7xl w-full bg-gray-900/80 backdrop-blur-md rounded-lg shadow-md sm:hidden">
             <div className="space-y-1 px-2 pb-3 pt-2">
-              {navigation.map((item) => (
+              {navigation.map(item => (
                 <DisclosureButton
                   key={item.name}
                   as={Link}
@@ -221,9 +238,7 @@ export const Header = () => {
                     <div className="text-base font-medium text-white">
                       {user.username || 'User'}
                     </div>
-                    <div className="text-sm font-medium text-gray-400">
-                      {user.email}
-                    </div>
+                    <div className="text-sm font-medium text-gray-400">{user.email}</div>
                   </div>
                 </div>
               </div>

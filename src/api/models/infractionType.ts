@@ -9,10 +9,8 @@
 /**
  * 0: Warning, 1: Mute, 2: Kick, 3: Ban
  */
-export type InfractionType = typeof InfractionType[keyof typeof InfractionType];
+export type InfractionType = (typeof InfractionType)[keyof typeof InfractionType];
 
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const InfractionType = {
   NUMBER_0: '0',
   NUMBER_1: '1',

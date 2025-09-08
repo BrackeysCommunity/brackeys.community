@@ -68,9 +68,12 @@ export const Modal = ({
     setInternalActions(newActions);
   }, []);
 
-  const setTitle = useCallback((newTitle: string) => {
-    setInternalTitle(newTitle);
-  }, [setInternalTitle]);
+  const setTitle = useCallback(
+    (newTitle: string) => {
+      setInternalTitle(newTitle);
+    },
+    [setInternalTitle]
+  );
 
   const resetTitle = useCallback(() => {
     setInternalTitle(title);
@@ -109,25 +112,28 @@ export const Modal = ({
           `}
         >
           {/* Content with custom scrollbar */}
-          <div className={`
+          <div
+            className={`
             flex-1 
             overflow-y-auto 
             custom-scrollbar 
             ${actions ? '[&>*:not(:last-child)]:px-6' : 'px-6 pb-6'}
-          `}>
+          `}
+          >
             {(internalTitle || (showCloseButton && (onClose || onBack || allowEscape))) && (
-              <div className={cn("sticky top-0 flex items-center justify-between py-4 bg-gradient-to-b from-gray-800 from-40% to-transparent z-10")}>
+              <div
+                className={cn(
+                  'sticky top-0 flex items-center justify-between py-4 bg-gradient-to-b from-gray-800 from-40% to-transparent z-10'
+                )}
+              >
                 {onBack ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleBack}
-                    aria-label="Back"
-                  >
+                  <Button variant="ghost" size="icon" onClick={handleBack} aria-label="Back">
                     <ArrowLeft className="w-6 h-6" />
                   </Button>
-                  // 36px (w/h-9) is the width of the button
-                ) : showCloseButton ? <div className="w-9 h-9" /> : null}
+                ) : // 36px (w/h-9) is the width of the button
+                showCloseButton ? (
+                  <div className="w-9 h-9" />
+                ) : null}
                 {internalTitle && (
                   <DialogTitle className="text-xl font-semibold text-white">
                     {internalTitle}
@@ -138,7 +144,7 @@ export const Modal = ({
                     variant="ghost"
                     size="icon"
                     onClick={handleClose}
-                    className={cn(!internalTitle && !onBack && "ml-auto")}
+                    className={cn(!internalTitle && !onBack && 'ml-auto')}
                     aria-label="Close"
                   >
                     <X className="w-6 h-6" />
@@ -158,9 +164,8 @@ export const Modal = ({
               </div>
             )}
           </div>
-
         </DialogPanel>
       </div>
     </Dialog>
   );
-}; 
+};

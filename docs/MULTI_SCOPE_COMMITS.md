@@ -31,9 +31,9 @@ chore(*): update build configuration
 Use comma-separated scopes for specific multi-package changes:
 
 ```bash
-feat(web,api): implement user authentication flow
-fix(api,spacetime): resolve connection timeout issues
-refactor(web,api,spacetime): standardize error responses
+feat(web,hasura): implement user authentication flow
+fix(hasura,spacetime): resolve connection timeout issues
+refactor(web,hasura,spacetime): standardize error responses
 ```
 
 ### 4. Separate Commits (Best for clarity)
@@ -45,9 +45,9 @@ Create individual commits for each scope:
 git add src/
 git commit -m "feat(web): add login UI components"
 
-# Stage and commit API changes
-git add server/
-git commit -m "feat(api): add authentication endpoints"
+# Stage and commit Hasura changes
+git add hasura/
+git commit -m "feat(hasura): add authentication queries"
 
 # Stage and commit SpacetimeDB changes
 git add spacetime-db/
@@ -80,18 +80,18 @@ git commit -m "feat(spacetime): add user session management"
 
 ```bash
 # Option 1: Multi-scope
-feat(web,api): implement real-time notifications
+feat(web,hasura): implement real-time notifications
 
 # Option 2: Separate commits
 feat(web): add notification UI components
-feat(api): create WebSocket notification service
+feat(hasura): add subscription for notifications
 ```
 
 ### Bug Fix
 
 ```bash
 # Option 1: Multi-scope
-fix(web,api): resolve CORS issues in production
+fix(web,hasura): resolve GraphQL query issues
 
 # Option 2: No scope
 fix: resolve cross-origin communication issues
@@ -104,7 +104,7 @@ fix: resolve cross-origin communication issues
 chore(*): upgrade TypeScript to v5.0
 
 # Affects specific packages
-chore(web,api): update React to v19
+chore(web,hasura): update GraphQL dependencies
 ```
 
 ## Commitizen Support
@@ -130,10 +130,10 @@ Multi-scope commits will appear in the changelog under each affected package whe
 
 Currently configured in `commitlint.config.js`:
 
-- `web,api`
+- `web,hasura`
 - `web,spacetime`
-- `api,spacetime`
-- `web,api,spacetime`
+- `hasura,spacetime`
+- `web,hasura,spacetime`
 - `*` (all packages)
 
 Additional combinations can be added as needed.

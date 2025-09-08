@@ -29,10 +29,10 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
+} from '@clockworklabs/spacetimedb-sdk';
 
 export type SetDisplayName = {
-  name: string,
+  name: string;
 };
 
 /**
@@ -40,12 +40,12 @@ export type SetDisplayName = {
  */
 export namespace SetDisplayName {
   /**
-  * A function which returns this type represented as an AlgebraicType.
-  * This function is derived from the AlgebraicType used to generate this type.
-  */
+   * A function which returns this type represented as an AlgebraicType.
+   * This function is derived from the AlgebraicType used to generate this type.
+   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("name", AlgebraicType.createStringType()),
+      new ProductTypeElement('name', AlgebraicType.createStringType()),
     ]);
   }
 
@@ -56,6 +56,4 @@ export namespace SetDisplayName {
   export function deserialize(reader: BinaryReader): SetDisplayName {
     return SetDisplayName.getTypeScriptAlgebraicType().deserialize(reader);
   }
-
 }
-

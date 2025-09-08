@@ -67,7 +67,7 @@ This project uses a comprehensive semantic versioning setup with the following t
 ### Scopes
 
 - `web`: Main web application
-- `api`: API server
+- `hasura`: Hasura GraphQL configuration (see [Hasura Versioning](./HASURA_VERSIONING.md))
 - `spacetime`: SpacetimeDB module
 - `deps`: Dependencies
 - `release`: Release-related
@@ -75,7 +75,7 @@ This project uses a comprehensive semantic versioning setup with the following t
 - `ci`: CI/CD
 - `docs`: Documentation
 - `*`: All packages
-- Multiple scopes: `web,api`, `web,spacetime`, etc.
+- Multiple scopes: `web,hasura`, `web,spacetime`, etc.
 
 **Note**: For multi-scope changes, you can use comma-separated scopes or omit the scope entirely. See [Multi-Scope Commits Guide](./MULTI_SCOPE_COMMITS.md) for details.
 

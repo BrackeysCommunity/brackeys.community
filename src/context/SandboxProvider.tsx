@@ -28,20 +28,22 @@ export const SandboxProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   return (
-    <Provider value={{
-      cursorState,
-      setCursorDefault,
-      setCursorInteractive,
-      setCursorTyping,
-      hoveredElementId,
-      setHoveredElement,
-      isTyping,
-      setIsTyping,
-      typingText,
-      setTypingText,
-      canvasRef,
-      lastCursorPosition,
-    }}>
+    <Provider
+      value={{
+        cursorState,
+        setCursorDefault,
+        setCursorInteractive,
+        setCursorTyping,
+        hoveredElementId,
+        setHoveredElement,
+        isTyping,
+        setIsTyping,
+        typingText,
+        setTypingText,
+        canvasRef,
+        lastCursorPosition,
+      }}
+    >
       {children}
     </Provider>
   );

@@ -1,13 +1,7 @@
 import { useForm } from '@tanstack/react-form';
 import { RadioGroup } from '@headlessui/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ArrowRight,
-  Globe,
-  Lock,
-  Clock,
-  FastForward,
-} from 'lucide-react';
+import { ArrowRight, Globe, Lock, Clock, FastForward } from 'lucide-react';
 import { Button, Input } from '../../ui';
 import { useModalContext } from '../../../context/modalContext';
 import { useEffect, useState } from 'react';
@@ -15,7 +9,7 @@ import type { StepProps } from './types';
 import { ColorPickerInput } from '../../ColorPickerInput';
 import { RAINBOW_PALETTE } from '../../../lib/colors';
 
-export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProps) => {
+export const CreateConfigStep = ({ onNext, loading, formData }: StepProps) => {
   const { setActions, setTitle, resetTitle } = useModalContext();
   const [validFields, setValidFields] = useState({
     userName: false,
@@ -64,16 +58,19 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
       exit={{ opacity: 0, y: 20 }}
       className="space-y-6"
     >
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        form.handleSubmit();
-      }} noValidate>
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          form.handleSubmit();
+        }}
+        noValidate
+      >
         <div>
           {/* User Name & Color */}
           <form.Field name="userName">
-            {(nameField) => (
+            {nameField => (
               <form.Field name="userColor">
-                {(colorField) => {
+                {colorField => {
                   const handleNameChange = (value: string) => {
                     nameField.handleChange(value);
                     const isValid = !!value?.trim();
@@ -97,16 +94,29 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
                         onColorSelect={handleColorChange}
                         placeholder="Enter your name..."
                         autoFocus
-                        error={!!nameField.state.meta.errors?.length || !!colorField.state.meta.errors?.length}
+                        error={
+                          !!nameField.state.meta.errors?.length ||
+                          !!colorField.state.meta.errors?.length
+                        }
                       />
                       {nameField.state.meta.errors && nameField.state.meta.errors.length > 0 && (
                         <p className="text-red-400 text-sm mt-1">
-                          {typeof nameField.state.meta.errors[0] === 'string' ? nameField.state.meta.errors[0] : nameField.state.meta.errors[0]?.message || 'Invalid input'}
+                          {(() => {
+                            const error = nameField.state.meta.errors[0];
+                            return typeof error === 'string'
+                              ? error
+                              : (error as unknown as Error)?.message || 'Invalid input';
+                          })()}
                         </p>
                       )}
                       {colorField.state.meta.errors && colorField.state.meta.errors.length > 0 && (
                         <p className="text-red-400 text-sm mt-1">
-                          {typeof colorField.state.meta.errors[0] === 'string' ? colorField.state.meta.errors[0] : colorField.state.meta.errors[0]?.message || 'Invalid input'}
+                          {(() => {
+                            const error = colorField.state.meta.errors[0];
+                            return typeof error === 'string'
+                              ? error
+                              : (error as unknown as Error)?.message || 'Invalid input';
+                          })()}
                         </p>
                       )}
                     </div>
@@ -119,13 +129,16 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
           {/* Room Privacy */}
           <div className="mt-6">
             <label className="block text-sm text-gray-300 mb-3">Room Privacy</label>
-            <form.Field name="usePassword" validators={{
-              onChange: ({ value }) => {
-                setValidFields({ ...validFields, password: !value });
-                return undefined;
-              },
-            }}>
-              {(field) => (
+            <form.Field
+              name="usePassword"
+              validators={{
+                onChange: ({ value }) => {
+                  setValidFields({ ...validFields, password: !value });
+                  return undefined;
+                },
+              }}
+            >
+              {field => (
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     type="button"
@@ -156,7 +169,7 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
 
           {/* Password Field */}
           <form.Field name="usePassword">
-            {(privacyField) => (
+            {privacyField => (
               <AnimatePresence mode="sync">
                 {privacyField.state.value && (
                   <motion.div
@@ -169,20 +182,24 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
                       name="password"
                       validators={{
                         onMount: ({ value, fieldApi }) => {
-                          const isInvalid = (!value || value.length < 4);
+                          const isInvalid = !value || value.length < 4;
                           const usePassword = fieldApi.form.getFieldValue('usePassword');
                           setValidFields({ ...validFields, password: !isInvalid || !usePassword });
-                          return usePassword && isInvalid ? 'Password must be at least 4 characters' : undefined;
+                          return usePassword && isInvalid
+                            ? 'Password must be at least 4 characters'
+                            : undefined;
                         },
                         onChange: ({ value, fieldApi }) => {
-                          const isInvalid = (!value || value.length < 4);
+                          const isInvalid = !value || value.length < 4;
                           const usePassword = fieldApi.form.getFieldValue('usePassword');
                           setValidFields({ ...validFields, password: !isInvalid || !usePassword });
-                          return usePassword && isInvalid ? 'Password must be at least 4 characters' : undefined;
+                          return usePassword && isInvalid
+                            ? 'Password must be at least 4 characters'
+                            : undefined;
                         },
                       }}
                     >
-                      {(field) => (
+                      {field => (
                         <div>
                           <label className="block text-sm text-gray-300 mb-2">Room Password</label>
                           <Input
@@ -211,7 +228,7 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
           <div className="mt-6">
             <label className="block text-sm text-gray-300 mb-3">Message Mode</label>
             <form.Field name="messageMode">
-              {(field) => (
+              {field => (
                 <RadioGroup value={field.state.value} onChange={field.handleChange}>
                   <RadioGroup.Label className="sr-only">Message Mode</RadioGroup.Label>
                   <div className="space-y-3">
@@ -256,7 +273,7 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
 
           {/* TTL Configuration */}
           <form.Field name="messageMode">
-            {(modeField) => (
+            {modeField => (
               <AnimatePresence>
                 {modeField.state.value === 'ephemeral' && (
                   <motion.div
@@ -266,7 +283,7 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
                     transition={{ duration: 0.2, ease: 'easeInOut' }}
                   >
                     <form.Field name="messageTtl">
-                      {(field) => (
+                      {field => (
                         <div>
                           <label className="block text-sm text-gray-300 mb-2">
                             Message Lifetime (seconds)
@@ -274,7 +291,9 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
                           <Input
                             type="number"
                             value={field.state.value}
-                            onChange={(value) => field.handleChange(Math.max(1, parseInt(value) || 1))}
+                            onChange={value =>
+                              field.handleChange(Math.max(1, parseInt(value) || 1))
+                            }
                             onBlur={field.handleBlur}
                             className="font-mono"
                             min={1}
@@ -301,4 +320,4 @@ export const CreateConfigStep = ({ onNext, onBack, loading, formData }: StepProp
       </form>
     </motion.div>
   );
-}; 
+};

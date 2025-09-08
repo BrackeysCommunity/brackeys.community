@@ -1,13 +1,18 @@
-import { Users } from 'lucide-react'
+import { Users } from 'lucide-react';
 
 type StatusIndicatorsProps = {
-  isConnected: boolean
-  userCount: number
-  roomCode?: string
-  onRoomClick?: () => void
-}
+  isConnected: boolean;
+  userCount: number;
+  roomCode?: string;
+  onRoomClick?: () => void;
+};
 
-export const StatusIndicators = ({ isConnected, userCount, roomCode, onRoomClick }: StatusIndicatorsProps) => {
+export const StatusIndicators = ({
+  isConnected,
+  userCount,
+  roomCode,
+  onRoomClick,
+}: StatusIndicatorsProps) => {
   return (
     <>
       <div className="absolute top-4 right-4 flex items-center gap-2 bg-gray-900/80 backdrop-blur-sm px-3 py-2 rounded-lg z-10 border border-gray-700">
@@ -35,5 +40,5 @@ export const StatusIndicators = ({ isConnected, userCount, roomCode, onRoomClick
         </div>
       )}
     </>
-  )
-}
+  );
+};

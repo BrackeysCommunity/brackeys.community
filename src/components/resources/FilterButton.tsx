@@ -17,7 +17,7 @@ export const FilterButton = ({
   count,
   onClick,
   icon: Icon,
-  iconColor
+  iconColor,
 }: FilterButtonProps) => {
   return (
     <motion.button
@@ -25,19 +25,15 @@ export const FilterButton = ({
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={cn(
-        "px-3 py-2 rounded-md flex justify-between items-center gap-2",
-        active
-          ? 'bg-gray-700 text-white'
-          : 'bg-gray-900/50 text-gray-400 hover:bg-gray-700/50'
+        'px-3 py-2 rounded-md flex justify-between items-center gap-2',
+        active ? 'bg-gray-700 text-white' : 'bg-gray-900/50 text-gray-400 hover:bg-gray-700/50'
       )}
     >
       <div className="flex items-center gap-2">
-        {Icon && <Icon className={cn("h-4 w-4", iconColor)} />}
+        {Icon && <Icon className={cn('h-4 w-4', iconColor)} />}
         <span>{label}</span>
       </div>
-      <span className="bg-gray-900 text-gray-400 text-xs px-2 py-1 rounded-full">
-        {count}
-      </span>
+      <span className="bg-gray-900 text-gray-400 text-xs px-2 py-1 rounded-full">{count}</span>
     </motion.button>
   );
 };

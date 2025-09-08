@@ -8,7 +8,9 @@ import { useEffect } from 'react';
 import { AuthGuard } from '../components/auth/AuthGuard';
 
 const ProfileContent = () => {
-  const { state: { user } } = useAuth();
+  const {
+    state: { user },
+  } = useAuth();
 
   useEffect(() => {
     document.title = 'Profile - Brackeys Community';
@@ -18,12 +20,8 @@ const ProfileContent = () => {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-white">
-            Not signed in
-          </h3>
-          <p className="mt-1 text-sm text-gray-400">
-            Please sign in to view your profile.
-          </p>
+          <h3 className="text-lg font-medium text-white">Not signed in</h3>
+          <p className="mt-1 text-sm text-gray-400">Please sign in to view your profile.</p>
         </div>
       </div>
     );
@@ -37,9 +35,7 @@ const ProfileContent = () => {
         transition={{ duration: 0.3 }}
         className="max-w-3xl mx-auto"
       >
-        <h1 className="text-2xl font-semibold text-white">
-          Your Profile
-        </h1>
+        <h1 className="text-2xl font-semibold text-white">Your Profile</h1>
         <p className="mt-2 text-gray-300">
           View and manage your Discord-connected account information.
         </p>
@@ -54,9 +50,7 @@ const ProfileContent = () => {
         >
           <div className="px-4 py-5 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
             <div>
-              <h3 className="text-lg leading-6 font-medium text-white">
-                Discord Account
-              </h3>
+              <h3 className="text-lg leading-6 font-medium text-white">Discord Account</h3>
               <p className="mt-1 max-w-2xl text-sm text-gray-400">
                 Your Discord identity connected to this application.
               </p>
@@ -91,7 +85,8 @@ const ProfileContent = () => {
                     {user?.full_name || 'Discord User'}
                   </h2>
                   <p className="text-sm text-brackeys-purple-400 mt-1">
-                    Brackeys Community Member <span className="text-gray-500 text-xs">• for 6 years</span>
+                    Brackeys Community Member{' '}
+                    <span className="text-gray-500 text-xs">• for 6 years</span>
                   </p>
                 </div>
               </div>

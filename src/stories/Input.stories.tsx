@@ -1,6 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { User, Mail, Lock, Search, Phone, CreditCard, Copy, Send, Filter, Settings } from 'lucide-react';
+import {
+  User,
+  Mail,
+  Lock,
+  Search,
+  Phone,
+  CreditCard,
+  Copy,
+  Send,
+  Filter,
+  Settings,
+} from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 
@@ -35,28 +46,14 @@ type Story = StoryObj<typeof meta>;
 export const Text: Story = {
   render: () => {
     const [value, setValue] = useState('');
-    return (
-      <Input
-        type="text"
-        placeholder="Enter your name"
-        value={value}
-        onChange={setValue}
-      />
-    );
+    return <Input type="text" placeholder="Enter your name" value={value} onChange={setValue} />;
   },
 };
 
 export const Email: Story = {
   render: () => {
     const [value, setValue] = useState('');
-    return (
-      <Input
-        type="email"
-        placeholder="Enter your email"
-        value={value}
-        onChange={setValue}
-      />
-    );
+    return <Input type="email" placeholder="Enter your email" value={value} onChange={setValue} />;
   },
 };
 
@@ -64,12 +61,7 @@ export const Password: Story = {
   render: () => {
     const [value, setValue] = useState('');
     return (
-      <Input
-        type="password"
-        placeholder="Enter your password"
-        value={value}
-        onChange={setValue}
-      />
+      <Input type="password" placeholder="Enter your password" value={value} onChange={setValue} />
     );
   },
 };
@@ -78,13 +70,7 @@ export const Number: Story = {
   render: () => {
     const [value, setValue] = useState('');
     return (
-      <Input
-        type="number"
-        placeholder="Enter a number"
-        value={value}
-        onChange={setValue}
-        min={0}
-      />
+      <Input type="number" placeholder="Enter a number" value={value} onChange={setValue} min={0} />
     );
   },
 };
@@ -109,12 +95,7 @@ export const States: Story = {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1">Disabled state</label>
-          <Input
-            type="text"
-            placeholder="Disabled state"
-            value="Cannot edit this"
-            disabled
-          />
+          <Input type="text" placeholder="Disabled state" value="Cannot edit this" disabled />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1">Error state</label>
@@ -199,15 +180,8 @@ export const Interactive: Story = {
 
     return (
       <div className="flex flex-col gap-4 w-80">
-        <Input
-          type="text"
-          placeholder="Type something..."
-          value={value}
-          onChange={setValue}
-        />
-        <p className="text-sm text-gray-400">
-          Current value: {value || '(empty)'}
-        </p>
+        <Input type="text" placeholder="Type something..." value={value} onChange={setValue} />
+        <p className="text-sm text-gray-400">Current value: {value || '(empty)'}</p>
       </div>
     );
   },
@@ -324,12 +298,7 @@ export const AllVariations: Story = {
         <div>
           <h3 className="text-lg font-semibold text-white mb-4">Input Types</h3>
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="text"
-              placeholder="Text input"
-              value={textInput}
-              onChange={setTextInput}
-            />
+            <Input type="text" placeholder="Text input" value={textInput} onChange={setTextInput} />
             <Input
               type="email"
               placeholder="Email input"
@@ -431,18 +400,8 @@ export const AllVariations: Story = {
         <div>
           <h3 className="text-lg font-semibold text-white mb-4">States</h3>
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="text"
-              placeholder="Normal"
-              value={normalInput}
-              onChange={setNormalInput}
-            />
-            <Input
-              type="text"
-              placeholder="Disabled"
-              value="Cannot edit"
-              disabled
-            />
+            <Input type="text" placeholder="Normal" value={normalInput} onChange={setNormalInput} />
+            <Input type="text" placeholder="Disabled" value="Cannot edit" disabled />
             <Input
               type="text"
               placeholder="Error state"
@@ -492,7 +451,9 @@ export const WithButtonPrefix: Story = {
     return (
       <div className="flex flex-col gap-4 w-96">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Search with settings</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Search with settings
+          </label>
           <Input
             type="text"
             placeholder="Search with advanced options..."
@@ -669,7 +630,9 @@ export const ButtonPrefixVariations: Story = {
     return (
       <div className="flex flex-col gap-4 w-96">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Text input with button</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Text input with button
+          </label>
           <Input
             type="text"
             placeholder="Search documents..."
@@ -689,7 +652,9 @@ export const ButtonPrefixVariations: Story = {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Password input with button</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Password input with button
+          </label>
           <Input
             type="password"
             placeholder="Enter secure password..."
@@ -709,7 +674,9 @@ export const ButtonPrefixVariations: Story = {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Number input with button</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Number input with button
+          </label>
           <Input
             type="number"
             placeholder="Enter amount..."
@@ -731,4 +698,4 @@ export const ButtonPrefixVariations: Story = {
       </div>
     );
   },
-}; 
+};

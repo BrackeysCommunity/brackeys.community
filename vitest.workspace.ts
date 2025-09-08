@@ -24,7 +24,7 @@ export default defineWorkspace([
         enabled: true,
         headless: true,
         provider: 'playwright',
-        instances: [{ browser: 'chromium' }]
+        instances: [{ browser: 'chromium' }],
       },
       setupFiles: ['.storybook/vitest.setup.ts'],
     },

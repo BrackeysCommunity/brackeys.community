@@ -9,14 +9,11 @@ export const App = () => {
   const handleSplashComplete = () => {
     localStorage.setItem('splash-screen-complete', 'true');
     setShowSplash(false);
-  }
+  };
 
   return (
     <>
-      {showSplash
-        ? <SplashScreen onComplete={handleSplashComplete} />
-        : <ContextProviders />
-      }
+      {showSplash ? <SplashScreen onComplete={handleSplashComplete} /> : <ContextProviders />}
       <Toaster
         position="bottom-left"
         expand={false}
@@ -26,4 +23,4 @@ export const App = () => {
       />
     </>
   );
-}
+};

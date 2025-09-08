@@ -1,28 +1,28 @@
-import { motion } from 'motion/react'
-import { useState } from 'react'
-import { MAX_NAME_LENGTH } from './constants'
+import { motion } from 'motion/react';
+import { useState } from 'react';
+import { MAX_NAME_LENGTH } from './constants';
 
 type NameDialogProps = {
-  isConnected: boolean
-  onSubmit: (name: string) => Promise<void>
-}
+  isConnected: boolean;
+  onSubmit: (name: string) => Promise<void>;
+};
 
 export const NameDialog = ({ isConnected, onSubmit }: NameDialogProps) => {
-  const [userName, setUserName] = useState<string>('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [userName, setUserName] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (userName.trim() && isConnected && !isSubmitting) {
       try {
-        setIsSubmitting(true)
-        await onSubmit(userName.trim())
+        setIsSubmitting(true);
+        await onSubmit(userName.trim());
       } catch (error) {
-        console.error('Failed to set name:', error)
-        setIsSubmitting(false)
+        console.error('Failed to set name:', error);
+        setIsSubmitting(false);
       }
     }
-  }
+  };
 
   return (
     <motion.div
@@ -32,15 +32,13 @@ export const NameDialog = ({ isConnected, onSubmit }: NameDialogProps) => {
     >
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
         <h2 className="text-xl font-semibold text-white mb-4">Welcome to the Sandbox!</h2>
-        <p className="text-gray-300 mb-6">
-          Choose a display name to identify yourself to others
-        </p>
+        <p className="text-gray-300 mb-6">Choose a display name to identify yourself to others</p>
         <form onSubmit={handleSubmit}>
           <input
             type="text"
             placeholder="Enter your name..."
             value={userName}
-            onChange={(e) => setUserName(e.target.value)}
+            onChange={e => setUserName(e.target.value)}
             className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brackeys-purple-500 focus:border-transparent"
             maxLength={MAX_NAME_LENGTH}
             autoFocus
@@ -56,5 +54,5 @@ export const NameDialog = ({ isConnected, onSubmit }: NameDialogProps) => {
         </form>
       </div>
     </motion.div>
-  )
-} 
+  );
+};

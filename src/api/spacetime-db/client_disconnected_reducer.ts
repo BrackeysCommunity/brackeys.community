@@ -29,7 +29,7 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
+} from '@clockworklabs/spacetimedb-sdk';
 
 export type ClientDisconnected = {};
 
@@ -38,12 +38,11 @@ export type ClientDisconnected = {};
  */
 export namespace ClientDisconnected {
   /**
-  * A function which returns this type represented as an AlgebraicType.
-  * This function is derived from the AlgebraicType used to generate this type.
-  */
+   * A function which returns this type represented as an AlgebraicType.
+   * This function is derived from the AlgebraicType used to generate this type.
+   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
-    return AlgebraicType.createProductType([
-    ]);
+    return AlgebraicType.createProductType([]);
   }
 
   export function serialize(writer: BinaryWriter, value: ClientDisconnected): void {
@@ -53,6 +52,4 @@ export namespace ClientDisconnected {
   export function deserialize(reader: BinaryReader): ClientDisconnected {
     return ClientDisconnected.getTypeScriptAlgebraicType().deserialize(reader);
   }
-
 }
-

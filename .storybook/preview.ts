@@ -1,7 +1,7 @@
-import type { Preview } from '@storybook/react-vite'
-import { Toaster } from 'sonner'
-import React from 'react'
-import '../src/index.css'
+import type { Preview } from '@storybook/react-vite';
+import { Toaster } from 'sonner';
+import React from 'react';
+import '../src/index.css';
 
 const preview: Preview = {
   parameters: {
@@ -37,7 +37,8 @@ const preview: Preview = {
         appBorderRadius: 6,
 
         // Typography
-        fontBase: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+        fontBase:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
         fontCode: 'source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace',
 
         // Text colors
@@ -55,7 +56,7 @@ const preview: Preview = {
         inputBorder: '#4b5563', // gray-600
         inputTextColor: '#f9fafb', // gray-50
         inputBorderRadius: 4,
-      }
+      },
     },
     options: {
       storySort: {
@@ -66,11 +67,11 @@ const preview: Preview = {
       // 'todo' - show a11y violations in the test UI only
       // 'error' - fail CI on a11y violations
       // 'off' - skip a11y checks entirely
-      test: 'todo'
-    }
+      test: 'todo',
+    },
   },
   decorators: [
-    (Story) => (
+    Story =>
       React.createElement('div', { style: { padding: '1rem' } }, [
         React.createElement(Story, { key: 'story' }),
         React.createElement(Toaster, {
@@ -78,10 +79,9 @@ const preview: Preview = {
           position: 'top-right',
           expand: true,
           richColors: true,
-          theme: 'dark'
-        })
-      ])
-    ),
+          theme: 'dark',
+        }),
+      ]),
   ],
 };
 

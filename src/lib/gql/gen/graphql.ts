@@ -4,22 +4,26 @@ export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
 export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
-export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
-export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = {
+  [_ in K]?: never;
+};
+export type Incremental<T> =
+  | T
+  | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
-  ID: { input: string; output: string; }
-  String: { input: string; output: string; }
-  Boolean: { input: boolean; output: boolean; }
-  Int: { input: number; output: number; }
-  Float: { input: number; output: number; }
-  bytes: { input: any; output: any; }
-  float64: { input: any; output: any; }
-  int8: { input: any; output: any; }
-  int32: { input: any; output: any; }
-  int64: { input: any; output: any; }
-  string: { input: any; output: any; }
-  timestamp: { input: any; output: any; }
+  ID: { input: string; output: string };
+  String: { input: string; output: string };
+  Boolean: { input: boolean; output: boolean };
+  Int: { input: number; output: number };
+  Float: { input: number; output: number };
+  bytes: { input: any; output: any };
+  float64: { input: any; output: any };
+  int8: { input: any; output: any };
+  int32: { input: any; output: any };
+  int64: { input: any; output: any };
+  string: { input: any; output: any };
+  timestamp: { input: any; output: any };
 };
 
 export type Mutation = {
@@ -31,7 +35,7 @@ export enum OrderBy {
   /** Sorts the data in ascending order */
   Asc = 'Asc',
   /** Sorts the data in descending order */
-  Desc = 'Desc'
+  Desc = 'Desc',
 }
 
 export type Query = {
@@ -113,7 +117,6 @@ export type Query = {
   tracked_messages_by_id?: Maybe<Tracked_Messages>;
 };
 
-
 export type QueryAlt_AccountArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -121,17 +124,14 @@ export type QueryAlt_AccountArgs = {
   where?: InputMaybe<Alt_Account_Bool_Exp>;
 };
 
-
 export type QueryAlt_Account_AggregateArgs = {
   filter_input?: InputMaybe<Alt_Account_Filter_Input>;
 };
-
 
 export type QueryAlt_Account_By_Alt_Account_PkArgs = {
   alt_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type QueryBlocked_ReporterArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -140,17 +140,14 @@ export type QueryBlocked_ReporterArgs = {
   where?: InputMaybe<Blocked_Reporter_Bool_Exp>;
 };
 
-
 export type QueryBlocked_Reporter_AggregateArgs = {
   filter_input?: InputMaybe<Blocked_Reporter_Filter_Input>;
 };
-
 
 export type QueryBlocked_Reporter_By_Blocked_Reporter_PkArgs = {
   guild_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type QueryCollaboration_AlertArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -159,16 +156,13 @@ export type QueryCollaboration_AlertArgs = {
   where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Alert_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Alert_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_Audit_LogArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -177,16 +171,13 @@ export type QueryCollaboration_Audit_LogArgs = {
   where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Audit_Log_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Audit_Log_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_Blocked_UserArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -195,16 +186,13 @@ export type QueryCollaboration_Blocked_UserArgs = {
   where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Blocked_User_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Blocked_User_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_BookmarkArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -213,16 +201,13 @@ export type QueryCollaboration_BookmarkArgs = {
   where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Bookmark_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Bookmark_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_Field_DefinitionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -231,16 +216,13 @@ export type QueryCollaboration_Field_DefinitionArgs = {
   where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Field_Definition_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Field_Definition_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_Field_ValueArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -249,16 +231,13 @@ export type QueryCollaboration_Field_ValueArgs = {
   where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Field_Value_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Field_Value_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_PostArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -267,16 +246,13 @@ export type QueryCollaboration_PostArgs = {
   where?: InputMaybe<Collaboration_Post_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Post_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Post_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_ProfileArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -285,16 +261,13 @@ export type QueryCollaboration_ProfileArgs = {
   where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Profile_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Profile_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Profile_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_ReportArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -303,16 +276,13 @@ export type QueryCollaboration_ReportArgs = {
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Report_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Report_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_ResponseArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -321,16 +291,13 @@ export type QueryCollaboration_ResponseArgs = {
   where?: InputMaybe<Collaboration_Response_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Response_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Response_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_RuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -339,16 +306,13 @@ export type QueryCollaboration_RuleArgs = {
   where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Rule_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Rule_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Rule_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type QueryCollaboration_StatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -357,16 +321,13 @@ export type QueryCollaboration_StatusArgs = {
   where?: InputMaybe<Collaboration_Status_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Status_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Status_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Status_By_IdArgs = {
   id: Scalars['int32']['input'];
 };
-
 
 export type QueryCollaboration_TypeArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -375,16 +336,13 @@ export type QueryCollaboration_TypeArgs = {
   where?: InputMaybe<Collaboration_Type_Bool_Exp>;
 };
 
-
 export type QueryCollaboration_Type_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Type_Filter_Input>;
 };
 
-
 export type QueryCollaboration_Type_By_IdArgs = {
   id: Scalars['int32']['input'];
 };
-
 
 export type QueryDeleted_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -393,16 +351,13 @@ export type QueryDeleted_MessageArgs = {
   where?: InputMaybe<Deleted_Message_Bool_Exp>;
 };
 
-
 export type QueryDeleted_Message_AggregateArgs = {
   filter_input?: InputMaybe<Deleted_Message_Filter_Input>;
 };
 
-
 export type QueryDeleted_Message_By_Message_IdArgs = {
   message_id: Scalars['int64']['input'];
 };
-
 
 export type QueryHiring_StatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -411,16 +366,13 @@ export type QueryHiring_StatusArgs = {
   where?: InputMaybe<Hiring_Status_Bool_Exp>;
 };
 
-
 export type QueryHiring_Status_AggregateArgs = {
   filter_input?: InputMaybe<Hiring_Status_Filter_Input>;
 };
 
-
 export type QueryHiring_Status_By_IdArgs = {
   id: Scalars['int32']['input'];
 };
-
 
 export type QueryInfractionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -429,16 +381,13 @@ export type QueryInfractionArgs = {
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
 
-
 export type QueryInfraction_AggregateArgs = {
   filter_input?: InputMaybe<Infraction_Filter_Input>;
 };
 
-
 export type QueryInfraction_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type QueryMember_NoteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -447,16 +396,13 @@ export type QueryMember_NoteArgs = {
   where?: InputMaybe<Member_Note_Bool_Exp>;
 };
 
-
 export type QueryMember_Note_AggregateArgs = {
   filter_input?: InputMaybe<Member_Note_Filter_Input>;
 };
 
-
 export type QueryMember_Note_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type QueryMuteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -465,17 +411,14 @@ export type QueryMuteArgs = {
   where?: InputMaybe<Mute_Bool_Exp>;
 };
 
-
 export type QueryMute_AggregateArgs = {
   filter_input?: InputMaybe<Mute_Filter_Input>;
 };
-
 
 export type QueryMute_By_Mute_PkArgs = {
   guild_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type QueryReported_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -484,16 +427,13 @@ export type QueryReported_MessageArgs = {
   where?: InputMaybe<Reported_Message_Bool_Exp>;
 };
 
-
 export type QueryReported_Message_AggregateArgs = {
   filter_input?: InputMaybe<Reported_Message_Filter_Input>;
 };
 
-
 export type QueryReported_Message_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type QueryRuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -502,17 +442,14 @@ export type QueryRuleArgs = {
   where?: InputMaybe<Rule_Bool_Exp>;
 };
 
-
 export type QueryRule_AggregateArgs = {
   filter_input?: InputMaybe<Rule_Filter_Input>;
 };
-
 
 export type QueryRule_By_Rule_PkArgs = {
   guild_id: Scalars['int64']['input'];
   id: Scalars['int32']['input'];
 };
-
 
 export type QueryStaff_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -521,16 +458,13 @@ export type QueryStaff_MessageArgs = {
   where?: InputMaybe<Staff_Message_Bool_Exp>;
 };
 
-
 export type QueryStaff_Message_AggregateArgs = {
   filter_input?: InputMaybe<Staff_Message_Filter_Input>;
 };
 
-
 export type QueryStaff_Message_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type QueryTemporary_BanArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -539,17 +473,14 @@ export type QueryTemporary_BanArgs = {
   where?: InputMaybe<Temporary_Ban_Bool_Exp>;
 };
 
-
 export type QueryTemporary_Ban_AggregateArgs = {
   filter_input?: InputMaybe<Temporary_Ban_Filter_Input>;
 };
-
 
 export type QueryTemporary_Ban_By_Temporary_Ban_PkArgs = {
   guild_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type QueryTracked_MessagesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -558,11 +489,9 @@ export type QueryTracked_MessagesArgs = {
   where?: InputMaybe<Tracked_Messages_Bool_Exp>;
 };
 
-
 export type QueryTracked_Messages_AggregateArgs = {
   filter_input?: InputMaybe<Tracked_Messages_Filter_Input>;
 };
-
 
 export type QueryTracked_Messages_By_IdArgs = {
   id: Scalars['int64']['input'];
@@ -647,7 +576,6 @@ export type Subscription = {
   tracked_messages_by_id?: Maybe<Tracked_Messages>;
 };
 
-
 export type SubscriptionAlt_AccountArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -655,17 +583,14 @@ export type SubscriptionAlt_AccountArgs = {
   where?: InputMaybe<Alt_Account_Bool_Exp>;
 };
 
-
 export type SubscriptionAlt_Account_AggregateArgs = {
   filter_input?: InputMaybe<Alt_Account_Filter_Input>;
 };
-
 
 export type SubscriptionAlt_Account_By_Alt_Account_PkArgs = {
   alt_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionBlocked_ReporterArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -674,17 +599,14 @@ export type SubscriptionBlocked_ReporterArgs = {
   where?: InputMaybe<Blocked_Reporter_Bool_Exp>;
 };
 
-
 export type SubscriptionBlocked_Reporter_AggregateArgs = {
   filter_input?: InputMaybe<Blocked_Reporter_Filter_Input>;
 };
-
 
 export type SubscriptionBlocked_Reporter_By_Blocked_Reporter_PkArgs = {
   guild_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionCollaboration_AlertArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -693,16 +615,13 @@ export type SubscriptionCollaboration_AlertArgs = {
   where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Alert_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Alert_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_Audit_LogArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -711,16 +630,13 @@ export type SubscriptionCollaboration_Audit_LogArgs = {
   where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Audit_Log_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Audit_Log_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_Blocked_UserArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -729,16 +645,13 @@ export type SubscriptionCollaboration_Blocked_UserArgs = {
   where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Blocked_User_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Blocked_User_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_BookmarkArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -747,16 +660,13 @@ export type SubscriptionCollaboration_BookmarkArgs = {
   where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Bookmark_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Bookmark_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_Field_DefinitionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -765,16 +675,13 @@ export type SubscriptionCollaboration_Field_DefinitionArgs = {
   where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Field_Definition_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Field_Definition_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_Field_ValueArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -783,16 +690,13 @@ export type SubscriptionCollaboration_Field_ValueArgs = {
   where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Field_Value_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Field_Value_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_PostArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -801,16 +705,13 @@ export type SubscriptionCollaboration_PostArgs = {
   where?: InputMaybe<Collaboration_Post_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Post_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Post_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_ProfileArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -819,16 +720,13 @@ export type SubscriptionCollaboration_ProfileArgs = {
   where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Profile_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Profile_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Profile_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_ReportArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -837,16 +735,13 @@ export type SubscriptionCollaboration_ReportArgs = {
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Report_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Report_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_ResponseArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -855,16 +750,13 @@ export type SubscriptionCollaboration_ResponseArgs = {
   where?: InputMaybe<Collaboration_Response_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Response_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Response_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_RuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -873,16 +765,13 @@ export type SubscriptionCollaboration_RuleArgs = {
   where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Rule_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Rule_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Rule_By_IdArgs = {
   id: Scalars['string']['input'];
 };
-
 
 export type SubscriptionCollaboration_StatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -891,16 +780,13 @@ export type SubscriptionCollaboration_StatusArgs = {
   where?: InputMaybe<Collaboration_Status_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Status_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Status_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Status_By_IdArgs = {
   id: Scalars['int32']['input'];
 };
-
 
 export type SubscriptionCollaboration_TypeArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -909,16 +795,13 @@ export type SubscriptionCollaboration_TypeArgs = {
   where?: InputMaybe<Collaboration_Type_Bool_Exp>;
 };
 
-
 export type SubscriptionCollaboration_Type_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Type_Filter_Input>;
 };
 
-
 export type SubscriptionCollaboration_Type_By_IdArgs = {
   id: Scalars['int32']['input'];
 };
-
 
 export type SubscriptionDeleted_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -927,16 +810,13 @@ export type SubscriptionDeleted_MessageArgs = {
   where?: InputMaybe<Deleted_Message_Bool_Exp>;
 };
 
-
 export type SubscriptionDeleted_Message_AggregateArgs = {
   filter_input?: InputMaybe<Deleted_Message_Filter_Input>;
 };
 
-
 export type SubscriptionDeleted_Message_By_Message_IdArgs = {
   message_id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionHiring_StatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -945,16 +825,13 @@ export type SubscriptionHiring_StatusArgs = {
   where?: InputMaybe<Hiring_Status_Bool_Exp>;
 };
 
-
 export type SubscriptionHiring_Status_AggregateArgs = {
   filter_input?: InputMaybe<Hiring_Status_Filter_Input>;
 };
 
-
 export type SubscriptionHiring_Status_By_IdArgs = {
   id: Scalars['int32']['input'];
 };
-
 
 export type SubscriptionInfractionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -963,16 +840,13 @@ export type SubscriptionInfractionArgs = {
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
 
-
 export type SubscriptionInfraction_AggregateArgs = {
   filter_input?: InputMaybe<Infraction_Filter_Input>;
 };
 
-
 export type SubscriptionInfraction_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionMember_NoteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -981,16 +855,13 @@ export type SubscriptionMember_NoteArgs = {
   where?: InputMaybe<Member_Note_Bool_Exp>;
 };
 
-
 export type SubscriptionMember_Note_AggregateArgs = {
   filter_input?: InputMaybe<Member_Note_Filter_Input>;
 };
 
-
 export type SubscriptionMember_Note_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionMuteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -999,17 +870,14 @@ export type SubscriptionMuteArgs = {
   where?: InputMaybe<Mute_Bool_Exp>;
 };
 
-
 export type SubscriptionMute_AggregateArgs = {
   filter_input?: InputMaybe<Mute_Filter_Input>;
 };
-
 
 export type SubscriptionMute_By_Mute_PkArgs = {
   guild_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionReported_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1018,16 +886,13 @@ export type SubscriptionReported_MessageArgs = {
   where?: InputMaybe<Reported_Message_Bool_Exp>;
 };
 
-
 export type SubscriptionReported_Message_AggregateArgs = {
   filter_input?: InputMaybe<Reported_Message_Filter_Input>;
 };
 
-
 export type SubscriptionReported_Message_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionRuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1036,17 +901,14 @@ export type SubscriptionRuleArgs = {
   where?: InputMaybe<Rule_Bool_Exp>;
 };
 
-
 export type SubscriptionRule_AggregateArgs = {
   filter_input?: InputMaybe<Rule_Filter_Input>;
 };
-
 
 export type SubscriptionRule_By_Rule_PkArgs = {
   guild_id: Scalars['int64']['input'];
   id: Scalars['int32']['input'];
 };
-
 
 export type SubscriptionStaff_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1055,16 +917,13 @@ export type SubscriptionStaff_MessageArgs = {
   where?: InputMaybe<Staff_Message_Bool_Exp>;
 };
 
-
 export type SubscriptionStaff_Message_AggregateArgs = {
   filter_input?: InputMaybe<Staff_Message_Filter_Input>;
 };
 
-
 export type SubscriptionStaff_Message_By_IdArgs = {
   id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionTemporary_BanArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1073,17 +932,14 @@ export type SubscriptionTemporary_BanArgs = {
   where?: InputMaybe<Temporary_Ban_Bool_Exp>;
 };
 
-
 export type SubscriptionTemporary_Ban_AggregateArgs = {
   filter_input?: InputMaybe<Temporary_Ban_Filter_Input>;
 };
-
 
 export type SubscriptionTemporary_Ban_By_Temporary_Ban_PkArgs = {
   guild_id: Scalars['int64']['input'];
   user_id: Scalars['int64']['input'];
 };
-
 
 export type SubscriptionTracked_MessagesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1092,11 +948,9 @@ export type SubscriptionTracked_MessagesArgs = {
   where?: InputMaybe<Tracked_Messages_Bool_Exp>;
 };
 
-
 export type SubscriptionTracked_Messages_AggregateArgs = {
   filter_input?: InputMaybe<Tracked_Messages_Filter_Input>;
 };
-
 
 export type SubscriptionTracked_Messages_By_IdArgs = {
   id: Scalars['int64']['input'];
@@ -1114,14 +968,12 @@ export type Alt_Account = {
   user_id: Scalars['int64']['output'];
 };
 
-
 export type Alt_AccountAlt_User_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type Alt_AccountMain_User_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1175,14 +1027,12 @@ export type Blocked_Reporter = {
   user_reports?: Maybe<Array<Reported_Message>>;
 };
 
-
 export type Blocked_ReporterUser_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type Blocked_ReporterUser_ReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1513,14 +1363,12 @@ export type Collaboration_Field_Definition = {
   validation_regex?: Maybe<Scalars['string']['output']>;
 };
 
-
 export type Collaboration_Field_DefinitionCollaboration_Field_ValuesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
 };
-
 
 export type Collaboration_Field_DefinitionCollaboration_Field_Values_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
@@ -1669,7 +1517,6 @@ export type Collaboration_Post = {
   view_count: Scalars['int32']['output'];
 };
 
-
 export type Collaboration_PostCollaboration_Audit_LogsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -1677,11 +1524,9 @@ export type Collaboration_PostCollaboration_Audit_LogsArgs = {
   where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
 };
 
-
 export type Collaboration_PostCollaboration_Audit_Logs_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
 };
-
 
 export type Collaboration_PostCollaboration_BookmarksArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1690,11 +1535,9 @@ export type Collaboration_PostCollaboration_BookmarksArgs = {
   where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
 };
 
-
 export type Collaboration_PostCollaboration_Bookmarks_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
 };
-
 
 export type Collaboration_PostCollaboration_Field_ValuesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1703,11 +1546,9 @@ export type Collaboration_PostCollaboration_Field_ValuesArgs = {
   where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
 };
 
-
 export type Collaboration_PostCollaboration_Field_Values_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
 };
-
 
 export type Collaboration_PostCollaboration_ReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1716,11 +1557,9 @@ export type Collaboration_PostCollaboration_ReportsArgs = {
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
 
-
 export type Collaboration_PostCollaboration_Reports_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
 };
-
 
 export type Collaboration_PostCollaboration_ResponsesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1728,7 +1567,6 @@ export type Collaboration_PostCollaboration_ResponsesArgs = {
   order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Response_Bool_Exp>;
 };
-
 
 export type Collaboration_PostCollaboration_Responses_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
@@ -1848,7 +1686,6 @@ export type Collaboration_Profile = {
   user_id: Scalars['int64']['output'];
 };
 
-
 export type Collaboration_ProfileCollaboration_AlertsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -1856,11 +1693,9 @@ export type Collaboration_ProfileCollaboration_AlertsArgs = {
   where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Alerts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_Audit_LogsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1869,11 +1704,9 @@ export type Collaboration_ProfileCollaboration_Audit_LogsArgs = {
   where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Audit_Logs_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_Blocked_UsersArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1882,11 +1715,9 @@ export type Collaboration_ProfileCollaboration_Blocked_UsersArgs = {
   where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Blocked_Users_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_BookmarksArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1895,11 +1726,9 @@ export type Collaboration_ProfileCollaboration_BookmarksArgs = {
   where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Bookmarks_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_PostsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1908,11 +1737,9 @@ export type Collaboration_ProfileCollaboration_PostsArgs = {
   where?: InputMaybe<Collaboration_Post_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Posts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_ReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1921,11 +1748,9 @@ export type Collaboration_ProfileCollaboration_ReportsArgs = {
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Reports_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_IdArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1934,11 +1759,9 @@ export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_Id
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
 
-
 export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_Id_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
 };
-
 
 export type Collaboration_ProfileCollaboration_ResponsesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1946,7 +1769,6 @@ export type Collaboration_ProfileCollaboration_ResponsesArgs = {
   order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Response_Bool_Exp>;
 };
-
 
 export type Collaboration_ProfileCollaboration_Responses_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
@@ -2123,14 +1945,12 @@ export type Collaboration_Response = {
   read_at?: Maybe<Scalars['timestamp']['output']>;
 };
 
-
 export type Collaboration_ResponseCollaboration_ReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
-
 
 export type Collaboration_ResponseCollaboration_Reports_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
@@ -2208,7 +2028,6 @@ export type Collaboration_Rule = {
   updated_at: Scalars['timestamp']['output'];
 };
 
-
 export type Collaboration_RuleCollaboration_Blocked_UsersArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -2216,11 +2035,9 @@ export type Collaboration_RuleCollaboration_Blocked_UsersArgs = {
   where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
 };
 
-
 export type Collaboration_RuleCollaboration_Blocked_Users_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
 };
-
 
 export type Collaboration_RuleCollaboration_ReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2228,7 +2045,6 @@ export type Collaboration_RuleCollaboration_ReportsArgs = {
   order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Report_Bool_Exp>;
 };
-
 
 export type Collaboration_RuleCollaboration_Reports_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
@@ -2290,14 +2106,12 @@ export type Collaboration_Status = {
   name: Scalars['string']['output'];
 };
 
-
 export type Collaboration_StatusCollaboration_PostsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Post_Bool_Exp>;
 };
-
 
 export type Collaboration_StatusCollaboration_Posts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
@@ -2347,7 +2161,6 @@ export type Collaboration_Type = {
   name: Scalars['string']['output'];
 };
 
-
 export type Collaboration_TypeCollaboration_AlertsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -2355,11 +2168,9 @@ export type Collaboration_TypeCollaboration_AlertsArgs = {
   where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
 };
 
-
 export type Collaboration_TypeCollaboration_Alerts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
 };
-
 
 export type Collaboration_TypeCollaboration_Field_DefinitionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2368,11 +2179,9 @@ export type Collaboration_TypeCollaboration_Field_DefinitionsArgs = {
   where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
 };
 
-
 export type Collaboration_TypeCollaboration_Field_Definitions_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
 };
-
 
 export type Collaboration_TypeCollaboration_PostsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2380,7 +2189,6 @@ export type Collaboration_TypeCollaboration_PostsArgs = {
   order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Post_Bool_Exp>;
 };
-
 
 export type Collaboration_TypeCollaboration_Posts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
@@ -2439,14 +2247,12 @@ export type Deleted_Message = {
   staff_member_id: Scalars['int64']['output'];
 };
 
-
 export type Deleted_MessageAuthor_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type Deleted_MessageReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2520,7 +2326,6 @@ export type Hiring_Status = {
   name: Scalars['string']['output'];
 };
 
-
 export type Hiring_StatusCollaboration_AlertsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -2528,11 +2333,9 @@ export type Hiring_StatusCollaboration_AlertsArgs = {
   where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
 };
 
-
 export type Hiring_StatusCollaboration_Alerts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
 };
-
 
 export type Hiring_StatusCollaboration_Field_DefinitionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2541,11 +2344,9 @@ export type Hiring_StatusCollaboration_Field_DefinitionsArgs = {
   where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
 };
 
-
 export type Hiring_StatusCollaboration_Field_Definitions_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
 };
-
 
 export type Hiring_StatusCollaboration_PostsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2553,7 +2354,6 @@ export type Hiring_StatusCollaboration_PostsArgs = {
   order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
   where?: InputMaybe<Collaboration_Post_Bool_Exp>;
 };
-
 
 export type Hiring_StatusCollaboration_Posts_AggregateArgs = {
   filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
@@ -2609,7 +2409,6 @@ export type Infraction = {
   type: Scalars['int32']['output'];
   user_id: Scalars['int64']['output'];
 };
-
 
 export type InfractionMember_NotesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -2825,7 +2624,6 @@ export type Member_Note = {
   user_temporary_ban?: Maybe<Temporary_Ban>;
 };
 
-
 export type Member_NoteUser_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -2888,14 +2686,12 @@ export type Mute = {
   user_notes?: Maybe<Array<Member_Note>>;
 };
 
-
 export type MuteUser_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type MuteUser_NotesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -3010,7 +2806,6 @@ export type Rule = {
   infractions?: Maybe<Array<Infraction>>;
 };
 
-
 export type RuleInfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -3065,14 +2860,12 @@ export type Staff_Message = {
   staff_member_id: Scalars['int64']['output'];
 };
 
-
 export type Staff_MessageRecipient_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type Staff_MessageRecipient_NotesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -3169,14 +2962,12 @@ export type Temporary_Ban = {
   user_notes?: Maybe<Array<Member_Note>>;
 };
 
-
 export type Temporary_BanUser_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type Temporary_BanUser_NotesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -3272,14 +3063,12 @@ export type Tracked_Messages = {
   reports?: Maybe<Array<Reported_Message>>;
 };
 
-
 export type Tracked_MessagesAuthor_InfractionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
   where?: InputMaybe<Infraction_Bool_Exp>;
 };
-
 
 export type Tracked_MessagesReportsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;

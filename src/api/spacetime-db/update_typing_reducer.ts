@@ -29,14 +29,14 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
+} from '@clockworklabs/spacetimedb-sdk';
 
 export type UpdateTyping = {
-  text: string,
-  x: number,
-  y: number,
-  selectionStart: number,
-  selectionEnd: number,
+  text: string;
+  x: number;
+  y: number;
+  selectionStart: number;
+  selectionEnd: number;
 };
 
 /**
@@ -44,16 +44,16 @@ export type UpdateTyping = {
  */
 export namespace UpdateTyping {
   /**
-  * A function which returns this type represented as an AlgebraicType.
-  * This function is derived from the AlgebraicType used to generate this type.
-  */
+   * A function which returns this type represented as an AlgebraicType.
+   * This function is derived from the AlgebraicType used to generate this type.
+   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("text", AlgebraicType.createStringType()),
-      new ProductTypeElement("x", AlgebraicType.createF32Type()),
-      new ProductTypeElement("y", AlgebraicType.createF32Type()),
-      new ProductTypeElement("selectionStart", AlgebraicType.createU32Type()),
-      new ProductTypeElement("selectionEnd", AlgebraicType.createU32Type()),
+      new ProductTypeElement('text', AlgebraicType.createStringType()),
+      new ProductTypeElement('x', AlgebraicType.createF32Type()),
+      new ProductTypeElement('y', AlgebraicType.createF32Type()),
+      new ProductTypeElement('selectionStart', AlgebraicType.createU32Type()),
+      new ProductTypeElement('selectionEnd', AlgebraicType.createU32Type()),
     ]);
   }
 
@@ -64,6 +64,4 @@ export namespace UpdateTyping {
   export function deserialize(reader: BinaryReader): UpdateTyping {
     return UpdateTyping.getTypeScriptAlgebraicType().deserialize(reader);
   }
-
 }
-

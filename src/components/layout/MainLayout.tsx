@@ -18,10 +18,10 @@ export const MainLayout = () => {
       )}
       <motion.main
         className={cn(
-          "flex-1 transition-all duration-200",
+          'flex-1 transition-all duration-200',
           layoutProps.mainClassName,
-          layoutProps.containerized && "container mx-auto",
-          layoutProps.fullHeight && "h-full"
+          layoutProps.containerized && 'container mx-auto',
+          layoutProps.fullHeight && 'h-full'
         )}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

@@ -25,7 +25,7 @@ export const ToolFrame = ({ toolId, toolName, toolUrl }: ToolFrameProps) => {
           </div>
         </div>
       )}
-      
+
       {toolUrl ? (
         <iframe
           ref={iframeRef}

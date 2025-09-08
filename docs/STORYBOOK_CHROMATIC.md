@@ -5,6 +5,7 @@ This project uses Storybook to document and showcase our React UI components. St
 ## 🚀 Quick Start
 
 ### Development
+
 ```bash
 # Install dependencies
 bun install
@@ -16,6 +17,7 @@ bun run storybook
 Visit [http://localhost:6006](http://localhost:6006) to view Storybook locally.
 
 ### Building
+
 ```bash
 # Build static Storybook for production
 bun run build-storybook
@@ -26,7 +28,7 @@ bun run build-storybook
 Our Storybook includes comprehensive documentation and examples for:
 
 - **Button Component** - All variants, sizes, states, and layouts
-- **Input Component** - Interactive inputs with icons, validation, and states  
+- **Input Component** - Interactive inputs with icons, validation, and states
 - **Loading Component** - Loading indicators in different sizes
 - **Modal Component** - Dialog modals with various configurations
 - **Toast Component** - Notification toasts using our custom API
@@ -70,8 +72,9 @@ Navigate to your repository settings:
 #### 2. Repository Permissions
 
 The workflow requires these permissions (already configured):
+
 - `contents: read` - To checkout the code
-- `pages: write` - To deploy to GitHub Pages  
+- `pages: write` - To deploy to GitHub Pages
 - `id-token: write` - For secure deployment
 
 #### 3. Branch Protection (Optional but Recommended)
@@ -82,6 +85,65 @@ To ensure only tested code gets deployed:
 2. Add rule for `main` branch
 3. Enable **"Require status checks to pass before merging"**
 4. Select the Storybook build check
+
+## 🎨 Chromatic Visual Testing
+
+### What is Chromatic?
+
+Chromatic is a visual testing tool that captures snapshots of your Storybook components and detects visual changes. It's integrated with our CI/CD pipeline to automatically test UI changes on every push.
+
+**Live Chromatic Storybook:** Check your build status at [chromatic.com](https://www.chromatic.com/)
+
+### Automatic Visual Testing
+
+Chromatic runs automatically on every push to any branch via GitHub Actions. It:
+
+1. Builds Storybook
+2. Uploads to Chromatic cloud
+3. Captures snapshots of all components
+4. Compares against baseline snapshots
+5. Reports any visual changes
+
+### Setup Requirements
+
+#### GitHub Secret Configuration
+
+1. Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**
+2. Click **"New repository secret"**
+3. Add the following secret:
+   - Name: `CHROMATIC_PROJECT_TOKEN`
+   - Value: Your Chromatic project token (found in Chromatic project settings)
+4. Click **"Add secret"**
+
+### Running Chromatic Locally
+
+```bash
+# Run Chromatic with pre-built Storybook
+bun run chromatic
+
+# Or build and run in one command
+bunx chromatic --project-token=<your-token>
+```
+
+### Workflow Configuration
+
+The Chromatic workflow (`.github/workflows/chromatic.yml`) is configured to:
+
+- Build Storybook using Bun
+- Upload the static build to Chromatic
+- Run visual tests on all stories
+
+### Troubleshooting Chromatic
+
+**Build fails with "JavaScript failed to load":**
+
+- Ensure `.storybook/main.ts` doesn't set a base URL for Chromatic builds
+- Use `GITHUB_PAGES` environment variable for conditional base URL setting
+
+**"Context access might be invalid" error:**
+
+- The `CHROMATIC_PROJECT_TOKEN` secret is not configured in GitHub
+- Follow the setup requirements above to add the secret
 
 ## 🛠️ Development Workflow
 
@@ -111,6 +173,7 @@ To ensure only tested code gets deployed:
 ### Updating Themes
 
 The Storybook theme is configured in:
+
 - `.storybook/preview.ts` - Story canvas and docs theme
 - `.storybook/manager.ts` - Navigation and UI theme (if needed)
 
@@ -139,7 +202,8 @@ src/stories/
 ### Base URL Configuration
 
 The base URL is automatically configured for GitHub Pages deployment:
-- **Local development:** `/` 
+
+- **Local development:** `/`
 - **GitHub Pages:** `/brackeys-web/`
 
 ### Build Configuration
@@ -151,16 +215,19 @@ Storybook builds to `storybook-static/` directory, which is deployed to GitHub P
 ### Common Issues
 
 **Build Fails:**
+
 - Check that all dependencies are installed: `bun install`
 - Verify TypeScript types are correct
 - Check for linting errors: `bun run lint`
 
 **Deployment Fails:**
+
 - Ensure GitHub Pages is enabled in repository settings
 - Check that the Actions have proper permissions
 - Verify the workflow file syntax
 
 **Stories Not Interactive:**
+
 - Make sure you're using `render:` with React state
 - Add `args: {}` for stories with custom render functions
 - Check that onChange handlers are properly connected
@@ -183,4 +250,4 @@ After deployment, consider:
 
 ---
 
-**Happy Documenting!** 🎉 
+**Happy Documenting!** 🎉

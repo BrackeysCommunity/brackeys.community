@@ -8,20 +8,20 @@
 import type { GetGuildsGuildIdInfractionsType } from './getGuildsGuildIdInfractionsType';
 
 export type GetGuildsGuildIdInfractionsParams = {
-/**
- * Filter by user ID
- */
-userId?: string;
-/**
- * Filter by infraction type
- */
-type?: GetGuildsGuildIdInfractionsType;
-/**
- * Maximum number of results to return
- */
-limit?: string;
-/**
- * Number of results to skip
- */
-offset?: string;
+  /**
+   * Filter by user ID
+   */
+  userId?: string;
+  /**
+   * Filter by infraction type
+   */
+  type?: GetGuildsGuildIdInfractionsType;
+  /**
+   * Maximum number of results to return
+   */
+  limit?: string;
+  /**
+   * Number of results to skip
+   */
+  offset?: string;
 };

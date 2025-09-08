@@ -16,7 +16,23 @@ function generateRoomCode(): string {
 }
 
 export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
-  const [state, setState] = useState<Omit<SpacetimeState, 'setDisplayName' | 'updateColor' | 'updateCursor' | 'updateTyping' | 'sendMessage' | 'dismissMessage' | 'createRoom' | 'joinRoom' | 'leaveRoom' | 'updateRoomConfig' | 'subscribe' | 'unsubscribe'>>({
+  const [state, setState] = useState<
+    Omit<
+      SpacetimeState,
+      | 'setDisplayName'
+      | 'updateColor'
+      | 'updateCursor'
+      | 'updateTyping'
+      | 'sendMessage'
+      | 'dismissMessage'
+      | 'createRoom'
+      | 'joinRoom'
+      | 'leaveRoom'
+      | 'updateRoomConfig'
+      | 'subscribe'
+      | 'unsubscribe'
+    >
+  >({
     isConnected: false,
     currentUser: null,
     currentRoom: null,
@@ -39,7 +55,10 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
 
     const updateState = () => {
       if (!connection || !mountedRef.current) {
-        console.log('updateState skipped:', { hasConnection: !!connection, isMounted: mountedRef.current });
+        console.log('updateState skipped:', {
+          hasConnection: !!connection,
+          isMounted: mountedRef.current,
+        });
         return;
       }
 
@@ -48,17 +67,15 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
       const typingData = Array.from(connection.db.liveTyping.iter()) as LiveTyping[];
       const messages = Array.from(connection.db.sandboxMessage.iter()) as SandboxMessage[];
 
-      const currentUser = users.find((user: SandboxUser) =>
-        user.identity.toHexString() === identityRef.current
-      ) || null;
+      const currentUser =
+        users.find((user: SandboxUser) => user.identity.toHexString() === identityRef.current) ||
+        null;
 
       const currentRoomCode = currentUser?.roomCode || null;
       currentRoomCodeRef.current = currentRoomCode;
 
       // Filter data by current room
-      const roomUsers = currentRoomCode
-        ? users.filter(u => u.roomCode === currentRoomCode)
-        : [];
+      const roomUsers = currentRoomCode ? users.filter(u => u.roomCode === currentRoomCode) : [];
 
       const typingStates = new Map<string, LiveTyping>();
       if (currentRoomCode) {
@@ -79,40 +96,55 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
 
       setState(prev => {
         // only update if data actually changed
-        const hasUsersChanged = prev.users.length !== roomUsers.length ||
+        const hasUsersChanged =
+          prev.users.length !== roomUsers.length ||
           prev.users.some((prevUser, i) => {
             const newUser = roomUsers[i];
-            return !newUser ||
+            return (
+              !newUser ||
               prevUser.identity.toHexString() !== newUser.identity.toHexString() ||
               prevUser.cursorX !== newUser.cursorX ||
               prevUser.cursorY !== newUser.cursorY ||
-              prevUser.name !== newUser.name;
+              prevUser.name !== newUser.name
+            );
           });
 
-        const hasTypingChanged = prev.typingStates.size !== typingStates.size ||
+        const hasTypingChanged =
+          prev.typingStates.size !== typingStates.size ||
           Array.from(typingStates.entries()).some(([id, typing]) => {
             const prevTyping = prev.typingStates.get(id);
-            return !prevTyping ||
+            return (
+              !prevTyping ||
               prevTyping.text !== typing.text ||
               prevTyping.isTyping !== typing.isTyping ||
               prevTyping.selectionStart !== typing.selectionStart ||
-              prevTyping.selectionEnd !== typing.selectionEnd;
+              prevTyping.selectionEnd !== typing.selectionEnd
+            );
           });
 
-        const hasCurrentUserChanged = prev.currentUser?.identity.toHexString() !== currentUser?.identity.toHexString() ||
+        const hasCurrentUserChanged =
+          prev.currentUser?.identity.toHexString() !== currentUser?.identity.toHexString() ||
           prev.currentUser?.roomCode !== currentUser?.roomCode;
 
-        const hasMessagesChanged = prev.messages.length !== roomMessages.length ||
+        const hasMessagesChanged =
+          prev.messages.length !== roomMessages.length ||
           prev.messages.some((prevMsg, i) => {
             const newMsg = roomMessages[i];
             return !newMsg || Number(prevMsg.id) !== Number(newMsg.id);
           });
 
-        const hasRoomChanged = prev.currentRoom?.code !== currentRoom?.code ||
+        const hasRoomChanged =
+          prev.currentRoom?.code !== currentRoom?.code ||
           prev.currentRoom?.messageTtlSeconds !== currentRoom?.messageTtlSeconds ||
           prev.currentRoom?.messagesEnabled !== currentRoom?.messagesEnabled;
 
-        if (hasUsersChanged || hasTypingChanged || hasCurrentUserChanged || hasMessagesChanged || hasRoomChanged) {
+        if (
+          hasUsersChanged ||
+          hasTypingChanged ||
+          hasCurrentUserChanged ||
+          hasMessagesChanged ||
+          hasRoomChanged
+        ) {
           return {
             isConnected: true,
             currentUser,
@@ -140,10 +172,7 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
             conn
               .subscriptionBuilder()
               .onApplied(updateState)
-              .subscribe([
-                'SELECT * FROM sandbox_user',
-                'SELECT * FROM room'
-              ]);
+              .subscribe(['SELECT * FROM sandbox_user', 'SELECT * FROM room']);
           } else {
             console.warn('Component unmounted before connection completed');
           }
@@ -153,7 +182,7 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
             setState(prev => ({ ...prev, isConnected: false }));
           }
         })
-        .onConnectError((error) => {
+        .onConnectError(error => {
           console.error('Connection error:', error);
         })
         .build();
@@ -204,9 +233,9 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
   const subscribe = async (queries: string[]) => {
     if (!connectionRef.current) throw new Error('Not connected');
 
-    return new Promise<void>((resolve) => {
-      connectionRef.current!
-        .subscriptionBuilder()
+    return new Promise<void>(resolve => {
+      connectionRef
+        .current!.subscriptionBuilder()
         .onApplied(() => resolve())
         .subscribe(queries);
     });
@@ -250,7 +279,13 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const updateTyping = async (text: string, x: number, y: number, selectionStart: number, selectionEnd: number) => {
+  const updateTyping = async (
+    text: string,
+    x: number,
+    y: number,
+    selectionStart: number,
+    selectionEnd: number
+  ) => {
     if (!connectionRef.current) return;
     try {
       connectionRef.current.reducers.updateTyping(text, x, y, selectionStart, selectionEnd);
@@ -279,19 +314,28 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const createRoom = async (password: string, messageTtlSeconds: number, messagesEnabled: boolean): Promise<string> => {
+  const createRoom = async (
+    password: string,
+    messageTtlSeconds: number,
+    messagesEnabled: boolean
+  ): Promise<string> => {
     if (!connectionRef.current) throw new Error('Not connected');
 
     // Try up to 10 times to generate a unique room code
     for (let i = 0; i < 10; i++) {
       const roomCode = generateRoomCode();
       try {
-        await connectionRef.current.reducers.createRoom(roomCode, password, messageTtlSeconds, messagesEnabled);
+        await connectionRef.current.reducers.createRoom(
+          roomCode,
+          password,
+          messageTtlSeconds,
+          messagesEnabled
+        );
 
         // Subscribe to room-specific data
         await subscribe([
           `SELECT * FROM live_typing WHERE room_code = '${roomCode}'`,
-          `SELECT * FROM sandbox_message WHERE room_code = '${roomCode}'`
+          `SELECT * FROM sandbox_message WHERE room_code = '${roomCode}'`,
         ]);
 
         return roomCode;
@@ -345,7 +389,7 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
             // Successfully joined - subscribe to room-specific data
             await subscribe([
               `SELECT * FROM live_typing WHERE room_code = '${roomCode}'`,
-              `SELECT * FROM sandbox_message WHERE room_code = '${roomCode}'`
+              `SELECT * FROM sandbox_message WHERE room_code = '${roomCode}'`,
             ]);
 
             resolve();
@@ -402,9 +446,5 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     unsubscribe,
   };
 
-  return (
-    <Provider value={value}>
-      {children}
-    </Provider>
-  );
-}; 
+  return <Provider value={value}>{children}</Provider>;
+};

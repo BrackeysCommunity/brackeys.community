@@ -6,16 +6,23 @@ import { ChevronDown } from 'lucide-react';
 import { FilterButton } from './FilterButton';
 import { categoryInfo } from './data';
 
-type CategoryFilterProps = Pick<ResourceFilterProps, 'activeCategory' | 'setActiveCategory' | 'categoryCounts' | 'activeType'>;
+type CategoryFilterProps = Pick<
+  ResourceFilterProps,
+  'activeCategory' | 'setActiveCategory' | 'categoryCounts' | 'activeType'
+>;
 
 export const CategoryFilter = ({
   activeCategory,
   setActiveCategory,
   categoryCounts,
-  activeType
+  activeType,
 }: CategoryFilterProps) => {
-  const title = activeType === 'all' ? 'Genres & Categories' :
-    activeType === 'game' ? 'Game Genres' : 'Tool Categories';
+  const title =
+    activeType === 'all'
+      ? 'Genres & Categories'
+      : activeType === 'game'
+        ? 'Game Genres'
+        : 'Tool Categories';
 
   const timeoutRef = useRef<NodeJS.Timeout>(undefined);
 
@@ -26,19 +33,18 @@ export const CategoryFilter = ({
       y: 0,
       transition: {
         delay: 0.05 * index,
-        duration: 0.2
-      }
+        duration: 0.2,
+      },
     }),
     hover: { scale: 1.03 },
-    tap: { scale: 0.97 }
+    tap: { scale: 0.97 },
   };
 
-  const visibleCategories = Object.entries(categoryCounts)
-    .filter(([category]) => {
-      if (category === 'all') return false;
-      const info = categoryInfo[category as ResourceCategory];
-      return info && (activeType === 'all' || info.type === activeType);
-    });
+  const visibleCategories = Object.entries(categoryCounts).filter(([category]) => {
+    if (category === 'all') return false;
+    const info = categoryInfo[category as ResourceCategory];
+    return info && (activeType === 'all' || info.type === activeType);
+  });
 
   useEffect(() => {
     if (activeType !== 'all' && activeCategory !== 'all') {
@@ -72,10 +78,7 @@ export const CategoryFilter = ({
               <>
                 <DisclosureButton className="w-full px-4 py-3 flex justify-between items-center text-left">
                   <h2 className="text-xl font-semibold text-white">{title}</h2>
-                  <motion.div
-                    animate={{ rotate: open ? 0 : -90 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                  <motion.div animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.2 }}>
                     <ChevronDown className="h-5 w-5 text-gray-400" />
                   </motion.div>
                 </DisclosureButton>

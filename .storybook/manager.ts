@@ -43,4 +43,4 @@ addons.setConfig({
     booleanBg: '#334155', // slate-700
     booleanSelectedBg: '#8b5cf6', // brackeys-purple
   },
-}); 
+});

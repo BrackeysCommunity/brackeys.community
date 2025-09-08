@@ -23,6 +23,6 @@ module.exports = {
       },
       mock: true,
       prettier: true,
-    }
-  }
-}
+    },
+  },
+};

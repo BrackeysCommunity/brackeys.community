@@ -78,9 +78,7 @@ export const WithChildren: Story = {
     children: (
       <div className="space-y-2">
         <p>This alert contains custom child elements.</p>
-        <button className="text-blue-400 underline hover:text-blue-300">
-          Learn more
-        </button>
+        <button className="text-blue-400 underline hover:text-blue-300">Learn more</button>
       </div>
     ),
   },
@@ -90,18 +88,15 @@ export const LongContent: Story = {
   args: {
     variant: 'warning',
     title: 'Important Notice',
-    description: 'This is a very long description that demonstrates how the alert component handles extended content. The alert should properly wrap text and maintain proper spacing and readability even with multiple lines of content.',
+    description:
+      'This is a very long description that demonstrates how the alert component handles extended content. The alert should properly wrap text and maintain proper spacing and readability even with multiple lines of content.',
   },
 };
 
 export const AllVariants: Story = {
   render: () => (
     <div className="space-y-4 w-full max-w-2xl">
-      <Alert
-        variant="info"
-        title="Information"
-        description="This is an informational message."
-      />
+      <Alert variant="info" title="Information" description="This is an informational message." />
       <Alert
         variant="success"
         title="Success"
@@ -112,11 +107,7 @@ export const AllVariants: Story = {
         title="Warning"
         description="Please pay attention to this warning."
       />
-      <Alert
-        variant="error"
-        title="Error"
-        description="An error has occurred."
-      />
+      <Alert variant="error" title="Error" description="An error has occurred." />
     </div>
   ),
 };

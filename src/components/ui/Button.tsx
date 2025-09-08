@@ -11,11 +11,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'outline-brackeys-purple-500 bg-brackeys-purple-600 hover:bg-brackeys-purple-500 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800 text-white',
-        secondary: 'outline-gray-600 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500 focus:ring-offset-gray-800 text-white',
-        success: 'outline-green-500 bg-green-600 hover:bg-green-500 text-white focus:ring-green-500 focus:ring-offset-green-800',
-        danger: 'outline-red-500 bg-red-600 hover:bg-red-500 text-white focus:ring-red-500 focus:ring-offset-red-800',
-        ghost: 'bg-transparent outline-none hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0',
+        primary:
+          'outline-brackeys-purple-500 bg-brackeys-purple-600 hover:bg-brackeys-purple-500 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800 text-white',
+        secondary:
+          'outline-gray-600 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500 focus:ring-offset-gray-800 text-white',
+        success:
+          'outline-green-500 bg-green-600 hover:bg-green-500 text-white focus:ring-green-500 focus:ring-offset-green-800',
+        danger:
+          'outline-red-500 bg-red-600 hover:bg-red-500 text-white focus:ring-red-500 focus:ring-offset-red-800',
+        ghost:
+          'bg-transparent outline-none hover:bg-gray-700 text-gray-300 hover:text-white focus:!ring-0 focus:!ring-offset-0',
         card: 'outline-gray-600 bg-gray-700 focus:ring-gray-500 focus:ring-offset-gray-800 rounded-lg',
         checkbox: 'bg-gray-700 hover:bg-gray-600 rounded-md',
         'checkbox-card': 'focus:outline-2 outline-gray-600 rounded-lg',
@@ -45,9 +50,12 @@ const buttonVariants = cva(
         true: '',
       },
       cardColor: {
-        green: 'data-[selected=true]:outline-green-500 data-[selected=true]:bg-green-500/10 focus:ring-green-500 focus:ring-offset-green-800',
-        yellow: 'data-[selected=true]:outline-yellow-500 data-[selected=true]:bg-yellow-500/10 focus:ring-yellow-500 focus:ring-offset-yellow-800',
-        purple: 'data-[selected=true]:outline-brackeys-purple-500 data-[selected=true]:bg-brackeys-purple-500/10 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800',
+        green:
+          'data-[selected=true]:outline-green-500 data-[selected=true]:bg-green-500/10 focus:ring-green-500 focus:ring-offset-green-800',
+        yellow:
+          'data-[selected=true]:outline-yellow-500 data-[selected=true]:bg-yellow-500/10 focus:ring-yellow-500 focus:ring-offset-yellow-800',
+        purple:
+          'data-[selected=true]:outline-brackeys-purple-500 data-[selected=true]:bg-brackeys-purple-500/10 focus:ring-brackeys-purple-500 focus:ring-offset-brackeys-purple-800',
         blue: 'data-[selected=true]:outline-blue-500 data-[selected=true]:bg-blue-500/10 focus:ring-blue-500 focus:ring-offset-blue-800',
       },
     },
@@ -89,12 +97,12 @@ const colorStyles = {
       text: 'text-brackeys-purple-300',
       textLight: 'text-brackeys-purple-100',
       icon: 'text-brackeys-purple-400',
-      iconBg: 'bg-brackeys-purple-600'
+      iconBg: 'bg-brackeys-purple-600',
     },
     hover: {
       outline: 'outline-brackeys-purple-500',
-      bg: 'bg-brackeys-purple-500/10'
-    }
+      bg: 'bg-brackeys-purple-500/10',
+    },
   },
   blue: {
     selected: {
@@ -103,12 +111,12 @@ const colorStyles = {
       text: 'text-blue-300',
       textLight: 'text-blue-100',
       icon: 'text-blue-400',
-      iconBg: 'bg-blue-600'
+      iconBg: 'bg-blue-600',
     },
     hover: {
       outline: 'hover:outline-blue-500',
-      bg: 'hover:bg-blue-500/10'
-    }
+      bg: 'hover:bg-blue-500/10',
+    },
   },
   green: {
     selected: {
@@ -117,12 +125,12 @@ const colorStyles = {
       text: 'text-green-300',
       textLight: 'text-green-100',
       icon: 'text-green-400',
-      iconBg: 'bg-green-600'
+      iconBg: 'bg-green-600',
     },
     hover: {
       outline: 'hover:outline-green-500',
-      bg: 'hover:bg-green-500/10'
-    }
+      bg: 'hover:bg-green-500/10',
+    },
   },
   yellow: {
     selected: {
@@ -131,30 +139,31 @@ const colorStyles = {
       text: 'text-yellow-300',
       textLight: 'text-yellow-100',
       icon: 'text-yellow-400',
-      iconBg: 'bg-yellow-600'
+      iconBg: 'bg-yellow-600',
     },
     hover: {
       outline: 'hover:outline-yellow-500',
-      bg: 'hover:bg-yellow-500/10'
-    }
-  }
+      bg: 'hover:bg-yellow-500/10',
+    },
+  },
 };
 
-type ButtonProps = Omit<MotionProps, 'layout'> & VariantProps<typeof buttonVariants> & {
-  children?: ReactNode;
-  onClick?: () => void;
-  type?: 'button' | 'submit' | 'reset';
-  loading?: boolean;
-  className?: string;
-  icon?: ReactNode;
-  title?: string;
-  subtitle?: string;
-  showCheckmark?: boolean;
-  href?: string;
-  to?: string;
-  target?: string;
-  rel?: string;
-}
+type ButtonProps = Omit<MotionProps, 'layout'> &
+  VariantProps<typeof buttonVariants> & {
+    children?: ReactNode;
+    onClick?: () => void;
+    type?: 'button' | 'submit' | 'reset';
+    loading?: boolean;
+    className?: string;
+    icon?: ReactNode;
+    title?: string;
+    subtitle?: string;
+    showCheckmark?: boolean;
+    href?: string;
+    to?: string;
+    target?: string;
+    rel?: string;
+  };
 
 export const Button = ({
   children,
@@ -246,17 +255,21 @@ export const Button = ({
               <>
                 {icon && (
                   <motion.div
-                    className={`p-2 rounded-lg ${selected || (colorizeHover && cardColor)
-                      ? colorStyles[cardColor || 'purple'].selected.iconBg
-                      : 'bg-gray-600'}`}
+                    className={`p-2 rounded-lg ${
+                      selected || (colorizeHover && cardColor)
+                        ? colorStyles[cardColor || 'purple'].selected.iconBg
+                        : 'bg-gray-600'
+                    }`}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.1 }}
                   >
                     <motion.div
-                      className={shouldApplyColoredStyles
-                        ? colorStyles[cardColor || 'purple'].selected.icon
-                        : 'text-gray-400'}
+                      className={
+                        shouldApplyColoredStyles
+                          ? colorStyles[cardColor || 'purple'].selected.icon
+                          : 'text-gray-400'
+                      }
                       initial={{ opacity: 0, y: -5 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
@@ -270,7 +283,7 @@ export const Button = ({
                     {title && (
                       <motion.h3
                         className={cn(
-                          "font-medium",
+                          'font-medium',
                           shouldApplyColoredStyles
                             ? colorStyles[cardColor || 'purple'].selected.text
                             : 'text-white'
@@ -288,15 +301,19 @@ export const Button = ({
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
                       >
-                        <Check className={`w-5 h-5 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
+                        <Check
+                          className={`w-5 h-5 ${colorStyles[cardColor || 'purple'].selected.icon}`}
+                        />
                       </motion.div>
                     )}
                   </div>
                   {subtitle && (
                     <motion.p
-                      className={`text-sm mt-1 text-left ${shouldApplyColoredStyles
-                        ? colorStyles[cardColor || 'purple'].selected.textLight
-                        : 'text-gray-400'}`}
+                      className={`text-sm mt-1 text-left ${
+                        shouldApplyColoredStyles
+                          ? colorStyles[cardColor || 'purple'].selected.textLight
+                          : 'text-gray-400'
+                      }`}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.25 }}
@@ -310,9 +327,11 @@ export const Button = ({
               <>
                 {icon && (
                   <motion.div
-                    className={`w-6 h-6 mx-auto mb-2 ${shouldApplyColoredStyles
-                      ? colorStyles[cardColor || 'purple'].selected.icon
-                      : 'text-gray-400'}`}
+                    className={`w-6 h-6 mx-auto mb-2 ${
+                      shouldApplyColoredStyles
+                        ? colorStyles[cardColor || 'purple'].selected.icon
+                        : 'text-gray-400'
+                    }`}
                     initial={{ opacity: 0, scale: 0.8, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
@@ -322,9 +341,11 @@ export const Button = ({
                 )}
                 {title && (
                   <motion.p
-                    className={`font-medium ${shouldApplyColoredStyles
-                      ? colorStyles[cardColor || 'purple'].selected.text
-                      : 'text-gray-300'}`}
+                    className={`font-medium ${
+                      shouldApplyColoredStyles
+                        ? colorStyles[cardColor || 'purple'].selected.text
+                        : 'text-gray-300'
+                    }`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.15 }}
@@ -334,9 +355,11 @@ export const Button = ({
                 )}
                 {subtitle && (
                   <motion.p
-                    className={`text-sm text-center mt-1 ${shouldApplyColoredStyles
-                      ? colorStyles[cardColor || 'purple'].selected.textLight
-                      : 'text-gray-400'}`}
+                    className={`text-sm text-center mt-1 ${
+                      shouldApplyColoredStyles
+                        ? colorStyles[cardColor || 'purple'].selected.textLight
+                        : 'text-gray-400'
+                    }`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.25 }}
@@ -350,7 +373,9 @@ export const Button = ({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
                   >
-                    <Check className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`} />
+                    <Check
+                      className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`}
+                    />
                   </motion.div>
                 )}
               </>
@@ -390,7 +415,7 @@ export const Button = ({
       )}
       {icon && !loading && (
         <motion.span
-          className='mr-2'
+          className="mr-2"
           initial={{ opacity: 0, scale: 0.6, y: -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
@@ -398,13 +423,9 @@ export const Button = ({
           {icon}
         </motion.span>
       )}
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-      >
+      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
         {children}
       </motion.span>
     </HeadlessButton>
   );
-}; 
+};

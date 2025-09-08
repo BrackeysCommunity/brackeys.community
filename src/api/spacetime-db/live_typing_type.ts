@@ -29,16 +29,16 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
+} from '@clockworklabs/spacetimedb-sdk';
 export type LiveTyping = {
-  identity: Identity,
-  text: string,
-  positionX: number,
-  positionY: number,
-  isTyping: boolean,
-  selectionStart: number,
-  selectionEnd: number,
-  updatedAt: Timestamp,
+  identity: Identity;
+  text: string;
+  positionX: number;
+  positionY: number;
+  isTyping: boolean;
+  selectionStart: number;
+  selectionEnd: number;
+  updatedAt: Timestamp;
 };
 
 /**
@@ -46,19 +46,19 @@ export type LiveTyping = {
  */
 export namespace LiveTyping {
   /**
-  * A function which returns this type represented as an AlgebraicType.
-  * This function is derived from the AlgebraicType used to generate this type.
-  */
+   * A function which returns this type represented as an AlgebraicType.
+   * This function is derived from the AlgebraicType used to generate this type.
+   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("identity", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("text", AlgebraicType.createStringType()),
-      new ProductTypeElement("positionX", AlgebraicType.createF32Type()),
-      new ProductTypeElement("positionY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("isTyping", AlgebraicType.createBoolType()),
-      new ProductTypeElement("selectionStart", AlgebraicType.createU32Type()),
-      new ProductTypeElement("selectionEnd", AlgebraicType.createU32Type()),
-      new ProductTypeElement("updatedAt", AlgebraicType.createTimestampType()),
+      new ProductTypeElement('identity', AlgebraicType.createIdentityType()),
+      new ProductTypeElement('text', AlgebraicType.createStringType()),
+      new ProductTypeElement('positionX', AlgebraicType.createF32Type()),
+      new ProductTypeElement('positionY', AlgebraicType.createF32Type()),
+      new ProductTypeElement('isTyping', AlgebraicType.createBoolType()),
+      new ProductTypeElement('selectionStart', AlgebraicType.createU32Type()),
+      new ProductTypeElement('selectionEnd', AlgebraicType.createU32Type()),
+      new ProductTypeElement('updatedAt', AlgebraicType.createTimestampType()),
     ]);
   }
 
@@ -69,7 +69,4 @@ export namespace LiveTyping {
   export function deserialize(reader: BinaryReader): LiveTyping {
     return LiveTyping.getTypeScriptAlgebraicType().deserialize(reader);
   }
-
 }
-
-

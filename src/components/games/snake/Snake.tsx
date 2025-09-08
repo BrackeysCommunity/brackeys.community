@@ -14,23 +14,15 @@ export const Snake = () => {
     highScore,
     setDirection,
     resetGame,
-    togglePause
+    togglePause,
   } = useSnakeGameLoop();
 
   return (
     <div className="relative max-w-md mx-auto w-full">
-      <SnakeStatus
-        score={score}
-        highScore={highScore}
-      />
+      <SnakeStatus score={score} highScore={highScore} />
 
       <div className="relative">
-        <SnakeBoard
-          snake={snake}
-          food={food}
-          isGameOver={isGameOver}
-          isPaused={isPaused}
-        />
+        <SnakeBoard snake={snake} food={food} isGameOver={isGameOver} isPaused={isPaused} />
 
         {isGameOver && (
           <div className="absolute inset-0 flex items-center justify-center bg-opacity-60 rounded-lg">

@@ -10,7 +10,7 @@ import {
   Star,
   Trash2,
   Edit3,
-  Plus
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -51,7 +51,7 @@ export const DesignSystemOverview: Story = {
       setIsLoading(true);
       setTimeout(() => {
         setIsLoading(false);
-        toast.custom((t) => (
+        toast.custom(t => (
           <Toast
             id={t}
             title="Success!"
@@ -64,7 +64,7 @@ export const DesignSystemOverview: Story = {
 
     const handleFormSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Account Created"
@@ -82,7 +82,7 @@ export const DesignSystemOverview: Story = {
 
     const handleOptionSelect = (option: string) => {
       setSelectedOption(option);
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Option Selected"
@@ -93,7 +93,7 @@ export const DesignSystemOverview: Story = {
     };
 
     const showErrorToast = () => {
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Connection Error"
@@ -104,7 +104,7 @@ export const DesignSystemOverview: Story = {
     };
 
     const showWarningToast = () => {
-      toast.custom((t) => (
+      toast.custom(t => (
         <Toast
           id={t}
           title="Storage Warning"
@@ -123,12 +123,10 @@ export const DesignSystemOverview: Story = {
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-12 text-center">
-            <h1 className="text-4xl font-bold text-white mb-4">
-              Brackeys Design System
-            </h1>
+            <h1 className="text-4xl font-bold text-white mb-4">Brackeys Design System</h1>
             <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-              A comprehensive collection of UI components built with React, TypeScript,
-              Tailwind CSS, and Headless UI. Designed for modern web applications.
+              A comprehensive collection of UI components built with React, TypeScript, Tailwind
+              CSS, and Headless UI. Designed for modern web applications.
             </p>
           </div>
 
@@ -145,14 +143,20 @@ export const DesignSystemOverview: Story = {
                 <Button variant="success">Success</Button>
                 <Button variant="danger">Danger</Button>
                 <Button variant="ghost">Ghost</Button>
-                <Button variant="primary" loading>Loading</Button>
-                <Button variant="secondary" disabled>Disabled</Button>
+                <Button variant="primary" loading>
+                  Loading
+                </Button>
+                <Button variant="secondary" disabled>
+                  Disabled
+                </Button>
               </div>
             </div>
 
             {/* Card Buttons */}
             <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-300 mb-4">Card Buttons (Vertical Layout)</h3>
+              <h3 className="text-lg font-medium text-gray-300 mb-4">
+                Card Buttons (Vertical Layout)
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Button
                   variant="card"
@@ -230,38 +234,14 @@ export const DesignSystemOverview: Story = {
             <h2 className="text-2xl font-semibold text-white mb-6">Inputs</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <Input
-                  type="text"
-                  placeholder="Full Name"
-                  prefixIcon={User}
-                />
-                <Input
-                  type="email"
-                  placeholder="Email Address"
-                  prefixIcon={Mail}
-                />
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  prefixIcon={Lock}
-                />
+                <Input type="text" placeholder="Full Name" prefixIcon={User} />
+                <Input type="email" placeholder="Email Address" prefixIcon={Mail} />
+                <Input type="password" placeholder="Password" prefixIcon={Lock} />
               </div>
               <div className="space-y-4">
-                <Input
-                  type="text"
-                  placeholder="Normal Input"
-                />
-                <Input
-                  type="text"
-                  placeholder="Disabled Input"
-                  disabled
-                />
-                <Input
-                  type="text"
-                  placeholder="Error State"
-                  error
-                  value="Invalid input"
-                />
+                <Input type="text" placeholder="Normal Input" />
+                <Input type="text" placeholder="Disabled Input" disabled />
+                <Input type="text" placeholder="Error State" error value="Invalid input" />
               </div>
             </div>
           </div>
@@ -295,39 +275,37 @@ export const DesignSystemOverview: Story = {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <Button
                 variant="success"
-                onClick={() => toast.custom((t) => (
-                  <Toast
-                    id={t}
-                    title="Success!"
-                    description="Operation completed successfully."
-                    variant="success"
-                  />
-                ))}
+                onClick={() =>
+                  toast.custom(t => (
+                    <Toast
+                      id={t}
+                      title="Success!"
+                      description="Operation completed successfully."
+                      variant="success"
+                    />
+                  ))
+                }
               >
                 Success Toast
               </Button>
-              <Button
-                variant="danger"
-                onClick={showErrorToast}
-              >
+              <Button variant="danger" onClick={showErrorToast}>
                 Error Toast
               </Button>
-              <Button
-                variant="secondary"
-                onClick={showWarningToast}
-              >
+              <Button variant="secondary" onClick={showWarningToast}>
                 Warning Toast
               </Button>
               <Button
                 variant="primary"
-                onClick={() => toast.custom((t) => (
-                  <Toast
-                    id={t}
-                    title="Information"
-                    description="Here's some useful information."
-                    variant="info"
-                  />
-                ))}
+                onClick={() =>
+                  toast.custom(t => (
+                    <Toast
+                      id={t}
+                      title="Information"
+                      description="Here's some useful information."
+                      variant="info"
+                    />
+                  ))
+                }
               >
                 Info Toast
               </Button>
@@ -337,11 +315,7 @@ export const DesignSystemOverview: Story = {
           {/* Action Section */}
           <div className="text-center">
             <h2 className="text-2xl font-semibold text-white mb-6">Try the Modal</h2>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => setIsModalOpen(true)}
-            >
+            <Button variant="primary" size="lg" onClick={() => setIsModalOpen(true)}>
               <Plus className="w-5 h-5 mr-2" />
               Open Sign Up Modal
             </Button>
@@ -369,21 +343,21 @@ export const DesignSystemOverview: Story = {
                 type="text"
                 placeholder="Full Name"
                 value={formData.name}
-                onChange={(value) => setFormData(prev => ({ ...prev, name: value }))}
+                onChange={value => setFormData(prev => ({ ...prev, name: value }))}
                 prefixIcon={User}
               />
               <Input
                 type="email"
                 placeholder="Email Address"
                 value={formData.email}
-                onChange={(value) => setFormData(prev => ({ ...prev, email: value }))}
+                onChange={value => setFormData(prev => ({ ...prev, email: value }))}
                 prefixIcon={Mail}
               />
               <Input
                 type="password"
                 placeholder="Password"
                 value={formData.password}
-                onChange={(value) => setFormData(prev => ({ ...prev, password: value }))}
+                onChange={value => setFormData(prev => ({ ...prev, password: value }))}
                 prefixIcon={Lock}
               />
               <div className="pt-2">
@@ -397,4 +371,4 @@ export const DesignSystemOverview: Story = {
       </div>
     );
   },
-}; 
+};

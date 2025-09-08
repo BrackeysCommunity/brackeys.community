@@ -1,13 +1,19 @@
 # Brackeys Web
 
-## 📚 UI Documentation
+## 📚 Documentation
+
+### UI Components
 
 Our UI components are documented and showcased using Storybook:
 
 - **[View Live Storybook](https://brackeyscommunity.github.io/brackeys.community/)**
 - **Local Development:** `bun run storybook` → [http://localhost:6006](http://localhost:6006)
 
-For detailed Storybook setup and deployment information, see [STORYBOOK.md](./STORYBOOK.md).
+### Available Documentation
+
+- **[STORYBOOK_CHROMATIC.md](./docs/STORYBOOK_CHROMATIC.md)** - Storybook setup and deployment information
+- **[PRETTIER_ESLINT_INTEGRATION.md](./docs/PRETTIER_ESLINT_INTEGRATION.md)** - Code formatting and linting configuration
+- **[MULTI_SCOPE_COMMITS.md](./docs/MULTI_SCOPE_COMMITS.md)** - Guide for creating commits across multiple packages
 
 ## Setup
 
@@ -46,8 +52,8 @@ export const MyPage = () => {
   useLayoutProps({
     showFooter: false,
     containerized: false,
-    mainClassName: "flex",
-    fullHeight: true
+    mainClassName: 'flex',
+    fullHeight: true,
   });
 
   return <div>content</div>;
@@ -56,10 +62,10 @@ export const MyPage = () => {
 
 ### Available Layout Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `showFooter` | `boolean` | `true` | Whether to show the footer |
-| `showHeader` | `boolean` | `true` | Whether to show the header |
-| `containerized` | `boolean` | `true` | Whether to apply container max-width and centering |
-| `mainClassName` | `string` | `"px-4 pt-8"` | Custom classes for the main content area |
-| `fullHeight` | `boolean` | `false` | Whether to apply full height styles |
+| Prop            | Type      | Default       | Description                                        |
+| --------------- | --------- | ------------- | -------------------------------------------------- |
+| `showFooter`    | `boolean` | `true`        | Whether to show the footer                         |
+| `showHeader`    | `boolean` | `true`        | Whether to show the header                         |
+| `containerized` | `boolean` | `true`        | Whether to apply container max-width and centering |
+| `mainClassName` | `string`  | `"px-4 pt-8"` | Custom classes for the main content area           |
+| `fullHeight`    | `boolean` | `false`       | Whether to apply full height styles                |

@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import type { StepProps } from './types';
 import { joinPasswordSchema } from './types';
 
-export const JoinPasswordStep = ({ onNext, onBack, loading, formData }: StepProps) => {
+export const JoinPasswordStep = ({ onNext, loading, formData }: StepProps) => {
   const { setActions, setTitle, resetTitle } = useModalContext();
   const form = useForm({
     defaultValues: {
@@ -56,12 +56,15 @@ export const JoinPasswordStep = ({ onNext, onBack, loading, formData }: StepProp
         </div>
       </div>
 
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        form.handleSubmit();
-      }} noValidate>
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          form.handleSubmit();
+        }}
+        noValidate
+      >
         <form.Field name="password">
-          {(field) => (
+          {field => (
             <div>
               <label className="block text-sm text-gray-300 mb-2">Password</label>
               <Input
@@ -84,4 +87,4 @@ export const JoinPasswordStep = ({ onNext, onBack, loading, formData }: StepProp
       </form>
     </motion.div>
   );
-}; 
+};

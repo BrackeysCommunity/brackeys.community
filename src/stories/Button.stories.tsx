@@ -13,7 +13,7 @@ import {
   Shield,
   Database,
   Code,
-  Paintbrush
+  Paintbrush,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
@@ -27,7 +27,16 @@ const meta = {
   argTypes: {
     variant: {
       control: 'select',
-      options: ['primary', 'secondary', 'success', 'danger', 'ghost', 'card', 'checkbox', 'checkbox-card'],
+      options: [
+        'primary',
+        'secondary',
+        'success',
+        'danger',
+        'ghost',
+        'card',
+        'checkbox',
+        'checkbox-card',
+      ],
     },
     size: {
       control: 'select',
@@ -109,9 +118,15 @@ export const Sizes: Story = {
         <Button variant="primary" size="icon">
           <Play className="w-4 h-4" />
         </Button>
-        <Button variant="primary" size="sm">Small Button</Button>
-        <Button variant="primary" size="md">Medium Button</Button>
-        <Button variant="primary" size="lg">Large Button</Button>
+        <Button variant="primary" size="sm">
+          Small Button
+        </Button>
+        <Button variant="primary" size="md">
+          Medium Button
+        </Button>
+        <Button variant="primary" size="lg">
+          Large Button
+        </Button>
       </div>
     </div>
   ),
@@ -123,9 +138,15 @@ export const States: Story = {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-4">
         <Button variant="primary">Normal</Button>
-        <Button variant="primary" loading>Loading</Button>
-        <Button variant="primary" disabled>Disabled</Button>
-        <Button variant="primary" disabled loading>Disabled Loading</Button>
+        <Button variant="primary" loading>
+          Loading
+        </Button>
+        <Button variant="primary" disabled>
+          Disabled
+        </Button>
+        <Button variant="primary" disabled loading>
+          Disabled Loading
+        </Button>
       </div>
     </div>
   ),
@@ -238,7 +259,9 @@ export const LayoutComparison: Story = {
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Vertical Layout (Default)</h3>
-        <p className="text-gray-400 text-sm mb-4">Icon on top, content stacked vertically, centered</p>
+        <p className="text-gray-400 text-sm mb-4">
+          Icon on top, content stacked vertically, centered
+        </p>
         <div className="grid grid-cols-3 gap-4">
           <Button
             variant="card"
@@ -344,8 +367,12 @@ export const AllVariants: Story = {
         <h3 className="text-lg font-semibold text-white mb-4">Button States</h3>
         <div className="flex flex-wrap gap-3">
           <Button variant="primary">Normal</Button>
-          <Button variant="primary" loading>Loading</Button>
-          <Button variant="primary" disabled>Disabled</Button>
+          <Button variant="primary" loading>
+            Loading
+          </Button>
+          <Button variant="primary" disabled>
+            Disabled
+          </Button>
         </div>
       </div>
 
@@ -425,4 +452,4 @@ export const InteractiveCard: Story = {
     cardColor: 'purple',
     onClick: () => alert('Card clicked!'),
   },
-}; 
+};

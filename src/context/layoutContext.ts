@@ -1,11 +1,11 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect } from 'react';
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 
 type LayoutContextType = {
   layoutProps: LayoutProps;
   setLayoutProps: (props: LayoutProps) => void;
-}
+};
 
 export type LayoutProps = {
   showFooter?: boolean;
@@ -13,7 +13,7 @@ export type LayoutProps = {
   containerized?: boolean;
   mainClassName?: string;
   fullHeight?: boolean;
-}
+};
 
 export const Provider = LayoutContext.Provider;
 
@@ -21,9 +21,9 @@ export const defaultLayoutProps: LayoutProps = {
   showFooter: true,
   showHeader: true,
   containerized: true,
-  mainClassName: "px-4 pt-8",
-  fullHeight: false
-}
+  mainClassName: 'px-4 pt-8',
+  fullHeight: false,
+};
 
 export const useLayout = () => {
   const context = useContext(LayoutContext);
@@ -31,12 +31,14 @@ export const useLayout = () => {
     throw new Error('useLayout must be used within a LayoutProvider');
   }
   return context;
-}
+};
 
 export const useLayoutProps = (props: LayoutProps) => {
   const { setLayoutProps } = useLayout();
   useEffect(() => {
     setLayoutProps({ ...defaultLayoutProps, ...props });
-    return () => { setLayoutProps(defaultLayoutProps) };
+    return () => {
+      setLayoutProps(defaultLayoutProps);
+    };
   }, [setLayoutProps]);
-}
+};

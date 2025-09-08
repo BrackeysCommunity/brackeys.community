@@ -34,19 +34,24 @@ export const joinPasswordSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-export const createConfigSchema = z.object({
-  userName: z.string().min(1, 'Name is required'),
-  userColor: z.string().refine(color => RAINBOW_PALETTE.includes(color), 'Please select a color'),
-  usePassword: z.boolean(),
-  password: z.string().optional(),
-  messageMode: z.enum(['live', 'ephemeral']),
-  messageTtl: z.number().min(1),
-}).refine((data) => {
-  if (data.usePassword && (!data.password || data.password.length < 4)) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Password must be at least 4 characters when enabled",
-  path: ["password"],
-}); 
+export const createConfigSchema = z
+  .object({
+    userName: z.string().min(1, 'Name is required'),
+    userColor: z.string().refine(color => RAINBOW_PALETTE.includes(color), 'Please select a color'),
+    usePassword: z.boolean(),
+    password: z.string().optional(),
+    messageMode: z.enum(['live', 'ephemeral']),
+    messageTtl: z.number().min(1),
+  })
+  .refine(
+    data => {
+      if (data.usePassword && (!data.password || data.password.length < 4)) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Password must be at least 4 characters when enabled',
+      path: ['password'],
+    }
+  );

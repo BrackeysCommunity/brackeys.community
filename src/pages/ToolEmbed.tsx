@@ -47,7 +47,10 @@ export const ToolEmbed = () => {
 
   const tool = tools[toolId] || {
     id: toolId,
-    name: toolId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+    name: toolId
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' '),
     url: '',
     description: 'Tool not found',
   };
@@ -62,16 +65,8 @@ export const ToolEmbed = () => {
 
   if (isFullscreen) {
     return (
-      <ToolPortal
-        toolName={tool.name}
-        toolUrl={tool.url}
-        onExitFullscreen={toggleFullscreen}
-      >
-        <ToolFrame
-          toolId={toolId}
-          toolName={tool.name}
-          toolUrl={tool.url}
-        />
+      <ToolPortal toolName={tool.name} toolUrl={tool.url} onExitFullscreen={toggleFullscreen}>
+        <ToolFrame toolId={toolId} toolName={tool.name} toolUrl={tool.url} />
       </ToolPortal>
     );
   }
@@ -86,15 +81,10 @@ export const ToolEmbed = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <Link
-              to="/resources"
-              className="text-gray-400 hover:text-gray-300 transition-colors"
-            >
+            <Link to="/resources" className="text-gray-400 hover:text-gray-300 transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-3xl font-bold text-white">
-              {tool.name}
-            </h1>
+            <h1 className="text-3xl font-bold text-white">{tool.name}</h1>
           </div>
           <div className="flex gap-2">
             <Button
@@ -120,9 +110,7 @@ export const ToolEmbed = () => {
           </div>
         </div>
 
-        <p className="text-lg text-gray-300 mb-4">
-          {tool.description}
-        </p>
+        <p className="text-lg text-gray-300 mb-4">{tool.description}</p>
       </motion.div>
 
       <motion.div
@@ -131,15 +119,14 @@ export const ToolEmbed = () => {
         transition={{ duration: 0.5 }}
         className="relative bg-gray-800 border border-gray-700 rounded-lg overflow-hidden h-[600px]"
       >
-        <ToolFrame
-          toolId={toolId}
-          toolName={tool.name}
-          toolUrl={tool.url}
-        />
+        <ToolFrame toolId={toolId} toolName={tool.name} toolUrl={tool.url} />
       </motion.div>
 
       <div className="mt-4 text-xs text-gray-500">
-        <p>Note: Some external tools may have restrictions that prevent them from being embedded. If a tool doesn't load properly, please use the "Open Original" button.</p>
+        <p>
+          Note: Some external tools may have restrictions that prevent them from being embedded. If
+          a tool doesn't load properly, please use the "Open Original" button.
+        </p>
       </div>
     </div>
   );

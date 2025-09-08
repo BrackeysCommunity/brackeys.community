@@ -8,8 +8,12 @@ interface AuthGuardProps {
 }
 
 export const AuthGuard = ({ children }: AuthGuardProps) => {
-  const { state: { user, isLoading } } = useAuth();
-  const { location: { pathname } } = useRouterState();
+  const {
+    state: { user, isLoading },
+  } = useAuth();
+  const {
+    location: { pathname },
+  } = useRouterState();
   const navigate = useNavigate();
 
   useEffect(() => {

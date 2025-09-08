@@ -11,12 +11,14 @@ const ModalContext = createContext<ModalContextValue | null>(null);
 
 export const useModalContext = () => {
   const context = useContext(ModalContext);
-  return context || {
-    setActions: () => { },
-    setTitle: () => { },
-    resetTitle: () => { },
-    onBack: undefined
-  };
+  return (
+    context || {
+      setActions: () => {},
+      setTitle: () => {},
+      resetTitle: () => {},
+      onBack: undefined,
+    }
+  );
 };
 
-export const ModalProvider = ModalContext.Provider; 
+export const ModalProvider = ModalContext.Provider;

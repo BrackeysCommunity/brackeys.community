@@ -29,9 +29,9 @@ import {
   TimeDuration,
   Timestamp,
   deepEqual,
-} from "@clockworklabs/spacetimedb-sdk";
-import { SandboxUser } from "./sandbox_user_type";
-import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
+} from '@clockworklabs/spacetimedb-sdk';
+import { SandboxUser } from './sandbox_user_type';
+import { EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
 
 /**
  * Table handle for the table `sandbox_user`.
@@ -82,25 +82,26 @@ export class SandboxUserTableHandle {
 
   onInsert = (cb: (ctx: EventContext, row: SandboxUser) => void) => {
     return this.tableCache.onInsert(cb);
-  }
+  };
 
   removeOnInsert = (cb: (ctx: EventContext, row: SandboxUser) => void) => {
     return this.tableCache.removeOnInsert(cb);
-  }
+  };
 
   onDelete = (cb: (ctx: EventContext, row: SandboxUser) => void) => {
     return this.tableCache.onDelete(cb);
-  }
+  };
 
   removeOnDelete = (cb: (ctx: EventContext, row: SandboxUser) => void) => {
     return this.tableCache.removeOnDelete(cb);
-  }
+  };
 
   // Updates are only defined for tables with primary keys.
   onUpdate = (cb: (ctx: EventContext, oldRow: SandboxUser, newRow: SandboxUser) => void) => {
     return this.tableCache.onUpdate(cb);
-  }
+  };
 
   removeOnUpdate = (cb: (ctx: EventContext, onRow: SandboxUser, newRow: SandboxUser) => void) => {
     return this.tableCache.removeOnUpdate(cb);
-  }}
+  };
+}
