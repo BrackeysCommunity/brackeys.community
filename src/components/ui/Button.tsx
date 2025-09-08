@@ -246,7 +246,7 @@ export const Button = ({
               <>
                 {icon && (
                   <motion.div
-                    className={`p-2 rounded-lg ${selected || (colorizeHover && cardColor)
+                    className={`p-3 rounded-lg ${selected || (colorizeHover && cardColor)
                       ? colorStyles[cardColor || 'purple'].selected.iconBg
                       : 'bg-gray-600'}`}
                     initial={{ opacity: 0, scale: 0.8 }}
