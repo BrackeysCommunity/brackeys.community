@@ -121,38 +121,6 @@ definition:
     comparisonExpressionTypeName: int8_comparison_exp_1
 
 ---
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: float64_bool_exp_1
-  operand:
-    scalar:
-      type: float64
-      comparisonOperators:
-        - name: _eq
-          argumentType: float64!
-        - name: _gt
-          argumentType: float64!
-        - name: _gte
-          argumentType: float64!
-        - name: _in
-          argumentType: "[float64!]!"
-        - name: _lt
-          argumentType: float64!
-        - name: _lte
-          argumentType: float64!
-      dataConnectorOperatorMapping:
-        - dataConnectorName: collab
-          dataConnectorScalarType: FLOAT64
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: float64_bool_exp_1
-
----
 kind: DataConnectorScalarRepresentation
 version: v1
 definition:

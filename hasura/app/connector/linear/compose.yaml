@@ -1,0 +1,14 @@
+services:
+  app_linear:
+    build:
+      context: .
+      dockerfile: .hasura-connector/Dockerfile.linear
+    environment:
+      GRAPHQL_ENDPOINT: $APP_LINEAR_GRAPHQL_ENDPOINT
+      HASURA_SERVICE_TOKEN_SECRET: $APP_LINEAR_HASURA_SERVICE_TOKEN_SECRET
+      OTEL_EXPORTER_OTLP_ENDPOINT: $APP_LINEAR_OTEL_EXPORTER_OTLP_ENDPOINT
+      OTEL_SERVICE_NAME: $APP_LINEAR_OTEL_SERVICE_NAME
+    extra_hosts:
+      - local.hasura.dev:host-gateway
+    ports:
+      - 4274:8080

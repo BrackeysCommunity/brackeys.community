@@ -6,7 +6,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
-import { Api } from './pages/Api';
 import { ToolEmbed } from './pages/ToolEmbed';
 import { Resources } from './pages/Resources';
 import { Sandbox } from './pages/Sandbox';
@@ -37,12 +36,6 @@ const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/profile',
   component: Profile,
-});
-
-const apiRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/api',
-  component: Api,
 });
 
 const notFoundRoute = createRoute({
@@ -80,7 +73,6 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   dashboardRoute,
   profileRoute,
-  apiRoute,
   snakeRoute,
   resourcesRoute,
   sandboxRoute,

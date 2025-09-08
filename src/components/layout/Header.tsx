@@ -24,7 +24,6 @@ const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
   { name: 'Dashboard', href: '/dashboard', requiresAuth: true },
   { name: 'Cool Stuff', href: '/resources' },
-  { name: 'API', href: '/api' },
 ];
 
 export const Header = () => {

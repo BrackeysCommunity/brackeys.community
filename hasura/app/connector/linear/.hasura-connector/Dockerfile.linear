@@ -1,0 +1,2 @@
+FROM ghcr.io/hasura/ndc-graphql:v0.2.3
+COPY ./ /etc/connector

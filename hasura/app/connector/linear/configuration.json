@@ -1,0 +1,23 @@
+{
+  "$schema": "configuration.schema.json",
+  "introspection": {
+    "endpoint": {
+      "valueFromEnv": "GRAPHQL_ENDPOINT"
+    },
+    "headers": {
+      "Authorization": {
+        "valueFromEnv": "APP_LINEAR_PAT"
+      }
+    }
+  },
+  "execution": {
+    "endpoint": {
+      "valueFromEnv": "GRAPHQL_ENDPOINT"
+    },
+    "headers": {
+      "Authorization": {
+        "valueFromEnv": "APP_LINEAR_PAT"
+      }
+    }
+  }
+}

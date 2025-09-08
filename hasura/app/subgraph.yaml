@@ -20,8 +20,16 @@ definition:
       fromEnv: APP_HAMMER_READ_URL
     APP_HAMMER_WRITE_URL:
       fromEnv: APP_HAMMER_WRITE_URL
+    APP_LINEAR_AUTHORIZATION_HEADER:
+      fromEnv: APP_LINEAR_AUTHORIZATION_HEADER
+    APP_LINEAR_READ_URL:
+      fromEnv: APP_LINEAR_READ_URL
+    APP_LINEAR_WRITE_URL:
+      fromEnv: APP_LINEAR_WRITE_URL
   connectors:
     - path: connector/hammer/connector.yaml
       connectorLinkName: hammer
     - path: connector/collab/connector.yaml
       connectorLinkName: collab
+    - path: connector/linear/connector.yaml
+      connectorLinkName: linear

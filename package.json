@@ -30,7 +30,6 @@
   "dependencies": {
     "@clockworklabs/spacetimedb-sdk": "^1.1.0",
     "@headlessui/react": "^2.2.2",
-    "@phaserjs/editor-scripts-base": "^2.0.1",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-form": "^1.12.1",
     "@tanstack/react-query": "^5.75.5",
@@ -47,7 +46,6 @@
     "motion": "^12.9.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "redoc": "^2.5.0",
     "rxjs": "^7.8.2",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.2.0",
@@ -87,7 +85,6 @@
     "lerna": "^8.2.3",
     "lint-staged": "^16.1.6",
     "msw": "^2.8.0",
-    "phaser-asset-pack-hashing": "^1.0.6",
     "playwright": "^1.53.0",
     "postcss": "^8.4.35",
     "prettier": "^3.6.2",
