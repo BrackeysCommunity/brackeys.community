@@ -6,11 +6,26 @@
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "bunx --bun vite build && phaser-asset-pack-hashing -j -r dist",
-    "lint": "bunx --bun eslint .",
+    "lint": "bunx --bun eslint . --cache",
+    "lint:fix": "bunx --bun eslint . --fix --cache",
+    "format": "bunx prettier --write .",
+    "format:check": "bunx prettier --check .",
     "preview": "bunx --bun vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "chromatic": "bunx --bun run build-storybook && bunx chromatic --storybook-build-dir=storybook-static"
+    "chromatic": "bunx --bun run build-storybook && bunx chromatic --storybook-build-dir=storybook-static",
+    "prepare": "husky",
+    "commit": "cz",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch",
+    "release:alpha": "standard-version --prerelease alpha",
+    "release:beta": "standard-version --prerelease beta",
+    "release:dry-run": "standard-version --dry-run",
+    "version:all": "lerna version --conventional-commits",
+    "version:graduate": "lerna version --conventional-graduate",
+    "publish:all": "lerna publish from-package"
   },
   "dependencies": {
     "@clockworklabs/spacetimedb-sdk": "^1.1.0",
@@ -43,6 +58,9 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "4.0.0",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "@commitlint/config-lerna-scopes": "^19.8.1",
     "@eslint/js": "^9.26.0",
     "@faker-js/faker": "^9.7.0",
     "@graphql-codegen/cli": "^5.0.7",
@@ -58,15 +76,23 @@
     "@vitest/browser": "^3.2.3",
     "@vitest/coverage-v8": "^3.2.3",
     "chromatic": "^13.1.4",
+    "commitizen": "^4.3.1",
+    "cz-conventional-changelog": "^3.3.0",
     "eslint": "^9.26.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "eslint-plugin-storybook": "9.0.11",
     "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "lerna": "^8.2.3",
+    "lint-staged": "^16.1.6",
     "msw": "^2.8.0",
     "phaser-asset-pack-hashing": "^1.0.6",
     "playwright": "^1.53.0",
     "postcss": "^8.4.35",
+    "prettier": "^3.6.2",
+    "standard-version": "^9.5.0",
     "storybook": "9.0.11",
     "tailwindcss": "^4.1.5",
     "terser": "^5.43.1",
@@ -74,5 +100,15 @@
     "typescript-eslint": "^8.31.1",
     "vite": "^6.3.4",
     "vitest": "^3.2.3"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": ["bunx eslint --fix", "bunx prettier --write"],
+    "*.{js,jsx}": ["bunx eslint --fix", "bunx prettier --write"],
+    "*.{json,md,yml,yaml,css,scss}": ["bunx prettier --write"]
   }
 }

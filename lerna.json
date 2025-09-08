@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "version": "independent",
+  "npmClient": "bun",
+  "packages": [".", "server", "spacetime-db"],
+  "command": {
+    "publish": {
+      "conventionalCommits": true,
+      "message": "chore(release): publish",
+      "registry": "https://registry.npmjs.org",
+      "allowBranch": ["main", "master"]
+    },
+    "version": {
+      "conventionalCommits": true,
+      "changelogPreset": "angular",
+      "createRelease": "github",
+      "message": "chore(release): version packages"
+    },
+    "bootstrap": {
+      "npmClientArgs": ["--no-package-lock"]
+    }
+  },
+  "ignoreChanges": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/*.md",
+    "**/test/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

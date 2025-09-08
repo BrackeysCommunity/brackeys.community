@@ -31,3 +31,6 @@ dist-ssr
 storybook-static
 
 codegen.ts
+
+# ESLint cache
+.eslintcache
