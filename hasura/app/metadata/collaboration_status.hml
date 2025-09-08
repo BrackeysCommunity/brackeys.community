@@ -1,0 +1,167 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_status
+  fields:
+    - name: description
+      type: string
+    - name: id
+      type: int32!
+    - name: name
+      type: string!
+  graphql:
+    typeName: collaboration_status
+    inputTypeName: collaboration_status_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationStatus
+      fieldMapping:
+        description:
+          column:
+            name: Description
+        id:
+          column:
+            name: Id
+        name:
+          column:
+            name: Name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_status
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_status_bool_exp
+  operand:
+    object:
+      type: collaboration_status
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: name
+          booleanExpressionType: string_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_posts
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_status_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_status_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_status
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: string_agg_exp_1
+        - fieldName: id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: name
+          aggregateExpression: string_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_status_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_status_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_status
+      orderableFields:
+        - fieldName: description
+          orderByExpression: string_order_by_exp
+        - fieldName: id
+          orderByExpression: int32_order_by_exp
+        - fieldName: name
+          orderByExpression: string_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: collaboration_status_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_status
+  objectType: collaboration_status
+  source:
+    dataConnectorName: collab
+    collection: CollaborationStatus
+  filterExpressionType: collaboration_status_bool_exp
+  aggregateExpression: collaboration_status_agg_exp
+  orderByExpression: collaboration_status_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_status
+      subscription:
+        rootField: collaboration_status
+    selectUniques:
+      - queryRootField: collaboration_status_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_status_by_id
+    filterInputTypeName: collaboration_status_filter_input
+    aggregate:
+      queryRootField: collaboration_status_aggregate
+      subscription:
+        rootField: collaboration_status_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_status
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_posts
+  sourceType: collaboration_status
+  target:
+    model:
+      name: collaboration_post
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_post_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: status_id
+  graphql:
+    aggregateFieldName: collaboration_posts_aggregate
+

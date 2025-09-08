@@ -1,0 +1,2 @@
+FROM ghcr.io/hasura/ndc-jvm-mysql:v1.0.18
+COPY ./ /etc/connector

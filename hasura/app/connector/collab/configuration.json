@@ -1,0 +1,1298 @@
+{
+  "jdbcUrl" : {
+    "variable" : "JDBC_URL"
+  },
+  "jdbcProperties" : {
+    "allowMultiQueries" : "true"
+  },
+  "schemas" : [ ],
+  "tables" : [ {
+    "tableName" : "CollaborationFieldDefinition",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "CollaborationTypeId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "HiringStatusId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "FieldName",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "DisplayName",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "FieldType",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsRequired",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "FieldOrder",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "MaxLength",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ValidationRegex",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "HelpText",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Options",
+      "description" : "",
+      "type" : "longtext",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationFieldDefinition_ibfk_2" : {
+        "column_mapping" : {
+          "HiringStatusId" : "Id"
+        },
+        "foreign_collection" : "HiringStatus"
+      },
+      "CollaborationFieldDefinition_ibfk_1" : {
+        "column_mapping" : {
+          "CollaborationTypeId" : "Id"
+        },
+        "foreign_collection" : "CollaborationType"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationType",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "Name",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Description",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "CollaborationBookmark",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "ProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CollaborationPostId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Notes",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationBookmark_ibfk_2" : {
+        "column_mapping" : {
+          "CollaborationPostId" : "Id"
+        },
+        "foreign_collection" : "CollaborationPost"
+      },
+      "CollaborationBookmark_ibfk_1" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationAlert",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "ProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Name",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CollaborationTypeId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "HiringStatusId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Keywords",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Tags",
+      "description" : "",
+      "type" : "longtext",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsActive",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "LastNotifiedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationAlert_ibfk_1" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationAlert_ibfk_3" : {
+        "column_mapping" : {
+          "HiringStatusId" : "Id"
+        },
+        "foreign_collection" : "HiringStatus"
+      },
+      "CollaborationAlert_ibfk_2" : {
+        "column_mapping" : {
+          "CollaborationTypeId" : "Id"
+        },
+        "foreign_collection" : "CollaborationType"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationStatus",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "Name",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Description",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "CollaborationAuditLog",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "CollaborationPostId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "StaffMemberId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Action",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Reason",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Metadata",
+      "description" : "",
+      "type" : "longtext",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationAuditLog_ibfk_2" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationAuditLog_ibfk_1" : {
+        "column_mapping" : {
+          "CollaborationPostId" : "Id"
+        },
+        "foreign_collection" : "CollaborationPost"
+      }
+    }
+  }, {
+    "tableName" : "HiringStatus",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "Name",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Description",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "CollaborationRule",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "RuleNumber",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Title",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Description",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsActive",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "UpdatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "CollaborationFieldValue",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "CollaborationPostId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "FieldDefinitionId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Value",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationFieldValue_ibfk_1" : {
+        "column_mapping" : {
+          "CollaborationPostId" : "Id"
+        },
+        "foreign_collection" : "CollaborationPost"
+      },
+      "CollaborationFieldValue_ibfk_2" : {
+        "column_mapping" : {
+          "FieldDefinitionId" : "Id"
+        },
+        "foreign_collection" : "CollaborationFieldDefinition"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationPost",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "ProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CollaborationTypeId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "HiringStatusId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "StatusId",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "UpdatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "PostedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ExpiresAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "DiscordMessageId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "DiscordChannelId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ViewCount",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ResponseCount",
+      "description" : "",
+      "type" : "int",
+      "numeric_precision" : 10,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsHighlighted",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Tags",
+      "description" : "",
+      "type" : "longtext",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationPost_ibfk_1" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationPost_ibfk_3" : {
+        "column_mapping" : {
+          "HiringStatusId" : "Id"
+        },
+        "foreign_collection" : "HiringStatus"
+      },
+      "CollaborationPost_ibfk_2" : {
+        "column_mapping" : {
+          "CollaborationTypeId" : "Id"
+        },
+        "foreign_collection" : "CollaborationType"
+      },
+      "CollaborationPost_ibfk_4" : {
+        "column_mapping" : {
+          "StatusId" : "Id"
+        },
+        "foreign_collection" : "CollaborationStatus"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationReport",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "CollaborationPostId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CollaborationResponseId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ReportedProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ReportedByProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Reason",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Details",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ViolatedRuleId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ResolvedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ResolvedByStaffId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Resolution",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationReport_ibfk_3" : {
+        "column_mapping" : {
+          "ReportedProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationReport_ibfk_5" : {
+        "column_mapping" : {
+          "ViolatedRuleId" : "Id"
+        },
+        "foreign_collection" : "CollaborationRule"
+      },
+      "CollaborationReport_ibfk_2" : {
+        "column_mapping" : {
+          "CollaborationResponseId" : "Id"
+        },
+        "foreign_collection" : "CollaborationResponse"
+      },
+      "CollaborationReport_ibfk_4" : {
+        "column_mapping" : {
+          "ReportedByProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationReport_ibfk_1" : {
+        "column_mapping" : {
+          "CollaborationPostId" : "Id"
+        },
+        "foreign_collection" : "CollaborationPost"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationProfile",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "UserId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "DisplayName",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Bio",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Skills",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Portfolio",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ContactPreferences",
+      "description" : "",
+      "type" : "longtext",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsPublic",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "UpdatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "LastActiveAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : null
+  }, {
+    "tableName" : "CollaborationResponse",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "CollaborationPostId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Message",
+      "description" : "",
+      "type" : "text",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ContactInfo",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsPublic",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsHidden",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "CreatedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "IsRead",
+      "description" : "",
+      "type" : "tinyint",
+      "numeric_precision" : 3,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ReadAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationResponse_ibfk_2" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationResponse_ibfk_1" : {
+        "column_mapping" : {
+          "CollaborationPostId" : "Id"
+        },
+        "foreign_collection" : "CollaborationPost"
+      }
+    }
+  }, {
+    "tableName" : "CollaborationBlockedUser",
+    "tableType" : "TABLE",
+    "description" : "",
+    "columns" : [ {
+      "name" : "Id",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : true
+    }, {
+      "name" : "ProfileId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "GuildId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "BlockedAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "BlockedByStaffId",
+      "description" : "",
+      "type" : "bigint",
+      "numeric_precision" : 20,
+      "numeric_scale" : 0,
+      "nullable" : false,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "Reason",
+      "description" : "",
+      "type" : "varchar",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ViolatedRuleId",
+      "description" : "",
+      "type" : "char",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    }, {
+      "name" : "ExpiresAt",
+      "description" : "",
+      "type" : "datetime",
+      "numeric_precision" : null,
+      "numeric_scale" : null,
+      "nullable" : true,
+      "auto_increment" : false,
+      "is_primarykey" : false
+    } ],
+    "pks" : [ "Id" ],
+    "fks" : {
+      "CollaborationBlockedUser_ibfk_1" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationBlockedUser_ibfk_2" : {
+        "column_mapping" : {
+          "ViolatedRuleId" : "Id"
+        },
+        "foreign_collection" : "CollaborationRule"
+      }
+    }
+  } ],
+  "functions" : [ ],
+  "nativeQueries" : { }
+}

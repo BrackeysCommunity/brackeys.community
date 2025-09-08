@@ -1,0 +1,300 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_alert
+  fields:
+    - name: collaboration_type_id
+      type: int32
+    - name: created_at
+      type: timestamp!
+    - name: guild_id
+      type: int64!
+    - name: hiring_status_id
+      type: int32
+    - name: id
+      type: string!
+    - name: is_active
+      type: int8!
+    - name: keywords
+      type: string
+    - name: last_notified_at
+      type: timestamp
+    - name: name
+      type: string!
+    - name: profile_id
+      type: string!
+    - name: tags
+      type: string
+  graphql:
+    typeName: collaboration_alert
+    inputTypeName: collaboration_alert_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationAlert
+      fieldMapping:
+        collaboration_type_id:
+          column:
+            name: CollaborationTypeId
+        created_at:
+          column:
+            name: CreatedAt
+        guild_id:
+          column:
+            name: GuildId
+        hiring_status_id:
+          column:
+            name: HiringStatusId
+        id:
+          column:
+            name: Id
+        is_active:
+          column:
+            name: IsActive
+        keywords:
+          column:
+            name: Keywords
+        last_notified_at:
+          column:
+            name: LastNotifiedAt
+        name:
+          column:
+            name: Name
+        profile_id:
+          column:
+            name: ProfileId
+        tags:
+          column:
+            name: Tags
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_alert
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - collaboration_type_id
+          - created_at
+          - guild_id
+          - hiring_status_id
+          - id
+          - is_active
+          - keywords
+          - last_notified_at
+          - name
+          - profile_id
+          - tags
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_alert_bool_exp
+  operand:
+    object:
+      type: collaboration_alert
+      comparableFields:
+        - fieldName: collaboration_type_id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: created_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: hiring_status_id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: is_active
+          booleanExpressionType: int8_bool_exp_1
+        - fieldName: keywords
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: last_notified_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: name
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: profile_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: tags
+          booleanExpressionType: string_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_type
+        - relationshipName: hiring_status
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_alert_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_alert_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_alert
+      aggregatableFields:
+        - fieldName: collaboration_type_id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: created_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: hiring_status_id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: is_active
+          aggregateExpression: int8_agg_exp_1
+        - fieldName: keywords
+          aggregateExpression: string_agg_exp_1
+        - fieldName: last_notified_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: name
+          aggregateExpression: string_agg_exp_1
+        - fieldName: profile_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: tags
+          aggregateExpression: string_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_alert_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_alert_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_alert
+      orderableFields:
+        - fieldName: collaboration_type_id
+          orderByExpression: int32_order_by_exp
+        - fieldName: created_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: hiring_status_id
+          orderByExpression: int32_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: is_active
+          orderByExpression: int8_order_by_exp
+        - fieldName: keywords
+          orderByExpression: string_order_by_exp
+        - fieldName: last_notified_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: name
+          orderByExpression: string_order_by_exp
+        - fieldName: profile_id
+          orderByExpression: string_order_by_exp
+        - fieldName: tags
+          orderByExpression: string_order_by_exp
+      orderableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_type
+        - relationshipName: hiring_status
+  graphql:
+    expressionTypeName: collaboration_alert_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_alert
+  objectType: collaboration_alert
+  source:
+    dataConnectorName: collab
+    collection: CollaborationAlert
+  filterExpressionType: collaboration_alert_bool_exp
+  aggregateExpression: collaboration_alert_agg_exp
+  orderByExpression: collaboration_alert_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_alert
+      subscription:
+        rootField: collaboration_alert
+    selectUniques:
+      - queryRootField: collaboration_alert_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_alert_by_id
+    filterInputTypeName: collaboration_alert_filter_input
+    aggregate:
+      queryRootField: collaboration_alert_aggregate
+      subscription:
+        rootField: collaboration_alert_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_alert
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_profile
+  sourceType: collaboration_alert
+  target:
+    model:
+      name: collaboration_profile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profile_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_type
+  sourceType: collaboration_alert
+  target:
+    model:
+      name: collaboration_type
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: collaboration_type_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: hiring_status
+  sourceType: collaboration_alert
+  target:
+    model:
+      name: hiring_status
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: hiring_status_id
+      target:
+        modelField:
+          - fieldName: id
+

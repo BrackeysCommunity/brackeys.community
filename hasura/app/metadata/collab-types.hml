@@ -1,0 +1,404 @@
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: int32_bool_exp_1
+  operand:
+    scalar:
+      type: int32
+      comparisonOperators:
+        - name: _eq
+          argumentType: int32!
+        - name: _gt
+          argumentType: int32!
+        - name: _gte
+          argumentType: int32!
+        - name: _in
+          argumentType: "[int32!]!"
+        - name: _lt
+          argumentType: int32!
+        - name: _lte
+          argumentType: int32!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: INT32
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: int32_bool_exp_1
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: collab
+  dataConnectorScalarType: INT32
+  representation: int32
+  graphql:
+    comparisonExpressionTypeName: int32_comparison_exp_1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: string_bool_exp_1
+  operand:
+    scalar:
+      type: string
+      comparisonOperators:
+        - name: _contains
+          argumentType: string!
+        - name: _eq
+          argumentType: string!
+        - name: _in
+          argumentType: "[string!]!"
+        - name: _like
+          argumentType: string!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: STRING
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: string_bool_exp_1
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: collab
+  dataConnectorScalarType: STRING
+  representation: string
+  graphql:
+    comparisonExpressionTypeName: string_comparison_exp_1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: int8_bool_exp_1
+  operand:
+    scalar:
+      type: int8
+      comparisonOperators:
+        - name: _eq
+          argumentType: int8!
+        - name: _gt
+          argumentType: int8!
+        - name: _gte
+          argumentType: int8!
+        - name: _in
+          argumentType: "[int8!]!"
+        - name: _lt
+          argumentType: int8!
+        - name: _lte
+          argumentType: int8!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: INT8
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: int8_bool_exp_1
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: collab
+  dataConnectorScalarType: INT8
+  representation: int8
+  graphql:
+    comparisonExpressionTypeName: int8_comparison_exp_1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: float64_bool_exp_1
+  operand:
+    scalar:
+      type: float64
+      comparisonOperators:
+        - name: _eq
+          argumentType: float64!
+        - name: _gt
+          argumentType: float64!
+        - name: _gte
+          argumentType: float64!
+        - name: _in
+          argumentType: "[float64!]!"
+        - name: _lt
+          argumentType: float64!
+        - name: _lte
+          argumentType: float64!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: FLOAT64
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: float64_bool_exp_1
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: collab
+  dataConnectorScalarType: FLOAT64
+  representation: float64
+  graphql:
+    comparisonExpressionTypeName: float64_comparison_exp_1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: int64_bool_exp_1
+  operand:
+    scalar:
+      type: int64
+      comparisonOperators:
+        - name: _eq
+          argumentType: int64!
+        - name: _gt
+          argumentType: int64!
+        - name: _gte
+          argumentType: int64!
+        - name: _in
+          argumentType: "[int64!]!"
+        - name: _lt
+          argumentType: int64!
+        - name: _lte
+          argumentType: int64!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: INT64
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: int64_bool_exp_1
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: collab
+  dataConnectorScalarType: INT64
+  representation: int64
+  graphql:
+    comparisonExpressionTypeName: int64_comparison_exp_1
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: int32_agg_exp_1
+  operand:
+    scalar:
+      aggregatedType: int32
+      aggregationFunctions:
+        - name: avg
+          returnType: float64!
+        - name: max
+          returnType: int32!
+        - name: min
+          returnType: int32!
+        - name: sum
+          returnType: int64!
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: INT32
+          functionMapping:
+            avg:
+              name: avg
+            max:
+              name: max
+            min:
+              name: min
+            sum:
+              name: sum
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: int32_agg_exp_1
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: string_agg_exp_1
+  operand:
+    scalar:
+      aggregatedType: string
+      aggregationFunctions:
+        - name: max
+          returnType: string!
+        - name: min
+          returnType: string!
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: STRING
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: string_agg_exp_1
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: int8_agg_exp_1
+  operand:
+    scalar:
+      aggregatedType: int8
+      aggregationFunctions:
+        - name: avg
+          returnType: float64!
+        - name: max
+          returnType: int8!
+        - name: min
+          returnType: int8!
+        - name: sum
+          returnType: int64!
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: INT8
+          functionMapping:
+            avg:
+              name: avg
+            max:
+              name: max
+            min:
+              name: min
+            sum:
+              name: sum
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: int8_agg_exp_1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: timestamp_bool_exp_1
+  operand:
+    scalar:
+      type: timestamp
+      comparisonOperators:
+        - name: _eq
+          argumentType: timestamp!
+        - name: _gt
+          argumentType: timestamp!
+        - name: _gte
+          argumentType: timestamp!
+        - name: _in
+          argumentType: "[timestamp!]!"
+        - name: _lt
+          argumentType: timestamp!
+        - name: _lte
+          argumentType: timestamp!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: TIMESTAMP
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: timestamp_bool_exp_1
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: collab
+  dataConnectorScalarType: TIMESTAMP
+  representation: timestamp
+  graphql:
+    comparisonExpressionTypeName: timestamp_comparison_exp_1
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: timestamp_agg_exp_1
+  operand:
+    scalar:
+      aggregatedType: timestamp
+      aggregationFunctions: []
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: TIMESTAMP
+          functionMapping: {}
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: timestamp_agg_exp_1
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: int64_agg_exp_1
+  operand:
+    scalar:
+      aggregatedType: int64
+      aggregationFunctions:
+        - name: avg
+          returnType: float64!
+        - name: max
+          returnType: int64!
+        - name: min
+          returnType: int64!
+        - name: sum
+          returnType: int64!
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: collab
+          dataConnectorScalarType: INT64
+          functionMapping:
+            avg:
+              name: avg
+            max:
+              name: max
+            min:
+              name: min
+            sum:
+              name: sum
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: int64_agg_exp_1
+

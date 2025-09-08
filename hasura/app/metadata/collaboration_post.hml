@@ -1,0 +1,495 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_post
+  fields:
+    - name: collaboration_type_id
+      type: int32!
+    - name: created_at
+      type: timestamp!
+    - name: discord_channel_id
+      type: int64
+    - name: discord_message_id
+      type: int64
+    - name: expires_at
+      type: timestamp
+    - name: guild_id
+      type: int64!
+    - name: hiring_status_id
+      type: int32!
+    - name: id
+      type: string!
+    - name: is_highlighted
+      type: int8!
+    - name: posted_at
+      type: timestamp
+    - name: profile_id
+      type: string!
+    - name: response_count
+      type: int32!
+    - name: status_id
+      type: int32!
+    - name: tags
+      type: string
+    - name: updated_at
+      type: timestamp!
+    - name: view_count
+      type: int32!
+  graphql:
+    typeName: collaboration_post
+    inputTypeName: collaboration_post_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationPost
+      fieldMapping:
+        collaboration_type_id:
+          column:
+            name: CollaborationTypeId
+        created_at:
+          column:
+            name: CreatedAt
+        discord_channel_id:
+          column:
+            name: DiscordChannelId
+        discord_message_id:
+          column:
+            name: DiscordMessageId
+        expires_at:
+          column:
+            name: ExpiresAt
+        guild_id:
+          column:
+            name: GuildId
+        hiring_status_id:
+          column:
+            name: HiringStatusId
+        id:
+          column:
+            name: Id
+        is_highlighted:
+          column:
+            name: IsHighlighted
+        posted_at:
+          column:
+            name: PostedAt
+        profile_id:
+          column:
+            name: ProfileId
+        response_count:
+          column:
+            name: ResponseCount
+        status_id:
+          column:
+            name: StatusId
+        tags:
+          column:
+            name: Tags
+        updated_at:
+          column:
+            name: UpdatedAt
+        view_count:
+          column:
+            name: ViewCount
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_post
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - collaboration_type_id
+          - created_at
+          - discord_channel_id
+          - discord_message_id
+          - expires_at
+          - guild_id
+          - hiring_status_id
+          - id
+          - is_highlighted
+          - posted_at
+          - profile_id
+          - response_count
+          - status_id
+          - tags
+          - updated_at
+          - view_count
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_post_bool_exp
+  operand:
+    object:
+      type: collaboration_post
+      comparableFields:
+        - fieldName: collaboration_type_id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: created_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: discord_channel_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: discord_message_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: expires_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: hiring_status_id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: is_highlighted
+          booleanExpressionType: int8_bool_exp_1
+        - fieldName: posted_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: profile_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: response_count
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: status_id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: tags
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: updated_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: view_count
+          booleanExpressionType: int32_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_bookmarks
+        - relationshipName: collaboration_audit_logs
+        - relationshipName: collaboration_field_values
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_type
+        - relationshipName: hiring_status
+        - relationshipName: collaboration_status
+        - relationshipName: collaboration_reports
+        - relationshipName: collaboration_responses
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_post_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_post_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_post
+      aggregatableFields:
+        - fieldName: collaboration_type_id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: created_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: discord_channel_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: discord_message_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: expires_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: hiring_status_id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: is_highlighted
+          aggregateExpression: int8_agg_exp_1
+        - fieldName: posted_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: profile_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: response_count
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: status_id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: tags
+          aggregateExpression: string_agg_exp_1
+        - fieldName: updated_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: view_count
+          aggregateExpression: int32_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_post_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_post_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_post
+      orderableFields:
+        - fieldName: collaboration_type_id
+          orderByExpression: int32_order_by_exp
+        - fieldName: created_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: discord_channel_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: discord_message_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: expires_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: hiring_status_id
+          orderByExpression: int32_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: is_highlighted
+          orderByExpression: int8_order_by_exp
+        - fieldName: posted_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: profile_id
+          orderByExpression: string_order_by_exp
+        - fieldName: response_count
+          orderByExpression: int32_order_by_exp
+        - fieldName: status_id
+          orderByExpression: int32_order_by_exp
+        - fieldName: tags
+          orderByExpression: string_order_by_exp
+        - fieldName: updated_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: view_count
+          orderByExpression: int32_order_by_exp
+      orderableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_type
+        - relationshipName: hiring_status
+        - relationshipName: collaboration_status
+  graphql:
+    expressionTypeName: collaboration_post_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_post
+  objectType: collaboration_post
+  source:
+    dataConnectorName: collab
+    collection: CollaborationPost
+  filterExpressionType: collaboration_post_bool_exp
+  aggregateExpression: collaboration_post_agg_exp
+  orderByExpression: collaboration_post_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_post
+      subscription:
+        rootField: collaboration_post
+    selectUniques:
+      - queryRootField: collaboration_post_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_post_by_id
+    filterInputTypeName: collaboration_post_filter_input
+    aggregate:
+      queryRootField: collaboration_post_aggregate
+      subscription:
+        rootField: collaboration_post_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_post
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_bookmarks
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_bookmark
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_bookmark_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_post_id
+  graphql:
+    aggregateFieldName: collaboration_bookmarks_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_audit_logs
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_audit_log
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_audit_log_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_post_id
+  graphql:
+    aggregateFieldName: collaboration_audit_logs_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_field_values
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_field_value
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_field_value_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_post_id
+  graphql:
+    aggregateFieldName: collaboration_field_values_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_profile
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_profile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profile_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_type
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_type
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: collaboration_type_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: hiring_status
+  sourceType: collaboration_post
+  target:
+    model:
+      name: hiring_status
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: hiring_status_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_status
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_status
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: status_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_reports
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_report
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_report_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_post_id
+  graphql:
+    aggregateFieldName: collaboration_reports_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_responses
+  sourceType: collaboration_post
+  target:
+    model:
+      name: collaboration_response
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_response_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_post_id
+  graphql:
+    aggregateFieldName: collaboration_responses_aggregate
+

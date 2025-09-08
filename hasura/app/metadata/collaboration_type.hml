@@ -1,0 +1,213 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_type
+  fields:
+    - name: description
+      type: string
+    - name: id
+      type: int32!
+    - name: name
+      type: string!
+  graphql:
+    typeName: collaboration_type
+    inputTypeName: collaboration_type_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationType
+      fieldMapping:
+        description:
+          column:
+            name: Description
+        id:
+          column:
+            name: Id
+        name:
+          column:
+            name: Name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_type
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_type_bool_exp
+  operand:
+    object:
+      type: collaboration_type
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: name
+          booleanExpressionType: string_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_field_definitions
+        - relationshipName: collaboration_alerts
+        - relationshipName: collaboration_posts
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_type_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_type_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_type
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: string_agg_exp_1
+        - fieldName: id
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: name
+          aggregateExpression: string_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_type_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_type_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_type
+      orderableFields:
+        - fieldName: description
+          orderByExpression: string_order_by_exp
+        - fieldName: id
+          orderByExpression: int32_order_by_exp
+        - fieldName: name
+          orderByExpression: string_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: collaboration_type_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_type
+  objectType: collaboration_type
+  source:
+    dataConnectorName: collab
+    collection: CollaborationType
+  filterExpressionType: collaboration_type_bool_exp
+  aggregateExpression: collaboration_type_agg_exp
+  orderByExpression: collaboration_type_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_type
+      subscription:
+        rootField: collaboration_type
+    selectUniques:
+      - queryRootField: collaboration_type_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_type_by_id
+    filterInputTypeName: collaboration_type_filter_input
+    aggregate:
+      queryRootField: collaboration_type_aggregate
+      subscription:
+        rootField: collaboration_type_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_type
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_field_definitions
+  sourceType: collaboration_type
+  target:
+    model:
+      name: collaboration_field_definition
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_field_definition_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_type_id
+  graphql:
+    aggregateFieldName: collaboration_field_definitions_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_alerts
+  sourceType: collaboration_type
+  target:
+    model:
+      name: collaboration_alert
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_alert_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_type_id
+  graphql:
+    aggregateFieldName: collaboration_alerts_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_posts
+  sourceType: collaboration_type
+  target:
+    model:
+      name: collaboration_post
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_post_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: collaboration_type_id
+  graphql:
+    aggregateFieldName: collaboration_posts_aggregate
+

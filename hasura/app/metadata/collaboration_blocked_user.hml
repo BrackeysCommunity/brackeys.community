@@ -1,0 +1,244 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_blocked_user
+  fields:
+    - name: blocked_at
+      type: timestamp!
+    - name: blocked_by_staff_id
+      type: int64!
+    - name: expires_at
+      type: timestamp
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: string!
+    - name: profile_id
+      type: string!
+    - name: reason
+      type: string
+    - name: violated_rule_id
+      type: string
+  graphql:
+    typeName: collaboration_blocked_user
+    inputTypeName: collaboration_blocked_user_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationBlockedUser
+      fieldMapping:
+        blocked_at:
+          column:
+            name: BlockedAt
+        blocked_by_staff_id:
+          column:
+            name: BlockedByStaffId
+        expires_at:
+          column:
+            name: ExpiresAt
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        profile_id:
+          column:
+            name: ProfileId
+        reason:
+          column:
+            name: Reason
+        violated_rule_id:
+          column:
+            name: ViolatedRuleId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_blocked_user
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - blocked_at
+          - blocked_by_staff_id
+          - expires_at
+          - guild_id
+          - id
+          - profile_id
+          - reason
+          - violated_rule_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_blocked_user_bool_exp
+  operand:
+    object:
+      type: collaboration_blocked_user
+      comparableFields:
+        - fieldName: blocked_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: blocked_by_staff_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: expires_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: profile_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: reason
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: violated_rule_id
+          booleanExpressionType: string_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_rule
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_blocked_user_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_blocked_user_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_blocked_user
+      aggregatableFields:
+        - fieldName: blocked_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: blocked_by_staff_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: expires_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: profile_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: reason
+          aggregateExpression: string_agg_exp_1
+        - fieldName: violated_rule_id
+          aggregateExpression: string_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_blocked_user_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_blocked_user_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_blocked_user
+      orderableFields:
+        - fieldName: blocked_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: blocked_by_staff_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: expires_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: profile_id
+          orderByExpression: string_order_by_exp
+        - fieldName: reason
+          orderByExpression: string_order_by_exp
+        - fieldName: violated_rule_id
+          orderByExpression: string_order_by_exp
+      orderableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_rule
+  graphql:
+    expressionTypeName: collaboration_blocked_user_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_blocked_user
+  objectType: collaboration_blocked_user
+  source:
+    dataConnectorName: collab
+    collection: CollaborationBlockedUser
+  filterExpressionType: collaboration_blocked_user_bool_exp
+  aggregateExpression: collaboration_blocked_user_agg_exp
+  orderByExpression: collaboration_blocked_user_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_blocked_user
+      subscription:
+        rootField: collaboration_blocked_user
+    selectUniques:
+      - queryRootField: collaboration_blocked_user_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_blocked_user_by_id
+    filterInputTypeName: collaboration_blocked_user_filter_input
+    aggregate:
+      queryRootField: collaboration_blocked_user_aggregate
+      subscription:
+        rootField: collaboration_blocked_user_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_blocked_user
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_profile
+  sourceType: collaboration_blocked_user
+  target:
+    model:
+      name: collaboration_profile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profile_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_rule
+  sourceType: collaboration_blocked_user
+  target:
+    model:
+      name: collaboration_rule
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: violated_rule_id
+      target:
+        modelField:
+          - fieldName: id
+

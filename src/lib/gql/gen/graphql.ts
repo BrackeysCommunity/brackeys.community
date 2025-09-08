@@ -42,9 +42,51 @@ export type Query = {
   blocked_reporter?: Maybe<Array<Blocked_Reporter>>;
   blocked_reporter_aggregate?: Maybe<Blocked_Reporter_Agg_Exp>;
   blocked_reporter_by_blocked_reporter_pk?: Maybe<Blocked_Reporter>;
+  collaboration_alert?: Maybe<Array<Collaboration_Alert>>;
+  collaboration_alert_aggregate?: Maybe<Collaboration_Alert_Agg_Exp>;
+  collaboration_alert_by_id?: Maybe<Collaboration_Alert>;
+  collaboration_audit_log?: Maybe<Array<Collaboration_Audit_Log>>;
+  collaboration_audit_log_aggregate?: Maybe<Collaboration_Audit_Log_Agg_Exp>;
+  collaboration_audit_log_by_id?: Maybe<Collaboration_Audit_Log>;
+  collaboration_blocked_user?: Maybe<Array<Collaboration_Blocked_User>>;
+  collaboration_blocked_user_aggregate?: Maybe<Collaboration_Blocked_User_Agg_Exp>;
+  collaboration_blocked_user_by_id?: Maybe<Collaboration_Blocked_User>;
+  collaboration_bookmark?: Maybe<Array<Collaboration_Bookmark>>;
+  collaboration_bookmark_aggregate?: Maybe<Collaboration_Bookmark_Agg_Exp>;
+  collaboration_bookmark_by_id?: Maybe<Collaboration_Bookmark>;
+  collaboration_field_definition?: Maybe<Array<Collaboration_Field_Definition>>;
+  collaboration_field_definition_aggregate?: Maybe<Collaboration_Field_Definition_Agg_Exp>;
+  collaboration_field_definition_by_id?: Maybe<Collaboration_Field_Definition>;
+  collaboration_field_value?: Maybe<Array<Collaboration_Field_Value>>;
+  collaboration_field_value_aggregate?: Maybe<Collaboration_Field_Value_Agg_Exp>;
+  collaboration_field_value_by_id?: Maybe<Collaboration_Field_Value>;
+  collaboration_post?: Maybe<Array<Collaboration_Post>>;
+  collaboration_post_aggregate?: Maybe<Collaboration_Post_Agg_Exp>;
+  collaboration_post_by_id?: Maybe<Collaboration_Post>;
+  collaboration_profile?: Maybe<Array<Collaboration_Profile>>;
+  collaboration_profile_aggregate?: Maybe<Collaboration_Profile_Agg_Exp>;
+  collaboration_profile_by_id?: Maybe<Collaboration_Profile>;
+  collaboration_report?: Maybe<Array<Collaboration_Report>>;
+  collaboration_report_aggregate?: Maybe<Collaboration_Report_Agg_Exp>;
+  collaboration_report_by_id?: Maybe<Collaboration_Report>;
+  collaboration_response?: Maybe<Array<Collaboration_Response>>;
+  collaboration_response_aggregate?: Maybe<Collaboration_Response_Agg_Exp>;
+  collaboration_response_by_id?: Maybe<Collaboration_Response>;
+  collaboration_rule?: Maybe<Array<Collaboration_Rule>>;
+  collaboration_rule_aggregate?: Maybe<Collaboration_Rule_Agg_Exp>;
+  collaboration_rule_by_id?: Maybe<Collaboration_Rule>;
+  collaboration_status?: Maybe<Array<Collaboration_Status>>;
+  collaboration_status_aggregate?: Maybe<Collaboration_Status_Agg_Exp>;
+  collaboration_status_by_id?: Maybe<Collaboration_Status>;
+  collaboration_type?: Maybe<Array<Collaboration_Type>>;
+  collaboration_type_aggregate?: Maybe<Collaboration_Type_Agg_Exp>;
+  collaboration_type_by_id?: Maybe<Collaboration_Type>;
   deleted_message?: Maybe<Array<Deleted_Message>>;
   deleted_message_aggregate?: Maybe<Deleted_Message_Agg_Exp>;
   deleted_message_by_message_id?: Maybe<Deleted_Message>;
+  hiring_status?: Maybe<Array<Hiring_Status>>;
+  hiring_status_aggregate?: Maybe<Hiring_Status_Agg_Exp>;
+  hiring_status_by_id?: Maybe<Hiring_Status>;
   infraction?: Maybe<Array<Infraction>>;
   infraction_aggregate?: Maybe<Infraction_Agg_Exp>;
   infraction_by_id?: Maybe<Infraction>;
@@ -110,6 +152,240 @@ export type QueryBlocked_Reporter_By_Blocked_Reporter_PkArgs = {
 };
 
 
+export type QueryCollaboration_AlertArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Alert_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Alert_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_Audit_LogArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Audit_Log_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Audit_Log_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_Blocked_UserArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Blocked_User_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Blocked_User_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_BookmarkArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Bookmark_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Bookmark_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_Field_DefinitionArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Field_Definition_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Field_Definition_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_Field_ValueArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Field_Value_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Field_Value_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_PostArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Post_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Post_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_ProfileArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Profile_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Profile_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Profile_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Profile_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_ReportArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Report_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Report_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_ResponseArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Response_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Response_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_RuleArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Rule_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Rule_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Rule_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Rule_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type QueryCollaboration_StatusArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Status_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Status_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Status_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Status_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Status_By_IdArgs = {
+  id: Scalars['int32']['input'];
+};
+
+
+export type QueryCollaboration_TypeArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Type_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Type_Bool_Exp>;
+};
+
+
+export type QueryCollaboration_Type_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Type_Filter_Input>;
+};
+
+
+export type QueryCollaboration_Type_By_IdArgs = {
+  id: Scalars['int32']['input'];
+};
+
+
 export type QueryDeleted_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -125,6 +401,24 @@ export type QueryDeleted_Message_AggregateArgs = {
 
 export type QueryDeleted_Message_By_Message_IdArgs = {
   message_id: Scalars['int64']['input'];
+};
+
+
+export type QueryHiring_StatusArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Hiring_Status_Order_By_Exp>>;
+  where?: InputMaybe<Hiring_Status_Bool_Exp>;
+};
+
+
+export type QueryHiring_Status_AggregateArgs = {
+  filter_input?: InputMaybe<Hiring_Status_Filter_Input>;
+};
+
+
+export type QueryHiring_Status_By_IdArgs = {
+  id: Scalars['int32']['input'];
 };
 
 
@@ -282,9 +576,51 @@ export type Subscription = {
   blocked_reporter?: Maybe<Array<Blocked_Reporter>>;
   blocked_reporter_aggregate?: Maybe<Blocked_Reporter_Agg_Exp>;
   blocked_reporter_by_blocked_reporter_pk?: Maybe<Blocked_Reporter>;
+  collaboration_alert?: Maybe<Array<Collaboration_Alert>>;
+  collaboration_alert_aggregate?: Maybe<Collaboration_Alert_Agg_Exp>;
+  collaboration_alert_by_id?: Maybe<Collaboration_Alert>;
+  collaboration_audit_log?: Maybe<Array<Collaboration_Audit_Log>>;
+  collaboration_audit_log_aggregate?: Maybe<Collaboration_Audit_Log_Agg_Exp>;
+  collaboration_audit_log_by_id?: Maybe<Collaboration_Audit_Log>;
+  collaboration_blocked_user?: Maybe<Array<Collaboration_Blocked_User>>;
+  collaboration_blocked_user_aggregate?: Maybe<Collaboration_Blocked_User_Agg_Exp>;
+  collaboration_blocked_user_by_id?: Maybe<Collaboration_Blocked_User>;
+  collaboration_bookmark?: Maybe<Array<Collaboration_Bookmark>>;
+  collaboration_bookmark_aggregate?: Maybe<Collaboration_Bookmark_Agg_Exp>;
+  collaboration_bookmark_by_id?: Maybe<Collaboration_Bookmark>;
+  collaboration_field_definition?: Maybe<Array<Collaboration_Field_Definition>>;
+  collaboration_field_definition_aggregate?: Maybe<Collaboration_Field_Definition_Agg_Exp>;
+  collaboration_field_definition_by_id?: Maybe<Collaboration_Field_Definition>;
+  collaboration_field_value?: Maybe<Array<Collaboration_Field_Value>>;
+  collaboration_field_value_aggregate?: Maybe<Collaboration_Field_Value_Agg_Exp>;
+  collaboration_field_value_by_id?: Maybe<Collaboration_Field_Value>;
+  collaboration_post?: Maybe<Array<Collaboration_Post>>;
+  collaboration_post_aggregate?: Maybe<Collaboration_Post_Agg_Exp>;
+  collaboration_post_by_id?: Maybe<Collaboration_Post>;
+  collaboration_profile?: Maybe<Array<Collaboration_Profile>>;
+  collaboration_profile_aggregate?: Maybe<Collaboration_Profile_Agg_Exp>;
+  collaboration_profile_by_id?: Maybe<Collaboration_Profile>;
+  collaboration_report?: Maybe<Array<Collaboration_Report>>;
+  collaboration_report_aggregate?: Maybe<Collaboration_Report_Agg_Exp>;
+  collaboration_report_by_id?: Maybe<Collaboration_Report>;
+  collaboration_response?: Maybe<Array<Collaboration_Response>>;
+  collaboration_response_aggregate?: Maybe<Collaboration_Response_Agg_Exp>;
+  collaboration_response_by_id?: Maybe<Collaboration_Response>;
+  collaboration_rule?: Maybe<Array<Collaboration_Rule>>;
+  collaboration_rule_aggregate?: Maybe<Collaboration_Rule_Agg_Exp>;
+  collaboration_rule_by_id?: Maybe<Collaboration_Rule>;
+  collaboration_status?: Maybe<Array<Collaboration_Status>>;
+  collaboration_status_aggregate?: Maybe<Collaboration_Status_Agg_Exp>;
+  collaboration_status_by_id?: Maybe<Collaboration_Status>;
+  collaboration_type?: Maybe<Array<Collaboration_Type>>;
+  collaboration_type_aggregate?: Maybe<Collaboration_Type_Agg_Exp>;
+  collaboration_type_by_id?: Maybe<Collaboration_Type>;
   deleted_message?: Maybe<Array<Deleted_Message>>;
   deleted_message_aggregate?: Maybe<Deleted_Message_Agg_Exp>;
   deleted_message_by_message_id?: Maybe<Deleted_Message>;
+  hiring_status?: Maybe<Array<Hiring_Status>>;
+  hiring_status_aggregate?: Maybe<Hiring_Status_Agg_Exp>;
+  hiring_status_by_id?: Maybe<Hiring_Status>;
   infraction?: Maybe<Array<Infraction>>;
   infraction_aggregate?: Maybe<Infraction_Agg_Exp>;
   infraction_by_id?: Maybe<Infraction>;
@@ -350,6 +686,240 @@ export type SubscriptionBlocked_Reporter_By_Blocked_Reporter_PkArgs = {
 };
 
 
+export type SubscriptionCollaboration_AlertArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Alert_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Alert_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_Audit_LogArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Audit_Log_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Audit_Log_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_Blocked_UserArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Blocked_User_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Blocked_User_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_BookmarkArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Bookmark_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Bookmark_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_Field_DefinitionArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Field_Definition_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Field_Definition_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_Field_ValueArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Field_Value_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Field_Value_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_PostArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Post_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Post_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_ProfileArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Profile_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Profile_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Profile_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Profile_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_ReportArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Report_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Report_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_ResponseArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Response_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Response_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_RuleArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Rule_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Rule_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Rule_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Rule_By_IdArgs = {
+  id: Scalars['string']['input'];
+};
+
+
+export type SubscriptionCollaboration_StatusArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Status_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Status_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Status_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Status_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Status_By_IdArgs = {
+  id: Scalars['int32']['input'];
+};
+
+
+export type SubscriptionCollaboration_TypeArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Type_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Type_Bool_Exp>;
+};
+
+
+export type SubscriptionCollaboration_Type_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Type_Filter_Input>;
+};
+
+
+export type SubscriptionCollaboration_Type_By_IdArgs = {
+  id: Scalars['int32']['input'];
+};
+
+
 export type SubscriptionDeleted_MessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
@@ -365,6 +935,24 @@ export type SubscriptionDeleted_Message_AggregateArgs = {
 
 export type SubscriptionDeleted_Message_By_Message_IdArgs = {
   message_id: Scalars['int64']['input'];
+};
+
+
+export type SubscriptionHiring_StatusArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Hiring_Status_Order_By_Exp>>;
+  where?: InputMaybe<Hiring_Status_Bool_Exp>;
+};
+
+
+export type SubscriptionHiring_Status_AggregateArgs = {
+  filter_input?: InputMaybe<Hiring_Status_Filter_Input>;
+};
+
+
+export type SubscriptionHiring_Status_By_IdArgs = {
+  id: Scalars['int32']['input'];
 };
 
 
@@ -650,6 +1238,1187 @@ export type Bytes_Bool_Exp = {
   _or?: InputMaybe<Array<Bytes_Bool_Exp>>;
 };
 
+export type Collaboration_Alert = {
+  __typename?: 'collaboration_alert';
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  collaboration_type?: Maybe<Collaboration_Type>;
+  collaboration_type_id?: Maybe<Scalars['int32']['output']>;
+  created_at: Scalars['timestamp']['output'];
+  guild_id: Scalars['int64']['output'];
+  hiring_status?: Maybe<Hiring_Status>;
+  hiring_status_id?: Maybe<Scalars['int32']['output']>;
+  id: Scalars['string']['output'];
+  is_active: Scalars['int8']['output'];
+  keywords?: Maybe<Scalars['string']['output']>;
+  last_notified_at?: Maybe<Scalars['timestamp']['output']>;
+  name: Scalars['string']['output'];
+  profile_id: Scalars['string']['output'];
+  tags?: Maybe<Scalars['string']['output']>;
+};
+
+export type Collaboration_Alert_Agg_Exp = {
+  __typename?: 'collaboration_alert_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_type_id: Int32_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  guild_id: Int64_Agg_Exp_1;
+  hiring_status_id: Int32_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  is_active: Int8_Agg_Exp_1;
+  keywords: String_Agg_Exp_1;
+  last_notified_at: Timestamp_Agg_Exp_1;
+  name: String_Agg_Exp_1;
+  profile_id: String_Agg_Exp_1;
+  tags: String_Agg_Exp_1;
+};
+
+export type Collaboration_Alert_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Alert_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Alert_Bool_Exp>>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  collaboration_type?: InputMaybe<Collaboration_Type_Bool_Exp>;
+  collaboration_type_id?: InputMaybe<Int32_Bool_Exp_1>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
+  hiring_status?: InputMaybe<Hiring_Status_Bool_Exp>;
+  hiring_status_id?: InputMaybe<Int32_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  is_active?: InputMaybe<Int8_Bool_Exp_1>;
+  keywords?: InputMaybe<String_Bool_Exp_1>;
+  last_notified_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  name?: InputMaybe<String_Bool_Exp_1>;
+  profile_id?: InputMaybe<String_Bool_Exp_1>;
+  tags?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Alert_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+};
+
+export type Collaboration_Alert_Order_By_Exp = {
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  collaboration_type?: InputMaybe<Collaboration_Type_Order_By_Exp>;
+  collaboration_type_id?: InputMaybe<OrderBy>;
+  created_at?: InputMaybe<OrderBy>;
+  guild_id?: InputMaybe<OrderBy>;
+  hiring_status?: InputMaybe<Hiring_Status_Order_By_Exp>;
+  hiring_status_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  is_active?: InputMaybe<OrderBy>;
+  keywords?: InputMaybe<OrderBy>;
+  last_notified_at?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+  profile_id?: InputMaybe<OrderBy>;
+  tags?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Audit_Log = {
+  __typename?: 'collaboration_audit_log';
+  action: Scalars['string']['output'];
+  collaboration_post?: Maybe<Collaboration_Post>;
+  collaboration_post_id?: Maybe<Scalars['string']['output']>;
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  created_at: Scalars['timestamp']['output'];
+  id: Scalars['string']['output'];
+  metadata?: Maybe<Scalars['string']['output']>;
+  profile_id?: Maybe<Scalars['string']['output']>;
+  reason?: Maybe<Scalars['string']['output']>;
+  staff_member_id: Scalars['int64']['output'];
+};
+
+export type Collaboration_Audit_Log_Agg_Exp = {
+  __typename?: 'collaboration_audit_log_agg_exp';
+  _count: Scalars['Int']['output'];
+  action: String_Agg_Exp_1;
+  collaboration_post_id: String_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  metadata: String_Agg_Exp_1;
+  profile_id: String_Agg_Exp_1;
+  reason: String_Agg_Exp_1;
+  staff_member_id: Int64_Agg_Exp_1;
+};
+
+export type Collaboration_Audit_Log_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Audit_Log_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Audit_Log_Bool_Exp>>;
+  action?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  metadata?: InputMaybe<String_Bool_Exp_1>;
+  profile_id?: InputMaybe<String_Bool_Exp_1>;
+  reason?: InputMaybe<String_Bool_Exp_1>;
+  staff_member_id?: InputMaybe<Int64_Bool_Exp_1>;
+};
+
+export type Collaboration_Audit_Log_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+};
+
+export type Collaboration_Audit_Log_Order_By_Exp = {
+  action?: InputMaybe<OrderBy>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
+  collaboration_post_id?: InputMaybe<OrderBy>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  created_at?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  metadata?: InputMaybe<OrderBy>;
+  profile_id?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  staff_member_id?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Blocked_User = {
+  __typename?: 'collaboration_blocked_user';
+  blocked_at: Scalars['timestamp']['output'];
+  blocked_by_staff_id: Scalars['int64']['output'];
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  collaboration_rule?: Maybe<Collaboration_Rule>;
+  expires_at?: Maybe<Scalars['timestamp']['output']>;
+  guild_id: Scalars['int64']['output'];
+  id: Scalars['string']['output'];
+  profile_id: Scalars['string']['output'];
+  reason?: Maybe<Scalars['string']['output']>;
+  violated_rule_id?: Maybe<Scalars['string']['output']>;
+};
+
+export type Collaboration_Blocked_User_Agg_Exp = {
+  __typename?: 'collaboration_blocked_user_agg_exp';
+  _count: Scalars['Int']['output'];
+  blocked_at: Timestamp_Agg_Exp_1;
+  blocked_by_staff_id: Int64_Agg_Exp_1;
+  expires_at: Timestamp_Agg_Exp_1;
+  guild_id: Int64_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  profile_id: String_Agg_Exp_1;
+  reason: String_Agg_Exp_1;
+  violated_rule_id: String_Agg_Exp_1;
+};
+
+export type Collaboration_Blocked_User_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Blocked_User_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Blocked_User_Bool_Exp>>;
+  blocked_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  blocked_by_staff_id?: InputMaybe<Int64_Bool_Exp_1>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  collaboration_rule?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+  expires_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  profile_id?: InputMaybe<String_Bool_Exp_1>;
+  reason?: InputMaybe<String_Bool_Exp_1>;
+  violated_rule_id?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Blocked_User_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+};
+
+export type Collaboration_Blocked_User_Order_By_Exp = {
+  blocked_at?: InputMaybe<OrderBy>;
+  blocked_by_staff_id?: InputMaybe<OrderBy>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  collaboration_rule?: InputMaybe<Collaboration_Rule_Order_By_Exp>;
+  expires_at?: InputMaybe<OrderBy>;
+  guild_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  profile_id?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  violated_rule_id?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Bookmark = {
+  __typename?: 'collaboration_bookmark';
+  collaboration_post?: Maybe<Collaboration_Post>;
+  collaboration_post_id: Scalars['string']['output'];
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  created_at: Scalars['timestamp']['output'];
+  id: Scalars['string']['output'];
+  notes?: Maybe<Scalars['string']['output']>;
+  profile_id: Scalars['string']['output'];
+};
+
+export type Collaboration_Bookmark_Agg_Exp = {
+  __typename?: 'collaboration_bookmark_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_post_id: String_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  notes: String_Agg_Exp_1;
+  profile_id: String_Agg_Exp_1;
+};
+
+export type Collaboration_Bookmark_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Bookmark_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Bookmark_Bool_Exp>>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  notes?: InputMaybe<String_Bool_Exp_1>;
+  profile_id?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Bookmark_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+};
+
+export type Collaboration_Bookmark_Order_By_Exp = {
+  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
+  collaboration_post_id?: InputMaybe<OrderBy>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  created_at?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  notes?: InputMaybe<OrderBy>;
+  profile_id?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Field_Definition = {
+  __typename?: 'collaboration_field_definition';
+  collaboration_field_values?: Maybe<Array<Collaboration_Field_Value>>;
+  collaboration_field_values_aggregate: Collaboration_Field_Value_Agg_Exp;
+  collaboration_type?: Maybe<Collaboration_Type>;
+  collaboration_type_id: Scalars['int32']['output'];
+  display_name: Scalars['string']['output'];
+  field_name: Scalars['string']['output'];
+  field_order: Scalars['int32']['output'];
+  field_type: Scalars['string']['output'];
+  help_text?: Maybe<Scalars['string']['output']>;
+  hiring_status?: Maybe<Hiring_Status>;
+  hiring_status_id: Scalars['int32']['output'];
+  id: Scalars['string']['output'];
+  is_required: Scalars['int8']['output'];
+  max_length?: Maybe<Scalars['int32']['output']>;
+  options?: Maybe<Scalars['string']['output']>;
+  validation_regex?: Maybe<Scalars['string']['output']>;
+};
+
+
+export type Collaboration_Field_DefinitionCollaboration_Field_ValuesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+};
+
+
+export type Collaboration_Field_DefinitionCollaboration_Field_Values_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
+};
+
+export type Collaboration_Field_Definition_Agg_Exp = {
+  __typename?: 'collaboration_field_definition_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_type_id: Int32_Agg_Exp_1;
+  display_name: String_Agg_Exp_1;
+  field_name: String_Agg_Exp_1;
+  field_order: Int32_Agg_Exp_1;
+  field_type: String_Agg_Exp_1;
+  help_text: String_Agg_Exp_1;
+  hiring_status_id: Int32_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  is_required: Int8_Agg_Exp_1;
+  max_length: Int32_Agg_Exp_1;
+  options: String_Agg_Exp_1;
+  validation_regex: String_Agg_Exp_1;
+};
+
+export type Collaboration_Field_Definition_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Field_Definition_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Field_Definition_Bool_Exp>>;
+  collaboration_field_values?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+  collaboration_type?: InputMaybe<Collaboration_Type_Bool_Exp>;
+  collaboration_type_id?: InputMaybe<Int32_Bool_Exp_1>;
+  display_name?: InputMaybe<String_Bool_Exp_1>;
+  field_name?: InputMaybe<String_Bool_Exp_1>;
+  field_order?: InputMaybe<Int32_Bool_Exp_1>;
+  field_type?: InputMaybe<String_Bool_Exp_1>;
+  help_text?: InputMaybe<String_Bool_Exp_1>;
+  hiring_status?: InputMaybe<Hiring_Status_Bool_Exp>;
+  hiring_status_id?: InputMaybe<Int32_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  is_required?: InputMaybe<Int8_Bool_Exp_1>;
+  max_length?: InputMaybe<Int32_Bool_Exp_1>;
+  options?: InputMaybe<String_Bool_Exp_1>;
+  validation_regex?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Field_Definition_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+};
+
+export type Collaboration_Field_Definition_Order_By_Exp = {
+  collaboration_type?: InputMaybe<Collaboration_Type_Order_By_Exp>;
+  collaboration_type_id?: InputMaybe<OrderBy>;
+  display_name?: InputMaybe<OrderBy>;
+  field_name?: InputMaybe<OrderBy>;
+  field_order?: InputMaybe<OrderBy>;
+  field_type?: InputMaybe<OrderBy>;
+  help_text?: InputMaybe<OrderBy>;
+  hiring_status?: InputMaybe<Hiring_Status_Order_By_Exp>;
+  hiring_status_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  is_required?: InputMaybe<OrderBy>;
+  max_length?: InputMaybe<OrderBy>;
+  options?: InputMaybe<OrderBy>;
+  validation_regex?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Field_Value = {
+  __typename?: 'collaboration_field_value';
+  collaboration_field_definition?: Maybe<Collaboration_Field_Definition>;
+  collaboration_post?: Maybe<Collaboration_Post>;
+  collaboration_post_id: Scalars['string']['output'];
+  field_definition_id: Scalars['string']['output'];
+  id: Scalars['string']['output'];
+  value: Scalars['string']['output'];
+};
+
+export type Collaboration_Field_Value_Agg_Exp = {
+  __typename?: 'collaboration_field_value_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_post_id: String_Agg_Exp_1;
+  field_definition_id: String_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  value: String_Agg_Exp_1;
+};
+
+export type Collaboration_Field_Value_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Field_Value_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Field_Value_Bool_Exp>>;
+  collaboration_field_definition?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
+  field_definition_id?: InputMaybe<String_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  value?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Field_Value_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+};
+
+export type Collaboration_Field_Value_Order_By_Exp = {
+  collaboration_field_definition?: InputMaybe<Collaboration_Field_Definition_Order_By_Exp>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
+  collaboration_post_id?: InputMaybe<OrderBy>;
+  field_definition_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  value?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Post = {
+  __typename?: 'collaboration_post';
+  collaboration_audit_logs?: Maybe<Array<Collaboration_Audit_Log>>;
+  collaboration_audit_logs_aggregate: Collaboration_Audit_Log_Agg_Exp;
+  collaboration_bookmarks?: Maybe<Array<Collaboration_Bookmark>>;
+  collaboration_bookmarks_aggregate: Collaboration_Bookmark_Agg_Exp;
+  collaboration_field_values?: Maybe<Array<Collaboration_Field_Value>>;
+  collaboration_field_values_aggregate: Collaboration_Field_Value_Agg_Exp;
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
+  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
+  collaboration_responses?: Maybe<Array<Collaboration_Response>>;
+  collaboration_responses_aggregate: Collaboration_Response_Agg_Exp;
+  collaboration_status?: Maybe<Collaboration_Status>;
+  collaboration_type?: Maybe<Collaboration_Type>;
+  collaboration_type_id: Scalars['int32']['output'];
+  created_at: Scalars['timestamp']['output'];
+  discord_channel_id?: Maybe<Scalars['int64']['output']>;
+  discord_message_id?: Maybe<Scalars['int64']['output']>;
+  expires_at?: Maybe<Scalars['timestamp']['output']>;
+  guild_id: Scalars['int64']['output'];
+  hiring_status?: Maybe<Hiring_Status>;
+  hiring_status_id: Scalars['int32']['output'];
+  id: Scalars['string']['output'];
+  is_highlighted: Scalars['int8']['output'];
+  posted_at?: Maybe<Scalars['timestamp']['output']>;
+  profile_id: Scalars['string']['output'];
+  response_count: Scalars['int32']['output'];
+  status_id: Scalars['int32']['output'];
+  tags?: Maybe<Scalars['string']['output']>;
+  updated_at: Scalars['timestamp']['output'];
+  view_count: Scalars['int32']['output'];
+};
+
+
+export type Collaboration_PostCollaboration_Audit_LogsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+};
+
+
+export type Collaboration_PostCollaboration_Audit_Logs_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
+};
+
+
+export type Collaboration_PostCollaboration_BookmarksArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+};
+
+
+export type Collaboration_PostCollaboration_Bookmarks_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
+};
+
+
+export type Collaboration_PostCollaboration_Field_ValuesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+};
+
+
+export type Collaboration_PostCollaboration_Field_Values_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
+};
+
+
+export type Collaboration_PostCollaboration_ReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type Collaboration_PostCollaboration_Reports_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+
+export type Collaboration_PostCollaboration_ResponsesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+};
+
+
+export type Collaboration_PostCollaboration_Responses_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
+};
+
+export type Collaboration_Post_Agg_Exp = {
+  __typename?: 'collaboration_post_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_type_id: Int32_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  discord_channel_id: Int64_Agg_Exp_1;
+  discord_message_id: Int64_Agg_Exp_1;
+  expires_at: Timestamp_Agg_Exp_1;
+  guild_id: Int64_Agg_Exp_1;
+  hiring_status_id: Int32_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  is_highlighted: Int8_Agg_Exp_1;
+  posted_at: Timestamp_Agg_Exp_1;
+  profile_id: String_Agg_Exp_1;
+  response_count: Int32_Agg_Exp_1;
+  status_id: Int32_Agg_Exp_1;
+  tags: String_Agg_Exp_1;
+  updated_at: Timestamp_Agg_Exp_1;
+  view_count: Int32_Agg_Exp_1;
+};
+
+export type Collaboration_Post_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Post_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Post_Bool_Exp>>;
+  collaboration_audit_logs?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+  collaboration_bookmarks?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+  collaboration_field_values?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  collaboration_responses?: InputMaybe<Collaboration_Response_Bool_Exp>;
+  collaboration_status?: InputMaybe<Collaboration_Status_Bool_Exp>;
+  collaboration_type?: InputMaybe<Collaboration_Type_Bool_Exp>;
+  collaboration_type_id?: InputMaybe<Int32_Bool_Exp_1>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  discord_channel_id?: InputMaybe<Int64_Bool_Exp_1>;
+  discord_message_id?: InputMaybe<Int64_Bool_Exp_1>;
+  expires_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
+  hiring_status?: InputMaybe<Hiring_Status_Bool_Exp>;
+  hiring_status_id?: InputMaybe<Int32_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  is_highlighted?: InputMaybe<Int8_Bool_Exp_1>;
+  posted_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  profile_id?: InputMaybe<String_Bool_Exp_1>;
+  response_count?: InputMaybe<Int32_Bool_Exp_1>;
+  status_id?: InputMaybe<Int32_Bool_Exp_1>;
+  tags?: InputMaybe<String_Bool_Exp_1>;
+  updated_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  view_count?: InputMaybe<Int32_Bool_Exp_1>;
+};
+
+export type Collaboration_Post_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+export type Collaboration_Post_Order_By_Exp = {
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  collaboration_status?: InputMaybe<Collaboration_Status_Order_By_Exp>;
+  collaboration_type?: InputMaybe<Collaboration_Type_Order_By_Exp>;
+  collaboration_type_id?: InputMaybe<OrderBy>;
+  created_at?: InputMaybe<OrderBy>;
+  discord_channel_id?: InputMaybe<OrderBy>;
+  discord_message_id?: InputMaybe<OrderBy>;
+  expires_at?: InputMaybe<OrderBy>;
+  guild_id?: InputMaybe<OrderBy>;
+  hiring_status?: InputMaybe<Hiring_Status_Order_By_Exp>;
+  hiring_status_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  is_highlighted?: InputMaybe<OrderBy>;
+  posted_at?: InputMaybe<OrderBy>;
+  profile_id?: InputMaybe<OrderBy>;
+  response_count?: InputMaybe<OrderBy>;
+  status_id?: InputMaybe<OrderBy>;
+  tags?: InputMaybe<OrderBy>;
+  updated_at?: InputMaybe<OrderBy>;
+  view_count?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Profile = {
+  __typename?: 'collaboration_profile';
+  bio?: Maybe<Scalars['string']['output']>;
+  collaboration_alerts?: Maybe<Array<Collaboration_Alert>>;
+  collaboration_alerts_aggregate: Collaboration_Alert_Agg_Exp;
+  collaboration_audit_logs?: Maybe<Array<Collaboration_Audit_Log>>;
+  collaboration_audit_logs_aggregate: Collaboration_Audit_Log_Agg_Exp;
+  collaboration_blocked_users?: Maybe<Array<Collaboration_Blocked_User>>;
+  collaboration_blocked_users_aggregate: Collaboration_Blocked_User_Agg_Exp;
+  collaboration_bookmarks?: Maybe<Array<Collaboration_Bookmark>>;
+  collaboration_bookmarks_aggregate: Collaboration_Bookmark_Agg_Exp;
+  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
+  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
+  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
+  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
+  collaboration_reports_by_reported_by_profile_id?: Maybe<Array<Collaboration_Report>>;
+  collaboration_reports_by_reported_by_profile_id_aggregate: Collaboration_Report_Agg_Exp;
+  collaboration_responses?: Maybe<Array<Collaboration_Response>>;
+  collaboration_responses_aggregate: Collaboration_Response_Agg_Exp;
+  contact_preferences?: Maybe<Scalars['string']['output']>;
+  created_at: Scalars['timestamp']['output'];
+  display_name?: Maybe<Scalars['string']['output']>;
+  guild_id: Scalars['int64']['output'];
+  id: Scalars['string']['output'];
+  is_public: Scalars['int8']['output'];
+  last_active_at?: Maybe<Scalars['timestamp']['output']>;
+  portfolio?: Maybe<Scalars['string']['output']>;
+  skills?: Maybe<Scalars['string']['output']>;
+  updated_at: Scalars['timestamp']['output'];
+  user_id: Scalars['int64']['output'];
+};
+
+
+export type Collaboration_ProfileCollaboration_AlertsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Alerts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Audit_LogsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Audit_Logs_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Blocked_UsersArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Blocked_Users_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_BookmarksArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Bookmarks_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_PostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Posts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_ReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Reports_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_IdArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_Id_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+
+export type Collaboration_ProfileCollaboration_ResponsesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+};
+
+
+export type Collaboration_ProfileCollaboration_Responses_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
+};
+
+export type Collaboration_Profile_Agg_Exp = {
+  __typename?: 'collaboration_profile_agg_exp';
+  _count: Scalars['Int']['output'];
+  bio: String_Agg_Exp_1;
+  contact_preferences: String_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  display_name: String_Agg_Exp_1;
+  guild_id: Int64_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  is_public: Int8_Agg_Exp_1;
+  last_active_at: Timestamp_Agg_Exp_1;
+  portfolio: String_Agg_Exp_1;
+  skills: String_Agg_Exp_1;
+  updated_at: Timestamp_Agg_Exp_1;
+  user_id: Int64_Agg_Exp_1;
+};
+
+export type Collaboration_Profile_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Profile_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Profile_Bool_Exp>>;
+  bio?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_alerts?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  collaboration_audit_logs?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+  collaboration_blocked_users?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+  collaboration_bookmarks?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  collaboration_reports_by_reported_by_profile_id?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  collaboration_responses?: InputMaybe<Collaboration_Response_Bool_Exp>;
+  contact_preferences?: InputMaybe<String_Bool_Exp_1>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  display_name?: InputMaybe<String_Bool_Exp_1>;
+  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  is_public?: InputMaybe<Int8_Bool_Exp_1>;
+  last_active_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  portfolio?: InputMaybe<String_Bool_Exp_1>;
+  skills?: InputMaybe<String_Bool_Exp_1>;
+  updated_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  user_id?: InputMaybe<Int64_Bool_Exp_1>;
+};
+
+export type Collaboration_Profile_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Profile_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+};
+
+export type Collaboration_Profile_Order_By_Exp = {
+  bio?: InputMaybe<OrderBy>;
+  contact_preferences?: InputMaybe<OrderBy>;
+  created_at?: InputMaybe<OrderBy>;
+  display_name?: InputMaybe<OrderBy>;
+  guild_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  is_public?: InputMaybe<OrderBy>;
+  last_active_at?: InputMaybe<OrderBy>;
+  portfolio?: InputMaybe<OrderBy>;
+  skills?: InputMaybe<OrderBy>;
+  updated_at?: InputMaybe<OrderBy>;
+  user_id?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Report = {
+  __typename?: 'collaboration_report';
+  collaboration_post?: Maybe<Collaboration_Post>;
+  collaboration_post_id?: Maybe<Scalars['string']['output']>;
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  collaboration_profile_by_reported_by_profile_id?: Maybe<Collaboration_Profile>;
+  collaboration_response?: Maybe<Collaboration_Response>;
+  collaboration_response_id?: Maybe<Scalars['string']['output']>;
+  collaboration_rule?: Maybe<Collaboration_Rule>;
+  created_at: Scalars['timestamp']['output'];
+  details?: Maybe<Scalars['string']['output']>;
+  id: Scalars['string']['output'];
+  reason: Scalars['string']['output'];
+  reported_by_profile_id: Scalars['string']['output'];
+  reported_profile_id: Scalars['string']['output'];
+  resolution?: Maybe<Scalars['string']['output']>;
+  resolved_at?: Maybe<Scalars['timestamp']['output']>;
+  resolved_by_staff_id?: Maybe<Scalars['int64']['output']>;
+  violated_rule_id?: Maybe<Scalars['string']['output']>;
+};
+
+export type Collaboration_Report_Agg_Exp = {
+  __typename?: 'collaboration_report_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_post_id: String_Agg_Exp_1;
+  collaboration_response_id: String_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  details: String_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  reason: String_Agg_Exp_1;
+  reported_by_profile_id: String_Agg_Exp_1;
+  reported_profile_id: String_Agg_Exp_1;
+  resolution: String_Agg_Exp_1;
+  resolved_at: Timestamp_Agg_Exp_1;
+  resolved_by_staff_id: Int64_Agg_Exp_1;
+  violated_rule_id: String_Agg_Exp_1;
+};
+
+export type Collaboration_Report_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Report_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Report_Bool_Exp>>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  collaboration_profile_by_reported_by_profile_id?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  collaboration_response?: InputMaybe<Collaboration_Response_Bool_Exp>;
+  collaboration_response_id?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_rule?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  details?: InputMaybe<String_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  reason?: InputMaybe<String_Bool_Exp_1>;
+  reported_by_profile_id?: InputMaybe<String_Bool_Exp_1>;
+  reported_profile_id?: InputMaybe<String_Bool_Exp_1>;
+  resolution?: InputMaybe<String_Bool_Exp_1>;
+  resolved_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  resolved_by_staff_id?: InputMaybe<Int64_Bool_Exp_1>;
+  violated_rule_id?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Report_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+export type Collaboration_Report_Order_By_Exp = {
+  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
+  collaboration_post_id?: InputMaybe<OrderBy>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  collaboration_profile_by_reported_by_profile_id?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  collaboration_response?: InputMaybe<Collaboration_Response_Order_By_Exp>;
+  collaboration_response_id?: InputMaybe<OrderBy>;
+  collaboration_rule?: InputMaybe<Collaboration_Rule_Order_By_Exp>;
+  created_at?: InputMaybe<OrderBy>;
+  details?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  reported_by_profile_id?: InputMaybe<OrderBy>;
+  reported_profile_id?: InputMaybe<OrderBy>;
+  resolution?: InputMaybe<OrderBy>;
+  resolved_at?: InputMaybe<OrderBy>;
+  resolved_by_staff_id?: InputMaybe<OrderBy>;
+  violated_rule_id?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Response = {
+  __typename?: 'collaboration_response';
+  collaboration_post?: Maybe<Collaboration_Post>;
+  collaboration_post_id: Scalars['string']['output'];
+  collaboration_profile?: Maybe<Collaboration_Profile>;
+  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
+  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
+  contact_info?: Maybe<Scalars['string']['output']>;
+  created_at: Scalars['timestamp']['output'];
+  id: Scalars['string']['output'];
+  is_hidden: Scalars['int8']['output'];
+  is_public: Scalars['int8']['output'];
+  is_read: Scalars['int8']['output'];
+  message: Scalars['string']['output'];
+  profile_id: Scalars['string']['output'];
+  read_at?: Maybe<Scalars['timestamp']['output']>;
+};
+
+
+export type Collaboration_ResponseCollaboration_ReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type Collaboration_ResponseCollaboration_Reports_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+export type Collaboration_Response_Agg_Exp = {
+  __typename?: 'collaboration_response_agg_exp';
+  _count: Scalars['Int']['output'];
+  collaboration_post_id: String_Agg_Exp_1;
+  contact_info: String_Agg_Exp_1;
+  created_at: Timestamp_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  is_hidden: Int8_Agg_Exp_1;
+  is_public: Int8_Agg_Exp_1;
+  is_read: Int8_Agg_Exp_1;
+  message: String_Agg_Exp_1;
+  profile_id: String_Agg_Exp_1;
+  read_at: Timestamp_Agg_Exp_1;
+};
+
+export type Collaboration_Response_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Response_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Response_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Response_Bool_Exp>>;
+  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  contact_info?: InputMaybe<String_Bool_Exp_1>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  is_hidden?: InputMaybe<Int8_Bool_Exp_1>;
+  is_public?: InputMaybe<Int8_Bool_Exp_1>;
+  is_read?: InputMaybe<Int8_Bool_Exp_1>;
+  message?: InputMaybe<String_Bool_Exp_1>;
+  profile_id?: InputMaybe<String_Bool_Exp_1>;
+  read_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+};
+
+export type Collaboration_Response_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+};
+
+export type Collaboration_Response_Order_By_Exp = {
+  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
+  collaboration_post_id?: InputMaybe<OrderBy>;
+  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
+  contact_info?: InputMaybe<OrderBy>;
+  created_at?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  is_hidden?: InputMaybe<OrderBy>;
+  is_public?: InputMaybe<OrderBy>;
+  is_read?: InputMaybe<OrderBy>;
+  message?: InputMaybe<OrderBy>;
+  profile_id?: InputMaybe<OrderBy>;
+  read_at?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Rule = {
+  __typename?: 'collaboration_rule';
+  collaboration_blocked_users?: Maybe<Array<Collaboration_Blocked_User>>;
+  collaboration_blocked_users_aggregate: Collaboration_Blocked_User_Agg_Exp;
+  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
+  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
+  created_at: Scalars['timestamp']['output'];
+  description: Scalars['string']['output'];
+  guild_id: Scalars['int64']['output'];
+  id: Scalars['string']['output'];
+  is_active: Scalars['int8']['output'];
+  rule_number: Scalars['int32']['output'];
+  title: Scalars['string']['output'];
+  updated_at: Scalars['timestamp']['output'];
+};
+
+
+export type Collaboration_RuleCollaboration_Blocked_UsersArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+};
+
+
+export type Collaboration_RuleCollaboration_Blocked_Users_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
+};
+
+
+export type Collaboration_RuleCollaboration_ReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+};
+
+
+export type Collaboration_RuleCollaboration_Reports_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+};
+
+export type Collaboration_Rule_Agg_Exp = {
+  __typename?: 'collaboration_rule_agg_exp';
+  _count: Scalars['Int']['output'];
+  created_at: Timestamp_Agg_Exp_1;
+  description: String_Agg_Exp_1;
+  guild_id: Int64_Agg_Exp_1;
+  id: String_Agg_Exp_1;
+  is_active: Int8_Agg_Exp_1;
+  rule_number: Int32_Agg_Exp_1;
+  title: String_Agg_Exp_1;
+  updated_at: Timestamp_Agg_Exp_1;
+};
+
+export type Collaboration_Rule_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Rule_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Rule_Bool_Exp>>;
+  collaboration_blocked_users?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+  description?: InputMaybe<String_Bool_Exp_1>;
+  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
+  id?: InputMaybe<String_Bool_Exp_1>;
+  is_active?: InputMaybe<Int8_Bool_Exp_1>;
+  rule_number?: InputMaybe<Int32_Bool_Exp_1>;
+  title?: InputMaybe<String_Bool_Exp_1>;
+  updated_at?: InputMaybe<Timestamp_Bool_Exp_1>;
+};
+
+export type Collaboration_Rule_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Rule_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+};
+
+export type Collaboration_Rule_Order_By_Exp = {
+  created_at?: InputMaybe<OrderBy>;
+  description?: InputMaybe<OrderBy>;
+  guild_id?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  is_active?: InputMaybe<OrderBy>;
+  rule_number?: InputMaybe<OrderBy>;
+  title?: InputMaybe<OrderBy>;
+  updated_at?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Status = {
+  __typename?: 'collaboration_status';
+  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
+  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
+  description?: Maybe<Scalars['string']['output']>;
+  id: Scalars['int32']['output'];
+  name: Scalars['string']['output'];
+};
+
+
+export type Collaboration_StatusCollaboration_PostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+
+export type Collaboration_StatusCollaboration_Posts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+};
+
+export type Collaboration_Status_Agg_Exp = {
+  __typename?: 'collaboration_status_agg_exp';
+  _count: Scalars['Int']['output'];
+  description: String_Agg_Exp_1;
+  id: Int32_Agg_Exp_1;
+  name: String_Agg_Exp_1;
+};
+
+export type Collaboration_Status_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Status_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Status_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Status_Bool_Exp>>;
+  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  description?: InputMaybe<String_Bool_Exp_1>;
+  id?: InputMaybe<Int32_Bool_Exp_1>;
+  name?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Status_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Status_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Status_Bool_Exp>;
+};
+
+export type Collaboration_Status_Order_By_Exp = {
+  description?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+};
+
+export type Collaboration_Type = {
+  __typename?: 'collaboration_type';
+  collaboration_alerts?: Maybe<Array<Collaboration_Alert>>;
+  collaboration_alerts_aggregate: Collaboration_Alert_Agg_Exp;
+  collaboration_field_definitions?: Maybe<Array<Collaboration_Field_Definition>>;
+  collaboration_field_definitions_aggregate: Collaboration_Field_Definition_Agg_Exp;
+  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
+  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
+  description?: Maybe<Scalars['string']['output']>;
+  id: Scalars['int32']['output'];
+  name: Scalars['string']['output'];
+};
+
+
+export type Collaboration_TypeCollaboration_AlertsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+};
+
+
+export type Collaboration_TypeCollaboration_Alerts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+};
+
+
+export type Collaboration_TypeCollaboration_Field_DefinitionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+};
+
+
+export type Collaboration_TypeCollaboration_Field_Definitions_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
+};
+
+
+export type Collaboration_TypeCollaboration_PostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+
+export type Collaboration_TypeCollaboration_Posts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+};
+
+export type Collaboration_Type_Agg_Exp = {
+  __typename?: 'collaboration_type_agg_exp';
+  _count: Scalars['Int']['output'];
+  description: String_Agg_Exp_1;
+  id: Int32_Agg_Exp_1;
+  name: String_Agg_Exp_1;
+};
+
+export type Collaboration_Type_Bool_Exp = {
+  _and?: InputMaybe<Array<Collaboration_Type_Bool_Exp>>;
+  _not?: InputMaybe<Collaboration_Type_Bool_Exp>;
+  _or?: InputMaybe<Array<Collaboration_Type_Bool_Exp>>;
+  collaboration_alerts?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  collaboration_field_definitions?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  description?: InputMaybe<String_Bool_Exp_1>;
+  id?: InputMaybe<Int32_Bool_Exp_1>;
+  name?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Collaboration_Type_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Type_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Type_Bool_Exp>;
+};
+
+export type Collaboration_Type_Order_By_Exp = {
+  description?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+};
+
 export type Deleted_Message = {
   __typename?: 'deleted_message';
   added_by_bot: Scalars['string']['output'];
@@ -736,6 +2505,91 @@ export type Deleted_Message_Order_By_Exp = {
   message_id?: InputMaybe<OrderBy>;
   original_tracked_message?: InputMaybe<Tracked_Messages_Order_By_Exp>;
   staff_member_id?: InputMaybe<OrderBy>;
+};
+
+export type Hiring_Status = {
+  __typename?: 'hiring_status';
+  collaboration_alerts?: Maybe<Array<Collaboration_Alert>>;
+  collaboration_alerts_aggregate: Collaboration_Alert_Agg_Exp;
+  collaboration_field_definitions?: Maybe<Array<Collaboration_Field_Definition>>;
+  collaboration_field_definitions_aggregate: Collaboration_Field_Definition_Agg_Exp;
+  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
+  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
+  description?: Maybe<Scalars['string']['output']>;
+  id: Scalars['int32']['output'];
+  name: Scalars['string']['output'];
+};
+
+
+export type Hiring_StatusCollaboration_AlertsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+};
+
+
+export type Hiring_StatusCollaboration_Alerts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+};
+
+
+export type Hiring_StatusCollaboration_Field_DefinitionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+};
+
+
+export type Hiring_StatusCollaboration_Field_Definitions_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
+};
+
+
+export type Hiring_StatusCollaboration_PostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
+  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+};
+
+
+export type Hiring_StatusCollaboration_Posts_AggregateArgs = {
+  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+};
+
+export type Hiring_Status_Agg_Exp = {
+  __typename?: 'hiring_status_agg_exp';
+  _count: Scalars['Int']['output'];
+  description: String_Agg_Exp_1;
+  id: Int32_Agg_Exp_1;
+  name: String_Agg_Exp_1;
+};
+
+export type Hiring_Status_Bool_Exp = {
+  _and?: InputMaybe<Array<Hiring_Status_Bool_Exp>>;
+  _not?: InputMaybe<Hiring_Status_Bool_Exp>;
+  _or?: InputMaybe<Array<Hiring_Status_Bool_Exp>>;
+  collaboration_alerts?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  collaboration_field_definitions?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  description?: InputMaybe<String_Bool_Exp_1>;
+  id?: InputMaybe<Int32_Bool_Exp_1>;
+  name?: InputMaybe<String_Bool_Exp_1>;
+};
+
+export type Hiring_Status_Filter_Input = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<Hiring_Status_Order_By_Exp>>;
+  where?: InputMaybe<Hiring_Status_Bool_Exp>;
+};
+
+export type Hiring_Status_Order_By_Exp = {
+  description?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
 };
 
 export type Infraction = {
@@ -826,6 +2680,16 @@ export type Int8_Agg_Exp = {
   sum: Scalars['int64']['output'];
 };
 
+export type Int8_Agg_Exp_1 = {
+  __typename?: 'int8_agg_exp_1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['float64']['output'];
+  max: Scalars['int8']['output'];
+  min: Scalars['int8']['output'];
+  sum: Scalars['int64']['output'];
+};
+
 export type Int8_Bool_Exp = {
   _and?: InputMaybe<Array<Int8_Bool_Exp>>;
   _eq?: InputMaybe<Scalars['int8']['input']>;
@@ -839,8 +2703,31 @@ export type Int8_Bool_Exp = {
   _or?: InputMaybe<Array<Int8_Bool_Exp>>;
 };
 
+export type Int8_Bool_Exp_1 = {
+  _and?: InputMaybe<Array<Int8_Bool_Exp_1>>;
+  _eq?: InputMaybe<Scalars['int8']['input']>;
+  _gt?: InputMaybe<Scalars['int8']['input']>;
+  _gte?: InputMaybe<Scalars['int8']['input']>;
+  _in?: InputMaybe<Array<Scalars['int8']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['int8']['input']>;
+  _lte?: InputMaybe<Scalars['int8']['input']>;
+  _not?: InputMaybe<Int8_Bool_Exp_1>;
+  _or?: InputMaybe<Array<Int8_Bool_Exp_1>>;
+};
+
 export type Int32_Agg_Exp = {
   __typename?: 'int32_agg_exp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['float64']['output'];
+  max: Scalars['int32']['output'];
+  min: Scalars['int32']['output'];
+  sum: Scalars['int64']['output'];
+};
+
+export type Int32_Agg_Exp_1 = {
+  __typename?: 'int32_agg_exp_1';
   _count: Scalars['Int']['output'];
   _count_distinct: Scalars['Int']['output'];
   avg: Scalars['float64']['output'];
@@ -862,8 +2749,31 @@ export type Int32_Bool_Exp = {
   _or?: InputMaybe<Array<Int32_Bool_Exp>>;
 };
 
+export type Int32_Bool_Exp_1 = {
+  _and?: InputMaybe<Array<Int32_Bool_Exp_1>>;
+  _eq?: InputMaybe<Scalars['int32']['input']>;
+  _gt?: InputMaybe<Scalars['int32']['input']>;
+  _gte?: InputMaybe<Scalars['int32']['input']>;
+  _in?: InputMaybe<Array<Scalars['int32']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['int32']['input']>;
+  _lte?: InputMaybe<Scalars['int32']['input']>;
+  _not?: InputMaybe<Int32_Bool_Exp_1>;
+  _or?: InputMaybe<Array<Int32_Bool_Exp_1>>;
+};
+
 export type Int64_Agg_Exp = {
   __typename?: 'int64_agg_exp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['float64']['output'];
+  max: Scalars['int64']['output'];
+  min: Scalars['int64']['output'];
+  sum: Scalars['int64']['output'];
+};
+
+export type Int64_Agg_Exp_1 = {
+  __typename?: 'int64_agg_exp_1';
   _count: Scalars['Int']['output'];
   _count_distinct: Scalars['Int']['output'];
   avg: Scalars['float64']['output'];
@@ -883,6 +2793,19 @@ export type Int64_Bool_Exp = {
   _lte?: InputMaybe<Scalars['int64']['input']>;
   _not?: InputMaybe<Int64_Bool_Exp>;
   _or?: InputMaybe<Array<Int64_Bool_Exp>>;
+};
+
+export type Int64_Bool_Exp_1 = {
+  _and?: InputMaybe<Array<Int64_Bool_Exp_1>>;
+  _eq?: InputMaybe<Scalars['int64']['input']>;
+  _gt?: InputMaybe<Scalars['int64']['input']>;
+  _gte?: InputMaybe<Scalars['int64']['input']>;
+  _in?: InputMaybe<Array<Scalars['int64']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['int64']['input']>;
+  _lte?: InputMaybe<Scalars['int64']['input']>;
+  _not?: InputMaybe<Int64_Bool_Exp_1>;
+  _or?: InputMaybe<Array<Int64_Bool_Exp_1>>;
 };
 
 export type Member_Note = {
@@ -1205,6 +3128,14 @@ export type String_Agg_Exp = {
   min: Scalars['string']['output'];
 };
 
+export type String_Agg_Exp_1 = {
+  __typename?: 'string_agg_exp_1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  max: Scalars['string']['output'];
+  min: Scalars['string']['output'];
+};
+
 export type String_Bool_Exp = {
   _and?: InputMaybe<Array<String_Bool_Exp>>;
   _contains?: InputMaybe<Scalars['string']['input']>;
@@ -1214,6 +3145,17 @@ export type String_Bool_Exp = {
   _like?: InputMaybe<Scalars['string']['input']>;
   _not?: InputMaybe<String_Bool_Exp>;
   _or?: InputMaybe<Array<String_Bool_Exp>>;
+};
+
+export type String_Bool_Exp_1 = {
+  _and?: InputMaybe<Array<String_Bool_Exp_1>>;
+  _contains?: InputMaybe<Scalars['string']['input']>;
+  _eq?: InputMaybe<Scalars['string']['input']>;
+  _in?: InputMaybe<Array<Scalars['string']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _like?: InputMaybe<Scalars['string']['input']>;
+  _not?: InputMaybe<String_Bool_Exp_1>;
+  _or?: InputMaybe<Array<String_Bool_Exp_1>>;
 };
 
 export type Temporary_Ban = {
@@ -1279,6 +3221,12 @@ export type Timestamp_Agg_Exp = {
   _count_distinct: Scalars['Int']['output'];
 };
 
+export type Timestamp_Agg_Exp_1 = {
+  __typename?: 'timestamp_agg_exp_1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+};
+
 export type Timestamp_Bool_Exp = {
   _and?: InputMaybe<Array<Timestamp_Bool_Exp>>;
   _eq?: InputMaybe<Scalars['timestamp']['input']>;
@@ -1290,6 +3238,19 @@ export type Timestamp_Bool_Exp = {
   _lte?: InputMaybe<Scalars['timestamp']['input']>;
   _not?: InputMaybe<Timestamp_Bool_Exp>;
   _or?: InputMaybe<Array<Timestamp_Bool_Exp>>;
+};
+
+export type Timestamp_Bool_Exp_1 = {
+  _and?: InputMaybe<Array<Timestamp_Bool_Exp_1>>;
+  _eq?: InputMaybe<Scalars['timestamp']['input']>;
+  _gt?: InputMaybe<Scalars['timestamp']['input']>;
+  _gte?: InputMaybe<Scalars['timestamp']['input']>;
+  _in?: InputMaybe<Array<Scalars['timestamp']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['timestamp']['input']>;
+  _lte?: InputMaybe<Scalars['timestamp']['input']>;
+  _not?: InputMaybe<Timestamp_Bool_Exp_1>;
+  _or?: InputMaybe<Array<Timestamp_Bool_Exp_1>>;
 };
 
 export type Tracked_Messages = {

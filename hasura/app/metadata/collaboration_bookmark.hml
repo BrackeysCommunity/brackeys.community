@@ -1,0 +1,208 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_bookmark
+  fields:
+    - name: collaboration_post_id
+      type: string!
+    - name: created_at
+      type: timestamp!
+    - name: id
+      type: string!
+    - name: notes
+      type: string
+    - name: profile_id
+      type: string!
+  graphql:
+    typeName: collaboration_bookmark
+    inputTypeName: collaboration_bookmark_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationBookmark
+      fieldMapping:
+        collaboration_post_id:
+          column:
+            name: CollaborationPostId
+        created_at:
+          column:
+            name: CreatedAt
+        id:
+          column:
+            name: Id
+        notes:
+          column:
+            name: Notes
+        profile_id:
+          column:
+            name: ProfileId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_bookmark
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - collaboration_post_id
+          - created_at
+          - id
+          - notes
+          - profile_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_bookmark_bool_exp
+  operand:
+    object:
+      type: collaboration_bookmark
+      comparableFields:
+        - fieldName: collaboration_post_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: created_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: notes
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: profile_id
+          booleanExpressionType: string_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_post
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_bookmark_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_bookmark_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_bookmark
+      aggregatableFields:
+        - fieldName: collaboration_post_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: created_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: notes
+          aggregateExpression: string_agg_exp_1
+        - fieldName: profile_id
+          aggregateExpression: string_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_bookmark_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_bookmark_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_bookmark
+      orderableFields:
+        - fieldName: collaboration_post_id
+          orderByExpression: string_order_by_exp
+        - fieldName: created_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: notes
+          orderByExpression: string_order_by_exp
+        - fieldName: profile_id
+          orderByExpression: string_order_by_exp
+      orderableRelationships:
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_post
+  graphql:
+    expressionTypeName: collaboration_bookmark_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_bookmark
+  objectType: collaboration_bookmark
+  source:
+    dataConnectorName: collab
+    collection: CollaborationBookmark
+  filterExpressionType: collaboration_bookmark_bool_exp
+  aggregateExpression: collaboration_bookmark_agg_exp
+  orderByExpression: collaboration_bookmark_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_bookmark
+      subscription:
+        rootField: collaboration_bookmark
+    selectUniques:
+      - queryRootField: collaboration_bookmark_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_bookmark_by_id
+    filterInputTypeName: collaboration_bookmark_filter_input
+    aggregate:
+      queryRootField: collaboration_bookmark_aggregate
+      subscription:
+        rootField: collaboration_bookmark_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_bookmark
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_profile
+  sourceType: collaboration_bookmark
+  target:
+    model:
+      name: collaboration_profile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profile_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_post
+  sourceType: collaboration_bookmark
+  target:
+    model:
+      name: collaboration_post
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: collaboration_post_id
+      target:
+        modelField:
+          - fieldName: id
+

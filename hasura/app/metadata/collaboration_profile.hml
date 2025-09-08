@@ -1,0 +1,436 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_profile
+  fields:
+    - name: bio
+      type: string
+    - name: contact_preferences
+      type: string
+    - name: created_at
+      type: timestamp!
+    - name: display_name
+      type: string
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: string!
+    - name: is_public
+      type: int8!
+    - name: last_active_at
+      type: timestamp
+    - name: portfolio
+      type: string
+    - name: skills
+      type: string
+    - name: updated_at
+      type: timestamp!
+    - name: user_id
+      type: int64!
+  graphql:
+    typeName: collaboration_profile
+    inputTypeName: collaboration_profile_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationProfile
+      fieldMapping:
+        bio:
+          column:
+            name: Bio
+        contact_preferences:
+          column:
+            name: ContactPreferences
+        created_at:
+          column:
+            name: CreatedAt
+        display_name:
+          column:
+            name: DisplayName
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        is_public:
+          column:
+            name: IsPublic
+        last_active_at:
+          column:
+            name: LastActiveAt
+        portfolio:
+          column:
+            name: Portfolio
+        skills:
+          column:
+            name: Skills
+        updated_at:
+          column:
+            name: UpdatedAt
+        user_id:
+          column:
+            name: UserId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_profile
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bio
+          - contact_preferences
+          - created_at
+          - display_name
+          - guild_id
+          - id
+          - is_public
+          - last_active_at
+          - portfolio
+          - skills
+          - updated_at
+          - user_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_profile_bool_exp
+  operand:
+    object:
+      type: collaboration_profile
+      comparableFields:
+        - fieldName: bio
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: contact_preferences
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: created_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: display_name
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: is_public
+          booleanExpressionType: int8_bool_exp_1
+        - fieldName: last_active_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: portfolio
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: skills
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: updated_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: user_id
+          booleanExpressionType: int64_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_bookmarks
+        - relationshipName: collaboration_alerts
+        - relationshipName: collaboration_audit_logs
+        - relationshipName: collaboration_posts
+        - relationshipName: collaboration_reports
+        - relationshipName: collaboration_reports_by_reported_by_profile_id
+        - relationshipName: collaboration_responses
+        - relationshipName: collaboration_blocked_users
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_profile_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_profile_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_profile
+      aggregatableFields:
+        - fieldName: bio
+          aggregateExpression: string_agg_exp_1
+        - fieldName: contact_preferences
+          aggregateExpression: string_agg_exp_1
+        - fieldName: created_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: display_name
+          aggregateExpression: string_agg_exp_1
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: is_public
+          aggregateExpression: int8_agg_exp_1
+        - fieldName: last_active_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: portfolio
+          aggregateExpression: string_agg_exp_1
+        - fieldName: skills
+          aggregateExpression: string_agg_exp_1
+        - fieldName: updated_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: user_id
+          aggregateExpression: int64_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_profile_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_profile_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_profile
+      orderableFields:
+        - fieldName: bio
+          orderByExpression: string_order_by_exp
+        - fieldName: contact_preferences
+          orderByExpression: string_order_by_exp
+        - fieldName: created_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: display_name
+          orderByExpression: string_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: is_public
+          orderByExpression: int8_order_by_exp
+        - fieldName: last_active_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: portfolio
+          orderByExpression: string_order_by_exp
+        - fieldName: skills
+          orderByExpression: string_order_by_exp
+        - fieldName: updated_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: user_id
+          orderByExpression: int64_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: collaboration_profile_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_profile
+  objectType: collaboration_profile
+  source:
+    dataConnectorName: collab
+    collection: CollaborationProfile
+  filterExpressionType: collaboration_profile_bool_exp
+  aggregateExpression: collaboration_profile_agg_exp
+  orderByExpression: collaboration_profile_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_profile
+      subscription:
+        rootField: collaboration_profile
+    selectUniques:
+      - queryRootField: collaboration_profile_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_profile_by_id
+    filterInputTypeName: collaboration_profile_filter_input
+    aggregate:
+      queryRootField: collaboration_profile_aggregate
+      subscription:
+        rootField: collaboration_profile_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_profile
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_bookmarks
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_bookmark
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_bookmark_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profile_id
+  graphql:
+    aggregateFieldName: collaboration_bookmarks_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_alerts
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_alert
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_alert_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profile_id
+  graphql:
+    aggregateFieldName: collaboration_alerts_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_audit_logs
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_audit_log
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_audit_log_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profile_id
+  graphql:
+    aggregateFieldName: collaboration_audit_logs_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_posts
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_post
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_post_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profile_id
+  graphql:
+    aggregateFieldName: collaboration_posts_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_reports
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_report
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_report_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: reported_profile_id
+  graphql:
+    aggregateFieldName: collaboration_reports_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_reports_by_reported_by_profile_id
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_report
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_report_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: reported_by_profile_id
+  graphql:
+    aggregateFieldName: collaboration_reports_by_reported_by_profile_id_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_responses
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_response
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_response_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profile_id
+  graphql:
+    aggregateFieldName: collaboration_responses_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_blocked_users
+  sourceType: collaboration_profile
+  target:
+    model:
+      name: collaboration_blocked_user
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_blocked_user_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profile_id
+  graphql:
+    aggregateFieldName: collaboration_blocked_users_aggregate
+

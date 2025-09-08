@@ -1,0 +1,352 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_report
+  fields:
+    - name: collaboration_post_id
+      type: string
+    - name: collaboration_response_id
+      type: string
+    - name: created_at
+      type: timestamp!
+    - name: details
+      type: string
+    - name: id
+      type: string!
+    - name: reason
+      type: string!
+    - name: reported_by_profile_id
+      type: string!
+    - name: reported_profile_id
+      type: string!
+    - name: resolution
+      type: string
+    - name: resolved_at
+      type: timestamp
+    - name: resolved_by_staff_id
+      type: int64
+    - name: violated_rule_id
+      type: string
+  graphql:
+    typeName: collaboration_report
+    inputTypeName: collaboration_report_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationReport
+      fieldMapping:
+        collaboration_post_id:
+          column:
+            name: CollaborationPostId
+        collaboration_response_id:
+          column:
+            name: CollaborationResponseId
+        created_at:
+          column:
+            name: CreatedAt
+        details:
+          column:
+            name: Details
+        id:
+          column:
+            name: Id
+        reason:
+          column:
+            name: Reason
+        reported_by_profile_id:
+          column:
+            name: ReportedByProfileId
+        reported_profile_id:
+          column:
+            name: ReportedProfileId
+        resolution:
+          column:
+            name: Resolution
+        resolved_at:
+          column:
+            name: ResolvedAt
+        resolved_by_staff_id:
+          column:
+            name: ResolvedByStaffId
+        violated_rule_id:
+          column:
+            name: ViolatedRuleId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_report
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - collaboration_post_id
+          - collaboration_response_id
+          - created_at
+          - details
+          - id
+          - reason
+          - reported_by_profile_id
+          - reported_profile_id
+          - resolution
+          - resolved_at
+          - resolved_by_staff_id
+          - violated_rule_id
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_report_bool_exp
+  operand:
+    object:
+      type: collaboration_report
+      comparableFields:
+        - fieldName: collaboration_post_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: collaboration_response_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: created_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: details
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: reason
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: reported_by_profile_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: reported_profile_id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: resolution
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: resolved_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: resolved_by_staff_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: violated_rule_id
+          booleanExpressionType: string_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_post
+        - relationshipName: collaboration_response
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_profile_by_reported_by_profile_id
+        - relationshipName: collaboration_rule
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_report_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_report_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_report
+      aggregatableFields:
+        - fieldName: collaboration_post_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: collaboration_response_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: created_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: details
+          aggregateExpression: string_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: reason
+          aggregateExpression: string_agg_exp_1
+        - fieldName: reported_by_profile_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: reported_profile_id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: resolution
+          aggregateExpression: string_agg_exp_1
+        - fieldName: resolved_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: resolved_by_staff_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: violated_rule_id
+          aggregateExpression: string_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_report_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_report_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_report
+      orderableFields:
+        - fieldName: collaboration_post_id
+          orderByExpression: string_order_by_exp
+        - fieldName: collaboration_response_id
+          orderByExpression: string_order_by_exp
+        - fieldName: created_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: details
+          orderByExpression: string_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: reason
+          orderByExpression: string_order_by_exp
+        - fieldName: reported_by_profile_id
+          orderByExpression: string_order_by_exp
+        - fieldName: reported_profile_id
+          orderByExpression: string_order_by_exp
+        - fieldName: resolution
+          orderByExpression: string_order_by_exp
+        - fieldName: resolved_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: resolved_by_staff_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: violated_rule_id
+          orderByExpression: string_order_by_exp
+      orderableRelationships:
+        - relationshipName: collaboration_post
+        - relationshipName: collaboration_response
+        - relationshipName: collaboration_profile
+        - relationshipName: collaboration_profile_by_reported_by_profile_id
+        - relationshipName: collaboration_rule
+  graphql:
+    expressionTypeName: collaboration_report_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_report
+  objectType: collaboration_report
+  source:
+    dataConnectorName: collab
+    collection: CollaborationReport
+  filterExpressionType: collaboration_report_bool_exp
+  aggregateExpression: collaboration_report_agg_exp
+  orderByExpression: collaboration_report_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_report
+      subscription:
+        rootField: collaboration_report
+    selectUniques:
+      - queryRootField: collaboration_report_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_report_by_id
+    filterInputTypeName: collaboration_report_filter_input
+    aggregate:
+      queryRootField: collaboration_report_aggregate
+      subscription:
+        rootField: collaboration_report_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_report
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_post
+  sourceType: collaboration_report
+  target:
+    model:
+      name: collaboration_post
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: collaboration_post_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_response
+  sourceType: collaboration_report
+  target:
+    model:
+      name: collaboration_response
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: collaboration_response_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_profile
+  sourceType: collaboration_report
+  target:
+    model:
+      name: collaboration_profile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: reported_profile_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_profile_by_reported_by_profile_id
+  sourceType: collaboration_report
+  target:
+    model:
+      name: collaboration_profile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: reported_by_profile_id
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_rule
+  sourceType: collaboration_report
+  target:
+    model:
+      name: collaboration_rule
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: violated_rule_id
+      target:
+        modelField:
+          - fieldName: id
+

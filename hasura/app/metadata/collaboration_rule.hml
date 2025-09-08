@@ -1,0 +1,250 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: collaboration_rule
+  fields:
+    - name: created_at
+      type: timestamp!
+    - name: description
+      type: string!
+    - name: guild_id
+      type: int64!
+    - name: id
+      type: string!
+    - name: is_active
+      type: int8!
+    - name: rule_number
+      type: int32!
+    - name: title
+      type: string!
+    - name: updated_at
+      type: timestamp!
+  graphql:
+    typeName: collaboration_rule
+    inputTypeName: collaboration_rule_input
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationRule
+      fieldMapping:
+        created_at:
+          column:
+            name: CreatedAt
+        description:
+          column:
+            name: Description
+        guild_id:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        is_active:
+          column:
+            name: IsActive
+        rule_number:
+          column:
+            name: RuleNumber
+        title:
+          column:
+            name: Title
+        updated_at:
+          column:
+            name: UpdatedAt
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: collaboration_rule
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - created_at
+          - description
+          - guild_id
+          - id
+          - is_active
+          - rule_number
+          - title
+          - updated_at
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: collaboration_rule_bool_exp
+  operand:
+    object:
+      type: collaboration_rule
+      comparableFields:
+        - fieldName: created_at
+          booleanExpressionType: timestamp_bool_exp_1
+        - fieldName: description
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: guild_id
+          booleanExpressionType: int64_bool_exp_1
+        - fieldName: id
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: is_active
+          booleanExpressionType: int8_bool_exp_1
+        - fieldName: rule_number
+          booleanExpressionType: int32_bool_exp_1
+        - fieldName: title
+          booleanExpressionType: string_bool_exp_1
+        - fieldName: updated_at
+          booleanExpressionType: timestamp_bool_exp_1
+      comparableRelationships:
+        - relationshipName: collaboration_reports
+        - relationshipName: collaboration_blocked_users
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: collaboration_rule_bool_exp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: collaboration_rule_agg_exp
+  operand:
+    object:
+      aggregatedType: collaboration_rule
+      aggregatableFields:
+        - fieldName: created_at
+          aggregateExpression: timestamp_agg_exp_1
+        - fieldName: description
+          aggregateExpression: string_agg_exp_1
+        - fieldName: guild_id
+          aggregateExpression: int64_agg_exp_1
+        - fieldName: id
+          aggregateExpression: string_agg_exp_1
+        - fieldName: is_active
+          aggregateExpression: int8_agg_exp_1
+        - fieldName: rule_number
+          aggregateExpression: int32_agg_exp_1
+        - fieldName: title
+          aggregateExpression: string_agg_exp_1
+        - fieldName: updated_at
+          aggregateExpression: timestamp_agg_exp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: collaboration_rule_agg_exp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: collaboration_rule_order_by_exp
+  operand:
+    object:
+      orderedType: collaboration_rule
+      orderableFields:
+        - fieldName: created_at
+          orderByExpression: timestamp_order_by_exp
+        - fieldName: description
+          orderByExpression: string_order_by_exp
+        - fieldName: guild_id
+          orderByExpression: int64_order_by_exp
+        - fieldName: id
+          orderByExpression: string_order_by_exp
+        - fieldName: is_active
+          orderByExpression: int8_order_by_exp
+        - fieldName: rule_number
+          orderByExpression: int32_order_by_exp
+        - fieldName: title
+          orderByExpression: string_order_by_exp
+        - fieldName: updated_at
+          orderByExpression: timestamp_order_by_exp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: collaboration_rule_order_by_exp
+
+---
+kind: Model
+version: v2
+definition:
+  name: collaboration_rule
+  objectType: collaboration_rule
+  source:
+    dataConnectorName: collab
+    collection: CollaborationRule
+  filterExpressionType: collaboration_rule_bool_exp
+  aggregateExpression: collaboration_rule_agg_exp
+  orderByExpression: collaboration_rule_order_by_exp
+  graphql:
+    selectMany:
+      queryRootField: collaboration_rule
+      subscription:
+        rootField: collaboration_rule
+    selectUniques:
+      - queryRootField: collaboration_rule_by_id
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaboration_rule_by_id
+    filterInputTypeName: collaboration_rule_filter_input
+    aggregate:
+      queryRootField: collaboration_rule_aggregate
+      subscription:
+        rootField: collaboration_rule_aggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: collaboration_rule
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_reports
+  sourceType: collaboration_rule
+  target:
+    model:
+      name: collaboration_report
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_report_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: violated_rule_id
+  graphql:
+    aggregateFieldName: collaboration_reports_aggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaboration_blocked_users
+  sourceType: collaboration_rule
+  target:
+    model:
+      name: collaboration_blocked_user
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: collaboration_blocked_user_agg_exp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: violated_rule_id
+  graphql:
+    aggregateFieldName: collaboration_blocked_users_aggregate
+

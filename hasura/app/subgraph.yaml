@@ -8,6 +8,12 @@ definition:
   includePaths:
     - metadata
   envMapping:
+    APP_COLLAB_AUTHORIZATION_HEADER:
+      fromEnv: APP_COLLAB_AUTHORIZATION_HEADER
+    APP_COLLAB_READ_URL:
+      fromEnv: APP_COLLAB_READ_URL
+    APP_COLLAB_WRITE_URL:
+      fromEnv: APP_COLLAB_WRITE_URL
     APP_HAMMER_AUTHORIZATION_HEADER:
       fromEnv: APP_HAMMER_AUTHORIZATION_HEADER
     APP_HAMMER_READ_URL:
@@ -17,3 +23,5 @@ definition:
   connectors:
     - path: connector/hammer/connector.yaml
       connectorLinkName: hammer
+    - path: connector/collab/connector.yaml
+      connectorLinkName: collab
