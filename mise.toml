@@ -14,21 +14,21 @@ docker = "latest"  # For Hasura services
 
 [env]
 # Load environment variables from .env file
-_.file = ".env"
+_.file = { path = ".env", redact = true }
 
 # Default development environment variables (can be overridden in .env)
 NODE_ENV = "development"
 
 # SpacetimeDB defaults
-VITE_SPACETIME_HOST = { default = "wss://localhost:3000" }
-VITE_SPACETIME_MODULE = { default = "brackeys-sandbox" }
+VITE_SPACETIME_HOST = { value = "wss://localhost:3000" }
+VITE_SPACETIME_MODULE = { value = "brackeys-sandbox" }
 
 # Application defaults
-VITE_APP_URL = { default = "http://localhost:5173" }
-VITE_API_BASE_URL = { default = "http://localhost:3000" }
+VITE_APP_URL = { value = "http://localhost:5173" }
+VITE_API_BASE_URL = { value = "http://localhost:3000" }
 
 # Hasura GraphQL endpoint
-HASURA_GRAPHQL_ENDPOINT = { default = "http://localhost:3280/graphql" }
+HASURA_GRAPHQL_ENDPOINT = { value = "http://localhost:3280/graphql" }
 
 [tasks.check]
 description = "Check if all required tools are installed"
