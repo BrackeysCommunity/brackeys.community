@@ -1,0 +1,201 @@
+# Mise configuration for Brackeys Web development environment
+# This file manages all tools, environment variables, and development tasks
+
+[tools]
+# Frontend tools
+bun = "1.2.21"
+node = "24.7.0"  # Some tools still need node
+
+# Backend tools
+rust = "1.89.0"
+
+# Optional but recommended
+docker = "latest"  # For Hasura services
+
+[env]
+# Load environment variables from .env file
+_.file = ".env"
+
+# Default development environment variables (can be overridden in .env)
+NODE_ENV = "development"
+
+# SpacetimeDB defaults
+VITE_SPACETIME_HOST = { default = "wss://localhost:3000" }
+VITE_SPACETIME_MODULE = { default = "brackeys-sandbox" }
+
+# Application defaults
+VITE_APP_URL = { default = "http://localhost:5173" }
+VITE_API_BASE_URL = { default = "http://localhost:3000" }
+
+# Hasura GraphQL endpoint
+HASURA_GRAPHQL_ENDPOINT = { default = "http://localhost:3280/graphql" }
+
+[tasks.check]
+description = "Check if all required tools are installed"
+run = """
+echo "🔍 Checking development environment..."
+echo ""
+echo "Bun version: $(bun --version)"
+echo "Node version: $(node --version)"
+echo "Rust version: $(rustc --version)"
+echo "Cargo version: $(cargo --version)"
+echo ""
+docker --version || echo "⚠️  Docker not found - required for Hasura services"
+echo ""
+echo "✅ Tool check complete!"
+"""
+
+[tasks.setup]
+description = "Complete initial project setup"
+depends = ["check"]
+run = """
+echo "🚀 Setting up Brackeys Web development environment..."
+echo ""
+
+# Create .env file if it doesn't exist
+if [ ! -f .env ]; then
+  echo "📝 Creating .env file from template..."
+  cp .env.example .env
+  echo "⚠️  Please update .env with your actual values!"
+  echo ""
+else
+  echo "✅ .env file already exists"
+fi
+
+# Install frontend dependencies
+echo "📦 Installing frontend dependencies with Bun..."
+bun install
+
+# Build SpacetimeDB module
+echo "🦀 Building SpacetimeDB Rust module..."
+cd spacetime-db && cargo build --release --target wasm32-unknown-unknown && cd ..
+
+# Setup Hasura
+echo "🐳 Setting up Hasura services..."
+cd hasura && docker compose pull && cd ..
+
+# Install git hooks
+echo "🪝 Installing git hooks..."
+bun run prepare
+
+echo ""
+echo "✨ Setup complete! Run 'mise run dev' to start development."
+echo ""
+echo "⚠️  Don't forget to:"
+echo "  1. Update your .env file with real values"
+echo "  2. Ensure Docker is running for Hasura services"
+"""
+
+[tasks.dev]
+description = "Start all development services"
+run = """
+echo "🚀 Starting development services..."
+echo ""
+
+# Start Hasura in background
+echo "🐳 Starting Hasura services..."
+cd hasura && docker compose up -d && cd ..
+
+# Wait for Hasura to be ready
+echo "⏳ Waiting for Hasura to be ready..."
+sleep 5
+
+# Generate GraphQL types
+echo "📝 Generating GraphQL types..."
+bun run graphql-codegen
+
+# Start SpacetimeDB if needed (uncomment if you have a local SpacetimeDB server)
+# echo "🌌 Starting SpacetimeDB..."
+# spacetime start &
+
+# Start Vite dev server
+echo "⚡ Starting Vite development server..."
+bun run dev
+"""
+
+[tasks.dev-frontend]
+description = "Start only frontend development (assumes backend is running)"
+run = "bun run dev"
+
+[tasks.dev-hasura]
+description = "Start only Hasura services"
+run = "cd hasura && docker compose up"
+
+[tasks.build]
+description = "Build production bundle"
+run = """
+echo "🏗️  Building production bundle..."
+bun run build
+echo "✅ Build complete! Output in ./dist"
+"""
+
+[tasks.test]
+description = "Run all tests"
+run = """
+echo "🧪 Running tests..."
+bun run test
+"""
+
+[tasks.lint]
+description = "Run linting and formatting checks"
+run = """
+echo "🔍 Running linters..."
+bun run lint
+echo ""
+echo "💅 Checking formatting..."
+bun run format:check
+"""
+
+[tasks.lint-fix]
+description = "Fix linting and formatting issues"
+run = """
+echo "🔧 Fixing lint issues..."
+bun run lint:fix
+echo ""
+echo "💅 Fixing formatting..."
+bun run format
+"""
+
+[tasks.storybook]
+description = "Start Storybook development server"
+run = "bun run storybook"
+
+[tasks.codegen]
+description = "Generate GraphQL types"
+run = "bun run graphql-codegen"
+
+[tasks.db-console]
+description = "Open Hasura console"
+run = """
+echo "🎛️  Opening Hasura console at http://localhost:3280"
+open http://localhost:3280 || xdg-open http://localhost:3280 || echo "Please open http://localhost:3280 in your browser"
+"""
+
+[tasks.clean]
+description = "Clean all generated files and dependencies"
+run = """
+echo "🧹 Cleaning project..."
+rm -rf node_modules
+rm -rf dist
+rm -rf storybook-static
+rm -rf spacetime-db/target
+cd hasura && docker compose down -v && cd ..
+echo "✅ Clean complete!"
+"""
+
+[tasks.reset]
+description = "Complete reset - clean and setup again"
+depends = ["clean", "setup"]
+
+[tasks.update-deps]
+description = "Update all dependencies"
+run = """
+echo "⬆️  Updating dependencies..."
+bun update
+cd spacetime-db && cargo update && cd ..
+echo "✅ Dependencies updated!"
+"""
+
+[tasks.pre-commit]
+description = "Run all pre-commit checks"
+depends = ["lint", "test", "build"]

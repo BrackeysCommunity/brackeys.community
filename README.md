@@ -1,5 +1,31 @@
 # Brackeys Web
 
+## 🚀 Quick Start (One-Command Setup)
+
+Get started with a single command that sets up your entire development environment:
+
+### macOS/Linux:
+
+```bash
+./setup.sh
+```
+
+This will:
+
+- ✅ Install [mise](https://mise.jdx.dev/) for tool management
+- ✅ Install all required tools (Bun, Node, Rust, etc.)
+- ✅ Set up your environment variables
+- ✅ Install all dependencies
+- ✅ Build the SpacetimeDB module
+- ✅ Pull Docker images for Hasura
+- ✅ Configure git hooks
+
+After setup, just run:
+
+```bash
+mise run dev
+```
+
 ## 📚 Documentation
 
 ### UI Components
@@ -7,19 +33,80 @@
 Our UI components are documented and showcased using Storybook:
 
 - **[View Live Storybook](https://brackeyscommunity.github.io/brackeys.community/)**
-- **Local Development:** `bun run storybook` → [http://localhost:6006](http://localhost:6006)
+- **Local Development:** `mise run storybook` → [http://localhost:6006](http://localhost:6006)
 
 ### Available Documentation
 
+- **[DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md)** - Complete setup guide and troubleshooting
 - **[STORYBOOK_CHROMATIC.md](./docs/STORYBOOK_CHROMATIC.md)** - Storybook setup and deployment information
 - **[PRETTIER_ESLINT_INTEGRATION.md](./docs/PRETTIER_ESLINT_INTEGRATION.md)** - Code formatting and linting configuration
 - **[MULTI_SCOPE_COMMITS.md](./docs/MULTI_SCOPE_COMMITS.md)** - Guide for creating commits across multiple packages
 
-## Setup
+## Development
+
+### Prerequisites
+
+- **Docker Desktop** - Required for running Hasura and database services
+- That's it! Everything else is handled by mise 🎉
+
+### Available Commands
+
+All development tasks are managed through mise:
+
+```bash
+# Core Development
+mise run dev              # Start all services (Hasura + Frontend)
+mise run dev-frontend     # Start only frontend (if backend is already running)
+mise run dev-hasura       # Start only Hasura services
+
+# Code Quality
+mise run lint             # Run linting checks
+mise run lint-fix         # Fix linting issues
+mise run test             # Run all tests
+mise run pre-commit       # Run all pre-commit checks
+
+# Building & Generation
+mise run build            # Build production bundle
+mise run codegen          # Generate GraphQL types
+mise run storybook        # Start Storybook dev server
+
+# Utilities
+mise run db-console       # Open Hasura console
+mise run clean            # Clean all generated files
+mise run reset            # Full reset (clean + setup)
+mise run update-deps      # Update all dependencies
+
+# See all available tasks
+mise tasks
+```
+
+### Manual Setup (if you prefer)
+
+If you prefer to set up manually instead of using the setup scripts:
+
+1. **Install mise:**
+
+   ```bash
+   curl https://mise.run | sh
+   # or with Homebrew
+   brew install mise
+   ```
+
+2. **Install tools:**
+
+   ```bash
+   mise trust
+   mise install
+   ```
+
+3. **Run setup:**
+   ```bash
+   mise run setup
+   ```
 
 ### Environment Variables
 
-Create a `.env` file in the root directory with the following variables:
+The setup script will create a `.env` file for you. Update it with your actual values:
 
 ```env
 # Supabase Configuration
