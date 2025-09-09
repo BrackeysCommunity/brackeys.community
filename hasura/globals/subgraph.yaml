@@ -6,3 +6,6 @@ definition:
     rootPath: .
   includePaths:
     - metadata
+  envMapping:
+    HASURA_JWT_SECRET:
+      fromEnv: HASURA_JWT_SECRET

@@ -26,5 +26,6 @@
         "trailingComma": "none"
       }
     }
-  ]
+  ],
+  "ignorePatterns": ["src/lib/gql/generated.ts", "src/lib/gql/gen/**"]
 }

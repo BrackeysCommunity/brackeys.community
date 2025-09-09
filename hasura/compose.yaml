@@ -1,7 +1,6 @@
 include:
-  - path: app/connector/hammer/compose.yaml
   - path: app/connector/collab/compose.yaml
-  - path: app/connector/linear/compose.yaml
+  - path: app/connector/hammer/compose.yaml
 services:
   engine:
     build:

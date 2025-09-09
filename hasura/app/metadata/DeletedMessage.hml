@@ -1,0 +1,228 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeletedMessage
+  fields:
+    - name: addedByBot
+      type: String_1!
+    - name: attachments
+      type: Bytes!
+    - name: authorId
+      type: Int64!
+    - name: channelId
+      type: Int64!
+    - name: content
+      type: String_1
+    - name: creationTimestamp
+      type: Timestamp!
+    - name: deletionTimestamp
+      type: Timestamp!
+    - name: guildId
+      type: Int64!
+    - name: messageId
+      type: Int64!
+    - name: staffMemberId
+      type: Int64!
+  graphql:
+    typeName: DeletedMessage
+    inputTypeName: DeletedMessageInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: DeletedMessage
+      fieldMapping:
+        addedByBot:
+          column:
+            name: AddedByBot
+        attachments:
+          column:
+            name: Attachments
+        authorId:
+          column:
+            name: AuthorId
+        channelId:
+          column:
+            name: ChannelId
+        content:
+          column:
+            name: Content
+        creationTimestamp:
+          column:
+            name: CreationTimestamp
+        deletionTimestamp:
+          column:
+            name: DeletionTimestamp
+        guildId:
+          column:
+            name: GuildId
+        messageId:
+          column:
+            name: MessageId
+        staffMemberId:
+          column:
+            name: StaffMemberId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeletedMessage
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - addedByBot
+          - attachments
+          - authorId
+          - channelId
+          - content
+          - creationTimestamp
+          - deletionTimestamp
+          - guildId
+          - messageId
+          - staffMemberId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: DeletedMessageBoolExp
+  operand:
+    object:
+      type: DeletedMessage
+      comparableFields:
+        - fieldName: addedByBot
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: attachments
+          booleanExpressionType: BytesBoolExp
+        - fieldName: authorId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: channelId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: content
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: creationTimestamp
+          booleanExpressionType: TimestampBoolExp_1
+        - fieldName: deletionTimestamp
+          booleanExpressionType: TimestampBoolExp_1
+        - fieldName: guildId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: messageId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: staffMemberId
+          booleanExpressionType: Int64BoolExp_1
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: DeletedMessageBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: DeletedMessageAggExp
+  operand:
+    object:
+      aggregatedType: DeletedMessage
+      aggregatableFields:
+        - fieldName: addedByBot
+          aggregateExpression: StringAggExp_1
+        - fieldName: attachments
+          aggregateExpression: BytesAggExp
+        - fieldName: authorId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: channelId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: content
+          aggregateExpression: StringAggExp_1
+        - fieldName: creationTimestamp
+          aggregateExpression: TimestampAggExp_1
+        - fieldName: deletionTimestamp
+          aggregateExpression: TimestampAggExp_1
+        - fieldName: guildId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: messageId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: staffMemberId
+          aggregateExpression: Int64AggExp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: DeletedMessageAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: DeletedMessageOrderByExp
+  operand:
+    object:
+      orderedType: DeletedMessage
+      orderableFields:
+        - fieldName: addedByBot
+          orderByExpression: String1OrderByExp
+        - fieldName: attachments
+          orderByExpression: BytesOrderByExp
+        - fieldName: authorId
+          orderByExpression: Int64OrderByExp
+        - fieldName: channelId
+          orderByExpression: Int64OrderByExp
+        - fieldName: content
+          orderByExpression: String1OrderByExp
+        - fieldName: creationTimestamp
+          orderByExpression: TimestampOrderByExp
+        - fieldName: deletionTimestamp
+          orderByExpression: TimestampOrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: messageId
+          orderByExpression: Int64OrderByExp
+        - fieldName: staffMemberId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: DeletedMessageOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: DeletedMessage
+  objectType: DeletedMessage
+  source:
+    dataConnectorName: hammer
+    collection: DeletedMessage
+  filterExpressionType: DeletedMessageBoolExp
+  aggregateExpression: DeletedMessageAggExp
+  orderByExpression: DeletedMessageOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: deletedMessage
+      subscription:
+        rootField: deletedMessage
+    selectUniques:
+      - queryRootField: deletedMessageByMessageId
+        uniqueIdentifier:
+          - messageId
+        subscription:
+          rootField: deletedMessageByMessageId
+    filterInputTypeName: DeletedMessageFilterInput
+    aggregate:
+      queryRootField: deletedMessageAggregate
+      subscription:
+        rootField: deletedMessageAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: DeletedMessage
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

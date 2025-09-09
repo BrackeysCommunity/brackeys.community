@@ -1,0 +1,208 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollaborationBookmark
+  fields:
+    - name: collaborationPostId
+      type: String_1!
+    - name: createdAt
+      type: Timestamp!
+    - name: id
+      type: String_1!
+    - name: notes
+      type: String_1
+    - name: profileId
+      type: String_1!
+  graphql:
+    typeName: CollaborationBookmark
+    inputTypeName: CollaborationBookmarkInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationBookmark
+      fieldMapping:
+        collaborationPostId:
+          column:
+            name: CollaborationPostId
+        createdAt:
+          column:
+            name: CreatedAt
+        id:
+          column:
+            name: Id
+        notes:
+          column:
+            name: Notes
+        profileId:
+          column:
+            name: ProfileId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollaborationBookmark
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - collaborationPostId
+          - createdAt
+          - id
+          - notes
+          - profileId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollaborationBookmarkBoolExp
+  operand:
+    object:
+      type: CollaborationBookmark
+      comparableFields:
+        - fieldName: collaborationPostId
+          booleanExpressionType: StringBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampBoolExp
+        - fieldName: id
+          booleanExpressionType: StringBoolExp
+        - fieldName: notes
+          booleanExpressionType: StringBoolExp
+        - fieldName: profileId
+          booleanExpressionType: StringBoolExp
+      comparableRelationships:
+        - relationshipName: collaborationProfile
+        - relationshipName: collaborationPost
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollaborationBookmarkBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollaborationBookmarkAggExp
+  operand:
+    object:
+      aggregatedType: CollaborationBookmark
+      aggregatableFields:
+        - fieldName: collaborationPostId
+          aggregateExpression: StringAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampAggExp
+        - fieldName: id
+          aggregateExpression: StringAggExp
+        - fieldName: notes
+          aggregateExpression: StringAggExp
+        - fieldName: profileId
+          aggregateExpression: StringAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollaborationBookmarkAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollaborationBookmarkOrderByExp
+  operand:
+    object:
+      orderedType: CollaborationBookmark
+      orderableFields:
+        - fieldName: collaborationPostId
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: notes
+          orderByExpression: String1OrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: collaborationProfile
+        - relationshipName: collaborationPost
+  graphql:
+    expressionTypeName: CollaborationBookmarkOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollaborationBookmark
+  objectType: CollaborationBookmark
+  source:
+    dataConnectorName: collab
+    collection: CollaborationBookmark
+  filterExpressionType: CollaborationBookmarkBoolExp
+  aggregateExpression: CollaborationBookmarkAggExp
+  orderByExpression: CollaborationBookmarkOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collaborationBookmark
+      subscription:
+        rootField: collaborationBookmark
+    selectUniques:
+      - queryRootField: collaborationBookmarkById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaborationBookmarkById
+    filterInputTypeName: CollaborationBookmarkFilterInput
+    aggregate:
+      queryRootField: collaborationBookmarkAggregate
+      subscription:
+        rootField: collaborationBookmarkAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollaborationBookmark
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaborationProfile
+  sourceType: CollaborationBookmark
+  target:
+    model:
+      name: CollaborationProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profileId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaborationPost
+  sourceType: CollaborationBookmark
+  target:
+    model:
+      name: CollaborationPost
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: collaborationPostId
+      target:
+        modelField:
+          - fieldName: id
+

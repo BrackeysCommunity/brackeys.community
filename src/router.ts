@@ -9,6 +9,8 @@ import { Snake } from './components/games/snake/Snake';
 import { ToolEmbed } from './pages/ToolEmbed';
 import { Resources } from './pages/Resources';
 import { Sandbox } from './pages/Sandbox';
+import { Collaborations } from './pages/Collaborations';
+import { CollaborationDetail } from './pages/CollaborationDetail';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -68,6 +70,18 @@ const toolEmbedRoute = createRoute({
   component: ToolEmbed,
 });
 
+const collaborationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/collaborations',
+  component: Collaborations,
+});
+
+const collaborationDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/collaborations/$postId',
+  component: CollaborationDetail,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -76,6 +90,8 @@ const routeTree = rootRoute.addChildren([
   snakeRoute,
   resourcesRoute,
   sandboxRoute,
+  collaborationsRoute,
+  collaborationDetailRoute,
   toolEmbedRoute,
   notFoundRoute,
 ]);

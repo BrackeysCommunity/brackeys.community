@@ -1,0 +1,192 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: MemberNote
+  fields:
+    - name: authorId
+      type: Int64!
+    - name: content
+      type: String_1!
+    - name: creationTimestamp
+      type: Timestamp!
+    - name: guildId
+      type: Int64!
+    - name: id
+      type: Int64!
+    - name: type
+      type: Int32!
+    - name: userId
+      type: Int64!
+  graphql:
+    typeName: MemberNote
+    inputTypeName: MemberNoteInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: MemberNote
+      fieldMapping:
+        authorId:
+          column:
+            name: AuthorId
+        content:
+          column:
+            name: Content
+        creationTimestamp:
+          column:
+            name: CreationTimestamp
+        guildId:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        type:
+          column:
+            name: Type
+        userId:
+          column:
+            name: UserId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: MemberNote
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - authorId
+          - content
+          - creationTimestamp
+          - guildId
+          - id
+          - type
+          - userId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: MemberNoteBoolExp
+  operand:
+    object:
+      type: MemberNote
+      comparableFields:
+        - fieldName: authorId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: content
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: creationTimestamp
+          booleanExpressionType: TimestampBoolExp_1
+        - fieldName: guildId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: id
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: type
+          booleanExpressionType: Int32BoolExp_1
+        - fieldName: userId
+          booleanExpressionType: Int64BoolExp_1
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: MemberNoteBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: MemberNoteAggExp
+  operand:
+    object:
+      aggregatedType: MemberNote
+      aggregatableFields:
+        - fieldName: authorId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: content
+          aggregateExpression: StringAggExp_1
+        - fieldName: creationTimestamp
+          aggregateExpression: TimestampAggExp_1
+        - fieldName: guildId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: id
+          aggregateExpression: Int64AggExp_1
+        - fieldName: type
+          aggregateExpression: Int32AggExp_1
+        - fieldName: userId
+          aggregateExpression: Int64AggExp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: MemberNoteAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: MemberNoteOrderByExp
+  operand:
+    object:
+      orderedType: MemberNote
+      orderableFields:
+        - fieldName: authorId
+          orderByExpression: Int64OrderByExp
+        - fieldName: content
+          orderByExpression: String1OrderByExp
+        - fieldName: creationTimestamp
+          orderByExpression: TimestampOrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: id
+          orderByExpression: Int64OrderByExp
+        - fieldName: type
+          orderByExpression: Int32OrderByExp
+        - fieldName: userId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: MemberNoteOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: MemberNote
+  objectType: MemberNote
+  source:
+    dataConnectorName: hammer
+    collection: MemberNote
+  filterExpressionType: MemberNoteBoolExp
+  aggregateExpression: MemberNoteAggExp
+  orderByExpression: MemberNoteOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: memberNote
+      subscription:
+        rootField: memberNote
+    selectUniques:
+      - queryRootField: memberNoteById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: memberNoteById
+    filterInputTypeName: MemberNoteFilterInput
+    aggregate:
+      queryRootField: memberNoteAggregate
+      subscription:
+        rootField: memberNoteAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: MemberNote
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

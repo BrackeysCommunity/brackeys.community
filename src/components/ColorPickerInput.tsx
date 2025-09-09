@@ -1,6 +1,6 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
-import { useDebounceCallback } from 'usehooks-ts';
+import { useDebounce } from '@uidotdev/usehooks';
 import { getColorGradient } from '../lib/colors';
 import { ColorPicker } from './ColorPicker';
 import { Input } from './ui/Input';
@@ -29,7 +29,7 @@ export const ColorPickerInput = ({
   error,
   className,
 }: ColorPickerInputProps) => {
-  const debouncedColorSelect = useDebounceCallback((color: string, close: () => void) => {
+  const debouncedColorSelect = useDebounce((color: string, close: () => void) => {
     onColorSelect(color);
     close();
   }, 400);

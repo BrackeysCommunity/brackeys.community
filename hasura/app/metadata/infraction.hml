@@ -2,63 +2,63 @@
 kind: ObjectType
 version: v1
 definition:
-  name: infraction
+  name: Infraction
   fields:
-    - name: additional_information
-      type: string
-    - name: guild_id
-      type: int64!
+    - name: additionalInformation
+      type: String_1
+    - name: guildId
+      type: Int64!
     - name: id
-      type: int64!
-    - name: issued_at
-      type: timestamp!
+      type: Int64!
+    - name: issuedAt
+      type: Timestamp!
     - name: reason
-      type: string
-    - name: rule_id
-      type: int32
-    - name: rule_text
-      type: string
-    - name: staff_member_id
-      type: int64!
+      type: String_1
+    - name: ruleId
+      type: Int32
+    - name: ruleText
+      type: String_1
+    - name: staffMemberId
+      type: Int64!
     - name: type
-      type: int32!
-    - name: user_id
-      type: int64!
+      type: Int32!
+    - name: userId
+      type: Int64!
   graphql:
-    typeName: infraction
-    inputTypeName: infraction_input
+    typeName: Infraction
+    inputTypeName: InfractionInput
   dataConnectorTypeMapping:
     - dataConnectorName: hammer
       dataConnectorObjectType: Infraction
       fieldMapping:
-        additional_information:
+        additionalInformation:
           column:
             name: AdditionalInformation
-        guild_id:
+        guildId:
           column:
             name: GuildId
         id:
           column:
             name: Id
-        issued_at:
+        issuedAt:
           column:
             name: IssuedAt
         reason:
           column:
             name: Reason
-        rule_id:
+        ruleId:
           column:
             name: RuleId
-        rule_text:
+        ruleText:
           column:
             name: RuleText
-        staff_member_id:
+        staffMemberId:
           column:
             name: StaffMemberId
         type:
           column:
             name: Type
-        user_id:
+        userId:
           column:
             name: UserId
 
@@ -66,216 +66,163 @@ definition:
 kind: TypePermissions
 version: v1
 definition:
-  typeName: infraction
+  typeName: Infraction
   permissions:
     - role: admin
       output:
         allowedFields:
-          - additional_information
-          - guild_id
+          - additionalInformation
+          - guildId
           - id
-          - issued_at
+          - issuedAt
           - reason
-          - rule_id
-          - rule_text
-          - staff_member_id
+          - ruleId
+          - ruleText
+          - staffMemberId
           - type
-          - user_id
+          - userId
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: infraction_bool_exp
+  name: InfractionBoolExp
   operand:
     object:
-      type: infraction
+      type: Infraction
       comparableFields:
-        - fieldName: additional_information
-          booleanExpressionType: string_bool_exp
-        - fieldName: guild_id
-          booleanExpressionType: int64_bool_exp
+        - fieldName: additionalInformation
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: guildId
+          booleanExpressionType: Int64BoolExp_1
         - fieldName: id
-          booleanExpressionType: int64_bool_exp
-        - fieldName: issued_at
-          booleanExpressionType: timestamp_bool_exp
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: issuedAt
+          booleanExpressionType: TimestampBoolExp_1
         - fieldName: reason
-          booleanExpressionType: string_bool_exp
-        - fieldName: rule_id
-          booleanExpressionType: int32_bool_exp
-        - fieldName: rule_text
-          booleanExpressionType: string_bool_exp
-        - fieldName: staff_member_id
-          booleanExpressionType: int64_bool_exp
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: ruleId
+          booleanExpressionType: Int32BoolExp_1
+        - fieldName: ruleText
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: staffMemberId
+          booleanExpressionType: Int64BoolExp_1
         - fieldName: type
-          booleanExpressionType: int32_bool_exp
-        - fieldName: user_id
-          booleanExpressionType: int64_bool_exp
+          booleanExpressionType: Int32BoolExp_1
+        - fieldName: userId
+          booleanExpressionType: Int64BoolExp_1
       comparableRelationships: []
   logicalOperators:
     enable: true
   isNull:
     enable: true
   graphql:
-    typeName: infraction_bool_exp
+    typeName: InfractionBoolExp
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: infraction_agg_exp
+  name: InfractionAggExp
   operand:
     object:
-      aggregatedType: infraction
+      aggregatedType: Infraction
       aggregatableFields:
-        - fieldName: additional_information
-          aggregateExpression: string_agg_exp
-        - fieldName: guild_id
-          aggregateExpression: int64_agg_exp
+        - fieldName: additionalInformation
+          aggregateExpression: StringAggExp_1
+        - fieldName: guildId
+          aggregateExpression: Int64AggExp_1
         - fieldName: id
-          aggregateExpression: int64_agg_exp
-        - fieldName: issued_at
-          aggregateExpression: timestamp_agg_exp
+          aggregateExpression: Int64AggExp_1
+        - fieldName: issuedAt
+          aggregateExpression: TimestampAggExp_1
         - fieldName: reason
-          aggregateExpression: string_agg_exp
-        - fieldName: rule_id
-          aggregateExpression: int32_agg_exp
-        - fieldName: rule_text
-          aggregateExpression: string_agg_exp
-        - fieldName: staff_member_id
-          aggregateExpression: int64_agg_exp
+          aggregateExpression: StringAggExp_1
+        - fieldName: ruleId
+          aggregateExpression: Int32AggExp_1
+        - fieldName: ruleText
+          aggregateExpression: StringAggExp_1
+        - fieldName: staffMemberId
+          aggregateExpression: Int64AggExp_1
         - fieldName: type
-          aggregateExpression: int32_agg_exp
-        - fieldName: user_id
-          aggregateExpression: int64_agg_exp
+          aggregateExpression: Int32AggExp_1
+        - fieldName: userId
+          aggregateExpression: Int64AggExp_1
   count:
     enable: true
   graphql:
-    selectTypeName: infraction_agg_exp
+    selectTypeName: InfractionAggExp
 
 ---
 kind: OrderByExpression
 version: v1
 definition:
-  name: infraction_order_by_exp
+  name: InfractionOrderByExp
   operand:
     object:
-      orderedType: infraction
+      orderedType: Infraction
       orderableFields:
-        - fieldName: additional_information
-          orderByExpression: string_order_by_exp
-        - fieldName: guild_id
-          orderByExpression: int64_order_by_exp
+        - fieldName: additionalInformation
+          orderByExpression: String1OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
         - fieldName: id
-          orderByExpression: int64_order_by_exp
-        - fieldName: issued_at
-          orderByExpression: timestamp_order_by_exp
+          orderByExpression: Int64OrderByExp
+        - fieldName: issuedAt
+          orderByExpression: TimestampOrderByExp
         - fieldName: reason
-          orderByExpression: string_order_by_exp
-        - fieldName: rule_id
-          orderByExpression: int32_order_by_exp
-        - fieldName: rule_text
-          orderByExpression: string_order_by_exp
-        - fieldName: staff_member_id
-          orderByExpression: int64_order_by_exp
+          orderByExpression: String1OrderByExp
+        - fieldName: ruleId
+          orderByExpression: Int32OrderByExp
+        - fieldName: ruleText
+          orderByExpression: String1OrderByExp
+        - fieldName: staffMemberId
+          orderByExpression: Int64OrderByExp
         - fieldName: type
-          orderByExpression: int32_order_by_exp
-        - fieldName: user_id
-          orderByExpression: int64_order_by_exp
-      orderableRelationships:
-        - relationshipName: rule
+          orderByExpression: Int32OrderByExp
+        - fieldName: userId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships: []
   graphql:
-    expressionTypeName: infraction_order_by_exp
+    expressionTypeName: InfractionOrderByExp
 
 ---
 kind: Model
 version: v2
 definition:
-  name: infraction
-  objectType: infraction
+  name: Infraction
+  objectType: Infraction
   source:
     dataConnectorName: hammer
     collection: Infraction
-  filterExpressionType: infraction_bool_exp
-  aggregateExpression: infraction_agg_exp
-  orderByExpression: infraction_order_by_exp
+  filterExpressionType: InfractionBoolExp
+  aggregateExpression: InfractionAggExp
+  orderByExpression: InfractionOrderByExp
   graphql:
     selectMany:
       queryRootField: infraction
       subscription:
         rootField: infraction
     selectUniques:
-      - queryRootField: infraction_by_id
+      - queryRootField: infractionById
         uniqueIdentifier:
           - id
         subscription:
-          rootField: infraction_by_id
-    filterInputTypeName: infraction_filter_input
+          rootField: infractionById
+    filterInputTypeName: InfractionFilterInput
     aggregate:
-      queryRootField: infraction_aggregate
+      queryRootField: infractionAggregate
       subscription:
-        rootField: infraction_aggregate
+        rootField: infractionAggregate
 
 ---
 kind: ModelPermissions
 version: v1
 definition:
-  modelName: infraction
+  modelName: Infraction
   permissions:
     - role: admin
       select:
         filter: null
         allowSubscriptions: true
-
----
-kind: Relationship
-version: v1
-definition:
-  name: rule
-  sourceType: infraction
-  target:
-    model:
-      name: rule
-      subgraph: null
-      relationshipType: Object
-  mapping:
-    - source:
-        fieldPath:
-          - fieldName: rule_id
-      target:
-        modelField:
-          - fieldName: id
-    - source:
-        fieldPath:
-          - fieldName: guild_id
-      target:
-        modelField:
-          - fieldName: guild_id
-  description: The rule that was violated in this infraction
-
----
-kind: Relationship
-version: v1
-definition:
-  name: member_notes
-  sourceType: infraction
-  target:
-    model:
-      name: member_note
-      subgraph: null
-      relationshipType: Array
-  mapping:
-    - source:
-        fieldPath:
-          - fieldName: user_id
-      target:
-        modelField:
-          - fieldName: user_id
-    - source:
-        fieldPath:
-          - fieldName: guild_id
-      target:
-        modelField:
-          - fieldName: guild_id
-  description: Member notes for the user who received this infraction
 

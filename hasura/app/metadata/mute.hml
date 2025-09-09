@@ -2,28 +2,28 @@
 kind: ObjectType
 version: v1
 definition:
-  name: mute
+  name: Mute
   fields:
-    - name: expires_at
-      type: timestamp
-    - name: guild_id
-      type: int64!
-    - name: user_id
-      type: int64!
+    - name: expiresAt
+      type: Timestamp
+    - name: guildId
+      type: Int64!
+    - name: userId
+      type: Int64!
   graphql:
-    typeName: mute
-    inputTypeName: mute_input
+    typeName: Mute
+    inputTypeName: MuteInput
   dataConnectorTypeMapping:
     - dataConnectorName: hammer
       dataConnectorObjectType: Mute
       fieldMapping:
-        expires_at:
+        expiresAt:
           column:
             name: ExpiresAt
-        guild_id:
+        guildId:
           column:
             name: GuildId
-        user_id:
+        userId:
           column:
             name: UserId
 
@@ -31,167 +31,115 @@ definition:
 kind: TypePermissions
 version: v1
 definition:
-  typeName: mute
+  typeName: Mute
   permissions:
     - role: admin
       output:
         allowedFields:
-          - expires_at
-          - guild_id
-          - user_id
+          - expiresAt
+          - guildId
+          - userId
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: mute_bool_exp
+  name: MuteBoolExp
   operand:
     object:
-      type: mute
+      type: Mute
       comparableFields:
-        - fieldName: expires_at
-          booleanExpressionType: timestamp_bool_exp
-        - fieldName: guild_id
-          booleanExpressionType: int64_bool_exp
-        - fieldName: user_id
-          booleanExpressionType: int64_bool_exp
+        - fieldName: expiresAt
+          booleanExpressionType: TimestampBoolExp_1
+        - fieldName: guildId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: userId
+          booleanExpressionType: Int64BoolExp_1
       comparableRelationships: []
   logicalOperators:
     enable: true
   isNull:
     enable: true
   graphql:
-    typeName: mute_bool_exp
+    typeName: MuteBoolExp
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: mute_agg_exp
+  name: MuteAggExp
   operand:
     object:
-      aggregatedType: mute
+      aggregatedType: Mute
       aggregatableFields:
-        - fieldName: expires_at
-          aggregateExpression: timestamp_agg_exp
-        - fieldName: guild_id
-          aggregateExpression: int64_agg_exp
-        - fieldName: user_id
-          aggregateExpression: int64_agg_exp
+        - fieldName: expiresAt
+          aggregateExpression: TimestampAggExp_1
+        - fieldName: guildId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: userId
+          aggregateExpression: Int64AggExp_1
   count:
     enable: true
   graphql:
-    selectTypeName: mute_agg_exp
+    selectTypeName: MuteAggExp
 
 ---
 kind: OrderByExpression
 version: v1
 definition:
-  name: mute_order_by_exp
+  name: MuteOrderByExp
   operand:
     object:
-      orderedType: mute
+      orderedType: Mute
       orderableFields:
-        - fieldName: expires_at
-          orderByExpression: timestamp_order_by_exp
-        - fieldName: guild_id
-          orderByExpression: int64_order_by_exp
-        - fieldName: user_id
-          orderByExpression: int64_order_by_exp
+        - fieldName: expiresAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: userId
+          orderByExpression: Int64OrderByExp
       orderableRelationships: []
   graphql:
-    expressionTypeName: mute_order_by_exp
+    expressionTypeName: MuteOrderByExp
 
 ---
 kind: Model
 version: v2
 definition:
-  name: mute
-  objectType: mute
+  name: Mute
+  objectType: Mute
   source:
     dataConnectorName: hammer
     collection: Mute
-  filterExpressionType: mute_bool_exp
-  aggregateExpression: mute_agg_exp
-  orderByExpression: mute_order_by_exp
+  filterExpressionType: MuteBoolExp
+  aggregateExpression: MuteAggExp
+  orderByExpression: MuteOrderByExp
   graphql:
     selectMany:
       queryRootField: mute
       subscription:
         rootField: mute
     selectUniques:
-      - queryRootField: mute_by_mute_pk
+      - queryRootField: muteByMutePk
         uniqueIdentifier:
-          - guild_id
-          - user_id
+          - guildId
+          - userId
         subscription:
-          rootField: mute_by_mute_pk
-    filterInputTypeName: mute_filter_input
+          rootField: muteByMutePk
+    filterInputTypeName: MuteFilterInput
     aggregate:
-      queryRootField: mute_aggregate
+      queryRootField: muteAggregate
       subscription:
-        rootField: mute_aggregate
+        rootField: muteAggregate
 
 ---
 kind: ModelPermissions
 version: v1
 definition:
-  modelName: mute
+  modelName: Mute
   permissions:
     - role: admin
       select:
         filter: null
         allowSubscriptions: true
-
----
-kind: Relationship
-version: v1
-definition:
-  name: user_infractions
-  sourceType: mute
-  target:
-    model:
-      name: infraction
-      subgraph: null
-      relationshipType: Array
-  mapping:
-    - source:
-        fieldPath:
-          - fieldName: user_id
-      target:
-        modelField:
-          - fieldName: user_id
-    - source:
-        fieldPath:
-          - fieldName: guild_id
-      target:
-        modelField:
-          - fieldName: guild_id
-  description: All infractions for the muted user
-
----
-kind: Relationship
-version: v1
-definition:
-  name: user_notes
-  sourceType: mute
-  target:
-    model:
-      name: member_note
-      subgraph: null
-      relationshipType: Array
-  mapping:
-    - source:
-        fieldPath:
-          - fieldName: user_id
-      target:
-        modelField:
-          - fieldName: user_id
-    - source:
-        fieldPath:
-          - fieldName: guild_id
-      target:
-        modelField:
-          - fieldName: guild_id
-  description: All member notes for the muted user
 

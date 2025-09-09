@@ -220,17 +220,17 @@
     } ],
     "pks" : [ "Id" ],
     "fks" : {
-      "CollaborationBookmark_ibfk_2" : {
-        "column_mapping" : {
-          "CollaborationPostId" : "Id"
-        },
-        "foreign_collection" : "CollaborationPost"
-      },
       "CollaborationBookmark_ibfk_1" : {
         "column_mapping" : {
           "ProfileId" : "Id"
         },
         "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationBookmark_ibfk_2" : {
+        "column_mapping" : {
+          "CollaborationPostId" : "Id"
+        },
+        "foreign_collection" : "CollaborationPost"
       }
     }
   }, {
@@ -804,18 +804,6 @@
     } ],
     "pks" : [ "Id" ],
     "fks" : {
-      "CollaborationPost_ibfk_1" : {
-        "column_mapping" : {
-          "ProfileId" : "Id"
-        },
-        "foreign_collection" : "CollaborationProfile"
-      },
-      "CollaborationPost_ibfk_3" : {
-        "column_mapping" : {
-          "HiringStatusId" : "Id"
-        },
-        "foreign_collection" : "HiringStatus"
-      },
       "CollaborationPost_ibfk_2" : {
         "column_mapping" : {
           "CollaborationTypeId" : "Id"
@@ -827,6 +815,18 @@
           "StatusId" : "Id"
         },
         "foreign_collection" : "CollaborationStatus"
+      },
+      "CollaborationPost_ibfk_1" : {
+        "column_mapping" : {
+          "ProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
+      },
+      "CollaborationPost_ibfk_3" : {
+        "column_mapping" : {
+          "HiringStatusId" : "Id"
+        },
+        "foreign_collection" : "HiringStatus"
       }
     }
   }, {
@@ -950,29 +950,29 @@
         },
         "foreign_collection" : "CollaborationProfile"
       },
-      "CollaborationReport_ibfk_5" : {
-        "column_mapping" : {
-          "ViolatedRuleId" : "Id"
-        },
-        "foreign_collection" : "CollaborationRule"
-      },
       "CollaborationReport_ibfk_2" : {
         "column_mapping" : {
           "CollaborationResponseId" : "Id"
         },
         "foreign_collection" : "CollaborationResponse"
       },
-      "CollaborationReport_ibfk_4" : {
+      "CollaborationReport_ibfk_5" : {
         "column_mapping" : {
-          "ReportedByProfileId" : "Id"
+          "ViolatedRuleId" : "Id"
         },
-        "foreign_collection" : "CollaborationProfile"
+        "foreign_collection" : "CollaborationRule"
       },
       "CollaborationReport_ibfk_1" : {
         "column_mapping" : {
           "CollaborationPostId" : "Id"
         },
         "foreign_collection" : "CollaborationPost"
+      },
+      "CollaborationReport_ibfk_4" : {
+        "column_mapping" : {
+          "ReportedByProfileId" : "Id"
+        },
+        "foreign_collection" : "CollaborationProfile"
       }
     }
   }, {

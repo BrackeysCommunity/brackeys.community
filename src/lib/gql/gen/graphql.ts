@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { DocumentTypeDecoration } from '@graphql-typed-document-node/core';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
@@ -17,18 +18,1690 @@ export type Scalars = {
   Boolean: { input: boolean; output: boolean };
   Int: { input: number; output: number };
   Float: { input: number; output: number };
-  bytes: { input: any; output: any };
-  float64: { input: any; output: any };
-  int8: { input: any; output: any };
-  int32: { input: any; output: any };
-  int64: { input: any; output: any };
-  string: { input: any; output: any };
-  timestamp: { input: any; output: any };
+  Bytes: { input: any; output: any };
+  Float64: { input: any; output: any };
+  Int8: { input: any; output: any };
+  Int32: { input: any; output: any };
+  Int64: { input: any; output: any };
+  String1: { input: any; output: any };
+  Timestamp: { input: any; output: any };
+};
+
+export type AltAccount = {
+  __typename?: 'AltAccount';
+  altId: Scalars['Int64']['output'];
+  registeredAt: Scalars['Timestamp']['output'];
+  staffMemberId: Scalars['Int64']['output'];
+  userId: Scalars['Int64']['output'];
+};
+
+export type AltAccountAggExp = {
+  __typename?: 'AltAccountAggExp';
+  _count: Scalars['Int']['output'];
+  altId: Int64AggExp1;
+  registeredAt: TimestampAggExp1;
+  staffMemberId: Int64AggExp1;
+  userId: Int64AggExp1;
+};
+
+export type AltAccountBoolExp = {
+  _and?: InputMaybe<Array<AltAccountBoolExp>>;
+  _not?: InputMaybe<AltAccountBoolExp>;
+  _or?: InputMaybe<Array<AltAccountBoolExp>>;
+  altId?: InputMaybe<Int64BoolExp1>;
+  registeredAt?: InputMaybe<TimestampBoolExp1>;
+  staffMemberId?: InputMaybe<Int64BoolExp1>;
+  userId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type AltAccountFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<AltAccountOrderByExp>>;
+  where?: InputMaybe<AltAccountBoolExp>;
+};
+
+export type AltAccountOrderByExp = {
+  altId?: InputMaybe<OrderBy>;
+  registeredAt?: InputMaybe<OrderBy>;
+  staffMemberId?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
+};
+
+export type BlockedReporter = {
+  __typename?: 'BlockedReporter';
+  blockedAt: Scalars['Timestamp']['output'];
+  guildId: Scalars['Int64']['output'];
+  staffMemberId: Scalars['Int64']['output'];
+  userId: Scalars['Int64']['output'];
+};
+
+export type BlockedReporterAggExp = {
+  __typename?: 'BlockedReporterAggExp';
+  _count: Scalars['Int']['output'];
+  blockedAt: TimestampAggExp1;
+  guildId: Int64AggExp1;
+  staffMemberId: Int64AggExp1;
+  userId: Int64AggExp1;
+};
+
+export type BlockedReporterBoolExp = {
+  _and?: InputMaybe<Array<BlockedReporterBoolExp>>;
+  _not?: InputMaybe<BlockedReporterBoolExp>;
+  _or?: InputMaybe<Array<BlockedReporterBoolExp>>;
+  blockedAt?: InputMaybe<TimestampBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  staffMemberId?: InputMaybe<Int64BoolExp1>;
+  userId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type BlockedReporterFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<BlockedReporterOrderByExp>>;
+  where?: InputMaybe<BlockedReporterBoolExp>;
+};
+
+export type BlockedReporterOrderByExp = {
+  blockedAt?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  staffMemberId?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
+};
+
+export type BytesAggExp = {
+  __typename?: 'BytesAggExp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+};
+
+export type BytesBoolExp = {
+  _and?: InputMaybe<Array<BytesBoolExp>>;
+  _eq?: InputMaybe<Scalars['Bytes']['input']>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _not?: InputMaybe<BytesBoolExp>;
+  _or?: InputMaybe<Array<BytesBoolExp>>;
+};
+
+export type CollaborationAlert = {
+  __typename?: 'CollaborationAlert';
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  collaborationType?: Maybe<CollaborationType>;
+  collaborationTypeId?: Maybe<Scalars['Int32']['output']>;
+  createdAt: Scalars['Timestamp']['output'];
+  guildId: Scalars['Int64']['output'];
+  hiringStatus?: Maybe<HiringStatus>;
+  hiringStatusId?: Maybe<Scalars['Int32']['output']>;
+  id: Scalars['String1']['output'];
+  isActive: Scalars['Int8']['output'];
+  keywords?: Maybe<Scalars['String1']['output']>;
+  lastNotifiedAt?: Maybe<Scalars['Timestamp']['output']>;
+  name: Scalars['String1']['output'];
+  profileId: Scalars['String1']['output'];
+  tags?: Maybe<Scalars['String1']['output']>;
+};
+
+export type CollaborationAlertAggExp = {
+  __typename?: 'CollaborationAlertAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationTypeId: Int32AggExp;
+  createdAt: TimestampAggExp;
+  guildId: Int64AggExp;
+  hiringStatusId: Int32AggExp;
+  id: StringAggExp;
+  isActive: Int8AggExp;
+  keywords: StringAggExp;
+  lastNotifiedAt: TimestampAggExp;
+  name: StringAggExp;
+  profileId: StringAggExp;
+  tags: StringAggExp;
+};
+
+export type CollaborationAlertBoolExp = {
+  _and?: InputMaybe<Array<CollaborationAlertBoolExp>>;
+  _not?: InputMaybe<CollaborationAlertBoolExp>;
+  _or?: InputMaybe<Array<CollaborationAlertBoolExp>>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  collaborationType?: InputMaybe<CollaborationTypeBoolExp>;
+  collaborationTypeId?: InputMaybe<Int32BoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  guildId?: InputMaybe<Int64BoolExp>;
+  hiringStatus?: InputMaybe<HiringStatusBoolExp>;
+  hiringStatusId?: InputMaybe<Int32BoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  isActive?: InputMaybe<Int8BoolExp>;
+  keywords?: InputMaybe<StringBoolExp>;
+  lastNotifiedAt?: InputMaybe<TimestampBoolExp>;
+  name?: InputMaybe<StringBoolExp>;
+  profileId?: InputMaybe<StringBoolExp>;
+  tags?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationAlertFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAlertOrderByExp>>;
+  where?: InputMaybe<CollaborationAlertBoolExp>;
+};
+
+export type CollaborationAlertOrderByExp = {
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  collaborationType?: InputMaybe<CollaborationTypeOrderByExp>;
+  collaborationTypeId?: InputMaybe<OrderBy>;
+  createdAt?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  hiringStatus?: InputMaybe<HiringStatusOrderByExp>;
+  hiringStatusId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  isActive?: InputMaybe<OrderBy>;
+  keywords?: InputMaybe<OrderBy>;
+  lastNotifiedAt?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+  profileId?: InputMaybe<OrderBy>;
+  tags?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationAuditLog = {
+  __typename?: 'CollaborationAuditLog';
+  action: Scalars['String1']['output'];
+  collaborationPost?: Maybe<CollaborationPost>;
+  collaborationPostId?: Maybe<Scalars['String1']['output']>;
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  createdAt: Scalars['Timestamp']['output'];
+  id: Scalars['String1']['output'];
+  metadata?: Maybe<Scalars['String1']['output']>;
+  profileId?: Maybe<Scalars['String1']['output']>;
+  reason?: Maybe<Scalars['String1']['output']>;
+  staffMemberId: Scalars['Int64']['output'];
+};
+
+export type CollaborationAuditLogAggExp = {
+  __typename?: 'CollaborationAuditLogAggExp';
+  _count: Scalars['Int']['output'];
+  action: StringAggExp;
+  collaborationPostId: StringAggExp;
+  createdAt: TimestampAggExp;
+  id: StringAggExp;
+  metadata: StringAggExp;
+  profileId: StringAggExp;
+  reason: StringAggExp;
+  staffMemberId: Int64AggExp;
+};
+
+export type CollaborationAuditLogBoolExp = {
+  _and?: InputMaybe<Array<CollaborationAuditLogBoolExp>>;
+  _not?: InputMaybe<CollaborationAuditLogBoolExp>;
+  _or?: InputMaybe<Array<CollaborationAuditLogBoolExp>>;
+  action?: InputMaybe<StringBoolExp>;
+  collaborationPost?: InputMaybe<CollaborationPostBoolExp>;
+  collaborationPostId?: InputMaybe<StringBoolExp>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  metadata?: InputMaybe<StringBoolExp>;
+  profileId?: InputMaybe<StringBoolExp>;
+  reason?: InputMaybe<StringBoolExp>;
+  staffMemberId?: InputMaybe<Int64BoolExp>;
+};
+
+export type CollaborationAuditLogFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAuditLogOrderByExp>>;
+  where?: InputMaybe<CollaborationAuditLogBoolExp>;
+};
+
+export type CollaborationAuditLogOrderByExp = {
+  action?: InputMaybe<OrderBy>;
+  collaborationPost?: InputMaybe<CollaborationPostOrderByExp>;
+  collaborationPostId?: InputMaybe<OrderBy>;
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  createdAt?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  metadata?: InputMaybe<OrderBy>;
+  profileId?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  staffMemberId?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationBlockedUser = {
+  __typename?: 'CollaborationBlockedUser';
+  blockedAt: Scalars['Timestamp']['output'];
+  blockedByStaffId: Scalars['Int64']['output'];
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  collaborationRule?: Maybe<CollaborationRule>;
+  expiresAt?: Maybe<Scalars['Timestamp']['output']>;
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['String1']['output'];
+  profileId: Scalars['String1']['output'];
+  reason?: Maybe<Scalars['String1']['output']>;
+  violatedRuleId?: Maybe<Scalars['String1']['output']>;
+};
+
+export type CollaborationBlockedUserAggExp = {
+  __typename?: 'CollaborationBlockedUserAggExp';
+  _count: Scalars['Int']['output'];
+  blockedAt: TimestampAggExp;
+  blockedByStaffId: Int64AggExp;
+  expiresAt: TimestampAggExp;
+  guildId: Int64AggExp;
+  id: StringAggExp;
+  profileId: StringAggExp;
+  reason: StringAggExp;
+  violatedRuleId: StringAggExp;
+};
+
+export type CollaborationBlockedUserBoolExp = {
+  _and?: InputMaybe<Array<CollaborationBlockedUserBoolExp>>;
+  _not?: InputMaybe<CollaborationBlockedUserBoolExp>;
+  _or?: InputMaybe<Array<CollaborationBlockedUserBoolExp>>;
+  blockedAt?: InputMaybe<TimestampBoolExp>;
+  blockedByStaffId?: InputMaybe<Int64BoolExp>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  collaborationRule?: InputMaybe<CollaborationRuleBoolExp>;
+  expiresAt?: InputMaybe<TimestampBoolExp>;
+  guildId?: InputMaybe<Int64BoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  profileId?: InputMaybe<StringBoolExp>;
+  reason?: InputMaybe<StringBoolExp>;
+  violatedRuleId?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationBlockedUserFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationBlockedUserOrderByExp>>;
+  where?: InputMaybe<CollaborationBlockedUserBoolExp>;
+};
+
+export type CollaborationBlockedUserOrderByExp = {
+  blockedAt?: InputMaybe<OrderBy>;
+  blockedByStaffId?: InputMaybe<OrderBy>;
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  collaborationRule?: InputMaybe<CollaborationRuleOrderByExp>;
+  expiresAt?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  profileId?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  violatedRuleId?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationBookmark = {
+  __typename?: 'CollaborationBookmark';
+  collaborationPost?: Maybe<CollaborationPost>;
+  collaborationPostId: Scalars['String1']['output'];
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  createdAt: Scalars['Timestamp']['output'];
+  id: Scalars['String1']['output'];
+  notes?: Maybe<Scalars['String1']['output']>;
+  profileId: Scalars['String1']['output'];
+};
+
+export type CollaborationBookmarkAggExp = {
+  __typename?: 'CollaborationBookmarkAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationPostId: StringAggExp;
+  createdAt: TimestampAggExp;
+  id: StringAggExp;
+  notes: StringAggExp;
+  profileId: StringAggExp;
+};
+
+export type CollaborationBookmarkBoolExp = {
+  _and?: InputMaybe<Array<CollaborationBookmarkBoolExp>>;
+  _not?: InputMaybe<CollaborationBookmarkBoolExp>;
+  _or?: InputMaybe<Array<CollaborationBookmarkBoolExp>>;
+  collaborationPost?: InputMaybe<CollaborationPostBoolExp>;
+  collaborationPostId?: InputMaybe<StringBoolExp>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  notes?: InputMaybe<StringBoolExp>;
+  profileId?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationBookmarkFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationBookmarkOrderByExp>>;
+  where?: InputMaybe<CollaborationBookmarkBoolExp>;
+};
+
+export type CollaborationBookmarkOrderByExp = {
+  collaborationPost?: InputMaybe<CollaborationPostOrderByExp>;
+  collaborationPostId?: InputMaybe<OrderBy>;
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  createdAt?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  notes?: InputMaybe<OrderBy>;
+  profileId?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationFieldDefinition = {
+  __typename?: 'CollaborationFieldDefinition';
+  collaborationFieldValues?: Maybe<Array<CollaborationFieldValue>>;
+  collaborationFieldValuesAggregate: CollaborationFieldValueAggExp;
+  collaborationType?: Maybe<CollaborationType>;
+  collaborationTypeId: Scalars['Int32']['output'];
+  displayName: Scalars['String1']['output'];
+  fieldName: Scalars['String1']['output'];
+  fieldOrder: Scalars['Int32']['output'];
+  fieldType: Scalars['String1']['output'];
+  helpText?: Maybe<Scalars['String1']['output']>;
+  hiringStatus?: Maybe<HiringStatus>;
+  hiringStatusId: Scalars['Int32']['output'];
+  id: Scalars['String1']['output'];
+  isRequired: Scalars['Int8']['output'];
+  maxLength?: Maybe<Scalars['Int32']['output']>;
+  options?: Maybe<Scalars['String1']['output']>;
+  validationRegex?: Maybe<Scalars['String1']['output']>;
+};
+
+export type CollaborationFieldDefinitionCollaborationFieldValuesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationFieldValueOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldValueBoolExp>;
+};
+
+export type CollaborationFieldDefinitionCollaborationFieldValuesAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldValueFilterInput>;
+};
+
+export type CollaborationFieldDefinitionAggExp = {
+  __typename?: 'CollaborationFieldDefinitionAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationTypeId: Int32AggExp;
+  displayName: StringAggExp;
+  fieldName: StringAggExp;
+  fieldOrder: Int32AggExp;
+  fieldType: StringAggExp;
+  helpText: StringAggExp;
+  hiringStatusId: Int32AggExp;
+  id: StringAggExp;
+  isRequired: Int8AggExp;
+  maxLength: Int32AggExp;
+  options: StringAggExp;
+  validationRegex: StringAggExp;
+};
+
+export type CollaborationFieldDefinitionBoolExp = {
+  _and?: InputMaybe<Array<CollaborationFieldDefinitionBoolExp>>;
+  _not?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+  _or?: InputMaybe<Array<CollaborationFieldDefinitionBoolExp>>;
+  collaborationFieldValues?: InputMaybe<CollaborationFieldValueBoolExp>;
+  collaborationType?: InputMaybe<CollaborationTypeBoolExp>;
+  collaborationTypeId?: InputMaybe<Int32BoolExp>;
+  displayName?: InputMaybe<StringBoolExp>;
+  fieldName?: InputMaybe<StringBoolExp>;
+  fieldOrder?: InputMaybe<Int32BoolExp>;
+  fieldType?: InputMaybe<StringBoolExp>;
+  helpText?: InputMaybe<StringBoolExp>;
+  hiringStatus?: InputMaybe<HiringStatusBoolExp>;
+  hiringStatusId?: InputMaybe<Int32BoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  isRequired?: InputMaybe<Int8BoolExp>;
+  maxLength?: InputMaybe<Int32BoolExp>;
+  options?: InputMaybe<StringBoolExp>;
+  validationRegex?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationFieldDefinitionFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationFieldDefinitionOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+};
+
+export type CollaborationFieldDefinitionOrderByExp = {
+  collaborationType?: InputMaybe<CollaborationTypeOrderByExp>;
+  collaborationTypeId?: InputMaybe<OrderBy>;
+  displayName?: InputMaybe<OrderBy>;
+  fieldName?: InputMaybe<OrderBy>;
+  fieldOrder?: InputMaybe<OrderBy>;
+  fieldType?: InputMaybe<OrderBy>;
+  helpText?: InputMaybe<OrderBy>;
+  hiringStatus?: InputMaybe<HiringStatusOrderByExp>;
+  hiringStatusId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  isRequired?: InputMaybe<OrderBy>;
+  maxLength?: InputMaybe<OrderBy>;
+  options?: InputMaybe<OrderBy>;
+  validationRegex?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationFieldValue = {
+  __typename?: 'CollaborationFieldValue';
+  collaborationFieldDefinition?: Maybe<CollaborationFieldDefinition>;
+  collaborationPost?: Maybe<CollaborationPost>;
+  collaborationPostId: Scalars['String1']['output'];
+  fieldDefinitionId: Scalars['String1']['output'];
+  id: Scalars['String1']['output'];
+  value: Scalars['String1']['output'];
+};
+
+export type CollaborationFieldValueAggExp = {
+  __typename?: 'CollaborationFieldValueAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationPostId: StringAggExp;
+  fieldDefinitionId: StringAggExp;
+  id: StringAggExp;
+  value: StringAggExp;
+};
+
+export type CollaborationFieldValueBoolExp = {
+  _and?: InputMaybe<Array<CollaborationFieldValueBoolExp>>;
+  _not?: InputMaybe<CollaborationFieldValueBoolExp>;
+  _or?: InputMaybe<Array<CollaborationFieldValueBoolExp>>;
+  collaborationFieldDefinition?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+  collaborationPost?: InputMaybe<CollaborationPostBoolExp>;
+  collaborationPostId?: InputMaybe<StringBoolExp>;
+  fieldDefinitionId?: InputMaybe<StringBoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  value?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationFieldValueFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationFieldValueOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldValueBoolExp>;
+};
+
+export type CollaborationFieldValueOrderByExp = {
+  collaborationFieldDefinition?: InputMaybe<CollaborationFieldDefinitionOrderByExp>;
+  collaborationPost?: InputMaybe<CollaborationPostOrderByExp>;
+  collaborationPostId?: InputMaybe<OrderBy>;
+  fieldDefinitionId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  value?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationPost = {
+  __typename?: 'CollaborationPost';
+  collaborationAuditLogs?: Maybe<Array<CollaborationAuditLog>>;
+  collaborationAuditLogsAggregate: CollaborationAuditLogAggExp;
+  collaborationBookmarks?: Maybe<Array<CollaborationBookmark>>;
+  collaborationBookmarksAggregate: CollaborationBookmarkAggExp;
+  collaborationFieldValues?: Maybe<Array<CollaborationFieldValue>>;
+  collaborationFieldValuesAggregate: CollaborationFieldValueAggExp;
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  collaborationReports?: Maybe<Array<CollaborationReport>>;
+  collaborationReportsAggregate: CollaborationReportAggExp;
+  collaborationResponses?: Maybe<Array<CollaborationResponse>>;
+  collaborationResponsesAggregate: CollaborationResponseAggExp;
+  collaborationStatus?: Maybe<CollaborationStatus>;
+  collaborationType?: Maybe<CollaborationType>;
+  collaborationTypeId: Scalars['Int32']['output'];
+  createdAt: Scalars['Timestamp']['output'];
+  discordChannelId?: Maybe<Scalars['Int64']['output']>;
+  discordMessageId?: Maybe<Scalars['Int64']['output']>;
+  expiresAt?: Maybe<Scalars['Timestamp']['output']>;
+  guildId: Scalars['Int64']['output'];
+  hiringStatus?: Maybe<HiringStatus>;
+  hiringStatusId: Scalars['Int32']['output'];
+  id: Scalars['String1']['output'];
+  isHighlighted: Scalars['Int8']['output'];
+  postedAt?: Maybe<Scalars['Timestamp']['output']>;
+  profileId: Scalars['String1']['output'];
+  responseCount: Scalars['Int32']['output'];
+  statusId: Scalars['Int32']['output'];
+  tags?: Maybe<Scalars['String1']['output']>;
+  updatedAt: Scalars['Timestamp']['output'];
+  viewCount: Scalars['Int32']['output'];
+};
+
+export type CollaborationPostCollaborationAuditLogsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAuditLogOrderByExp>>;
+  where?: InputMaybe<CollaborationAuditLogBoolExp>;
+};
+
+export type CollaborationPostCollaborationAuditLogsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAuditLogFilterInput>;
+};
+
+export type CollaborationPostCollaborationBookmarksArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationBookmarkOrderByExp>>;
+  where?: InputMaybe<CollaborationBookmarkBoolExp>;
+};
+
+export type CollaborationPostCollaborationBookmarksAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBookmarkFilterInput>;
+};
+
+export type CollaborationPostCollaborationFieldValuesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationFieldValueOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldValueBoolExp>;
+};
+
+export type CollaborationPostCollaborationFieldValuesAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldValueFilterInput>;
+};
+
+export type CollaborationPostCollaborationReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
+};
+
+export type CollaborationPostCollaborationReportsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
+};
+
+export type CollaborationPostCollaborationResponsesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationResponseOrderByExp>>;
+  where?: InputMaybe<CollaborationResponseBoolExp>;
+};
+
+export type CollaborationPostCollaborationResponsesAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationResponseFilterInput>;
+};
+
+export type CollaborationPostAggExp = {
+  __typename?: 'CollaborationPostAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationTypeId: Int32AggExp;
+  createdAt: TimestampAggExp;
+  discordChannelId: Int64AggExp;
+  discordMessageId: Int64AggExp;
+  expiresAt: TimestampAggExp;
+  guildId: Int64AggExp;
+  hiringStatusId: Int32AggExp;
+  id: StringAggExp;
+  isHighlighted: Int8AggExp;
+  postedAt: TimestampAggExp;
+  profileId: StringAggExp;
+  responseCount: Int32AggExp;
+  statusId: Int32AggExp;
+  tags: StringAggExp;
+  updatedAt: TimestampAggExp;
+  viewCount: Int32AggExp;
+};
+
+export type CollaborationPostBoolExp = {
+  _and?: InputMaybe<Array<CollaborationPostBoolExp>>;
+  _not?: InputMaybe<CollaborationPostBoolExp>;
+  _or?: InputMaybe<Array<CollaborationPostBoolExp>>;
+  collaborationAuditLogs?: InputMaybe<CollaborationAuditLogBoolExp>;
+  collaborationBookmarks?: InputMaybe<CollaborationBookmarkBoolExp>;
+  collaborationFieldValues?: InputMaybe<CollaborationFieldValueBoolExp>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  collaborationReports?: InputMaybe<CollaborationReportBoolExp>;
+  collaborationResponses?: InputMaybe<CollaborationResponseBoolExp>;
+  collaborationStatus?: InputMaybe<CollaborationStatusBoolExp>;
+  collaborationType?: InputMaybe<CollaborationTypeBoolExp>;
+  collaborationTypeId?: InputMaybe<Int32BoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  discordChannelId?: InputMaybe<Int64BoolExp>;
+  discordMessageId?: InputMaybe<Int64BoolExp>;
+  expiresAt?: InputMaybe<TimestampBoolExp>;
+  guildId?: InputMaybe<Int64BoolExp>;
+  hiringStatus?: InputMaybe<HiringStatusBoolExp>;
+  hiringStatusId?: InputMaybe<Int32BoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  isHighlighted?: InputMaybe<Int8BoolExp>;
+  postedAt?: InputMaybe<TimestampBoolExp>;
+  profileId?: InputMaybe<StringBoolExp>;
+  responseCount?: InputMaybe<Int32BoolExp>;
+  statusId?: InputMaybe<Int32BoolExp>;
+  tags?: InputMaybe<StringBoolExp>;
+  updatedAt?: InputMaybe<TimestampBoolExp>;
+  viewCount?: InputMaybe<Int32BoolExp>;
+};
+
+export type CollaborationPostFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
+};
+
+export type CollaborationPostOrderByExp = {
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  collaborationStatus?: InputMaybe<CollaborationStatusOrderByExp>;
+  collaborationType?: InputMaybe<CollaborationTypeOrderByExp>;
+  collaborationTypeId?: InputMaybe<OrderBy>;
+  createdAt?: InputMaybe<OrderBy>;
+  discordChannelId?: InputMaybe<OrderBy>;
+  discordMessageId?: InputMaybe<OrderBy>;
+  expiresAt?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  hiringStatus?: InputMaybe<HiringStatusOrderByExp>;
+  hiringStatusId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  isHighlighted?: InputMaybe<OrderBy>;
+  postedAt?: InputMaybe<OrderBy>;
+  profileId?: InputMaybe<OrderBy>;
+  responseCount?: InputMaybe<OrderBy>;
+  statusId?: InputMaybe<OrderBy>;
+  tags?: InputMaybe<OrderBy>;
+  updatedAt?: InputMaybe<OrderBy>;
+  viewCount?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationProfile = {
+  __typename?: 'CollaborationProfile';
+  bio?: Maybe<Scalars['String1']['output']>;
+  collaborationAlerts?: Maybe<Array<CollaborationAlert>>;
+  collaborationAlertsAggregate: CollaborationAlertAggExp;
+  collaborationAuditLogs?: Maybe<Array<CollaborationAuditLog>>;
+  collaborationAuditLogsAggregate: CollaborationAuditLogAggExp;
+  collaborationBlockedUsers?: Maybe<Array<CollaborationBlockedUser>>;
+  collaborationBlockedUsersAggregate: CollaborationBlockedUserAggExp;
+  collaborationBookmarks?: Maybe<Array<CollaborationBookmark>>;
+  collaborationBookmarksAggregate: CollaborationBookmarkAggExp;
+  collaborationPosts?: Maybe<Array<CollaborationPost>>;
+  collaborationPostsAggregate: CollaborationPostAggExp;
+  collaborationReports?: Maybe<Array<CollaborationReport>>;
+  collaborationReportsAggregate: CollaborationReportAggExp;
+  collaborationReportsByReportedByProfileId?: Maybe<Array<CollaborationReport>>;
+  collaborationReportsByReportedByProfileIdAggregate: CollaborationReportAggExp;
+  collaborationResponses?: Maybe<Array<CollaborationResponse>>;
+  collaborationResponsesAggregate: CollaborationResponseAggExp;
+  contactPreferences?: Maybe<Scalars['String1']['output']>;
+  createdAt: Scalars['Timestamp']['output'];
+  displayName?: Maybe<Scalars['String1']['output']>;
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['String1']['output'];
+  isPublic: Scalars['Int8']['output'];
+  lastActiveAt?: Maybe<Scalars['Timestamp']['output']>;
+  portfolio?: Maybe<Scalars['String1']['output']>;
+  skills?: Maybe<Scalars['String1']['output']>;
+  updatedAt: Scalars['Timestamp']['output'];
+  userId: Scalars['Int64']['output'];
+};
+
+export type CollaborationProfileCollaborationAlertsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAlertOrderByExp>>;
+  where?: InputMaybe<CollaborationAlertBoolExp>;
+};
+
+export type CollaborationProfileCollaborationAlertsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAlertFilterInput>;
+};
+
+export type CollaborationProfileCollaborationAuditLogsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAuditLogOrderByExp>>;
+  where?: InputMaybe<CollaborationAuditLogBoolExp>;
+};
+
+export type CollaborationProfileCollaborationAuditLogsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAuditLogFilterInput>;
+};
+
+export type CollaborationProfileCollaborationBlockedUsersArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationBlockedUserOrderByExp>>;
+  where?: InputMaybe<CollaborationBlockedUserBoolExp>;
+};
+
+export type CollaborationProfileCollaborationBlockedUsersAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBlockedUserFilterInput>;
+};
+
+export type CollaborationProfileCollaborationBookmarksArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationBookmarkOrderByExp>>;
+  where?: InputMaybe<CollaborationBookmarkBoolExp>;
+};
+
+export type CollaborationProfileCollaborationBookmarksAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBookmarkFilterInput>;
+};
+
+export type CollaborationProfileCollaborationPostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
+};
+
+export type CollaborationProfileCollaborationPostsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationPostFilterInput>;
+};
+
+export type CollaborationProfileCollaborationReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
+};
+
+export type CollaborationProfileCollaborationReportsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
+};
+
+export type CollaborationProfileCollaborationReportsByReportedByProfileIdArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
+};
+
+export type CollaborationProfileCollaborationReportsByReportedByProfileIdAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
+};
+
+export type CollaborationProfileCollaborationResponsesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationResponseOrderByExp>>;
+  where?: InputMaybe<CollaborationResponseBoolExp>;
+};
+
+export type CollaborationProfileCollaborationResponsesAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationResponseFilterInput>;
+};
+
+export type CollaborationProfileAggExp = {
+  __typename?: 'CollaborationProfileAggExp';
+  _count: Scalars['Int']['output'];
+  bio: StringAggExp;
+  contactPreferences: StringAggExp;
+  createdAt: TimestampAggExp;
+  displayName: StringAggExp;
+  guildId: Int64AggExp;
+  id: StringAggExp;
+  isPublic: Int8AggExp;
+  lastActiveAt: TimestampAggExp;
+  portfolio: StringAggExp;
+  skills: StringAggExp;
+  updatedAt: TimestampAggExp;
+  userId: Int64AggExp;
+};
+
+export type CollaborationProfileBoolExp = {
+  _and?: InputMaybe<Array<CollaborationProfileBoolExp>>;
+  _not?: InputMaybe<CollaborationProfileBoolExp>;
+  _or?: InputMaybe<Array<CollaborationProfileBoolExp>>;
+  bio?: InputMaybe<StringBoolExp>;
+  collaborationAlerts?: InputMaybe<CollaborationAlertBoolExp>;
+  collaborationAuditLogs?: InputMaybe<CollaborationAuditLogBoolExp>;
+  collaborationBlockedUsers?: InputMaybe<CollaborationBlockedUserBoolExp>;
+  collaborationBookmarks?: InputMaybe<CollaborationBookmarkBoolExp>;
+  collaborationPosts?: InputMaybe<CollaborationPostBoolExp>;
+  collaborationReports?: InputMaybe<CollaborationReportBoolExp>;
+  collaborationReportsByReportedByProfileId?: InputMaybe<CollaborationReportBoolExp>;
+  collaborationResponses?: InputMaybe<CollaborationResponseBoolExp>;
+  contactPreferences?: InputMaybe<StringBoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  displayName?: InputMaybe<StringBoolExp>;
+  guildId?: InputMaybe<Int64BoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  isPublic?: InputMaybe<Int8BoolExp>;
+  lastActiveAt?: InputMaybe<TimestampBoolExp>;
+  portfolio?: InputMaybe<StringBoolExp>;
+  skills?: InputMaybe<StringBoolExp>;
+  updatedAt?: InputMaybe<TimestampBoolExp>;
+  userId?: InputMaybe<Int64BoolExp>;
+};
+
+export type CollaborationProfileFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationProfileOrderByExp>>;
+  where?: InputMaybe<CollaborationProfileBoolExp>;
+};
+
+export type CollaborationProfileOrderByExp = {
+  bio?: InputMaybe<OrderBy>;
+  contactPreferences?: InputMaybe<OrderBy>;
+  createdAt?: InputMaybe<OrderBy>;
+  displayName?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  isPublic?: InputMaybe<OrderBy>;
+  lastActiveAt?: InputMaybe<OrderBy>;
+  portfolio?: InputMaybe<OrderBy>;
+  skills?: InputMaybe<OrderBy>;
+  updatedAt?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationReport = {
+  __typename?: 'CollaborationReport';
+  collaborationPost?: Maybe<CollaborationPost>;
+  collaborationPostId?: Maybe<Scalars['String1']['output']>;
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  collaborationProfileByReportedByProfileId?: Maybe<CollaborationProfile>;
+  collaborationResponse?: Maybe<CollaborationResponse>;
+  collaborationResponseId?: Maybe<Scalars['String1']['output']>;
+  collaborationRule?: Maybe<CollaborationRule>;
+  createdAt: Scalars['Timestamp']['output'];
+  details?: Maybe<Scalars['String1']['output']>;
+  id: Scalars['String1']['output'];
+  reason: Scalars['String1']['output'];
+  reportedByProfileId: Scalars['String1']['output'];
+  reportedProfileId: Scalars['String1']['output'];
+  resolution?: Maybe<Scalars['String1']['output']>;
+  resolvedAt?: Maybe<Scalars['Timestamp']['output']>;
+  resolvedByStaffId?: Maybe<Scalars['Int64']['output']>;
+  violatedRuleId?: Maybe<Scalars['String1']['output']>;
+};
+
+export type CollaborationReportAggExp = {
+  __typename?: 'CollaborationReportAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationPostId: StringAggExp;
+  collaborationResponseId: StringAggExp;
+  createdAt: TimestampAggExp;
+  details: StringAggExp;
+  id: StringAggExp;
+  reason: StringAggExp;
+  reportedByProfileId: StringAggExp;
+  reportedProfileId: StringAggExp;
+  resolution: StringAggExp;
+  resolvedAt: TimestampAggExp;
+  resolvedByStaffId: Int64AggExp;
+  violatedRuleId: StringAggExp;
+};
+
+export type CollaborationReportBoolExp = {
+  _and?: InputMaybe<Array<CollaborationReportBoolExp>>;
+  _not?: InputMaybe<CollaborationReportBoolExp>;
+  _or?: InputMaybe<Array<CollaborationReportBoolExp>>;
+  collaborationPost?: InputMaybe<CollaborationPostBoolExp>;
+  collaborationPostId?: InputMaybe<StringBoolExp>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  collaborationProfileByReportedByProfileId?: InputMaybe<CollaborationProfileBoolExp>;
+  collaborationResponse?: InputMaybe<CollaborationResponseBoolExp>;
+  collaborationResponseId?: InputMaybe<StringBoolExp>;
+  collaborationRule?: InputMaybe<CollaborationRuleBoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  details?: InputMaybe<StringBoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  reason?: InputMaybe<StringBoolExp>;
+  reportedByProfileId?: InputMaybe<StringBoolExp>;
+  reportedProfileId?: InputMaybe<StringBoolExp>;
+  resolution?: InputMaybe<StringBoolExp>;
+  resolvedAt?: InputMaybe<TimestampBoolExp>;
+  resolvedByStaffId?: InputMaybe<Int64BoolExp>;
+  violatedRuleId?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationReportFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
+};
+
+export type CollaborationReportOrderByExp = {
+  collaborationPost?: InputMaybe<CollaborationPostOrderByExp>;
+  collaborationPostId?: InputMaybe<OrderBy>;
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  collaborationProfileByReportedByProfileId?: InputMaybe<CollaborationProfileOrderByExp>;
+  collaborationResponse?: InputMaybe<CollaborationResponseOrderByExp>;
+  collaborationResponseId?: InputMaybe<OrderBy>;
+  collaborationRule?: InputMaybe<CollaborationRuleOrderByExp>;
+  createdAt?: InputMaybe<OrderBy>;
+  details?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  reportedByProfileId?: InputMaybe<OrderBy>;
+  reportedProfileId?: InputMaybe<OrderBy>;
+  resolution?: InputMaybe<OrderBy>;
+  resolvedAt?: InputMaybe<OrderBy>;
+  resolvedByStaffId?: InputMaybe<OrderBy>;
+  violatedRuleId?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationResponse = {
+  __typename?: 'CollaborationResponse';
+  collaborationPost?: Maybe<CollaborationPost>;
+  collaborationPostId: Scalars['String1']['output'];
+  collaborationProfile?: Maybe<CollaborationProfile>;
+  collaborationReports?: Maybe<Array<CollaborationReport>>;
+  collaborationReportsAggregate: CollaborationReportAggExp;
+  contactInfo?: Maybe<Scalars['String1']['output']>;
+  createdAt: Scalars['Timestamp']['output'];
+  id: Scalars['String1']['output'];
+  isHidden: Scalars['Int8']['output'];
+  isPublic: Scalars['Int8']['output'];
+  isRead: Scalars['Int8']['output'];
+  message: Scalars['String1']['output'];
+  profileId: Scalars['String1']['output'];
+  readAt?: Maybe<Scalars['Timestamp']['output']>;
+};
+
+export type CollaborationResponseCollaborationReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
+};
+
+export type CollaborationResponseCollaborationReportsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
+};
+
+export type CollaborationResponseAggExp = {
+  __typename?: 'CollaborationResponseAggExp';
+  _count: Scalars['Int']['output'];
+  collaborationPostId: StringAggExp;
+  contactInfo: StringAggExp;
+  createdAt: TimestampAggExp;
+  id: StringAggExp;
+  isHidden: Int8AggExp;
+  isPublic: Int8AggExp;
+  isRead: Int8AggExp;
+  message: StringAggExp;
+  profileId: StringAggExp;
+  readAt: TimestampAggExp;
+};
+
+export type CollaborationResponseBoolExp = {
+  _and?: InputMaybe<Array<CollaborationResponseBoolExp>>;
+  _not?: InputMaybe<CollaborationResponseBoolExp>;
+  _or?: InputMaybe<Array<CollaborationResponseBoolExp>>;
+  collaborationPost?: InputMaybe<CollaborationPostBoolExp>;
+  collaborationPostId?: InputMaybe<StringBoolExp>;
+  collaborationProfile?: InputMaybe<CollaborationProfileBoolExp>;
+  collaborationReports?: InputMaybe<CollaborationReportBoolExp>;
+  contactInfo?: InputMaybe<StringBoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  isHidden?: InputMaybe<Int8BoolExp>;
+  isPublic?: InputMaybe<Int8BoolExp>;
+  isRead?: InputMaybe<Int8BoolExp>;
+  message?: InputMaybe<StringBoolExp>;
+  profileId?: InputMaybe<StringBoolExp>;
+  readAt?: InputMaybe<TimestampBoolExp>;
+};
+
+export type CollaborationResponseFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationResponseOrderByExp>>;
+  where?: InputMaybe<CollaborationResponseBoolExp>;
+};
+
+export type CollaborationResponseOrderByExp = {
+  collaborationPost?: InputMaybe<CollaborationPostOrderByExp>;
+  collaborationPostId?: InputMaybe<OrderBy>;
+  collaborationProfile?: InputMaybe<CollaborationProfileOrderByExp>;
+  contactInfo?: InputMaybe<OrderBy>;
+  createdAt?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  isHidden?: InputMaybe<OrderBy>;
+  isPublic?: InputMaybe<OrderBy>;
+  isRead?: InputMaybe<OrderBy>;
+  message?: InputMaybe<OrderBy>;
+  profileId?: InputMaybe<OrderBy>;
+  readAt?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationRule = {
+  __typename?: 'CollaborationRule';
+  collaborationBlockedUsers?: Maybe<Array<CollaborationBlockedUser>>;
+  collaborationBlockedUsersAggregate: CollaborationBlockedUserAggExp;
+  collaborationReports?: Maybe<Array<CollaborationReport>>;
+  collaborationReportsAggregate: CollaborationReportAggExp;
+  createdAt: Scalars['Timestamp']['output'];
+  description: Scalars['String1']['output'];
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['String1']['output'];
+  isActive: Scalars['Int8']['output'];
+  ruleNumber: Scalars['Int32']['output'];
+  title: Scalars['String1']['output'];
+  updatedAt: Scalars['Timestamp']['output'];
+};
+
+export type CollaborationRuleCollaborationBlockedUsersArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationBlockedUserOrderByExp>>;
+  where?: InputMaybe<CollaborationBlockedUserBoolExp>;
+};
+
+export type CollaborationRuleCollaborationBlockedUsersAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBlockedUserFilterInput>;
+};
+
+export type CollaborationRuleCollaborationReportsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
+};
+
+export type CollaborationRuleCollaborationReportsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
+};
+
+export type CollaborationRuleAggExp = {
+  __typename?: 'CollaborationRuleAggExp';
+  _count: Scalars['Int']['output'];
+  createdAt: TimestampAggExp;
+  description: StringAggExp;
+  guildId: Int64AggExp;
+  id: StringAggExp;
+  isActive: Int8AggExp;
+  ruleNumber: Int32AggExp;
+  title: StringAggExp;
+  updatedAt: TimestampAggExp;
+};
+
+export type CollaborationRuleBoolExp = {
+  _and?: InputMaybe<Array<CollaborationRuleBoolExp>>;
+  _not?: InputMaybe<CollaborationRuleBoolExp>;
+  _or?: InputMaybe<Array<CollaborationRuleBoolExp>>;
+  collaborationBlockedUsers?: InputMaybe<CollaborationBlockedUserBoolExp>;
+  collaborationReports?: InputMaybe<CollaborationReportBoolExp>;
+  createdAt?: InputMaybe<TimestampBoolExp>;
+  description?: InputMaybe<StringBoolExp>;
+  guildId?: InputMaybe<Int64BoolExp>;
+  id?: InputMaybe<StringBoolExp>;
+  isActive?: InputMaybe<Int8BoolExp>;
+  ruleNumber?: InputMaybe<Int32BoolExp>;
+  title?: InputMaybe<StringBoolExp>;
+  updatedAt?: InputMaybe<TimestampBoolExp>;
+};
+
+export type CollaborationRuleFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationRuleOrderByExp>>;
+  where?: InputMaybe<CollaborationRuleBoolExp>;
+};
+
+export type CollaborationRuleOrderByExp = {
+  createdAt?: InputMaybe<OrderBy>;
+  description?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  isActive?: InputMaybe<OrderBy>;
+  ruleNumber?: InputMaybe<OrderBy>;
+  title?: InputMaybe<OrderBy>;
+  updatedAt?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationStatus = {
+  __typename?: 'CollaborationStatus';
+  collaborationPosts?: Maybe<Array<CollaborationPost>>;
+  collaborationPostsAggregate: CollaborationPostAggExp;
+  description?: Maybe<Scalars['String1']['output']>;
+  id: Scalars['Int32']['output'];
+  name: Scalars['String1']['output'];
+};
+
+export type CollaborationStatusCollaborationPostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
+};
+
+export type CollaborationStatusCollaborationPostsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationPostFilterInput>;
+};
+
+export type CollaborationStatusAggExp = {
+  __typename?: 'CollaborationStatusAggExp';
+  _count: Scalars['Int']['output'];
+  description: StringAggExp;
+  id: Int32AggExp;
+  name: StringAggExp;
+};
+
+export type CollaborationStatusBoolExp = {
+  _and?: InputMaybe<Array<CollaborationStatusBoolExp>>;
+  _not?: InputMaybe<CollaborationStatusBoolExp>;
+  _or?: InputMaybe<Array<CollaborationStatusBoolExp>>;
+  collaborationPosts?: InputMaybe<CollaborationPostBoolExp>;
+  description?: InputMaybe<StringBoolExp>;
+  id?: InputMaybe<Int32BoolExp>;
+  name?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationStatusFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationStatusOrderByExp>>;
+  where?: InputMaybe<CollaborationStatusBoolExp>;
+};
+
+export type CollaborationStatusOrderByExp = {
+  description?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+};
+
+export type CollaborationType = {
+  __typename?: 'CollaborationType';
+  collaborationAlerts?: Maybe<Array<CollaborationAlert>>;
+  collaborationAlertsAggregate: CollaborationAlertAggExp;
+  collaborationFieldDefinitions?: Maybe<Array<CollaborationFieldDefinition>>;
+  collaborationFieldDefinitionsAggregate: CollaborationFieldDefinitionAggExp;
+  collaborationPosts?: Maybe<Array<CollaborationPost>>;
+  collaborationPostsAggregate: CollaborationPostAggExp;
+  description?: Maybe<Scalars['String1']['output']>;
+  id: Scalars['Int32']['output'];
+  name: Scalars['String1']['output'];
+};
+
+export type CollaborationTypeCollaborationAlertsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAlertOrderByExp>>;
+  where?: InputMaybe<CollaborationAlertBoolExp>;
+};
+
+export type CollaborationTypeCollaborationAlertsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAlertFilterInput>;
+};
+
+export type CollaborationTypeCollaborationFieldDefinitionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationFieldDefinitionOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+};
+
+export type CollaborationTypeCollaborationFieldDefinitionsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldDefinitionFilterInput>;
+};
+
+export type CollaborationTypeCollaborationPostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
+};
+
+export type CollaborationTypeCollaborationPostsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationPostFilterInput>;
+};
+
+export type CollaborationTypeAggExp = {
+  __typename?: 'CollaborationTypeAggExp';
+  _count: Scalars['Int']['output'];
+  description: StringAggExp;
+  id: Int32AggExp;
+  name: StringAggExp;
+};
+
+export type CollaborationTypeBoolExp = {
+  _and?: InputMaybe<Array<CollaborationTypeBoolExp>>;
+  _not?: InputMaybe<CollaborationTypeBoolExp>;
+  _or?: InputMaybe<Array<CollaborationTypeBoolExp>>;
+  collaborationAlerts?: InputMaybe<CollaborationAlertBoolExp>;
+  collaborationFieldDefinitions?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+  collaborationPosts?: InputMaybe<CollaborationPostBoolExp>;
+  description?: InputMaybe<StringBoolExp>;
+  id?: InputMaybe<Int32BoolExp>;
+  name?: InputMaybe<StringBoolExp>;
+};
+
+export type CollaborationTypeFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationTypeOrderByExp>>;
+  where?: InputMaybe<CollaborationTypeBoolExp>;
+};
+
+export type CollaborationTypeOrderByExp = {
+  description?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+};
+
+export type DeletedMessage = {
+  __typename?: 'DeletedMessage';
+  addedByBot: Scalars['String1']['output'];
+  attachments: Scalars['Bytes']['output'];
+  authorId: Scalars['Int64']['output'];
+  channelId: Scalars['Int64']['output'];
+  content?: Maybe<Scalars['String1']['output']>;
+  creationTimestamp: Scalars['Timestamp']['output'];
+  deletionTimestamp: Scalars['Timestamp']['output'];
+  guildId: Scalars['Int64']['output'];
+  messageId: Scalars['Int64']['output'];
+  staffMemberId: Scalars['Int64']['output'];
+};
+
+export type DeletedMessageAggExp = {
+  __typename?: 'DeletedMessageAggExp';
+  _count: Scalars['Int']['output'];
+  addedByBot: StringAggExp1;
+  attachments: BytesAggExp;
+  authorId: Int64AggExp1;
+  channelId: Int64AggExp1;
+  content: StringAggExp1;
+  creationTimestamp: TimestampAggExp1;
+  deletionTimestamp: TimestampAggExp1;
+  guildId: Int64AggExp1;
+  messageId: Int64AggExp1;
+  staffMemberId: Int64AggExp1;
+};
+
+export type DeletedMessageBoolExp = {
+  _and?: InputMaybe<Array<DeletedMessageBoolExp>>;
+  _not?: InputMaybe<DeletedMessageBoolExp>;
+  _or?: InputMaybe<Array<DeletedMessageBoolExp>>;
+  addedByBot?: InputMaybe<StringBoolExp1>;
+  attachments?: InputMaybe<BytesBoolExp>;
+  authorId?: InputMaybe<Int64BoolExp1>;
+  channelId?: InputMaybe<Int64BoolExp1>;
+  content?: InputMaybe<StringBoolExp1>;
+  creationTimestamp?: InputMaybe<TimestampBoolExp1>;
+  deletionTimestamp?: InputMaybe<TimestampBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  messageId?: InputMaybe<Int64BoolExp1>;
+  staffMemberId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type DeletedMessageFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<DeletedMessageOrderByExp>>;
+  where?: InputMaybe<DeletedMessageBoolExp>;
+};
+
+export type DeletedMessageOrderByExp = {
+  addedByBot?: InputMaybe<OrderBy>;
+  attachments?: InputMaybe<OrderBy>;
+  authorId?: InputMaybe<OrderBy>;
+  channelId?: InputMaybe<OrderBy>;
+  content?: InputMaybe<OrderBy>;
+  creationTimestamp?: InputMaybe<OrderBy>;
+  deletionTimestamp?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  messageId?: InputMaybe<OrderBy>;
+  staffMemberId?: InputMaybe<OrderBy>;
+};
+
+export type HiringStatus = {
+  __typename?: 'HiringStatus';
+  collaborationAlerts?: Maybe<Array<CollaborationAlert>>;
+  collaborationAlertsAggregate: CollaborationAlertAggExp;
+  collaborationFieldDefinitions?: Maybe<Array<CollaborationFieldDefinition>>;
+  collaborationFieldDefinitionsAggregate: CollaborationFieldDefinitionAggExp;
+  collaborationPosts?: Maybe<Array<CollaborationPost>>;
+  collaborationPostsAggregate: CollaborationPostAggExp;
+  description?: Maybe<Scalars['String1']['output']>;
+  id: Scalars['Int32']['output'];
+  name: Scalars['String1']['output'];
+};
+
+export type HiringStatusCollaborationAlertsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationAlertOrderByExp>>;
+  where?: InputMaybe<CollaborationAlertBoolExp>;
+};
+
+export type HiringStatusCollaborationAlertsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAlertFilterInput>;
+};
+
+export type HiringStatusCollaborationFieldDefinitionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationFieldDefinitionOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+};
+
+export type HiringStatusCollaborationFieldDefinitionsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldDefinitionFilterInput>;
+};
+
+export type HiringStatusCollaborationPostsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
+};
+
+export type HiringStatusCollaborationPostsAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationPostFilterInput>;
+};
+
+export type HiringStatusAggExp = {
+  __typename?: 'HiringStatusAggExp';
+  _count: Scalars['Int']['output'];
+  description: StringAggExp;
+  id: Int32AggExp;
+  name: StringAggExp;
+};
+
+export type HiringStatusBoolExp = {
+  _and?: InputMaybe<Array<HiringStatusBoolExp>>;
+  _not?: InputMaybe<HiringStatusBoolExp>;
+  _or?: InputMaybe<Array<HiringStatusBoolExp>>;
+  collaborationAlerts?: InputMaybe<CollaborationAlertBoolExp>;
+  collaborationFieldDefinitions?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
+  collaborationPosts?: InputMaybe<CollaborationPostBoolExp>;
+  description?: InputMaybe<StringBoolExp>;
+  id?: InputMaybe<Int32BoolExp>;
+  name?: InputMaybe<StringBoolExp>;
+};
+
+export type HiringStatusFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<HiringStatusOrderByExp>>;
+  where?: InputMaybe<HiringStatusBoolExp>;
+};
+
+export type HiringStatusOrderByExp = {
+  description?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  name?: InputMaybe<OrderBy>;
+};
+
+export type Infraction = {
+  __typename?: 'Infraction';
+  additionalInformation?: Maybe<Scalars['String1']['output']>;
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['Int64']['output'];
+  issuedAt: Scalars['Timestamp']['output'];
+  reason?: Maybe<Scalars['String1']['output']>;
+  ruleId?: Maybe<Scalars['Int32']['output']>;
+  ruleText?: Maybe<Scalars['String1']['output']>;
+  staffMemberId: Scalars['Int64']['output'];
+  type: Scalars['Int32']['output'];
+  userId: Scalars['Int64']['output'];
+};
+
+export type InfractionAggExp = {
+  __typename?: 'InfractionAggExp';
+  _count: Scalars['Int']['output'];
+  additionalInformation: StringAggExp1;
+  guildId: Int64AggExp1;
+  id: Int64AggExp1;
+  issuedAt: TimestampAggExp1;
+  reason: StringAggExp1;
+  ruleId: Int32AggExp1;
+  ruleText: StringAggExp1;
+  staffMemberId: Int64AggExp1;
+  type: Int32AggExp1;
+  userId: Int64AggExp1;
+};
+
+export type InfractionBoolExp = {
+  _and?: InputMaybe<Array<InfractionBoolExp>>;
+  _not?: InputMaybe<InfractionBoolExp>;
+  _or?: InputMaybe<Array<InfractionBoolExp>>;
+  additionalInformation?: InputMaybe<StringBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  id?: InputMaybe<Int64BoolExp1>;
+  issuedAt?: InputMaybe<TimestampBoolExp1>;
+  reason?: InputMaybe<StringBoolExp1>;
+  ruleId?: InputMaybe<Int32BoolExp1>;
+  ruleText?: InputMaybe<StringBoolExp1>;
+  staffMemberId?: InputMaybe<Int64BoolExp1>;
+  type?: InputMaybe<Int32BoolExp1>;
+  userId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type InfractionFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<InfractionOrderByExp>>;
+  where?: InputMaybe<InfractionBoolExp>;
+};
+
+export type InfractionOrderByExp = {
+  additionalInformation?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  issuedAt?: InputMaybe<OrderBy>;
+  reason?: InputMaybe<OrderBy>;
+  ruleId?: InputMaybe<OrderBy>;
+  ruleText?: InputMaybe<OrderBy>;
+  staffMemberId?: InputMaybe<OrderBy>;
+  type?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
+};
+
+export type Int8AggExp = {
+  __typename?: 'Int8AggExp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['Float64']['output'];
+  max: Scalars['Int8']['output'];
+  min: Scalars['Int8']['output'];
+  sum: Scalars['Int64']['output'];
+};
+
+export type Int8AggExp1 = {
+  __typename?: 'Int8AggExp1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['Float64']['output'];
+  max: Scalars['Int8']['output'];
+  min: Scalars['Int8']['output'];
+  sum: Scalars['Int64']['output'];
+};
+
+export type Int8BoolExp = {
+  _and?: InputMaybe<Array<Int8BoolExp>>;
+  _eq?: InputMaybe<Scalars['Int8']['input']>;
+  _gt?: InputMaybe<Scalars['Int8']['input']>;
+  _gte?: InputMaybe<Scalars['Int8']['input']>;
+  _in?: InputMaybe<Array<Scalars['Int8']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Int8']['input']>;
+  _lte?: InputMaybe<Scalars['Int8']['input']>;
+  _not?: InputMaybe<Int8BoolExp>;
+  _or?: InputMaybe<Array<Int8BoolExp>>;
+};
+
+export type Int8BoolExp1 = {
+  _and?: InputMaybe<Array<Int8BoolExp1>>;
+  _eq?: InputMaybe<Scalars['Int8']['input']>;
+  _gt?: InputMaybe<Scalars['Int8']['input']>;
+  _gte?: InputMaybe<Scalars['Int8']['input']>;
+  _in?: InputMaybe<Array<Scalars['Int8']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Int8']['input']>;
+  _lte?: InputMaybe<Scalars['Int8']['input']>;
+  _not?: InputMaybe<Int8BoolExp1>;
+  _or?: InputMaybe<Array<Int8BoolExp1>>;
+};
+
+export type Int32AggExp = {
+  __typename?: 'Int32AggExp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['Float64']['output'];
+  max: Scalars['Int32']['output'];
+  min: Scalars['Int32']['output'];
+  sum: Scalars['Int64']['output'];
+};
+
+export type Int32AggExp1 = {
+  __typename?: 'Int32AggExp1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['Float64']['output'];
+  max: Scalars['Int32']['output'];
+  min: Scalars['Int32']['output'];
+  sum: Scalars['Int64']['output'];
+};
+
+export type Int32BoolExp = {
+  _and?: InputMaybe<Array<Int32BoolExp>>;
+  _eq?: InputMaybe<Scalars['Int32']['input']>;
+  _gt?: InputMaybe<Scalars['Int32']['input']>;
+  _gte?: InputMaybe<Scalars['Int32']['input']>;
+  _in?: InputMaybe<Array<Scalars['Int32']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Int32']['input']>;
+  _lte?: InputMaybe<Scalars['Int32']['input']>;
+  _not?: InputMaybe<Int32BoolExp>;
+  _or?: InputMaybe<Array<Int32BoolExp>>;
+};
+
+export type Int32BoolExp1 = {
+  _and?: InputMaybe<Array<Int32BoolExp1>>;
+  _eq?: InputMaybe<Scalars['Int32']['input']>;
+  _gt?: InputMaybe<Scalars['Int32']['input']>;
+  _gte?: InputMaybe<Scalars['Int32']['input']>;
+  _in?: InputMaybe<Array<Scalars['Int32']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Int32']['input']>;
+  _lte?: InputMaybe<Scalars['Int32']['input']>;
+  _not?: InputMaybe<Int32BoolExp1>;
+  _or?: InputMaybe<Array<Int32BoolExp1>>;
+};
+
+export type Int64AggExp = {
+  __typename?: 'Int64AggExp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['Float64']['output'];
+  max: Scalars['Int64']['output'];
+  min: Scalars['Int64']['output'];
+  sum: Scalars['Int64']['output'];
+};
+
+export type Int64AggExp1 = {
+  __typename?: 'Int64AggExp1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  avg: Scalars['Float64']['output'];
+  max: Scalars['Int64']['output'];
+  min: Scalars['Int64']['output'];
+  sum: Scalars['Int64']['output'];
+};
+
+export type Int64BoolExp = {
+  _and?: InputMaybe<Array<Int64BoolExp>>;
+  _eq?: InputMaybe<Scalars['Int64']['input']>;
+  _gt?: InputMaybe<Scalars['Int64']['input']>;
+  _gte?: InputMaybe<Scalars['Int64']['input']>;
+  _in?: InputMaybe<Array<Scalars['Int64']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Int64']['input']>;
+  _lte?: InputMaybe<Scalars['Int64']['input']>;
+  _not?: InputMaybe<Int64BoolExp>;
+  _or?: InputMaybe<Array<Int64BoolExp>>;
+};
+
+export type Int64BoolExp1 = {
+  _and?: InputMaybe<Array<Int64BoolExp1>>;
+  _eq?: InputMaybe<Scalars['Int64']['input']>;
+  _gt?: InputMaybe<Scalars['Int64']['input']>;
+  _gte?: InputMaybe<Scalars['Int64']['input']>;
+  _in?: InputMaybe<Array<Scalars['Int64']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Int64']['input']>;
+  _lte?: InputMaybe<Scalars['Int64']['input']>;
+  _not?: InputMaybe<Int64BoolExp1>;
+  _or?: InputMaybe<Array<Int64BoolExp1>>;
+};
+
+export type MemberNote = {
+  __typename?: 'MemberNote';
+  authorId: Scalars['Int64']['output'];
+  content: Scalars['String1']['output'];
+  creationTimestamp: Scalars['Timestamp']['output'];
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['Int64']['output'];
+  type: Scalars['Int32']['output'];
+  userId: Scalars['Int64']['output'];
+};
+
+export type MemberNoteAggExp = {
+  __typename?: 'MemberNoteAggExp';
+  _count: Scalars['Int']['output'];
+  authorId: Int64AggExp1;
+  content: StringAggExp1;
+  creationTimestamp: TimestampAggExp1;
+  guildId: Int64AggExp1;
+  id: Int64AggExp1;
+  type: Int32AggExp1;
+  userId: Int64AggExp1;
+};
+
+export type MemberNoteBoolExp = {
+  _and?: InputMaybe<Array<MemberNoteBoolExp>>;
+  _not?: InputMaybe<MemberNoteBoolExp>;
+  _or?: InputMaybe<Array<MemberNoteBoolExp>>;
+  authorId?: InputMaybe<Int64BoolExp1>;
+  content?: InputMaybe<StringBoolExp1>;
+  creationTimestamp?: InputMaybe<TimestampBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  id?: InputMaybe<Int64BoolExp1>;
+  type?: InputMaybe<Int32BoolExp1>;
+  userId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type MemberNoteFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<MemberNoteOrderByExp>>;
+  where?: InputMaybe<MemberNoteBoolExp>;
+};
+
+export type MemberNoteOrderByExp = {
+  authorId?: InputMaybe<OrderBy>;
+  content?: InputMaybe<OrderBy>;
+  creationTimestamp?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  type?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
 };
 
 export type Mutation = {
   __typename?: 'Mutation';
   _no_fields_accessible?: Maybe<Scalars['String']['output']>;
+};
+
+export type Mute = {
+  __typename?: 'Mute';
+  expiresAt?: Maybe<Scalars['Timestamp']['output']>;
+  guildId: Scalars['Int64']['output'];
+  userId: Scalars['Int64']['output'];
+};
+
+export type MuteAggExp = {
+  __typename?: 'MuteAggExp';
+  _count: Scalars['Int']['output'];
+  expiresAt: TimestampAggExp1;
+  guildId: Int64AggExp1;
+  userId: Int64AggExp1;
+};
+
+export type MuteBoolExp = {
+  _and?: InputMaybe<Array<MuteBoolExp>>;
+  _not?: InputMaybe<MuteBoolExp>;
+  _or?: InputMaybe<Array<MuteBoolExp>>;
+  expiresAt?: InputMaybe<TimestampBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  userId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type MuteFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<MuteOrderByExp>>;
+  where?: InputMaybe<MuteBoolExp>;
+};
+
+export type MuteOrderByExp = {
+  expiresAt?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
 };
 
 export enum OrderBy {
@@ -40,3088 +1713,2033 @@ export enum OrderBy {
 
 export type Query = {
   __typename?: 'Query';
-  alt_account?: Maybe<Array<Alt_Account>>;
-  alt_account_aggregate?: Maybe<Alt_Account_Agg_Exp>;
-  alt_account_by_alt_account_pk?: Maybe<Alt_Account>;
-  blocked_reporter?: Maybe<Array<Blocked_Reporter>>;
-  blocked_reporter_aggregate?: Maybe<Blocked_Reporter_Agg_Exp>;
-  blocked_reporter_by_blocked_reporter_pk?: Maybe<Blocked_Reporter>;
-  collaboration_alert?: Maybe<Array<Collaboration_Alert>>;
-  collaboration_alert_aggregate?: Maybe<Collaboration_Alert_Agg_Exp>;
-  collaboration_alert_by_id?: Maybe<Collaboration_Alert>;
-  collaboration_audit_log?: Maybe<Array<Collaboration_Audit_Log>>;
-  collaboration_audit_log_aggregate?: Maybe<Collaboration_Audit_Log_Agg_Exp>;
-  collaboration_audit_log_by_id?: Maybe<Collaboration_Audit_Log>;
-  collaboration_blocked_user?: Maybe<Array<Collaboration_Blocked_User>>;
-  collaboration_blocked_user_aggregate?: Maybe<Collaboration_Blocked_User_Agg_Exp>;
-  collaboration_blocked_user_by_id?: Maybe<Collaboration_Blocked_User>;
-  collaboration_bookmark?: Maybe<Array<Collaboration_Bookmark>>;
-  collaboration_bookmark_aggregate?: Maybe<Collaboration_Bookmark_Agg_Exp>;
-  collaboration_bookmark_by_id?: Maybe<Collaboration_Bookmark>;
-  collaboration_field_definition?: Maybe<Array<Collaboration_Field_Definition>>;
-  collaboration_field_definition_aggregate?: Maybe<Collaboration_Field_Definition_Agg_Exp>;
-  collaboration_field_definition_by_id?: Maybe<Collaboration_Field_Definition>;
-  collaboration_field_value?: Maybe<Array<Collaboration_Field_Value>>;
-  collaboration_field_value_aggregate?: Maybe<Collaboration_Field_Value_Agg_Exp>;
-  collaboration_field_value_by_id?: Maybe<Collaboration_Field_Value>;
-  collaboration_post?: Maybe<Array<Collaboration_Post>>;
-  collaboration_post_aggregate?: Maybe<Collaboration_Post_Agg_Exp>;
-  collaboration_post_by_id?: Maybe<Collaboration_Post>;
-  collaboration_profile?: Maybe<Array<Collaboration_Profile>>;
-  collaboration_profile_aggregate?: Maybe<Collaboration_Profile_Agg_Exp>;
-  collaboration_profile_by_id?: Maybe<Collaboration_Profile>;
-  collaboration_report?: Maybe<Array<Collaboration_Report>>;
-  collaboration_report_aggregate?: Maybe<Collaboration_Report_Agg_Exp>;
-  collaboration_report_by_id?: Maybe<Collaboration_Report>;
-  collaboration_response?: Maybe<Array<Collaboration_Response>>;
-  collaboration_response_aggregate?: Maybe<Collaboration_Response_Agg_Exp>;
-  collaboration_response_by_id?: Maybe<Collaboration_Response>;
-  collaboration_rule?: Maybe<Array<Collaboration_Rule>>;
-  collaboration_rule_aggregate?: Maybe<Collaboration_Rule_Agg_Exp>;
-  collaboration_rule_by_id?: Maybe<Collaboration_Rule>;
-  collaboration_status?: Maybe<Array<Collaboration_Status>>;
-  collaboration_status_aggregate?: Maybe<Collaboration_Status_Agg_Exp>;
-  collaboration_status_by_id?: Maybe<Collaboration_Status>;
-  collaboration_type?: Maybe<Array<Collaboration_Type>>;
-  collaboration_type_aggregate?: Maybe<Collaboration_Type_Agg_Exp>;
-  collaboration_type_by_id?: Maybe<Collaboration_Type>;
-  deleted_message?: Maybe<Array<Deleted_Message>>;
-  deleted_message_aggregate?: Maybe<Deleted_Message_Agg_Exp>;
-  deleted_message_by_message_id?: Maybe<Deleted_Message>;
-  hiring_status?: Maybe<Array<Hiring_Status>>;
-  hiring_status_aggregate?: Maybe<Hiring_Status_Agg_Exp>;
-  hiring_status_by_id?: Maybe<Hiring_Status>;
+  altAccount?: Maybe<Array<AltAccount>>;
+  altAccountAggregate?: Maybe<AltAccountAggExp>;
+  altAccountByAltAccountPk?: Maybe<AltAccount>;
+  blockedReporter?: Maybe<Array<BlockedReporter>>;
+  blockedReporterAggregate?: Maybe<BlockedReporterAggExp>;
+  blockedReporterByBlockedReporterPk?: Maybe<BlockedReporter>;
+  collaborationAlert?: Maybe<Array<CollaborationAlert>>;
+  collaborationAlertAggregate?: Maybe<CollaborationAlertAggExp>;
+  collaborationAlertById?: Maybe<CollaborationAlert>;
+  collaborationAuditLog?: Maybe<Array<CollaborationAuditLog>>;
+  collaborationAuditLogAggregate?: Maybe<CollaborationAuditLogAggExp>;
+  collaborationAuditLogById?: Maybe<CollaborationAuditLog>;
+  collaborationBlockedUser?: Maybe<Array<CollaborationBlockedUser>>;
+  collaborationBlockedUserAggregate?: Maybe<CollaborationBlockedUserAggExp>;
+  collaborationBlockedUserById?: Maybe<CollaborationBlockedUser>;
+  collaborationBookmark?: Maybe<Array<CollaborationBookmark>>;
+  collaborationBookmarkAggregate?: Maybe<CollaborationBookmarkAggExp>;
+  collaborationBookmarkById?: Maybe<CollaborationBookmark>;
+  collaborationFieldDefinition?: Maybe<Array<CollaborationFieldDefinition>>;
+  collaborationFieldDefinitionAggregate?: Maybe<CollaborationFieldDefinitionAggExp>;
+  collaborationFieldDefinitionById?: Maybe<CollaborationFieldDefinition>;
+  collaborationFieldValue?: Maybe<Array<CollaborationFieldValue>>;
+  collaborationFieldValueAggregate?: Maybe<CollaborationFieldValueAggExp>;
+  collaborationFieldValueById?: Maybe<CollaborationFieldValue>;
+  collaborationPost?: Maybe<Array<CollaborationPost>>;
+  collaborationPostAggregate?: Maybe<CollaborationPostAggExp>;
+  collaborationPostById?: Maybe<CollaborationPost>;
+  collaborationProfile?: Maybe<Array<CollaborationProfile>>;
+  collaborationProfileAggregate?: Maybe<CollaborationProfileAggExp>;
+  collaborationProfileById?: Maybe<CollaborationProfile>;
+  collaborationReport?: Maybe<Array<CollaborationReport>>;
+  collaborationReportAggregate?: Maybe<CollaborationReportAggExp>;
+  collaborationReportById?: Maybe<CollaborationReport>;
+  collaborationResponse?: Maybe<Array<CollaborationResponse>>;
+  collaborationResponseAggregate?: Maybe<CollaborationResponseAggExp>;
+  collaborationResponseById?: Maybe<CollaborationResponse>;
+  collaborationRule?: Maybe<Array<CollaborationRule>>;
+  collaborationRuleAggregate?: Maybe<CollaborationRuleAggExp>;
+  collaborationRuleById?: Maybe<CollaborationRule>;
+  collaborationStatus?: Maybe<Array<CollaborationStatus>>;
+  collaborationStatusAggregate?: Maybe<CollaborationStatusAggExp>;
+  collaborationStatusById?: Maybe<CollaborationStatus>;
+  collaborationType?: Maybe<Array<CollaborationType>>;
+  collaborationTypeAggregate?: Maybe<CollaborationTypeAggExp>;
+  collaborationTypeById?: Maybe<CollaborationType>;
+  deletedMessage?: Maybe<Array<DeletedMessage>>;
+  deletedMessageAggregate?: Maybe<DeletedMessageAggExp>;
+  deletedMessageByMessageId?: Maybe<DeletedMessage>;
+  hiringStatus?: Maybe<Array<HiringStatus>>;
+  hiringStatusAggregate?: Maybe<HiringStatusAggExp>;
+  hiringStatusById?: Maybe<HiringStatus>;
   infraction?: Maybe<Array<Infraction>>;
-  infraction_aggregate?: Maybe<Infraction_Agg_Exp>;
-  infraction_by_id?: Maybe<Infraction>;
-  member_note?: Maybe<Array<Member_Note>>;
-  member_note_aggregate?: Maybe<Member_Note_Agg_Exp>;
-  member_note_by_id?: Maybe<Member_Note>;
+  infractionAggregate?: Maybe<InfractionAggExp>;
+  infractionById?: Maybe<Infraction>;
+  memberNote?: Maybe<Array<MemberNote>>;
+  memberNoteAggregate?: Maybe<MemberNoteAggExp>;
+  memberNoteById?: Maybe<MemberNote>;
   mute?: Maybe<Array<Mute>>;
-  mute_aggregate?: Maybe<Mute_Agg_Exp>;
-  mute_by_mute_pk?: Maybe<Mute>;
-  reported_message?: Maybe<Array<Reported_Message>>;
-  reported_message_aggregate?: Maybe<Reported_Message_Agg_Exp>;
-  reported_message_by_id?: Maybe<Reported_Message>;
+  muteAggregate?: Maybe<MuteAggExp>;
+  muteByMutePk?: Maybe<Mute>;
+  reportedMessage?: Maybe<Array<ReportedMessage>>;
+  reportedMessageAggregate?: Maybe<ReportedMessageAggExp>;
+  reportedMessageById?: Maybe<ReportedMessage>;
   rule?: Maybe<Array<Rule>>;
-  rule_aggregate?: Maybe<Rule_Agg_Exp>;
-  rule_by_rule_pk?: Maybe<Rule>;
-  staff_message?: Maybe<Array<Staff_Message>>;
-  staff_message_aggregate?: Maybe<Staff_Message_Agg_Exp>;
-  staff_message_by_id?: Maybe<Staff_Message>;
-  temporary_ban?: Maybe<Array<Temporary_Ban>>;
-  temporary_ban_aggregate?: Maybe<Temporary_Ban_Agg_Exp>;
-  temporary_ban_by_temporary_ban_pk?: Maybe<Temporary_Ban>;
-  tracked_messages?: Maybe<Array<Tracked_Messages>>;
-  tracked_messages_aggregate?: Maybe<Tracked_Messages_Agg_Exp>;
-  tracked_messages_by_id?: Maybe<Tracked_Messages>;
+  ruleAggregate?: Maybe<RuleAggExp>;
+  ruleByRulePk?: Maybe<Rule>;
+  staffMessage?: Maybe<Array<StaffMessage>>;
+  staffMessageAggregate?: Maybe<StaffMessageAggExp>;
+  staffMessageById?: Maybe<StaffMessage>;
+  temporaryBan?: Maybe<Array<TemporaryBan>>;
+  temporaryBanAggregate?: Maybe<TemporaryBanAggExp>;
+  temporaryBanByTemporaryBanPk?: Maybe<TemporaryBan>;
+  trackedMessages?: Maybe<Array<TrackedMessages>>;
+  trackedMessagesAggregate?: Maybe<TrackedMessagesAggExp>;
+  trackedMessagesById?: Maybe<TrackedMessages>;
 };
 
-export type QueryAlt_AccountArgs = {
+export type QueryAltAccountArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Alt_Account_Order_By_Exp>>;
-  where?: InputMaybe<Alt_Account_Bool_Exp>;
+  order_by?: InputMaybe<Array<AltAccountOrderByExp>>;
+  where?: InputMaybe<AltAccountBoolExp>;
 };
 
-export type QueryAlt_Account_AggregateArgs = {
-  filter_input?: InputMaybe<Alt_Account_Filter_Input>;
+export type QueryAltAccountAggregateArgs = {
+  filter_input?: InputMaybe<AltAccountFilterInput>;
 };
 
-export type QueryAlt_Account_By_Alt_Account_PkArgs = {
-  alt_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type QueryAltAccountByAltAccountPkArgs = {
+  altId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type QueryBlocked_ReporterArgs = {
+export type QueryBlockedReporterArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Blocked_Reporter_Order_By_Exp>>;
-  where?: InputMaybe<Blocked_Reporter_Bool_Exp>;
+  order_by?: InputMaybe<Array<BlockedReporterOrderByExp>>;
+  where?: InputMaybe<BlockedReporterBoolExp>;
 };
 
-export type QueryBlocked_Reporter_AggregateArgs = {
-  filter_input?: InputMaybe<Blocked_Reporter_Filter_Input>;
+export type QueryBlockedReporterAggregateArgs = {
+  filter_input?: InputMaybe<BlockedReporterFilterInput>;
 };
 
-export type QueryBlocked_Reporter_By_Blocked_Reporter_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type QueryBlockedReporterByBlockedReporterPkArgs = {
+  guildId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type QueryCollaboration_AlertArgs = {
+export type QueryCollaborationAlertArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationAlertOrderByExp>>;
+  where?: InputMaybe<CollaborationAlertBoolExp>;
 };
 
-export type QueryCollaboration_Alert_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+export type QueryCollaborationAlertAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAlertFilterInput>;
 };
 
-export type QueryCollaboration_Alert_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationAlertByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_Audit_LogArgs = {
+export type QueryCollaborationAuditLogArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationAuditLogOrderByExp>>;
+  where?: InputMaybe<CollaborationAuditLogBoolExp>;
 };
 
-export type QueryCollaboration_Audit_Log_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
+export type QueryCollaborationAuditLogAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAuditLogFilterInput>;
 };
 
-export type QueryCollaboration_Audit_Log_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationAuditLogByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_Blocked_UserArgs = {
+export type QueryCollaborationBlockedUserArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationBlockedUserOrderByExp>>;
+  where?: InputMaybe<CollaborationBlockedUserBoolExp>;
 };
 
-export type QueryCollaboration_Blocked_User_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
+export type QueryCollaborationBlockedUserAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBlockedUserFilterInput>;
 };
 
-export type QueryCollaboration_Blocked_User_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationBlockedUserByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_BookmarkArgs = {
+export type QueryCollaborationBookmarkArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationBookmarkOrderByExp>>;
+  where?: InputMaybe<CollaborationBookmarkBoolExp>;
 };
 
-export type QueryCollaboration_Bookmark_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
+export type QueryCollaborationBookmarkAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBookmarkFilterInput>;
 };
 
-export type QueryCollaboration_Bookmark_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationBookmarkByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_Field_DefinitionArgs = {
+export type QueryCollaborationFieldDefinitionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationFieldDefinitionOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
 };
 
-export type QueryCollaboration_Field_Definition_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
+export type QueryCollaborationFieldDefinitionAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldDefinitionFilterInput>;
 };
 
-export type QueryCollaboration_Field_Definition_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationFieldDefinitionByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_Field_ValueArgs = {
+export type QueryCollaborationFieldValueArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationFieldValueOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldValueBoolExp>;
 };
 
-export type QueryCollaboration_Field_Value_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
+export type QueryCollaborationFieldValueAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldValueFilterInput>;
 };
 
-export type QueryCollaboration_Field_Value_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationFieldValueByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_PostArgs = {
+export type QueryCollaborationPostArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
 };
 
-export type QueryCollaboration_Post_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+export type QueryCollaborationPostAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationPostFilterInput>;
 };
 
-export type QueryCollaboration_Post_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationPostByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_ProfileArgs = {
+export type QueryCollaborationProfileArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Profile_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationProfileOrderByExp>>;
+  where?: InputMaybe<CollaborationProfileBoolExp>;
 };
 
-export type QueryCollaboration_Profile_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Profile_Filter_Input>;
+export type QueryCollaborationProfileAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationProfileFilterInput>;
 };
 
-export type QueryCollaboration_Profile_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationProfileByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_ReportArgs = {
+export type QueryCollaborationReportArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
 };
 
-export type QueryCollaboration_Report_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+export type QueryCollaborationReportAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
 };
 
-export type QueryCollaboration_Report_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationReportByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_ResponseArgs = {
+export type QueryCollaborationResponseArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationResponseOrderByExp>>;
+  where?: InputMaybe<CollaborationResponseBoolExp>;
 };
 
-export type QueryCollaboration_Response_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
+export type QueryCollaborationResponseAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationResponseFilterInput>;
 };
 
-export type QueryCollaboration_Response_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationResponseByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_RuleArgs = {
+export type QueryCollaborationRuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Rule_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationRuleOrderByExp>>;
+  where?: InputMaybe<CollaborationRuleBoolExp>;
 };
 
-export type QueryCollaboration_Rule_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Rule_Filter_Input>;
+export type QueryCollaborationRuleAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationRuleFilterInput>;
 };
 
-export type QueryCollaboration_Rule_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type QueryCollaborationRuleByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type QueryCollaboration_StatusArgs = {
+export type QueryCollaborationStatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Status_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Status_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationStatusOrderByExp>>;
+  where?: InputMaybe<CollaborationStatusBoolExp>;
 };
 
-export type QueryCollaboration_Status_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Status_Filter_Input>;
+export type QueryCollaborationStatusAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationStatusFilterInput>;
 };
 
-export type QueryCollaboration_Status_By_IdArgs = {
-  id: Scalars['int32']['input'];
+export type QueryCollaborationStatusByIdArgs = {
+  id: Scalars['Int32']['input'];
 };
 
-export type QueryCollaboration_TypeArgs = {
+export type QueryCollaborationTypeArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Type_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Type_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationTypeOrderByExp>>;
+  where?: InputMaybe<CollaborationTypeBoolExp>;
 };
 
-export type QueryCollaboration_Type_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Type_Filter_Input>;
+export type QueryCollaborationTypeAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationTypeFilterInput>;
 };
 
-export type QueryCollaboration_Type_By_IdArgs = {
-  id: Scalars['int32']['input'];
+export type QueryCollaborationTypeByIdArgs = {
+  id: Scalars['Int32']['input'];
 };
 
-export type QueryDeleted_MessageArgs = {
+export type QueryDeletedMessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Deleted_Message_Order_By_Exp>>;
-  where?: InputMaybe<Deleted_Message_Bool_Exp>;
+  order_by?: InputMaybe<Array<DeletedMessageOrderByExp>>;
+  where?: InputMaybe<DeletedMessageBoolExp>;
 };
 
-export type QueryDeleted_Message_AggregateArgs = {
-  filter_input?: InputMaybe<Deleted_Message_Filter_Input>;
+export type QueryDeletedMessageAggregateArgs = {
+  filter_input?: InputMaybe<DeletedMessageFilterInput>;
 };
 
-export type QueryDeleted_Message_By_Message_IdArgs = {
-  message_id: Scalars['int64']['input'];
+export type QueryDeletedMessageByMessageIdArgs = {
+  messageId: Scalars['Int64']['input'];
 };
 
-export type QueryHiring_StatusArgs = {
+export type QueryHiringStatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Hiring_Status_Order_By_Exp>>;
-  where?: InputMaybe<Hiring_Status_Bool_Exp>;
+  order_by?: InputMaybe<Array<HiringStatusOrderByExp>>;
+  where?: InputMaybe<HiringStatusBoolExp>;
 };
 
-export type QueryHiring_Status_AggregateArgs = {
-  filter_input?: InputMaybe<Hiring_Status_Filter_Input>;
+export type QueryHiringStatusAggregateArgs = {
+  filter_input?: InputMaybe<HiringStatusFilterInput>;
 };
 
-export type QueryHiring_Status_By_IdArgs = {
-  id: Scalars['int32']['input'];
+export type QueryHiringStatusByIdArgs = {
+  id: Scalars['Int32']['input'];
 };
 
 export type QueryInfractionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
+  order_by?: InputMaybe<Array<InfractionOrderByExp>>;
+  where?: InputMaybe<InfractionBoolExp>;
 };
 
-export type QueryInfraction_AggregateArgs = {
-  filter_input?: InputMaybe<Infraction_Filter_Input>;
+export type QueryInfractionAggregateArgs = {
+  filter_input?: InputMaybe<InfractionFilterInput>;
 };
 
-export type QueryInfraction_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type QueryInfractionByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
-export type QueryMember_NoteArgs = {
+export type QueryMemberNoteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
+  order_by?: InputMaybe<Array<MemberNoteOrderByExp>>;
+  where?: InputMaybe<MemberNoteBoolExp>;
 };
 
-export type QueryMember_Note_AggregateArgs = {
-  filter_input?: InputMaybe<Member_Note_Filter_Input>;
+export type QueryMemberNoteAggregateArgs = {
+  filter_input?: InputMaybe<MemberNoteFilterInput>;
 };
 
-export type QueryMember_Note_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type QueryMemberNoteByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
 export type QueryMuteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Mute_Order_By_Exp>>;
-  where?: InputMaybe<Mute_Bool_Exp>;
+  order_by?: InputMaybe<Array<MuteOrderByExp>>;
+  where?: InputMaybe<MuteBoolExp>;
 };
 
-export type QueryMute_AggregateArgs = {
-  filter_input?: InputMaybe<Mute_Filter_Input>;
+export type QueryMuteAggregateArgs = {
+  filter_input?: InputMaybe<MuteFilterInput>;
 };
 
-export type QueryMute_By_Mute_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type QueryMuteByMutePkArgs = {
+  guildId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type QueryReported_MessageArgs = {
+export type QueryReportedMessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Reported_Message_Order_By_Exp>>;
-  where?: InputMaybe<Reported_Message_Bool_Exp>;
+  order_by?: InputMaybe<Array<ReportedMessageOrderByExp>>;
+  where?: InputMaybe<ReportedMessageBoolExp>;
 };
 
-export type QueryReported_Message_AggregateArgs = {
-  filter_input?: InputMaybe<Reported_Message_Filter_Input>;
+export type QueryReportedMessageAggregateArgs = {
+  filter_input?: InputMaybe<ReportedMessageFilterInput>;
 };
 
-export type QueryReported_Message_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type QueryReportedMessageByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
 export type QueryRuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Rule_Order_By_Exp>>;
-  where?: InputMaybe<Rule_Bool_Exp>;
+  order_by?: InputMaybe<Array<RuleOrderByExp>>;
+  where?: InputMaybe<RuleBoolExp>;
 };
 
-export type QueryRule_AggregateArgs = {
-  filter_input?: InputMaybe<Rule_Filter_Input>;
+export type QueryRuleAggregateArgs = {
+  filter_input?: InputMaybe<RuleFilterInput>;
 };
 
-export type QueryRule_By_Rule_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  id: Scalars['int32']['input'];
+export type QueryRuleByRulePkArgs = {
+  guildId: Scalars['Int64']['input'];
+  id: Scalars['Int32']['input'];
 };
 
-export type QueryStaff_MessageArgs = {
+export type QueryStaffMessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Staff_Message_Order_By_Exp>>;
-  where?: InputMaybe<Staff_Message_Bool_Exp>;
+  order_by?: InputMaybe<Array<StaffMessageOrderByExp>>;
+  where?: InputMaybe<StaffMessageBoolExp>;
 };
 
-export type QueryStaff_Message_AggregateArgs = {
-  filter_input?: InputMaybe<Staff_Message_Filter_Input>;
+export type QueryStaffMessageAggregateArgs = {
+  filter_input?: InputMaybe<StaffMessageFilterInput>;
 };
 
-export type QueryStaff_Message_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type QueryStaffMessageByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
-export type QueryTemporary_BanArgs = {
+export type QueryTemporaryBanArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Temporary_Ban_Order_By_Exp>>;
-  where?: InputMaybe<Temporary_Ban_Bool_Exp>;
+  order_by?: InputMaybe<Array<TemporaryBanOrderByExp>>;
+  where?: InputMaybe<TemporaryBanBoolExp>;
 };
 
-export type QueryTemporary_Ban_AggregateArgs = {
-  filter_input?: InputMaybe<Temporary_Ban_Filter_Input>;
+export type QueryTemporaryBanAggregateArgs = {
+  filter_input?: InputMaybe<TemporaryBanFilterInput>;
 };
 
-export type QueryTemporary_Ban_By_Temporary_Ban_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type QueryTemporaryBanByTemporaryBanPkArgs = {
+  guildId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type QueryTracked_MessagesArgs = {
+export type QueryTrackedMessagesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Tracked_Messages_Order_By_Exp>>;
-  where?: InputMaybe<Tracked_Messages_Bool_Exp>;
+  order_by?: InputMaybe<Array<TrackedMessagesOrderByExp>>;
+  where?: InputMaybe<TrackedMessagesBoolExp>;
 };
 
-export type QueryTracked_Messages_AggregateArgs = {
-  filter_input?: InputMaybe<Tracked_Messages_Filter_Input>;
+export type QueryTrackedMessagesAggregateArgs = {
+  filter_input?: InputMaybe<TrackedMessagesFilterInput>;
 };
 
-export type QueryTracked_Messages_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type QueryTrackedMessagesByIdArgs = {
+  id: Scalars['Int64']['input'];
+};
+
+export type ReportedMessage = {
+  __typename?: 'ReportedMessage';
+  attachments: Scalars['Bytes']['output'];
+  authorId: Scalars['Int64']['output'];
+  channelId: Scalars['Int64']['output'];
+  content?: Maybe<Scalars['String1']['output']>;
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['Int64']['output'];
+  messageId: Scalars['Int64']['output'];
+  reporterId: Scalars['Int64']['output'];
+};
+
+export type ReportedMessageAggExp = {
+  __typename?: 'ReportedMessageAggExp';
+  _count: Scalars['Int']['output'];
+  attachments: BytesAggExp;
+  authorId: Int64AggExp1;
+  channelId: Int64AggExp1;
+  content: StringAggExp1;
+  guildId: Int64AggExp1;
+  id: Int64AggExp1;
+  messageId: Int64AggExp1;
+  reporterId: Int64AggExp1;
+};
+
+export type ReportedMessageBoolExp = {
+  _and?: InputMaybe<Array<ReportedMessageBoolExp>>;
+  _not?: InputMaybe<ReportedMessageBoolExp>;
+  _or?: InputMaybe<Array<ReportedMessageBoolExp>>;
+  attachments?: InputMaybe<BytesBoolExp>;
+  authorId?: InputMaybe<Int64BoolExp1>;
+  channelId?: InputMaybe<Int64BoolExp1>;
+  content?: InputMaybe<StringBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  id?: InputMaybe<Int64BoolExp1>;
+  messageId?: InputMaybe<Int64BoolExp1>;
+  reporterId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type ReportedMessageFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<ReportedMessageOrderByExp>>;
+  where?: InputMaybe<ReportedMessageBoolExp>;
+};
+
+export type ReportedMessageOrderByExp = {
+  attachments?: InputMaybe<OrderBy>;
+  authorId?: InputMaybe<OrderBy>;
+  channelId?: InputMaybe<OrderBy>;
+  content?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  messageId?: InputMaybe<OrderBy>;
+  reporterId?: InputMaybe<OrderBy>;
+};
+
+export type Rule = {
+  __typename?: 'Rule';
+  brief?: Maybe<Scalars['String1']['output']>;
+  description: Scalars['String1']['output'];
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['Int32']['output'];
+};
+
+export type RuleAggExp = {
+  __typename?: 'RuleAggExp';
+  _count: Scalars['Int']['output'];
+  brief: StringAggExp1;
+  description: StringAggExp1;
+  guildId: Int64AggExp1;
+  id: Int32AggExp1;
+};
+
+export type RuleBoolExp = {
+  _and?: InputMaybe<Array<RuleBoolExp>>;
+  _not?: InputMaybe<RuleBoolExp>;
+  _or?: InputMaybe<Array<RuleBoolExp>>;
+  brief?: InputMaybe<StringBoolExp1>;
+  description?: InputMaybe<StringBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  id?: InputMaybe<Int32BoolExp1>;
+};
+
+export type RuleFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<RuleOrderByExp>>;
+  where?: InputMaybe<RuleBoolExp>;
+};
+
+export type RuleOrderByExp = {
+  brief?: InputMaybe<OrderBy>;
+  description?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+};
+
+export type StaffMessage = {
+  __typename?: 'StaffMessage';
+  content: Scalars['String1']['output'];
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['Int64']['output'];
+  recipientId: Scalars['Int64']['output'];
+  sentAt: Scalars['Timestamp']['output'];
+  staffMemberId: Scalars['Int64']['output'];
+};
+
+export type StaffMessageAggExp = {
+  __typename?: 'StaffMessageAggExp';
+  _count: Scalars['Int']['output'];
+  content: StringAggExp1;
+  guildId: Int64AggExp1;
+  id: Int64AggExp1;
+  recipientId: Int64AggExp1;
+  sentAt: TimestampAggExp1;
+  staffMemberId: Int64AggExp1;
+};
+
+export type StaffMessageBoolExp = {
+  _and?: InputMaybe<Array<StaffMessageBoolExp>>;
+  _not?: InputMaybe<StaffMessageBoolExp>;
+  _or?: InputMaybe<Array<StaffMessageBoolExp>>;
+  content?: InputMaybe<StringBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  id?: InputMaybe<Int64BoolExp1>;
+  recipientId?: InputMaybe<Int64BoolExp1>;
+  sentAt?: InputMaybe<TimestampBoolExp1>;
+  staffMemberId?: InputMaybe<Int64BoolExp1>;
+};
+
+export type StaffMessageFilterInput = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order_by?: InputMaybe<Array<StaffMessageOrderByExp>>;
+  where?: InputMaybe<StaffMessageBoolExp>;
+};
+
+export type StaffMessageOrderByExp = {
+  content?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  id?: InputMaybe<OrderBy>;
+  recipientId?: InputMaybe<OrderBy>;
+  sentAt?: InputMaybe<OrderBy>;
+  staffMemberId?: InputMaybe<OrderBy>;
+};
+
+export type StringAggExp = {
+  __typename?: 'StringAggExp';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  max: Scalars['String1']['output'];
+  min: Scalars['String1']['output'];
+};
+
+export type StringAggExp1 = {
+  __typename?: 'StringAggExp1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+  max: Scalars['String1']['output'];
+  min: Scalars['String1']['output'];
+};
+
+export type StringBoolExp = {
+  _and?: InputMaybe<Array<StringBoolExp>>;
+  _contains?: InputMaybe<Scalars['String1']['input']>;
+  _eq?: InputMaybe<Scalars['String1']['input']>;
+  _in?: InputMaybe<Array<Scalars['String1']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _like?: InputMaybe<Scalars['String1']['input']>;
+  _not?: InputMaybe<StringBoolExp>;
+  _or?: InputMaybe<Array<StringBoolExp>>;
+};
+
+export type StringBoolExp1 = {
+  _and?: InputMaybe<Array<StringBoolExp1>>;
+  _contains?: InputMaybe<Scalars['String1']['input']>;
+  _eq?: InputMaybe<Scalars['String1']['input']>;
+  _in?: InputMaybe<Array<Scalars['String1']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _like?: InputMaybe<Scalars['String1']['input']>;
+  _not?: InputMaybe<StringBoolExp1>;
+  _or?: InputMaybe<Array<StringBoolExp1>>;
 };
 
 export type Subscription = {
   __typename?: 'Subscription';
-  alt_account?: Maybe<Array<Alt_Account>>;
-  alt_account_aggregate?: Maybe<Alt_Account_Agg_Exp>;
-  alt_account_by_alt_account_pk?: Maybe<Alt_Account>;
-  blocked_reporter?: Maybe<Array<Blocked_Reporter>>;
-  blocked_reporter_aggregate?: Maybe<Blocked_Reporter_Agg_Exp>;
-  blocked_reporter_by_blocked_reporter_pk?: Maybe<Blocked_Reporter>;
-  collaboration_alert?: Maybe<Array<Collaboration_Alert>>;
-  collaboration_alert_aggregate?: Maybe<Collaboration_Alert_Agg_Exp>;
-  collaboration_alert_by_id?: Maybe<Collaboration_Alert>;
-  collaboration_audit_log?: Maybe<Array<Collaboration_Audit_Log>>;
-  collaboration_audit_log_aggregate?: Maybe<Collaboration_Audit_Log_Agg_Exp>;
-  collaboration_audit_log_by_id?: Maybe<Collaboration_Audit_Log>;
-  collaboration_blocked_user?: Maybe<Array<Collaboration_Blocked_User>>;
-  collaboration_blocked_user_aggregate?: Maybe<Collaboration_Blocked_User_Agg_Exp>;
-  collaboration_blocked_user_by_id?: Maybe<Collaboration_Blocked_User>;
-  collaboration_bookmark?: Maybe<Array<Collaboration_Bookmark>>;
-  collaboration_bookmark_aggregate?: Maybe<Collaboration_Bookmark_Agg_Exp>;
-  collaboration_bookmark_by_id?: Maybe<Collaboration_Bookmark>;
-  collaboration_field_definition?: Maybe<Array<Collaboration_Field_Definition>>;
-  collaboration_field_definition_aggregate?: Maybe<Collaboration_Field_Definition_Agg_Exp>;
-  collaboration_field_definition_by_id?: Maybe<Collaboration_Field_Definition>;
-  collaboration_field_value?: Maybe<Array<Collaboration_Field_Value>>;
-  collaboration_field_value_aggregate?: Maybe<Collaboration_Field_Value_Agg_Exp>;
-  collaboration_field_value_by_id?: Maybe<Collaboration_Field_Value>;
-  collaboration_post?: Maybe<Array<Collaboration_Post>>;
-  collaboration_post_aggregate?: Maybe<Collaboration_Post_Agg_Exp>;
-  collaboration_post_by_id?: Maybe<Collaboration_Post>;
-  collaboration_profile?: Maybe<Array<Collaboration_Profile>>;
-  collaboration_profile_aggregate?: Maybe<Collaboration_Profile_Agg_Exp>;
-  collaboration_profile_by_id?: Maybe<Collaboration_Profile>;
-  collaboration_report?: Maybe<Array<Collaboration_Report>>;
-  collaboration_report_aggregate?: Maybe<Collaboration_Report_Agg_Exp>;
-  collaboration_report_by_id?: Maybe<Collaboration_Report>;
-  collaboration_response?: Maybe<Array<Collaboration_Response>>;
-  collaboration_response_aggregate?: Maybe<Collaboration_Response_Agg_Exp>;
-  collaboration_response_by_id?: Maybe<Collaboration_Response>;
-  collaboration_rule?: Maybe<Array<Collaboration_Rule>>;
-  collaboration_rule_aggregate?: Maybe<Collaboration_Rule_Agg_Exp>;
-  collaboration_rule_by_id?: Maybe<Collaboration_Rule>;
-  collaboration_status?: Maybe<Array<Collaboration_Status>>;
-  collaboration_status_aggregate?: Maybe<Collaboration_Status_Agg_Exp>;
-  collaboration_status_by_id?: Maybe<Collaboration_Status>;
-  collaboration_type?: Maybe<Array<Collaboration_Type>>;
-  collaboration_type_aggregate?: Maybe<Collaboration_Type_Agg_Exp>;
-  collaboration_type_by_id?: Maybe<Collaboration_Type>;
-  deleted_message?: Maybe<Array<Deleted_Message>>;
-  deleted_message_aggregate?: Maybe<Deleted_Message_Agg_Exp>;
-  deleted_message_by_message_id?: Maybe<Deleted_Message>;
-  hiring_status?: Maybe<Array<Hiring_Status>>;
-  hiring_status_aggregate?: Maybe<Hiring_Status_Agg_Exp>;
-  hiring_status_by_id?: Maybe<Hiring_Status>;
+  altAccount?: Maybe<Array<AltAccount>>;
+  altAccountAggregate?: Maybe<AltAccountAggExp>;
+  altAccountByAltAccountPk?: Maybe<AltAccount>;
+  blockedReporter?: Maybe<Array<BlockedReporter>>;
+  blockedReporterAggregate?: Maybe<BlockedReporterAggExp>;
+  blockedReporterByBlockedReporterPk?: Maybe<BlockedReporter>;
+  collaborationAlert?: Maybe<Array<CollaborationAlert>>;
+  collaborationAlertAggregate?: Maybe<CollaborationAlertAggExp>;
+  collaborationAlertById?: Maybe<CollaborationAlert>;
+  collaborationAuditLog?: Maybe<Array<CollaborationAuditLog>>;
+  collaborationAuditLogAggregate?: Maybe<CollaborationAuditLogAggExp>;
+  collaborationAuditLogById?: Maybe<CollaborationAuditLog>;
+  collaborationBlockedUser?: Maybe<Array<CollaborationBlockedUser>>;
+  collaborationBlockedUserAggregate?: Maybe<CollaborationBlockedUserAggExp>;
+  collaborationBlockedUserById?: Maybe<CollaborationBlockedUser>;
+  collaborationBookmark?: Maybe<Array<CollaborationBookmark>>;
+  collaborationBookmarkAggregate?: Maybe<CollaborationBookmarkAggExp>;
+  collaborationBookmarkById?: Maybe<CollaborationBookmark>;
+  collaborationFieldDefinition?: Maybe<Array<CollaborationFieldDefinition>>;
+  collaborationFieldDefinitionAggregate?: Maybe<CollaborationFieldDefinitionAggExp>;
+  collaborationFieldDefinitionById?: Maybe<CollaborationFieldDefinition>;
+  collaborationFieldValue?: Maybe<Array<CollaborationFieldValue>>;
+  collaborationFieldValueAggregate?: Maybe<CollaborationFieldValueAggExp>;
+  collaborationFieldValueById?: Maybe<CollaborationFieldValue>;
+  collaborationPost?: Maybe<Array<CollaborationPost>>;
+  collaborationPostAggregate?: Maybe<CollaborationPostAggExp>;
+  collaborationPostById?: Maybe<CollaborationPost>;
+  collaborationProfile?: Maybe<Array<CollaborationProfile>>;
+  collaborationProfileAggregate?: Maybe<CollaborationProfileAggExp>;
+  collaborationProfileById?: Maybe<CollaborationProfile>;
+  collaborationReport?: Maybe<Array<CollaborationReport>>;
+  collaborationReportAggregate?: Maybe<CollaborationReportAggExp>;
+  collaborationReportById?: Maybe<CollaborationReport>;
+  collaborationResponse?: Maybe<Array<CollaborationResponse>>;
+  collaborationResponseAggregate?: Maybe<CollaborationResponseAggExp>;
+  collaborationResponseById?: Maybe<CollaborationResponse>;
+  collaborationRule?: Maybe<Array<CollaborationRule>>;
+  collaborationRuleAggregate?: Maybe<CollaborationRuleAggExp>;
+  collaborationRuleById?: Maybe<CollaborationRule>;
+  collaborationStatus?: Maybe<Array<CollaborationStatus>>;
+  collaborationStatusAggregate?: Maybe<CollaborationStatusAggExp>;
+  collaborationStatusById?: Maybe<CollaborationStatus>;
+  collaborationType?: Maybe<Array<CollaborationType>>;
+  collaborationTypeAggregate?: Maybe<CollaborationTypeAggExp>;
+  collaborationTypeById?: Maybe<CollaborationType>;
+  deletedMessage?: Maybe<Array<DeletedMessage>>;
+  deletedMessageAggregate?: Maybe<DeletedMessageAggExp>;
+  deletedMessageByMessageId?: Maybe<DeletedMessage>;
+  hiringStatus?: Maybe<Array<HiringStatus>>;
+  hiringStatusAggregate?: Maybe<HiringStatusAggExp>;
+  hiringStatusById?: Maybe<HiringStatus>;
   infraction?: Maybe<Array<Infraction>>;
-  infraction_aggregate?: Maybe<Infraction_Agg_Exp>;
-  infraction_by_id?: Maybe<Infraction>;
-  member_note?: Maybe<Array<Member_Note>>;
-  member_note_aggregate?: Maybe<Member_Note_Agg_Exp>;
-  member_note_by_id?: Maybe<Member_Note>;
+  infractionAggregate?: Maybe<InfractionAggExp>;
+  infractionById?: Maybe<Infraction>;
+  memberNote?: Maybe<Array<MemberNote>>;
+  memberNoteAggregate?: Maybe<MemberNoteAggExp>;
+  memberNoteById?: Maybe<MemberNote>;
   mute?: Maybe<Array<Mute>>;
-  mute_aggregate?: Maybe<Mute_Agg_Exp>;
-  mute_by_mute_pk?: Maybe<Mute>;
-  reported_message?: Maybe<Array<Reported_Message>>;
-  reported_message_aggregate?: Maybe<Reported_Message_Agg_Exp>;
-  reported_message_by_id?: Maybe<Reported_Message>;
+  muteAggregate?: Maybe<MuteAggExp>;
+  muteByMutePk?: Maybe<Mute>;
+  reportedMessage?: Maybe<Array<ReportedMessage>>;
+  reportedMessageAggregate?: Maybe<ReportedMessageAggExp>;
+  reportedMessageById?: Maybe<ReportedMessage>;
   rule?: Maybe<Array<Rule>>;
-  rule_aggregate?: Maybe<Rule_Agg_Exp>;
-  rule_by_rule_pk?: Maybe<Rule>;
-  staff_message?: Maybe<Array<Staff_Message>>;
-  staff_message_aggregate?: Maybe<Staff_Message_Agg_Exp>;
-  staff_message_by_id?: Maybe<Staff_Message>;
-  temporary_ban?: Maybe<Array<Temporary_Ban>>;
-  temporary_ban_aggregate?: Maybe<Temporary_Ban_Agg_Exp>;
-  temporary_ban_by_temporary_ban_pk?: Maybe<Temporary_Ban>;
-  tracked_messages?: Maybe<Array<Tracked_Messages>>;
-  tracked_messages_aggregate?: Maybe<Tracked_Messages_Agg_Exp>;
-  tracked_messages_by_id?: Maybe<Tracked_Messages>;
+  ruleAggregate?: Maybe<RuleAggExp>;
+  ruleByRulePk?: Maybe<Rule>;
+  staffMessage?: Maybe<Array<StaffMessage>>;
+  staffMessageAggregate?: Maybe<StaffMessageAggExp>;
+  staffMessageById?: Maybe<StaffMessage>;
+  temporaryBan?: Maybe<Array<TemporaryBan>>;
+  temporaryBanAggregate?: Maybe<TemporaryBanAggExp>;
+  temporaryBanByTemporaryBanPk?: Maybe<TemporaryBan>;
+  trackedMessages?: Maybe<Array<TrackedMessages>>;
+  trackedMessagesAggregate?: Maybe<TrackedMessagesAggExp>;
+  trackedMessagesById?: Maybe<TrackedMessages>;
 };
 
-export type SubscriptionAlt_AccountArgs = {
+export type SubscriptionAltAccountArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Alt_Account_Order_By_Exp>>;
-  where?: InputMaybe<Alt_Account_Bool_Exp>;
+  order_by?: InputMaybe<Array<AltAccountOrderByExp>>;
+  where?: InputMaybe<AltAccountBoolExp>;
 };
 
-export type SubscriptionAlt_Account_AggregateArgs = {
-  filter_input?: InputMaybe<Alt_Account_Filter_Input>;
+export type SubscriptionAltAccountAggregateArgs = {
+  filter_input?: InputMaybe<AltAccountFilterInput>;
 };
 
-export type SubscriptionAlt_Account_By_Alt_Account_PkArgs = {
-  alt_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type SubscriptionAltAccountByAltAccountPkArgs = {
+  altId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type SubscriptionBlocked_ReporterArgs = {
+export type SubscriptionBlockedReporterArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Blocked_Reporter_Order_By_Exp>>;
-  where?: InputMaybe<Blocked_Reporter_Bool_Exp>;
+  order_by?: InputMaybe<Array<BlockedReporterOrderByExp>>;
+  where?: InputMaybe<BlockedReporterBoolExp>;
 };
 
-export type SubscriptionBlocked_Reporter_AggregateArgs = {
-  filter_input?: InputMaybe<Blocked_Reporter_Filter_Input>;
+export type SubscriptionBlockedReporterAggregateArgs = {
+  filter_input?: InputMaybe<BlockedReporterFilterInput>;
 };
 
-export type SubscriptionBlocked_Reporter_By_Blocked_Reporter_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type SubscriptionBlockedReporterByBlockedReporterPkArgs = {
+  guildId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type SubscriptionCollaboration_AlertArgs = {
+export type SubscriptionCollaborationAlertArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationAlertOrderByExp>>;
+  where?: InputMaybe<CollaborationAlertBoolExp>;
 };
 
-export type SubscriptionCollaboration_Alert_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
+export type SubscriptionCollaborationAlertAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAlertFilterInput>;
 };
 
-export type SubscriptionCollaboration_Alert_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationAlertByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_Audit_LogArgs = {
+export type SubscriptionCollaborationAuditLogArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationAuditLogOrderByExp>>;
+  where?: InputMaybe<CollaborationAuditLogBoolExp>;
 };
 
-export type SubscriptionCollaboration_Audit_Log_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
+export type SubscriptionCollaborationAuditLogAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationAuditLogFilterInput>;
 };
 
-export type SubscriptionCollaboration_Audit_Log_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationAuditLogByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_Blocked_UserArgs = {
+export type SubscriptionCollaborationBlockedUserArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationBlockedUserOrderByExp>>;
+  where?: InputMaybe<CollaborationBlockedUserBoolExp>;
 };
 
-export type SubscriptionCollaboration_Blocked_User_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
+export type SubscriptionCollaborationBlockedUserAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBlockedUserFilterInput>;
 };
 
-export type SubscriptionCollaboration_Blocked_User_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationBlockedUserByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_BookmarkArgs = {
+export type SubscriptionCollaborationBookmarkArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationBookmarkOrderByExp>>;
+  where?: InputMaybe<CollaborationBookmarkBoolExp>;
 };
 
-export type SubscriptionCollaboration_Bookmark_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
+export type SubscriptionCollaborationBookmarkAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationBookmarkFilterInput>;
 };
 
-export type SubscriptionCollaboration_Bookmark_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationBookmarkByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_Field_DefinitionArgs = {
+export type SubscriptionCollaborationFieldDefinitionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationFieldDefinitionOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldDefinitionBoolExp>;
 };
 
-export type SubscriptionCollaboration_Field_Definition_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
+export type SubscriptionCollaborationFieldDefinitionAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldDefinitionFilterInput>;
 };
 
-export type SubscriptionCollaboration_Field_Definition_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationFieldDefinitionByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_Field_ValueArgs = {
+export type SubscriptionCollaborationFieldValueArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationFieldValueOrderByExp>>;
+  where?: InputMaybe<CollaborationFieldValueBoolExp>;
 };
 
-export type SubscriptionCollaboration_Field_Value_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
+export type SubscriptionCollaborationFieldValueAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationFieldValueFilterInput>;
 };
 
-export type SubscriptionCollaboration_Field_Value_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationFieldValueByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_PostArgs = {
+export type SubscriptionCollaborationPostArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp>>;
+  where?: InputMaybe<CollaborationPostBoolExp>;
 };
 
-export type SubscriptionCollaboration_Post_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
+export type SubscriptionCollaborationPostAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationPostFilterInput>;
 };
 
-export type SubscriptionCollaboration_Post_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationPostByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_ProfileArgs = {
+export type SubscriptionCollaborationProfileArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Profile_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationProfileOrderByExp>>;
+  where?: InputMaybe<CollaborationProfileBoolExp>;
 };
 
-export type SubscriptionCollaboration_Profile_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Profile_Filter_Input>;
+export type SubscriptionCollaborationProfileAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationProfileFilterInput>;
 };
 
-export type SubscriptionCollaboration_Profile_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationProfileByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_ReportArgs = {
+export type SubscriptionCollaborationReportArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationReportOrderByExp>>;
+  where?: InputMaybe<CollaborationReportBoolExp>;
 };
 
-export type SubscriptionCollaboration_Report_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
+export type SubscriptionCollaborationReportAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationReportFilterInput>;
 };
 
-export type SubscriptionCollaboration_Report_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationReportByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_ResponseArgs = {
+export type SubscriptionCollaborationResponseArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationResponseOrderByExp>>;
+  where?: InputMaybe<CollaborationResponseBoolExp>;
 };
 
-export type SubscriptionCollaboration_Response_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
+export type SubscriptionCollaborationResponseAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationResponseFilterInput>;
 };
 
-export type SubscriptionCollaboration_Response_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationResponseByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_RuleArgs = {
+export type SubscriptionCollaborationRuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Rule_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationRuleOrderByExp>>;
+  where?: InputMaybe<CollaborationRuleBoolExp>;
 };
 
-export type SubscriptionCollaboration_Rule_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Rule_Filter_Input>;
+export type SubscriptionCollaborationRuleAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationRuleFilterInput>;
 };
 
-export type SubscriptionCollaboration_Rule_By_IdArgs = {
-  id: Scalars['string']['input'];
+export type SubscriptionCollaborationRuleByIdArgs = {
+  id: Scalars['String1']['input'];
 };
 
-export type SubscriptionCollaboration_StatusArgs = {
+export type SubscriptionCollaborationStatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Status_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Status_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationStatusOrderByExp>>;
+  where?: InputMaybe<CollaborationStatusBoolExp>;
 };
 
-export type SubscriptionCollaboration_Status_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Status_Filter_Input>;
+export type SubscriptionCollaborationStatusAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationStatusFilterInput>;
 };
 
-export type SubscriptionCollaboration_Status_By_IdArgs = {
-  id: Scalars['int32']['input'];
+export type SubscriptionCollaborationStatusByIdArgs = {
+  id: Scalars['Int32']['input'];
 };
 
-export type SubscriptionCollaboration_TypeArgs = {
+export type SubscriptionCollaborationTypeArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Type_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Type_Bool_Exp>;
+  order_by?: InputMaybe<Array<CollaborationTypeOrderByExp>>;
+  where?: InputMaybe<CollaborationTypeBoolExp>;
 };
 
-export type SubscriptionCollaboration_Type_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Type_Filter_Input>;
+export type SubscriptionCollaborationTypeAggregateArgs = {
+  filter_input?: InputMaybe<CollaborationTypeFilterInput>;
 };
 
-export type SubscriptionCollaboration_Type_By_IdArgs = {
-  id: Scalars['int32']['input'];
+export type SubscriptionCollaborationTypeByIdArgs = {
+  id: Scalars['Int32']['input'];
 };
 
-export type SubscriptionDeleted_MessageArgs = {
+export type SubscriptionDeletedMessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Deleted_Message_Order_By_Exp>>;
-  where?: InputMaybe<Deleted_Message_Bool_Exp>;
+  order_by?: InputMaybe<Array<DeletedMessageOrderByExp>>;
+  where?: InputMaybe<DeletedMessageBoolExp>;
 };
 
-export type SubscriptionDeleted_Message_AggregateArgs = {
-  filter_input?: InputMaybe<Deleted_Message_Filter_Input>;
+export type SubscriptionDeletedMessageAggregateArgs = {
+  filter_input?: InputMaybe<DeletedMessageFilterInput>;
 };
 
-export type SubscriptionDeleted_Message_By_Message_IdArgs = {
-  message_id: Scalars['int64']['input'];
+export type SubscriptionDeletedMessageByMessageIdArgs = {
+  messageId: Scalars['Int64']['input'];
 };
 
-export type SubscriptionHiring_StatusArgs = {
+export type SubscriptionHiringStatusArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Hiring_Status_Order_By_Exp>>;
-  where?: InputMaybe<Hiring_Status_Bool_Exp>;
+  order_by?: InputMaybe<Array<HiringStatusOrderByExp>>;
+  where?: InputMaybe<HiringStatusBoolExp>;
 };
 
-export type SubscriptionHiring_Status_AggregateArgs = {
-  filter_input?: InputMaybe<Hiring_Status_Filter_Input>;
+export type SubscriptionHiringStatusAggregateArgs = {
+  filter_input?: InputMaybe<HiringStatusFilterInput>;
 };
 
-export type SubscriptionHiring_Status_By_IdArgs = {
-  id: Scalars['int32']['input'];
+export type SubscriptionHiringStatusByIdArgs = {
+  id: Scalars['Int32']['input'];
 };
 
 export type SubscriptionInfractionArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
+  order_by?: InputMaybe<Array<InfractionOrderByExp>>;
+  where?: InputMaybe<InfractionBoolExp>;
 };
 
-export type SubscriptionInfraction_AggregateArgs = {
-  filter_input?: InputMaybe<Infraction_Filter_Input>;
+export type SubscriptionInfractionAggregateArgs = {
+  filter_input?: InputMaybe<InfractionFilterInput>;
 };
 
-export type SubscriptionInfraction_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type SubscriptionInfractionByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
-export type SubscriptionMember_NoteArgs = {
+export type SubscriptionMemberNoteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
+  order_by?: InputMaybe<Array<MemberNoteOrderByExp>>;
+  where?: InputMaybe<MemberNoteBoolExp>;
 };
 
-export type SubscriptionMember_Note_AggregateArgs = {
-  filter_input?: InputMaybe<Member_Note_Filter_Input>;
+export type SubscriptionMemberNoteAggregateArgs = {
+  filter_input?: InputMaybe<MemberNoteFilterInput>;
 };
 
-export type SubscriptionMember_Note_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type SubscriptionMemberNoteByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
 export type SubscriptionMuteArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Mute_Order_By_Exp>>;
-  where?: InputMaybe<Mute_Bool_Exp>;
+  order_by?: InputMaybe<Array<MuteOrderByExp>>;
+  where?: InputMaybe<MuteBoolExp>;
 };
 
-export type SubscriptionMute_AggregateArgs = {
-  filter_input?: InputMaybe<Mute_Filter_Input>;
+export type SubscriptionMuteAggregateArgs = {
+  filter_input?: InputMaybe<MuteFilterInput>;
 };
 
-export type SubscriptionMute_By_Mute_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type SubscriptionMuteByMutePkArgs = {
+  guildId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type SubscriptionReported_MessageArgs = {
+export type SubscriptionReportedMessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Reported_Message_Order_By_Exp>>;
-  where?: InputMaybe<Reported_Message_Bool_Exp>;
+  order_by?: InputMaybe<Array<ReportedMessageOrderByExp>>;
+  where?: InputMaybe<ReportedMessageBoolExp>;
 };
 
-export type SubscriptionReported_Message_AggregateArgs = {
-  filter_input?: InputMaybe<Reported_Message_Filter_Input>;
+export type SubscriptionReportedMessageAggregateArgs = {
+  filter_input?: InputMaybe<ReportedMessageFilterInput>;
 };
 
-export type SubscriptionReported_Message_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type SubscriptionReportedMessageByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
 export type SubscriptionRuleArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Rule_Order_By_Exp>>;
-  where?: InputMaybe<Rule_Bool_Exp>;
+  order_by?: InputMaybe<Array<RuleOrderByExp>>;
+  where?: InputMaybe<RuleBoolExp>;
 };
 
-export type SubscriptionRule_AggregateArgs = {
-  filter_input?: InputMaybe<Rule_Filter_Input>;
+export type SubscriptionRuleAggregateArgs = {
+  filter_input?: InputMaybe<RuleFilterInput>;
 };
 
-export type SubscriptionRule_By_Rule_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  id: Scalars['int32']['input'];
+export type SubscriptionRuleByRulePkArgs = {
+  guildId: Scalars['Int64']['input'];
+  id: Scalars['Int32']['input'];
 };
 
-export type SubscriptionStaff_MessageArgs = {
+export type SubscriptionStaffMessageArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Staff_Message_Order_By_Exp>>;
-  where?: InputMaybe<Staff_Message_Bool_Exp>;
+  order_by?: InputMaybe<Array<StaffMessageOrderByExp>>;
+  where?: InputMaybe<StaffMessageBoolExp>;
 };
 
-export type SubscriptionStaff_Message_AggregateArgs = {
-  filter_input?: InputMaybe<Staff_Message_Filter_Input>;
+export type SubscriptionStaffMessageAggregateArgs = {
+  filter_input?: InputMaybe<StaffMessageFilterInput>;
 };
 
-export type SubscriptionStaff_Message_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type SubscriptionStaffMessageByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
-export type SubscriptionTemporary_BanArgs = {
+export type SubscriptionTemporaryBanArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Temporary_Ban_Order_By_Exp>>;
-  where?: InputMaybe<Temporary_Ban_Bool_Exp>;
+  order_by?: InputMaybe<Array<TemporaryBanOrderByExp>>;
+  where?: InputMaybe<TemporaryBanBoolExp>;
 };
 
-export type SubscriptionTemporary_Ban_AggregateArgs = {
-  filter_input?: InputMaybe<Temporary_Ban_Filter_Input>;
+export type SubscriptionTemporaryBanAggregateArgs = {
+  filter_input?: InputMaybe<TemporaryBanFilterInput>;
 };
 
-export type SubscriptionTemporary_Ban_By_Temporary_Ban_PkArgs = {
-  guild_id: Scalars['int64']['input'];
-  user_id: Scalars['int64']['input'];
+export type SubscriptionTemporaryBanByTemporaryBanPkArgs = {
+  guildId: Scalars['Int64']['input'];
+  userId: Scalars['Int64']['input'];
 };
 
-export type SubscriptionTracked_MessagesArgs = {
+export type SubscriptionTrackedMessagesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Tracked_Messages_Order_By_Exp>>;
-  where?: InputMaybe<Tracked_Messages_Bool_Exp>;
+  order_by?: InputMaybe<Array<TrackedMessagesOrderByExp>>;
+  where?: InputMaybe<TrackedMessagesBoolExp>;
 };
 
-export type SubscriptionTracked_Messages_AggregateArgs = {
-  filter_input?: InputMaybe<Tracked_Messages_Filter_Input>;
+export type SubscriptionTrackedMessagesAggregateArgs = {
+  filter_input?: InputMaybe<TrackedMessagesFilterInput>;
 };
 
-export type SubscriptionTracked_Messages_By_IdArgs = {
-  id: Scalars['int64']['input'];
+export type SubscriptionTrackedMessagesByIdArgs = {
+  id: Scalars['Int64']['input'];
 };
 
-export type Alt_Account = {
-  __typename?: 'alt_account';
-  alt_id: Scalars['int64']['output'];
-  /** All infractions for the alt account */
-  alt_user_infractions?: Maybe<Array<Infraction>>;
-  /** All infractions for the main user account */
-  main_user_infractions?: Maybe<Array<Infraction>>;
-  registered_at: Scalars['timestamp']['output'];
-  staff_member_id: Scalars['int64']['output'];
-  user_id: Scalars['int64']['output'];
+export type TemporaryBan = {
+  __typename?: 'TemporaryBan';
+  expiresAt: Scalars['Timestamp']['output'];
+  guildId: Scalars['Int64']['output'];
+  userId: Scalars['Int64']['output'];
 };
 
-export type Alt_AccountAlt_User_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Alt_AccountMain_User_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Alt_Account_Agg_Exp = {
-  __typename?: 'alt_account_agg_exp';
+export type TemporaryBanAggExp = {
+  __typename?: 'TemporaryBanAggExp';
   _count: Scalars['Int']['output'];
-  alt_id: Int64_Agg_Exp;
-  registered_at: Timestamp_Agg_Exp;
-  staff_member_id: Int64_Agg_Exp;
-  user_id: Int64_Agg_Exp;
+  expiresAt: TimestampAggExp1;
+  guildId: Int64AggExp1;
+  userId: Int64AggExp1;
 };
 
-export type Alt_Account_Bool_Exp = {
-  _and?: InputMaybe<Array<Alt_Account_Bool_Exp>>;
-  _not?: InputMaybe<Alt_Account_Bool_Exp>;
-  _or?: InputMaybe<Array<Alt_Account_Bool_Exp>>;
-  alt_id?: InputMaybe<Int64_Bool_Exp>;
-  registered_at?: InputMaybe<Timestamp_Bool_Exp>;
-  staff_member_id?: InputMaybe<Int64_Bool_Exp>;
-  user_id?: InputMaybe<Int64_Bool_Exp>;
+export type TemporaryBanBoolExp = {
+  _and?: InputMaybe<Array<TemporaryBanBoolExp>>;
+  _not?: InputMaybe<TemporaryBanBoolExp>;
+  _or?: InputMaybe<Array<TemporaryBanBoolExp>>;
+  expiresAt?: InputMaybe<TimestampBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  userId?: InputMaybe<Int64BoolExp1>;
 };
 
-export type Alt_Account_Filter_Input = {
+export type TemporaryBanFilterInput = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Alt_Account_Order_By_Exp>>;
-  where?: InputMaybe<Alt_Account_Bool_Exp>;
+  order_by?: InputMaybe<Array<TemporaryBanOrderByExp>>;
+  where?: InputMaybe<TemporaryBanBoolExp>;
 };
 
-export type Alt_Account_Order_By_Exp = {
-  alt_id?: InputMaybe<OrderBy>;
-  registered_at?: InputMaybe<OrderBy>;
-  staff_member_id?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
+export type TemporaryBanOrderByExp = {
+  expiresAt?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
+  userId?: InputMaybe<OrderBy>;
 };
 
-export type Blocked_Reporter = {
-  __typename?: 'blocked_reporter';
-  blocked_at: Scalars['timestamp']['output'];
-  guild_id: Scalars['int64']['output'];
-  staff_member_id: Scalars['int64']['output'];
-  user_id: Scalars['int64']['output'];
-  /** All infractions for this blocked reporter */
-  user_infractions?: Maybe<Array<Infraction>>;
-  /** All reports made by this blocked user */
-  user_reports?: Maybe<Array<Reported_Message>>;
-};
-
-export type Blocked_ReporterUser_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Blocked_ReporterUser_ReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Reported_Message_Order_By_Exp>>;
-  where?: InputMaybe<Reported_Message_Bool_Exp>;
-};
-
-export type Blocked_Reporter_Agg_Exp = {
-  __typename?: 'blocked_reporter_agg_exp';
-  _count: Scalars['Int']['output'];
-  blocked_at: Timestamp_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  staff_member_id: Int64_Agg_Exp;
-  user_id: Int64_Agg_Exp;
-};
-
-export type Blocked_Reporter_Bool_Exp = {
-  _and?: InputMaybe<Array<Blocked_Reporter_Bool_Exp>>;
-  _not?: InputMaybe<Blocked_Reporter_Bool_Exp>;
-  _or?: InputMaybe<Array<Blocked_Reporter_Bool_Exp>>;
-  blocked_at?: InputMaybe<Timestamp_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  staff_member_id?: InputMaybe<Int64_Bool_Exp>;
-  user_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Blocked_Reporter_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Blocked_Reporter_Order_By_Exp>>;
-  where?: InputMaybe<Blocked_Reporter_Bool_Exp>;
-};
-
-export type Blocked_Reporter_Order_By_Exp = {
-  blocked_at?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  staff_member_id?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
-};
-
-export type Bytes_Agg_Exp = {
-  __typename?: 'bytes_agg_exp';
+export type TimestampAggExp = {
+  __typename?: 'TimestampAggExp';
   _count: Scalars['Int']['output'];
   _count_distinct: Scalars['Int']['output'];
 };
 
-export type Bytes_Bool_Exp = {
-  _and?: InputMaybe<Array<Bytes_Bool_Exp>>;
-  _eq?: InputMaybe<Scalars['bytes']['input']>;
+export type TimestampAggExp1 = {
+  __typename?: 'TimestampAggExp1';
+  _count: Scalars['Int']['output'];
+  _count_distinct: Scalars['Int']['output'];
+};
+
+export type TimestampBoolExp = {
+  _and?: InputMaybe<Array<TimestampBoolExp>>;
+  _eq?: InputMaybe<Scalars['Timestamp']['input']>;
+  _gt?: InputMaybe<Scalars['Timestamp']['input']>;
+  _gte?: InputMaybe<Scalars['Timestamp']['input']>;
+  _in?: InputMaybe<Array<Scalars['Timestamp']['input']>>;
   _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _not?: InputMaybe<Bytes_Bool_Exp>;
-  _or?: InputMaybe<Array<Bytes_Bool_Exp>>;
+  _lt?: InputMaybe<Scalars['Timestamp']['input']>;
+  _lte?: InputMaybe<Scalars['Timestamp']['input']>;
+  _not?: InputMaybe<TimestampBoolExp>;
+  _or?: InputMaybe<Array<TimestampBoolExp>>;
 };
 
-export type Collaboration_Alert = {
-  __typename?: 'collaboration_alert';
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  collaboration_type?: Maybe<Collaboration_Type>;
-  collaboration_type_id?: Maybe<Scalars['int32']['output']>;
-  created_at: Scalars['timestamp']['output'];
-  guild_id: Scalars['int64']['output'];
-  hiring_status?: Maybe<Hiring_Status>;
-  hiring_status_id?: Maybe<Scalars['int32']['output']>;
-  id: Scalars['string']['output'];
-  is_active: Scalars['int8']['output'];
-  keywords?: Maybe<Scalars['string']['output']>;
-  last_notified_at?: Maybe<Scalars['timestamp']['output']>;
-  name: Scalars['string']['output'];
-  profile_id: Scalars['string']['output'];
-  tags?: Maybe<Scalars['string']['output']>;
+export type TimestampBoolExp1 = {
+  _and?: InputMaybe<Array<TimestampBoolExp1>>;
+  _eq?: InputMaybe<Scalars['Timestamp']['input']>;
+  _gt?: InputMaybe<Scalars['Timestamp']['input']>;
+  _gte?: InputMaybe<Scalars['Timestamp']['input']>;
+  _in?: InputMaybe<Array<Scalars['Timestamp']['input']>>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
+  _lt?: InputMaybe<Scalars['Timestamp']['input']>;
+  _lte?: InputMaybe<Scalars['Timestamp']['input']>;
+  _not?: InputMaybe<TimestampBoolExp1>;
+  _or?: InputMaybe<Array<TimestampBoolExp1>>;
 };
 
-export type Collaboration_Alert_Agg_Exp = {
-  __typename?: 'collaboration_alert_agg_exp';
+export type TrackedMessages = {
+  __typename?: 'TrackedMessages';
+  attachments: Scalars['Bytes']['output'];
+  authorId: Scalars['Int64']['output'];
+  channelId: Scalars['Int64']['output'];
+  content?: Maybe<Scalars['String1']['output']>;
+  creationTimestamp: Scalars['Timestamp']['output'];
+  deletionTimestamp?: Maybe<Scalars['Timestamp']['output']>;
+  guildId: Scalars['Int64']['output'];
+  id: Scalars['Int64']['output'];
+  isDeleted: Scalars['Int8']['output'];
+};
+
+export type TrackedMessagesAggExp = {
+  __typename?: 'TrackedMessagesAggExp';
   _count: Scalars['Int']['output'];
-  collaboration_type_id: Int32_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  guild_id: Int64_Agg_Exp_1;
-  hiring_status_id: Int32_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  is_active: Int8_Agg_Exp_1;
-  keywords: String_Agg_Exp_1;
-  last_notified_at: Timestamp_Agg_Exp_1;
-  name: String_Agg_Exp_1;
-  profile_id: String_Agg_Exp_1;
-  tags: String_Agg_Exp_1;
+  attachments: BytesAggExp;
+  authorId: Int64AggExp1;
+  channelId: Int64AggExp1;
+  content: StringAggExp1;
+  creationTimestamp: TimestampAggExp1;
+  deletionTimestamp: TimestampAggExp1;
+  guildId: Int64AggExp1;
+  id: Int64AggExp1;
+  isDeleted: Int8AggExp1;
 };
 
-export type Collaboration_Alert_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Alert_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Alert_Bool_Exp>>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  collaboration_type?: InputMaybe<Collaboration_Type_Bool_Exp>;
-  collaboration_type_id?: InputMaybe<Int32_Bool_Exp_1>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
-  hiring_status?: InputMaybe<Hiring_Status_Bool_Exp>;
-  hiring_status_id?: InputMaybe<Int32_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  is_active?: InputMaybe<Int8_Bool_Exp_1>;
-  keywords?: InputMaybe<String_Bool_Exp_1>;
-  last_notified_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  name?: InputMaybe<String_Bool_Exp_1>;
-  profile_id?: InputMaybe<String_Bool_Exp_1>;
-  tags?: InputMaybe<String_Bool_Exp_1>;
+export type TrackedMessagesBoolExp = {
+  _and?: InputMaybe<Array<TrackedMessagesBoolExp>>;
+  _not?: InputMaybe<TrackedMessagesBoolExp>;
+  _or?: InputMaybe<Array<TrackedMessagesBoolExp>>;
+  attachments?: InputMaybe<BytesBoolExp>;
+  authorId?: InputMaybe<Int64BoolExp1>;
+  channelId?: InputMaybe<Int64BoolExp1>;
+  content?: InputMaybe<StringBoolExp1>;
+  creationTimestamp?: InputMaybe<TimestampBoolExp1>;
+  deletionTimestamp?: InputMaybe<TimestampBoolExp1>;
+  guildId?: InputMaybe<Int64BoolExp1>;
+  id?: InputMaybe<Int64BoolExp1>;
+  isDeleted?: InputMaybe<Int8BoolExp1>;
 };
 
-export type Collaboration_Alert_Filter_Input = {
+export type TrackedMessagesFilterInput = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
+  order_by?: InputMaybe<Array<TrackedMessagesOrderByExp>>;
+  where?: InputMaybe<TrackedMessagesBoolExp>;
 };
 
-export type Collaboration_Alert_Order_By_Exp = {
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  collaboration_type?: InputMaybe<Collaboration_Type_Order_By_Exp>;
-  collaboration_type_id?: InputMaybe<OrderBy>;
-  created_at?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  hiring_status?: InputMaybe<Hiring_Status_Order_By_Exp>;
-  hiring_status_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_active?: InputMaybe<OrderBy>;
-  keywords?: InputMaybe<OrderBy>;
-  last_notified_at?: InputMaybe<OrderBy>;
-  name?: InputMaybe<OrderBy>;
-  profile_id?: InputMaybe<OrderBy>;
-  tags?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Audit_Log = {
-  __typename?: 'collaboration_audit_log';
-  action: Scalars['string']['output'];
-  collaboration_post?: Maybe<Collaboration_Post>;
-  collaboration_post_id?: Maybe<Scalars['string']['output']>;
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  created_at: Scalars['timestamp']['output'];
-  id: Scalars['string']['output'];
-  metadata?: Maybe<Scalars['string']['output']>;
-  profile_id?: Maybe<Scalars['string']['output']>;
-  reason?: Maybe<Scalars['string']['output']>;
-  staff_member_id: Scalars['int64']['output'];
-};
-
-export type Collaboration_Audit_Log_Agg_Exp = {
-  __typename?: 'collaboration_audit_log_agg_exp';
-  _count: Scalars['Int']['output'];
-  action: String_Agg_Exp_1;
-  collaboration_post_id: String_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  metadata: String_Agg_Exp_1;
-  profile_id: String_Agg_Exp_1;
-  reason: String_Agg_Exp_1;
-  staff_member_id: Int64_Agg_Exp_1;
-};
-
-export type Collaboration_Audit_Log_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Audit_Log_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Audit_Log_Bool_Exp>>;
-  action?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  metadata?: InputMaybe<String_Bool_Exp_1>;
-  profile_id?: InputMaybe<String_Bool_Exp_1>;
-  reason?: InputMaybe<String_Bool_Exp_1>;
-  staff_member_id?: InputMaybe<Int64_Bool_Exp_1>;
-};
-
-export type Collaboration_Audit_Log_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
-};
-
-export type Collaboration_Audit_Log_Order_By_Exp = {
-  action?: InputMaybe<OrderBy>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
-  collaboration_post_id?: InputMaybe<OrderBy>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  created_at?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  metadata?: InputMaybe<OrderBy>;
-  profile_id?: InputMaybe<OrderBy>;
-  reason?: InputMaybe<OrderBy>;
-  staff_member_id?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Blocked_User = {
-  __typename?: 'collaboration_blocked_user';
-  blocked_at: Scalars['timestamp']['output'];
-  blocked_by_staff_id: Scalars['int64']['output'];
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  collaboration_rule?: Maybe<Collaboration_Rule>;
-  expires_at?: Maybe<Scalars['timestamp']['output']>;
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['string']['output'];
-  profile_id: Scalars['string']['output'];
-  reason?: Maybe<Scalars['string']['output']>;
-  violated_rule_id?: Maybe<Scalars['string']['output']>;
-};
-
-export type Collaboration_Blocked_User_Agg_Exp = {
-  __typename?: 'collaboration_blocked_user_agg_exp';
-  _count: Scalars['Int']['output'];
-  blocked_at: Timestamp_Agg_Exp_1;
-  blocked_by_staff_id: Int64_Agg_Exp_1;
-  expires_at: Timestamp_Agg_Exp_1;
-  guild_id: Int64_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  profile_id: String_Agg_Exp_1;
-  reason: String_Agg_Exp_1;
-  violated_rule_id: String_Agg_Exp_1;
-};
-
-export type Collaboration_Blocked_User_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Blocked_User_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Blocked_User_Bool_Exp>>;
-  blocked_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  blocked_by_staff_id?: InputMaybe<Int64_Bool_Exp_1>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  collaboration_rule?: InputMaybe<Collaboration_Rule_Bool_Exp>;
-  expires_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  profile_id?: InputMaybe<String_Bool_Exp_1>;
-  reason?: InputMaybe<String_Bool_Exp_1>;
-  violated_rule_id?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Blocked_User_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
-};
-
-export type Collaboration_Blocked_User_Order_By_Exp = {
-  blocked_at?: InputMaybe<OrderBy>;
-  blocked_by_staff_id?: InputMaybe<OrderBy>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  collaboration_rule?: InputMaybe<Collaboration_Rule_Order_By_Exp>;
-  expires_at?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  profile_id?: InputMaybe<OrderBy>;
-  reason?: InputMaybe<OrderBy>;
-  violated_rule_id?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Bookmark = {
-  __typename?: 'collaboration_bookmark';
-  collaboration_post?: Maybe<Collaboration_Post>;
-  collaboration_post_id: Scalars['string']['output'];
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  created_at: Scalars['timestamp']['output'];
-  id: Scalars['string']['output'];
-  notes?: Maybe<Scalars['string']['output']>;
-  profile_id: Scalars['string']['output'];
-};
-
-export type Collaboration_Bookmark_Agg_Exp = {
-  __typename?: 'collaboration_bookmark_agg_exp';
-  _count: Scalars['Int']['output'];
-  collaboration_post_id: String_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  notes: String_Agg_Exp_1;
-  profile_id: String_Agg_Exp_1;
-};
-
-export type Collaboration_Bookmark_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Bookmark_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Bookmark_Bool_Exp>>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  notes?: InputMaybe<String_Bool_Exp_1>;
-  profile_id?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Bookmark_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
-};
-
-export type Collaboration_Bookmark_Order_By_Exp = {
-  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
-  collaboration_post_id?: InputMaybe<OrderBy>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  created_at?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  notes?: InputMaybe<OrderBy>;
-  profile_id?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Field_Definition = {
-  __typename?: 'collaboration_field_definition';
-  collaboration_field_values?: Maybe<Array<Collaboration_Field_Value>>;
-  collaboration_field_values_aggregate: Collaboration_Field_Value_Agg_Exp;
-  collaboration_type?: Maybe<Collaboration_Type>;
-  collaboration_type_id: Scalars['int32']['output'];
-  display_name: Scalars['string']['output'];
-  field_name: Scalars['string']['output'];
-  field_order: Scalars['int32']['output'];
-  field_type: Scalars['string']['output'];
-  help_text?: Maybe<Scalars['string']['output']>;
-  hiring_status?: Maybe<Hiring_Status>;
-  hiring_status_id: Scalars['int32']['output'];
-  id: Scalars['string']['output'];
-  is_required: Scalars['int8']['output'];
-  max_length?: Maybe<Scalars['int32']['output']>;
-  options?: Maybe<Scalars['string']['output']>;
-  validation_regex?: Maybe<Scalars['string']['output']>;
-};
-
-export type Collaboration_Field_DefinitionCollaboration_Field_ValuesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
-};
-
-export type Collaboration_Field_DefinitionCollaboration_Field_Values_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
-};
-
-export type Collaboration_Field_Definition_Agg_Exp = {
-  __typename?: 'collaboration_field_definition_agg_exp';
-  _count: Scalars['Int']['output'];
-  collaboration_type_id: Int32_Agg_Exp_1;
-  display_name: String_Agg_Exp_1;
-  field_name: String_Agg_Exp_1;
-  field_order: Int32_Agg_Exp_1;
-  field_type: String_Agg_Exp_1;
-  help_text: String_Agg_Exp_1;
-  hiring_status_id: Int32_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  is_required: Int8_Agg_Exp_1;
-  max_length: Int32_Agg_Exp_1;
-  options: String_Agg_Exp_1;
-  validation_regex: String_Agg_Exp_1;
-};
-
-export type Collaboration_Field_Definition_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Field_Definition_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Field_Definition_Bool_Exp>>;
-  collaboration_field_values?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
-  collaboration_type?: InputMaybe<Collaboration_Type_Bool_Exp>;
-  collaboration_type_id?: InputMaybe<Int32_Bool_Exp_1>;
-  display_name?: InputMaybe<String_Bool_Exp_1>;
-  field_name?: InputMaybe<String_Bool_Exp_1>;
-  field_order?: InputMaybe<Int32_Bool_Exp_1>;
-  field_type?: InputMaybe<String_Bool_Exp_1>;
-  help_text?: InputMaybe<String_Bool_Exp_1>;
-  hiring_status?: InputMaybe<Hiring_Status_Bool_Exp>;
-  hiring_status_id?: InputMaybe<Int32_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  is_required?: InputMaybe<Int8_Bool_Exp_1>;
-  max_length?: InputMaybe<Int32_Bool_Exp_1>;
-  options?: InputMaybe<String_Bool_Exp_1>;
-  validation_regex?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Field_Definition_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-};
-
-export type Collaboration_Field_Definition_Order_By_Exp = {
-  collaboration_type?: InputMaybe<Collaboration_Type_Order_By_Exp>;
-  collaboration_type_id?: InputMaybe<OrderBy>;
-  display_name?: InputMaybe<OrderBy>;
-  field_name?: InputMaybe<OrderBy>;
-  field_order?: InputMaybe<OrderBy>;
-  field_type?: InputMaybe<OrderBy>;
-  help_text?: InputMaybe<OrderBy>;
-  hiring_status?: InputMaybe<Hiring_Status_Order_By_Exp>;
-  hiring_status_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_required?: InputMaybe<OrderBy>;
-  max_length?: InputMaybe<OrderBy>;
-  options?: InputMaybe<OrderBy>;
-  validation_regex?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Field_Value = {
-  __typename?: 'collaboration_field_value';
-  collaboration_field_definition?: Maybe<Collaboration_Field_Definition>;
-  collaboration_post?: Maybe<Collaboration_Post>;
-  collaboration_post_id: Scalars['string']['output'];
-  field_definition_id: Scalars['string']['output'];
-  id: Scalars['string']['output'];
-  value: Scalars['string']['output'];
-};
-
-export type Collaboration_Field_Value_Agg_Exp = {
-  __typename?: 'collaboration_field_value_agg_exp';
-  _count: Scalars['Int']['output'];
-  collaboration_post_id: String_Agg_Exp_1;
-  field_definition_id: String_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  value: String_Agg_Exp_1;
-};
-
-export type Collaboration_Field_Value_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Field_Value_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Field_Value_Bool_Exp>>;
-  collaboration_field_definition?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
-  field_definition_id?: InputMaybe<String_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  value?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Field_Value_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
-};
-
-export type Collaboration_Field_Value_Order_By_Exp = {
-  collaboration_field_definition?: InputMaybe<Collaboration_Field_Definition_Order_By_Exp>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
-  collaboration_post_id?: InputMaybe<OrderBy>;
-  field_definition_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  value?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Post = {
-  __typename?: 'collaboration_post';
-  collaboration_audit_logs?: Maybe<Array<Collaboration_Audit_Log>>;
-  collaboration_audit_logs_aggregate: Collaboration_Audit_Log_Agg_Exp;
-  collaboration_bookmarks?: Maybe<Array<Collaboration_Bookmark>>;
-  collaboration_bookmarks_aggregate: Collaboration_Bookmark_Agg_Exp;
-  collaboration_field_values?: Maybe<Array<Collaboration_Field_Value>>;
-  collaboration_field_values_aggregate: Collaboration_Field_Value_Agg_Exp;
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
-  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
-  collaboration_responses?: Maybe<Array<Collaboration_Response>>;
-  collaboration_responses_aggregate: Collaboration_Response_Agg_Exp;
-  collaboration_status?: Maybe<Collaboration_Status>;
-  collaboration_type?: Maybe<Collaboration_Type>;
-  collaboration_type_id: Scalars['int32']['output'];
-  created_at: Scalars['timestamp']['output'];
-  discord_channel_id?: Maybe<Scalars['int64']['output']>;
-  discord_message_id?: Maybe<Scalars['int64']['output']>;
-  expires_at?: Maybe<Scalars['timestamp']['output']>;
-  guild_id: Scalars['int64']['output'];
-  hiring_status?: Maybe<Hiring_Status>;
-  hiring_status_id: Scalars['int32']['output'];
-  id: Scalars['string']['output'];
-  is_highlighted: Scalars['int8']['output'];
-  posted_at?: Maybe<Scalars['timestamp']['output']>;
-  profile_id: Scalars['string']['output'];
-  response_count: Scalars['int32']['output'];
-  status_id: Scalars['int32']['output'];
-  tags?: Maybe<Scalars['string']['output']>;
-  updated_at: Scalars['timestamp']['output'];
-  view_count: Scalars['int32']['output'];
-};
-
-export type Collaboration_PostCollaboration_Audit_LogsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
-};
-
-export type Collaboration_PostCollaboration_Audit_Logs_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
-};
-
-export type Collaboration_PostCollaboration_BookmarksArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
-};
-
-export type Collaboration_PostCollaboration_Bookmarks_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
-};
-
-export type Collaboration_PostCollaboration_Field_ValuesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Value_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
-};
-
-export type Collaboration_PostCollaboration_Field_Values_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Value_Filter_Input>;
-};
-
-export type Collaboration_PostCollaboration_ReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
-};
-
-export type Collaboration_PostCollaboration_Reports_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
-};
-
-export type Collaboration_PostCollaboration_ResponsesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
-};
-
-export type Collaboration_PostCollaboration_Responses_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
-};
-
-export type Collaboration_Post_Agg_Exp = {
-  __typename?: 'collaboration_post_agg_exp';
-  _count: Scalars['Int']['output'];
-  collaboration_type_id: Int32_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  discord_channel_id: Int64_Agg_Exp_1;
-  discord_message_id: Int64_Agg_Exp_1;
-  expires_at: Timestamp_Agg_Exp_1;
-  guild_id: Int64_Agg_Exp_1;
-  hiring_status_id: Int32_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  is_highlighted: Int8_Agg_Exp_1;
-  posted_at: Timestamp_Agg_Exp_1;
-  profile_id: String_Agg_Exp_1;
-  response_count: Int32_Agg_Exp_1;
-  status_id: Int32_Agg_Exp_1;
-  tags: String_Agg_Exp_1;
-  updated_at: Timestamp_Agg_Exp_1;
-  view_count: Int32_Agg_Exp_1;
-};
-
-export type Collaboration_Post_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Post_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Post_Bool_Exp>>;
-  collaboration_audit_logs?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
-  collaboration_bookmarks?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
-  collaboration_field_values?: InputMaybe<Collaboration_Field_Value_Bool_Exp>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
-  collaboration_responses?: InputMaybe<Collaboration_Response_Bool_Exp>;
-  collaboration_status?: InputMaybe<Collaboration_Status_Bool_Exp>;
-  collaboration_type?: InputMaybe<Collaboration_Type_Bool_Exp>;
-  collaboration_type_id?: InputMaybe<Int32_Bool_Exp_1>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  discord_channel_id?: InputMaybe<Int64_Bool_Exp_1>;
-  discord_message_id?: InputMaybe<Int64_Bool_Exp_1>;
-  expires_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
-  hiring_status?: InputMaybe<Hiring_Status_Bool_Exp>;
-  hiring_status_id?: InputMaybe<Int32_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  is_highlighted?: InputMaybe<Int8_Bool_Exp_1>;
-  posted_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  profile_id?: InputMaybe<String_Bool_Exp_1>;
-  response_count?: InputMaybe<Int32_Bool_Exp_1>;
-  status_id?: InputMaybe<Int32_Bool_Exp_1>;
-  tags?: InputMaybe<String_Bool_Exp_1>;
-  updated_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  view_count?: InputMaybe<Int32_Bool_Exp_1>;
-};
-
-export type Collaboration_Post_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
-};
-
-export type Collaboration_Post_Order_By_Exp = {
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  collaboration_status?: InputMaybe<Collaboration_Status_Order_By_Exp>;
-  collaboration_type?: InputMaybe<Collaboration_Type_Order_By_Exp>;
-  collaboration_type_id?: InputMaybe<OrderBy>;
-  created_at?: InputMaybe<OrderBy>;
-  discord_channel_id?: InputMaybe<OrderBy>;
-  discord_message_id?: InputMaybe<OrderBy>;
-  expires_at?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  hiring_status?: InputMaybe<Hiring_Status_Order_By_Exp>;
-  hiring_status_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_highlighted?: InputMaybe<OrderBy>;
-  posted_at?: InputMaybe<OrderBy>;
-  profile_id?: InputMaybe<OrderBy>;
-  response_count?: InputMaybe<OrderBy>;
-  status_id?: InputMaybe<OrderBy>;
-  tags?: InputMaybe<OrderBy>;
-  updated_at?: InputMaybe<OrderBy>;
-  view_count?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Profile = {
-  __typename?: 'collaboration_profile';
-  bio?: Maybe<Scalars['string']['output']>;
-  collaboration_alerts?: Maybe<Array<Collaboration_Alert>>;
-  collaboration_alerts_aggregate: Collaboration_Alert_Agg_Exp;
-  collaboration_audit_logs?: Maybe<Array<Collaboration_Audit_Log>>;
-  collaboration_audit_logs_aggregate: Collaboration_Audit_Log_Agg_Exp;
-  collaboration_blocked_users?: Maybe<Array<Collaboration_Blocked_User>>;
-  collaboration_blocked_users_aggregate: Collaboration_Blocked_User_Agg_Exp;
-  collaboration_bookmarks?: Maybe<Array<Collaboration_Bookmark>>;
-  collaboration_bookmarks_aggregate: Collaboration_Bookmark_Agg_Exp;
-  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
-  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
-  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
-  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
-  collaboration_reports_by_reported_by_profile_id?: Maybe<Array<Collaboration_Report>>;
-  collaboration_reports_by_reported_by_profile_id_aggregate: Collaboration_Report_Agg_Exp;
-  collaboration_responses?: Maybe<Array<Collaboration_Response>>;
-  collaboration_responses_aggregate: Collaboration_Response_Agg_Exp;
-  contact_preferences?: Maybe<Scalars['string']['output']>;
-  created_at: Scalars['timestamp']['output'];
-  display_name?: Maybe<Scalars['string']['output']>;
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['string']['output'];
-  is_public: Scalars['int8']['output'];
-  last_active_at?: Maybe<Scalars['timestamp']['output']>;
-  portfolio?: Maybe<Scalars['string']['output']>;
-  skills?: Maybe<Scalars['string']['output']>;
-  updated_at: Scalars['timestamp']['output'];
-  user_id: Scalars['int64']['output'];
-};
-
-export type Collaboration_ProfileCollaboration_AlertsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Alerts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_Audit_LogsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Audit_Log_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Audit_Logs_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Audit_Log_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_Blocked_UsersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Blocked_Users_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_BookmarksArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Bookmark_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Bookmarks_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Bookmark_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_PostsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Posts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_ReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Reports_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_IdArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Reports_By_Reported_By_Profile_Id_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
-};
-
-export type Collaboration_ProfileCollaboration_ResponsesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
-};
-
-export type Collaboration_ProfileCollaboration_Responses_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Response_Filter_Input>;
-};
-
-export type Collaboration_Profile_Agg_Exp = {
-  __typename?: 'collaboration_profile_agg_exp';
-  _count: Scalars['Int']['output'];
-  bio: String_Agg_Exp_1;
-  contact_preferences: String_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  display_name: String_Agg_Exp_1;
-  guild_id: Int64_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  is_public: Int8_Agg_Exp_1;
-  last_active_at: Timestamp_Agg_Exp_1;
-  portfolio: String_Agg_Exp_1;
-  skills: String_Agg_Exp_1;
-  updated_at: Timestamp_Agg_Exp_1;
-  user_id: Int64_Agg_Exp_1;
-};
-
-export type Collaboration_Profile_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Profile_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Profile_Bool_Exp>>;
-  bio?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_alerts?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-  collaboration_audit_logs?: InputMaybe<Collaboration_Audit_Log_Bool_Exp>;
-  collaboration_blocked_users?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
-  collaboration_bookmarks?: InputMaybe<Collaboration_Bookmark_Bool_Exp>;
-  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
-  collaboration_reports_by_reported_by_profile_id?: InputMaybe<Collaboration_Report_Bool_Exp>;
-  collaboration_responses?: InputMaybe<Collaboration_Response_Bool_Exp>;
-  contact_preferences?: InputMaybe<String_Bool_Exp_1>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  display_name?: InputMaybe<String_Bool_Exp_1>;
-  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  is_public?: InputMaybe<Int8_Bool_Exp_1>;
-  last_active_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  portfolio?: InputMaybe<String_Bool_Exp_1>;
-  skills?: InputMaybe<String_Bool_Exp_1>;
-  updated_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  user_id?: InputMaybe<Int64_Bool_Exp_1>;
-};
-
-export type Collaboration_Profile_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Profile_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-};
-
-export type Collaboration_Profile_Order_By_Exp = {
-  bio?: InputMaybe<OrderBy>;
-  contact_preferences?: InputMaybe<OrderBy>;
-  created_at?: InputMaybe<OrderBy>;
-  display_name?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_public?: InputMaybe<OrderBy>;
-  last_active_at?: InputMaybe<OrderBy>;
-  portfolio?: InputMaybe<OrderBy>;
-  skills?: InputMaybe<OrderBy>;
-  updated_at?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Report = {
-  __typename?: 'collaboration_report';
-  collaboration_post?: Maybe<Collaboration_Post>;
-  collaboration_post_id?: Maybe<Scalars['string']['output']>;
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  collaboration_profile_by_reported_by_profile_id?: Maybe<Collaboration_Profile>;
-  collaboration_response?: Maybe<Collaboration_Response>;
-  collaboration_response_id?: Maybe<Scalars['string']['output']>;
-  collaboration_rule?: Maybe<Collaboration_Rule>;
-  created_at: Scalars['timestamp']['output'];
-  details?: Maybe<Scalars['string']['output']>;
-  id: Scalars['string']['output'];
-  reason: Scalars['string']['output'];
-  reported_by_profile_id: Scalars['string']['output'];
-  reported_profile_id: Scalars['string']['output'];
-  resolution?: Maybe<Scalars['string']['output']>;
-  resolved_at?: Maybe<Scalars['timestamp']['output']>;
-  resolved_by_staff_id?: Maybe<Scalars['int64']['output']>;
-  violated_rule_id?: Maybe<Scalars['string']['output']>;
-};
-
-export type Collaboration_Report_Agg_Exp = {
-  __typename?: 'collaboration_report_agg_exp';
-  _count: Scalars['Int']['output'];
-  collaboration_post_id: String_Agg_Exp_1;
-  collaboration_response_id: String_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  details: String_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  reason: String_Agg_Exp_1;
-  reported_by_profile_id: String_Agg_Exp_1;
-  reported_profile_id: String_Agg_Exp_1;
-  resolution: String_Agg_Exp_1;
-  resolved_at: Timestamp_Agg_Exp_1;
-  resolved_by_staff_id: Int64_Agg_Exp_1;
-  violated_rule_id: String_Agg_Exp_1;
-};
-
-export type Collaboration_Report_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Report_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Report_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Report_Bool_Exp>>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  collaboration_profile_by_reported_by_profile_id?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  collaboration_response?: InputMaybe<Collaboration_Response_Bool_Exp>;
-  collaboration_response_id?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_rule?: InputMaybe<Collaboration_Rule_Bool_Exp>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  details?: InputMaybe<String_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  reason?: InputMaybe<String_Bool_Exp_1>;
-  reported_by_profile_id?: InputMaybe<String_Bool_Exp_1>;
-  reported_profile_id?: InputMaybe<String_Bool_Exp_1>;
-  resolution?: InputMaybe<String_Bool_Exp_1>;
-  resolved_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  resolved_by_staff_id?: InputMaybe<Int64_Bool_Exp_1>;
-  violated_rule_id?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Report_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
-};
-
-export type Collaboration_Report_Order_By_Exp = {
-  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
-  collaboration_post_id?: InputMaybe<OrderBy>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  collaboration_profile_by_reported_by_profile_id?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  collaboration_response?: InputMaybe<Collaboration_Response_Order_By_Exp>;
-  collaboration_response_id?: InputMaybe<OrderBy>;
-  collaboration_rule?: InputMaybe<Collaboration_Rule_Order_By_Exp>;
-  created_at?: InputMaybe<OrderBy>;
-  details?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  reason?: InputMaybe<OrderBy>;
-  reported_by_profile_id?: InputMaybe<OrderBy>;
-  reported_profile_id?: InputMaybe<OrderBy>;
-  resolution?: InputMaybe<OrderBy>;
-  resolved_at?: InputMaybe<OrderBy>;
-  resolved_by_staff_id?: InputMaybe<OrderBy>;
-  violated_rule_id?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Response = {
-  __typename?: 'collaboration_response';
-  collaboration_post?: Maybe<Collaboration_Post>;
-  collaboration_post_id: Scalars['string']['output'];
-  collaboration_profile?: Maybe<Collaboration_Profile>;
-  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
-  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
-  contact_info?: Maybe<Scalars['string']['output']>;
-  created_at: Scalars['timestamp']['output'];
-  id: Scalars['string']['output'];
-  is_hidden: Scalars['int8']['output'];
-  is_public: Scalars['int8']['output'];
-  is_read: Scalars['int8']['output'];
-  message: Scalars['string']['output'];
-  profile_id: Scalars['string']['output'];
-  read_at?: Maybe<Scalars['timestamp']['output']>;
-};
-
-export type Collaboration_ResponseCollaboration_ReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
-};
-
-export type Collaboration_ResponseCollaboration_Reports_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
-};
-
-export type Collaboration_Response_Agg_Exp = {
-  __typename?: 'collaboration_response_agg_exp';
-  _count: Scalars['Int']['output'];
-  collaboration_post_id: String_Agg_Exp_1;
-  contact_info: String_Agg_Exp_1;
-  created_at: Timestamp_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  is_hidden: Int8_Agg_Exp_1;
-  is_public: Int8_Agg_Exp_1;
-  is_read: Int8_Agg_Exp_1;
-  message: String_Agg_Exp_1;
-  profile_id: String_Agg_Exp_1;
-  read_at: Timestamp_Agg_Exp_1;
-};
-
-export type Collaboration_Response_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Response_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Response_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Response_Bool_Exp>>;
-  collaboration_post?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  collaboration_post_id?: InputMaybe<String_Bool_Exp_1>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Bool_Exp>;
-  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
-  contact_info?: InputMaybe<String_Bool_Exp_1>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  is_hidden?: InputMaybe<Int8_Bool_Exp_1>;
-  is_public?: InputMaybe<Int8_Bool_Exp_1>;
-  is_read?: InputMaybe<Int8_Bool_Exp_1>;
-  message?: InputMaybe<String_Bool_Exp_1>;
-  profile_id?: InputMaybe<String_Bool_Exp_1>;
-  read_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-};
-
-export type Collaboration_Response_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Response_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Response_Bool_Exp>;
-};
-
-export type Collaboration_Response_Order_By_Exp = {
-  collaboration_post?: InputMaybe<Collaboration_Post_Order_By_Exp>;
-  collaboration_post_id?: InputMaybe<OrderBy>;
-  collaboration_profile?: InputMaybe<Collaboration_Profile_Order_By_Exp>;
-  contact_info?: InputMaybe<OrderBy>;
-  created_at?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_hidden?: InputMaybe<OrderBy>;
-  is_public?: InputMaybe<OrderBy>;
-  is_read?: InputMaybe<OrderBy>;
-  message?: InputMaybe<OrderBy>;
-  profile_id?: InputMaybe<OrderBy>;
-  read_at?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Rule = {
-  __typename?: 'collaboration_rule';
-  collaboration_blocked_users?: Maybe<Array<Collaboration_Blocked_User>>;
-  collaboration_blocked_users_aggregate: Collaboration_Blocked_User_Agg_Exp;
-  collaboration_reports?: Maybe<Array<Collaboration_Report>>;
-  collaboration_reports_aggregate: Collaboration_Report_Agg_Exp;
-  created_at: Scalars['timestamp']['output'];
-  description: Scalars['string']['output'];
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['string']['output'];
-  is_active: Scalars['int8']['output'];
-  rule_number: Scalars['int32']['output'];
-  title: Scalars['string']['output'];
-  updated_at: Scalars['timestamp']['output'];
-};
-
-export type Collaboration_RuleCollaboration_Blocked_UsersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Blocked_User_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
-};
-
-export type Collaboration_RuleCollaboration_Blocked_Users_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Blocked_User_Filter_Input>;
-};
-
-export type Collaboration_RuleCollaboration_ReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Report_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Report_Bool_Exp>;
-};
-
-export type Collaboration_RuleCollaboration_Reports_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Report_Filter_Input>;
-};
-
-export type Collaboration_Rule_Agg_Exp = {
-  __typename?: 'collaboration_rule_agg_exp';
-  _count: Scalars['Int']['output'];
-  created_at: Timestamp_Agg_Exp_1;
-  description: String_Agg_Exp_1;
-  guild_id: Int64_Agg_Exp_1;
-  id: String_Agg_Exp_1;
-  is_active: Int8_Agg_Exp_1;
-  rule_number: Int32_Agg_Exp_1;
-  title: String_Agg_Exp_1;
-  updated_at: Timestamp_Agg_Exp_1;
-};
-
-export type Collaboration_Rule_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Rule_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Rule_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Rule_Bool_Exp>>;
-  collaboration_blocked_users?: InputMaybe<Collaboration_Blocked_User_Bool_Exp>;
-  collaboration_reports?: InputMaybe<Collaboration_Report_Bool_Exp>;
-  created_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-  description?: InputMaybe<String_Bool_Exp_1>;
-  guild_id?: InputMaybe<Int64_Bool_Exp_1>;
-  id?: InputMaybe<String_Bool_Exp_1>;
-  is_active?: InputMaybe<Int8_Bool_Exp_1>;
-  rule_number?: InputMaybe<Int32_Bool_Exp_1>;
-  title?: InputMaybe<String_Bool_Exp_1>;
-  updated_at?: InputMaybe<Timestamp_Bool_Exp_1>;
-};
-
-export type Collaboration_Rule_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Rule_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Rule_Bool_Exp>;
-};
-
-export type Collaboration_Rule_Order_By_Exp = {
-  created_at?: InputMaybe<OrderBy>;
-  description?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_active?: InputMaybe<OrderBy>;
-  rule_number?: InputMaybe<OrderBy>;
-  title?: InputMaybe<OrderBy>;
-  updated_at?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Status = {
-  __typename?: 'collaboration_status';
-  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
-  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
-  description?: Maybe<Scalars['string']['output']>;
-  id: Scalars['int32']['output'];
-  name: Scalars['string']['output'];
-};
-
-export type Collaboration_StatusCollaboration_PostsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
-};
-
-export type Collaboration_StatusCollaboration_Posts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
-};
-
-export type Collaboration_Status_Agg_Exp = {
-  __typename?: 'collaboration_status_agg_exp';
-  _count: Scalars['Int']['output'];
-  description: String_Agg_Exp_1;
-  id: Int32_Agg_Exp_1;
-  name: String_Agg_Exp_1;
-};
-
-export type Collaboration_Status_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Status_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Status_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Status_Bool_Exp>>;
-  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  description?: InputMaybe<String_Bool_Exp_1>;
-  id?: InputMaybe<Int32_Bool_Exp_1>;
-  name?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Status_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Status_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Status_Bool_Exp>;
-};
-
-export type Collaboration_Status_Order_By_Exp = {
-  description?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  name?: InputMaybe<OrderBy>;
-};
-
-export type Collaboration_Type = {
-  __typename?: 'collaboration_type';
-  collaboration_alerts?: Maybe<Array<Collaboration_Alert>>;
-  collaboration_alerts_aggregate: Collaboration_Alert_Agg_Exp;
-  collaboration_field_definitions?: Maybe<Array<Collaboration_Field_Definition>>;
-  collaboration_field_definitions_aggregate: Collaboration_Field_Definition_Agg_Exp;
-  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
-  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
-  description?: Maybe<Scalars['string']['output']>;
-  id: Scalars['int32']['output'];
-  name: Scalars['string']['output'];
-};
-
-export type Collaboration_TypeCollaboration_AlertsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-};
-
-export type Collaboration_TypeCollaboration_Alerts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
-};
-
-export type Collaboration_TypeCollaboration_Field_DefinitionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-};
-
-export type Collaboration_TypeCollaboration_Field_Definitions_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
-};
-
-export type Collaboration_TypeCollaboration_PostsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
-};
-
-export type Collaboration_TypeCollaboration_Posts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
-};
-
-export type Collaboration_Type_Agg_Exp = {
-  __typename?: 'collaboration_type_agg_exp';
-  _count: Scalars['Int']['output'];
-  description: String_Agg_Exp_1;
-  id: Int32_Agg_Exp_1;
-  name: String_Agg_Exp_1;
-};
-
-export type Collaboration_Type_Bool_Exp = {
-  _and?: InputMaybe<Array<Collaboration_Type_Bool_Exp>>;
-  _not?: InputMaybe<Collaboration_Type_Bool_Exp>;
-  _or?: InputMaybe<Array<Collaboration_Type_Bool_Exp>>;
-  collaboration_alerts?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-  collaboration_field_definitions?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  description?: InputMaybe<String_Bool_Exp_1>;
-  id?: InputMaybe<Int32_Bool_Exp_1>;
-  name?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Collaboration_Type_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Type_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Type_Bool_Exp>;
-};
-
-export type Collaboration_Type_Order_By_Exp = {
-  description?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  name?: InputMaybe<OrderBy>;
-};
-
-export type Deleted_Message = {
-  __typename?: 'deleted_message';
-  added_by_bot: Scalars['string']['output'];
-  attachments: Scalars['bytes']['output'];
-  author_id: Scalars['int64']['output'];
-  /** All infractions for the author of this deleted message */
-  author_infractions?: Maybe<Array<Infraction>>;
-  channel_id: Scalars['int64']['output'];
-  content?: Maybe<Scalars['string']['output']>;
-  creation_timestamp: Scalars['timestamp']['output'];
-  deletion_timestamp: Scalars['timestamp']['output'];
-  guild_id: Scalars['int64']['output'];
-  message_id: Scalars['int64']['output'];
-  /** The original tracked message that was deleted */
-  original_tracked_message?: Maybe<Tracked_Messages>;
-  /** All reports made against this deleted message */
-  reports?: Maybe<Array<Reported_Message>>;
-  staff_member_id: Scalars['int64']['output'];
-};
-
-export type Deleted_MessageAuthor_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Deleted_MessageReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Reported_Message_Order_By_Exp>>;
-  where?: InputMaybe<Reported_Message_Bool_Exp>;
-};
-
-export type Deleted_Message_Agg_Exp = {
-  __typename?: 'deleted_message_agg_exp';
-  _count: Scalars['Int']['output'];
-  added_by_bot: String_Agg_Exp;
-  attachments: Bytes_Agg_Exp;
-  author_id: Int64_Agg_Exp;
-  channel_id: Int64_Agg_Exp;
-  content: String_Agg_Exp;
-  creation_timestamp: Timestamp_Agg_Exp;
-  deletion_timestamp: Timestamp_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  message_id: Int64_Agg_Exp;
-  staff_member_id: Int64_Agg_Exp;
-};
-
-export type Deleted_Message_Bool_Exp = {
-  _and?: InputMaybe<Array<Deleted_Message_Bool_Exp>>;
-  _not?: InputMaybe<Deleted_Message_Bool_Exp>;
-  _or?: InputMaybe<Array<Deleted_Message_Bool_Exp>>;
-  added_by_bot?: InputMaybe<String_Bool_Exp>;
-  attachments?: InputMaybe<Bytes_Bool_Exp>;
-  author_id?: InputMaybe<Int64_Bool_Exp>;
-  channel_id?: InputMaybe<Int64_Bool_Exp>;
-  content?: InputMaybe<String_Bool_Exp>;
-  creation_timestamp?: InputMaybe<Timestamp_Bool_Exp>;
-  deletion_timestamp?: InputMaybe<Timestamp_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  message_id?: InputMaybe<Int64_Bool_Exp>;
-  staff_member_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Deleted_Message_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Deleted_Message_Order_By_Exp>>;
-  where?: InputMaybe<Deleted_Message_Bool_Exp>;
-};
-
-export type Deleted_Message_Order_By_Exp = {
-  added_by_bot?: InputMaybe<OrderBy>;
+export type TrackedMessagesOrderByExp = {
   attachments?: InputMaybe<OrderBy>;
-  author_id?: InputMaybe<OrderBy>;
-  channel_id?: InputMaybe<OrderBy>;
+  authorId?: InputMaybe<OrderBy>;
+  channelId?: InputMaybe<OrderBy>;
   content?: InputMaybe<OrderBy>;
-  creation_timestamp?: InputMaybe<OrderBy>;
-  deletion_timestamp?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  message_id?: InputMaybe<OrderBy>;
-  original_tracked_message?: InputMaybe<Tracked_Messages_Order_By_Exp>;
-  staff_member_id?: InputMaybe<OrderBy>;
-};
-
-export type Hiring_Status = {
-  __typename?: 'hiring_status';
-  collaboration_alerts?: Maybe<Array<Collaboration_Alert>>;
-  collaboration_alerts_aggregate: Collaboration_Alert_Agg_Exp;
-  collaboration_field_definitions?: Maybe<Array<Collaboration_Field_Definition>>;
-  collaboration_field_definitions_aggregate: Collaboration_Field_Definition_Agg_Exp;
-  collaboration_posts?: Maybe<Array<Collaboration_Post>>;
-  collaboration_posts_aggregate: Collaboration_Post_Agg_Exp;
-  description?: Maybe<Scalars['string']['output']>;
-  id: Scalars['int32']['output'];
-  name: Scalars['string']['output'];
-};
-
-export type Hiring_StatusCollaboration_AlertsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Alert_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-};
-
-export type Hiring_StatusCollaboration_Alerts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Alert_Filter_Input>;
-};
-
-export type Hiring_StatusCollaboration_Field_DefinitionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Field_Definition_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-};
-
-export type Hiring_StatusCollaboration_Field_Definitions_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Field_Definition_Filter_Input>;
-};
-
-export type Hiring_StatusCollaboration_PostsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Collaboration_Post_Order_By_Exp>>;
-  where?: InputMaybe<Collaboration_Post_Bool_Exp>;
-};
-
-export type Hiring_StatusCollaboration_Posts_AggregateArgs = {
-  filter_input?: InputMaybe<Collaboration_Post_Filter_Input>;
-};
-
-export type Hiring_Status_Agg_Exp = {
-  __typename?: 'hiring_status_agg_exp';
-  _count: Scalars['Int']['output'];
-  description: String_Agg_Exp_1;
-  id: Int32_Agg_Exp_1;
-  name: String_Agg_Exp_1;
-};
-
-export type Hiring_Status_Bool_Exp = {
-  _and?: InputMaybe<Array<Hiring_Status_Bool_Exp>>;
-  _not?: InputMaybe<Hiring_Status_Bool_Exp>;
-  _or?: InputMaybe<Array<Hiring_Status_Bool_Exp>>;
-  collaboration_alerts?: InputMaybe<Collaboration_Alert_Bool_Exp>;
-  collaboration_field_definitions?: InputMaybe<Collaboration_Field_Definition_Bool_Exp>;
-  collaboration_posts?: InputMaybe<Collaboration_Post_Bool_Exp>;
-  description?: InputMaybe<String_Bool_Exp_1>;
-  id?: InputMaybe<Int32_Bool_Exp_1>;
-  name?: InputMaybe<String_Bool_Exp_1>;
-};
-
-export type Hiring_Status_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Hiring_Status_Order_By_Exp>>;
-  where?: InputMaybe<Hiring_Status_Bool_Exp>;
-};
-
-export type Hiring_Status_Order_By_Exp = {
-  description?: InputMaybe<OrderBy>;
+  creationTimestamp?: InputMaybe<OrderBy>;
+  deletionTimestamp?: InputMaybe<OrderBy>;
+  guildId?: InputMaybe<OrderBy>;
   id?: InputMaybe<OrderBy>;
-  name?: InputMaybe<OrderBy>;
+  isDeleted?: InputMaybe<OrderBy>;
 };
 
-export type Infraction = {
-  __typename?: 'infraction';
-  additional_information?: Maybe<Scalars['string']['output']>;
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['int64']['output'];
-  issued_at: Scalars['timestamp']['output'];
-  /** Member notes for the user who received this infraction */
-  member_notes?: Maybe<Array<Member_Note>>;
-  reason?: Maybe<Scalars['string']['output']>;
-  /** The rule that was violated in this infraction */
-  rule?: Maybe<Rule>;
-  rule_id?: Maybe<Scalars['int32']['output']>;
-  rule_text?: Maybe<Scalars['string']['output']>;
-  staff_member_id: Scalars['int64']['output'];
-  type: Scalars['int32']['output'];
-  user_id: Scalars['int64']['output'];
+export type AltAccountsQueryVariables = Exact<{ [key: string]: never }>;
+
+export type AltAccountsQuery = {
+  __typename?: 'Query';
+  altAccount?: Array<{
+    __typename?: 'AltAccount';
+    userId: any;
+    altId: any;
+    staffMemberId: any;
+    registeredAt: any;
+  }> | null;
 };
 
-export type InfractionMember_NotesArgs = {
+export type CollabsQueryVariables = Exact<{ [key: string]: never }>;
+
+export type CollabsQuery = {
+  __typename?: 'Query';
+  collaborationProfile?: Array<{
+    __typename?: 'CollaborationProfile';
+    id: any;
+    displayName?: any | null;
+    bio?: any | null;
+  }> | null;
+};
+
+export type CollaborationTypesQueryVariables = Exact<{ [key: string]: never }>;
+
+export type CollaborationTypesQuery = {
+  __typename?: 'Query';
+  collaborationType?: Array<{
+    __typename?: 'CollaborationType';
+    id: any;
+    name: any;
+    description?: any | null;
+  }> | null;
+};
+
+export type HiringStatusesQueryVariables = Exact<{ [key: string]: never }>;
+
+export type HiringStatusesQuery = {
+  __typename?: 'Query';
+  hiringStatus?: Array<{
+    __typename?: 'HiringStatus';
+    id: any;
+    name: any;
+    description?: any | null;
+  }> | null;
+};
+
+export type CollaborationStatusesQueryVariables = Exact<{ [key: string]: never }>;
+
+export type CollaborationStatusesQuery = {
+  __typename?: 'Query';
+  collaborationStatus?: Array<{
+    __typename?: 'CollaborationStatus';
+    id: any;
+    name: any;
+    description?: any | null;
+  }> | null;
+};
+
+export type MyCollaborationProfileQueryVariables = Exact<{
+  userId: Scalars['Int64']['input'];
+}>;
+
+export type MyCollaborationProfileQuery = {
+  __typename?: 'Query';
+  collaborationProfile?: Array<{
+    __typename?: 'CollaborationProfile';
+    id: any;
+    userId: any;
+    guildId: any;
+    displayName?: any | null;
+    bio?: any | null;
+    skills?: any | null;
+    portfolio?: any | null;
+    contactPreferences?: any | null;
+    isPublic: any;
+    createdAt: any;
+    updatedAt: any;
+    lastActiveAt?: any | null;
+    collaborationPosts?: Array<{
+      __typename?: 'CollaborationPost';
+      id: any;
+      statusId: any;
+      responseCount: any;
+      viewCount: any;
+    }> | null;
+    collaborationResponses?: Array<{
+      __typename?: 'CollaborationResponse';
+      id: any;
+      collaborationPostId: any;
+      isRead: any;
+    }> | null;
+    collaborationBookmarks?: Array<{
+      __typename?: 'CollaborationBookmark';
+      id: any;
+      collaborationPostId: any;
+    }> | null;
+  }> | null;
+};
+
+export type CollaborationProfileByIdQueryVariables = Exact<{
+  id: Scalars['String1']['input'];
+}>;
+
+export type CollaborationProfileByIdQuery = {
+  __typename?: 'Query';
+  collaborationProfileById?: {
+    __typename?: 'CollaborationProfile';
+    id: any;
+    userId: any;
+    displayName?: any | null;
+    bio?: any | null;
+    skills?: any | null;
+    portfolio?: any | null;
+    contactPreferences?: any | null;
+    isPublic: any;
+    lastActiveAt?: any | null;
+    collaborationPosts?: Array<{
+      __typename?: 'CollaborationPost';
+      id: any;
+      collaborationTypeId: any;
+      hiringStatusId: any;
+      statusId: any;
+      postedAt?: any | null;
+      expiresAt?: any | null;
+      viewCount: any;
+      responseCount: any;
+      tags?: any | null;
+      collaborationType?: { __typename?: 'CollaborationType'; name: any } | null;
+      hiringStatus?: { __typename?: 'HiringStatus'; name: any } | null;
+      collaborationFieldValues?: Array<{
+        __typename?: 'CollaborationFieldValue';
+        id: any;
+        value: any;
+        collaborationFieldDefinition?: {
+          __typename?: 'CollaborationFieldDefinition';
+          id: any;
+          fieldName: any;
+          displayName: any;
+        } | null;
+      }> | null;
+    }> | null;
+  } | null;
+};
+
+export type CollaborationPostsQueryVariables = Exact<{
+  where?: InputMaybe<CollaborationPostBoolExp>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
-};
-
-export type Infraction_Agg_Exp = {
-  __typename?: 'infraction_agg_exp';
-  _count: Scalars['Int']['output'];
-  additional_information: String_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  id: Int64_Agg_Exp;
-  issued_at: Timestamp_Agg_Exp;
-  reason: String_Agg_Exp;
-  rule_id: Int32_Agg_Exp;
-  rule_text: String_Agg_Exp;
-  staff_member_id: Int64_Agg_Exp;
-  type: Int32_Agg_Exp;
-  user_id: Int64_Agg_Exp;
-};
-
-export type Infraction_Bool_Exp = {
-  _and?: InputMaybe<Array<Infraction_Bool_Exp>>;
-  _not?: InputMaybe<Infraction_Bool_Exp>;
-  _or?: InputMaybe<Array<Infraction_Bool_Exp>>;
-  additional_information?: InputMaybe<String_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  id?: InputMaybe<Int64_Bool_Exp>;
-  issued_at?: InputMaybe<Timestamp_Bool_Exp>;
-  reason?: InputMaybe<String_Bool_Exp>;
-  rule_id?: InputMaybe<Int32_Bool_Exp>;
-  rule_text?: InputMaybe<String_Bool_Exp>;
-  staff_member_id?: InputMaybe<Int64_Bool_Exp>;
-  type?: InputMaybe<Int32_Bool_Exp>;
-  user_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Infraction_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Infraction_Order_By_Exp = {
-  additional_information?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  issued_at?: InputMaybe<OrderBy>;
-  reason?: InputMaybe<OrderBy>;
-  rule?: InputMaybe<Rule_Order_By_Exp>;
-  rule_id?: InputMaybe<OrderBy>;
-  rule_text?: InputMaybe<OrderBy>;
-  staff_member_id?: InputMaybe<OrderBy>;
-  type?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
-};
-
-export type Int8_Agg_Exp = {
-  __typename?: 'int8_agg_exp';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  avg: Scalars['float64']['output'];
-  max: Scalars['int8']['output'];
-  min: Scalars['int8']['output'];
-  sum: Scalars['int64']['output'];
-};
-
-export type Int8_Agg_Exp_1 = {
-  __typename?: 'int8_agg_exp_1';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  avg: Scalars['float64']['output'];
-  max: Scalars['int8']['output'];
-  min: Scalars['int8']['output'];
-  sum: Scalars['int64']['output'];
-};
-
-export type Int8_Bool_Exp = {
-  _and?: InputMaybe<Array<Int8_Bool_Exp>>;
-  _eq?: InputMaybe<Scalars['int8']['input']>;
-  _gt?: InputMaybe<Scalars['int8']['input']>;
-  _gte?: InputMaybe<Scalars['int8']['input']>;
-  _in?: InputMaybe<Array<Scalars['int8']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['int8']['input']>;
-  _lte?: InputMaybe<Scalars['int8']['input']>;
-  _not?: InputMaybe<Int8_Bool_Exp>;
-  _or?: InputMaybe<Array<Int8_Bool_Exp>>;
-};
-
-export type Int8_Bool_Exp_1 = {
-  _and?: InputMaybe<Array<Int8_Bool_Exp_1>>;
-  _eq?: InputMaybe<Scalars['int8']['input']>;
-  _gt?: InputMaybe<Scalars['int8']['input']>;
-  _gte?: InputMaybe<Scalars['int8']['input']>;
-  _in?: InputMaybe<Array<Scalars['int8']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['int8']['input']>;
-  _lte?: InputMaybe<Scalars['int8']['input']>;
-  _not?: InputMaybe<Int8_Bool_Exp_1>;
-  _or?: InputMaybe<Array<Int8_Bool_Exp_1>>;
-};
-
-export type Int32_Agg_Exp = {
-  __typename?: 'int32_agg_exp';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  avg: Scalars['float64']['output'];
-  max: Scalars['int32']['output'];
-  min: Scalars['int32']['output'];
-  sum: Scalars['int64']['output'];
-};
-
-export type Int32_Agg_Exp_1 = {
-  __typename?: 'int32_agg_exp_1';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  avg: Scalars['float64']['output'];
-  max: Scalars['int32']['output'];
-  min: Scalars['int32']['output'];
-  sum: Scalars['int64']['output'];
-};
-
-export type Int32_Bool_Exp = {
-  _and?: InputMaybe<Array<Int32_Bool_Exp>>;
-  _eq?: InputMaybe<Scalars['int32']['input']>;
-  _gt?: InputMaybe<Scalars['int32']['input']>;
-  _gte?: InputMaybe<Scalars['int32']['input']>;
-  _in?: InputMaybe<Array<Scalars['int32']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['int32']['input']>;
-  _lte?: InputMaybe<Scalars['int32']['input']>;
-  _not?: InputMaybe<Int32_Bool_Exp>;
-  _or?: InputMaybe<Array<Int32_Bool_Exp>>;
-};
-
-export type Int32_Bool_Exp_1 = {
-  _and?: InputMaybe<Array<Int32_Bool_Exp_1>>;
-  _eq?: InputMaybe<Scalars['int32']['input']>;
-  _gt?: InputMaybe<Scalars['int32']['input']>;
-  _gte?: InputMaybe<Scalars['int32']['input']>;
-  _in?: InputMaybe<Array<Scalars['int32']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['int32']['input']>;
-  _lte?: InputMaybe<Scalars['int32']['input']>;
-  _not?: InputMaybe<Int32_Bool_Exp_1>;
-  _or?: InputMaybe<Array<Int32_Bool_Exp_1>>;
-};
-
-export type Int64_Agg_Exp = {
-  __typename?: 'int64_agg_exp';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  avg: Scalars['float64']['output'];
-  max: Scalars['int64']['output'];
-  min: Scalars['int64']['output'];
-  sum: Scalars['int64']['output'];
-};
-
-export type Int64_Agg_Exp_1 = {
-  __typename?: 'int64_agg_exp_1';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  avg: Scalars['float64']['output'];
-  max: Scalars['int64']['output'];
-  min: Scalars['int64']['output'];
-  sum: Scalars['int64']['output'];
-};
-
-export type Int64_Bool_Exp = {
-  _and?: InputMaybe<Array<Int64_Bool_Exp>>;
-  _eq?: InputMaybe<Scalars['int64']['input']>;
-  _gt?: InputMaybe<Scalars['int64']['input']>;
-  _gte?: InputMaybe<Scalars['int64']['input']>;
-  _in?: InputMaybe<Array<Scalars['int64']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['int64']['input']>;
-  _lte?: InputMaybe<Scalars['int64']['input']>;
-  _not?: InputMaybe<Int64_Bool_Exp>;
-  _or?: InputMaybe<Array<Int64_Bool_Exp>>;
-};
-
-export type Int64_Bool_Exp_1 = {
-  _and?: InputMaybe<Array<Int64_Bool_Exp_1>>;
-  _eq?: InputMaybe<Scalars['int64']['input']>;
-  _gt?: InputMaybe<Scalars['int64']['input']>;
-  _gte?: InputMaybe<Scalars['int64']['input']>;
-  _in?: InputMaybe<Array<Scalars['int64']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['int64']['input']>;
-  _lte?: InputMaybe<Scalars['int64']['input']>;
-  _not?: InputMaybe<Int64_Bool_Exp_1>;
-  _or?: InputMaybe<Array<Int64_Bool_Exp_1>>;
-};
-
-export type Member_Note = {
-  __typename?: 'member_note';
-  author_id: Scalars['int64']['output'];
-  content: Scalars['string']['output'];
-  creation_timestamp: Scalars['timestamp']['output'];
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['int64']['output'];
-  type: Scalars['int32']['output'];
-  user_id: Scalars['int64']['output'];
-  /** All infractions for the user this note is about */
-  user_infractions?: Maybe<Array<Infraction>>;
-  /** Current mute status for the user this note is about */
-  user_mute?: Maybe<Mute>;
-  /** Current temporary ban status for the user this note is about */
-  user_temporary_ban?: Maybe<Temporary_Ban>;
-};
-
-export type Member_NoteUser_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Member_Note_Agg_Exp = {
-  __typename?: 'member_note_agg_exp';
-  _count: Scalars['Int']['output'];
-  author_id: Int64_Agg_Exp;
-  content: String_Agg_Exp;
-  creation_timestamp: Timestamp_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  id: Int64_Agg_Exp;
-  type: Int32_Agg_Exp;
-  user_id: Int64_Agg_Exp;
-};
-
-export type Member_Note_Bool_Exp = {
-  _and?: InputMaybe<Array<Member_Note_Bool_Exp>>;
-  _not?: InputMaybe<Member_Note_Bool_Exp>;
-  _or?: InputMaybe<Array<Member_Note_Bool_Exp>>;
-  author_id?: InputMaybe<Int64_Bool_Exp>;
-  content?: InputMaybe<String_Bool_Exp>;
-  creation_timestamp?: InputMaybe<Timestamp_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  id?: InputMaybe<Int64_Bool_Exp>;
-  type?: InputMaybe<Int32_Bool_Exp>;
-  user_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Member_Note_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
-};
-
-export type Member_Note_Order_By_Exp = {
-  author_id?: InputMaybe<OrderBy>;
-  content?: InputMaybe<OrderBy>;
-  creation_timestamp?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  type?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
-  user_mute?: InputMaybe<Mute_Order_By_Exp>;
-  user_temporary_ban?: InputMaybe<Temporary_Ban_Order_By_Exp>;
-};
-
-export type Mute = {
-  __typename?: 'mute';
-  expires_at?: Maybe<Scalars['timestamp']['output']>;
-  guild_id: Scalars['int64']['output'];
-  user_id: Scalars['int64']['output'];
-  /** All infractions for the muted user */
-  user_infractions?: Maybe<Array<Infraction>>;
-  /** All member notes for the muted user */
-  user_notes?: Maybe<Array<Member_Note>>;
-};
-
-export type MuteUser_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type MuteUser_NotesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
-};
-
-export type Mute_Agg_Exp = {
-  __typename?: 'mute_agg_exp';
-  _count: Scalars['Int']['output'];
-  expires_at: Timestamp_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  user_id: Int64_Agg_Exp;
-};
-
-export type Mute_Bool_Exp = {
-  _and?: InputMaybe<Array<Mute_Bool_Exp>>;
-  _not?: InputMaybe<Mute_Bool_Exp>;
-  _or?: InputMaybe<Array<Mute_Bool_Exp>>;
-  expires_at?: InputMaybe<Timestamp_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  user_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Mute_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Mute_Order_By_Exp>>;
-  where?: InputMaybe<Mute_Bool_Exp>;
-};
-
-export type Mute_Order_By_Exp = {
-  expires_at?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
-};
-
-export type Reported_Message = {
-  __typename?: 'reported_message';
-  attachments: Scalars['bytes']['output'];
-  author_id: Scalars['int64']['output'];
-  channel_id: Scalars['int64']['output'];
-  content?: Maybe<Scalars['string']['output']>;
-  /** The deleted message record if this reported message was deleted */
-  deleted_message?: Maybe<Deleted_Message>;
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['int64']['output'];
-  message_id: Scalars['int64']['output'];
-  /** Check if the reporter is blocked from making reports */
-  reporter_blocked_status?: Maybe<Blocked_Reporter>;
-  reporter_id: Scalars['int64']['output'];
-  /** The original tracked message that was reported */
-  tracked_message?: Maybe<Tracked_Messages>;
-};
-
-export type Reported_Message_Agg_Exp = {
-  __typename?: 'reported_message_agg_exp';
-  _count: Scalars['Int']['output'];
-  attachments: Bytes_Agg_Exp;
-  author_id: Int64_Agg_Exp;
-  channel_id: Int64_Agg_Exp;
-  content: String_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  id: Int64_Agg_Exp;
-  message_id: Int64_Agg_Exp;
-  reporter_id: Int64_Agg_Exp;
-};
-
-export type Reported_Message_Bool_Exp = {
-  _and?: InputMaybe<Array<Reported_Message_Bool_Exp>>;
-  _not?: InputMaybe<Reported_Message_Bool_Exp>;
-  _or?: InputMaybe<Array<Reported_Message_Bool_Exp>>;
-  attachments?: InputMaybe<Bytes_Bool_Exp>;
-  author_id?: InputMaybe<Int64_Bool_Exp>;
-  channel_id?: InputMaybe<Int64_Bool_Exp>;
-  content?: InputMaybe<String_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  id?: InputMaybe<Int64_Bool_Exp>;
-  message_id?: InputMaybe<Int64_Bool_Exp>;
-  reporter_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Reported_Message_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Reported_Message_Order_By_Exp>>;
-  where?: InputMaybe<Reported_Message_Bool_Exp>;
-};
-
-export type Reported_Message_Order_By_Exp = {
-  attachments?: InputMaybe<OrderBy>;
-  author_id?: InputMaybe<OrderBy>;
-  channel_id?: InputMaybe<OrderBy>;
-  content?: InputMaybe<OrderBy>;
-  deleted_message?: InputMaybe<Deleted_Message_Order_By_Exp>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  message_id?: InputMaybe<OrderBy>;
-  reporter_blocked_status?: InputMaybe<Blocked_Reporter_Order_By_Exp>;
-  reporter_id?: InputMaybe<OrderBy>;
-  tracked_message?: InputMaybe<Tracked_Messages_Order_By_Exp>;
-};
-
-export type Rule = {
-  __typename?: 'rule';
-  brief?: Maybe<Scalars['string']['output']>;
-  description: Scalars['string']['output'];
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['int32']['output'];
-  /** All infractions that cite this rule */
-  infractions?: Maybe<Array<Infraction>>;
-};
-
-export type RuleInfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Rule_Agg_Exp = {
-  __typename?: 'rule_agg_exp';
-  _count: Scalars['Int']['output'];
-  brief: String_Agg_Exp;
-  description: String_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  id: Int32_Agg_Exp;
-};
-
-export type Rule_Bool_Exp = {
-  _and?: InputMaybe<Array<Rule_Bool_Exp>>;
-  _not?: InputMaybe<Rule_Bool_Exp>;
-  _or?: InputMaybe<Array<Rule_Bool_Exp>>;
-  brief?: InputMaybe<String_Bool_Exp>;
-  description?: InputMaybe<String_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  id?: InputMaybe<Int32_Bool_Exp>;
-};
-
-export type Rule_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Rule_Order_By_Exp>>;
-  where?: InputMaybe<Rule_Bool_Exp>;
-};
-
-export type Rule_Order_By_Exp = {
-  brief?: InputMaybe<OrderBy>;
-  description?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-};
-
-export type Staff_Message = {
-  __typename?: 'staff_message';
-  content: Scalars['string']['output'];
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['int64']['output'];
-  recipient_id: Scalars['int64']['output'];
-  /** All infractions for the message recipient */
-  recipient_infractions?: Maybe<Array<Infraction>>;
-  /** All member notes for the message recipient */
-  recipient_notes?: Maybe<Array<Member_Note>>;
-  sent_at: Scalars['timestamp']['output'];
-  staff_member_id: Scalars['int64']['output'];
-};
-
-export type Staff_MessageRecipient_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Staff_MessageRecipient_NotesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
-};
-
-export type Staff_Message_Agg_Exp = {
-  __typename?: 'staff_message_agg_exp';
-  _count: Scalars['Int']['output'];
-  content: String_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  id: Int64_Agg_Exp;
-  recipient_id: Int64_Agg_Exp;
-  sent_at: Timestamp_Agg_Exp;
-  staff_member_id: Int64_Agg_Exp;
-};
-
-export type Staff_Message_Bool_Exp = {
-  _and?: InputMaybe<Array<Staff_Message_Bool_Exp>>;
-  _not?: InputMaybe<Staff_Message_Bool_Exp>;
-  _or?: InputMaybe<Array<Staff_Message_Bool_Exp>>;
-  content?: InputMaybe<String_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  id?: InputMaybe<Int64_Bool_Exp>;
-  recipient_id?: InputMaybe<Int64_Bool_Exp>;
-  sent_at?: InputMaybe<Timestamp_Bool_Exp>;
-  staff_member_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Staff_Message_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Staff_Message_Order_By_Exp>>;
-  where?: InputMaybe<Staff_Message_Bool_Exp>;
-};
-
-export type Staff_Message_Order_By_Exp = {
-  content?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  recipient_id?: InputMaybe<OrderBy>;
-  sent_at?: InputMaybe<OrderBy>;
-  staff_member_id?: InputMaybe<OrderBy>;
-};
-
-export type String_Agg_Exp = {
-  __typename?: 'string_agg_exp';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  max: Scalars['string']['output'];
-  min: Scalars['string']['output'];
-};
-
-export type String_Agg_Exp_1 = {
-  __typename?: 'string_agg_exp_1';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-  max: Scalars['string']['output'];
-  min: Scalars['string']['output'];
-};
-
-export type String_Bool_Exp = {
-  _and?: InputMaybe<Array<String_Bool_Exp>>;
-  _contains?: InputMaybe<Scalars['string']['input']>;
-  _eq?: InputMaybe<Scalars['string']['input']>;
-  _in?: InputMaybe<Array<Scalars['string']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _like?: InputMaybe<Scalars['string']['input']>;
-  _not?: InputMaybe<String_Bool_Exp>;
-  _or?: InputMaybe<Array<String_Bool_Exp>>;
-};
-
-export type String_Bool_Exp_1 = {
-  _and?: InputMaybe<Array<String_Bool_Exp_1>>;
-  _contains?: InputMaybe<Scalars['string']['input']>;
-  _eq?: InputMaybe<Scalars['string']['input']>;
-  _in?: InputMaybe<Array<Scalars['string']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _like?: InputMaybe<Scalars['string']['input']>;
-  _not?: InputMaybe<String_Bool_Exp_1>;
-  _or?: InputMaybe<Array<String_Bool_Exp_1>>;
-};
-
-export type Temporary_Ban = {
-  __typename?: 'temporary_ban';
-  expires_at: Scalars['timestamp']['output'];
-  guild_id: Scalars['int64']['output'];
-  user_id: Scalars['int64']['output'];
-  /** All infractions for the temporarily banned user */
-  user_infractions?: Maybe<Array<Infraction>>;
-  /** All member notes for the temporarily banned user */
-  user_notes?: Maybe<Array<Member_Note>>;
-};
-
-export type Temporary_BanUser_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Temporary_BanUser_NotesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Member_Note_Order_By_Exp>>;
-  where?: InputMaybe<Member_Note_Bool_Exp>;
-};
-
-export type Temporary_Ban_Agg_Exp = {
-  __typename?: 'temporary_ban_agg_exp';
-  _count: Scalars['Int']['output'];
-  expires_at: Timestamp_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  user_id: Int64_Agg_Exp;
-};
-
-export type Temporary_Ban_Bool_Exp = {
-  _and?: InputMaybe<Array<Temporary_Ban_Bool_Exp>>;
-  _not?: InputMaybe<Temporary_Ban_Bool_Exp>;
-  _or?: InputMaybe<Array<Temporary_Ban_Bool_Exp>>;
-  expires_at?: InputMaybe<Timestamp_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  user_id?: InputMaybe<Int64_Bool_Exp>;
-};
-
-export type Temporary_Ban_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Temporary_Ban_Order_By_Exp>>;
-  where?: InputMaybe<Temporary_Ban_Bool_Exp>;
-};
-
-export type Temporary_Ban_Order_By_Exp = {
-  expires_at?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  user_id?: InputMaybe<OrderBy>;
-};
-
-export type Timestamp_Agg_Exp = {
-  __typename?: 'timestamp_agg_exp';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-};
-
-export type Timestamp_Agg_Exp_1 = {
-  __typename?: 'timestamp_agg_exp_1';
-  _count: Scalars['Int']['output'];
-  _count_distinct: Scalars['Int']['output'];
-};
-
-export type Timestamp_Bool_Exp = {
-  _and?: InputMaybe<Array<Timestamp_Bool_Exp>>;
-  _eq?: InputMaybe<Scalars['timestamp']['input']>;
-  _gt?: InputMaybe<Scalars['timestamp']['input']>;
-  _gte?: InputMaybe<Scalars['timestamp']['input']>;
-  _in?: InputMaybe<Array<Scalars['timestamp']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['timestamp']['input']>;
-  _lte?: InputMaybe<Scalars['timestamp']['input']>;
-  _not?: InputMaybe<Timestamp_Bool_Exp>;
-  _or?: InputMaybe<Array<Timestamp_Bool_Exp>>;
-};
-
-export type Timestamp_Bool_Exp_1 = {
-  _and?: InputMaybe<Array<Timestamp_Bool_Exp_1>>;
-  _eq?: InputMaybe<Scalars['timestamp']['input']>;
-  _gt?: InputMaybe<Scalars['timestamp']['input']>;
-  _gte?: InputMaybe<Scalars['timestamp']['input']>;
-  _in?: InputMaybe<Array<Scalars['timestamp']['input']>>;
-  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
-  _lt?: InputMaybe<Scalars['timestamp']['input']>;
-  _lte?: InputMaybe<Scalars['timestamp']['input']>;
-  _not?: InputMaybe<Timestamp_Bool_Exp_1>;
-  _or?: InputMaybe<Array<Timestamp_Bool_Exp_1>>;
-};
-
-export type Tracked_Messages = {
-  __typename?: 'tracked_messages';
-  attachments: Scalars['bytes']['output'];
-  author_id: Scalars['int64']['output'];
-  /** All infractions for the author of this message */
-  author_infractions?: Maybe<Array<Infraction>>;
-  channel_id: Scalars['int64']['output'];
-  content?: Maybe<Scalars['string']['output']>;
-  creation_timestamp: Scalars['timestamp']['output'];
-  /** Deletion record if this message was deleted */
-  deleted_record?: Maybe<Deleted_Message>;
-  deletion_timestamp?: Maybe<Scalars['timestamp']['output']>;
-  guild_id: Scalars['int64']['output'];
-  id: Scalars['int64']['output'];
-  is_deleted: Scalars['int8']['output'];
-  /** All reports made against this message */
-  reports?: Maybe<Array<Reported_Message>>;
-};
-
-export type Tracked_MessagesAuthor_InfractionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Infraction_Order_By_Exp>>;
-  where?: InputMaybe<Infraction_Bool_Exp>;
-};
-
-export type Tracked_MessagesReportsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Reported_Message_Order_By_Exp>>;
-  where?: InputMaybe<Reported_Message_Bool_Exp>;
-};
-
-export type Tracked_Messages_Agg_Exp = {
-  __typename?: 'tracked_messages_agg_exp';
-  _count: Scalars['Int']['output'];
-  attachments: Bytes_Agg_Exp;
-  author_id: Int64_Agg_Exp;
-  channel_id: Int64_Agg_Exp;
-  content: String_Agg_Exp;
-  creation_timestamp: Timestamp_Agg_Exp;
-  deletion_timestamp: Timestamp_Agg_Exp;
-  guild_id: Int64_Agg_Exp;
-  id: Int64_Agg_Exp;
-  is_deleted: Int8_Agg_Exp;
-};
-
-export type Tracked_Messages_Bool_Exp = {
-  _and?: InputMaybe<Array<Tracked_Messages_Bool_Exp>>;
-  _not?: InputMaybe<Tracked_Messages_Bool_Exp>;
-  _or?: InputMaybe<Array<Tracked_Messages_Bool_Exp>>;
-  attachments?: InputMaybe<Bytes_Bool_Exp>;
-  author_id?: InputMaybe<Int64_Bool_Exp>;
-  channel_id?: InputMaybe<Int64_Bool_Exp>;
-  content?: InputMaybe<String_Bool_Exp>;
-  creation_timestamp?: InputMaybe<Timestamp_Bool_Exp>;
-  deletion_timestamp?: InputMaybe<Timestamp_Bool_Exp>;
-  guild_id?: InputMaybe<Int64_Bool_Exp>;
-  id?: InputMaybe<Int64_Bool_Exp>;
-  is_deleted?: InputMaybe<Int8_Bool_Exp>;
-};
-
-export type Tracked_Messages_Filter_Input = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  order_by?: InputMaybe<Array<Tracked_Messages_Order_By_Exp>>;
-  where?: InputMaybe<Tracked_Messages_Bool_Exp>;
-};
-
-export type Tracked_Messages_Order_By_Exp = {
-  attachments?: InputMaybe<OrderBy>;
-  author_id?: InputMaybe<OrderBy>;
-  channel_id?: InputMaybe<OrderBy>;
-  content?: InputMaybe<OrderBy>;
-  creation_timestamp?: InputMaybe<OrderBy>;
-  deleted_record?: InputMaybe<Deleted_Message_Order_By_Exp>;
-  deletion_timestamp?: InputMaybe<OrderBy>;
-  guild_id?: InputMaybe<OrderBy>;
-  id?: InputMaybe<OrderBy>;
-  is_deleted?: InputMaybe<OrderBy>;
-};
+  order_by?: InputMaybe<Array<CollaborationPostOrderByExp> | CollaborationPostOrderByExp>;
+}>;
+
+export type CollaborationPostsQuery = {
+  __typename?: 'Query';
+  collaborationPost?: Array<{
+    __typename?: 'CollaborationPost';
+    id: any;
+    profileId: any;
+    guildId: any;
+    collaborationTypeId: any;
+    hiringStatusId: any;
+    statusId: any;
+    createdAt: any;
+    postedAt?: any | null;
+    expiresAt?: any | null;
+    viewCount: any;
+    responseCount: any;
+    isHighlighted: any;
+    tags?: any | null;
+    collaborationProfile?: {
+      __typename?: 'CollaborationProfile';
+      id: any;
+      displayName?: any | null;
+      userId: any;
+    } | null;
+    collaborationType?: { __typename?: 'CollaborationType'; id: any; name: any } | null;
+    hiringStatus?: { __typename?: 'HiringStatus'; id: any; name: any } | null;
+    collaborationStatus?: { __typename?: 'CollaborationStatus'; id: any; name: any } | null;
+    collaborationFieldValues?: Array<{
+      __typename?: 'CollaborationFieldValue';
+      id: any;
+      value: any;
+      collaborationFieldDefinition?: {
+        __typename?: 'CollaborationFieldDefinition';
+        id: any;
+        fieldName: any;
+        displayName: any;
+        fieldType: any;
+      } | null;
+    }> | null;
+    collaborationBookmarks?: Array<{ __typename?: 'CollaborationBookmark'; profileId: any }> | null;
+  }> | null;
+  collaborationPostAggregate?: { __typename?: 'CollaborationPostAggExp'; _count: number } | null;
+};
+
+export type CollaborationPostDetailQueryVariables = Exact<{
+  id: Scalars['String1']['input'];
+}>;
+
+export type CollaborationPostDetailQuery = {
+  __typename?: 'Query';
+  collaborationPostById?: {
+    __typename?: 'CollaborationPost';
+    id: any;
+    profileId: any;
+    guildId: any;
+    collaborationTypeId: any;
+    hiringStatusId: any;
+    statusId: any;
+    createdAt: any;
+    postedAt?: any | null;
+    expiresAt?: any | null;
+    viewCount: any;
+    responseCount: any;
+    isHighlighted: any;
+    tags?: any | null;
+    collaborationProfile?: {
+      __typename?: 'CollaborationProfile';
+      id: any;
+      displayName?: any | null;
+      bio?: any | null;
+      skills?: any | null;
+      portfolio?: any | null;
+      contactPreferences?: any | null;
+      userId: any;
+      lastActiveAt?: any | null;
+    } | null;
+    collaborationType?: {
+      __typename?: 'CollaborationType';
+      id: any;
+      name: any;
+      description?: any | null;
+    } | null;
+    hiringStatus?: {
+      __typename?: 'HiringStatus';
+      id: any;
+      name: any;
+      description?: any | null;
+    } | null;
+    collaborationStatus?: {
+      __typename?: 'CollaborationStatus';
+      id: any;
+      name: any;
+      description?: any | null;
+    } | null;
+    collaborationFieldValues?: Array<{
+      __typename?: 'CollaborationFieldValue';
+      id: any;
+      value: any;
+      collaborationFieldDefinition?: {
+        __typename?: 'CollaborationFieldDefinition';
+        id: any;
+        fieldName: any;
+        displayName: any;
+        fieldType: any;
+        helpText?: any | null;
+      } | null;
+    }> | null;
+    collaborationResponses?: Array<{
+      __typename?: 'CollaborationResponse';
+      id: any;
+      profileId: any;
+      message: any;
+      contactInfo?: any | null;
+      isPublic: any;
+      createdAt: any;
+      isRead: any;
+      collaborationProfile?: {
+        __typename?: 'CollaborationProfile';
+        id: any;
+        displayName?: any | null;
+        userId: any;
+      } | null;
+    }> | null;
+  } | null;
+};
+
+export type CollaborationFieldDefinitionsQueryVariables = Exact<{
+  typeId: Scalars['Int32']['input'];
+  hiringStatusId: Scalars['Int32']['input'];
+}>;
+
+export type CollaborationFieldDefinitionsQuery = {
+  __typename?: 'Query';
+  collaborationFieldDefinition?: Array<{
+    __typename?: 'CollaborationFieldDefinition';
+    id: any;
+    fieldName: any;
+    displayName: any;
+    fieldType: any;
+    isRequired: any;
+    fieldOrder: any;
+    maxLength?: any | null;
+    validationRegex?: any | null;
+    helpText?: any | null;
+    options?: any | null;
+  }> | null;
+};
+
+export type MyCollaborationResponsesQueryVariables = Exact<{
+  profileId: Scalars['String1']['input'];
+}>;
+
+export type MyCollaborationResponsesQuery = {
+  __typename?: 'Query';
+  collaborationResponse?: Array<{
+    __typename?: 'CollaborationResponse';
+    id: any;
+    collaborationPostId: any;
+    message: any;
+    contactInfo?: any | null;
+    isPublic: any;
+    isHidden: any;
+    createdAt: any;
+    isRead: any;
+    readAt?: any | null;
+    collaborationPost?: {
+      __typename?: 'CollaborationPost';
+      id: any;
+      statusId: any;
+      collaborationProfile?: {
+        __typename?: 'CollaborationProfile';
+        displayName?: any | null;
+      } | null;
+      collaborationType?: { __typename?: 'CollaborationType'; name: any } | null;
+      hiringStatus?: { __typename?: 'HiringStatus'; name: any } | null;
+    } | null;
+  }> | null;
+};
+
+export type PostResponsesQueryVariables = Exact<{
+  postId: Scalars['String1']['input'];
+  profileId: Scalars['String1']['input'];
+}>;
+
+export type PostResponsesQuery = {
+  __typename?: 'Query';
+  collaborationResponse?: Array<{
+    __typename?: 'CollaborationResponse';
+    id: any;
+    profileId: any;
+    message: any;
+    contactInfo?: any | null;
+    isPublic: any;
+    createdAt: any;
+    isRead: any;
+    readAt?: any | null;
+    collaborationProfile?: {
+      __typename?: 'CollaborationProfile';
+      id: any;
+      displayName?: any | null;
+      bio?: any | null;
+      skills?: any | null;
+      userId: any;
+    } | null;
+  }> | null;
+};
+
+export type MyBookmarksQueryVariables = Exact<{
+  profileId: Scalars['String1']['input'];
+}>;
+
+export type MyBookmarksQuery = {
+  __typename?: 'Query';
+  collaborationBookmark?: Array<{
+    __typename?: 'CollaborationBookmark';
+    id: any;
+    collaborationPostId: any;
+    createdAt: any;
+    collaborationPost?: {
+      __typename?: 'CollaborationPost';
+      id: any;
+      statusId: any;
+      postedAt?: any | null;
+      expiresAt?: any | null;
+      viewCount: any;
+      responseCount: any;
+      tags?: any | null;
+      collaborationProfile?: {
+        __typename?: 'CollaborationProfile';
+        displayName?: any | null;
+      } | null;
+      collaborationType?: { __typename?: 'CollaborationType'; name: any } | null;
+      hiringStatus?: { __typename?: 'HiringStatus'; name: any } | null;
+      collaborationFieldValues?: Array<{
+        __typename?: 'CollaborationFieldValue';
+        value: any;
+        collaborationFieldDefinition?: {
+          __typename?: 'CollaborationFieldDefinition';
+          fieldName: any;
+          displayName: any;
+        } | null;
+      }> | null;
+    } | null;
+  }> | null;
+};
+
+export class TypedDocumentString<TResult, TVariables>
+  extends String
+  implements DocumentTypeDecoration<TResult, TVariables>
+{
+  __apiType?: NonNullable<DocumentTypeDecoration<TResult, TVariables>['__apiType']>;
+  private value: string;
+  public __meta__?: Record<string, any> | undefined;
+
+  constructor(value: string, __meta__?: Record<string, any> | undefined) {
+    super(value);
+    this.value = value;
+    this.__meta__ = __meta__;
+  }
+
+  override toString(): string & DocumentTypeDecoration<TResult, TVariables> {
+    return this.value;
+  }
+}
+
+export const AltAccountsDocument = new TypedDocumentString(`
+    query AltAccounts {
+  altAccount {
+    userId
+    altId
+    staffMemberId
+    registeredAt
+  }
+}
+    `) as unknown as TypedDocumentString<AltAccountsQuery, AltAccountsQueryVariables>;
+export const CollabsDocument = new TypedDocumentString(`
+    query Collabs {
+  collaborationProfile {
+    id
+    displayName
+    bio
+  }
+}
+    `) as unknown as TypedDocumentString<CollabsQuery, CollabsQueryVariables>;
+export const CollaborationTypesDocument = new TypedDocumentString(`
+    query CollaborationTypes {
+  collaborationType {
+    id
+    name
+    description
+  }
+}
+    `) as unknown as TypedDocumentString<CollaborationTypesQuery, CollaborationTypesQueryVariables>;
+export const HiringStatusesDocument = new TypedDocumentString(`
+    query HiringStatuses {
+  hiringStatus {
+    id
+    name
+    description
+  }
+}
+    `) as unknown as TypedDocumentString<HiringStatusesQuery, HiringStatusesQueryVariables>;
+export const CollaborationStatusesDocument = new TypedDocumentString(`
+    query CollaborationStatuses {
+  collaborationStatus {
+    id
+    name
+    description
+  }
+}
+    `) as unknown as TypedDocumentString<
+  CollaborationStatusesQuery,
+  CollaborationStatusesQueryVariables
+>;
+export const MyCollaborationProfileDocument = new TypedDocumentString(`
+    query MyCollaborationProfile($userId: Int64!) {
+  collaborationProfile(where: {userId: {_eq: $userId}}) {
+    id
+    userId
+    guildId
+    displayName
+    bio
+    skills
+    portfolio
+    contactPreferences
+    isPublic
+    createdAt
+    updatedAt
+    lastActiveAt
+    collaborationPosts {
+      id
+      statusId
+      responseCount
+      viewCount
+    }
+    collaborationResponses {
+      id
+      collaborationPostId
+      isRead
+    }
+    collaborationBookmarks {
+      id
+      collaborationPostId
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<
+  MyCollaborationProfileQuery,
+  MyCollaborationProfileQueryVariables
+>;
+export const CollaborationProfileByIdDocument = new TypedDocumentString(`
+    query CollaborationProfileById($id: String1!) {
+  collaborationProfileById(id: $id) {
+    id
+    userId
+    displayName
+    bio
+    skills
+    portfolio
+    contactPreferences
+    isPublic
+    lastActiveAt
+    collaborationPosts(where: {statusId: {_eq: 2}}, order_by: {postedAt: Desc}) {
+      id
+      collaborationTypeId
+      hiringStatusId
+      statusId
+      postedAt
+      expiresAt
+      viewCount
+      responseCount
+      tags
+      collaborationType {
+        name
+      }
+      hiringStatus {
+        name
+      }
+      collaborationFieldValues {
+        id
+        value
+        collaborationFieldDefinition {
+          id
+          fieldName
+          displayName
+        }
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<
+  CollaborationProfileByIdQuery,
+  CollaborationProfileByIdQueryVariables
+>;
+export const CollaborationPostsDocument = new TypedDocumentString(`
+    query CollaborationPosts($where: CollaborationPostBoolExp, $limit: Int, $offset: Int, $order_by: [CollaborationPostOrderByExp!]) {
+  collaborationPost(
+    where: $where
+    limit: $limit
+    offset: $offset
+    order_by: $order_by
+  ) {
+    id
+    profileId
+    guildId
+    collaborationTypeId
+    hiringStatusId
+    statusId
+    createdAt
+    postedAt
+    expiresAt
+    viewCount
+    responseCount
+    isHighlighted
+    tags
+    collaborationProfile {
+      id
+      displayName
+      userId
+    }
+    collaborationType {
+      id
+      name
+    }
+    hiringStatus {
+      id
+      name
+    }
+    collaborationStatus {
+      id
+      name
+    }
+    collaborationFieldValues {
+      id
+      value
+      collaborationFieldDefinition {
+        id
+        fieldName
+        displayName
+        fieldType
+      }
+    }
+    collaborationBookmarks {
+      profileId
+    }
+  }
+  collaborationPostAggregate(filter_input: {where: $where}) {
+    _count
+  }
+}
+    `) as unknown as TypedDocumentString<CollaborationPostsQuery, CollaborationPostsQueryVariables>;
+export const CollaborationPostDetailDocument = new TypedDocumentString(`
+    query CollaborationPostDetail($id: String1!) {
+  collaborationPostById(id: $id) {
+    id
+    profileId
+    guildId
+    collaborationTypeId
+    hiringStatusId
+    statusId
+    createdAt
+    postedAt
+    expiresAt
+    viewCount
+    responseCount
+    isHighlighted
+    tags
+    collaborationProfile {
+      id
+      displayName
+      bio
+      skills
+      portfolio
+      contactPreferences
+      userId
+      lastActiveAt
+    }
+    collaborationType {
+      id
+      name
+      description
+    }
+    hiringStatus {
+      id
+      name
+      description
+    }
+    collaborationStatus {
+      id
+      name
+      description
+    }
+    collaborationFieldValues {
+      id
+      value
+      collaborationFieldDefinition {
+        id
+        fieldName
+        displayName
+        fieldType
+        helpText
+      }
+    }
+    collaborationResponses(where: {isHidden: {_eq: 0}}, order_by: {createdAt: Desc}) {
+      id
+      profileId
+      message
+      contactInfo
+      isPublic
+      createdAt
+      isRead
+      collaborationProfile {
+        id
+        displayName
+        userId
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<
+  CollaborationPostDetailQuery,
+  CollaborationPostDetailQueryVariables
+>;
+export const CollaborationFieldDefinitionsDocument = new TypedDocumentString(`
+    query CollaborationFieldDefinitions($typeId: Int32!, $hiringStatusId: Int32!) {
+  collaborationFieldDefinition(
+    where: {collaborationTypeId: {_eq: $typeId}, hiringStatusId: {_eq: $hiringStatusId}}
+    order_by: {fieldOrder: Asc}
+  ) {
+    id
+    fieldName
+    displayName
+    fieldType
+    isRequired
+    fieldOrder
+    maxLength
+    validationRegex
+    helpText
+    options
+  }
+}
+    `) as unknown as TypedDocumentString<
+  CollaborationFieldDefinitionsQuery,
+  CollaborationFieldDefinitionsQueryVariables
+>;
+export const MyCollaborationResponsesDocument = new TypedDocumentString(`
+    query MyCollaborationResponses($profileId: String1!) {
+  collaborationResponse(
+    where: {profileId: {_eq: $profileId}}
+    order_by: {createdAt: Desc}
+  ) {
+    id
+    collaborationPostId
+    message
+    contactInfo
+    isPublic
+    isHidden
+    createdAt
+    isRead
+    readAt
+    collaborationPost {
+      id
+      statusId
+      collaborationProfile {
+        displayName
+      }
+      collaborationType {
+        name
+      }
+      hiringStatus {
+        name
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<
+  MyCollaborationResponsesQuery,
+  MyCollaborationResponsesQueryVariables
+>;
+export const PostResponsesDocument = new TypedDocumentString(`
+    query PostResponses($postId: String1!, $profileId: String1!) {
+  collaborationResponse(
+    where: {collaborationPostId: {_eq: $postId}, _or: [{collaborationPost: {profileId: {_eq: $profileId}}}, {isPublic: {_eq: 1}}], isHidden: {_eq: 0}}
+    order_by: {createdAt: Desc}
+  ) {
+    id
+    profileId
+    message
+    contactInfo
+    isPublic
+    createdAt
+    isRead
+    readAt
+    collaborationProfile {
+      id
+      displayName
+      bio
+      skills
+      userId
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<PostResponsesQuery, PostResponsesQueryVariables>;
+export const MyBookmarksDocument = new TypedDocumentString(`
+    query MyBookmarks($profileId: String1!) {
+  collaborationBookmark(
+    where: {profileId: {_eq: $profileId}}
+    order_by: {createdAt: Desc}
+  ) {
+    id
+    collaborationPostId
+    createdAt
+    collaborationPost {
+      id
+      statusId
+      postedAt
+      expiresAt
+      viewCount
+      responseCount
+      tags
+      collaborationProfile {
+        displayName
+      }
+      collaborationType {
+        name
+      }
+      hiringStatus {
+        name
+      }
+      collaborationFieldValues {
+        value
+        collaborationFieldDefinition {
+          fieldName
+          displayName
+        }
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<MyBookmarksQuery, MyBookmarksQueryVariables>;

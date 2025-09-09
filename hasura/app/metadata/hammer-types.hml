@@ -1,32 +1,24 @@
 ---
-kind: ScalarType
-version: v1
-definition:
-  name: timestamp
-  graphql:
-    typeName: timestamp
-
----
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: timestamp_bool_exp
+  name: TimestampBoolExp_1
   operand:
     scalar:
-      type: timestamp
+      type: Timestamp
       comparisonOperators:
         - name: _eq
-          argumentType: timestamp!
+          argumentType: Timestamp!
         - name: _gt
-          argumentType: timestamp!
+          argumentType: Timestamp!
         - name: _gte
-          argumentType: timestamp!
+          argumentType: Timestamp!
         - name: _in
-          argumentType: "[timestamp!]!"
+          argumentType: "[Timestamp!]!"
         - name: _lt
-          argumentType: timestamp!
+          argumentType: Timestamp!
         - name: _lte
-          argumentType: timestamp!
+          argumentType: Timestamp!
       dataConnectorOperatorMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: TIMESTAMP
@@ -36,7 +28,7 @@ definition:
   isNull:
     enable: true
   graphql:
-    typeName: timestamp_bool_exp
+    typeName: TimestampBoolExp1
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -44,39 +36,31 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: TIMESTAMP
-  representation: timestamp
+  representation: Timestamp
   graphql:
-    comparisonExpressionTypeName: timestamp_comparison_exp
-
----
-kind: ScalarType
-version: v1
-definition:
-  name: int64
-  graphql:
-    typeName: int64
+    comparisonExpressionTypeName: TimestampComparisonExp_1
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: int64_bool_exp
+  name: Int64BoolExp_1
   operand:
     scalar:
-      type: int64
+      type: Int64
       comparisonOperators:
         - name: _eq
-          argumentType: int64!
+          argumentType: Int64!
         - name: _gt
-          argumentType: int64!
+          argumentType: Int64!
         - name: _gte
-          argumentType: int64!
+          argumentType: Int64!
         - name: _in
-          argumentType: "[int64!]!"
+          argumentType: "[Int64!]!"
         - name: _lt
-          argumentType: int64!
+          argumentType: Int64!
         - name: _lte
-          argumentType: int64!
+          argumentType: Int64!
       dataConnectorOperatorMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: INT64
@@ -86,7 +70,7 @@ definition:
   isNull:
     enable: true
   graphql:
-    typeName: int64_bool_exp
+    typeName: Int64BoolExp1
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -94,18 +78,18 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: INT64
-  representation: int64
+  representation: Int64
   graphql:
-    comparisonExpressionTypeName: int64_comparison_exp
+    comparisonExpressionTypeName: Int64ComparisonExp_1
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: timestamp_agg_exp
+  name: TimestampAggExp_1
   operand:
     scalar:
-      aggregatedType: timestamp
+      aggregatedType: Timestamp
       aggregationFunctions: []
       dataConnectorAggregationFunctionMapping:
         - dataConnectorName: hammer
@@ -116,15 +100,39 @@ definition:
   countDistinct:
     enable: true
   graphql:
-    selectTypeName: timestamp_agg_exp
+    selectTypeName: TimestampAggExp1
 
 ---
-kind: ScalarType
+kind: BooleanExpressionType
 version: v1
 definition:
-  name: float64
+  name: Float64BoolExp
+  operand:
+    scalar:
+      type: Float64
+      comparisonOperators:
+        - name: _eq
+          argumentType: Float64!
+        - name: _gt
+          argumentType: Float64!
+        - name: _gte
+          argumentType: Float64!
+        - name: _in
+          argumentType: "[Float64!]!"
+        - name: _lt
+          argumentType: Float64!
+        - name: _lte
+          argumentType: Float64!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: hammer
+          dataConnectorScalarType: FLOAT64
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
   graphql:
-    typeName: float64
+    typeName: Float64BoolExp
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -132,27 +140,27 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: FLOAT64
-  representation: float64
+  representation: Float64
   graphql:
-    comparisonExpressionTypeName: float64_comparison_exp
+    comparisonExpressionTypeName: Float64ComparisonExp_1
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: int64_agg_exp
+  name: Int64AggExp_1
   operand:
     scalar:
-      aggregatedType: int64
+      aggregatedType: Int64
       aggregationFunctions:
         - name: avg
-          returnType: float64!
+          returnType: Float64!
         - name: max
-          returnType: int64!
+          returnType: Int64!
         - name: min
-          returnType: int64!
+          returnType: Int64!
         - name: sum
-          returnType: int64!
+          returnType: Int64!
       dataConnectorAggregationFunctionMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: INT64
@@ -170,53 +178,27 @@ definition:
   countDistinct:
     enable: true
   graphql:
-    selectTypeName: int64_agg_exp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: timestamp_order_by_exp
-  operand:
-    scalar:
-      orderedType: timestamp
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: timestamp_order_by_exp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: int64_order_by_exp
-  operand:
-    scalar:
-      orderedType: int64
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: int64_order_by_exp
+    selectTypeName: Int64AggExp1
 
 ---
 kind: ScalarType
 version: v1
 definition:
-  name: bytes
+  name: Bytes
   graphql:
-    typeName: bytes
+    typeName: Bytes
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: bytes_bool_exp
+  name: BytesBoolExp
   operand:
     scalar:
-      type: bytes
+      type: Bytes
       comparisonOperators:
         - name: _eq
-          argumentType: bytes!
+          argumentType: Bytes!
       dataConnectorOperatorMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: BYTES
@@ -226,7 +208,7 @@ definition:
   isNull:
     enable: true
   graphql:
-    typeName: bytes_bool_exp
+    typeName: BytesBoolExp
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -234,35 +216,27 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: BYTES
-  representation: bytes
+  representation: Bytes
   graphql:
-    comparisonExpressionTypeName: bytes_comparison_exp
-
----
-kind: ScalarType
-version: v1
-definition:
-  name: string
-  graphql:
-    typeName: string
+    comparisonExpressionTypeName: BytesComparisonExp
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: string_bool_exp
+  name: StringBoolExp_1
   operand:
     scalar:
-      type: string
+      type: String_1
       comparisonOperators:
         - name: _contains
-          argumentType: string!
+          argumentType: String_1!
         - name: _eq
-          argumentType: string!
+          argumentType: String_1!
         - name: _in
-          argumentType: "[string!]!"
+          argumentType: "[String_1!]!"
         - name: _like
-          argumentType: string!
+          argumentType: String_1!
       dataConnectorOperatorMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: STRING
@@ -272,7 +246,7 @@ definition:
   isNull:
     enable: true
   graphql:
-    typeName: string_bool_exp
+    typeName: StringBoolExp1
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -280,39 +254,31 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: STRING
-  representation: string
+  representation: String_1
   graphql:
-    comparisonExpressionTypeName: string_comparison_exp
-
----
-kind: ScalarType
-version: v1
-definition:
-  name: int8
-  graphql:
-    typeName: int8
+    comparisonExpressionTypeName: String1ComparisonExp_1
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: int8_bool_exp
+  name: Int8BoolExp_1
   operand:
     scalar:
-      type: int8
+      type: Int8
       comparisonOperators:
         - name: _eq
-          argumentType: int8!
+          argumentType: Int8!
         - name: _gt
-          argumentType: int8!
+          argumentType: Int8!
         - name: _gte
-          argumentType: int8!
+          argumentType: Int8!
         - name: _in
-          argumentType: "[int8!]!"
+          argumentType: "[Int8!]!"
         - name: _lt
-          argumentType: int8!
+          argumentType: Int8!
         - name: _lte
-          argumentType: int8!
+          argumentType: Int8!
       dataConnectorOperatorMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: INT8
@@ -322,7 +288,7 @@ definition:
   isNull:
     enable: true
   graphql:
-    typeName: int8_bool_exp
+    typeName: Int8BoolExp1
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -330,18 +296,18 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: INT8
-  representation: int8
+  representation: Int8
   graphql:
-    comparisonExpressionTypeName: int8_comparison_exp
+    comparisonExpressionTypeName: Int8ComparisonExp_1
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: bytes_agg_exp
+  name: BytesAggExp
   operand:
     scalar:
-      aggregatedType: bytes
+      aggregatedType: Bytes
       aggregationFunctions: []
       dataConnectorAggregationFunctionMapping:
         - dataConnectorName: hammer
@@ -352,21 +318,21 @@ definition:
   countDistinct:
     enable: true
   graphql:
-    selectTypeName: bytes_agg_exp
+    selectTypeName: BytesAggExp
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: string_agg_exp
+  name: StringAggExp_1
   operand:
     scalar:
-      aggregatedType: string
+      aggregatedType: String_1
       aggregationFunctions:
         - name: max
-          returnType: string!
+          returnType: String_1!
         - name: min
-          returnType: string!
+          returnType: String_1!
       dataConnectorAggregationFunctionMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: STRING
@@ -380,25 +346,25 @@ definition:
   countDistinct:
     enable: true
   graphql:
-    selectTypeName: string_agg_exp
+    selectTypeName: StringAggExp1
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: int8_agg_exp
+  name: Int8AggExp_1
   operand:
     scalar:
-      aggregatedType: int8
+      aggregatedType: Int8
       aggregationFunctions:
         - name: avg
-          returnType: float64!
+          returnType: Float64!
         - name: max
-          returnType: int8!
+          returnType: Int8!
         - name: min
-          returnType: int8!
+          returnType: Int8!
         - name: sum
-          returnType: int64!
+          returnType: Int64!
       dataConnectorAggregationFunctionMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: INT8
@@ -416,76 +382,42 @@ definition:
   countDistinct:
     enable: true
   graphql:
-    selectTypeName: int8_agg_exp
+    selectTypeName: Int8AggExp1
 
 ---
 kind: OrderByExpression
 version: v1
 definition:
-  name: bytes_order_by_exp
+  name: BytesOrderByExp
   operand:
     scalar:
-      orderedType: bytes
+      orderedType: Bytes
       enableOrderByDirections:
         enableAll: true
   graphql:
-    expressionTypeName: bytes_order_by_exp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: string_order_by_exp
-  operand:
-    scalar:
-      orderedType: string
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: string_order_by_exp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: int8_order_by_exp
-  operand:
-    scalar:
-      orderedType: int8
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: int8_order_by_exp
-
----
-kind: ScalarType
-version: v1
-definition:
-  name: int32
-  graphql:
-    typeName: int32
+    expressionTypeName: BytesOrderByExp
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: int32_bool_exp
+  name: Int32BoolExp_1
   operand:
     scalar:
-      type: int32
+      type: Int32
       comparisonOperators:
         - name: _eq
-          argumentType: int32!
+          argumentType: Int32!
         - name: _gt
-          argumentType: int32!
+          argumentType: Int32!
         - name: _gte
-          argumentType: int32!
+          argumentType: Int32!
         - name: _in
-          argumentType: "[int32!]!"
+          argumentType: "[Int32!]!"
         - name: _lt
-          argumentType: int32!
+          argumentType: Int32!
         - name: _lte
-          argumentType: int32!
+          argumentType: Int32!
       dataConnectorOperatorMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: INT32
@@ -495,7 +427,7 @@ definition:
   isNull:
     enable: true
   graphql:
-    typeName: int32_bool_exp
+    typeName: Int32BoolExp1
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -503,27 +435,27 @@ version: v1
 definition:
   dataConnectorName: hammer
   dataConnectorScalarType: INT32
-  representation: int32
+  representation: Int32
   graphql:
-    comparisonExpressionTypeName: int32_comparison_exp
+    comparisonExpressionTypeName: Int32ComparisonExp_1
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: int32_agg_exp
+  name: Int32AggExp_1
   operand:
     scalar:
-      aggregatedType: int32
+      aggregatedType: Int32
       aggregationFunctions:
         - name: avg
-          returnType: float64!
+          returnType: Float64!
         - name: max
-          returnType: int32!
+          returnType: Int32!
         - name: min
-          returnType: int32!
+          returnType: Int32!
         - name: sum
-          returnType: int64!
+          returnType: Int64!
       dataConnectorAggregationFunctionMapping:
         - dataConnectorName: hammer
           dataConnectorScalarType: INT32
@@ -541,18 +473,5 @@ definition:
   countDistinct:
     enable: true
   graphql:
-    selectTypeName: int32_agg_exp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: int32_order_by_exp
-  operand:
-    scalar:
-      orderedType: int32
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: int32_order_by_exp
+    selectTypeName: Int32AggExp1
 

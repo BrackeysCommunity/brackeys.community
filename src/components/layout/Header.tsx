@@ -24,6 +24,7 @@ const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
   { name: 'Dashboard', href: '/dashboard', requiresAuth: true },
   { name: 'Cool Stuff', href: '/resources' },
+  { name: 'Collaborations', href: '/collaborations' },
 ];
 
 export const Header = () => {

@@ -1,0 +1,167 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollaborationStatus
+  fields:
+    - name: description
+      type: String_1
+    - name: id
+      type: Int32!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: CollaborationStatus
+    inputTypeName: CollaborationStatusInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: collab
+      dataConnectorObjectType: CollaborationStatus
+      fieldMapping:
+        description:
+          column:
+            name: Description
+        id:
+          column:
+            name: Id
+        name:
+          column:
+            name: Name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollaborationStatus
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollaborationStatusBoolExp
+  operand:
+    object:
+      type: CollaborationStatus
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: StringBoolExp
+        - fieldName: id
+          booleanExpressionType: Int32BoolExp
+        - fieldName: name
+          booleanExpressionType: StringBoolExp
+      comparableRelationships:
+        - relationshipName: collaborationPosts
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollaborationStatusBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollaborationStatusAggExp
+  operand:
+    object:
+      aggregatedType: CollaborationStatus
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: StringAggExp
+        - fieldName: id
+          aggregateExpression: Int32AggExp
+        - fieldName: name
+          aggregateExpression: StringAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollaborationStatusAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollaborationStatusOrderByExp
+  operand:
+    object:
+      orderedType: CollaborationStatus
+      orderableFields:
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: Int32OrderByExp
+        - fieldName: name
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollaborationStatusOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollaborationStatus
+  objectType: CollaborationStatus
+  source:
+    dataConnectorName: collab
+    collection: CollaborationStatus
+  filterExpressionType: CollaborationStatusBoolExp
+  aggregateExpression: CollaborationStatusAggExp
+  orderByExpression: CollaborationStatusOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collaborationStatus
+      subscription:
+        rootField: collaborationStatus
+    selectUniques:
+      - queryRootField: collaborationStatusById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collaborationStatusById
+    filterInputTypeName: CollaborationStatusFilterInput
+    aggregate:
+      queryRootField: collaborationStatusAggregate
+      subscription:
+        rootField: collaborationStatusAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollaborationStatus
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collaborationPosts
+  sourceType: CollaborationStatus
+  target:
+    model:
+      name: CollaborationPost
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollaborationPostAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: statusId
+  graphql:
+    aggregateFieldName: collaborationPostsAggregate
+

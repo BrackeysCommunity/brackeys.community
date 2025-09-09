@@ -2,19 +2,19 @@
 kind: ObjectType
 version: v1
 definition:
-  name: rule
+  name: Rule
   fields:
     - name: brief
-      type: string
+      type: String_1
     - name: description
-      type: string!
-    - name: guild_id
-      type: int64!
+      type: String_1!
+    - name: guildId
+      type: Int64!
     - name: id
-      type: int32!
+      type: Int32!
   graphql:
-    typeName: rule
-    inputTypeName: rule_input
+    typeName: Rule
+    inputTypeName: RuleInput
   dataConnectorTypeMapping:
     - dataConnectorName: hammer
       dataConnectorObjectType: Rule
@@ -25,7 +25,7 @@ definition:
         description:
           column:
             name: Description
-        guild_id:
+        guildId:
           column:
             name: GuildId
         id:
@@ -36,148 +36,122 @@ definition:
 kind: TypePermissions
 version: v1
 definition:
-  typeName: rule
+  typeName: Rule
   permissions:
     - role: admin
       output:
         allowedFields:
           - brief
           - description
-          - guild_id
+          - guildId
           - id
 
 ---
 kind: BooleanExpressionType
 version: v1
 definition:
-  name: rule_bool_exp
+  name: RuleBoolExp
   operand:
     object:
-      type: rule
+      type: Rule
       comparableFields:
         - fieldName: brief
-          booleanExpressionType: string_bool_exp
+          booleanExpressionType: StringBoolExp_1
         - fieldName: description
-          booleanExpressionType: string_bool_exp
-        - fieldName: guild_id
-          booleanExpressionType: int64_bool_exp
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: guildId
+          booleanExpressionType: Int64BoolExp_1
         - fieldName: id
-          booleanExpressionType: int32_bool_exp
+          booleanExpressionType: Int32BoolExp_1
       comparableRelationships: []
   logicalOperators:
     enable: true
   isNull:
     enable: true
   graphql:
-    typeName: rule_bool_exp
+    typeName: RuleBoolExp
 
 ---
 kind: AggregateExpression
 version: v1
 definition:
-  name: rule_agg_exp
+  name: RuleAggExp
   operand:
     object:
-      aggregatedType: rule
+      aggregatedType: Rule
       aggregatableFields:
         - fieldName: brief
-          aggregateExpression: string_agg_exp
+          aggregateExpression: StringAggExp_1
         - fieldName: description
-          aggregateExpression: string_agg_exp
-        - fieldName: guild_id
-          aggregateExpression: int64_agg_exp
+          aggregateExpression: StringAggExp_1
+        - fieldName: guildId
+          aggregateExpression: Int64AggExp_1
         - fieldName: id
-          aggregateExpression: int32_agg_exp
+          aggregateExpression: Int32AggExp_1
   count:
     enable: true
   graphql:
-    selectTypeName: rule_agg_exp
+    selectTypeName: RuleAggExp
 
 ---
 kind: OrderByExpression
 version: v1
 definition:
-  name: rule_order_by_exp
+  name: RuleOrderByExp
   operand:
     object:
-      orderedType: rule
+      orderedType: Rule
       orderableFields:
         - fieldName: brief
-          orderByExpression: string_order_by_exp
+          orderByExpression: String1OrderByExp
         - fieldName: description
-          orderByExpression: string_order_by_exp
-        - fieldName: guild_id
-          orderByExpression: int64_order_by_exp
+          orderByExpression: String1OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
         - fieldName: id
-          orderByExpression: int32_order_by_exp
+          orderByExpression: Int32OrderByExp
       orderableRelationships: []
   graphql:
-    expressionTypeName: rule_order_by_exp
+    expressionTypeName: RuleOrderByExp
 
 ---
 kind: Model
 version: v2
 definition:
-  name: rule
-  objectType: rule
+  name: Rule
+  objectType: Rule
   source:
     dataConnectorName: hammer
     collection: Rule
-  filterExpressionType: rule_bool_exp
-  aggregateExpression: rule_agg_exp
-  orderByExpression: rule_order_by_exp
+  filterExpressionType: RuleBoolExp
+  aggregateExpression: RuleAggExp
+  orderByExpression: RuleOrderByExp
   graphql:
     selectMany:
       queryRootField: rule
       subscription:
         rootField: rule
     selectUniques:
-      - queryRootField: rule_by_rule_pk
+      - queryRootField: ruleByRulePk
         uniqueIdentifier:
           - id
-          - guild_id
+          - guildId
         subscription:
-          rootField: rule_by_rule_pk
-    filterInputTypeName: rule_filter_input
+          rootField: ruleByRulePk
+    filterInputTypeName: RuleFilterInput
     aggregate:
-      queryRootField: rule_aggregate
+      queryRootField: ruleAggregate
       subscription:
-        rootField: rule_aggregate
+        rootField: ruleAggregate
 
 ---
 kind: ModelPermissions
 version: v1
 definition:
-  modelName: rule
+  modelName: Rule
   permissions:
     - role: admin
       select:
         filter: null
         allowSubscriptions: true
-
----
-kind: Relationship
-version: v1
-definition:
-  name: infractions
-  sourceType: rule
-  target:
-    model:
-      name: infraction
-      subgraph: null
-      relationshipType: Array
-  mapping:
-    - source:
-        fieldPath:
-          - fieldName: id
-      target:
-        modelField:
-          - fieldName: rule_id
-    - source:
-        fieldPath:
-          - fieldName: guild_id
-      target:
-        modelField:
-          - fieldName: guild_id
-  description: All infractions that cite this rule
 

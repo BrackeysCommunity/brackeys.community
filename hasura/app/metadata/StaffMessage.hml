@@ -1,0 +1,180 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StaffMessage
+  fields:
+    - name: content
+      type: String_1!
+    - name: guildId
+      type: Int64!
+    - name: id
+      type: Int64!
+    - name: recipientId
+      type: Int64!
+    - name: sentAt
+      type: Timestamp!
+    - name: staffMemberId
+      type: Int64!
+  graphql:
+    typeName: StaffMessage
+    inputTypeName: StaffMessageInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: hammer
+      dataConnectorObjectType: StaffMessage
+      fieldMapping:
+        content:
+          column:
+            name: Content
+        guildId:
+          column:
+            name: GuildId
+        id:
+          column:
+            name: Id
+        recipientId:
+          column:
+            name: RecipientId
+        sentAt:
+          column:
+            name: SentAt
+        staffMemberId:
+          column:
+            name: StaffMemberId
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StaffMessage
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - content
+          - guildId
+          - id
+          - recipientId
+          - sentAt
+          - staffMemberId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: StaffMessageBoolExp
+  operand:
+    object:
+      type: StaffMessage
+      comparableFields:
+        - fieldName: content
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: guildId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: id
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: recipientId
+          booleanExpressionType: Int64BoolExp_1
+        - fieldName: sentAt
+          booleanExpressionType: TimestampBoolExp_1
+        - fieldName: staffMemberId
+          booleanExpressionType: Int64BoolExp_1
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: StaffMessageBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: StaffMessageAggExp
+  operand:
+    object:
+      aggregatedType: StaffMessage
+      aggregatableFields:
+        - fieldName: content
+          aggregateExpression: StringAggExp_1
+        - fieldName: guildId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: id
+          aggregateExpression: Int64AggExp_1
+        - fieldName: recipientId
+          aggregateExpression: Int64AggExp_1
+        - fieldName: sentAt
+          aggregateExpression: TimestampAggExp_1
+        - fieldName: staffMemberId
+          aggregateExpression: Int64AggExp_1
+  count:
+    enable: true
+  graphql:
+    selectTypeName: StaffMessageAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: StaffMessageOrderByExp
+  operand:
+    object:
+      orderedType: StaffMessage
+      orderableFields:
+        - fieldName: content
+          orderByExpression: String1OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: id
+          orderByExpression: Int64OrderByExp
+        - fieldName: recipientId
+          orderByExpression: Int64OrderByExp
+        - fieldName: sentAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: staffMemberId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: StaffMessageOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: StaffMessage
+  objectType: StaffMessage
+  source:
+    dataConnectorName: hammer
+    collection: StaffMessage
+  filterExpressionType: StaffMessageBoolExp
+  aggregateExpression: StaffMessageAggExp
+  orderByExpression: StaffMessageOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: staffMessage
+      subscription:
+        rootField: staffMessage
+    selectUniques:
+      - queryRootField: staffMessageById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: staffMessageById
+    filterInputTypeName: StaffMessageFilterInput
+    aggregate:
+      queryRootField: staffMessageAggregate
+      subscription:
+        rootField: staffMessageAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: StaffMessage
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

@@ -9,7 +9,7 @@ export default defineConfig(({ command, mode }) => {
   const baseConfig = {
     plugins: [react()],
     optimizeDeps: {
-      exclude: ['lucide-react'],
+      exclude: ['lucide-react', '@uidotdev/usehooks'],
     },
   };
 
