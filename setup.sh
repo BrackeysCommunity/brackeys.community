@@ -138,7 +138,29 @@ if command -v docker &> /dev/null; then
 else
     print_error "Docker is not installed!"
     print_warning "Please install Docker Desktop from: https://www.docker.com/products/docker-desktop"
-    print_warning "Docker is required for running Hasura and database services"
+    print_warning "Docker is required for running Hasura DDN connectors locally"
+fi
+
+# Check/Install Hasura DDN CLI
+print_header "🚀 Checking Hasura DDN CLI"
+if command -v ddn &> /dev/null; then
+    print_success "Hasura DDN CLI is installed (version: $(ddn version 2>/dev/null || echo 'unknown'))"
+else
+    print_warning "Hasura DDN CLI not found. Installing..."
+
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+        print_error "Windows detected - please install DDN CLI manually"
+        print_warning "Download from: https://hasura.io/docs/3.0/quickstart/"
+        print_warning "Run the Windows installer, then re-run this setup script"
+        exit 1
+    else
+        curl -L https://graphql-engine-cdn.hasura.io/ddn/cli/v4/get.sh | bash
+
+        # Add to PATH for current session
+        export PATH="$HOME/.local/bin:$PATH"
+
+        print_success "Hasura DDN CLI installed!"
+    fi
 fi
 
 # Run initial setup
@@ -153,13 +175,14 @@ echo "  2. Update your .env file with real values"
 echo "  3. Run: mise run dev"
 echo
 echo "Available commands:"
-echo "  mise run dev          - Start all development services"
-echo "  mise run dev-frontend - Start only frontend"
-echo "  mise run dev-hasura   - Start only Hasura"
-echo "  mise run test         - Run tests"
-echo "  mise run lint         - Run linting"
-echo "  mise run storybook    - Start Storybook"
-echo "  mise run build        - Build for production"
+echo "  mise run dev             - Start all development services"
+echo "  mise run dev-frontend    - Start only frontend"
+echo "  mise run dev-hasura      - Start only Hasura DDN"
+echo "  mise run hasura-console  - Open Hasura DDN console"
+echo "  mise run test            - Run tests"
+echo "  mise run lint            - Run linting"
+echo "  mise run storybook       - Start Storybook"
+echo "  mise run build           - Build for production"
 echo
 echo "For more commands, run: mise tasks"
 echo

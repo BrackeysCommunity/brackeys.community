@@ -92,7 +92,8 @@ sudo chown -R $(whoami) ~/.local/share/mise
 - Ensure Docker is running
 - Check if ports are available: `lsof -i :3280` (macOS/Linux)
 - Restart Hasura: `mise run dev-hasura`
-- Check logs: `docker compose -f hasura/compose.yaml logs`
+- Rebuild supergraph: `cd hasura && ddn supergraph build local`
+- Check Docker logs: `cd hasura && docker logs $(docker ps -q)`
 
 ### 5. "SpacetimeDB build failed"
 

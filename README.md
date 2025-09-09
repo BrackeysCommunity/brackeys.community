@@ -14,10 +14,11 @@ This will:
 
 - ✅ Install [mise](https://mise.jdx.dev/) for tool management
 - ✅ Install all required tools (Bun, Node, Rust, etc.)
+- ✅ Install [Hasura DDN CLI](https://hasura.io/docs/3.0/quickstart/)
 - ✅ Set up your environment variables
 - ✅ Install all dependencies
-- ✅ Build the SpacetimeDB module
-- ✅ Pull Docker images for Hasura
+- ✅ Build the SpacetimeDB module (with WASM target)
+- ✅ Configure Hasura DDN for local development
 - ✅ Configure git hooks
 
 After setup, just run:
