@@ -6,6 +6,14 @@ on:
 jobs:
   build_and_preview:
     runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      VITE_SPACETIME_HOST: ${{ secrets.SPACETIME_HOST }}
+      VITE_SPACETIME_MODULE: ${{ secrets.SPACETIME_MODULE }}
+      VITE_SPACETIME_ROOM_KEY: ${{ secrets.SPACETIME_ROOM_KEY }}
+      VITE_BRACKEYS_GUILD_ID: ${{ secrets.BRACKEYS_GUILD_ID }}
+      VITE_HASURA_GRAPHQL_URL: ${{ secrets.HASURA_GRAPHQL_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
