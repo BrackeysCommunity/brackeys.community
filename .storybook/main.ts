@@ -20,6 +20,9 @@ const config: StorybookConfig = {
     config.plugins = (config.plugins ?? []).filter(
       plugin => plugin && 'name' in plugin && plugin.name !== 'vite:dts'
     );
+    config.optimizeDeps = {
+      exclude: ['lucide-react', '@uidotdev/usehooks'],
+    };
     return config;
   },
 };
