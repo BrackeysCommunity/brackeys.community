@@ -15,9 +15,9 @@ const config: CodegenConfig = {
         skipTypeNamesForRoot: true,
         reactQueryVersion: 5,
         exposeDocument: true,
-        // fetcher: {
-        //   endpoint: hasuraEndpoint,
-        // },
+        fetcher: {
+          endpoint: hasuraEndpoint,
+        },
       },
     },
   },

@@ -24,7 +24,7 @@ export type CollaborationProfile = {
   skills?: string | null;
   portfolio?: string | null;
   contactPreferences?: string | null;
-  isPublic: number;
+  isPublic?: number;
   lastActiveAt?: string | null;
 };
 

@@ -42,6 +42,7 @@ Thumbs.db
 # Hasura
 hasura/**/*.yaml
 hasura/**/*.json
+src/lib/gql/generated.ts
 
 # Auto-generated files
 src/api/generated/

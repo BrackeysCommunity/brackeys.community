@@ -1,4 +1,4 @@
-import { graphql } from './gen';
+import { graphql } from './gen/gql';
 
 const AltAccounts = graphql(`
   query AltAccounts {
@@ -213,6 +213,7 @@ export const CollaborationPostDetail = graphql(`
         contactPreferences
         userId
         lastActiveAt
+        isPublic
       }
       collaborationType {
         id

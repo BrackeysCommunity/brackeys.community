@@ -11,6 +11,7 @@ import { Resources } from './pages/Resources';
 import { Sandbox } from './pages/Sandbox';
 import { Collaborations } from './pages/Collaborations';
 import { CollaborationDetail } from './pages/CollaborationDetail';
+import { CollaborationHub } from './pages/CollaborationHub';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -82,6 +83,12 @@ const collaborationDetailRoute = createRoute({
   component: CollaborationDetail,
 });
 
+const collaborationHubRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/collaboration-hub',
+  component: CollaborationHub,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -92,6 +99,7 @@ const routeTree = rootRoute.addChildren([
   sandboxRoute,
   collaborationsRoute,
   collaborationDetailRoute,
+  collaborationHubRoute,
   toolEmbedRoute,
   notFoundRoute,
 ]);

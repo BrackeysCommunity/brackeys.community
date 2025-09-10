@@ -1,7 +1,19 @@
 import { motion } from 'motion/react';
 import { Link } from '@tanstack/react-router';
-import type { CollaborationPost } from './types';
 import { formatDistanceToNow } from 'date-fns';
+import {
+  Briefcase,
+  Heart,
+  TestTube,
+  GraduationCap,
+  Eye,
+  MessageCircle,
+  Bookmark,
+  ArrowUpRight,
+  User,
+} from 'lucide-react';
+import { cn } from '../../lib/utils';
+import type { CollaborationPost } from './types';
 
 type CollaborationCardProps = {
   post: CollaborationPost;
@@ -9,145 +21,187 @@ type CollaborationCardProps = {
   onToggleBookmark?: () => void;
 };
 
-export function CollaborationCard({
+const typeIcons = {
+  1: Briefcase, // Paid
+  2: Heart, // Hobby
+  3: TestTube, // Gametest
+  4: GraduationCap, // Mentor
+};
+
+const typeColors = {
+  1: 'text-blue-400',
+  2: 'text-purple-400',
+  3: 'text-orange-400',
+  4: 'text-green-400',
+};
+
+const hiringStatusColors = {
+  1: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', // Looking
+  2: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', // Offering
+};
+
+export const CollaborationCard = ({
   post,
   isBookmarked,
   onToggleBookmark,
-}: CollaborationCardProps) {
-  const typeColorMap: Record<number, string> = {
-    1: 'bg-blue-500/20 text-blue-400 border-blue-500/30', // Paid
-    2: 'bg-purple-500/20 text-purple-400 border-purple-500/30', // Hobby
-    3: 'bg-orange-500/20 text-orange-400 border-orange-500/30', // Gametest
-    4: 'bg-green-500/20 text-green-400 border-green-500/30', // Mentor
-  };
-
-  const hiringStatusColorMap: Record<number, string> = {
-    1: 'text-cyan-400', // Looking
-    2: 'text-yellow-400', // Offering
-  };
-
-  const typeColor = typeColorMap[post.collaborationTypeId] || 'bg-gray-500/20 text-gray-400';
-  const hiringStatusColor = hiringStatusColorMap[post.hiringStatusId] || 'text-gray-400';
+}: CollaborationCardProps) => {
+  const TypeIcon = typeIcons[post.collaborationTypeId as keyof typeof typeIcons] || Briefcase;
+  const typeColor =
+    typeColors[post.collaborationTypeId as keyof typeof typeColors] || 'text-gray-400';
+  const hiringStatusColor =
+    hiringStatusColors[post.hiringStatusId as keyof typeof hiringStatusColors] ||
+    'bg-gray-500/20 text-gray-400';
 
   const tags = post.tags ? JSON.parse(post.tags) : [];
-  const mainFields = post.collaborationFieldValues?.slice(0, 3) || [];
+  const mainFields = post.collaborationFieldValues?.slice(0, 2) || [];
 
   return (
     <motion.div
-      whileHover={{ scale: 1.02 }}
-      className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-6 border border-gray-700 hover:border-gray-600 transition-all"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.3,
+        type: 'spring',
+        stiffness: 300,
+        damping: 20,
+      }}
+      className={cn(
+        'flex flex-col h-full',
+        'bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700',
+        'hover:border-brackeys-purple-500 transition-colors'
+      )}
     >
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex-1">
-          {/* Type and Hiring Status Badges */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`px-2 py-1 rounded-md text-xs font-medium border ${typeColor}`}>
-              {post.collaborationType?.name}
-            </span>
-            <span className={`text-xs font-medium ${hiringStatusColor}`}>
-              {post.hiringStatus?.name}
-            </span>
-          </div>
-
-          {/* Profile Info */}
-          <h3 className="text-lg font-semibold text-white mb-1">
-            {post.collaborationProfile?.displayName || 'Anonymous'}
-          </h3>
+      {/* Header with Type Icon */}
+      <div className="relative w-full h-32 bg-gray-900">
+        <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-in pattern-opacity-100 z-0" />
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <TypeIcon className={cn('h-12 w-12', typeColor)} />
         </div>
 
         {/* Bookmark Button */}
         {onToggleBookmark && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
             onClick={onToggleBookmark}
-            className="text-gray-400 hover:text-yellow-400 transition-colors"
+            className="absolute top-2 right-2 p-2 rounded-full bg-gray-800/80 hover:bg-gray-700 transition-colors z-20"
             aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
           >
-            <svg
-              className="w-5 h-5"
-              fill={isBookmarked ? 'currentColor' : 'none'}
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-              />
-            </svg>
-          </button>
+            <Bookmark
+              className={cn(
+                'h-4 w-4',
+                isBookmarked ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'
+              )}
+            />
+          </motion.button>
         )}
       </div>
 
-      {/* Main Field Values */}
-      {mainFields.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {mainFields.map(field => (
-            <div key={field.id} className="text-sm">
-              <span className="text-gray-400">
-                {field.collaborationFieldDefinition?.displayName}:{' '}
+      {/* Content */}
+      <div className="p-6 flex-grow flex flex-col">
+        {/* Badges */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className={cn('px-2 py-1 rounded-md text-xs font-medium border', hiringStatusColor)}>
+            {post.hiringStatus?.name}
+          </div>
+          <div className="flex items-center gap-1 bg-gray-700 px-2 py-1 rounded-md">
+            <TypeIcon className={cn('h-3 w-3', typeColor)} />
+            <span className="text-xs text-gray-300">{post.collaborationType?.name}</span>
+          </div>
+        </div>
+
+        {/* Profile Info */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-8 w-8 rounded-full bg-gray-700 flex items-center justify-center">
+            <User className="h-4 w-4 text-gray-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-white">
+              {post.collaborationProfile?.displayName || 'Anonymous'}
+            </h3>
+          </div>
+        </div>
+
+        {/* Main Fields */}
+        {mainFields.length > 0 && (
+          <div className="space-y-2 mb-4 flex-grow">
+            {mainFields.map(field => (
+              <div key={field.id} className="text-sm">
+                <span className="text-gray-400">
+                  {field.collaborationFieldDefinition?.displayName}:
+                </span>
+                <p className="text-gray-200 line-clamp-2 mt-1">{field.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-4">
+            {tags.slice(0, 3).map((tag: string, index: number) => (
+              <span
+                key={index}
+                className="px-2 py-1 bg-gray-700/50 text-gray-400 rounded-full text-xs"
+              >
+                {tag}
               </span>
-              <span className="text-gray-200 line-clamp-2">{field.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+            {tags.length > 3 && (
+              <span className="px-2 py-1 text-gray-500 text-xs">+{tags.length - 3} more</span>
+            )}
+          </div>
+        )}
 
-      {/* Tags */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {tags.map((tag: string, index: number) => (
-            <span key={index} className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-md text-xs">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Stats and Actions */}
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-700">
-        <div className="flex items-center gap-4 text-sm text-gray-400">
+        {/* Stats */}
+        <div className="flex items-center gap-4 text-xs text-gray-400 mt-auto">
           <span className="flex items-center gap-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg>
+            <Eye className="h-3 w-3" />
             {post.viewCount}
           </span>
           <span className="flex items-center gap-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-              />
-            </svg>
+            <MessageCircle className="h-3 w-3" />
             {post.responseCount}
           </span>
           {post.postedAt && (
-            <span>{formatDistanceToNow(new Date(post.postedAt), { addSuffix: true })}</span>
+            <span className="ml-auto">
+              {formatDistanceToNow(new Date(post.postedAt), { addSuffix: true })}
+            </span>
           )}
         </div>
+      </div>
 
-        <Link
-          to="/collaborations/$postId"
-          params={{ postId: post.id }}
-          className="text-green-400 hover:text-green-300 text-sm font-medium transition-colors"
+      {/* Action Button */}
+      <div className="relative flex border-t border-gray-700 bg-gray-900 overflow-hidden">
+        <div className="absolute inset-0 bg-line-pattern pattern-mask-fade-out pattern-opacity-100 z-0" />
+        <motion.div
+          initial={{ margin: '16px', padding: '16px 16px' }}
+          whileHover={{
+            margin: '0px',
+            padding: '32px 16px',
+            borderTopLeftRadius: '0px',
+            borderTopRightRadius: '0px',
+            transition: { type: 'tween', duration: 0.2, ease: 'easeOut' },
+          }}
+          whileTap={{
+            margin: '8px',
+            padding: '24px 16px',
+            borderTopLeftRadius: '6px',
+            borderTopRightRadius: '6px',
+          }}
+          transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+          className="relative inline-flex grow items-center justify-center border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-brackeys-purple-500 z-10 overflow-hidden"
         >
-          View Details →
-        </Link>
+          <Link
+            to="/collaborations/$postId"
+            params={{ postId: post.id }}
+            className="absolute inset-0 flex items-center justify-center gap-2"
+          >
+            View Details
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </motion.div>
       </div>
     </motion.div>
   );
-}
+};

@@ -7,6 +7,13 @@ const config: CodegenConfig = {
   documents: ['src/**/*.ts', 'src/**/*.tsx'],
   ignoreNoDocuments: true,
   generates: {
+    './src/lib/gql/gen/': {
+      preset: 'client',
+      config: {
+        documentMode: 'string',
+        schema: hasuraEndpoint,
+      },
+    },
     './schema.graphql': {
       plugins: ['schema-ast'],
       config: {
