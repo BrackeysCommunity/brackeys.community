@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { DocumentTypeDecoration } from '@graphql-typed-document-node/core';
+import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
@@ -3178,6 +3178,7 @@ export type CollaborationPostDetailQuery = {
       contactPreferences?: any | null;
       userId: any;
       lastActiveAt?: any | null;
+      isPublic: any;
     } | null;
     collaborationType?: {
       __typename?: 'CollaborationType';
@@ -3349,397 +3350,1328 @@ export type MyBookmarksQuery = {
   }> | null;
 };
 
-export class TypedDocumentString<TResult, TVariables>
-  extends String
-  implements DocumentTypeDecoration<TResult, TVariables>
-{
-  __apiType?: NonNullable<DocumentTypeDecoration<TResult, TVariables>['__apiType']>;
-  private value: string;
-  public __meta__?: Record<string, any> | undefined;
-
-  constructor(value: string, __meta__?: Record<string, any> | undefined) {
-    super(value);
-    this.value = value;
-    this.__meta__ = __meta__;
-  }
-
-  override toString(): string & DocumentTypeDecoration<TResult, TVariables> {
-    return this.value;
-  }
-}
-
-export const AltAccountsDocument = new TypedDocumentString(`
-    query AltAccounts {
-  altAccount {
-    userId
-    altId
-    staffMemberId
-    registeredAt
-  }
-}
-    `) as unknown as TypedDocumentString<AltAccountsQuery, AltAccountsQueryVariables>;
-export const CollabsDocument = new TypedDocumentString(`
-    query Collabs {
-  collaborationProfile {
-    id
-    displayName
-    bio
-  }
-}
-    `) as unknown as TypedDocumentString<CollabsQuery, CollabsQueryVariables>;
-export const CollaborationTypesDocument = new TypedDocumentString(`
-    query CollaborationTypes {
-  collaborationType {
-    id
-    name
-    description
-  }
-}
-    `) as unknown as TypedDocumentString<CollaborationTypesQuery, CollaborationTypesQueryVariables>;
-export const HiringStatusesDocument = new TypedDocumentString(`
-    query HiringStatuses {
-  hiringStatus {
-    id
-    name
-    description
-  }
-}
-    `) as unknown as TypedDocumentString<HiringStatusesQuery, HiringStatusesQueryVariables>;
-export const CollaborationStatusesDocument = new TypedDocumentString(`
-    query CollaborationStatuses {
-  collaborationStatus {
-    id
-    name
-    description
-  }
-}
-    `) as unknown as TypedDocumentString<
-  CollaborationStatusesQuery,
-  CollaborationStatusesQueryVariables
->;
-export const MyCollaborationProfileDocument = new TypedDocumentString(`
-    query MyCollaborationProfile($userId: Int64!) {
-  collaborationProfile(where: {userId: {_eq: $userId}}) {
-    id
-    userId
-    guildId
-    displayName
-    bio
-    skills
-    portfolio
-    contactPreferences
-    isPublic
-    createdAt
-    updatedAt
-    lastActiveAt
-    collaborationPosts {
-      id
-      statusId
-      responseCount
-      viewCount
-    }
-    collaborationResponses {
-      id
-      collaborationPostId
-      isRead
-    }
-    collaborationBookmarks {
-      id
-      collaborationPostId
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<
-  MyCollaborationProfileQuery,
-  MyCollaborationProfileQueryVariables
->;
-export const CollaborationProfileByIdDocument = new TypedDocumentString(`
-    query CollaborationProfileById($id: String1!) {
-  collaborationProfileById(id: $id) {
-    id
-    userId
-    displayName
-    bio
-    skills
-    portfolio
-    contactPreferences
-    isPublic
-    lastActiveAt
-    collaborationPosts(where: {statusId: {_eq: 2}}, order_by: {postedAt: Desc}) {
-      id
-      collaborationTypeId
-      hiringStatusId
-      statusId
-      postedAt
-      expiresAt
-      viewCount
-      responseCount
-      tags
-      collaborationType {
-        name
-      }
-      hiringStatus {
-        name
-      }
-      collaborationFieldValues {
-        id
-        value
-        collaborationFieldDefinition {
-          id
-          fieldName
-          displayName
-        }
-      }
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<
-  CollaborationProfileByIdQuery,
-  CollaborationProfileByIdQueryVariables
->;
-export const CollaborationPostsDocument = new TypedDocumentString(`
-    query CollaborationPosts($where: CollaborationPostBoolExp, $limit: Int, $offset: Int, $order_by: [CollaborationPostOrderByExp!]) {
-  collaborationPost(
-    where: $where
-    limit: $limit
-    offset: $offset
-    order_by: $order_by
-  ) {
-    id
-    profileId
-    guildId
-    collaborationTypeId
-    hiringStatusId
-    statusId
-    createdAt
-    postedAt
-    expiresAt
-    viewCount
-    responseCount
-    isHighlighted
-    tags
-    collaborationProfile {
-      id
-      displayName
-      userId
-    }
-    collaborationType {
-      id
-      name
-    }
-    hiringStatus {
-      id
-      name
-    }
-    collaborationStatus {
-      id
-      name
-    }
-    collaborationFieldValues {
-      id
-      value
-      collaborationFieldDefinition {
-        id
-        fieldName
-        displayName
-        fieldType
-      }
-    }
-    collaborationBookmarks {
-      profileId
-    }
-  }
-  collaborationPostAggregate(filter_input: {where: $where}) {
-    _count
-  }
-}
-    `) as unknown as TypedDocumentString<CollaborationPostsQuery, CollaborationPostsQueryVariables>;
-export const CollaborationPostDetailDocument = new TypedDocumentString(`
-    query CollaborationPostDetail($id: String1!) {
-  collaborationPostById(id: $id) {
-    id
-    profileId
-    guildId
-    collaborationTypeId
-    hiringStatusId
-    statusId
-    createdAt
-    postedAt
-    expiresAt
-    viewCount
-    responseCount
-    isHighlighted
-    tags
-    collaborationProfile {
-      id
-      displayName
-      bio
-      skills
-      portfolio
-      contactPreferences
-      userId
-      lastActiveAt
-    }
-    collaborationType {
-      id
-      name
-      description
-    }
-    hiringStatus {
-      id
-      name
-      description
-    }
-    collaborationStatus {
-      id
-      name
-      description
-    }
-    collaborationFieldValues {
-      id
-      value
-      collaborationFieldDefinition {
-        id
-        fieldName
-        displayName
-        fieldType
-        helpText
-      }
-    }
-    collaborationResponses(where: {isHidden: {_eq: 0}}, order_by: {createdAt: Desc}) {
-      id
-      profileId
-      message
-      contactInfo
-      isPublic
-      createdAt
-      isRead
-      collaborationProfile {
-        id
-        displayName
-        userId
-      }
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<
-  CollaborationPostDetailQuery,
-  CollaborationPostDetailQueryVariables
->;
-export const CollaborationFieldDefinitionsDocument = new TypedDocumentString(`
-    query CollaborationFieldDefinitions($typeId: Int32!, $hiringStatusId: Int32!) {
-  collaborationFieldDefinition(
-    where: {collaborationTypeId: {_eq: $typeId}, hiringStatusId: {_eq: $hiringStatusId}}
-    order_by: {fieldOrder: Asc}
-  ) {
-    id
-    fieldName
-    displayName
-    fieldType
-    isRequired
-    fieldOrder
-    maxLength
-    validationRegex
-    helpText
-    options
-  }
-}
-    `) as unknown as TypedDocumentString<
+export const AltAccountsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'AltAccounts' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'altAccount' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'altId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'staffMemberId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'registeredAt' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<AltAccountsQuery, AltAccountsQueryVariables>;
+export const CollabsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'Collabs' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationProfile' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'bio' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CollabsQuery, CollabsQueryVariables>;
+export const CollaborationTypesDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CollaborationTypes' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationType' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'description' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CollaborationTypesQuery, CollaborationTypesQueryVariables>;
+export const HiringStatusesDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'HiringStatuses' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'hiringStatus' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'description' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<HiringStatusesQuery, HiringStatusesQueryVariables>;
+export const CollaborationStatusesDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CollaborationStatuses' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationStatus' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'description' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CollaborationStatusesQuery, CollaborationStatusesQueryVariables>;
+export const MyCollaborationProfileDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'MyCollaborationProfile' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'userId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int64' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationProfile' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'where' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'userId' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: { kind: 'Variable', name: { kind: 'Name', value: 'userId' } },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'guildId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'bio' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'skills' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'portfolio' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'contactPreferences' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isPublic' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'updatedAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'lastActiveAt' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationPosts' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'statusId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'responseCount' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationResponses' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'collaborationPostId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'isRead' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationBookmarks' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'collaborationPostId' } },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<MyCollaborationProfileQuery, MyCollaborationProfileQueryVariables>;
+export const CollaborationProfileByIdDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CollaborationProfileById' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'id' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'String1' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationProfileById' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'id' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'id' } },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'bio' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'skills' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'portfolio' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'contactPreferences' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isPublic' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'lastActiveAt' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationPosts' },
+                  arguments: [
+                    {
+                      kind: 'Argument',
+                      name: { kind: 'Name', value: 'where' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: 'statusId' },
+                            value: {
+                              kind: 'ObjectValue',
+                              fields: [
+                                {
+                                  kind: 'ObjectField',
+                                  name: { kind: 'Name', value: '_eq' },
+                                  value: { kind: 'IntValue', value: '2' },
+                                },
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      kind: 'Argument',
+                      name: { kind: 'Name', value: 'order_by' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: 'postedAt' },
+                            value: { kind: 'EnumValue', value: 'Desc' },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'collaborationTypeId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'hiringStatusId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'statusId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'postedAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'expiresAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'responseCount' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'tags' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationType' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [{ kind: 'Field', name: { kind: 'Name', value: 'name' } }],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'hiringStatus' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [{ kind: 'Field', name: { kind: 'Name', value: 'name' } }],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationFieldValues' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'collaborationFieldDefinition' },
+                              selectionSet: {
+                                kind: 'SelectionSet',
+                                selections: [
+                                  { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                                  { kind: 'Field', name: { kind: 'Name', value: 'fieldName' } },
+                                  { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CollaborationProfileByIdQuery, CollaborationProfileByIdQueryVariables>;
+export const CollaborationPostsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CollaborationPosts' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'where' } },
+          type: { kind: 'NamedType', name: { kind: 'Name', value: 'CollaborationPostBoolExp' } },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'limit' } },
+          type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int' } },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'offset' } },
+          type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int' } },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'order_by' } },
+          type: {
+            kind: 'ListType',
+            type: {
+              kind: 'NonNullType',
+              type: {
+                kind: 'NamedType',
+                name: { kind: 'Name', value: 'CollaborationPostOrderByExp' },
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationPost' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'where' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'where' } },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'limit' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'limit' } },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'offset' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'offset' } },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'order_by' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'order_by' } },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'profileId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'guildId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'collaborationTypeId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'hiringStatusId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'statusId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'postedAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'expiresAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'responseCount' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isHighlighted' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'tags' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationProfile' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationType' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'hiringStatus' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationStatus' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationFieldValues' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationFieldDefinition' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'fieldName' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'fieldType' } },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationBookmarks' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [{ kind: 'Field', name: { kind: 'Name', value: 'profileId' } }],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationPostAggregate' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'filter_input' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'where' },
+                      value: { kind: 'Variable', name: { kind: 'Name', value: 'where' } },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [{ kind: 'Field', name: { kind: 'Name', value: '_count' } }],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CollaborationPostsQuery, CollaborationPostsQueryVariables>;
+export const CollaborationPostDetailDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CollaborationPostDetail' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'id' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'String1' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationPostById' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'id' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'id' } },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'profileId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'guildId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'collaborationTypeId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'hiringStatusId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'statusId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'postedAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'expiresAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'responseCount' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isHighlighted' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'tags' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationProfile' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'bio' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'skills' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'portfolio' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'contactPreferences' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'lastActiveAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'isPublic' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationType' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'description' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'hiringStatus' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'description' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationStatus' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'description' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationFieldValues' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationFieldDefinition' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'fieldName' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'fieldType' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'helpText' } },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationResponses' },
+                  arguments: [
+                    {
+                      kind: 'Argument',
+                      name: { kind: 'Name', value: 'where' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: 'isHidden' },
+                            value: {
+                              kind: 'ObjectValue',
+                              fields: [
+                                {
+                                  kind: 'ObjectField',
+                                  name: { kind: 'Name', value: '_eq' },
+                                  value: { kind: 'IntValue', value: '0' },
+                                },
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      kind: 'Argument',
+                      name: { kind: 'Name', value: 'order_by' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: 'createdAt' },
+                            value: { kind: 'EnumValue', value: 'Desc' },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'profileId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'message' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'contactInfo' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'isPublic' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'isRead' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationProfile' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CollaborationPostDetailQuery, CollaborationPostDetailQueryVariables>;
+export const CollaborationFieldDefinitionsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CollaborationFieldDefinitions' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'typeId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int32' } },
+          },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'hiringStatusId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int32' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationFieldDefinition' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'where' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'collaborationTypeId' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: { kind: 'Variable', name: { kind: 'Name', value: 'typeId' } },
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'hiringStatusId' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: {
+                              kind: 'Variable',
+                              name: { kind: 'Name', value: 'hiringStatusId' },
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'order_by' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'fieldOrder' },
+                      value: { kind: 'EnumValue', value: 'Asc' },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'fieldName' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'fieldType' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isRequired' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'fieldOrder' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'maxLength' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'validationRegex' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'helpText' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'options' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
   CollaborationFieldDefinitionsQuery,
   CollaborationFieldDefinitionsQueryVariables
 >;
-export const MyCollaborationResponsesDocument = new TypedDocumentString(`
-    query MyCollaborationResponses($profileId: String1!) {
-  collaborationResponse(
-    where: {profileId: {_eq: $profileId}}
-    order_by: {createdAt: Desc}
-  ) {
-    id
-    collaborationPostId
-    message
-    contactInfo
-    isPublic
-    isHidden
-    createdAt
-    isRead
-    readAt
-    collaborationPost {
-      id
-      statusId
-      collaborationProfile {
-        displayName
-      }
-      collaborationType {
-        name
-      }
-      hiringStatus {
-        name
-      }
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<
-  MyCollaborationResponsesQuery,
-  MyCollaborationResponsesQueryVariables
->;
-export const PostResponsesDocument = new TypedDocumentString(`
-    query PostResponses($postId: String1!, $profileId: String1!) {
-  collaborationResponse(
-    where: {collaborationPostId: {_eq: $postId}, _or: [{collaborationPost: {profileId: {_eq: $profileId}}}, {isPublic: {_eq: 1}}], isHidden: {_eq: 0}}
-    order_by: {createdAt: Desc}
-  ) {
-    id
-    profileId
-    message
-    contactInfo
-    isPublic
-    createdAt
-    isRead
-    readAt
-    collaborationProfile {
-      id
-      displayName
-      bio
-      skills
-      userId
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<PostResponsesQuery, PostResponsesQueryVariables>;
-export const MyBookmarksDocument = new TypedDocumentString(`
-    query MyBookmarks($profileId: String1!) {
-  collaborationBookmark(
-    where: {profileId: {_eq: $profileId}}
-    order_by: {createdAt: Desc}
-  ) {
-    id
-    collaborationPostId
-    createdAt
-    collaborationPost {
-      id
-      statusId
-      postedAt
-      expiresAt
-      viewCount
-      responseCount
-      tags
-      collaborationProfile {
-        displayName
-      }
-      collaborationType {
-        name
-      }
-      hiringStatus {
-        name
-      }
-      collaborationFieldValues {
-        value
-        collaborationFieldDefinition {
-          fieldName
-          displayName
-        }
-      }
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<MyBookmarksQuery, MyBookmarksQueryVariables>;
+export const MyCollaborationResponsesDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'MyCollaborationResponses' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'profileId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'String1' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationResponse' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'where' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'profileId' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: { kind: 'Variable', name: { kind: 'Name', value: 'profileId' } },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'order_by' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'createdAt' },
+                      value: { kind: 'EnumValue', value: 'Desc' },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'collaborationPostId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'message' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'contactInfo' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isPublic' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isHidden' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isRead' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'readAt' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationPost' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'statusId' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationProfile' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                          ],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationType' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [{ kind: 'Field', name: { kind: 'Name', value: 'name' } }],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'hiringStatus' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [{ kind: 'Field', name: { kind: 'Name', value: 'name' } }],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<MyCollaborationResponsesQuery, MyCollaborationResponsesQueryVariables>;
+export const PostResponsesDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'PostResponses' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'postId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'String1' } },
+          },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'profileId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'String1' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationResponse' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'where' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'collaborationPostId' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: { kind: 'Variable', name: { kind: 'Name', value: 'postId' } },
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: '_or' },
+                      value: {
+                        kind: 'ListValue',
+                        values: [
+                          {
+                            kind: 'ObjectValue',
+                            fields: [
+                              {
+                                kind: 'ObjectField',
+                                name: { kind: 'Name', value: 'collaborationPost' },
+                                value: {
+                                  kind: 'ObjectValue',
+                                  fields: [
+                                    {
+                                      kind: 'ObjectField',
+                                      name: { kind: 'Name', value: 'profileId' },
+                                      value: {
+                                        kind: 'ObjectValue',
+                                        fields: [
+                                          {
+                                            kind: 'ObjectField',
+                                            name: { kind: 'Name', value: '_eq' },
+                                            value: {
+                                              kind: 'Variable',
+                                              name: { kind: 'Name', value: 'profileId' },
+                                            },
+                                          },
+                                        ],
+                                      },
+                                    },
+                                  ],
+                                },
+                              },
+                            ],
+                          },
+                          {
+                            kind: 'ObjectValue',
+                            fields: [
+                              {
+                                kind: 'ObjectField',
+                                name: { kind: 'Name', value: 'isPublic' },
+                                value: {
+                                  kind: 'ObjectValue',
+                                  fields: [
+                                    {
+                                      kind: 'ObjectField',
+                                      name: { kind: 'Name', value: '_eq' },
+                                      value: { kind: 'IntValue', value: '1' },
+                                    },
+                                  ],
+                                },
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'isHidden' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: { kind: 'IntValue', value: '0' },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'order_by' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'createdAt' },
+                      value: { kind: 'EnumValue', value: 'Desc' },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'profileId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'message' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'contactInfo' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isPublic' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isRead' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'readAt' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationProfile' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'bio' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'skills' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'userId' } },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<PostResponsesQuery, PostResponsesQueryVariables>;
+export const MyBookmarksDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'MyBookmarks' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'profileId' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'String1' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'collaborationBookmark' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'where' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'profileId' },
+                      value: {
+                        kind: 'ObjectValue',
+                        fields: [
+                          {
+                            kind: 'ObjectField',
+                            name: { kind: 'Name', value: '_eq' },
+                            value: { kind: 'Variable', name: { kind: 'Name', value: 'profileId' } },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'order_by' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'createdAt' },
+                      value: { kind: 'EnumValue', value: 'Desc' },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'collaborationPostId' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'createdAt' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'collaborationPost' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'statusId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'postedAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'expiresAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'responseCount' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'tags' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationProfile' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                          ],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationType' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [{ kind: 'Field', name: { kind: 'Name', value: 'name' } }],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'hiringStatus' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [{ kind: 'Field', name: { kind: 'Name', value: 'name' } }],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'collaborationFieldValues' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'collaborationFieldDefinition' },
+                              selectionSet: {
+                                kind: 'SelectionSet',
+                                selections: [
+                                  { kind: 'Field', name: { kind: 'Name', value: 'fieldName' } },
+                                  { kind: 'Field', name: { kind: 'Name', value: 'displayName' } },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<MyBookmarksQuery, MyBookmarksQueryVariables>;

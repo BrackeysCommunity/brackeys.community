@@ -1,10 +1,11 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
-import { useDebounce } from '@uidotdev/usehooks';
+import { useTimeout } from '@uidotdev/usehooks';
 import { getColorGradient } from '../lib/colors';
 import { ColorPicker } from './ColorPicker';
 import { Input } from './ui/Input';
 import { cn } from '../lib/utils';
+import { useEffect, useState } from 'react';
 
 type ColorPickerInputProps = {
   value: string;
@@ -29,10 +30,23 @@ export const ColorPickerInput = ({
   error,
   className,
 }: ColorPickerInputProps) => {
-  const debouncedColorSelect = useDebounce((color: string, close: () => void) => {
+  const [close, setClose] = useState<(() => void) | undefined>();
+  const [color, setColor] = useState<string>('');
+  const debouncedColorSelect = useTimeout(() => {
     onColorSelect(color);
-    close();
+    close?.();
   }, 400);
+
+  useEffect(() => {
+    if (close && color) {
+      debouncedColorSelect();
+    }
+  }, [close, color, debouncedColorSelect]);
+
+  const handleColorSelect = (color: string, close: () => void) => {
+    setClose(close);
+    setColor(color);
+  };
 
   return (
     <Disclosure>
@@ -89,7 +103,7 @@ export const ColorPickerInput = ({
                   selectedColor={selectedColor}
                   onColorSelect={color => {
                     onColorSelect(color);
-                    debouncedColorSelect(color, close);
+                    handleColorSelect(color, close);
                   }}
                 />
               </>

@@ -23,10 +23,11 @@ export const useAuthHeaders = (opName?: keyof typeof operations) => {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+        headers.set('Content-Type', 'application/json');
 
         if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
 
-        if (opName && authState.hasuraClaims) {
+        if (opName && authState.hasuraClaims && !import.meta.env.DEV) {
           const preferredRole = preferredRoles[opName];
           if (preferredRole && authState.hasuraClaims.allowedRoles.includes(preferredRole)) {
             headers.set(X_HASURA_ROLE, preferredRole);

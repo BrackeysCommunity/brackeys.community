@@ -1,25 +1,43 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowLeft, Eye, MessageCircle } from 'lucide-react';
-import { useCollaborationPostDetailQuery } from '../lib/gql/generated';
-import { useGraphQLRequestConfig } from '../hooks/query/useGraphQLRequestConfig';
+import { ArrowLeft, Eye, MessageCircle, Flag, Send, X } from 'lucide-react';
+import { useCollaborationPost } from '../hooks/query/useCollaborationPost';
+import { useAuth } from '../context/useAuth';
+import { ResponseModal, ResponseFormData } from '../components/collaborations/ResponseModal';
+import { Alert } from '../components/ui/Alert';
 
 export function CollaborationDetail() {
   const { postId } = useParams({ from: '/collaborations/$postId' });
   const navigate = useNavigate();
+  const {
+    state: { user },
+  } = useAuth();
 
-  const { config } = useGraphQLRequestConfig('CollaborationPostDetail');
-  const { data, isLoading, error } = useCollaborationPostDetailQuery(config, { id: postId });
-
-  const post = data?.collaborationPostById;
+  const { post, loading: isLoading, error } = useCollaborationPost(postId);
+  const [showResponseModal, setShowResponseModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<{
+    variant: 'success' | 'error' | 'warning' | 'info';
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     if (post) {
       document.title = `${post.collaborationProfile?.displayName || 'Collaboration'} - Brackeys Community`;
     }
   }, [post]);
+
+  const handleResponse = async (data: ResponseFormData) => {
+    // TODO: Implement API call to submit response
+    console.log('Submitting response:', data);
+    setAlertMessage({ variant: 'info', message: 'Response submission is coming soon!' });
+    setShowResponseModal(false);
+  };
+
+  const handleReport = () => {
+    setAlertMessage({ variant: 'warning', message: 'Reporting feature coming soon!' });
+  };
 
   if (isLoading) {
     return (
@@ -93,6 +111,23 @@ export function CollaborationDetail() {
           <ArrowLeft size={20} />
           Back to collaborations
         </motion.button>
+
+        {/* Alert Messages */}
+        {alertMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 relative"
+          >
+            <Alert variant={alertMessage.variant}>{alertMessage.message}</Alert>
+            <button
+              onClick={() => setAlertMessage(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
 
         {/* Main Content */}
         <motion.div
@@ -235,13 +270,45 @@ export function CollaborationDetail() {
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-8 flex justify-center">
-            <button className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors">
-              Respond to Collaboration
-            </button>
+          <div className="mt-8 flex justify-center gap-4">
+            {user ? (
+              <>
+                <button
+                  onClick={() => setShowResponseModal(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
+                >
+                  <Send className="h-4 w-4" />
+                  Respond to Collaboration
+                </button>
+                <button
+                  onClick={handleReport}
+                  className="flex items-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors"
+                >
+                  <Flag className="h-4 w-4" />
+                  Report
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="flex items-center gap-2 px-6 py-3 bg-brackeys-purple-600 hover:bg-brackeys-purple-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Sign in to respond
+              </Link>
+            )}
           </div>
         </motion.div>
       </div>
+
+      {/* Response Modal */}
+      {post && (
+        <ResponseModal
+          isOpen={showResponseModal}
+          onClose={() => setShowResponseModal(false)}
+          onSubmit={handleResponse}
+          post={post}
+        />
+      )}
     </div>
   );
 }

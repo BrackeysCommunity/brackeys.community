@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bunx --bun vite",
-    "build": "bunx --bun vite build && phaser-asset-pack-hashing -j -r dist",
+    "build": "bunx --bun vite build",
     "lint": "bunx --bun eslint . --cache",
     "lint:fix": "bunx --bun eslint . --fix --cache",
     "format": "bunx prettier --write .",

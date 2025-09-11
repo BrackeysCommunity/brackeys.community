@@ -127,7 +127,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         provider: 'discord',
         options: {
           scopes: 'identify guilds guilds.members.read',
-          redirectTo: `${import.meta.env.VITE_APP_URL}/dashboard`,
+          redirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
