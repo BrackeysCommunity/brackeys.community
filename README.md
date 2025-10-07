@@ -1,31 +1,36 @@
 # Brackeys Web
 
-## 🚀 Quick Start (One-Command Setup)
+A modern web application built with React, Ory authentication, Hasura GraphQL, and a complete self-hosted backend stack.
 
-Get started with a single command that sets up your entire development environment:
+## 🏗️ Stack
 
-### macOS/Linux:
+- **Frontend**: React + TypeScript + Vite + TailwindCSS
+- **Authentication**: Clerk (Discord OAuth)
+- **API**: Hasura GraphQL Engine
+- **Database**: PostgreSQL
+- **Cache**: Redis
+- **Storage**: MinIO (S3-compatible)
 
-```bash
-./setup.sh
-```
-
-This will:
-
-- ✅ Install [mise](https://mise.jdx.dev/) for tool management
-- ✅ Install all required tools (Bun, Node, Rust, etc.)
-- ✅ Install [Hasura DDN CLI](https://hasura.io/docs/3.0/quickstart/)
-- ✅ Set up your environment variables
-- ✅ Install all dependencies
-- ✅ Build the SpacetimeDB module (with WASM target)
-- ✅ Configure Hasura DDN for local development
-- ✅ Configure git hooks
-
-After setup, just run:
+## 🚀 Quick Start
 
 ```bash
-mise run dev
+# 1. Install dependencies
+bun install
+
+# 2. Configure Clerk
+# Add VITE_CLERK_PUBLISHABLE_KEY to .env
+# See CLERK_SETUP.md for details
+
+# 3. Start backend services
+docker-compose up -d
+
+# 4. Start development server
+bun run dev
 ```
+
+Visit http://localhost:5173 to see your app!
+
+For detailed setup instructions, see [CLERK_SETUP.md](CLERK_SETUP.md).
 
 ## 📚 Documentation
 
@@ -42,6 +47,33 @@ Our UI components are documented and showcased using Storybook:
 - **[STORYBOOK_CHROMATIC.md](./docs/STORYBOOK_CHROMATIC.md)** - Storybook setup and deployment information
 - **[PRETTIER_ESLINT_INTEGRATION.md](./docs/PRETTIER_ESLINT_INTEGRATION.md)** - Code formatting and linting configuration
 - **[MULTI_SCOPE_COMMITS.md](./docs/MULTI_SCOPE_COMMITS.md)** - Guide for creating commits across multiple packages
+
+### 🔐 Authentication
+
+We use **Ory Kratos + Hydra** for self-hosted authentication with Discord OAuth:
+
+- **[ory/INDEX.md](./ory/INDEX.md)** - Authentication documentation hub
+- **[ory/QUICKSTART.md](./ory/QUICKSTART.md)** - Quick setup guide
+- **[ory/SUMMARY.md](./ory/SUMMARY.md)** - Complete reference
+
+Features:
+
+- Discord social login
+- Automatic Discord role → Hasura permissions mapping
+- JWT tokens with custom claims
+- Session management
+
+### 🗄️ Backend Services
+
+All backend services are managed via Docker Compose:
+
+- **PostgreSQL** - Primary database (port 5432)
+- **Hasura** - GraphQL API (port 8080) - [Console](http://localhost:8080)
+- **Redis** - Caching and sessions (port 6379)
+- **MinIO** - Object storage (port 9000/9001) - [Console](http://localhost:9001)
+- **Ory Kratos/Hydra** - Authentication (ports 4433/4444)
+
+See [SETUP.md](SETUP.md) for detailed configuration.
 
 ## Development
 

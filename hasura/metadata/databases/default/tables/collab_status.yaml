@@ -1,0 +1,11 @@
+table:
+  name: status
+  schema: collab
+array_relationships:
+  - name: posts
+    using:
+      foreign_key_constraint_on:
+        column: status_id
+        table:
+          name: post
+          schema: collab

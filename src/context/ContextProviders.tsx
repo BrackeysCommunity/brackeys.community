@@ -1,15 +1,15 @@
 import { router } from '../router';
-import { AuthProvider } from './AuthProvider';
+import { ClerkAuthProvider } from './ClerkAuthProvider';
 import { LayoutProvider } from './LayoutProvider';
 import { QueryClientProvider } from './QueryClientProvider';
 import { RouterProvider } from '@tanstack/react-router';
 
 export const ContextProviders = () => (
   <QueryClientProvider>
-    <AuthProvider>
+    <ClerkAuthProvider>
       <LayoutProvider>
         <RouterProvider router={router} />
       </LayoutProvider>
-    </AuthProvider>
+    </ClerkAuthProvider>
   </QueryClientProvider>
 );

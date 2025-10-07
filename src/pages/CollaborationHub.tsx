@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMyCollaborationProfile } from '../hooks/query/useMyCollaborationProfile';
+import { useMyCollaborationPosts } from '../hooks/query/useMyCollaborationPosts';
 import { useAuth } from '../context/useAuth';
 import {
   CreateProfileModal,
@@ -27,6 +28,7 @@ export function CollaborationHub() {
     state: { user },
   } = useAuth();
   const { profile, loading: profileLoading } = useMyCollaborationProfile();
+  const { posts } = useMyCollaborationPosts(profile?.id);
   const [showCreateProfile, setShowCreateProfile] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{
     variant: 'success' | 'error' | 'warning' | 'info';
@@ -160,10 +162,7 @@ export function CollaborationHub() {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-white">{profile.displayName}</h2>
-                <p className="text-gray-400">
-                  {profile.collaborationPosts?.length || 0} active posts ·{' '}
-                  {profile.collaborationResponses?.length || 0} responses
-                </p>
+                <p className="text-gray-400">{posts?.length || 0} active posts</p>
               </div>
             </div>
             <button

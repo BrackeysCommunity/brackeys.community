@@ -1,7 +1,7 @@
 import { operations, preferredRoles } from '../../lib/gql/operations';
 import { useAuth } from '../../context/useAuth';
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { AxiosHeaders, AxiosRequestHeaders } from 'axios';
 import { X_HASURA_ROLE } from '../../lib/constants';
 import { useEffect } from 'react';
@@ -13,6 +13,7 @@ import { useEffect } from 'react';
  */
 export const useAuthHeaders = (opName?: keyof typeof operations) => {
   const { state: authState } = useAuth();
+  const { getToken } = useClerkAuth();
   const [headers, setHeaders] = useState<AxiosRequestHeaders>(new AxiosHeaders());
   const [error, setError] = useState<unknown>();
   const loading = !headers.Authorization;
@@ -20,12 +21,10 @@ export const useAuthHeaders = (opName?: keyof typeof operations) => {
   useEffect(() => {
     const buildHeaders = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const token = await getToken({ template: 'hasura' });
         headers.set('Content-Type', 'application/json');
 
-        if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+        if (token) headers.Authorization = `Bearer ${token}`;
 
         if (opName && authState.hasuraClaims && !import.meta.env.DEV) {
           const preferredRole = preferredRoles[opName];
@@ -41,7 +40,7 @@ export const useAuthHeaders = (opName?: keyof typeof operations) => {
     };
 
     buildHeaders();
-  }, [authState.hasuraClaims, opName, headers]);
+  }, [authState.hasuraClaims, opName, headers, getToken]);
 
   return { headers, loading, error };
 };

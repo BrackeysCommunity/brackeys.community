@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { request, RequestExtendedOptions } from 'graphql-request';
 import type { Variables } from 'graphql-request';
-import { supabase } from '../lib/supabase';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useAuth } from '../context/useAuth';
 import type { HasuraClaims } from '../context/authContext';
 import { operations, preferredRoles } from '../lib/gql/operations';
@@ -34,16 +34,15 @@ interface GraphQLMutationOptions<
  * Builds headers with authentication and Hasura role headers
  */
 const buildAuthHeaders = async (
+  getToken: (options?: { template?: string }) => Promise<string | null>,
   operationName?: keyof typeof operations,
   hasuraClaims?: HasuraClaims
 ): Promise<Record<string, string>> => {
   const headers: Record<string, string> = {};
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const token = await getToken({ template: 'hasura' });
 
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   if (operationName && hasuraClaims) {
@@ -65,12 +64,13 @@ export const useGraphQLQuery = <TData, TVariables extends Variables = Variables,
   queryOptions,
 }: GraphQLQueryOptions<TData, TVariables, TError>) => {
   const { state: authState } = useAuth();
+  const { getToken } = useClerkAuth();
   const queryKey = ['graphql', operationName, variables] as const;
 
   return useQuery({
     queryKey,
     queryFn: async () => {
-      const authHeaders = await buildAuthHeaders(operationName, authState.hasuraClaims);
+      const authHeaders = await buildAuthHeaders(getToken, operationName, authState.hasuraClaims);
 
       const requestOptions = {
         url: process.env.VITE_HASURA_GRAPHQL_URL,
@@ -98,10 +98,11 @@ export const useGraphQLMutation = <
   mutationOptions,
 }: GraphQLMutationOptions<TData, TVariables, TError, TContext>) => {
   const { state: authState } = useAuth();
+  const { getToken } = useClerkAuth();
 
   return useMutation<TData, TError, TVariables, TContext>({
     mutationFn: async variables => {
-      const authHeaders = await buildAuthHeaders(operationName, authState.hasuraClaims);
+      const authHeaders = await buildAuthHeaders(getToken, operationName, authState.hasuraClaims);
 
       const requestOptions = {
         url: process.env.VITE_HASURA_GRAPHQL_URL,

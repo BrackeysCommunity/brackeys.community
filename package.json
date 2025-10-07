@@ -25,12 +25,16 @@
     "release:dry-run": "standard-version --dry-run",
     "version:all": "lerna version --conventional-commits",
     "version:graduate": "lerna version --conventional-graduate",
-    "publish:all": "lerna publish from-package"
+    "publish:all": "lerna publish from-package",
+    "hasura:console": "cd hasura && npm run console",
+    "hasura:migrate": "cd hasura && npm run migrate:apply",
+    "hasura:migrate:create": "cd hasura && npm run migrate:create",
+    "hasura:metadata:export": "cd hasura && npm run metadata:export"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.51.0",
     "@clockworklabs/spacetimedb-sdk": "^1.1.0",
     "@headlessui/react": "^2.2.2",
-    "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-form": "^1.12.1",
     "@tanstack/react-query": "^5.75.5",
     "@tanstack/react-router": "^1.119.0",

@@ -8,8 +8,7 @@ import { useAuth } from '../context/useAuth';
 import { ResponseModal, ResponseFormData } from '../components/collaborations/ResponseModal';
 import { Alert } from '../components/ui/Alert';
 
-export function CollaborationDetail({ test }: { test: string }) {
-  console.log(test);
+export function CollaborationDetail() {
   const { postId } = useParams({ from: '/collaborations/$postId' });
   const navigate = useNavigate();
   const {

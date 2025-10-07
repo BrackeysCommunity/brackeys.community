@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { useContext } from 'react';
 import { AuthContext } from './authContext';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '@clerk/clerk-react';
 
 type MutationVariables = {
   url: string;
@@ -29,7 +29,8 @@ type QueryClientProviderProps = {
 };
 
 export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
-  useContext(AuthContext); // Keep the context connection for future use if needed
+  useContext(AuthContext);
+  const { getToken } = useAuth();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -47,7 +48,7 @@ export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
 
   useEffect(() => {
     const setupAuthInterceptor = async () => {
-      const { data } = await supabase.auth.getSession();
+      const token = await getToken({ template: 'hasura' });
 
       const mutationKey = ['defaultMutation'];
       const oldMutateObj = queryClient.getMutationDefaults(mutationKey);
@@ -63,8 +64,8 @@ export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
           const options = variables.options || {};
           const headers = options.headers || {};
 
-          if (data.session) {
-            (headers as Headers).append('Authorization', `Bearer ${data.session.access_token}`);
+          if (token) {
+            (headers as Headers).append('Authorization', `Bearer ${token}`);
           }
 
           options.headers = headers;
@@ -89,8 +90,9 @@ export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
             const options: RequestInit = {};
             const headers = new Headers();
 
-            if (data.session) {
-              headers.append('Authorization', `Bearer ${data.session.access_token}`);
+            const currentToken = await getToken({ template: 'hasura' });
+            if (currentToken) {
+              headers.append('Authorization', `Bearer ${currentToken}`);
             }
 
             options.headers = headers;
@@ -107,17 +109,7 @@ export const QueryClientProvider = ({ children }: QueryClientProviderProps) => {
     };
 
     setupAuthInterceptor();
-
-    const authStateListener = supabase.auth.onAuthStateChange(event => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        setupAuthInterceptor();
-      }
-    });
-
-    return () => {
-      authStateListener.data.subscription.unsubscribe();
-    };
-  }, [queryClient]);
+  }, [queryClient, getToken]);
 
   return <Provider client={queryClient}>{children}</Provider>;
 };
