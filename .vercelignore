@@ -1,0 +1,32 @@
+# Development files
+.git/
+.vscode/
+.idea/
+
+# Documentation
+docs/
+*.md
+
+# Storybook
+storybook-static/
+.storybook/
+
+# Local environment files
+.env.local
+.env.development
+.env*.local
+
+# Logs
+*.log
+
+# Tests
+**/*.test.*
+**/*.spec.*
+
+# Source control
+.gitignore
+.gitattributes
+
+# Misc
+.DS_Store
+Thumbs.db

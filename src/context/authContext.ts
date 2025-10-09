@@ -12,20 +12,21 @@ export type User = {
 };
 
 export interface DiscordGuildMemberData {
-  avatar: string;
-  banner: null;
-  communication_disabled_until: null;
-  flags: number;
-  joined_at: Date;
-  nick: null;
-  pending: boolean;
-  premium_since: null;
-  roles: string[];
-  unusual_dm_activity_until: null;
-  user: User;
-  mute: boolean;
-  deaf: boolean;
-  bio: string;
+  inGuild: boolean;
+  avatar?: string;
+  banner?: string | null;
+  communication_disabled_until?: string | null;
+  flags?: number;
+  joined_at?: string;
+  nick?: string | null;
+  pending?: boolean;
+  premium_since?: string | null;
+  roles?: string[];
+  unusual_dm_activity_until?: string | null;
+  user?: User;
+  mute?: boolean;
+  deaf?: boolean;
+  bio?: string;
 }
 
 export type HasuraClaims = {

@@ -12,6 +12,7 @@ import { Sandbox } from './pages/Sandbox';
 import { Collaborations } from './pages/Collaborations';
 import { CollaborationDetail } from './pages/CollaborationDetail';
 import { CollaborationHub } from './pages/CollaborationHub';
+import { AuthEntry } from './pages/AuthEntry';
 
 const rootRoute = createRootRoute({
   component: MainLayout,
@@ -89,6 +90,12 @@ const collaborationHubRoute = createRoute({
   component: CollaborationHub,
 });
 
+const authEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/entry',
+  component: AuthEntry,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -100,6 +107,7 @@ const routeTree = rootRoute.addChildren([
   collaborationsRoute,
   collaborationDetailRoute,
   collaborationHubRoute,
+  authEntryRoute,
   toolEmbedRoute,
   notFoundRoute,
 ]);

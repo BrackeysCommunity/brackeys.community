@@ -81,12 +81,13 @@ export const Login = () => {
 
             <div className="mt-6">
               <p className="text-center text-sm text-gray-400">
-                Discord authentication provides a secure and convenient way to access your account,
-                leveraging Discord's robust identity verification system.
+                Sign in with Discord to access the Brackeys Community platform. Discord
+                authentication provides secure access and automatically syncs your server roles and
+                membership status.
                 <br />
                 <br />
-                Plus, if you're a member of the Brackeys Discord server you can see your member data
-                and access server-specific features!
+                <strong className="text-gray-300">Note:</strong> You must be a member of the
+                Brackeys Discord server to access this application.
               </p>
             </div>
           </div>

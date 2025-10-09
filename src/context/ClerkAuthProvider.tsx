@@ -1,5 +1,5 @@
 import { useReducer, useEffect, PropsWithChildren } from 'react';
-import { useUser, useClerk } from '@clerk/clerk-react';
+import { useUser, useClerk, useSignIn } from '@clerk/clerk-react';
 import {
   AuthState,
   AuthAction,
@@ -50,7 +50,8 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 export const ClerkAuthProvider = ({ children }: PropsWithChildren) => {
   const [state, dispatch] = useReducer(authReducer, authInitialState);
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
-  const { authenticateWithBase, signOut: clerkSignOut } = useClerk();
+  const clerk = useClerk();
+  const { signIn } = useSignIn();
 
   useEffect(() => {
     if (!clerkLoaded) {
@@ -59,25 +60,38 @@ export const ClerkAuthProvider = ({ children }: PropsWithChildren) => {
     }
 
     if (clerkUser) {
-      const userData: User = {
-        id: clerkUser.id,
-        email: clerkUser.primaryEmailAddress?.emailAddress || '',
-        created_at: new Date(clerkUser.createdAt || '').toISOString(),
-        updated_at: new Date(clerkUser.updatedAt || '').toISOString(),
-        username: clerkUser.username || clerkUser.fullName || '',
-        full_name: clerkUser.fullName || '',
-        avatar_url: clerkUser.imageUrl,
-        discord_id: clerkUser.externalAccounts.find(acc => acc.provider === 'discord')?.id || '',
-      };
+      // Debug: Log external accounts to see what Discord data we're getting
+      console.log('Clerk User Data:', clerkUser);
+
+      const discordAccount = clerkUser.externalAccounts.find(acc => acc.provider === 'discord');
 
       // Extract Hasura claims from Clerk metadata
-
       const publicMetadata = clerkUser.publicMetadata as {
         hasura?: {
           defaultRole?: string;
           allowedRoles?: string[];
         };
         discord?: DiscordGuildMemberData;
+      };
+
+      console.log('=== Discord Data ===');
+      console.log('Discord Account:', discordAccount);
+      console.log('Discord Metadata:', publicMetadata?.discord);
+      console.log('Hasura Claims:', publicMetadata?.hasura);
+      console.log('==================');
+
+      const userData: User = {
+        id: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress || '',
+        created_at: new Date(clerkUser.createdAt || '').toISOString(),
+        updated_at: new Date(clerkUser.updatedAt || '').toISOString(),
+        username: discordAccount?.username || clerkUser.username || clerkUser.fullName || '',
+        full_name:
+          discordAccount?.firstName && discordAccount?.lastName
+            ? `${discordAccount.firstName} ${discordAccount.lastName}`
+            : clerkUser.fullName || '',
+        avatar_url: discordAccount?.imageUrl || clerkUser.imageUrl,
+        discord_id: discordAccount?.id || '',
       };
       const hasuraClaims: HasuraClaims = {
         defaultRole: publicMetadata?.hasura?.defaultRole || 'user',
@@ -100,15 +114,23 @@ export const ClerkAuthProvider = ({ children }: PropsWithChildren) => {
   const signInWithDiscord = async () => {
     try {
       dispatch({ type: 'LOGIN_START' });
-      // Use SDK to trigger Discord OAuth, not UI components
-      await authenticateWithBase({
-        redirectUrl: `${window.location.origin}/dashboard`,
-        signUpContinueUrl: `${window.location.origin}/dashboard`,
+
+      console.log('Initiating Discord OAuth flow...');
+      console.log('Clerk available:', !!clerk);
+
+      // Use Clerk's authenticateWithRedirect method which handles BOTH
+      // sign-in (returning users) and sign-up (new users) automatically
+      await signIn?.authenticateWithRedirect({
+        strategy: 'oauth_discord',
+        redirectUrl: '/auth/entry',
+        redirectUrlComplete: '/auth/entry',
+        continueSignUp: true,
       });
     } catch (error) {
+      console.error('Discord authentication error:', error);
       dispatch({
         type: 'LOGIN_FAILURE',
-        payload: 'Failed to sign in with Discord',
+        payload: 'Failed to authenticate with Discord',
         error: error,
       });
     }
@@ -117,7 +139,7 @@ export const ClerkAuthProvider = ({ children }: PropsWithChildren) => {
   const signOut = async () => {
     try {
       dispatch({ type: 'LOGIN_START' });
-      await clerkSignOut();
+      await clerk.signOut();
       dispatch({ type: 'LOGOUT' });
     } catch (error) {
       dispatch({

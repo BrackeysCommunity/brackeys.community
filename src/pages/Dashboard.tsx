@@ -1,9 +1,11 @@
 import { motion } from 'motion/react';
-import { FileWarning, Activity, User as UserIcon } from 'lucide-react';
+import { FileWarning, Activity, User as UserIcon, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useEffect } from 'react';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { useAuth } from '../context/useAuth';
+import { useDiscordSync } from '../hooks/useDiscordSync';
+import { Button } from '../components/ui/Button';
 
 type RecentActivityItem = {
   id: number;
@@ -24,8 +26,9 @@ const infractionCount = recentActivity.filter(activity => activity.action === 'I
 
 const DashboardContent = () => {
   const {
-    state: { user },
+    state: { user, hasuraClaims, discordMemberData },
   } = useAuth();
+  const { syncDiscordRoles, syncing, lastSyncResult } = useDiscordSync();
 
   useEffect(() => {
     document.title = 'Dashboard - Brackeys Community';
@@ -185,6 +188,74 @@ const DashboardContent = () => {
                   </p>
                 </div>
               </div>
+
+              {/* Discord Guild Info */}
+              {discordMemberData && (
+                <div className="bg-gray-900/50 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-1">Discord Guild Status</p>
+                  <p className="text-sm text-gray-300">
+                    {discordMemberData.inGuild ? (
+                      <span className="text-green-400">✓ Member of Brackeys Discord</span>
+                    ) : (
+                      <span className="text-yellow-400">Not in guild</span>
+                    )}
+                  </p>
+                  {discordMemberData.nick && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Server nickname: {discordMemberData.nick}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Hasura Roles */}
+              {hasuraClaims && (
+                <div className="bg-gray-900/50 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-1">Roles</p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {hasuraClaims.allowedRoles?.map(role => (
+                      <span
+                        key={role}
+                        className={cn(
+                          'px-2 py-1 rounded text-xs font-medium',
+                          role === hasuraClaims.defaultRole
+                            ? 'bg-brackeys-purple-600 text-white'
+                            : 'bg-gray-700 text-gray-300'
+                        )}
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sync Button */}
+              <Button
+                onClick={syncDiscordRoles}
+                loading={syncing}
+                variant="secondary"
+                size="sm"
+                fullWidth
+                icon={<RefreshCw className="h-4 w-4" />}
+              >
+                {syncing ? 'Syncing...' : 'Sync Discord Roles'}
+              </Button>
+
+              {lastSyncResult && (
+                <div
+                  className={cn(
+                    'text-xs p-2 rounded',
+                    lastSyncResult.success
+                      ? 'bg-green-900/30 text-green-300'
+                      : 'bg-red-900/30 text-red-300'
+                  )}
+                >
+                  {lastSyncResult.success
+                    ? `✓ Synced! Role: ${lastSyncResult.defaultRole}`
+                    : `✗ ${lastSyncResult.error}`}
+                </div>
+              )}
             </div>
           </div>
         </motion.div>

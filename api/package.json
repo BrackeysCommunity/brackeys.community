@@ -1,0 +1,12 @@
+{
+  "name": "brackeys-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "@clerk/clerk-sdk-node": "^5.0.67",
+    "@vercel/node": "^3.2.26",
+    "svix": "^1.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5"
+  }
+}
