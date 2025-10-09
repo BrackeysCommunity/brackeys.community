@@ -3,6 +3,7 @@
   "installCommand": "bun install && cd api && bun install",
   "framework": "vite",
   "outputDirectory": "dist",
+  "trailingSlash": false,
   "functions": {
     "api/**/*.ts": {
       "memory": 1024,
@@ -13,6 +14,17 @@
     {
       "source": "/((?!api).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
     }
   ]
 }
