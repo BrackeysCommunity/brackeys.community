@@ -22,9 +22,8 @@ type NavigationItem = {
 
 const navigation: NavigationItem[] = [
   { name: 'Home', href: '/' },
-  { name: 'Dashboard', href: '/dashboard', requiresAuth: true },
   { name: 'Cool Stuff', href: '/resources' },
-  { name: 'Collab Hub', href: '/collaboration-hub' },
+  { name: 'Collab', href: '/collaboration-hub' },
 ];
 
 export const Header = () => {

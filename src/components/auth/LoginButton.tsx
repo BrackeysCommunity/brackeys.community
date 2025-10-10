@@ -4,7 +4,7 @@ import { DiscordLogo } from '../icons/DiscordLogo';
 import { useNavigate } from '@tanstack/react-router';
 
 const BUTTON_CONTENT = {
-  dashboard: 'Go to Dashboard',
+  dashboard: 'View Profile',
   login: 'Login with Discord',
 };
 
@@ -21,7 +21,7 @@ export const LoginButton = ({ className }: LoginButtonProps) => {
 
   const handleClick = async () => {
     if (user) {
-      navigate({ to: '/dashboard' });
+      navigate({ to: '/profile' });
     } else {
       // Trigger Discord OAuth
       await signInWithDiscord();

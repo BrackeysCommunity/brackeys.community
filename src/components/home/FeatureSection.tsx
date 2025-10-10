@@ -150,7 +150,7 @@ export const FeatureSection = ({ feature, index }: FeatureSectionProps) => {
               <p className="text-xl text-gray-300 mb-4">{feature.description}</p>
               <p className="text-gray-400">{feature.longDescription}</p>
               <Link
-                to="/dashboard"
+                to="/profile"
                 className={cn(
                   'mt-8 inline-flex items-center gap-2 text-base font-medium transition-colors',
                   feature.colorClass

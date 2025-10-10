@@ -62,12 +62,12 @@ export const AuthEntry = () => {
       return;
     }
 
-    // All checks passed, redirect to dashboard
-    console.log('Auth complete, redirecting to dashboard');
+    // All checks passed, redirect to profile
+    console.log('Auth complete, redirecting to profile');
     setStep('complete');
 
     setTimeout(() => {
-      navigate({ to: '/dashboard', replace: true });
+      navigate({ to: '/profile', replace: true });
     }, 800);
   }, [user, isLoaded, navigate, clerk]);
 
@@ -112,7 +112,7 @@ export const AuthEntry = () => {
     if (step === 'complete') {
       return {
         title: 'All set!',
-        subtitle: 'Redirecting to your dashboard',
+        subtitle: 'Redirecting to your profile',
       };
     }
     return {

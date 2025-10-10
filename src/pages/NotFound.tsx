@@ -29,8 +29,8 @@ export const NotFound = () => {
           </Button>
 
           {user ? (
-            <Button to="/dashboard" variant="secondary" size="lg">
-              Go to Dashboard
+            <Button to="/profile" variant="secondary" size="lg">
+              Go to Profile
             </Button>
           ) : (
             <Button to="/login" variant="secondary" size="lg">

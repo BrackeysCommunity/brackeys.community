@@ -2,7 +2,6 @@ import { createRouter, createRoute, createRootRoute } from '@tanstack/react-rout
 import { MainLayout } from './components/layout/MainLayout';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { NotFound } from './pages/NotFound';
 import { Snake } from './components/games/snake/Snake';
@@ -28,12 +27,6 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: Login,
-});
-
-const dashboardRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/dashboard',
-  component: Dashboard,
 });
 
 const profileRoute = createRoute({
@@ -99,7 +92,6 @@ const authEntryRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
-  dashboardRoute,
   profileRoute,
   snakeRoute,
   resourcesRoute,

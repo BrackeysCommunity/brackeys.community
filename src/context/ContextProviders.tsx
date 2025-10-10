@@ -18,7 +18,7 @@ export const ContextProviders = () => (
       variables: { colorPrimary: '#10b981' },
     }}
     afterSignOutUrl="/"
-    signInFallbackRedirectUrl="/dashboard"
+    signInFallbackRedirectUrl="/profile"
     signUpFallbackRedirectUrl="/auth/entry"
     signInForceRedirectUrl="/auth/entry"
     signUpForceRedirectUrl="/auth/entry"

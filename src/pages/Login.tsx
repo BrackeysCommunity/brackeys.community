@@ -17,7 +17,7 @@ export const Login = () => {
 
   // Get redirect param from search params if available
   const searchParams = new URLSearchParams(search);
-  const from = searchParams.get('redirect') || '/dashboard';
+  const from = searchParams.get('redirect') || '/profile';
 
   useEffect(() => {
     document.title = 'Login - Brackeys Community';
