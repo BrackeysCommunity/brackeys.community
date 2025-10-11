@@ -1,0 +1,11 @@
+[install]
+# Use the same registry as npm
+registry = "https://registry.npmjs.org"
+
+[install.cache]
+# Enable the global cache for faster installs
+enabled = true
+
+[test]
+# Configure test environment
+coverage = true

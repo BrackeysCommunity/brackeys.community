@@ -1,0 +1,19 @@
+table:
+  name: report
+  schema: collab
+object_relationships:
+  - name: post
+    using:
+      foreign_key_constraint_on: post_id
+  - name: profile
+    using:
+      foreign_key_constraint_on: reported_by_profile_id
+  - name: profileByReportedProfileId
+    using:
+      foreign_key_constraint_on: reported_profile_id
+  - name: response
+    using:
+      foreign_key_constraint_on: response_id
+  - name: rule
+    using:
+      foreign_key_constraint_on: violated_rule_id

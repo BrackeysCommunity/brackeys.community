@@ -1,0 +1,13 @@
+{
+  "name": "spacetime-module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SpacetimeDB module for Brackeys real-time features",
+  "scripts": {
+    "build": "cargo build --release --target wasm32-unknown-unknown",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch"
+  }
+}

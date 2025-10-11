@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+storybook-static/
+
+# Cargo/Rust
+target/
+Cargo.lock
+
+# Environment files
+.env
+.env.*
+
+# Version control
+.git/
+.husky/_/
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Hasura
+hasura/**/*.yaml
+hasura/**/*.json
+src/lib/gql/generated.ts
+
+# Auto-generated files
+src/api/generated/
+src/spacetime-bindings/
+*.generated.*
+
+# Phaser assets
+public/assets/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Markdown files with specific formatting
+CHANGELOG*.md

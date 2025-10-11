@@ -1,0 +1,13 @@
+table:
+  name: alert
+  schema: collab
+object_relationships:
+  - name: hiringStatus
+    using:
+      foreign_key_constraint_on: hiring_status_id
+  - name: profile
+    using:
+      foreign_key_constraint_on: profile_id
+  - name: type
+    using:
+      foreign_key_constraint_on: type_id
