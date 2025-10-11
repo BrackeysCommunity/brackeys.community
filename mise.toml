@@ -1,0 +1,235 @@
+# Mise configuration for Brackeys Web development environment
+# This file manages all tools, environment variables, and development tasks
+
+[tools]
+# Frontend tools
+bun = "1.2.21"
+node = "24.7.0"  # Some tools still need node
+
+# Backend tools
+rust = "1.89.0"
+
+# Note: Hasura DDN CLI is installed via setup script
+
+# Optional but recommended
+docker = "latest"  # For local connectors
+
+[env]
+# Load environment variables from .env file
+_.file = { path = ".env", redact = true }
+
+# Default development environment variables (can be overridden in .env)
+NODE_ENV = "development"
+
+# SpacetimeDB defaults
+VITE_SPACETIME_HOST = { value = "wss://localhost:3000" }
+VITE_SPACETIME_MODULE = { value = "brackeys-sandbox" }
+
+# Application defaults
+VITE_APP_URL = { value = "http://localhost:5173" }
+VITE_API_BASE_URL = { value = "http://localhost:3000" }
+
+# Hasura GraphQL endpoint
+HASURA_GRAPHQL_ENDPOINT = { value = "http://localhost:3280/graphql" }
+
+[tasks.check]
+description = "Check if all required tools are installed"
+run = """
+echo "🔍 Checking development environment..."
+echo ""
+echo "Bun version: $(bun --version)"
+echo "Node version: $(node --version)"
+echo "Rust version: $(rustc --version)"
+echo "Cargo version: $(cargo --version)"
+echo ""
+docker --version || echo "⚠️  Docker not found - required for Hasura services"
+ddn version || echo "⚠️  Hasura DDN CLI not found"
+echo ""
+echo "✅ Tool check complete!"
+"""
+
+[tasks.doctor]
+description = "Run comprehensive environment health check"
+run = "./doctor.sh"
+
+[tasks.setup]
+description = "Complete initial project setup"
+depends = ["check"]
+run = """
+echo "🚀 Setting up Brackeys Web development environment..."
+echo ""
+
+# Create .env file if it doesn't exist
+if [ ! -f .env ]; then
+  echo "📝 Creating .env file from template..."
+  cp .env.example .env
+  echo "⚠️  Please update .env with your actual values!"
+  echo ""
+else
+  echo "✅ .env file already exists"
+fi
+
+# Install frontend dependencies
+echo "📦 Installing frontend dependencies with Bun..."
+bun install
+
+# Install Rust WASM target if not already installed
+echo "🎯 Checking Rust WASM target..."
+if ! rustup target list --installed | grep -q wasm32-unknown-unknown; then
+  echo "Installing wasm32-unknown-unknown target..."
+  rustup target add wasm32-unknown-unknown
+fi
+
+# Build SpacetimeDB module
+echo "🦀 Building SpacetimeDB Rust module..."
+cd spacetime-db && cargo build --release --target wasm32-unknown-unknown && cd ..
+
+# Install Hasura DDN CLI if not already installed
+echo "🚀 Checking Hasura DDN CLI..."
+if ! command -v ddn &> /dev/null; then
+  echo "Installing Hasura DDN CLI..."
+  if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+    echo "Please install DDN CLI manually from: https://hasura.io/docs/3.0/quickstart/"
+    echo "Download and run the Windows installer, then re-run this setup."
+    exit 1
+  else
+    curl -L https://graphql-engine-cdn.hasura.io/ddn/cli/v4/get.sh | bash
+  fi
+fi
+
+# Verify DDN installation
+ddn doctor || echo "⚠️  DDN CLI check failed, but continuing..."
+
+# Install git hooks
+echo "🪝 Installing git hooks..."
+bun run prepare
+
+echo ""
+echo "✨ Setup complete! Run 'mise run dev' to start development."
+echo ""
+echo "⚠️  Don't forget to:"
+echo "  1. Update your .env file with real values"
+echo "  2. Ensure Docker is running for Hasura services"
+"""
+
+[tasks.dev]
+description = "Start all development services"
+run = """
+echo "🚀 Starting development services..."
+echo ""
+
+# Build the supergraph
+echo "🔨 Building Hasura supergraph..."
+cd hasura && ddn supergraph build local && cd ..
+
+# Start Hasura DDN locally
+echo "🐳 Starting Hasura DDN services..."
+cd hasura && ddn run docker-start & cd ..
+
+# Wait for services to be ready
+echo "⏳ Waiting for services to be ready..."
+sleep 8
+
+# Start Vite dev server
+echo "⚡ Starting Vite development server..."
+bun run dev
+"""
+
+[tasks.dev-frontend]
+description = "Start only frontend development (assumes backend is running)"
+run = "bun run dev"
+
+[tasks.dev-hasura]
+description = "Start only Hasura DDN services"
+run = """
+cd hasura
+ddn supergraph build local
+ddn run docker-start
+"""
+
+[tasks.build]
+description = "Build production bundle"
+run = """
+echo "🏗️  Building production bundle..."
+bun run build
+echo "✅ Build complete! Output in ./dist"
+"""
+
+[tasks.test]
+description = "Run all tests"
+run = """
+echo "🧪 Running tests..."
+bun run test
+"""
+
+[tasks.lint]
+description = "Run linting and formatting checks"
+run = """
+echo "🔍 Running linters..."
+bun run lint
+echo ""
+echo "💅 Checking formatting..."
+bun run format:check
+"""
+
+[tasks.lint-fix]
+description = "Fix linting and formatting issues"
+run = """
+echo "🔧 Fixing lint issues..."
+bun run lint:fix
+echo ""
+echo "💅 Fixing formatting..."
+bun run format
+"""
+
+[tasks.storybook]
+description = "Start Storybook development server"
+run = "bun run storybook"
+
+[tasks.codegen]
+description = "Generate GraphQL types"
+run = "bun run graphql-codegen"
+
+[tasks.hasura-console]
+description = "Open Hasura DDN console"
+run = """
+echo "🎛️  Opening Hasura DDN console..."
+cd hasura && ddn console --local
+"""
+
+[tasks.hasura-build]
+description = "Build Hasura supergraph"
+run = "cd hasura && ddn supergraph build local"
+
+[tasks.hasura-deploy]
+description = "Deploy Hasura supergraph to DDN"
+run = "cd hasura && ddn supergraph build create"
+
+[tasks.clean]
+description = "Clean all generated files and dependencies"
+run = """
+echo "🧹 Cleaning project..."
+rm -rf node_modules
+rm -rf dist
+rm -rf storybook-static
+rm -rf spacetime-db/target
+cd hasura && ddn run docker-stop || true && cd ..
+echo "✅ Clean complete!"
+"""
+
+[tasks.reset]
+description = "Complete reset - clean and setup again"
+depends = ["clean", "setup"]
+
+[tasks.update-deps]
+description = "Update all dependencies"
+run = """
+echo "⬆️  Updating dependencies..."
+bun update
+cd spacetime-db && cargo update && cd ..
+echo "✅ Dependencies updated!"
+"""
+
+[tasks.pre-commit]
+description = "Run all pre-commit checks"
+depends = ["lint", "test", "build"]

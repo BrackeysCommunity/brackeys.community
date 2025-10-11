@@ -1,0 +1,25 @@
+table:
+  name: type
+  schema: collab
+array_relationships:
+  - name: alerts
+    using:
+      foreign_key_constraint_on:
+        column: type_id
+        table:
+          name: alert
+          schema: collab
+  - name: fieldDefinitions
+    using:
+      foreign_key_constraint_on:
+        column: type_id
+        table:
+          name: field_definition
+          schema: collab
+  - name: posts
+    using:
+      foreign_key_constraint_on:
+        column: type_id
+        table:
+          name: post
+          schema: collab

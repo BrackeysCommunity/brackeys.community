@@ -1,0 +1,18 @@
+table:
+  name: rule
+  schema: collab
+array_relationships:
+  - name: blockedUsers
+    using:
+      foreign_key_constraint_on:
+        column: violated_rule_id
+        table:
+          name: blocked_user
+          schema: collab
+  - name: reports
+    using:
+      foreign_key_constraint_on:
+        column: violated_rule_id
+        table:
+          name: report
+          schema: collab

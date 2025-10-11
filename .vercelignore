@@ -1,0 +1,6 @@
+api
+api/**
+node_modules
+.git
+.husky
+

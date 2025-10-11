@@ -1,0 +1,1854 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type AltAccount {
+  altId: Int64!
+  registeredAt: Timestamp!
+  staffMemberId: Int64!
+  userId: Int64!
+}
+
+type AltAccountAggExp {
+  _count: Int!
+  altId: Int64AggExp1!
+  registeredAt: TimestampAggExp1!
+  staffMemberId: Int64AggExp1!
+  userId: Int64AggExp1!
+}
+
+input AltAccountBoolExp {
+  _and: [AltAccountBoolExp!]
+  _not: AltAccountBoolExp
+  _or: [AltAccountBoolExp!]
+  altId: Int64BoolExp1
+  registeredAt: TimestampBoolExp1
+  staffMemberId: Int64BoolExp1
+  userId: Int64BoolExp1
+}
+
+input AltAccountFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [AltAccountOrderByExp!]
+  where: AltAccountBoolExp
+}
+
+input AltAccountOrderByExp {
+  altId: OrderBy
+  registeredAt: OrderBy
+  staffMemberId: OrderBy
+  userId: OrderBy
+}
+
+type BlockedReporter {
+  blockedAt: Timestamp!
+  guildId: Int64!
+  staffMemberId: Int64!
+  userId: Int64!
+}
+
+type BlockedReporterAggExp {
+  _count: Int!
+  blockedAt: TimestampAggExp1!
+  guildId: Int64AggExp1!
+  staffMemberId: Int64AggExp1!
+  userId: Int64AggExp1!
+}
+
+input BlockedReporterBoolExp {
+  _and: [BlockedReporterBoolExp!]
+  _not: BlockedReporterBoolExp
+  _or: [BlockedReporterBoolExp!]
+  blockedAt: TimestampBoolExp1
+  guildId: Int64BoolExp1
+  staffMemberId: Int64BoolExp1
+  userId: Int64BoolExp1
+}
+
+input BlockedReporterFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [BlockedReporterOrderByExp!]
+  where: BlockedReporterBoolExp
+}
+
+input BlockedReporterOrderByExp {
+  blockedAt: OrderBy
+  guildId: OrderBy
+  staffMemberId: OrderBy
+  userId: OrderBy
+}
+
+scalar Bytes
+
+type BytesAggExp {
+  _count: Int!
+  _count_distinct: Int!
+}
+
+input BytesBoolExp {
+  _and: [BytesBoolExp!]
+  _eq: Bytes
+  _is_null: Boolean
+  _not: BytesBoolExp
+  _or: [BytesBoolExp!]
+}
+
+type CollaborationAlert {
+  collaborationProfile: CollaborationProfile
+  collaborationType: CollaborationType
+  collaborationTypeId: Int32
+  createdAt: Timestamp!
+  guildId: Int64!
+  hiringStatus: HiringStatus
+  hiringStatusId: Int32
+  id: String1!
+  isActive: Int8!
+  keywords: String1
+  lastNotifiedAt: Timestamp
+  name: String1!
+  profileId: String1!
+  tags: String1
+}
+
+type CollaborationAlertAggExp {
+  _count: Int!
+  collaborationTypeId: Int32AggExp!
+  createdAt: TimestampAggExp!
+  guildId: Int64AggExp!
+  hiringStatusId: Int32AggExp!
+  id: StringAggExp!
+  isActive: Int8AggExp!
+  keywords: StringAggExp!
+  lastNotifiedAt: TimestampAggExp!
+  name: StringAggExp!
+  profileId: StringAggExp!
+  tags: StringAggExp!
+}
+
+input CollaborationAlertBoolExp {
+  _and: [CollaborationAlertBoolExp!]
+  _not: CollaborationAlertBoolExp
+  _or: [CollaborationAlertBoolExp!]
+  collaborationProfile: CollaborationProfileBoolExp
+  collaborationType: CollaborationTypeBoolExp
+  collaborationTypeId: Int32BoolExp
+  createdAt: TimestampBoolExp
+  guildId: Int64BoolExp
+  hiringStatus: HiringStatusBoolExp
+  hiringStatusId: Int32BoolExp
+  id: StringBoolExp
+  isActive: Int8BoolExp
+  keywords: StringBoolExp
+  lastNotifiedAt: TimestampBoolExp
+  name: StringBoolExp
+  profileId: StringBoolExp
+  tags: StringBoolExp
+}
+
+input CollaborationAlertFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationAlertOrderByExp!]
+  where: CollaborationAlertBoolExp
+}
+
+input CollaborationAlertOrderByExp {
+  collaborationProfile: CollaborationProfileOrderByExp
+  collaborationType: CollaborationTypeOrderByExp
+  collaborationTypeId: OrderBy
+  createdAt: OrderBy
+  guildId: OrderBy
+  hiringStatus: HiringStatusOrderByExp
+  hiringStatusId: OrderBy
+  id: OrderBy
+  isActive: OrderBy
+  keywords: OrderBy
+  lastNotifiedAt: OrderBy
+  name: OrderBy
+  profileId: OrderBy
+  tags: OrderBy
+}
+
+type CollaborationAuditLog {
+  action: String1!
+  collaborationPost: CollaborationPost
+  collaborationPostId: String1
+  collaborationProfile: CollaborationProfile
+  createdAt: Timestamp!
+  id: String1!
+  metadata: String1
+  profileId: String1
+  reason: String1
+  staffMemberId: Int64!
+}
+
+type CollaborationAuditLogAggExp {
+  _count: Int!
+  action: StringAggExp!
+  collaborationPostId: StringAggExp!
+  createdAt: TimestampAggExp!
+  id: StringAggExp!
+  metadata: StringAggExp!
+  profileId: StringAggExp!
+  reason: StringAggExp!
+  staffMemberId: Int64AggExp!
+}
+
+input CollaborationAuditLogBoolExp {
+  _and: [CollaborationAuditLogBoolExp!]
+  _not: CollaborationAuditLogBoolExp
+  _or: [CollaborationAuditLogBoolExp!]
+  action: StringBoolExp
+  collaborationPost: CollaborationPostBoolExp
+  collaborationPostId: StringBoolExp
+  collaborationProfile: CollaborationProfileBoolExp
+  createdAt: TimestampBoolExp
+  id: StringBoolExp
+  metadata: StringBoolExp
+  profileId: StringBoolExp
+  reason: StringBoolExp
+  staffMemberId: Int64BoolExp
+}
+
+input CollaborationAuditLogFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationAuditLogOrderByExp!]
+  where: CollaborationAuditLogBoolExp
+}
+
+input CollaborationAuditLogOrderByExp {
+  action: OrderBy
+  collaborationPost: CollaborationPostOrderByExp
+  collaborationPostId: OrderBy
+  collaborationProfile: CollaborationProfileOrderByExp
+  createdAt: OrderBy
+  id: OrderBy
+  metadata: OrderBy
+  profileId: OrderBy
+  reason: OrderBy
+  staffMemberId: OrderBy
+}
+
+type CollaborationBlockedUser {
+  blockedAt: Timestamp!
+  blockedByStaffId: Int64!
+  collaborationProfile: CollaborationProfile
+  collaborationRule: CollaborationRule
+  expiresAt: Timestamp
+  guildId: Int64!
+  id: String1!
+  profileId: String1!
+  reason: String1
+  violatedRuleId: String1
+}
+
+type CollaborationBlockedUserAggExp {
+  _count: Int!
+  blockedAt: TimestampAggExp!
+  blockedByStaffId: Int64AggExp!
+  expiresAt: TimestampAggExp!
+  guildId: Int64AggExp!
+  id: StringAggExp!
+  profileId: StringAggExp!
+  reason: StringAggExp!
+  violatedRuleId: StringAggExp!
+}
+
+input CollaborationBlockedUserBoolExp {
+  _and: [CollaborationBlockedUserBoolExp!]
+  _not: CollaborationBlockedUserBoolExp
+  _or: [CollaborationBlockedUserBoolExp!]
+  blockedAt: TimestampBoolExp
+  blockedByStaffId: Int64BoolExp
+  collaborationProfile: CollaborationProfileBoolExp
+  collaborationRule: CollaborationRuleBoolExp
+  expiresAt: TimestampBoolExp
+  guildId: Int64BoolExp
+  id: StringBoolExp
+  profileId: StringBoolExp
+  reason: StringBoolExp
+  violatedRuleId: StringBoolExp
+}
+
+input CollaborationBlockedUserFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationBlockedUserOrderByExp!]
+  where: CollaborationBlockedUserBoolExp
+}
+
+input CollaborationBlockedUserOrderByExp {
+  blockedAt: OrderBy
+  blockedByStaffId: OrderBy
+  collaborationProfile: CollaborationProfileOrderByExp
+  collaborationRule: CollaborationRuleOrderByExp
+  expiresAt: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  profileId: OrderBy
+  reason: OrderBy
+  violatedRuleId: OrderBy
+}
+
+type CollaborationBookmark {
+  collaborationPost: CollaborationPost
+  collaborationPostId: String1!
+  collaborationProfile: CollaborationProfile
+  createdAt: Timestamp!
+  id: String1!
+  notes: String1
+  profileId: String1!
+}
+
+type CollaborationBookmarkAggExp {
+  _count: Int!
+  collaborationPostId: StringAggExp!
+  createdAt: TimestampAggExp!
+  id: StringAggExp!
+  notes: StringAggExp!
+  profileId: StringAggExp!
+}
+
+input CollaborationBookmarkBoolExp {
+  _and: [CollaborationBookmarkBoolExp!]
+  _not: CollaborationBookmarkBoolExp
+  _or: [CollaborationBookmarkBoolExp!]
+  collaborationPost: CollaborationPostBoolExp
+  collaborationPostId: StringBoolExp
+  collaborationProfile: CollaborationProfileBoolExp
+  createdAt: TimestampBoolExp
+  id: StringBoolExp
+  notes: StringBoolExp
+  profileId: StringBoolExp
+}
+
+input CollaborationBookmarkFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationBookmarkOrderByExp!]
+  where: CollaborationBookmarkBoolExp
+}
+
+input CollaborationBookmarkOrderByExp {
+  collaborationPost: CollaborationPostOrderByExp
+  collaborationPostId: OrderBy
+  collaborationProfile: CollaborationProfileOrderByExp
+  createdAt: OrderBy
+  id: OrderBy
+  notes: OrderBy
+  profileId: OrderBy
+}
+
+type CollaborationFieldDefinition {
+  collaborationFieldValues(limit: Int, offset: Int, order_by: [CollaborationFieldValueOrderByExp!], where: CollaborationFieldValueBoolExp): [CollaborationFieldValue!]
+  collaborationFieldValuesAggregate(filter_input: CollaborationFieldValueFilterInput): CollaborationFieldValueAggExp!
+  collaborationType: CollaborationType
+  collaborationTypeId: Int32!
+  displayName: String1!
+  fieldName: String1!
+  fieldOrder: Int32!
+  fieldType: String1!
+  helpText: String1
+  hiringStatus: HiringStatus
+  hiringStatusId: Int32!
+  id: String1!
+  isRequired: Int8!
+  maxLength: Int32
+  options: String1
+  validationRegex: String1
+}
+
+type CollaborationFieldDefinitionAggExp {
+  _count: Int!
+  collaborationTypeId: Int32AggExp!
+  displayName: StringAggExp!
+  fieldName: StringAggExp!
+  fieldOrder: Int32AggExp!
+  fieldType: StringAggExp!
+  helpText: StringAggExp!
+  hiringStatusId: Int32AggExp!
+  id: StringAggExp!
+  isRequired: Int8AggExp!
+  maxLength: Int32AggExp!
+  options: StringAggExp!
+  validationRegex: StringAggExp!
+}
+
+input CollaborationFieldDefinitionBoolExp {
+  _and: [CollaborationFieldDefinitionBoolExp!]
+  _not: CollaborationFieldDefinitionBoolExp
+  _or: [CollaborationFieldDefinitionBoolExp!]
+  collaborationFieldValues: CollaborationFieldValueBoolExp
+  collaborationType: CollaborationTypeBoolExp
+  collaborationTypeId: Int32BoolExp
+  displayName: StringBoolExp
+  fieldName: StringBoolExp
+  fieldOrder: Int32BoolExp
+  fieldType: StringBoolExp
+  helpText: StringBoolExp
+  hiringStatus: HiringStatusBoolExp
+  hiringStatusId: Int32BoolExp
+  id: StringBoolExp
+  isRequired: Int8BoolExp
+  maxLength: Int32BoolExp
+  options: StringBoolExp
+  validationRegex: StringBoolExp
+}
+
+input CollaborationFieldDefinitionFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationFieldDefinitionOrderByExp!]
+  where: CollaborationFieldDefinitionBoolExp
+}
+
+input CollaborationFieldDefinitionOrderByExp {
+  collaborationType: CollaborationTypeOrderByExp
+  collaborationTypeId: OrderBy
+  displayName: OrderBy
+  fieldName: OrderBy
+  fieldOrder: OrderBy
+  fieldType: OrderBy
+  helpText: OrderBy
+  hiringStatus: HiringStatusOrderByExp
+  hiringStatusId: OrderBy
+  id: OrderBy
+  isRequired: OrderBy
+  maxLength: OrderBy
+  options: OrderBy
+  validationRegex: OrderBy
+}
+
+type CollaborationFieldValue {
+  collaborationFieldDefinition: CollaborationFieldDefinition
+  collaborationPost: CollaborationPost
+  collaborationPostId: String1!
+  fieldDefinitionId: String1!
+  id: String1!
+  value: String1!
+}
+
+type CollaborationFieldValueAggExp {
+  _count: Int!
+  collaborationPostId: StringAggExp!
+  fieldDefinitionId: StringAggExp!
+  id: StringAggExp!
+  value: StringAggExp!
+}
+
+input CollaborationFieldValueBoolExp {
+  _and: [CollaborationFieldValueBoolExp!]
+  _not: CollaborationFieldValueBoolExp
+  _or: [CollaborationFieldValueBoolExp!]
+  collaborationFieldDefinition: CollaborationFieldDefinitionBoolExp
+  collaborationPost: CollaborationPostBoolExp
+  collaborationPostId: StringBoolExp
+  fieldDefinitionId: StringBoolExp
+  id: StringBoolExp
+  value: StringBoolExp
+}
+
+input CollaborationFieldValueFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationFieldValueOrderByExp!]
+  where: CollaborationFieldValueBoolExp
+}
+
+input CollaborationFieldValueOrderByExp {
+  collaborationFieldDefinition: CollaborationFieldDefinitionOrderByExp
+  collaborationPost: CollaborationPostOrderByExp
+  collaborationPostId: OrderBy
+  fieldDefinitionId: OrderBy
+  id: OrderBy
+  value: OrderBy
+}
+
+type CollaborationPost {
+  collaborationAuditLogs(limit: Int, offset: Int, order_by: [CollaborationAuditLogOrderByExp!], where: CollaborationAuditLogBoolExp): [CollaborationAuditLog!]
+  collaborationAuditLogsAggregate(filter_input: CollaborationAuditLogFilterInput): CollaborationAuditLogAggExp!
+  collaborationBookmarks(limit: Int, offset: Int, order_by: [CollaborationBookmarkOrderByExp!], where: CollaborationBookmarkBoolExp): [CollaborationBookmark!]
+  collaborationBookmarksAggregate(filter_input: CollaborationBookmarkFilterInput): CollaborationBookmarkAggExp!
+  collaborationFieldValues(limit: Int, offset: Int, order_by: [CollaborationFieldValueOrderByExp!], where: CollaborationFieldValueBoolExp): [CollaborationFieldValue!]
+  collaborationFieldValuesAggregate(filter_input: CollaborationFieldValueFilterInput): CollaborationFieldValueAggExp!
+  collaborationProfile: CollaborationProfile
+  collaborationReports(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportsAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp!
+  collaborationResponses(limit: Int, offset: Int, order_by: [CollaborationResponseOrderByExp!], where: CollaborationResponseBoolExp): [CollaborationResponse!]
+  collaborationResponsesAggregate(filter_input: CollaborationResponseFilterInput): CollaborationResponseAggExp!
+  collaborationStatus: CollaborationStatus
+  collaborationType: CollaborationType
+  collaborationTypeId: Int32!
+  createdAt: Timestamp!
+  discordChannelId: Int64
+  discordMessageId: Int64
+  expiresAt: Timestamp
+  guildId: Int64!
+  hiringStatus: HiringStatus
+  hiringStatusId: Int32!
+  id: String1!
+  isHighlighted: Int8!
+  postedAt: Timestamp
+  profileId: String1!
+  responseCount: Int32!
+  statusId: Int32!
+  tags: String1
+  updatedAt: Timestamp!
+  viewCount: Int32!
+}
+
+type CollaborationPostAggExp {
+  _count: Int!
+  collaborationTypeId: Int32AggExp!
+  createdAt: TimestampAggExp!
+  discordChannelId: Int64AggExp!
+  discordMessageId: Int64AggExp!
+  expiresAt: TimestampAggExp!
+  guildId: Int64AggExp!
+  hiringStatusId: Int32AggExp!
+  id: StringAggExp!
+  isHighlighted: Int8AggExp!
+  postedAt: TimestampAggExp!
+  profileId: StringAggExp!
+  responseCount: Int32AggExp!
+  statusId: Int32AggExp!
+  tags: StringAggExp!
+  updatedAt: TimestampAggExp!
+  viewCount: Int32AggExp!
+}
+
+input CollaborationPostBoolExp {
+  _and: [CollaborationPostBoolExp!]
+  _not: CollaborationPostBoolExp
+  _or: [CollaborationPostBoolExp!]
+  collaborationAuditLogs: CollaborationAuditLogBoolExp
+  collaborationBookmarks: CollaborationBookmarkBoolExp
+  collaborationFieldValues: CollaborationFieldValueBoolExp
+  collaborationProfile: CollaborationProfileBoolExp
+  collaborationReports: CollaborationReportBoolExp
+  collaborationResponses: CollaborationResponseBoolExp
+  collaborationStatus: CollaborationStatusBoolExp
+  collaborationType: CollaborationTypeBoolExp
+  collaborationTypeId: Int32BoolExp
+  createdAt: TimestampBoolExp
+  discordChannelId: Int64BoolExp
+  discordMessageId: Int64BoolExp
+  expiresAt: TimestampBoolExp
+  guildId: Int64BoolExp
+  hiringStatus: HiringStatusBoolExp
+  hiringStatusId: Int32BoolExp
+  id: StringBoolExp
+  isHighlighted: Int8BoolExp
+  postedAt: TimestampBoolExp
+  profileId: StringBoolExp
+  responseCount: Int32BoolExp
+  statusId: Int32BoolExp
+  tags: StringBoolExp
+  updatedAt: TimestampBoolExp
+  viewCount: Int32BoolExp
+}
+
+input CollaborationPostFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationPostOrderByExp!]
+  where: CollaborationPostBoolExp
+}
+
+input CollaborationPostOrderByExp {
+  collaborationProfile: CollaborationProfileOrderByExp
+  collaborationStatus: CollaborationStatusOrderByExp
+  collaborationType: CollaborationTypeOrderByExp
+  collaborationTypeId: OrderBy
+  createdAt: OrderBy
+  discordChannelId: OrderBy
+  discordMessageId: OrderBy
+  expiresAt: OrderBy
+  guildId: OrderBy
+  hiringStatus: HiringStatusOrderByExp
+  hiringStatusId: OrderBy
+  id: OrderBy
+  isHighlighted: OrderBy
+  postedAt: OrderBy
+  profileId: OrderBy
+  responseCount: OrderBy
+  statusId: OrderBy
+  tags: OrderBy
+  updatedAt: OrderBy
+  viewCount: OrderBy
+}
+
+type CollaborationProfile {
+  bio: String1
+  collaborationAlerts(limit: Int, offset: Int, order_by: [CollaborationAlertOrderByExp!], where: CollaborationAlertBoolExp): [CollaborationAlert!]
+  collaborationAlertsAggregate(filter_input: CollaborationAlertFilterInput): CollaborationAlertAggExp!
+  collaborationAuditLogs(limit: Int, offset: Int, order_by: [CollaborationAuditLogOrderByExp!], where: CollaborationAuditLogBoolExp): [CollaborationAuditLog!]
+  collaborationAuditLogsAggregate(filter_input: CollaborationAuditLogFilterInput): CollaborationAuditLogAggExp!
+  collaborationBlockedUsers(limit: Int, offset: Int, order_by: [CollaborationBlockedUserOrderByExp!], where: CollaborationBlockedUserBoolExp): [CollaborationBlockedUser!]
+  collaborationBlockedUsersAggregate(filter_input: CollaborationBlockedUserFilterInput): CollaborationBlockedUserAggExp!
+  collaborationBookmarks(limit: Int, offset: Int, order_by: [CollaborationBookmarkOrderByExp!], where: CollaborationBookmarkBoolExp): [CollaborationBookmark!]
+  collaborationBookmarksAggregate(filter_input: CollaborationBookmarkFilterInput): CollaborationBookmarkAggExp!
+  collaborationPosts(limit: Int, offset: Int, order_by: [CollaborationPostOrderByExp!], where: CollaborationPostBoolExp): [CollaborationPost!]
+  collaborationPostsAggregate(filter_input: CollaborationPostFilterInput): CollaborationPostAggExp!
+  collaborationReports(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportsAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp!
+  collaborationReportsByReportedByProfileId(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportsByReportedByProfileIdAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp!
+  collaborationResponses(limit: Int, offset: Int, order_by: [CollaborationResponseOrderByExp!], where: CollaborationResponseBoolExp): [CollaborationResponse!]
+  collaborationResponsesAggregate(filter_input: CollaborationResponseFilterInput): CollaborationResponseAggExp!
+  contactPreferences: String1
+  createdAt: Timestamp!
+  displayName: String1
+  guildId: Int64!
+  id: String1!
+  isPublic: Int8!
+  lastActiveAt: Timestamp
+  portfolio: String1
+  skills: String1
+  updatedAt: Timestamp!
+  userId: Int64!
+}
+
+type CollaborationProfileAggExp {
+  _count: Int!
+  bio: StringAggExp!
+  contactPreferences: StringAggExp!
+  createdAt: TimestampAggExp!
+  displayName: StringAggExp!
+  guildId: Int64AggExp!
+  id: StringAggExp!
+  isPublic: Int8AggExp!
+  lastActiveAt: TimestampAggExp!
+  portfolio: StringAggExp!
+  skills: StringAggExp!
+  updatedAt: TimestampAggExp!
+  userId: Int64AggExp!
+}
+
+input CollaborationProfileBoolExp {
+  _and: [CollaborationProfileBoolExp!]
+  _not: CollaborationProfileBoolExp
+  _or: [CollaborationProfileBoolExp!]
+  bio: StringBoolExp
+  collaborationAlerts: CollaborationAlertBoolExp
+  collaborationAuditLogs: CollaborationAuditLogBoolExp
+  collaborationBlockedUsers: CollaborationBlockedUserBoolExp
+  collaborationBookmarks: CollaborationBookmarkBoolExp
+  collaborationPosts: CollaborationPostBoolExp
+  collaborationReports: CollaborationReportBoolExp
+  collaborationReportsByReportedByProfileId: CollaborationReportBoolExp
+  collaborationResponses: CollaborationResponseBoolExp
+  contactPreferences: StringBoolExp
+  createdAt: TimestampBoolExp
+  displayName: StringBoolExp
+  guildId: Int64BoolExp
+  id: StringBoolExp
+  isPublic: Int8BoolExp
+  lastActiveAt: TimestampBoolExp
+  portfolio: StringBoolExp
+  skills: StringBoolExp
+  updatedAt: TimestampBoolExp
+  userId: Int64BoolExp
+}
+
+input CollaborationProfileFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationProfileOrderByExp!]
+  where: CollaborationProfileBoolExp
+}
+
+input CollaborationProfileOrderByExp {
+  bio: OrderBy
+  contactPreferences: OrderBy
+  createdAt: OrderBy
+  displayName: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  isPublic: OrderBy
+  lastActiveAt: OrderBy
+  portfolio: OrderBy
+  skills: OrderBy
+  updatedAt: OrderBy
+  userId: OrderBy
+}
+
+type CollaborationReport {
+  collaborationPost: CollaborationPost
+  collaborationPostId: String1
+  collaborationProfile: CollaborationProfile
+  collaborationProfileByReportedByProfileId: CollaborationProfile
+  collaborationResponse: CollaborationResponse
+  collaborationResponseId: String1
+  collaborationRule: CollaborationRule
+  createdAt: Timestamp!
+  details: String1
+  id: String1!
+  reason: String1!
+  reportedByProfileId: String1!
+  reportedProfileId: String1!
+  resolution: String1
+  resolvedAt: Timestamp
+  resolvedByStaffId: Int64
+  violatedRuleId: String1
+}
+
+type CollaborationReportAggExp {
+  _count: Int!
+  collaborationPostId: StringAggExp!
+  collaborationResponseId: StringAggExp!
+  createdAt: TimestampAggExp!
+  details: StringAggExp!
+  id: StringAggExp!
+  reason: StringAggExp!
+  reportedByProfileId: StringAggExp!
+  reportedProfileId: StringAggExp!
+  resolution: StringAggExp!
+  resolvedAt: TimestampAggExp!
+  resolvedByStaffId: Int64AggExp!
+  violatedRuleId: StringAggExp!
+}
+
+input CollaborationReportBoolExp {
+  _and: [CollaborationReportBoolExp!]
+  _not: CollaborationReportBoolExp
+  _or: [CollaborationReportBoolExp!]
+  collaborationPost: CollaborationPostBoolExp
+  collaborationPostId: StringBoolExp
+  collaborationProfile: CollaborationProfileBoolExp
+  collaborationProfileByReportedByProfileId: CollaborationProfileBoolExp
+  collaborationResponse: CollaborationResponseBoolExp
+  collaborationResponseId: StringBoolExp
+  collaborationRule: CollaborationRuleBoolExp
+  createdAt: TimestampBoolExp
+  details: StringBoolExp
+  id: StringBoolExp
+  reason: StringBoolExp
+  reportedByProfileId: StringBoolExp
+  reportedProfileId: StringBoolExp
+  resolution: StringBoolExp
+  resolvedAt: TimestampBoolExp
+  resolvedByStaffId: Int64BoolExp
+  violatedRuleId: StringBoolExp
+}
+
+input CollaborationReportFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationReportOrderByExp!]
+  where: CollaborationReportBoolExp
+}
+
+input CollaborationReportOrderByExp {
+  collaborationPost: CollaborationPostOrderByExp
+  collaborationPostId: OrderBy
+  collaborationProfile: CollaborationProfileOrderByExp
+  collaborationProfileByReportedByProfileId: CollaborationProfileOrderByExp
+  collaborationResponse: CollaborationResponseOrderByExp
+  collaborationResponseId: OrderBy
+  collaborationRule: CollaborationRuleOrderByExp
+  createdAt: OrderBy
+  details: OrderBy
+  id: OrderBy
+  reason: OrderBy
+  reportedByProfileId: OrderBy
+  reportedProfileId: OrderBy
+  resolution: OrderBy
+  resolvedAt: OrderBy
+  resolvedByStaffId: OrderBy
+  violatedRuleId: OrderBy
+}
+
+type CollaborationResponse {
+  collaborationPost: CollaborationPost
+  collaborationPostId: String1!
+  collaborationProfile: CollaborationProfile
+  collaborationReports(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportsAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp!
+  contactInfo: String1
+  createdAt: Timestamp!
+  id: String1!
+  isHidden: Int8!
+  isPublic: Int8!
+  isRead: Int8!
+  message: String1!
+  profileId: String1!
+  readAt: Timestamp
+}
+
+type CollaborationResponseAggExp {
+  _count: Int!
+  collaborationPostId: StringAggExp!
+  contactInfo: StringAggExp!
+  createdAt: TimestampAggExp!
+  id: StringAggExp!
+  isHidden: Int8AggExp!
+  isPublic: Int8AggExp!
+  isRead: Int8AggExp!
+  message: StringAggExp!
+  profileId: StringAggExp!
+  readAt: TimestampAggExp!
+}
+
+input CollaborationResponseBoolExp {
+  _and: [CollaborationResponseBoolExp!]
+  _not: CollaborationResponseBoolExp
+  _or: [CollaborationResponseBoolExp!]
+  collaborationPost: CollaborationPostBoolExp
+  collaborationPostId: StringBoolExp
+  collaborationProfile: CollaborationProfileBoolExp
+  collaborationReports: CollaborationReportBoolExp
+  contactInfo: StringBoolExp
+  createdAt: TimestampBoolExp
+  id: StringBoolExp
+  isHidden: Int8BoolExp
+  isPublic: Int8BoolExp
+  isRead: Int8BoolExp
+  message: StringBoolExp
+  profileId: StringBoolExp
+  readAt: TimestampBoolExp
+}
+
+input CollaborationResponseFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationResponseOrderByExp!]
+  where: CollaborationResponseBoolExp
+}
+
+input CollaborationResponseOrderByExp {
+  collaborationPost: CollaborationPostOrderByExp
+  collaborationPostId: OrderBy
+  collaborationProfile: CollaborationProfileOrderByExp
+  contactInfo: OrderBy
+  createdAt: OrderBy
+  id: OrderBy
+  isHidden: OrderBy
+  isPublic: OrderBy
+  isRead: OrderBy
+  message: OrderBy
+  profileId: OrderBy
+  readAt: OrderBy
+}
+
+type CollaborationRule {
+  collaborationBlockedUsers(limit: Int, offset: Int, order_by: [CollaborationBlockedUserOrderByExp!], where: CollaborationBlockedUserBoolExp): [CollaborationBlockedUser!]
+  collaborationBlockedUsersAggregate(filter_input: CollaborationBlockedUserFilterInput): CollaborationBlockedUserAggExp!
+  collaborationReports(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportsAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp!
+  createdAt: Timestamp!
+  description: String1!
+  guildId: Int64!
+  id: String1!
+  isActive: Int8!
+  ruleNumber: Int32!
+  title: String1!
+  updatedAt: Timestamp!
+}
+
+type CollaborationRuleAggExp {
+  _count: Int!
+  createdAt: TimestampAggExp!
+  description: StringAggExp!
+  guildId: Int64AggExp!
+  id: StringAggExp!
+  isActive: Int8AggExp!
+  ruleNumber: Int32AggExp!
+  title: StringAggExp!
+  updatedAt: TimestampAggExp!
+}
+
+input CollaborationRuleBoolExp {
+  _and: [CollaborationRuleBoolExp!]
+  _not: CollaborationRuleBoolExp
+  _or: [CollaborationRuleBoolExp!]
+  collaborationBlockedUsers: CollaborationBlockedUserBoolExp
+  collaborationReports: CollaborationReportBoolExp
+  createdAt: TimestampBoolExp
+  description: StringBoolExp
+  guildId: Int64BoolExp
+  id: StringBoolExp
+  isActive: Int8BoolExp
+  ruleNumber: Int32BoolExp
+  title: StringBoolExp
+  updatedAt: TimestampBoolExp
+}
+
+input CollaborationRuleFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationRuleOrderByExp!]
+  where: CollaborationRuleBoolExp
+}
+
+input CollaborationRuleOrderByExp {
+  createdAt: OrderBy
+  description: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  isActive: OrderBy
+  ruleNumber: OrderBy
+  title: OrderBy
+  updatedAt: OrderBy
+}
+
+type CollaborationStatus {
+  collaborationPosts(limit: Int, offset: Int, order_by: [CollaborationPostOrderByExp!], where: CollaborationPostBoolExp): [CollaborationPost!]
+  collaborationPostsAggregate(filter_input: CollaborationPostFilterInput): CollaborationPostAggExp!
+  description: String1
+  id: Int32!
+  name: String1!
+}
+
+type CollaborationStatusAggExp {
+  _count: Int!
+  description: StringAggExp!
+  id: Int32AggExp!
+  name: StringAggExp!
+}
+
+input CollaborationStatusBoolExp {
+  _and: [CollaborationStatusBoolExp!]
+  _not: CollaborationStatusBoolExp
+  _or: [CollaborationStatusBoolExp!]
+  collaborationPosts: CollaborationPostBoolExp
+  description: StringBoolExp
+  id: Int32BoolExp
+  name: StringBoolExp
+}
+
+input CollaborationStatusFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationStatusOrderByExp!]
+  where: CollaborationStatusBoolExp
+}
+
+input CollaborationStatusOrderByExp {
+  description: OrderBy
+  id: OrderBy
+  name: OrderBy
+}
+
+type CollaborationType {
+  collaborationAlerts(limit: Int, offset: Int, order_by: [CollaborationAlertOrderByExp!], where: CollaborationAlertBoolExp): [CollaborationAlert!]
+  collaborationAlertsAggregate(filter_input: CollaborationAlertFilterInput): CollaborationAlertAggExp!
+  collaborationFieldDefinitions(limit: Int, offset: Int, order_by: [CollaborationFieldDefinitionOrderByExp!], where: CollaborationFieldDefinitionBoolExp): [CollaborationFieldDefinition!]
+  collaborationFieldDefinitionsAggregate(filter_input: CollaborationFieldDefinitionFilterInput): CollaborationFieldDefinitionAggExp!
+  collaborationPosts(limit: Int, offset: Int, order_by: [CollaborationPostOrderByExp!], where: CollaborationPostBoolExp): [CollaborationPost!]
+  collaborationPostsAggregate(filter_input: CollaborationPostFilterInput): CollaborationPostAggExp!
+  description: String1
+  id: Int32!
+  name: String1!
+}
+
+type CollaborationTypeAggExp {
+  _count: Int!
+  description: StringAggExp!
+  id: Int32AggExp!
+  name: StringAggExp!
+}
+
+input CollaborationTypeBoolExp {
+  _and: [CollaborationTypeBoolExp!]
+  _not: CollaborationTypeBoolExp
+  _or: [CollaborationTypeBoolExp!]
+  collaborationAlerts: CollaborationAlertBoolExp
+  collaborationFieldDefinitions: CollaborationFieldDefinitionBoolExp
+  collaborationPosts: CollaborationPostBoolExp
+  description: StringBoolExp
+  id: Int32BoolExp
+  name: StringBoolExp
+}
+
+input CollaborationTypeFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [CollaborationTypeOrderByExp!]
+  where: CollaborationTypeBoolExp
+}
+
+input CollaborationTypeOrderByExp {
+  description: OrderBy
+  id: OrderBy
+  name: OrderBy
+}
+
+type DeletedMessage {
+  addedByBot: String1!
+  attachments: Bytes!
+  authorId: Int64!
+  channelId: Int64!
+  content: String1
+  creationTimestamp: Timestamp!
+  deletionTimestamp: Timestamp!
+  guildId: Int64!
+  messageId: Int64!
+  staffMemberId: Int64!
+}
+
+type DeletedMessageAggExp {
+  _count: Int!
+  addedByBot: StringAggExp1!
+  attachments: BytesAggExp!
+  authorId: Int64AggExp1!
+  channelId: Int64AggExp1!
+  content: StringAggExp1!
+  creationTimestamp: TimestampAggExp1!
+  deletionTimestamp: TimestampAggExp1!
+  guildId: Int64AggExp1!
+  messageId: Int64AggExp1!
+  staffMemberId: Int64AggExp1!
+}
+
+input DeletedMessageBoolExp {
+  _and: [DeletedMessageBoolExp!]
+  _not: DeletedMessageBoolExp
+  _or: [DeletedMessageBoolExp!]
+  addedByBot: StringBoolExp1
+  attachments: BytesBoolExp
+  authorId: Int64BoolExp1
+  channelId: Int64BoolExp1
+  content: StringBoolExp1
+  creationTimestamp: TimestampBoolExp1
+  deletionTimestamp: TimestampBoolExp1
+  guildId: Int64BoolExp1
+  messageId: Int64BoolExp1
+  staffMemberId: Int64BoolExp1
+}
+
+input DeletedMessageFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [DeletedMessageOrderByExp!]
+  where: DeletedMessageBoolExp
+}
+
+input DeletedMessageOrderByExp {
+  addedByBot: OrderBy
+  attachments: OrderBy
+  authorId: OrderBy
+  channelId: OrderBy
+  content: OrderBy
+  creationTimestamp: OrderBy
+  deletionTimestamp: OrderBy
+  guildId: OrderBy
+  messageId: OrderBy
+  staffMemberId: OrderBy
+}
+
+scalar Float64
+
+type HiringStatus {
+  collaborationAlerts(limit: Int, offset: Int, order_by: [CollaborationAlertOrderByExp!], where: CollaborationAlertBoolExp): [CollaborationAlert!]
+  collaborationAlertsAggregate(filter_input: CollaborationAlertFilterInput): CollaborationAlertAggExp!
+  collaborationFieldDefinitions(limit: Int, offset: Int, order_by: [CollaborationFieldDefinitionOrderByExp!], where: CollaborationFieldDefinitionBoolExp): [CollaborationFieldDefinition!]
+  collaborationFieldDefinitionsAggregate(filter_input: CollaborationFieldDefinitionFilterInput): CollaborationFieldDefinitionAggExp!
+  collaborationPosts(limit: Int, offset: Int, order_by: [CollaborationPostOrderByExp!], where: CollaborationPostBoolExp): [CollaborationPost!]
+  collaborationPostsAggregate(filter_input: CollaborationPostFilterInput): CollaborationPostAggExp!
+  description: String1
+  id: Int32!
+  name: String1!
+}
+
+type HiringStatusAggExp {
+  _count: Int!
+  description: StringAggExp!
+  id: Int32AggExp!
+  name: StringAggExp!
+}
+
+input HiringStatusBoolExp {
+  _and: [HiringStatusBoolExp!]
+  _not: HiringStatusBoolExp
+  _or: [HiringStatusBoolExp!]
+  collaborationAlerts: CollaborationAlertBoolExp
+  collaborationFieldDefinitions: CollaborationFieldDefinitionBoolExp
+  collaborationPosts: CollaborationPostBoolExp
+  description: StringBoolExp
+  id: Int32BoolExp
+  name: StringBoolExp
+}
+
+input HiringStatusFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [HiringStatusOrderByExp!]
+  where: HiringStatusBoolExp
+}
+
+input HiringStatusOrderByExp {
+  description: OrderBy
+  id: OrderBy
+  name: OrderBy
+}
+
+type Infraction {
+  additionalInformation: String1
+  guildId: Int64!
+  id: Int64!
+  issuedAt: Timestamp!
+  reason: String1
+  ruleId: Int32
+  ruleText: String1
+  staffMemberId: Int64!
+  type: Int32!
+  userId: Int64!
+}
+
+type InfractionAggExp {
+  _count: Int!
+  additionalInformation: StringAggExp1!
+  guildId: Int64AggExp1!
+  id: Int64AggExp1!
+  issuedAt: TimestampAggExp1!
+  reason: StringAggExp1!
+  ruleId: Int32AggExp1!
+  ruleText: StringAggExp1!
+  staffMemberId: Int64AggExp1!
+  type: Int32AggExp1!
+  userId: Int64AggExp1!
+}
+
+input InfractionBoolExp {
+  _and: [InfractionBoolExp!]
+  _not: InfractionBoolExp
+  _or: [InfractionBoolExp!]
+  additionalInformation: StringBoolExp1
+  guildId: Int64BoolExp1
+  id: Int64BoolExp1
+  issuedAt: TimestampBoolExp1
+  reason: StringBoolExp1
+  ruleId: Int32BoolExp1
+  ruleText: StringBoolExp1
+  staffMemberId: Int64BoolExp1
+  type: Int32BoolExp1
+  userId: Int64BoolExp1
+}
+
+input InfractionFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [InfractionOrderByExp!]
+  where: InfractionBoolExp
+}
+
+input InfractionOrderByExp {
+  additionalInformation: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  issuedAt: OrderBy
+  reason: OrderBy
+  ruleId: OrderBy
+  ruleText: OrderBy
+  staffMemberId: OrderBy
+  type: OrderBy
+  userId: OrderBy
+}
+
+scalar Int8
+
+type Int8AggExp {
+  _count: Int!
+  _count_distinct: Int!
+  avg: Float64!
+  max: Int8!
+  min: Int8!
+  sum: Int64!
+}
+
+type Int8AggExp1 {
+  _count: Int!
+  _count_distinct: Int!
+  avg: Float64!
+  max: Int8!
+  min: Int8!
+  sum: Int64!
+}
+
+input Int8BoolExp {
+  _and: [Int8BoolExp!]
+  _eq: Int8
+  _gt: Int8
+  _gte: Int8
+  _in: [Int8!]
+  _is_null: Boolean
+  _lt: Int8
+  _lte: Int8
+  _not: Int8BoolExp
+  _or: [Int8BoolExp!]
+}
+
+input Int8BoolExp1 {
+  _and: [Int8BoolExp1!]
+  _eq: Int8
+  _gt: Int8
+  _gte: Int8
+  _in: [Int8!]
+  _is_null: Boolean
+  _lt: Int8
+  _lte: Int8
+  _not: Int8BoolExp1
+  _or: [Int8BoolExp1!]
+}
+
+scalar Int32
+
+type Int32AggExp {
+  _count: Int!
+  _count_distinct: Int!
+  avg: Float64!
+  max: Int32!
+  min: Int32!
+  sum: Int64!
+}
+
+type Int32AggExp1 {
+  _count: Int!
+  _count_distinct: Int!
+  avg: Float64!
+  max: Int32!
+  min: Int32!
+  sum: Int64!
+}
+
+input Int32BoolExp {
+  _and: [Int32BoolExp!]
+  _eq: Int32
+  _gt: Int32
+  _gte: Int32
+  _in: [Int32!]
+  _is_null: Boolean
+  _lt: Int32
+  _lte: Int32
+  _not: Int32BoolExp
+  _or: [Int32BoolExp!]
+}
+
+input Int32BoolExp1 {
+  _and: [Int32BoolExp1!]
+  _eq: Int32
+  _gt: Int32
+  _gte: Int32
+  _in: [Int32!]
+  _is_null: Boolean
+  _lt: Int32
+  _lte: Int32
+  _not: Int32BoolExp1
+  _or: [Int32BoolExp1!]
+}
+
+scalar Int64
+
+type Int64AggExp {
+  _count: Int!
+  _count_distinct: Int!
+  avg: Float64!
+  max: Int64!
+  min: Int64!
+  sum: Int64!
+}
+
+type Int64AggExp1 {
+  _count: Int!
+  _count_distinct: Int!
+  avg: Float64!
+  max: Int64!
+  min: Int64!
+  sum: Int64!
+}
+
+input Int64BoolExp {
+  _and: [Int64BoolExp!]
+  _eq: Int64
+  _gt: Int64
+  _gte: Int64
+  _in: [Int64!]
+  _is_null: Boolean
+  _lt: Int64
+  _lte: Int64
+  _not: Int64BoolExp
+  _or: [Int64BoolExp!]
+}
+
+input Int64BoolExp1 {
+  _and: [Int64BoolExp1!]
+  _eq: Int64
+  _gt: Int64
+  _gte: Int64
+  _in: [Int64!]
+  _is_null: Boolean
+  _lt: Int64
+  _lte: Int64
+  _not: Int64BoolExp1
+  _or: [Int64BoolExp1!]
+}
+
+type MemberNote {
+  authorId: Int64!
+  content: String1!
+  creationTimestamp: Timestamp!
+  guildId: Int64!
+  id: Int64!
+  type: Int32!
+  userId: Int64!
+}
+
+type MemberNoteAggExp {
+  _count: Int!
+  authorId: Int64AggExp1!
+  content: StringAggExp1!
+  creationTimestamp: TimestampAggExp1!
+  guildId: Int64AggExp1!
+  id: Int64AggExp1!
+  type: Int32AggExp1!
+  userId: Int64AggExp1!
+}
+
+input MemberNoteBoolExp {
+  _and: [MemberNoteBoolExp!]
+  _not: MemberNoteBoolExp
+  _or: [MemberNoteBoolExp!]
+  authorId: Int64BoolExp1
+  content: StringBoolExp1
+  creationTimestamp: TimestampBoolExp1
+  guildId: Int64BoolExp1
+  id: Int64BoolExp1
+  type: Int32BoolExp1
+  userId: Int64BoolExp1
+}
+
+input MemberNoteFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [MemberNoteOrderByExp!]
+  where: MemberNoteBoolExp
+}
+
+input MemberNoteOrderByExp {
+  authorId: OrderBy
+  content: OrderBy
+  creationTimestamp: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  type: OrderBy
+  userId: OrderBy
+}
+
+type Mutation {
+  _no_fields_accessible: String
+}
+
+type Mute {
+  expiresAt: Timestamp
+  guildId: Int64!
+  userId: Int64!
+}
+
+type MuteAggExp {
+  _count: Int!
+  expiresAt: TimestampAggExp1!
+  guildId: Int64AggExp1!
+  userId: Int64AggExp1!
+}
+
+input MuteBoolExp {
+  _and: [MuteBoolExp!]
+  _not: MuteBoolExp
+  _or: [MuteBoolExp!]
+  expiresAt: TimestampBoolExp1
+  guildId: Int64BoolExp1
+  userId: Int64BoolExp1
+}
+
+input MuteFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [MuteOrderByExp!]
+  where: MuteBoolExp
+}
+
+input MuteOrderByExp {
+  expiresAt: OrderBy
+  guildId: OrderBy
+  userId: OrderBy
+}
+
+enum OrderBy {
+  """Sorts the data in ascending order"""
+  Asc
+  """Sorts the data in descending order"""
+  Desc
+}
+
+type Query {
+  altAccount(limit: Int, offset: Int, order_by: [AltAccountOrderByExp!], where: AltAccountBoolExp): [AltAccount!]
+  altAccountAggregate(filter_input: AltAccountFilterInput): AltAccountAggExp
+  altAccountByAltAccountPk(altId: Int64!, userId: Int64!): AltAccount
+  blockedReporter(limit: Int, offset: Int, order_by: [BlockedReporterOrderByExp!], where: BlockedReporterBoolExp): [BlockedReporter!]
+  blockedReporterAggregate(filter_input: BlockedReporterFilterInput): BlockedReporterAggExp
+  blockedReporterByBlockedReporterPk(guildId: Int64!, userId: Int64!): BlockedReporter
+  collaborationAlert(limit: Int, offset: Int, order_by: [CollaborationAlertOrderByExp!], where: CollaborationAlertBoolExp): [CollaborationAlert!]
+  collaborationAlertAggregate(filter_input: CollaborationAlertFilterInput): CollaborationAlertAggExp
+  collaborationAlertById(id: String1!): CollaborationAlert
+  collaborationAuditLog(limit: Int, offset: Int, order_by: [CollaborationAuditLogOrderByExp!], where: CollaborationAuditLogBoolExp): [CollaborationAuditLog!]
+  collaborationAuditLogAggregate(filter_input: CollaborationAuditLogFilterInput): CollaborationAuditLogAggExp
+  collaborationAuditLogById(id: String1!): CollaborationAuditLog
+  collaborationBlockedUser(limit: Int, offset: Int, order_by: [CollaborationBlockedUserOrderByExp!], where: CollaborationBlockedUserBoolExp): [CollaborationBlockedUser!]
+  collaborationBlockedUserAggregate(filter_input: CollaborationBlockedUserFilterInput): CollaborationBlockedUserAggExp
+  collaborationBlockedUserById(id: String1!): CollaborationBlockedUser
+  collaborationBookmark(limit: Int, offset: Int, order_by: [CollaborationBookmarkOrderByExp!], where: CollaborationBookmarkBoolExp): [CollaborationBookmark!]
+  collaborationBookmarkAggregate(filter_input: CollaborationBookmarkFilterInput): CollaborationBookmarkAggExp
+  collaborationBookmarkById(id: String1!): CollaborationBookmark
+  collaborationFieldDefinition(limit: Int, offset: Int, order_by: [CollaborationFieldDefinitionOrderByExp!], where: CollaborationFieldDefinitionBoolExp): [CollaborationFieldDefinition!]
+  collaborationFieldDefinitionAggregate(filter_input: CollaborationFieldDefinitionFilterInput): CollaborationFieldDefinitionAggExp
+  collaborationFieldDefinitionById(id: String1!): CollaborationFieldDefinition
+  collaborationFieldValue(limit: Int, offset: Int, order_by: [CollaborationFieldValueOrderByExp!], where: CollaborationFieldValueBoolExp): [CollaborationFieldValue!]
+  collaborationFieldValueAggregate(filter_input: CollaborationFieldValueFilterInput): CollaborationFieldValueAggExp
+  collaborationFieldValueById(id: String1!): CollaborationFieldValue
+  collaborationPost(limit: Int, offset: Int, order_by: [CollaborationPostOrderByExp!], where: CollaborationPostBoolExp): [CollaborationPost!]
+  collaborationPostAggregate(filter_input: CollaborationPostFilterInput): CollaborationPostAggExp
+  collaborationPostById(id: String1!): CollaborationPost
+  collaborationProfile(limit: Int, offset: Int, order_by: [CollaborationProfileOrderByExp!], where: CollaborationProfileBoolExp): [CollaborationProfile!]
+  collaborationProfileAggregate(filter_input: CollaborationProfileFilterInput): CollaborationProfileAggExp
+  collaborationProfileById(id: String1!): CollaborationProfile
+  collaborationReport(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp
+  collaborationReportById(id: String1!): CollaborationReport
+  collaborationResponse(limit: Int, offset: Int, order_by: [CollaborationResponseOrderByExp!], where: CollaborationResponseBoolExp): [CollaborationResponse!]
+  collaborationResponseAggregate(filter_input: CollaborationResponseFilterInput): CollaborationResponseAggExp
+  collaborationResponseById(id: String1!): CollaborationResponse
+  collaborationRule(limit: Int, offset: Int, order_by: [CollaborationRuleOrderByExp!], where: CollaborationRuleBoolExp): [CollaborationRule!]
+  collaborationRuleAggregate(filter_input: CollaborationRuleFilterInput): CollaborationRuleAggExp
+  collaborationRuleById(id: String1!): CollaborationRule
+  collaborationStatus(limit: Int, offset: Int, order_by: [CollaborationStatusOrderByExp!], where: CollaborationStatusBoolExp): [CollaborationStatus!]
+  collaborationStatusAggregate(filter_input: CollaborationStatusFilterInput): CollaborationStatusAggExp
+  collaborationStatusById(id: Int32!): CollaborationStatus
+  collaborationType(limit: Int, offset: Int, order_by: [CollaborationTypeOrderByExp!], where: CollaborationTypeBoolExp): [CollaborationType!]
+  collaborationTypeAggregate(filter_input: CollaborationTypeFilterInput): CollaborationTypeAggExp
+  collaborationTypeById(id: Int32!): CollaborationType
+  deletedMessage(limit: Int, offset: Int, order_by: [DeletedMessageOrderByExp!], where: DeletedMessageBoolExp): [DeletedMessage!]
+  deletedMessageAggregate(filter_input: DeletedMessageFilterInput): DeletedMessageAggExp
+  deletedMessageByMessageId(messageId: Int64!): DeletedMessage
+  hiringStatus(limit: Int, offset: Int, order_by: [HiringStatusOrderByExp!], where: HiringStatusBoolExp): [HiringStatus!]
+  hiringStatusAggregate(filter_input: HiringStatusFilterInput): HiringStatusAggExp
+  hiringStatusById(id: Int32!): HiringStatus
+  infraction(limit: Int, offset: Int, order_by: [InfractionOrderByExp!], where: InfractionBoolExp): [Infraction!]
+  infractionAggregate(filter_input: InfractionFilterInput): InfractionAggExp
+  infractionById(id: Int64!): Infraction
+  memberNote(limit: Int, offset: Int, order_by: [MemberNoteOrderByExp!], where: MemberNoteBoolExp): [MemberNote!]
+  memberNoteAggregate(filter_input: MemberNoteFilterInput): MemberNoteAggExp
+  memberNoteById(id: Int64!): MemberNote
+  mute(limit: Int, offset: Int, order_by: [MuteOrderByExp!], where: MuteBoolExp): [Mute!]
+  muteAggregate(filter_input: MuteFilterInput): MuteAggExp
+  muteByMutePk(guildId: Int64!, userId: Int64!): Mute
+  reportedMessage(limit: Int, offset: Int, order_by: [ReportedMessageOrderByExp!], where: ReportedMessageBoolExp): [ReportedMessage!]
+  reportedMessageAggregate(filter_input: ReportedMessageFilterInput): ReportedMessageAggExp
+  reportedMessageById(id: Int64!): ReportedMessage
+  rule(limit: Int, offset: Int, order_by: [RuleOrderByExp!], where: RuleBoolExp): [Rule!]
+  ruleAggregate(filter_input: RuleFilterInput): RuleAggExp
+  ruleByRulePk(guildId: Int64!, id: Int32!): Rule
+  staffMessage(limit: Int, offset: Int, order_by: [StaffMessageOrderByExp!], where: StaffMessageBoolExp): [StaffMessage!]
+  staffMessageAggregate(filter_input: StaffMessageFilterInput): StaffMessageAggExp
+  staffMessageById(id: Int64!): StaffMessage
+  temporaryBan(limit: Int, offset: Int, order_by: [TemporaryBanOrderByExp!], where: TemporaryBanBoolExp): [TemporaryBan!]
+  temporaryBanAggregate(filter_input: TemporaryBanFilterInput): TemporaryBanAggExp
+  temporaryBanByTemporaryBanPk(guildId: Int64!, userId: Int64!): TemporaryBan
+  trackedMessages(limit: Int, offset: Int, order_by: [TrackedMessagesOrderByExp!], where: TrackedMessagesBoolExp): [TrackedMessages!]
+  trackedMessagesAggregate(filter_input: TrackedMessagesFilterInput): TrackedMessagesAggExp
+  trackedMessagesById(id: Int64!): TrackedMessages
+}
+
+type ReportedMessage {
+  attachments: Bytes!
+  authorId: Int64!
+  channelId: Int64!
+  content: String1
+  guildId: Int64!
+  id: Int64!
+  messageId: Int64!
+  reporterId: Int64!
+}
+
+type ReportedMessageAggExp {
+  _count: Int!
+  attachments: BytesAggExp!
+  authorId: Int64AggExp1!
+  channelId: Int64AggExp1!
+  content: StringAggExp1!
+  guildId: Int64AggExp1!
+  id: Int64AggExp1!
+  messageId: Int64AggExp1!
+  reporterId: Int64AggExp1!
+}
+
+input ReportedMessageBoolExp {
+  _and: [ReportedMessageBoolExp!]
+  _not: ReportedMessageBoolExp
+  _or: [ReportedMessageBoolExp!]
+  attachments: BytesBoolExp
+  authorId: Int64BoolExp1
+  channelId: Int64BoolExp1
+  content: StringBoolExp1
+  guildId: Int64BoolExp1
+  id: Int64BoolExp1
+  messageId: Int64BoolExp1
+  reporterId: Int64BoolExp1
+}
+
+input ReportedMessageFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [ReportedMessageOrderByExp!]
+  where: ReportedMessageBoolExp
+}
+
+input ReportedMessageOrderByExp {
+  attachments: OrderBy
+  authorId: OrderBy
+  channelId: OrderBy
+  content: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  messageId: OrderBy
+  reporterId: OrderBy
+}
+
+type Rule {
+  brief: String1
+  description: String1!
+  guildId: Int64!
+  id: Int32!
+}
+
+type RuleAggExp {
+  _count: Int!
+  brief: StringAggExp1!
+  description: StringAggExp1!
+  guildId: Int64AggExp1!
+  id: Int32AggExp1!
+}
+
+input RuleBoolExp {
+  _and: [RuleBoolExp!]
+  _not: RuleBoolExp
+  _or: [RuleBoolExp!]
+  brief: StringBoolExp1
+  description: StringBoolExp1
+  guildId: Int64BoolExp1
+  id: Int32BoolExp1
+}
+
+input RuleFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [RuleOrderByExp!]
+  where: RuleBoolExp
+}
+
+input RuleOrderByExp {
+  brief: OrderBy
+  description: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+}
+
+type StaffMessage {
+  content: String1!
+  guildId: Int64!
+  id: Int64!
+  recipientId: Int64!
+  sentAt: Timestamp!
+  staffMemberId: Int64!
+}
+
+type StaffMessageAggExp {
+  _count: Int!
+  content: StringAggExp1!
+  guildId: Int64AggExp1!
+  id: Int64AggExp1!
+  recipientId: Int64AggExp1!
+  sentAt: TimestampAggExp1!
+  staffMemberId: Int64AggExp1!
+}
+
+input StaffMessageBoolExp {
+  _and: [StaffMessageBoolExp!]
+  _not: StaffMessageBoolExp
+  _or: [StaffMessageBoolExp!]
+  content: StringBoolExp1
+  guildId: Int64BoolExp1
+  id: Int64BoolExp1
+  recipientId: Int64BoolExp1
+  sentAt: TimestampBoolExp1
+  staffMemberId: Int64BoolExp1
+}
+
+input StaffMessageFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [StaffMessageOrderByExp!]
+  where: StaffMessageBoolExp
+}
+
+input StaffMessageOrderByExp {
+  content: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  recipientId: OrderBy
+  sentAt: OrderBy
+  staffMemberId: OrderBy
+}
+
+scalar String1
+
+type StringAggExp {
+  _count: Int!
+  _count_distinct: Int!
+  max: String1!
+  min: String1!
+}
+
+type StringAggExp1 {
+  _count: Int!
+  _count_distinct: Int!
+  max: String1!
+  min: String1!
+}
+
+input StringBoolExp {
+  _and: [StringBoolExp!]
+  _contains: String1
+  _eq: String1
+  _in: [String1!]
+  _is_null: Boolean
+  _like: String1
+  _not: StringBoolExp
+  _or: [StringBoolExp!]
+}
+
+input StringBoolExp1 {
+  _and: [StringBoolExp1!]
+  _contains: String1
+  _eq: String1
+  _in: [String1!]
+  _is_null: Boolean
+  _like: String1
+  _not: StringBoolExp1
+  _or: [StringBoolExp1!]
+}
+
+type Subscription {
+  altAccount(limit: Int, offset: Int, order_by: [AltAccountOrderByExp!], where: AltAccountBoolExp): [AltAccount!]
+  altAccountAggregate(filter_input: AltAccountFilterInput): AltAccountAggExp
+  altAccountByAltAccountPk(altId: Int64!, userId: Int64!): AltAccount
+  blockedReporter(limit: Int, offset: Int, order_by: [BlockedReporterOrderByExp!], where: BlockedReporterBoolExp): [BlockedReporter!]
+  blockedReporterAggregate(filter_input: BlockedReporterFilterInput): BlockedReporterAggExp
+  blockedReporterByBlockedReporterPk(guildId: Int64!, userId: Int64!): BlockedReporter
+  collaborationAlert(limit: Int, offset: Int, order_by: [CollaborationAlertOrderByExp!], where: CollaborationAlertBoolExp): [CollaborationAlert!]
+  collaborationAlertAggregate(filter_input: CollaborationAlertFilterInput): CollaborationAlertAggExp
+  collaborationAlertById(id: String1!): CollaborationAlert
+  collaborationAuditLog(limit: Int, offset: Int, order_by: [CollaborationAuditLogOrderByExp!], where: CollaborationAuditLogBoolExp): [CollaborationAuditLog!]
+  collaborationAuditLogAggregate(filter_input: CollaborationAuditLogFilterInput): CollaborationAuditLogAggExp
+  collaborationAuditLogById(id: String1!): CollaborationAuditLog
+  collaborationBlockedUser(limit: Int, offset: Int, order_by: [CollaborationBlockedUserOrderByExp!], where: CollaborationBlockedUserBoolExp): [CollaborationBlockedUser!]
+  collaborationBlockedUserAggregate(filter_input: CollaborationBlockedUserFilterInput): CollaborationBlockedUserAggExp
+  collaborationBlockedUserById(id: String1!): CollaborationBlockedUser
+  collaborationBookmark(limit: Int, offset: Int, order_by: [CollaborationBookmarkOrderByExp!], where: CollaborationBookmarkBoolExp): [CollaborationBookmark!]
+  collaborationBookmarkAggregate(filter_input: CollaborationBookmarkFilterInput): CollaborationBookmarkAggExp
+  collaborationBookmarkById(id: String1!): CollaborationBookmark
+  collaborationFieldDefinition(limit: Int, offset: Int, order_by: [CollaborationFieldDefinitionOrderByExp!], where: CollaborationFieldDefinitionBoolExp): [CollaborationFieldDefinition!]
+  collaborationFieldDefinitionAggregate(filter_input: CollaborationFieldDefinitionFilterInput): CollaborationFieldDefinitionAggExp
+  collaborationFieldDefinitionById(id: String1!): CollaborationFieldDefinition
+  collaborationFieldValue(limit: Int, offset: Int, order_by: [CollaborationFieldValueOrderByExp!], where: CollaborationFieldValueBoolExp): [CollaborationFieldValue!]
+  collaborationFieldValueAggregate(filter_input: CollaborationFieldValueFilterInput): CollaborationFieldValueAggExp
+  collaborationFieldValueById(id: String1!): CollaborationFieldValue
+  collaborationPost(limit: Int, offset: Int, order_by: [CollaborationPostOrderByExp!], where: CollaborationPostBoolExp): [CollaborationPost!]
+  collaborationPostAggregate(filter_input: CollaborationPostFilterInput): CollaborationPostAggExp
+  collaborationPostById(id: String1!): CollaborationPost
+  collaborationProfile(limit: Int, offset: Int, order_by: [CollaborationProfileOrderByExp!], where: CollaborationProfileBoolExp): [CollaborationProfile!]
+  collaborationProfileAggregate(filter_input: CollaborationProfileFilterInput): CollaborationProfileAggExp
+  collaborationProfileById(id: String1!): CollaborationProfile
+  collaborationReport(limit: Int, offset: Int, order_by: [CollaborationReportOrderByExp!], where: CollaborationReportBoolExp): [CollaborationReport!]
+  collaborationReportAggregate(filter_input: CollaborationReportFilterInput): CollaborationReportAggExp
+  collaborationReportById(id: String1!): CollaborationReport
+  collaborationResponse(limit: Int, offset: Int, order_by: [CollaborationResponseOrderByExp!], where: CollaborationResponseBoolExp): [CollaborationResponse!]
+  collaborationResponseAggregate(filter_input: CollaborationResponseFilterInput): CollaborationResponseAggExp
+  collaborationResponseById(id: String1!): CollaborationResponse
+  collaborationRule(limit: Int, offset: Int, order_by: [CollaborationRuleOrderByExp!], where: CollaborationRuleBoolExp): [CollaborationRule!]
+  collaborationRuleAggregate(filter_input: CollaborationRuleFilterInput): CollaborationRuleAggExp
+  collaborationRuleById(id: String1!): CollaborationRule
+  collaborationStatus(limit: Int, offset: Int, order_by: [CollaborationStatusOrderByExp!], where: CollaborationStatusBoolExp): [CollaborationStatus!]
+  collaborationStatusAggregate(filter_input: CollaborationStatusFilterInput): CollaborationStatusAggExp
+  collaborationStatusById(id: Int32!): CollaborationStatus
+  collaborationType(limit: Int, offset: Int, order_by: [CollaborationTypeOrderByExp!], where: CollaborationTypeBoolExp): [CollaborationType!]
+  collaborationTypeAggregate(filter_input: CollaborationTypeFilterInput): CollaborationTypeAggExp
+  collaborationTypeById(id: Int32!): CollaborationType
+  deletedMessage(limit: Int, offset: Int, order_by: [DeletedMessageOrderByExp!], where: DeletedMessageBoolExp): [DeletedMessage!]
+  deletedMessageAggregate(filter_input: DeletedMessageFilterInput): DeletedMessageAggExp
+  deletedMessageByMessageId(messageId: Int64!): DeletedMessage
+  hiringStatus(limit: Int, offset: Int, order_by: [HiringStatusOrderByExp!], where: HiringStatusBoolExp): [HiringStatus!]
+  hiringStatusAggregate(filter_input: HiringStatusFilterInput): HiringStatusAggExp
+  hiringStatusById(id: Int32!): HiringStatus
+  infraction(limit: Int, offset: Int, order_by: [InfractionOrderByExp!], where: InfractionBoolExp): [Infraction!]
+  infractionAggregate(filter_input: InfractionFilterInput): InfractionAggExp
+  infractionById(id: Int64!): Infraction
+  memberNote(limit: Int, offset: Int, order_by: [MemberNoteOrderByExp!], where: MemberNoteBoolExp): [MemberNote!]
+  memberNoteAggregate(filter_input: MemberNoteFilterInput): MemberNoteAggExp
+  memberNoteById(id: Int64!): MemberNote
+  mute(limit: Int, offset: Int, order_by: [MuteOrderByExp!], where: MuteBoolExp): [Mute!]
+  muteAggregate(filter_input: MuteFilterInput): MuteAggExp
+  muteByMutePk(guildId: Int64!, userId: Int64!): Mute
+  reportedMessage(limit: Int, offset: Int, order_by: [ReportedMessageOrderByExp!], where: ReportedMessageBoolExp): [ReportedMessage!]
+  reportedMessageAggregate(filter_input: ReportedMessageFilterInput): ReportedMessageAggExp
+  reportedMessageById(id: Int64!): ReportedMessage
+  rule(limit: Int, offset: Int, order_by: [RuleOrderByExp!], where: RuleBoolExp): [Rule!]
+  ruleAggregate(filter_input: RuleFilterInput): RuleAggExp
+  ruleByRulePk(guildId: Int64!, id: Int32!): Rule
+  staffMessage(limit: Int, offset: Int, order_by: [StaffMessageOrderByExp!], where: StaffMessageBoolExp): [StaffMessage!]
+  staffMessageAggregate(filter_input: StaffMessageFilterInput): StaffMessageAggExp
+  staffMessageById(id: Int64!): StaffMessage
+  temporaryBan(limit: Int, offset: Int, order_by: [TemporaryBanOrderByExp!], where: TemporaryBanBoolExp): [TemporaryBan!]
+  temporaryBanAggregate(filter_input: TemporaryBanFilterInput): TemporaryBanAggExp
+  temporaryBanByTemporaryBanPk(guildId: Int64!, userId: Int64!): TemporaryBan
+  trackedMessages(limit: Int, offset: Int, order_by: [TrackedMessagesOrderByExp!], where: TrackedMessagesBoolExp): [TrackedMessages!]
+  trackedMessagesAggregate(filter_input: TrackedMessagesFilterInput): TrackedMessagesAggExp
+  trackedMessagesById(id: Int64!): TrackedMessages
+}
+
+type TemporaryBan {
+  expiresAt: Timestamp!
+  guildId: Int64!
+  userId: Int64!
+}
+
+type TemporaryBanAggExp {
+  _count: Int!
+  expiresAt: TimestampAggExp1!
+  guildId: Int64AggExp1!
+  userId: Int64AggExp1!
+}
+
+input TemporaryBanBoolExp {
+  _and: [TemporaryBanBoolExp!]
+  _not: TemporaryBanBoolExp
+  _or: [TemporaryBanBoolExp!]
+  expiresAt: TimestampBoolExp1
+  guildId: Int64BoolExp1
+  userId: Int64BoolExp1
+}
+
+input TemporaryBanFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [TemporaryBanOrderByExp!]
+  where: TemporaryBanBoolExp
+}
+
+input TemporaryBanOrderByExp {
+  expiresAt: OrderBy
+  guildId: OrderBy
+  userId: OrderBy
+}
+
+scalar Timestamp
+
+type TimestampAggExp {
+  _count: Int!
+  _count_distinct: Int!
+}
+
+type TimestampAggExp1 {
+  _count: Int!
+  _count_distinct: Int!
+}
+
+input TimestampBoolExp {
+  _and: [TimestampBoolExp!]
+  _eq: Timestamp
+  _gt: Timestamp
+  _gte: Timestamp
+  _in: [Timestamp!]
+  _is_null: Boolean
+  _lt: Timestamp
+  _lte: Timestamp
+  _not: TimestampBoolExp
+  _or: [TimestampBoolExp!]
+}
+
+input TimestampBoolExp1 {
+  _and: [TimestampBoolExp1!]
+  _eq: Timestamp
+  _gt: Timestamp
+  _gte: Timestamp
+  _in: [Timestamp!]
+  _is_null: Boolean
+  _lt: Timestamp
+  _lte: Timestamp
+  _not: TimestampBoolExp1
+  _or: [TimestampBoolExp1!]
+}
+
+type TrackedMessages {
+  attachments: Bytes!
+  authorId: Int64!
+  channelId: Int64!
+  content: String1
+  creationTimestamp: Timestamp!
+  deletionTimestamp: Timestamp
+  guildId: Int64!
+  id: Int64!
+  isDeleted: Int8!
+}
+
+type TrackedMessagesAggExp {
+  _count: Int!
+  attachments: BytesAggExp!
+  authorId: Int64AggExp1!
+  channelId: Int64AggExp1!
+  content: StringAggExp1!
+  creationTimestamp: TimestampAggExp1!
+  deletionTimestamp: TimestampAggExp1!
+  guildId: Int64AggExp1!
+  id: Int64AggExp1!
+  isDeleted: Int8AggExp1!
+}
+
+input TrackedMessagesBoolExp {
+  _and: [TrackedMessagesBoolExp!]
+  _not: TrackedMessagesBoolExp
+  _or: [TrackedMessagesBoolExp!]
+  attachments: BytesBoolExp
+  authorId: Int64BoolExp1
+  channelId: Int64BoolExp1
+  content: StringBoolExp1
+  creationTimestamp: TimestampBoolExp1
+  deletionTimestamp: TimestampBoolExp1
+  guildId: Int64BoolExp1
+  id: Int64BoolExp1
+  isDeleted: Int8BoolExp1
+}
+
+input TrackedMessagesFilterInput {
+  limit: Int
+  offset: Int
+  order_by: [TrackedMessagesOrderByExp!]
+  where: TrackedMessagesBoolExp
+}
+
+input TrackedMessagesOrderByExp {
+  attachments: OrderBy
+  authorId: OrderBy
+  channelId: OrderBy
+  content: OrderBy
+  creationTimestamp: OrderBy
+  deletionTimestamp: OrderBy
+  guildId: OrderBy
+  id: OrderBy
+  isDeleted: OrderBy
+}
