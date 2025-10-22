@@ -9,20 +9,20 @@ import {
   AlgebraicValue,
   BinaryReader,
   BinaryWriter,
-  CallReducerFlags,
+  type CallReducerFlags,
   ConnectionId,
   DbConnectionBuilder,
   DbConnectionImpl,
   DbContext,
-  ErrorContextInterface,
-  Event,
-  EventContextInterface,
+  type ErrorContextInterface,
+  type Event,
+  type EventContextInterface,
   Identity,
   ProductType,
   ProductTypeElement,
-  ReducerEventContextInterface,
+  type ReducerEventContextInterface,
   SubscriptionBuilderImpl,
-  SubscriptionEventContextInterface,
+  type SubscriptionEventContextInterface,
   SumType,
   SumTypeVariant,
   TableCache,
@@ -217,9 +217,9 @@ export class RemoteReducers {
 
   cleanupOldMessages(arg: CleanupSchedule) {
     const __args = { arg };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     CleanupOldMessages.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'cleanup_old_messages',
       __argsBuffer,
@@ -267,9 +267,9 @@ export class RemoteReducers {
       messageTtlSeconds,
       messagesEnabled,
     };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     CreateRoom.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'create_room',
       __argsBuffer,
@@ -303,9 +303,9 @@ export class RemoteReducers {
 
   dismissMessage(messageId: bigint) {
     const __args = { messageId };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     DismissMessage.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'dismiss_message',
       __argsBuffer,
@@ -327,9 +327,9 @@ export class RemoteReducers {
 
   joinRoom(roomCode: string, passwordHash: string) {
     const __args = { roomCode, passwordHash };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     JoinRoom.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'join_room',
       __argsBuffer,
@@ -375,9 +375,9 @@ export class RemoteReducers {
 
   sendMessage(text: string, x: number, y: number) {
     const __args = { text, x, y };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     SendMessage.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'send_message',
       __argsBuffer,
@@ -409,9 +409,9 @@ export class RemoteReducers {
 
   setDisplayName(name: string, color: string) {
     const __args = { name, color };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     SetDisplayName.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'set_display_name',
       __argsBuffer,
@@ -433,9 +433,9 @@ export class RemoteReducers {
 
   updateColor(color: string) {
     const __args = { color };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     UpdateColor.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'update_color',
       __argsBuffer,
@@ -455,9 +455,9 @@ export class RemoteReducers {
 
   updateCursor(x: number, y: number) {
     const __args = { x, y };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     UpdateCursor.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'update_cursor',
       __argsBuffer,
@@ -479,9 +479,9 @@ export class RemoteReducers {
 
   updateRoomConfig(messageTtlSeconds: number, messagesEnabled: boolean) {
     const __args = { messageTtlSeconds, messagesEnabled };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     UpdateRoomConfig.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'update_room_config',
       __argsBuffer,
@@ -517,9 +517,9 @@ export class RemoteReducers {
     selectionEnd: number,
   ) {
     const __args = { text, x, y, selectionStart, selectionEnd };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     UpdateTyping.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'update_typing',
       __argsBuffer,

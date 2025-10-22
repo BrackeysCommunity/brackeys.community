@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { Gamepad2, Wrench } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { cn } from '../../lib/utils';
-import { ResourceItem } from './types';
+import type { ResourceItem } from './types';
 import { categoryInfo, tagInfo } from './data';
 
 type ResourceCardProps = {
@@ -138,7 +138,7 @@ export const ResourceCard = ({ resource }: ResourceCardProps) => {
             borderTopRightRadius: '6px',
           }}
           transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-          className="relative inline-flex grow items-center justify-center border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-brackeys-purple-500 z-10 overflow-hidden"
+          className="relative inline-flex grow items-center justify-center border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-brackeys-purple-600 hover:bg-brackeys-purple-700 transition-colors focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-brackeys-purple-500 z-10 overflow-hidden pointer-events-auto"
         >
           {resourceUrl instanceof URL ? (
             <a

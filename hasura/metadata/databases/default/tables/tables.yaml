@@ -15,5 +15,3 @@
 - "!include collab_rule.yaml"
 - "!include collab_status.yaml"
 - "!include collab_type.yaml"
-- "!include users_user.yaml"
-- "!include users_user_role.yaml"

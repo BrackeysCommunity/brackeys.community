@@ -7,8 +7,8 @@
 import {
   AlgebraicType,
   AlgebraicValue,
-  BinaryReader,
-  BinaryWriter,
+  type BinaryReader,
+  type BinaryWriter,
   CallReducerFlags,
   ConnectionId,
   DbConnectionBuilder,
@@ -26,8 +26,8 @@ import {
   SumType,
   SumTypeVariant,
   TableCache,
-  TimeDuration,
-  Timestamp,
+  type TimeDuration,
+  type Timestamp,
   deepEqual,
 } from '@clockworklabs/spacetimedb-sdk';
 export type CleanupSchedule = {

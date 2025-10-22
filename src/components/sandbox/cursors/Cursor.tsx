@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion, TargetAndTransition, VariantLabels } from 'motion/react';
-import { SandboxUser, LiveTyping } from '@/spacetime-bindings';
+import { motion, type TargetAndTransition, type VariantLabels } from 'motion/react';
+import type { SandboxUser, LiveTyping } from '@/spacetime-bindings';
 import { cn } from '@/lib/utils';
 import { CursorIcon } from './CursorIcon';
 import { TypingBubble } from '../TypingBubble';

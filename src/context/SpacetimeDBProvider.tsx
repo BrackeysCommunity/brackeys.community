@@ -1,12 +1,12 @@
-import { PropsWithChildren, useEffect, useRef, useState } from 'react';
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react';
 import {
   DbConnection,
-  SandboxUser,
-  LiveTyping,
-  SandboxMessage,
-  Room,
+  type SandboxUser,
+  type LiveTyping,
+  type SandboxMessage,
+  type Room,
 } from '../spacetime-bindings';
-import { Provider, SpacetimeState } from './spacetimeDBContext';
+import { Provider, type SpacetimeState } from './spacetimeDBContext';
 
 const SPACETIME_HOST =
   import.meta.env.VITE_SPACETIME_HOST || 'ws://localhost:3000';

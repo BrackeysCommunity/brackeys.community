@@ -7,8 +7,8 @@
 import {
   AlgebraicType,
   AlgebraicValue,
-  BinaryReader,
-  BinaryWriter,
+  type BinaryReader,
+  type BinaryWriter,
   CallReducerFlags,
   ConnectionId,
   DbConnectionBuilder,
@@ -17,7 +17,7 @@ import {
   ErrorContextInterface,
   Event,
   EventContextInterface,
-  Identity,
+  type Identity,
   ProductType,
   ProductTypeElement,
   ReducerEventContextInterface,
@@ -27,7 +27,7 @@ import {
   SumTypeVariant,
   TableCache,
   TimeDuration,
-  Timestamp,
+  type Timestamp,
   deepEqual,
 } from '@clockworklabs/spacetimedb-sdk';
 export type Room = {

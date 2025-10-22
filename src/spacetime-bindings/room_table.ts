@@ -25,13 +25,13 @@ import {
   SubscriptionEventContextInterface,
   SumType,
   SumTypeVariant,
-  TableCache,
+  type TableCache,
   TimeDuration,
   Timestamp,
   deepEqual,
 } from '@clockworklabs/spacetimedb-sdk';
-import { Room } from './room_type';
-import { EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
+import type { Room } from './room_type';
+import { type EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
 
 /**
  * Table handle for the table `room`.
@@ -72,7 +72,7 @@ export class RoomTableHandle {
     // Find the subscribed row whose `code` column value is equal to `col_val`,
     // if such a row is present in the client cache.
     find: (col_val: string): Room | undefined => {
-      for (let row of this.tableCache.iter()) {
+      for (const row of this.tableCache.iter()) {
         if (deepEqual(row.code, col_val)) {
           return row;
         }

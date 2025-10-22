@@ -1,5 +1,5 @@
 import { cn } from '../../../lib/utils';
-import { Position } from './snakeTypes';
+import type { Position } from './snakeTypes';
 
 type GameBoardProps = {
   snake: Position[];

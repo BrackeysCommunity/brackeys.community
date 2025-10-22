@@ -1,9 +1,9 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   QueryClientProvider as Provider,
   QueryClient,
-  QueryFunction,
-  MutationFunction,
+  type QueryFunction,
+  type MutationFunction,
 } from '@tanstack/react-query';
 import { useContext } from 'react';
 import { AuthContext } from './authContext';

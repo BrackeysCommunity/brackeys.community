@@ -1,5 +1,5 @@
-import { useState, useCallback, PropsWithChildren, useRef } from 'react';
-import { CursorState, Provider } from './sandboxContext';
+import { useState, useCallback, type PropsWithChildren, useRef } from 'react';
+import { type CursorState, Provider } from './sandboxContext';
 
 export const SandboxProvider = ({ children }: PropsWithChildren) => {
   const [cursorState, setCursorState] = useState<CursorState>('default');

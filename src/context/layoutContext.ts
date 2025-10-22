@@ -21,7 +21,7 @@ export const defaultLayoutProps: LayoutProps = {
   showFooter: true,
   showHeader: true,
   containerized: true,
-  mainClassName: 'px-4 pt-8',
+  mainClassName: 'px-4 mt-6',
   fullHeight: false,
 };
 
@@ -40,5 +40,5 @@ export const useLayoutProps = (props: LayoutProps) => {
     return () => {
       setLayoutProps(defaultLayoutProps);
     };
-  }, [setLayoutProps]);
+  }, [setLayoutProps, props]);
 };

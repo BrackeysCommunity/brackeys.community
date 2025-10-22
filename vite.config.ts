@@ -1,18 +1,30 @@
-import { defineConfig } from 'vite';
+import { wrapVinxiConfigWithSentry } from '@sentry/tanstackstart-react';
+import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
 import viteTsConfigPaths from 'vite-tsconfig-paths';
-import tailwindcss from '@tailwindcss/vite';
-
-import { wrapVinxiConfigWithSentry } from '@sentry/tanstackstart-react';
-import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin';
+import { nitro } from 'nitro/vite';
 
 const config = defineConfig({
   server: {
-    allowedHosts: ['localhost', 'c739df03e2b7.ngrok.app'],
+    allowedHosts: ['localhost', '8c0834fd6e0b.ngrok.app', 'brackeys.dev'],
   },
   plugins: [
-    nitroV2Plugin(),
+    nitro({
+      config: {
+        preset: 'vercel',
+        // compatibilityDate: '2025-10-22',
+        // externals: {
+        //   inline: [
+        //     /^@clerk\//,
+        //     /^@sentry\//,
+        //     /^@opentelemetry\//,
+        //     /^@tanstack\//,
+        //   ],
+        // },
+      },
+    }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
@@ -23,6 +35,54 @@ const config = defineConfig({
   ],
   optimizeDeps: {
     exclude: ['lucide-react', '@uidotdev/usehooks'],
+  },
+  build: {
+    rollupOptions: {
+    //   external: ['/index.html'],
+      output: {
+        manualChunks: (id) => {
+          // Clerk gets its own chunk
+          if (id.includes('@clerk')) {
+            return 'clerk';
+          }
+      //     // Motion/Framer Motion gets its own chunk
+      //     if (id.includes('motion') || id.includes('framer-motion')) {
+      //       return 'motion';
+      //     }
+      //     // TanStack packages get their own chunk
+      //     if (
+      //       id.includes('@tanstack/react-query') ||
+      //       id.includes('@tanstack/query')
+      //     ) {
+      //       return 'tanstack-query';
+      //     }
+      //     if (id.includes('@tanstack/react-router')) {
+      //       return 'tanstack-router';
+      //     }
+      //     // Lucide icons get their own chunk
+      //     if (id.includes('lucide-react')) {
+      //       return 'lucide';
+      //     }
+      //     // GraphQL/Hasura get their own chunk
+      //     if (id.includes('graphql') || id.includes('urql')) {
+      //       return 'graphql';
+      //     }
+      //     // Sentry gets its own chunk
+      //     if (id.includes('@sentry')) {
+      //       return 'sentry';
+      //     }
+      //     // SpacetimeDB bindings get their own chunk
+      //     if (id.includes('spacetime-bindings')) {
+      //       return 'spacetime';
+      //     }
+      //     // All other node_modules go into vendor
+      //     if (id.includes('node_modules')) {
+      //       return 'vendor';
+      //     }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
 });
 

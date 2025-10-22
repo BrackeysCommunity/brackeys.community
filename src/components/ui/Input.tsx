@@ -1,6 +1,6 @@
 import { Button, Input as HeadlessInput } from '@headlessui/react';
-import { forwardRef, useState, ReactNode } from 'react';
-import { Eye, EyeOff, LucideIcon } from 'lucide-react';
+import { forwardRef, useState, type ReactNode } from 'react';
+import { Eye, EyeOff, type LucideIcon } from 'lucide-react';
 
 interface InputProps {
   type?: 'text' | 'email' | 'password' | 'number';

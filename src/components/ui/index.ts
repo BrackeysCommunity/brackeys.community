@@ -3,6 +3,7 @@ export * from './Button';
 export * from './DiscordProfileButton';
 export * from './Input';
 export * from './Loading';
+export * from './LoadingFallback';
 export * from './Modal';
 export * from './SplashScreen';
 export * from './Toast';

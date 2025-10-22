@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import React, { useRef, useEffect, useMemo } from 'react';
-import { SandboxUser, LiveTyping } from '../../spacetime-bindings';
+import type { SandboxUser, LiveTyping } from '../../spacetime-bindings';
 import { useSandbox } from '../../context/sandboxContext';
 import {
   TYPING_ANIMATION_CONFIG,

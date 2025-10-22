@@ -17,7 +17,7 @@ import {
   ErrorContextInterface,
   Event,
   EventContextInterface,
-  Identity,
+  type Identity,
   ProductType,
   ProductTypeElement,
   ReducerEventContextInterface,
@@ -25,13 +25,13 @@ import {
   SubscriptionEventContextInterface,
   SumType,
   SumTypeVariant,
-  TableCache,
+  type TableCache,
   TimeDuration,
   Timestamp,
   deepEqual,
 } from '@clockworklabs/spacetimedb-sdk';
-import { LiveTyping } from './live_typing_type';
-import { EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
+import type { LiveTyping } from './live_typing_type';
+import { type EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
 
 /**
  * Table handle for the table `live_typing`.
@@ -72,7 +72,7 @@ export class LiveTypingTableHandle {
     // Find the subscribed row whose `identity` column value is equal to `col_val`,
     // if such a row is present in the client cache.
     find: (col_val: Identity): LiveTyping | undefined => {
-      for (let row of this.tableCache.iter()) {
+      for (const row of this.tableCache.iter()) {
         if (deepEqual(row.identity, col_val)) {
           return row;
         }

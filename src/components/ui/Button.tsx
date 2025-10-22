@@ -1,9 +1,9 @@
 import { Button as HeadlessButton } from '@headlessui/react';
-import { ReactNode, useState } from 'react';
-import { cva, VariantProps } from 'class-variance-authority';
+import { type ReactNode, useState } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { motion, MotionProps } from 'motion/react';
+import { motion, type MotionProps } from 'motion/react';
 import { Link } from '@tanstack/react-router';
 
 const buttonVariants = cva(

@@ -29,7 +29,7 @@ The authentication system uses **Clerk** for user management and **Discord OAuth
 - Discord OAuth only - simple and secure
 - Explains Discord requirement and benefits
 
-### 4. Clerk Webhook (`api/webhooks/clerk.ts`)
+### 4. Clerk Webhook (`src/routes/api/webhooks/clerk.tsx`)
 
 - Syncs Discord roles on `user.created` and `session.created` events
 - Fetches guild member data via Discord API
@@ -215,8 +215,8 @@ DISCORD_GUILD_ID=240491168985399296
 - **Auth Entry:** `src/pages/AuthEntry.tsx`
 - **Login Page:** `src/pages/Login.tsx`
 - **Login Button:** `src/components/auth/LoginButton.tsx`
-- **Webhook Handler:** `api/webhooks/clerk.ts`
-- **Discord Sync API:** `api/sync-discord-roles.ts`
+- **Webhook Handler:** `src/routes/api/webhooks/clerk.tsx`
+- **Discord Sync API:** `src/routes/api/auth/sync-discord.tsx`
 - **Discord Sync Hook:** `src/hooks/useDiscordSync.ts`
 - **Auth Context Types:** `src/context/authContext.ts`
 - **Router Configuration:** `src/router.ts`

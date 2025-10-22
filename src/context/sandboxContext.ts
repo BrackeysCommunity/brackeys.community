@@ -1,4 +1,4 @@
-import { createContext, useContext, RefObject } from 'react';
+import { createContext, useContext, type RefObject } from 'react';
 
 export type CursorState = 'default' | 'interactive' | 'typing';
 

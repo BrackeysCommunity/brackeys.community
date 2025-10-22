@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { SandboxMessage } from '../../spacetime-bindings';
+import type { SandboxMessage } from '../../spacetime-bindings';
 import { MESSAGE_POSITION_TOLERANCE_PX } from '../../components/sandbox/constants';
 
 export type MessageGroupData = {

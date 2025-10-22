@@ -1,4 +1,4 @@
-import { ResourceFilterProps, ResourceCategory } from './types';
+import type { ResourceFilterProps, ResourceCategory } from './types';
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {

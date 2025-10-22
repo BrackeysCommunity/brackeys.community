@@ -25,13 +25,13 @@ import {
   SubscriptionEventContextInterface,
   SumType,
   SumTypeVariant,
-  TableCache,
+  type TableCache,
   TimeDuration,
   Timestamp,
   deepEqual,
 } from '@clockworklabs/spacetimedb-sdk';
-import { CleanupSchedule } from './cleanup_schedule_type';
-import { EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
+import type { CleanupSchedule } from './cleanup_schedule_type';
+import { type EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
 
 /**
  * Table handle for the table `cleanup_schedule`.
@@ -72,7 +72,7 @@ export class CleanupScheduleTableHandle {
     // Find the subscribed row whose `scheduledId` column value is equal to `col_val`,
     // if such a row is present in the client cache.
     find: (col_val: bigint): CleanupSchedule | undefined => {
-      for (let row of this.tableCache.iter()) {
+      for (const row of this.tableCache.iter()) {
         if (deepEqual(row.scheduledId, col_val)) {
           return row;
         }

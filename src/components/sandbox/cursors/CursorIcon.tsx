@@ -1,4 +1,4 @@
-import { SandboxUser } from '../../../spacetime-bindings';
+import type { SandboxUser } from '../../../spacetime-bindings';
 import { CURSOR_SHADOW_FILTER, CURSOR_PATH } from '../constants';
 import { generateColorScheme } from '../../../lib/colors';
 import { useMemo } from 'react';

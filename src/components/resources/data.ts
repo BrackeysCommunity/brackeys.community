@@ -11,7 +11,7 @@ import {
   Tag,
   Users,
 } from 'lucide-react';
-import {
+import type {
   ResourceCategory,
   ResourceItem,
   CategoryInfo,

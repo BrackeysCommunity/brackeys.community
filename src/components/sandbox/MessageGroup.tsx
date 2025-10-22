@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { SandboxMessage, SandboxUser } from '../../spacetime-bindings';
+import type { SandboxMessage, SandboxUser } from '../../spacetime-bindings';
 import { MessageBubble } from './MessageBubble';
 import { useSandbox } from '../../context/sandboxContext';
 

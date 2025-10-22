@@ -1,4 +1,4 @@
-import { ResourceFilterProps } from './types';
+import type { ResourceFilterProps } from './types';
 import { motion } from 'motion/react';
 import {
   Disclosure,

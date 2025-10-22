@@ -1,11 +1,11 @@
 import {
   useQuery,
   useMutation,
-  UseQueryOptions,
-  UseMutationOptions,
-  QueryKey,
+  type UseQueryOptions,
+  type UseMutationOptions,
+  type QueryKey,
 } from '@tanstack/react-query';
-import { request, RequestExtendedOptions } from 'graphql-request';
+import { request, type RequestExtendedOptions } from 'graphql-request';
 import type { Variables } from 'graphql-request';
 import { useAuth as useClerkAuth } from '@clerk/tanstack-react-start';
 import { useHasuraClaims, type HasuraClaims } from '../store';

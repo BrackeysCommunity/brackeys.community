@@ -1,8 +1,8 @@
-import { operations, preferredRoles } from '../../lib/gql/operations';
+import { type operations, preferredRoles } from '../../lib/gql/operations';
 import { useHasuraClaims } from '../../store';
 import { useState } from 'react';
 import { useAuth as useClerkAuth } from '@clerk/tanstack-react-start';
-import { AxiosHeaders, AxiosRequestHeaders } from 'axios';
+import { AxiosHeaders, type AxiosRequestHeaders } from 'axios';
 import { X_HASURA_ROLE } from '../../lib/constants';
 import { useEffect } from 'react';
 

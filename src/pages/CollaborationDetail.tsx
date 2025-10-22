@@ -7,7 +7,7 @@ import { useCollaborationPost } from '../hooks/query/useCollaborationPost';
 import { useUser } from '../store';
 import {
   ResponseModal,
-  ResponseFormData,
+  type ResponseFormData,
 } from '../components/collaborations/ResponseModal';
 import { Alert } from '../components/ui/Alert';
 

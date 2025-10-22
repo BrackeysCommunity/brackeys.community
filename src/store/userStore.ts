@@ -58,25 +58,25 @@ export interface ActiveUser {
   fullName: string | null;
   imageUrl: string;
   hasImage: boolean;
-  
+
   // Email data
   primaryEmailAddress: string | null;
   emailAddresses: UserEmail[];
-  
+
   // Discord data
   discord: {
     externalAccount: DiscordExternalAccount | null;
     guildMember: DiscordGuildMemberData | null;
   };
-  
+
   // Hasura integration
   hasura: HasuraClaims;
-  
+
   // Timestamps
   createdAt: string;
   updatedAt: string;
   lastSignInAt: string | null;
-  
+
   // Auth state
   twoFactorEnabled: boolean;
 }

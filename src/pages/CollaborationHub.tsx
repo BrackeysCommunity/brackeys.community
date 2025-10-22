@@ -1,27 +1,30 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
 import { Link } from '@tanstack/react-router';
 import {
-  Users,
-  PlusCircle,
   Bell,
   Bookmark,
   MessageCircle,
+  PlusCircle,
+  Settings,
   TrendingUp,
   User,
-  Settings,
+  Users,
+  X,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { useMyCollaborationProfile } from '../hooks/query/useMyCollaborationProfile';
-import { useMyCollaborationPosts } from '../hooks/query/useMyCollaborationPosts';
-import { useUser } from '../store';
-import {
-  CreateProfileModal,
-  ProfileFormData,
-} from '../components/collaborations/CreateProfileModal';
-import { Button } from '../components/ui/Button';
+import { motion } from 'motion/react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import type { ProfileFormData } from '../components/collaborations/CreateProfileModal';
 import { Alert } from '../components/ui/Alert';
-import { X } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { useMyCollaborationPosts } from '../hooks/query/useMyCollaborationPosts';
+import { useMyCollaborationProfile } from '../hooks/query/useMyCollaborationProfile';
+import { cn } from '../lib/utils';
+import { useUser } from '../store';
+
+const CreateProfileModal = lazy(() =>
+  import('../components/collaborations/CreateProfileModal').then((m) => ({
+    default: m.CreateProfileModal,
+  })),
+);
 
 export function CollaborationHub() {
   const user = useUser();
@@ -323,23 +326,27 @@ export function CollaborationHub() {
       </motion.div>
 
       {/* Create/Edit Profile Modal */}
-      <CreateProfileModal
-        isOpen={showCreateProfile}
-        onClose={() => setShowCreateProfile(false)}
-        onSubmit={handleCreateProfile}
-        initialData={
-          profile
-            ? {
-                displayName: profile.displayName || '',
-                bio: profile.bio || '',
-                skills: profile.skills || '',
-                portfolio: profile.portfolio || '',
-                contactPreferences: profile.contactPreferences || '',
-                isPublic: profile.isPublic === 1,
-              }
-            : undefined
-        }
-      />
+      {showCreateProfile && (
+        <Suspense fallback={null}>
+          <CreateProfileModal
+            isOpen={showCreateProfile}
+            onClose={() => setShowCreateProfile(false)}
+            onSubmit={handleCreateProfile}
+            initialData={
+              profile
+                ? {
+                    displayName: profile.displayName || '',
+                    bio: profile.bio || '',
+                    skills: profile.skills || '',
+                    portfolio: profile.portfolio || '',
+                    contactPreferences: profile.contactPreferences || '',
+                    isPublic: profile.isPublic === 1,
+                  }
+                : undefined
+            }
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

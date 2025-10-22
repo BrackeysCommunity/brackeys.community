@@ -1,52 +1,8 @@
 -- Initialize application database
--- This script runs after Ory databases are created
 
 -- Create extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
-CREATE SCHEMA IF NOT EXISTS users;
-
--- Users table (synced with Ory identities)
-CREATE TABLE IF NOT EXISTS users.user (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ory_identity_id UUID NOT NULL UNIQUE,
-    email TEXT NOT NULL,
-    username TEXT,
-    display_name TEXT,
-    avatar_url TEXT,
-    discord_id TEXT UNIQUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- User roles (from Discord integration)
-CREATE TABLE IF NOT EXISTS users.user_role (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users.user(id) ON DELETE CASCADE,
-    role TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, role)
-);
-
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_users_ory_identity_id ON users.user(ory_identity_id);
-CREATE INDEX IF NOT EXISTS idx_users_discord_id ON users.user(discord_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users.user(email);
-CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON users.user_role(user_id);
-
--- Updated timestamp trigger function
-CREATE OR REPLACE FUNCTION users.update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Apply updated_at trigger to users table
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users.user
-    FOR EACH ROW EXECUTE FUNCTION users.update_updated_at_column();
 
 -- Create the collab schema
 CREATE SCHEMA IF NOT EXISTS collab;

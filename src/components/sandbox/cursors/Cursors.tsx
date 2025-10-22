@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'motion/react';
-import { SandboxUser, LiveTyping } from '../../../spacetime-bindings';
+import type { SandboxUser, LiveTyping } from '../../../spacetime-bindings';
 import { CursorContainer } from './Cursor';
 
 type SimpleTypingState = {

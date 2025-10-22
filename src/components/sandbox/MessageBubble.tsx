@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
-import { SandboxMessage } from '../../spacetime-bindings';
+import type { SandboxMessage } from '../../spacetime-bindings';
 import { useSandbox } from '../../context/sandboxContext';
 import { useEffect, useMemo } from 'react';
 import { generateColorScheme } from '../../lib/colors';

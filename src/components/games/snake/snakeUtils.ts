@@ -1,4 +1,4 @@
-import { Position } from './snakeTypes';
+import type { Position } from './snakeTypes';
 
 export const generateFood = (snake: Position[], gridSize: number): Position => {
   let newFood: Position;

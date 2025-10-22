@@ -1,6 +1,6 @@
-import { useState, ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
-  LayoutProps,
+  type LayoutProps,
   Provider,
   useLayout,
   useLayoutProps,
@@ -15,7 +15,7 @@ export const LayoutProvider = ({ children }: { children: ReactNode }) => {
     showFooter: true,
     showHeader: true,
     containerized: true,
-    mainClassName: 'px-4 pt-8',
+    mainClassName: 'px-4 mt-6',
     fullHeight: false,
   });
 

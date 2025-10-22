@@ -1,11 +1,15 @@
-import { ChevronDown, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Suspense, useState } from 'react';
+import { useActiveUser } from '../../store';
+import { cn } from '../../lib/utils';
 import { LoginButton } from '../auth/LoginButton';
-import { DiscordLogo } from '../icons/DiscordLogo';
 import { Button } from '../ui/Button';
+import { AnnouncementCard } from './AnnouncementCard';
+import { CommandsList } from './CommandsList';
 
 const HERO_CONTENT = {
-  mainHeading: 'Learn, Code, and Play —',
+  mainHeading: 'Learn, Play, Create',
   subHeading: 'Level Up in Brackeys Community',
   description:
     "A community for developers of all skill levels to learn, share, and collaborate. Join us today and let's make coding fun!",
@@ -13,194 +17,134 @@ const HERO_CONTENT = {
 
 const BUTTON_CONTENT = {
   github: 'View on GitHub',
+  joinNow: 'Join now!',
+  visitServer: 'Visit server',
 };
 
-const BackgroundShapes = () => (
-  <div
-    className="absolute inset-0 overflow-visible pointer-events-none"
-    aria-hidden="true"
-  >
-    {/* larger purple blob */}
-    <motion.div
-      className="absolute top-20 right-[20%] w-72 h-72 rounded-full bg-brackeys-purple-600/15 blur-3xl"
-      animate={{
-        x: [0, 35, -15, 25, 0],
-        y: [0, -25, 30, 10, 0],
-        scale: [1, 1.2, 0.9, 1.15, 1],
-      }}
-      transition={{
-        repeat: Infinity,
-        duration: 18,
-        ease: 'easeInOut',
-      }}
-    />
+type TabType = 'announcements' | 'commands';
 
-    {/* purple accent */}
-    <motion.div
-      className="absolute top-40 right-[30%] w-24 h-24 rounded-full bg-brackeys-purple-400/10 blur-xl"
-      animate={{
-        x: [0, -25, 25, -10, 0],
-        scale: [1, 1.4, 1.1, 1.3, 1],
-      }}
-      transition={{
-        repeat: Infinity,
-        duration: 12.5,
-        ease: 'easeInOut',
-      }}
-    />
+const DISCORD_SERVER_URL = 'https://discord.gg/brackeys';
 
-    {/* indigo blob */}
-    <motion.div
-      className="absolute bottom-32 left-[15%] w-80 h-80 rounded-full bg-indigo-500/15 blur-3xl"
-      animate={{
-        x: [0, -40, 25, -30, 0],
-        y: [0, 35, -25, 20, 0],
-        scale: [1, 1.15, 0.85, 1.1, 1],
-        rotate: [0, 8, -5, 4, 0],
-      }}
-      transition={{
-        repeat: Infinity,
-        duration: 24,
-        ease: 'easeInOut',
-      }}
-    />
-
-    {/* indigo accent */}
-    <motion.div
-      className="absolute bottom-60 left-[25%] w-32 h-32 rounded-full bg-indigo-400/10 blur-2xl"
-      animate={{
-        y: [0, 40, -20, 25, 0],
-        scale: [1, 1.3, 0.85, 1.2, 1],
-      }}
-      transition={{
-        repeat: Infinity,
-        duration: 16,
-        ease: 'easeInOut',
-      }}
-    />
-
-    {/* yellow square */}
-    <motion.div
-      className="absolute top-1/2 left-[10%] w-28 h-28 rounded-md rotate-45 bg-brackeys-yellow/20 blur-2xl"
-      animate={{
-        rotate: [45, 110, 25, 90, 45],
-        scale: [1, 1.4, 0.85, 1.3, 1],
-        opacity: [0.7, 0.95, 0.5, 0.85, 0.7],
-      }}
-      transition={{
-        repeat: Infinity,
-        duration: 20,
-        ease: 'easeInOut',
-      }}
-    />
-
-    {/* yellow accent */}
-    <motion.div
-      className="absolute top-40 left-[40%] w-12 h-12 rounded-md rotate-12 bg-brackeys-yellow/15 blur-xl"
-      animate={{
-        rotate: [12, 55, -10, 40, 12],
-        scale: [1, 1.5, 0.7, 1.3, 1],
-      }}
-      transition={{
-        repeat: Infinity,
-        duration: 14,
-        ease: 'easeInOut',
-      }}
-    />
-
-    {/* shimmer */}
-    {[...Array(12)].map((_, i) => (
-      <motion.div
-        key={`particle-${i}`}
-        className="absolute bg-white rounded-full opacity-80"
-        style={{
-          width: `${Math.random() * 4 + 1}px`,
-          height: `${Math.random() * 4 + 1}px`,
-          left: `${Math.random() * 100}%`,
-          top: `${Math.random() * 100}%`,
-          filter: 'blur(0.5px)',
-        }}
-        animate={{
-          y: [-30, 30],
-          x: [-10, 10],
-          opacity: [0, 0.8, 0],
-          scale: [0.5, 1.2, 0.5],
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: Math.random() * 4 + 6,
-          delay: Math.random() * 3,
-          ease: 'easeInOut',
-        }}
-      />
-    ))}
+const ContentFallback = () => (
+  <div className="bg-gray-900/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-800 shadow-xl h-full flex items-center justify-center">
+    <div className="animate-pulse flex flex-col items-center gap-3">
+      <div className="h-5 w-5 bg-gray-700 rounded" />
+      <div className="h-4 w-48 bg-gray-700 rounded" />
+      <div className="h-3 w-full bg-gray-700 rounded" />
+      <div className="h-3 w-3/4 bg-gray-700 rounded" />
+    </div>
   </div>
 );
 
-export const HeroSection = () => (
-  <section
-    className="w-full flex flex-col items-center justify-center py-24 px-4 sm:px-6 lg:px-8 relative overflow-visible"
-    aria-labelledby="hero-heading"
-    data-testid="hero-section"
+const TabButton = ({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={cn(
+      'px-6 py-2 rounded-full backdrop-blur-sm shadow-2xl font-medium transition-all pointer-events-auto',
+      active
+        ? 'bg-brackeys-purple-600 text-white shadow-lg'
+        : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-300',
+    )}
   >
-    <BackgroundShapes />
-
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="max-w-4xl w-full space-y-8 text-center relative z-10"
-    >
-      <div>
-        <motion.div
-          className="mx-auto h-24 w-24 bg-linear-to-br from-brackeys-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg"
-          whileHover={{ rotate: 5, scale: 1.05 }}
-          transition={{ type: 'spring', stiffness: 300 }}
-          aria-hidden="true"
-        >
-          <DiscordLogo className="h-12 w-12 text-white" />
-        </motion.div>
-        <h1
-          id="hero-heading"
-          className="mt-8 text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl"
-        >
-          <span className="block">{HERO_CONTENT.mainHeading}</span>
-          <span className="block text-brackeys-purple-600 mt-2">
-            {HERO_CONTENT.subHeading}
-          </span>
-        </h1>
-        <p className="mt-8 text-xl text-gray-300 max-w-2xl mx-auto">
-          {HERO_CONTENT.description}
-        </p>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full mx-auto">
-        <LoginButton className="w-full sm:w-auto self-center" />
-        <Button
-          href="https://github.com/josh-complex/brackeys-web"
-          target="_blank"
-          variant="secondary"
-          size="lg"
-          className="w-full sm:w-auto flex items-center gap-2"
-          aria-label="View source code on GitHub"
-        >
-          {BUTTON_CONTENT.github}
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </div>
-
-      <div className="pt-16 flex justify-center">
-        <motion.a
-          href="#features"
-          className="flex flex-col items-center text-gray-400 hover:text-gray-300 transition-colors"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-          aria-label="Scroll to features"
-        >
-          <span className="text-sm mb-2">Explore Features</span>
-          <ChevronDown className="h-6 w-6" />
-        </motion.a>
-      </div>
-    </motion.div>
-  </section>
+    {children}
+  </button>
 );
+
+export const HeroSection = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('announcements');
+  const { user } = useActiveUser();
+  const isInGuild = user?.discord?.guildMember?.inGuild ?? false;
+
+  return (
+    <section
+      className="container mx-auto w-full px-4 sm:px-6 lg:px-8 relative py-12"
+      aria-labelledby="hero-heading"
+      data-testid="hero-section"
+    >
+      <div className="max-w-7xl w-full mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+          {/* Left Column - Sticky CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="lg:sticky lg:top-44 2xl:top-54 space-y-8"
+          >
+            <div className="drop-shadow-[0_0_30px_rgba(0,0,0,0.9)]">
+              <h1
+                id="hero-heading"
+                className="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl"
+              >
+                <span className="block drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                  {HERO_CONTENT.mainHeading}
+                </span>
+                <span className="block drop-shadow-[0_0_10px_var(--color-brackeys-purple-light)] text-brackeys-purple-600 mt-2">
+                  {HERO_CONTENT.subHeading}
+                </span>
+              </h1>
+              <p className="mt-6 text-xl text-gray-300 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                {HERO_CONTENT.description}
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <LoginButton className="w-full sm:w-auto pointer-events-auto" />
+              <Button
+                href="https://github.com/josh-complex/brackeys-web"
+                target="_blank"
+                variant="secondary"
+                size="lg"
+                className="w-full sm:w-auto flex items-center gap-2 pointer-events-auto"
+                aria-label="View source code on GitHub"
+              >
+                {BUTTON_CONTENT.github}
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          </motion.div>
+
+          {/* Right Column - Content with Sticky Tabs */}
+          <div className="min-h-full">
+            {/* Sticky Tab Buttons */}
+            <div className="sticky top-5 z-30 pb-4 mb-4">
+              <div className="flex gap-2">
+                <TabButton
+                  active={activeTab === 'announcements'}
+                  onClick={() => setActiveTab('announcements')}
+                >
+                  Announcements
+                </TabButton>
+                <TabButton
+                  active={activeTab === 'commands'}
+                  onClick={() => setActiveTab('commands')}
+                >
+                  Commands
+                </TabButton>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="bg-gray-900/50 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-xl">
+              {activeTab === 'announcements' ? (
+                <Suspense fallback={<ContentFallback />}>
+                  <AnnouncementCard />
+                </Suspense>
+              ) : (
+                <CommandsList />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};

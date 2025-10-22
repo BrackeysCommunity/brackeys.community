@@ -25,13 +25,13 @@ import {
   SubscriptionEventContextInterface,
   SumType,
   SumTypeVariant,
-  TableCache,
+  type TableCache,
   TimeDuration,
   Timestamp,
   deepEqual,
 } from '@clockworklabs/spacetimedb-sdk';
-import { SandboxMessage } from './sandbox_message_type';
-import { EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
+import type { SandboxMessage } from './sandbox_message_type';
+import { type EventContext, Reducer, RemoteReducers, RemoteTables } from '.';
 
 /**
  * Table handle for the table `sandbox_message`.
@@ -72,7 +72,7 @@ export class SandboxMessageTableHandle {
     // Find the subscribed row whose `id` column value is equal to `col_val`,
     // if such a row is present in the client cache.
     find: (col_val: bigint): SandboxMessage | undefined => {
-      for (let row of this.tableCache.iter()) {
+      for (const row of this.tableCache.iter()) {
         if (deepEqual(row.id, col_val)) {
           return row;
         }

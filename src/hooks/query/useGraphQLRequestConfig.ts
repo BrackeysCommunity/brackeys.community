@@ -1,4 +1,4 @@
-import { operations } from '../../lib/gql/operations';
+import type { operations } from '../../lib/gql/operations';
 import { useAuthHeaders } from './useAuthHeaders';
 
 export const useGraphQLRequestConfig = (opName?: keyof typeof operations) => {

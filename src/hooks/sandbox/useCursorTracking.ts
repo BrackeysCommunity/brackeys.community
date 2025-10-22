@@ -46,7 +46,7 @@ export function useCursorTracking({
       }
 
       const distance = Math.sqrt(
-        Math.pow(x - lastX, 2) + Math.pow(y - lastY, 2),
+        (x - lastX) ** 2 + (y - lastY) ** 2,
       );
       if (
         distance > CURSOR_UPDATE_THRESHOLD ||

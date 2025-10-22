@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   resources,
-  ResourceType,
-  ResourceCategory,
-  ResourceTag,
-  ResourceItem,
+  type ResourceType,
+  type ResourceCategory,
+  type ResourceTag,
+  type ResourceItem,
   FilterSidebar,
   ResourceSearch,
   ResourceGrid,

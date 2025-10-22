@@ -6,7 +6,7 @@ import {
   DisclosurePanel,
 } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
-import { ResourceFilterProps, ResourceTag } from './types';
+import type { ResourceFilterProps, ResourceTag } from './types';
 import { FilterButton } from './FilterButton';
 import { tagInfo } from './data';
 

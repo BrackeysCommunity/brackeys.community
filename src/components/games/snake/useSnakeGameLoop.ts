@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Direction, Position } from './snakeTypes';
+import { Direction, type Position } from './snakeTypes';
 import {
   generateFood,
   checkCollision,

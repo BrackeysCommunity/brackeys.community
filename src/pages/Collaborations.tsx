@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
-  CollaborationFilters,
-  CollaborationPost,
-  CollaborationType,
-  HiringStatus,
+  type CollaborationFilters,
+  type CollaborationPost,
+  type CollaborationType,
+  type HiringStatus,
   FilterSidebar,
   CollaborationSearch,
   CollaborationGrid,

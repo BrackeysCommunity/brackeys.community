@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useUser } from '../store';
 import { useUser as useClerkUser } from '@clerk/tanstack-react-start';
 import axios from 'axios';
+import { useState } from 'react';
+import { useUser } from '../store';
 
 type SyncResult = {
   success: boolean;
@@ -30,8 +30,8 @@ export function useDiscordSync() {
       // Use relative URL when deployed to same domain, or VITE_API_URL for cross-domain
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const endpoint = apiUrl
-        ? `${apiUrl}/api/sync-discord-roles`
-        : '/api/sync-discord-roles';
+        ? `${apiUrl}/api/auth/sync-discord`
+        : '/api/auth/sync-discord';
       const response = await axios.post(
         endpoint,
         {

@@ -9,20 +9,20 @@ import {
   AlgebraicValue,
   BinaryReader,
   BinaryWriter,
-  CallReducerFlags,
+  type CallReducerFlags,
   ConnectionId,
   DbConnectionBuilder,
   DbConnectionImpl,
   DbContext,
-  ErrorContextInterface,
-  Event,
-  EventContextInterface,
+  type ErrorContextInterface,
+  type Event,
+  type EventContextInterface,
   Identity,
   ProductType,
   ProductTypeElement,
-  ReducerEventContextInterface,
+  type ReducerEventContextInterface,
   SubscriptionBuilderImpl,
-  SubscriptionEventContextInterface,
+  type SubscriptionEventContextInterface,
   SumType,
   SumTypeVariant,
   TableCache,
@@ -147,9 +147,9 @@ export class RemoteReducers {
 
   setDisplayName(name: string) {
     const __args = { name };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     SetDisplayName.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'set_display_name',
       __argsBuffer,
@@ -167,9 +167,9 @@ export class RemoteReducers {
 
   updateCursor(x: number, y: number) {
     const __args = { x, y };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     UpdateCursor.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'update_cursor',
       __argsBuffer,
@@ -187,9 +187,9 @@ export class RemoteReducers {
 
   updateTyping(text: string, x: number, y: number, selectionStart: number, selectionEnd: number) {
     const __args = { text, x, y, selectionStart, selectionEnd };
-    let __writer = new BinaryWriter(1024);
+    const __writer = new BinaryWriter(1024);
     UpdateTyping.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
+    const __argsBuffer = __writer.getBuffer();
     this.connection.callReducer(
       'update_typing',
       __argsBuffer,

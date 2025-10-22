@@ -4,7 +4,8 @@ import { DiscordLogo } from '../icons/DiscordLogo';
 import { useNavigate } from '@tanstack/react-router';
 
 const BUTTON_CONTENT = {
-  dashboard: 'View Profile',
+  cta: 'Join today!',
+  visit: 'Visit server',
   login: 'Login with Discord',
 };
 
@@ -37,7 +38,7 @@ export const LoginButton = ({ className }: LoginButtonProps) => {
       aria-label={user ? 'Go to your dashboard' : 'Login with Discord'}
       fullWidth
     >
-      {user ? BUTTON_CONTENT.dashboard : BUTTON_CONTENT.login}
+      {user ? user.discord.guildMember ? BUTTON_CONTENT.visit : BUTTON_CONTENT.cta : BUTTON_CONTENT.login}
     </Button>
   );
 };

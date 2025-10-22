@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
-import {
+import type {
   SandboxUser,
   LiveTyping,
   SandboxMessage,

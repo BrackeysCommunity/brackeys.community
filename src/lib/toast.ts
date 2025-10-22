@@ -1,6 +1,6 @@
 import { toast as sonnerToast } from 'sonner';
 import { Toast } from '../components/ui/Toast';
-import { ComponentProps } from 'react';
+import type { ComponentProps } from 'react';
 
 export const toast = {
   success: (

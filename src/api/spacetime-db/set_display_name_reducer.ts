@@ -7,8 +7,8 @@
 import {
   AlgebraicType,
   AlgebraicValue,
-  BinaryReader,
-  BinaryWriter,
+  type BinaryReader,
+  type BinaryWriter,
   CallReducerFlags,
   ConnectionId,
   DbConnectionBuilder,
