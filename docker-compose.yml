@@ -1,5 +1,36 @@
 services:
-  # PostgreSQL - Main database
+  hasura-migrations-init:
+    image: oven/bun:latest
+    environment:
+      HASURA_MIGRATIONS_REPO: ${HASURA_MIGRATIONS_REPO}
+      HASURA_MIGRATIONS_BRANCH: ${HASURA_MIGRATIONS_BRANCH:-main}
+    volumes:
+      - hasura_migrations:/migrations
+      - hasura_metadata:/metadata
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        if [ -z "$$HASURA_MIGRATIONS_REPO" ]; then
+          echo 'HASURA_MIGRATIONS_REPO not set, skipping clone';
+          exit 0;
+        fi
+        echo 'Installing git...'
+        apt-get update && apt-get install -y git
+        echo 'Cloning Hasura migrations from' $$HASURA_MIGRATIONS_REPO
+        rm -rf /tmp/repo
+        git clone --depth 1 --branch $$HASURA_MIGRATIONS_BRANCH $$HASURA_MIGRATIONS_REPO /tmp/repo
+        if [ -d /tmp/repo/hasura/migrations ]; then
+          echo 'Copying migrations...'
+          cp -r /tmp/repo/hasura/migrations/. /migrations/ 2>/dev/null || true
+        fi
+        if [ -d /tmp/repo/hasura/metadata ]; then
+          echo 'Copying metadata...'
+          cp -r /tmp/repo/hasura/metadata/. /metadata/ 2>/dev/null || true
+        fi
+        echo 'Migration data clone complete'
+    networks:
+      - brackeys
+
   postgres:
     image: postgres:alpine
     restart: unless-stopped
@@ -19,13 +50,14 @@ services:
     networks:
       - brackeys
 
-  # Hasura GraphQL Engine v2
   hasura:
     image: hasura/graphql-engine:latest.cli-migrations-v3
     restart: unless-stopped
     ports:
       - '8080:8080'
     depends_on:
+      hasura-migrations-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     environment:
@@ -45,8 +77,12 @@ services:
       HASURA_GRAPHQL_LOG_LEVEL: ${HASURA_GRAPHQL_LOG_LEVEL:-info}
 
     volumes:
-      - ./hasura/migrations:/hasura-migrations
-      - ./hasura/metadata:/hasura-metadata
+      # Use local directories
+      # - ./hasura/migrations:/hasura-migrations
+      # - ./hasura/metadata:/hasura-metadata
+      # Or use cloned volumes
+      - hasura_migrations:/hasura-migrations
+      - hasura_metadata:/hasura-metadata
     healthcheck:
       test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8080/healthz']
       interval: 10s
@@ -57,6 +93,8 @@ services:
 
 volumes:
   postgres_data:
+  hasura_migrations:
+  hasura_metadata:
 
 networks:
   brackeys:
