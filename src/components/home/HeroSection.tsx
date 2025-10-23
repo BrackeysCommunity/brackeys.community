@@ -1,8 +1,8 @@
 import { ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Suspense, useState } from 'react';
-import { useActiveUser } from '../../store';
 import { cn } from '../../lib/utils';
+import { useActiveUser } from '../../store';
 import { LoginButton } from '../auth/LoginButton';
 import { Button } from '../ui/Button';
 import { AnnouncementCard } from './AnnouncementCard';
@@ -66,7 +66,7 @@ export const HeroSection = () => {
 
   return (
     <section
-      className="container mx-auto w-full px-4 sm:px-6 lg:px-8 relative py-12"
+      className="container mx-auto w-full px-4 sm:px-6 lg:px-8 relative"
       aria-labelledby="hero-heading"
       data-testid="hero-section"
     >
@@ -77,11 +77,11 @@ export const HeroSection = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="lg:sticky lg:top-44 2xl:top-54 space-y-8"
+            className="lg:sticky lg:top-54 2xl:top-64 space-y-8"
           >
             <div className="drop-shadow-[0_0_30px_rgba(0,0,0,0.9)]">
               <h1
-                id="hero-heading"
+                title={HERO_CONTENT.mainHeading}
                 className="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl"
               >
                 <span className="block drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
@@ -113,7 +113,7 @@ export const HeroSection = () => {
           </motion.div>
 
           {/* Right Column - Content with Sticky Tabs */}
-          <div className="min-h-full">
+          <div>
             {/* Sticky Tab Buttons */}
             <div className="sticky top-5 z-30 pb-4 mb-4">
               <div className="flex gap-2">

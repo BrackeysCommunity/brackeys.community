@@ -32,11 +32,11 @@ export const MainLayout = ({ children }: PropsWithChildren) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 relative overflow-clip">
-      <div ref={containerRef} className="fixed pointer-events-none inset-0 z-10" />
+      <div ref={containerRef} className="absolute pointer-events-none inset-0 z-10" />
       {/* Grid background */}
-      <div className={cn("absolute inset-0 h-[1000px] overflow-hidden flex items-start justify-center blur-[2px]", isHomePage ? 'fixed' : 'absolute blur-xl opacity-50')}>
+      <div className={cn("fixed inset-0 h-[1000px] overflow-hidden flex items-start justify-center blur-[2px]", !isHomePage && 'blur-xl opacity-50')}>
         <Boxes className="!left-0" />
-        <div className={cn("absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-60% to-gray-900 pointer-events-none")} />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-60% to-gray-900 pointer-events-none" />
       </div>
       {showHeader && (
         <>

@@ -18,7 +18,8 @@
     "editor.defaultFormatter": "biomejs.biome"
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "biomejs.biome",
+    // "editor.formatOnSave": false
   },
   "[json]": {
     "editor.defaultFormatter": "biomejs.biome"
@@ -29,7 +30,4 @@
   "[css]": {
     "editor.defaultFormatter": "biomejs.biome"
   },
-  "editor.codeActionsOnSave": {
-    "source.organizeImports.biome": "explicit"
-  }
 }

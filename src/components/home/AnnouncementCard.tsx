@@ -1,19 +1,26 @@
-import { useSuspenseQuery } from '@tanstack/react-query';
-import { LogIn, Megaphone } from 'lucide-react';
-import { getLatestAnnouncement } from '../../server/discord/announcements';
-import { useActiveUser } from '../../store';
-import { LoginButton } from '../auth/LoginButton';
-
-type AnnouncementData = Awaited<ReturnType<typeof getLatestAnnouncement>>;
-
-const ANNOUNCEMENT_CONTENT = {
-  title: 'Latest Announcement',
-  noAnnouncements: 'No announcements yet. Check back soon!',
-  loginRequired:
-    'Sign in to view the latest announcements from our Discord community.',
+type AnnouncementData = {
+  id: string;
+  content: string;
+  author: {
+    id: string;
+    username: string;
+    avatar: string | null;
+  };
+  timestamp: string;
+  embeds?: Array<{
+    color?: number;
+    title?: string;
+    description?: string;
+    fields?: Array<{ name: string; value: string }>;
+    image?: {
+      url: string;
+      width: number;
+      height: number;
+    };
+  }>;
 };
 
-const PLACEHOLDER_ANNOUNCEMENT: NonNullable<AnnouncementData> = {
+const PLACEHOLDER_ANNOUNCEMENT: AnnouncementData = {
   id: 'placeholder',
   content:
     'Hey everyone, new video out about some of the best games from the two Brackeys Game Jams of 2025 🔥\n\n✨ Watch it here: https://youtu.be/1un4Tu2f-L4\n\nTruly some amazing games! 🤯',
@@ -92,9 +99,7 @@ type AnnouncementContentProps = {
 };
 
 const AnnouncementContent = ({ announcement }: AnnouncementContentProps) => {
-  // Use placeholder if no real announcement is available
-  const displayAnnouncement = announcement || PLACEHOLDER_ANNOUNCEMENT;
-  const { content, author, timestamp, embeds } = displayAnnouncement;
+  const { content, author, timestamp, embeds } = announcement;
 
   // Extract all images from embeds
   const images = embeds
@@ -102,7 +107,7 @@ const AnnouncementContent = ({ announcement }: AnnouncementContentProps) => {
     .filter((image): image is NonNullable<typeof image> => !!image);
 
   return (
-    <div className="space-y-4">
+    <div>
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
           {author.avatar ? (
@@ -140,6 +145,19 @@ const AnnouncementContent = ({ announcement }: AnnouncementContentProps) => {
             <p className="text-gray-300 whitespace-pre-wrap break-words">
               {parseContentWithLinks(content)}
             </p>
+          )}
+
+          {images && images.length > 0 && (
+            <div className="space-y-3 mt-6">
+              {images.map((image, index) => (
+                <img
+                  key={`${image.url}-${index}`}
+                  src={image.url}
+                  alt="Announcement"
+                  className="w-full h-auto rounded-lg"
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -191,47 +209,14 @@ const AnnouncementContent = ({ announcement }: AnnouncementContentProps) => {
           })}
         </div>
       )}
-
-      {images && images.length > 0 && (
-        <div className="space-y-3">
-          {images.map((image, index) => (
-            <img
-              key={`${image.url}-${index}`}
-              src={image.url}
-              alt="Announcement"
-              className="w-full h-auto rounded-lg"
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 };
 
 export const AnnouncementCard = () => {
-  const { user } = useActiveUser();
-  const isAuthenticated = !!user;
-
-  const { data: announcement } = useSuspenseQuery({
-    queryKey: ['discord-announcement', user?.id],
-    queryFn: () =>
-      user?.id ? getLatestAnnouncement({ data: { userId: user.id } }) : null,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-
   return (
     <div>
-      {!isAuthenticated ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <LogIn className="h-12 w-12 text-gray-600 mb-4" />
-          <p className="text-gray-400 mb-4">
-            {ANNOUNCEMENT_CONTENT.loginRequired}
-          </p>
-          <LoginButton className="pointer-events-auto" />
-        </div>
-      ) : (
-        <AnnouncementContent announcement={announcement} />
-      )}
+      <AnnouncementContent announcement={PLACEHOLDER_ANNOUNCEMENT} />
     </div>
   );
 };
