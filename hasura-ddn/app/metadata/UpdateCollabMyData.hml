@@ -1,0 +1,161 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabMyDataSetInput
+  description: Input type for updating collab.my_data
+  fields:
+    - name: activePosts
+      type: BigintSetInput
+      description: New value wrapper for collab.my_data.active_posts
+    - name: guildId
+      type: BigintSetInput
+      description: New value wrapper for collab.my_data.guild_id
+    - name: isBlocked
+      type: BooleanSetInput
+      description: New value wrapper for collab.my_data.is_blocked
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.my_data.profile_id
+    - name: profileIsPublic
+      type: BooleanSetInput
+      description: New value wrapper for collab.my_data.profile_is_public
+    - name: totalPosts
+      type: BigintSetInput
+      description: New value wrapper for collab.my_data.total_posts
+    - name: totalResponses
+      type: BigintSetInput
+      description: New value wrapper for collab.my_data.total_responses
+    - name: unreadResponses
+      type: BigintSetInput
+      description: New value wrapper for collab.my_data.unread_responses
+    - name: userId
+      type: BigintSetInput
+      description: New value wrapper for collab.my_data.user_id
+  graphql:
+    typeName: CollabMyDataSetInput
+    inputTypeName: CollabMyDataSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.my_data_set_input
+      fieldMapping:
+        activePosts:
+          column:
+            name: active_posts
+        guildId:
+          column:
+            name: guild_id
+        isBlocked:
+          column:
+            name: is_blocked
+        profileId:
+          column:
+            name: profile_id
+        profileIsPublic:
+          column:
+            name: profile_is_public
+        totalPosts:
+          column:
+            name: total_posts
+        totalResponses:
+          column:
+            name: total_responses
+        unreadResponses:
+          column:
+            name: unread_responses
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabMyDataSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - activePosts
+          - guildId
+          - isBlocked
+          - profileId
+          - profileIsPublic
+          - totalPosts
+          - totalResponses
+          - unreadResponses
+          - userId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabMyDataResult
+  description: update from collab.my_data result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabMyData!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabMyDataResult
+    inputTypeName: UpdateCollabMyDataResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.my_data_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabMyDataResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabMyData
+  outputType: UpdateCollabMyDataResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabMyDataSetInput!
+      description: Values to set
+    - name: where
+      type: CollabMyDataBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.my_data
+  graphql:
+    rootFieldName: updateCollabMyData
+    rootFieldKind: Mutation
+  description: Update collab.my_data
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabMyData
+  permissions:
+    - role: admin
+      allowExecution: true
+

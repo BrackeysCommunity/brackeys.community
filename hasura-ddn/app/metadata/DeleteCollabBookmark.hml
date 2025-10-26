@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabBookmarkResult
+  description: delete from collab.bookmark result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabBookmark!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabBookmarkResult
+    inputTypeName: DeleteCollabBookmarkResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.bookmark_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabBookmarkResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabBookmark
+  outputType: DeleteCollabBookmarkResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabBookmarkBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.bookmark
+  graphql:
+    rootFieldName: deleteCollabBookmark
+    rootFieldKind: Mutation
+  description: Delete from collab.bookmark
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabBookmark
+  permissions:
+    - role: admin
+      allowExecution: true
+

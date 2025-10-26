@@ -1,0 +1,144 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: HdbCatalogHdbCronEventsInsertInput
+  description: Input type for inserting into hdb_catalog.hdb_cron_events
+  fields:
+    - name: createdAt
+      type: Timestamptz
+      description: New value for hdb_catalog.hdb_cron_events.created_at
+    - name: id
+      type: String_1!
+      description: New value for hdb_catalog.hdb_cron_events.id
+    - name: nextRetryAt
+      type: Timestamptz
+      description: New value for hdb_catalog.hdb_cron_events.next_retry_at
+    - name: scheduledTime
+      type: Timestamptz!
+      description: New value for hdb_catalog.hdb_cron_events.scheduled_time
+    - name: status
+      type: String_1!
+      description: New value for hdb_catalog.hdb_cron_events.status
+    - name: tries
+      type: Int32!
+      description: New value for hdb_catalog.hdb_cron_events.tries
+    - name: triggerName
+      type: String_1!
+      description: New value for hdb_catalog.hdb_cron_events.trigger_name
+  graphql:
+    typeName: HdbCatalogHdbCronEventsInsertInput
+    inputTypeName: HdbCatalogHdbCronEventsInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: hdb_catalog.hdb_cron_events_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        nextRetryAt:
+          column:
+            name: next_retry_at
+        scheduledTime:
+          column:
+            name: scheduled_time
+        status:
+          column:
+            name: status
+        tries:
+          column:
+            name: tries
+        triggerName:
+          column:
+            name: trigger_name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: HdbCatalogHdbCronEventsInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - id
+          - nextRetryAt
+          - scheduledTime
+          - status
+          - tries
+          - triggerName
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertHdbCatalogHdbCronEventsResult
+  description: insert from hdb_catalog.hdb_cron_events result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbCronEvents!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertHdbCatalogHdbCronEventsResult
+    inputTypeName: InsertHdbCatalogHdbCronEventsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_hdb_catalog.hdb_cron_events_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertHdbCatalogHdbCronEventsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertHdbCatalogHdbCronEvents
+  outputType: InsertHdbCatalogHdbCronEventsResult!
+  arguments:
+    - name: objects
+      type: "[HdbCatalogHdbCronEventsInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_hdb_catalog.hdb_cron_events
+  graphql:
+    rootFieldName: insertHdbCatalogHdbCronEvents
+    rootFieldKind: Mutation
+  description: Insert into hdb_catalog.hdb_cron_events
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertHdbCatalogHdbCronEvents
+  permissions:
+    - role: admin
+      allowExecution: true
+

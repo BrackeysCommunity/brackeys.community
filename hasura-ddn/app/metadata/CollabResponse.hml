@@ -1,0 +1,288 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabResponse
+  fields:
+    - name: contactInfo
+      type: String_1
+    - name: createdAt
+      type: Timestamp!
+    - name: id
+      type: String_1!
+    - name: isHidden
+      type: Boolean_1!
+    - name: isPublic
+      type: Boolean_1!
+    - name: isRead
+      type: Boolean_1!
+    - name: message
+      type: String_1!
+    - name: postId
+      type: String_1!
+    - name: profileId
+      type: String_1!
+    - name: readAt
+      type: Timestamp
+  graphql:
+    typeName: CollabResponse
+    inputTypeName: CollabResponseInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.response
+      fieldMapping:
+        contactInfo:
+          column:
+            name: contact_info
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        isHidden:
+          column:
+            name: is_hidden
+        isPublic:
+          column:
+            name: is_public
+        isRead:
+          column:
+            name: is_read
+        message:
+          column:
+            name: message
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        readAt:
+          column:
+            name: read_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabResponse
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - contactInfo
+          - createdAt
+          - id
+          - isHidden
+          - isPublic
+          - isRead
+          - message
+          - postId
+          - profileId
+          - readAt
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabResponseBoolExp
+  operand:
+    object:
+      type: CollabResponse
+      comparableFields:
+        - fieldName: contactInfo
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: isHidden
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: isPublic
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: isRead
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: message
+          booleanExpressionType: TextBoolExp
+        - fieldName: postId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: profileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: readAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabResponseBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabResponseAggExp
+  operand:
+    object:
+      aggregatedType: CollabResponse
+      aggregatableFields:
+        - fieldName: contactInfo
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: isHidden
+          aggregateExpression: BooleanAggExp
+        - fieldName: isPublic
+          aggregateExpression: BooleanAggExp
+        - fieldName: isRead
+          aggregateExpression: BooleanAggExp
+        - fieldName: message
+          aggregateExpression: TextAggExp
+        - fieldName: postId
+          aggregateExpression: UuidAggExp
+        - fieldName: profileId
+          aggregateExpression: UuidAggExp
+        - fieldName: readAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabResponseAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabResponseOrderByExp
+  operand:
+    object:
+      orderedType: CollabResponse
+      orderableFields:
+        - fieldName: contactInfo
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: isHidden
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: isPublic
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: isRead
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: message
+          orderByExpression: String1OrderByExp
+        - fieldName: postId
+          orderByExpression: String1OrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+        - fieldName: readAt
+          orderByExpression: TimestampOrderByExp
+      orderableRelationships:
+        - relationshipName: collabPost
+        - relationshipName: collabProfile
+  graphql:
+    expressionTypeName: CollabResponseOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabResponse
+  objectType: CollabResponse
+  source:
+    dataConnectorName: postgres
+    collection: collab.response
+  filterExpressionType: CollabResponseBoolExp
+  aggregateExpression: CollabResponseAggExp
+  orderByExpression: CollabResponseOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabResponse
+      subscription:
+        rootField: collabResponse
+    selectUniques:
+      - queryRootField: collabResponseById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabResponseById
+    filterInputTypeName: CollabResponseFilterInput
+    aggregate:
+      queryRootField: collabResponseAggregate
+      subscription:
+        rootField: collabResponseAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabResponse
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabReports
+  sourceType: CollabResponse
+  target:
+    model:
+      name: CollabReport
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabReportAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: responseId
+  graphql:
+    aggregateFieldName: collabReportsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPost
+  sourceType: CollabResponse
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: postId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabProfile
+  sourceType: CollabResponse
+  target:
+    model:
+      name: CollabProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profileId
+      target:
+        modelField:
+          - fieldName: id
+

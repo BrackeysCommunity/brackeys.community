@@ -1,0 +1,263 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabPostSearchInsertInput
+  description: Input type for inserting into collab.post_search
+  fields:
+    - name: authorDisplayName
+      type: String_1
+      description: New value for collab.post_search.author_display_name
+    - name: authorIsBlocked
+      type: Boolean_1
+      description: New value for collab.post_search.author_is_blocked
+    - name: authorIsPublic
+      type: Boolean_1
+      description: New value for collab.post_search.author_is_public
+    - name: authorUserId
+      type: Int64
+      description: New value for collab.post_search.author_user_id
+    - name: createdAt
+      type: Timestamp
+      description: New value for collab.post_search.created_at
+    - name: deletedAt
+      type: Timestamp
+      description: New value for collab.post_search.deleted_at
+    - name: discordChannelId
+      type: Int64
+      description: New value for collab.post_search.discord_channel_id
+    - name: discordMessageId
+      type: Int64
+      description: New value for collab.post_search.discord_message_id
+    - name: expiresAt
+      type: Timestamp
+      description: New value for collab.post_search.expires_at
+    - name: fieldValuesText
+      type: String_1
+      description: New value for collab.post_search.field_values_text
+    - name: guildId
+      type: Int64
+      description: New value for collab.post_search.guild_id
+    - name: hiringStatusId
+      type: Int32
+      description: New value for collab.post_search.hiring_status_id
+    - name: id
+      type: String_1
+      description: New value for collab.post_search.id
+    - name: isDeleted
+      type: Boolean_1
+      description: New value for collab.post_search.is_deleted
+    - name: isHighlighted
+      type: Boolean_1
+      description: New value for collab.post_search.is_highlighted
+    - name: postedAt
+      type: Timestamp
+      description: New value for collab.post_search.posted_at
+    - name: profileId
+      type: String_1
+      description: New value for collab.post_search.profile_id
+    - name: responseCount
+      type: Int32
+      description: New value for collab.post_search.response_count
+    - name: statusId
+      type: Int32
+      description: New value for collab.post_search.status_id
+    - name: tags
+      type: String_1
+      description: New value for collab.post_search.tags
+    - name: tagsText
+      type: String_1
+      description: New value for collab.post_search.tags_text
+    - name: typeId
+      type: Int32
+      description: New value for collab.post_search.type_id
+    - name: updatedAt
+      type: Timestamp
+      description: New value for collab.post_search.updated_at
+    - name: viewCount
+      type: Int32
+      description: New value for collab.post_search.view_count
+  graphql:
+    typeName: CollabPostSearchInsertInput
+    inputTypeName: CollabPostSearchInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.post_search_insert_input
+      fieldMapping:
+        authorDisplayName:
+          column:
+            name: author_display_name
+        authorIsBlocked:
+          column:
+            name: author_is_blocked
+        authorIsPublic:
+          column:
+            name: author_is_public
+        authorUserId:
+          column:
+            name: author_user_id
+        createdAt:
+          column:
+            name: created_at
+        deletedAt:
+          column:
+            name: deleted_at
+        discordChannelId:
+          column:
+            name: discord_channel_id
+        discordMessageId:
+          column:
+            name: discord_message_id
+        expiresAt:
+          column:
+            name: expires_at
+        fieldValuesText:
+          column:
+            name: field_values_text
+        guildId:
+          column:
+            name: guild_id
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isDeleted:
+          column:
+            name: is_deleted
+        isHighlighted:
+          column:
+            name: is_highlighted
+        postedAt:
+          column:
+            name: posted_at
+        profileId:
+          column:
+            name: profile_id
+        responseCount:
+          column:
+            name: response_count
+        statusId:
+          column:
+            name: status_id
+        tags:
+          column:
+            name: tags
+        tagsText:
+          column:
+            name: tags_text
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabPostSearchInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - authorDisplayName
+          - authorIsBlocked
+          - authorIsPublic
+          - authorUserId
+          - createdAt
+          - deletedAt
+          - discordChannelId
+          - discordMessageId
+          - expiresAt
+          - fieldValuesText
+          - guildId
+          - hiringStatusId
+          - id
+          - isDeleted
+          - isHighlighted
+          - postedAt
+          - profileId
+          - responseCount
+          - statusId
+          - tags
+          - tagsText
+          - typeId
+          - updatedAt
+          - viewCount
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabPostSearchResult
+  description: insert from collab.post_search result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabPostSearch!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabPostSearchResult
+    inputTypeName: InsertCollabPostSearchResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.post_search_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabPostSearchResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabPostSearch
+  outputType: InsertCollabPostSearchResult!
+  arguments:
+    - name: objects
+      type: "[CollabPostSearchInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.post_search
+  graphql:
+    rootFieldName: insertCollabPostSearch
+    rootFieldKind: Mutation
+  description: Insert into collab.post_search
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabPostSearch
+  permissions:
+    - role: admin
+      allowExecution: true
+

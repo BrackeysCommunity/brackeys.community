@@ -1,0 +1,39 @@
+---
+kind: Command
+version: v1
+definition:
+  name: CopyStorageObject
+  outputType: StorageUploadInfo!
+  arguments:
+    - name: clientId
+      type: Enum
+    - name: dest
+      type: StorageCopyDestOptions!
+    - name: source
+      type: StorageCopySrcOptions!
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: copy_storage_object
+    argumentMapping:
+      clientId: client_id
+      dest: dest
+      source: source
+  graphql:
+    rootFieldName: copyStorageObject
+    rootFieldKind: Mutation
+  description: creates or replaces an object through server-side copying of an
+    existing object. It supports conditional copying, copying a part of an
+    object and server-side encryption of destination and decryption of source.
+    To copy multiple source objects into a single destination object see the
+    ComposeObject API.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: CopyStorageObject
+  permissions:
+    - role: admin
+      allowExecution: true
+

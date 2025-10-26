@@ -1,0 +1,172 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabAlertInsertInput
+  description: Input type for inserting into collab.alert
+  fields:
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.alert.created_at
+    - name: guildId
+      type: Int64!
+      description: New value for collab.alert.guild_id
+    - name: hiringStatusId
+      type: Int32
+      description: New value for collab.alert.hiring_status_id
+    - name: id
+      type: String_1!
+      description: New value for collab.alert.id
+    - name: isActive
+      type: Boolean_1!
+      description: New value for collab.alert.is_active
+    - name: keywords
+      type: String_1
+      description: New value for collab.alert.keywords
+    - name: lastNotifiedAt
+      type: Timestamp
+      description: New value for collab.alert.last_notified_at
+    - name: name
+      type: String_1!
+      description: New value for collab.alert.name
+    - name: profileId
+      type: String_1!
+      description: New value for collab.alert.profile_id
+    - name: tags
+      type: String_1
+      description: New value for collab.alert.tags
+    - name: typeId
+      type: Int32
+      description: New value for collab.alert.type_id
+  graphql:
+    typeName: CollabAlertInsertInput
+    inputTypeName: CollabAlertInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.alert_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        guildId:
+          column:
+            name: guild_id
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isActive:
+          column:
+            name: is_active
+        keywords:
+          column:
+            name: keywords
+        lastNotifiedAt:
+          column:
+            name: last_notified_at
+        name:
+          column:
+            name: name
+        profileId:
+          column:
+            name: profile_id
+        tags:
+          column:
+            name: tags
+        typeId:
+          column:
+            name: type_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabAlertInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - guildId
+          - hiringStatusId
+          - id
+          - isActive
+          - keywords
+          - lastNotifiedAt
+          - name
+          - profileId
+          - tags
+          - typeId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabAlertResult
+  description: insert from collab.alert result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabAlert!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabAlertResult
+    inputTypeName: InsertCollabAlertResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.alert_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabAlertResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabAlert
+  outputType: InsertCollabAlertResult!
+  arguments:
+    - name: objects
+      type: "[CollabAlertInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.alert
+  graphql:
+    rootFieldName: insertCollabAlert
+    rootFieldKind: Mutation
+  description: Insert into collab.alert
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabAlert
+  permissions:
+    - role: admin
+      allowExecution: true
+

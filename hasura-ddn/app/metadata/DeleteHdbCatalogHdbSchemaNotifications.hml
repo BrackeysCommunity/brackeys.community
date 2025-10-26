@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteHdbCatalogHdbSchemaNotificationsResult
+  description: delete from hdb_catalog.hdb_schema_notifications result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbSchemaNotifications!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteHdbCatalogHdbSchemaNotificationsResult
+    inputTypeName: DeleteHdbCatalogHdbSchemaNotificationsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_hdb_catalog.hdb_schema_notifications_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteHdbCatalogHdbSchemaNotificationsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteHdbCatalogHdbSchemaNotifications
+  outputType: DeleteHdbCatalogHdbSchemaNotificationsResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: HdbCatalogHdbSchemaNotificationsBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_hdb_catalog.hdb_schema_notifications
+  graphql:
+    rootFieldName: deleteHdbCatalogHdbSchemaNotifications
+    rootFieldKind: Mutation
+  description: Delete from hdb_catalog.hdb_schema_notifications
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteHdbCatalogHdbSchemaNotifications
+  permissions:
+    - role: admin
+      allowExecution: true
+

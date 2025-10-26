@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabHiringStatusResult
+  description: delete from collab.hiring_status result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabHiringStatus!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabHiringStatusResult
+    inputTypeName: DeleteCollabHiringStatusResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.hiring_status_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabHiringStatusResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabHiringStatus
+  outputType: DeleteCollabHiringStatusResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabHiringStatusBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.hiring_status
+  graphql:
+    rootFieldName: deleteCollabHiringStatus
+    rootFieldKind: Mutation
+  description: Delete from collab.hiring_status
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabHiringStatus
+  permissions:
+    - role: admin
+      allowExecution: true
+

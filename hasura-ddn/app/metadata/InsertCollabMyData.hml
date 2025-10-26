@@ -1,0 +1,158 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabMyDataInsertInput
+  description: Input type for inserting into collab.my_data
+  fields:
+    - name: activePosts
+      type: Int64
+      description: New value for collab.my_data.active_posts
+    - name: guildId
+      type: Int64
+      description: New value for collab.my_data.guild_id
+    - name: isBlocked
+      type: Boolean_1
+      description: New value for collab.my_data.is_blocked
+    - name: profileId
+      type: String_1
+      description: New value for collab.my_data.profile_id
+    - name: profileIsPublic
+      type: Boolean_1
+      description: New value for collab.my_data.profile_is_public
+    - name: totalPosts
+      type: Int64
+      description: New value for collab.my_data.total_posts
+    - name: totalResponses
+      type: Int64
+      description: New value for collab.my_data.total_responses
+    - name: unreadResponses
+      type: Int64
+      description: New value for collab.my_data.unread_responses
+    - name: userId
+      type: Int64
+      description: New value for collab.my_data.user_id
+  graphql:
+    typeName: CollabMyDataInsertInput
+    inputTypeName: CollabMyDataInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.my_data_insert_input
+      fieldMapping:
+        activePosts:
+          column:
+            name: active_posts
+        guildId:
+          column:
+            name: guild_id
+        isBlocked:
+          column:
+            name: is_blocked
+        profileId:
+          column:
+            name: profile_id
+        profileIsPublic:
+          column:
+            name: profile_is_public
+        totalPosts:
+          column:
+            name: total_posts
+        totalResponses:
+          column:
+            name: total_responses
+        unreadResponses:
+          column:
+            name: unread_responses
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabMyDataInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - activePosts
+          - guildId
+          - isBlocked
+          - profileId
+          - profileIsPublic
+          - totalPosts
+          - totalResponses
+          - unreadResponses
+          - userId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabMyDataResult
+  description: insert from collab.my_data result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabMyData!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabMyDataResult
+    inputTypeName: InsertCollabMyDataResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.my_data_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabMyDataResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabMyData
+  outputType: InsertCollabMyDataResult!
+  arguments:
+    - name: objects
+      type: "[CollabMyDataInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.my_data
+  graphql:
+    rootFieldName: insertCollabMyData
+    rootFieldKind: Mutation
+  description: Insert into collab.my_data
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabMyData
+  permissions:
+    - role: admin
+      allowExecution: true
+

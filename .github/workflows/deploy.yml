@@ -1,0 +1,73 @@
+name: Deploy to Hetzner VPS via Portainer
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run linter
+        run: bun run lint
+
+      - name: Run tests
+        run: bun run test
+
+  deploy:
+    name: Deploy via Portainer
+    runs-on: ubuntu-latest
+    needs: test
+    environment:
+      name: production
+      url: https://your-domain.com
+    steps:
+      - name: Trigger Portainer webhook
+        run: |
+          echo "🚀 Triggering Portainer deployment..."
+          curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
+          echo "✅ Webhook triggered successfully"
+
+      - name: Wait for deployment
+        run: |
+          echo "⏳ Waiting for Portainer to pull, build, and deploy..."
+          sleep 45
+
+      - name: Health check
+        run: |
+          echo "🏥 Running health checks..."
+          for i in {1..10}; do
+            if curl -f https://your-domain.com/health 2>/dev/null; then
+              echo "✅ Health check passed - Application is live!"
+              exit 0
+            fi
+            echo "⏳ Health check attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Health check failed after 10 attempts"
+          exit 1
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo "📦 Portainer pulled latest code from GitHub"
+          echo "🔨 Built Docker images"
+          echo "🗄️  Ran Flyway migrations"
+          echo "🚀 Deployed new containers"
+          echo "✅ Health checks passed"
+

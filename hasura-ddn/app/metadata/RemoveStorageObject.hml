@@ -1,0 +1,50 @@
+---
+kind: Command
+version: v1
+definition:
+  name: RemoveStorageObject
+  outputType: SuccessResponse!
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: forceDelete
+      type: Boolean
+    - name: governanceBypass
+      type: Boolean
+    - name: name
+      type: String!
+    - name: softDelete
+      type: Boolean
+    - name: versionId
+      type: String
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: remove_storage_object
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      forceDelete: force_delete
+      governanceBypass: governance_bypass
+      name: name
+      softDelete: soft_delete
+      versionId: version_id
+      where: where
+  graphql:
+    rootFieldName: removeStorageObject
+    rootFieldKind: Mutation
+  description: removes an object with some specified options.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: RemoveStorageObject
+  permissions:
+    - role: admin
+      allowExecution: true
+

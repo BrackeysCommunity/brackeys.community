@@ -1,0 +1,156 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabStatus
+  fields:
+    - name: description
+      type: String_1
+    - name: id
+      type: Int32!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: CollabStatus
+    inputTypeName: CollabStatusInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.status
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabStatus
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabStatusBoolExp
+  operand:
+    object:
+      type: CollabStatus
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: name
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabStatusBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabStatusAggExp
+  operand:
+    object:
+      aggregatedType: CollabStatus
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: IntegerAggExp
+        - fieldName: name
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabStatusAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabStatusOrderByExp
+  operand:
+    object:
+      orderedType: CollabStatus
+      orderableFields:
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: Int32OrderByExp
+        - fieldName: name
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabStatusOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabStatus
+  objectType: CollabStatus
+  source:
+    dataConnectorName: postgres
+    collection: collab.status
+  filterExpressionType: CollabStatusBoolExp
+  aggregateExpression: CollabStatusAggExp
+  orderByExpression: CollabStatusOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabStatus
+      subscription:
+        rootField: collabStatus
+    selectUniques:
+      - queryRootField: collabStatusById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabStatusById
+    filterInputTypeName: CollabStatusFilterInput
+    aggregate:
+      queryRootField: collabStatusAggregate
+      subscription:
+        rootField: collabStatusAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabStatus
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPosts
+  sourceType: CollabStatus
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabPostAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: statusId
+  graphql:
+    aggregateFieldName: collabPostsAggregate
+

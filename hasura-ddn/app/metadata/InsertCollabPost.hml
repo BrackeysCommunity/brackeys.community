@@ -1,0 +1,221 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabPostInsertInput
+  description: Input type for inserting into collab.post
+  fields:
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.post.created_at
+    - name: deletedAt
+      type: Timestamp
+      description: New value for collab.post.deleted_at
+    - name: discordChannelId
+      type: Int64
+      description: New value for collab.post.discord_channel_id
+    - name: discordMessageId
+      type: Int64
+      description: New value for collab.post.discord_message_id
+    - name: expiresAt
+      type: Timestamp
+      description: New value for collab.post.expires_at
+    - name: guildId
+      type: Int64!
+      description: New value for collab.post.guild_id
+    - name: hiringStatusId
+      type: Int32!
+      description: New value for collab.post.hiring_status_id
+    - name: id
+      type: String_1!
+      description: New value for collab.post.id
+    - name: isDeleted
+      type: Boolean_1
+      description: New value for collab.post.is_deleted
+    - name: isHighlighted
+      type: Boolean_1!
+      description: New value for collab.post.is_highlighted
+    - name: postedAt
+      type: Timestamp
+      description: New value for collab.post.posted_at
+    - name: profileId
+      type: String_1!
+      description: New value for collab.post.profile_id
+    - name: responseCount
+      type: Int32!
+      description: New value for collab.post.response_count
+    - name: statusId
+      type: Int32!
+      description: New value for collab.post.status_id
+    - name: tags
+      type: String_1
+      description: New value for collab.post.tags
+    - name: typeId
+      type: Int32!
+      description: New value for collab.post.type_id
+    - name: updatedAt
+      type: Timestamp!
+      description: New value for collab.post.updated_at
+    - name: viewCount
+      type: Int32!
+      description: New value for collab.post.view_count
+  graphql:
+    typeName: CollabPostInsertInput
+    inputTypeName: CollabPostInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.post_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        deletedAt:
+          column:
+            name: deleted_at
+        discordChannelId:
+          column:
+            name: discord_channel_id
+        discordMessageId:
+          column:
+            name: discord_message_id
+        expiresAt:
+          column:
+            name: expires_at
+        guildId:
+          column:
+            name: guild_id
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isDeleted:
+          column:
+            name: is_deleted
+        isHighlighted:
+          column:
+            name: is_highlighted
+        postedAt:
+          column:
+            name: posted_at
+        profileId:
+          column:
+            name: profile_id
+        responseCount:
+          column:
+            name: response_count
+        statusId:
+          column:
+            name: status_id
+        tags:
+          column:
+            name: tags
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabPostInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - deletedAt
+          - discordChannelId
+          - discordMessageId
+          - expiresAt
+          - guildId
+          - hiringStatusId
+          - id
+          - isDeleted
+          - isHighlighted
+          - postedAt
+          - profileId
+          - responseCount
+          - statusId
+          - tags
+          - typeId
+          - updatedAt
+          - viewCount
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabPostResult
+  description: insert from collab.post result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabPost!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabPostResult
+    inputTypeName: InsertCollabPostResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.post_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabPostResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabPost
+  outputType: InsertCollabPostResult!
+  arguments:
+    - name: objects
+      type: "[CollabPostInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.post
+  graphql:
+    rootFieldName: insertCollabPost
+    rootFieldKind: Mutation
+  description: Insert into collab.post
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabPost
+  permissions:
+    - role: admin
+      allowExecution: true
+

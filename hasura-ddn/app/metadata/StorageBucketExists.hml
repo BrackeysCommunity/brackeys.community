@@ -1,0 +1,62 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ExistsResponse
+  description: represents a common existing response structure.
+  fields:
+    - name: exists
+      type: Boolean!
+  graphql:
+    typeName: ExistsResponse
+    inputTypeName: ExistsResponseInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ExistsResponse
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ExistsResponse
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - exists
+
+---
+kind: Command
+version: v1
+definition:
+  name: StorageBucketExists
+  outputType: ExistsResponse!
+  arguments:
+    - name: clientId
+      type: Enum
+    - name: name
+      type: String!
+    - name: where
+      type: StorageBucketFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: storage_bucket_exists
+    argumentMapping:
+      clientId: client_id
+      name: name
+      where: where
+  graphql:
+    rootFieldName: storageBucketExists
+    rootFieldKind: Query
+  description: checks if a bucket exists.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: StorageBucketExists
+  permissions:
+    - role: admin
+      allowExecution: true
+

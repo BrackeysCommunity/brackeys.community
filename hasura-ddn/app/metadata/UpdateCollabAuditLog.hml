@@ -1,0 +1,154 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabAuditLogSetInput
+  description: Input type for updating collab.audit_log
+  fields:
+    - name: action
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.audit_log.action
+    - name: createdAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.audit_log.created_at
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.audit_log.id
+    - name: metadata
+      type: JsonbSetInput
+      description: New value wrapper for collab.audit_log.metadata
+    - name: postId
+      type: UuidSetInput
+      description: New value wrapper for collab.audit_log.post_id
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.audit_log.profile_id
+    - name: reason
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.audit_log.reason
+    - name: staffMemberId
+      type: BigintSetInput
+      description: New value wrapper for collab.audit_log.staff_member_id
+  graphql:
+    typeName: CollabAuditLogSetInput
+    inputTypeName: CollabAuditLogSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.audit_log_set_input
+      fieldMapping:
+        action:
+          column:
+            name: action
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        metadata:
+          column:
+            name: metadata
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        reason:
+          column:
+            name: reason
+        staffMemberId:
+          column:
+            name: staff_member_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabAuditLogSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - action
+          - createdAt
+          - id
+          - metadata
+          - postId
+          - profileId
+          - reason
+          - staffMemberId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabAuditLogResult
+  description: update from collab.audit_log result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabAuditLog!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabAuditLogResult
+    inputTypeName: UpdateCollabAuditLogResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.audit_log_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabAuditLogResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabAuditLog
+  outputType: UpdateCollabAuditLogResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabAuditLogSetInput!
+      description: Values to set
+    - name: where
+      type: CollabAuditLogBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.audit_log
+  graphql:
+    rootFieldName: updateCollabAuditLog
+    rootFieldKind: Mutation
+  description: Update collab.audit_log
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabAuditLog
+  permissions:
+    - role: admin
+      allowExecution: true
+

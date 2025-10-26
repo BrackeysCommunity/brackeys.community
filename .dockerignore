@@ -1,0 +1,68 @@
+# Dependencies
+node_modules
+bun.lockb.bin
+
+# Build outputs
+dist
+.output
+.vinxi
+
+# Development
+.git
+.github
+.vscode
+.idea
+.cursor
+
+# Documentation
+*.md
+docs
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+coverage
+.nyc_output
+*.test.*
+*.spec.*
+__tests__
+__mocks__
+
+# Misc
+.DS_Store
+Thumbs.db
+.cache
+tmp
+temp
+
+# Flyway (migrations run separately)
+flyway
+
+# Hasura (not needed in app container)
+hasura
+hasura-ddn
+
+# Database files
+*.sql
+*.db
+*.sqlite
+
+# Storybook
+.storybook
+storybook-static
+*.stories.*
+
+# SpacetimeDB (if running separately)
+spacetime-db
+

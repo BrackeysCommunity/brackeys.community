@@ -1,0 +1,324 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabFieldDefinition
+  fields:
+    - name: displayName
+      type: String_1!
+    - name: fieldName
+      type: String_1!
+    - name: fieldOrder
+      type: Int32!
+    - name: fieldType
+      type: String_1!
+    - name: helpText
+      type: String_1
+    - name: hiringStatusId
+      type: Int32!
+    - name: id
+      type: String_1!
+    - name: isRequired
+      type: Boolean_1!
+    - name: isSearchable
+      type: Boolean_1!
+    - name: maxLength
+      type: Int32
+    - name: options
+      type: String_1
+    - name: typeId
+      type: Int32!
+    - name: validationRegex
+      type: String_1
+  graphql:
+    typeName: CollabFieldDefinition
+    inputTypeName: CollabFieldDefinitionInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.field_definition
+      fieldMapping:
+        displayName:
+          column:
+            name: display_name
+        fieldName:
+          column:
+            name: field_name
+        fieldOrder:
+          column:
+            name: field_order
+        fieldType:
+          column:
+            name: field_type
+        helpText:
+          column:
+            name: help_text
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isRequired:
+          column:
+            name: is_required
+        isSearchable:
+          column:
+            name: is_searchable
+        maxLength:
+          column:
+            name: max_length
+        options:
+          column:
+            name: options
+        typeId:
+          column:
+            name: type_id
+        validationRegex:
+          column:
+            name: validation_regex
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabFieldDefinition
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - displayName
+          - fieldName
+          - fieldOrder
+          - fieldType
+          - helpText
+          - hiringStatusId
+          - id
+          - isRequired
+          - isSearchable
+          - maxLength
+          - options
+          - typeId
+          - validationRegex
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabFieldDefinitionBoolExp
+  operand:
+    object:
+      type: CollabFieldDefinition
+      comparableFields:
+        - fieldName: displayName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: fieldName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: fieldOrder
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: fieldType
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: helpText
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: hiringStatusId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: isRequired
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: isSearchable
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: maxLength
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: options
+          booleanExpressionType: JsonbBoolExp
+        - fieldName: typeId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: validationRegex
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabFieldDefinitionBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabFieldDefinitionAggExp
+  operand:
+    object:
+      aggregatedType: CollabFieldDefinition
+      aggregatableFields:
+        - fieldName: displayName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: fieldName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: fieldOrder
+          aggregateExpression: IntegerAggExp
+        - fieldName: fieldType
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: helpText
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: hiringStatusId
+          aggregateExpression: IntegerAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: isRequired
+          aggregateExpression: BooleanAggExp
+        - fieldName: isSearchable
+          aggregateExpression: BooleanAggExp
+        - fieldName: maxLength
+          aggregateExpression: IntegerAggExp
+        - fieldName: options
+          aggregateExpression: JsonbAggExp
+        - fieldName: typeId
+          aggregateExpression: IntegerAggExp
+        - fieldName: validationRegex
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabFieldDefinitionAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabFieldDefinitionOrderByExp
+  operand:
+    object:
+      orderedType: CollabFieldDefinition
+      orderableFields:
+        - fieldName: displayName
+          orderByExpression: String1OrderByExp
+        - fieldName: fieldName
+          orderByExpression: String1OrderByExp
+        - fieldName: fieldOrder
+          orderByExpression: Int32OrderByExp
+        - fieldName: fieldType
+          orderByExpression: String1OrderByExp
+        - fieldName: helpText
+          orderByExpression: String1OrderByExp
+        - fieldName: hiringStatusId
+          orderByExpression: Int32OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: isRequired
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: isSearchable
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: maxLength
+          orderByExpression: Int32OrderByExp
+        - fieldName: options
+          orderByExpression: String1OrderByExp
+        - fieldName: typeId
+          orderByExpression: Int32OrderByExp
+        - fieldName: validationRegex
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: collabHiringStatus
+        - relationshipName: collabType
+  graphql:
+    expressionTypeName: CollabFieldDefinitionOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabFieldDefinition
+  objectType: CollabFieldDefinition
+  source:
+    dataConnectorName: postgres
+    collection: collab.field_definition
+  filterExpressionType: CollabFieldDefinitionBoolExp
+  aggregateExpression: CollabFieldDefinitionAggExp
+  orderByExpression: CollabFieldDefinitionOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabFieldDefinition
+      subscription:
+        rootField: collabFieldDefinition
+    selectUniques:
+      - queryRootField: collabFieldDefinitionById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabFieldDefinitionById
+    filterInputTypeName: CollabFieldDefinitionFilterInput
+    aggregate:
+      queryRootField: collabFieldDefinitionAggregate
+      subscription:
+        rootField: collabFieldDefinitionAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabFieldDefinition
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabHiringStatus
+  sourceType: CollabFieldDefinition
+  target:
+    model:
+      name: CollabHiringStatus
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: hiringStatusId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabType
+  sourceType: CollabFieldDefinition
+  target:
+    model:
+      name: CollabType
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: typeId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabFieldValues
+  sourceType: CollabFieldDefinition
+  target:
+    model:
+      name: CollabFieldValue
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabFieldValueAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: fieldDefinitionId
+  graphql:
+    aggregateFieldName: collabFieldValuesAggregate
+

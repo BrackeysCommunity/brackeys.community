@@ -1,0 +1,179 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabReportInsertInput
+  description: Input type for inserting into collab.report
+  fields:
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.report.created_at
+    - name: details
+      type: String_1
+      description: New value for collab.report.details
+    - name: id
+      type: String_1!
+      description: New value for collab.report.id
+    - name: postId
+      type: String_1
+      description: New value for collab.report.post_id
+    - name: reason
+      type: String_1!
+      description: New value for collab.report.reason
+    - name: reportedByProfileId
+      type: String_1!
+      description: New value for collab.report.reported_by_profile_id
+    - name: reportedProfileId
+      type: String_1!
+      description: New value for collab.report.reported_profile_id
+    - name: resolution
+      type: String_1
+      description: New value for collab.report.resolution
+    - name: resolvedAt
+      type: Timestamp
+      description: New value for collab.report.resolved_at
+    - name: resolvedByStaffId
+      type: Int64
+      description: New value for collab.report.resolved_by_staff_id
+    - name: responseId
+      type: String_1
+      description: New value for collab.report.response_id
+    - name: violatedRuleId
+      type: String_1
+      description: New value for collab.report.violated_rule_id
+  graphql:
+    typeName: CollabReportInsertInput
+    inputTypeName: CollabReportInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.report_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        details:
+          column:
+            name: details
+        id:
+          column:
+            name: id
+        postId:
+          column:
+            name: post_id
+        reason:
+          column:
+            name: reason
+        reportedByProfileId:
+          column:
+            name: reported_by_profile_id
+        reportedProfileId:
+          column:
+            name: reported_profile_id
+        resolution:
+          column:
+            name: resolution
+        resolvedAt:
+          column:
+            name: resolved_at
+        resolvedByStaffId:
+          column:
+            name: resolved_by_staff_id
+        responseId:
+          column:
+            name: response_id
+        violatedRuleId:
+          column:
+            name: violated_rule_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabReportInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - details
+          - id
+          - postId
+          - reason
+          - reportedByProfileId
+          - reportedProfileId
+          - resolution
+          - resolvedAt
+          - resolvedByStaffId
+          - responseId
+          - violatedRuleId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabReportResult
+  description: insert from collab.report result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabReport!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabReportResult
+    inputTypeName: InsertCollabReportResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.report_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabReportResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabReport
+  outputType: InsertCollabReportResult!
+  arguments:
+    - name: objects
+      type: "[CollabReportInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.report
+  graphql:
+    rootFieldName: insertCollabReport
+    rootFieldKind: Mutation
+  description: Insert into collab.report
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabReport
+  permissions:
+    - role: admin
+      allowExecution: true
+

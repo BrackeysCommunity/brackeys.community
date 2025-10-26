@@ -1,0 +1,168 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabResponseSetInput
+  description: Input type for updating collab.response
+  fields:
+    - name: contactInfo
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.response.contact_info
+    - name: createdAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.response.created_at
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.response.id
+    - name: isHidden
+      type: BooleanSetInput
+      description: New value wrapper for collab.response.is_hidden
+    - name: isPublic
+      type: BooleanSetInput
+      description: New value wrapper for collab.response.is_public
+    - name: isRead
+      type: BooleanSetInput
+      description: New value wrapper for collab.response.is_read
+    - name: message
+      type: TextSetInput
+      description: New value wrapper for collab.response.message
+    - name: postId
+      type: UuidSetInput
+      description: New value wrapper for collab.response.post_id
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.response.profile_id
+    - name: readAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.response.read_at
+  graphql:
+    typeName: CollabResponseSetInput
+    inputTypeName: CollabResponseSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.response_set_input
+      fieldMapping:
+        contactInfo:
+          column:
+            name: contact_info
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        isHidden:
+          column:
+            name: is_hidden
+        isPublic:
+          column:
+            name: is_public
+        isRead:
+          column:
+            name: is_read
+        message:
+          column:
+            name: message
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        readAt:
+          column:
+            name: read_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabResponseSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - contactInfo
+          - createdAt
+          - id
+          - isHidden
+          - isPublic
+          - isRead
+          - message
+          - postId
+          - profileId
+          - readAt
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabResponseResult
+  description: update from collab.response result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabResponse!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabResponseResult
+    inputTypeName: UpdateCollabResponseResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.response_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabResponseResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabResponse
+  outputType: UpdateCollabResponseResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabResponseSetInput!
+      description: Values to set
+    - name: where
+      type: CollabResponseBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.response
+  graphql:
+    rootFieldName: updateCollabResponse
+    rootFieldKind: Mutation
+  description: Update collab.response
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabResponse
+  permissions:
+    - role: admin
+      allowExecution: true
+

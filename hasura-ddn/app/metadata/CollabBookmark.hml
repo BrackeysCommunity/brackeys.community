@@ -1,0 +1,206 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabBookmark
+  fields:
+    - name: createdAt
+      type: Timestamp!
+    - name: id
+      type: String_1!
+    - name: notes
+      type: String_1
+    - name: postId
+      type: String_1!
+    - name: profileId
+      type: String_1!
+  graphql:
+    typeName: CollabBookmark
+    inputTypeName: CollabBookmarkInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.bookmark
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        notes:
+          column:
+            name: notes
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabBookmark
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - id
+          - notes
+          - postId
+          - profileId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabBookmarkBoolExp
+  operand:
+    object:
+      type: CollabBookmark
+      comparableFields:
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: notes
+          booleanExpressionType: TextBoolExp
+        - fieldName: postId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: profileId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabBookmarkBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabBookmarkAggExp
+  operand:
+    object:
+      aggregatedType: CollabBookmark
+      aggregatableFields:
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: notes
+          aggregateExpression: TextAggExp
+        - fieldName: postId
+          aggregateExpression: UuidAggExp
+        - fieldName: profileId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabBookmarkAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabBookmarkOrderByExp
+  operand:
+    object:
+      orderedType: CollabBookmark
+      orderableFields:
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: notes
+          orderByExpression: String1OrderByExp
+        - fieldName: postId
+          orderByExpression: String1OrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: collabPost
+        - relationshipName: collabProfile
+  graphql:
+    expressionTypeName: CollabBookmarkOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabBookmark
+  objectType: CollabBookmark
+  source:
+    dataConnectorName: postgres
+    collection: collab.bookmark
+  filterExpressionType: CollabBookmarkBoolExp
+  aggregateExpression: CollabBookmarkAggExp
+  orderByExpression: CollabBookmarkOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabBookmark
+      subscription:
+        rootField: collabBookmark
+    selectUniques:
+      - queryRootField: collabBookmarkById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabBookmarkById
+    filterInputTypeName: CollabBookmarkFilterInput
+    aggregate:
+      queryRootField: collabBookmarkAggregate
+      subscription:
+        rootField: collabBookmarkAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabBookmark
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPost
+  sourceType: CollabBookmark
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: postId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabProfile
+  sourceType: CollabBookmark
+  target:
+    model:
+      name: CollabProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profileId
+      target:
+        modelField:
+          - fieldName: id
+

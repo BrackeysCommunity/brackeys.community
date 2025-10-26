@@ -1,0 +1,399 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: TimestampWithoutTimeZoneSetInput
+  description: Wrapper for setting scalar timestamp_without_time_zone
+  fields:
+    - name: value
+      type: Timestamp
+      description: New value for scalar timestamp_without_time_zone
+  graphql:
+    typeName: TimestampWithoutTimeZoneSetInput
+    inputTypeName: TimestampWithoutTimeZoneSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: timestamp_without_time_zone_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: TimestampWithoutTimeZoneSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BigintSetInput
+  description: Wrapper for setting scalar bigint
+  fields:
+    - name: value
+      type: Int64
+      description: New value for scalar bigint
+  graphql:
+    typeName: BigintSetInput
+    inputTypeName: BigintSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: bigint_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BigintSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: IntegerSetInput
+  description: Wrapper for setting scalar integer
+  fields:
+    - name: value
+      type: Int32
+      description: New value for scalar integer
+  graphql:
+    typeName: IntegerSetInput
+    inputTypeName: IntegerSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: integer_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: IntegerSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UuidSetInput
+  description: Wrapper for setting scalar uuid
+  fields:
+    - name: value
+      type: String_1
+      description: New value for scalar uuid
+  graphql:
+    typeName: UuidSetInput
+    inputTypeName: UuidSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: uuid_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UuidSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BooleanSetInput
+  description: Wrapper for setting scalar boolean
+  fields:
+    - name: value
+      type: Boolean_1
+      description: New value for scalar boolean
+  graphql:
+    typeName: BooleanSetInput
+    inputTypeName: BooleanSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: boolean_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BooleanSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: TextSetInput
+  description: Wrapper for setting scalar text
+  fields:
+    - name: value
+      type: String_1
+      description: New value for scalar text
+  graphql:
+    typeName: TextSetInput
+    inputTypeName: TextSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: text_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: TextSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CharacterVaryingSetInput
+  description: Wrapper for setting scalar character_varying
+  fields:
+    - name: value
+      type: String_1
+      description: New value for scalar character_varying
+  graphql:
+    typeName: CharacterVaryingSetInput
+    inputTypeName: CharacterVaryingSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: character_varying_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CharacterVaryingSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: JsonbSetInput
+  description: Wrapper for setting scalar jsonb
+  fields:
+    - name: value
+      type: String_1
+      description: New value for scalar jsonb
+  graphql:
+    typeName: JsonbSetInput
+    inputTypeName: JsonbSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: jsonb_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: JsonbSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabAlertSetInput
+  description: Input type for updating collab.alert
+  fields:
+    - name: createdAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.alert.created_at
+    - name: guildId
+      type: BigintSetInput
+      description: New value wrapper for collab.alert.guild_id
+    - name: hiringStatusId
+      type: IntegerSetInput
+      description: New value wrapper for collab.alert.hiring_status_id
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.alert.id
+    - name: isActive
+      type: BooleanSetInput
+      description: New value wrapper for collab.alert.is_active
+    - name: keywords
+      type: TextSetInput
+      description: New value wrapper for collab.alert.keywords
+    - name: lastNotifiedAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.alert.last_notified_at
+    - name: name
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.alert.name
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.alert.profile_id
+    - name: tags
+      type: JsonbSetInput
+      description: New value wrapper for collab.alert.tags
+    - name: typeId
+      type: IntegerSetInput
+      description: New value wrapper for collab.alert.type_id
+  graphql:
+    typeName: CollabAlertSetInput
+    inputTypeName: CollabAlertSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.alert_set_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        guildId:
+          column:
+            name: guild_id
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isActive:
+          column:
+            name: is_active
+        keywords:
+          column:
+            name: keywords
+        lastNotifiedAt:
+          column:
+            name: last_notified_at
+        name:
+          column:
+            name: name
+        profileId:
+          column:
+            name: profile_id
+        tags:
+          column:
+            name: tags
+        typeId:
+          column:
+            name: type_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabAlertSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - guildId
+          - hiringStatusId
+          - id
+          - isActive
+          - keywords
+          - lastNotifiedAt
+          - name
+          - profileId
+          - tags
+          - typeId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabAlertResult
+  description: update from collab.alert result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabAlert!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabAlertResult
+    inputTypeName: UpdateCollabAlertResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.alert_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabAlertResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabAlert
+  outputType: UpdateCollabAlertResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabAlertSetInput!
+      description: Values to set
+    - name: where
+      type: CollabAlertBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.alert
+  graphql:
+    rootFieldName: updateCollabAlert
+    rootFieldKind: Mutation
+  description: Update collab.alert
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabAlert
+  permissions:
+    - role: admin
+      allowExecution: true
+

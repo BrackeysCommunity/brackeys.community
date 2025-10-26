@@ -1,0 +1,194 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabFieldValue
+  fields:
+    - name: fieldDefinitionId
+      type: String_1!
+    - name: id
+      type: String_1!
+    - name: postId
+      type: String_1!
+    - name: value
+      type: String_1!
+  graphql:
+    typeName: CollabFieldValue
+    inputTypeName: CollabFieldValueInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.field_value
+      fieldMapping:
+        fieldDefinitionId:
+          column:
+            name: field_definition_id
+        id:
+          column:
+            name: id
+        postId:
+          column:
+            name: post_id
+        value:
+          column:
+            name: value
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabFieldValue
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - fieldDefinitionId
+          - id
+          - postId
+          - value
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabFieldValueBoolExp
+  operand:
+    object:
+      type: CollabFieldValue
+      comparableFields:
+        - fieldName: fieldDefinitionId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: postId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: value
+          booleanExpressionType: TextBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabFieldValueBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabFieldValueAggExp
+  operand:
+    object:
+      aggregatedType: CollabFieldValue
+      aggregatableFields:
+        - fieldName: fieldDefinitionId
+          aggregateExpression: UuidAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: postId
+          aggregateExpression: UuidAggExp
+        - fieldName: value
+          aggregateExpression: TextAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabFieldValueAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabFieldValueOrderByExp
+  operand:
+    object:
+      orderedType: CollabFieldValue
+      orderableFields:
+        - fieldName: fieldDefinitionId
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: postId
+          orderByExpression: String1OrderByExp
+        - fieldName: value
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: collabFieldDefinition
+        - relationshipName: collabPost
+  graphql:
+    expressionTypeName: CollabFieldValueOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabFieldValue
+  objectType: CollabFieldValue
+  source:
+    dataConnectorName: postgres
+    collection: collab.field_value
+  filterExpressionType: CollabFieldValueBoolExp
+  aggregateExpression: CollabFieldValueAggExp
+  orderByExpression: CollabFieldValueOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabFieldValue
+      subscription:
+        rootField: collabFieldValue
+    selectUniques:
+      - queryRootField: collabFieldValueById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabFieldValueById
+    filterInputTypeName: CollabFieldValueFilterInput
+    aggregate:
+      queryRootField: collabFieldValueAggregate
+      subscription:
+        rootField: collabFieldValueAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabFieldValue
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabFieldDefinition
+  sourceType: CollabFieldValue
+  target:
+    model:
+      name: CollabFieldDefinition
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: fieldDefinitionId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPost
+  sourceType: CollabFieldValue
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: postId
+      target:
+        modelField:
+          - fieldName: id
+

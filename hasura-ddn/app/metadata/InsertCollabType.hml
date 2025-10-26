@@ -1,0 +1,106 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabTypeInsertInput
+  description: Input type for inserting into collab.type
+  fields:
+    - name: description
+      type: String_1
+      description: New value for collab.type.description
+    - name: id
+      type: Int32!
+      description: New value for collab.type.id
+    - name: name
+      type: String_1!
+      description: New value for collab.type.name
+  graphql:
+    typeName: CollabTypeInsertInput
+    inputTypeName: CollabTypeInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.type_insert_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabTypeInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabTypeResult
+  description: insert from collab.type result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabType!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabTypeResult
+    inputTypeName: InsertCollabTypeResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.type_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabTypeResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabType
+  outputType: InsertCollabTypeResult!
+  arguments:
+    - name: objects
+      type: "[CollabTypeInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.type
+  graphql:
+    rootFieldName: insertCollabType
+    rootFieldKind: Mutation
+  description: Insert into collab.type
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabType
+  permissions:
+    - role: admin
+      allowExecution: true
+

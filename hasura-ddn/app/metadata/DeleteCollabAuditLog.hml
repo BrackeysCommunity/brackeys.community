@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabAuditLogResult
+  description: delete from collab.audit_log result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabAuditLog!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabAuditLogResult
+    inputTypeName: DeleteCollabAuditLogResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.audit_log_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabAuditLogResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabAuditLog
+  outputType: DeleteCollabAuditLogResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabAuditLogBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.audit_log
+  graphql:
+    rootFieldName: deleteCollabAuditLog
+    rootFieldKind: Mutation
+  description: Delete from collab.audit_log
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabAuditLog
+  permissions:
+    - role: admin
+      allowExecution: true
+

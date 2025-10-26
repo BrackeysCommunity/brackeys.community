@@ -1,0 +1,158 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UsersUserInsertInput
+  description: Input type for inserting into users.user
+  fields:
+    - name: avatarUrl
+      type: String_1
+      description: New value for users.user.avatar_url
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for users.user.created_at
+    - name: discordId
+      type: String_1
+      description: New value for users.user.discord_id
+    - name: displayName
+      type: String_1
+      description: New value for users.user.display_name
+    - name: email
+      type: String_1!
+      description: New value for users.user.email
+    - name: id
+      type: String_1!
+      description: New value for users.user.id
+    - name: oryIdentityId
+      type: String_1!
+      description: New value for users.user.ory_identity_id
+    - name: updatedAt
+      type: Timestamptz!
+      description: New value for users.user.updated_at
+    - name: username
+      type: String_1
+      description: New value for users.user.username
+  graphql:
+    typeName: UsersUserInsertInput
+    inputTypeName: UsersUserInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: users.user_insert_input
+      fieldMapping:
+        avatarUrl:
+          column:
+            name: avatar_url
+        createdAt:
+          column:
+            name: created_at
+        discordId:
+          column:
+            name: discord_id
+        displayName:
+          column:
+            name: display_name
+        email:
+          column:
+            name: email
+        id:
+          column:
+            name: id
+        oryIdentityId:
+          column:
+            name: ory_identity_id
+        updatedAt:
+          column:
+            name: updated_at
+        username:
+          column:
+            name: username
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UsersUserInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - avatarUrl
+          - createdAt
+          - discordId
+          - displayName
+          - email
+          - id
+          - oryIdentityId
+          - updatedAt
+          - username
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertUsersUserResult
+  description: insert from users.user result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[UsersUser!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertUsersUserResult
+    inputTypeName: InsertUsersUserResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_users.user_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertUsersUserResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertUsersUser
+  outputType: InsertUsersUserResult!
+  arguments:
+    - name: objects
+      type: "[UsersUserInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_users.user
+  graphql:
+    rootFieldName: insertUsersUser
+    rootFieldKind: Mutation
+  description: Insert into users.user
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertUsersUser
+  permissions:
+    - role: admin
+      allowExecution: true
+

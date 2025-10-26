@@ -1,0 +1,123 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabFieldValueInsertInput
+  description: Input type for inserting into collab.field_value
+  fields:
+    - name: fieldDefinitionId
+      type: String_1!
+      description: New value for collab.field_value.field_definition_id
+    - name: id
+      type: String_1!
+      description: New value for collab.field_value.id
+    - name: postId
+      type: String_1!
+      description: New value for collab.field_value.post_id
+    - name: value
+      type: String_1!
+      description: New value for collab.field_value.value
+  graphql:
+    typeName: CollabFieldValueInsertInput
+    inputTypeName: CollabFieldValueInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.field_value_insert_input
+      fieldMapping:
+        fieldDefinitionId:
+          column:
+            name: field_definition_id
+        id:
+          column:
+            name: id
+        postId:
+          column:
+            name: post_id
+        value:
+          column:
+            name: value
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabFieldValueInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - fieldDefinitionId
+          - id
+          - postId
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabFieldValueResult
+  description: insert from collab.field_value result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabFieldValue!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabFieldValueResult
+    inputTypeName: InsertCollabFieldValueResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.field_value_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabFieldValueResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabFieldValue
+  outputType: InsertCollabFieldValueResult!
+  arguments:
+    - name: objects
+      type: "[CollabFieldValueInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.field_value
+  graphql:
+    rootFieldName: insertCollabFieldValue
+    rootFieldKind: Mutation
+  description: Insert into collab.field_value
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabFieldValue
+  permissions:
+    - role: admin
+      allowExecution: true
+

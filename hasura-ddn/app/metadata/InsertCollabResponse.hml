@@ -1,0 +1,165 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabResponseInsertInput
+  description: Input type for inserting into collab.response
+  fields:
+    - name: contactInfo
+      type: String_1
+      description: New value for collab.response.contact_info
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.response.created_at
+    - name: id
+      type: String_1!
+      description: New value for collab.response.id
+    - name: isHidden
+      type: Boolean_1!
+      description: New value for collab.response.is_hidden
+    - name: isPublic
+      type: Boolean_1!
+      description: New value for collab.response.is_public
+    - name: isRead
+      type: Boolean_1!
+      description: New value for collab.response.is_read
+    - name: message
+      type: String_1!
+      description: New value for collab.response.message
+    - name: postId
+      type: String_1!
+      description: New value for collab.response.post_id
+    - name: profileId
+      type: String_1!
+      description: New value for collab.response.profile_id
+    - name: readAt
+      type: Timestamp
+      description: New value for collab.response.read_at
+  graphql:
+    typeName: CollabResponseInsertInput
+    inputTypeName: CollabResponseInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.response_insert_input
+      fieldMapping:
+        contactInfo:
+          column:
+            name: contact_info
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        isHidden:
+          column:
+            name: is_hidden
+        isPublic:
+          column:
+            name: is_public
+        isRead:
+          column:
+            name: is_read
+        message:
+          column:
+            name: message
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        readAt:
+          column:
+            name: read_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabResponseInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - contactInfo
+          - createdAt
+          - id
+          - isHidden
+          - isPublic
+          - isRead
+          - message
+          - postId
+          - profileId
+          - readAt
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabResponseResult
+  description: insert from collab.response result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabResponse!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabResponseResult
+    inputTypeName: InsertCollabResponseResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.response_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabResponseResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabResponse
+  outputType: InsertCollabResponseResult!
+  arguments:
+    - name: objects
+      type: "[CollabResponseInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.response
+  graphql:
+    rootFieldName: insertCollabResponse
+    rootFieldKind: Mutation
+  description: Insert into collab.response
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabResponse
+  permissions:
+    - role: admin
+      allowExecution: true
+

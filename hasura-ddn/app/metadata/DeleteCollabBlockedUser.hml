@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabBlockedUserResult
+  description: delete from collab.blocked_user result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabBlockedUser!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabBlockedUserResult
+    inputTypeName: DeleteCollabBlockedUserResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.blocked_user_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabBlockedUserResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabBlockedUser
+  outputType: DeleteCollabBlockedUserResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabBlockedUserBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.blocked_user
+  graphql:
+    rootFieldName: deleteCollabBlockedUser
+    rootFieldKind: Mutation
+  description: Delete from collab.blocked_user
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabBlockedUser
+  permissions:
+    - role: admin
+      allowExecution: true
+

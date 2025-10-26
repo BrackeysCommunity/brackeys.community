@@ -1,0 +1,161 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UsersUserSetInput
+  description: Input type for updating users.user
+  fields:
+    - name: avatarUrl
+      type: TextSetInput
+      description: New value wrapper for users.user.avatar_url
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for users.user.created_at
+    - name: discordId
+      type: TextSetInput
+      description: New value wrapper for users.user.discord_id
+    - name: displayName
+      type: TextSetInput
+      description: New value wrapper for users.user.display_name
+    - name: email
+      type: TextSetInput
+      description: New value wrapper for users.user.email
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for users.user.id
+    - name: oryIdentityId
+      type: UuidSetInput
+      description: New value wrapper for users.user.ory_identity_id
+    - name: updatedAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for users.user.updated_at
+    - name: username
+      type: TextSetInput
+      description: New value wrapper for users.user.username
+  graphql:
+    typeName: UsersUserSetInput
+    inputTypeName: UsersUserSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: users.user_set_input
+      fieldMapping:
+        avatarUrl:
+          column:
+            name: avatar_url
+        createdAt:
+          column:
+            name: created_at
+        discordId:
+          column:
+            name: discord_id
+        displayName:
+          column:
+            name: display_name
+        email:
+          column:
+            name: email
+        id:
+          column:
+            name: id
+        oryIdentityId:
+          column:
+            name: ory_identity_id
+        updatedAt:
+          column:
+            name: updated_at
+        username:
+          column:
+            name: username
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UsersUserSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - avatarUrl
+          - createdAt
+          - discordId
+          - displayName
+          - email
+          - id
+          - oryIdentityId
+          - updatedAt
+          - username
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateUsersUserResult
+  description: update from users.user result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[UsersUser!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateUsersUserResult
+    inputTypeName: UpdateUsersUserResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_users.user_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateUsersUserResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateUsersUser
+  outputType: UpdateUsersUserResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: UsersUserSetInput!
+      description: Values to set
+    - name: where
+      type: UsersUserBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_users.user
+  graphql:
+    rootFieldName: updateUsersUser
+    rootFieldKind: Mutation
+  description: Update users.user
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateUsersUser
+  permissions:
+    - role: admin
+      allowExecution: true
+

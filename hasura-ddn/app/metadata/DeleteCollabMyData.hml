@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabMyDataResult
+  description: delete from collab.my_data result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabMyData!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabMyDataResult
+    inputTypeName: DeleteCollabMyDataResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.my_data_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabMyDataResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabMyData
+  outputType: DeleteCollabMyDataResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabMyDataBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.my_data
+  graphql:
+    rootFieldName: deleteCollabMyData
+    rootFieldKind: Mutation
+  description: Delete from collab.my_data
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabMyData
+  permissions:
+    - role: admin
+      allowExecution: true
+

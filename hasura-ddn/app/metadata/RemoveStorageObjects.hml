@@ -1,0 +1,95 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: RemoveStorageObjectError
+  description: the container of Multi Delete S3 API error.
+  fields:
+    - name: error
+      type: String!
+    - name: objectName
+      type: String!
+    - name: versionId
+      type: String!
+  graphql:
+    typeName: RemoveStorageObjectError
+    inputTypeName: RemoveStorageObjectErrorInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: RemoveStorageObjectError
+      fieldMapping:
+        error:
+          column:
+            name: error
+        objectName:
+          column:
+            name: object_name
+        versionId:
+          column:
+            name: version_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: RemoveStorageObjectError
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - error
+          - objectName
+          - versionId
+
+---
+kind: Command
+version: v1
+definition:
+  name: RemoveStorageObjects
+  outputType: "[RemoveStorageObjectError!]!"
+  arguments:
+    - name: after
+      type: String
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: first
+      type: Int32
+    - name: governanceBypass
+      type: Boolean
+    - name: prefix
+      type: String
+    - name: recursive
+      type: Boolean
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: remove_storage_objects
+    argumentMapping:
+      after: after
+      bucket: bucket
+      clientId: client_id
+      first: first
+      governanceBypass: governance_bypass
+      prefix: prefix
+      recursive: recursive
+      where: where
+  graphql:
+    rootFieldName: removeStorageObjects
+    rootFieldKind: Mutation
+  description: remove a list of objects obtained from an input channel. The call
+    sends a delete request to the server up to 1000 objects at a time. The
+    errors observed are sent over the error channel.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: RemoveStorageObjects
+  permissions:
+    - role: admin
+      allowExecution: true
+

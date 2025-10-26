@@ -1,0 +1,428 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabProfile
+  fields:
+    - name: bio
+      type: String_1
+    - name: contactPreferences
+      type: String_1
+    - name: createdAt
+      type: Timestamp!
+    - name: displayName
+      type: String_1
+    - name: guildId
+      type: Int64!
+    - name: id
+      type: String_1!
+    - name: isPublic
+      type: Boolean_1!
+    - name: lastActiveAt
+      type: Timestamp
+    - name: portfolio
+      type: String_1
+    - name: skills
+      type: String_1
+    - name: updatedAt
+      type: Timestamp!
+    - name: userId
+      type: Int64!
+  graphql:
+    typeName: CollabProfile
+    inputTypeName: CollabProfileInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.profile
+      fieldMapping:
+        bio:
+          column:
+            name: bio
+        contactPreferences:
+          column:
+            name: contact_preferences
+        createdAt:
+          column:
+            name: created_at
+        displayName:
+          column:
+            name: display_name
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        isPublic:
+          column:
+            name: is_public
+        lastActiveAt:
+          column:
+            name: last_active_at
+        portfolio:
+          column:
+            name: portfolio
+        skills:
+          column:
+            name: skills
+        updatedAt:
+          column:
+            name: updated_at
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabProfile
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bio
+          - contactPreferences
+          - createdAt
+          - displayName
+          - guildId
+          - id
+          - isPublic
+          - lastActiveAt
+          - portfolio
+          - skills
+          - updatedAt
+          - userId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabProfileBoolExp
+  operand:
+    object:
+      type: CollabProfile
+      comparableFields:
+        - fieldName: bio
+          booleanExpressionType: TextBoolExp
+        - fieldName: contactPreferences
+          booleanExpressionType: JsonbBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: displayName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: guildId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: isPublic
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: lastActiveAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: portfolio
+          booleanExpressionType: TextBoolExp
+        - fieldName: skills
+          booleanExpressionType: TextBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: userId
+          booleanExpressionType: BigintBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabProfileBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabProfileAggExp
+  operand:
+    object:
+      aggregatedType: CollabProfile
+      aggregatableFields:
+        - fieldName: bio
+          aggregateExpression: TextAggExp
+        - fieldName: contactPreferences
+          aggregateExpression: JsonbAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: displayName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: guildId
+          aggregateExpression: BigintAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: isPublic
+          aggregateExpression: BooleanAggExp
+        - fieldName: lastActiveAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: portfolio
+          aggregateExpression: TextAggExp
+        - fieldName: skills
+          aggregateExpression: TextAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: userId
+          aggregateExpression: BigintAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabProfileAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabProfileOrderByExp
+  operand:
+    object:
+      orderedType: CollabProfile
+      orderableFields:
+        - fieldName: bio
+          orderByExpression: String1OrderByExp
+        - fieldName: contactPreferences
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: displayName
+          orderByExpression: String1OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: isPublic
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: lastActiveAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: portfolio
+          orderByExpression: String1OrderByExp
+        - fieldName: skills
+          orderByExpression: String1OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: userId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabProfileOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabProfile
+  objectType: CollabProfile
+  source:
+    dataConnectorName: postgres
+    collection: collab.profile
+  filterExpressionType: CollabProfileBoolExp
+  aggregateExpression: CollabProfileAggExp
+  orderByExpression: CollabProfileOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabProfile
+      subscription:
+        rootField: collabProfile
+    selectUniques:
+      - queryRootField: collabProfileById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabProfileById
+    filterInputTypeName: CollabProfileFilterInput
+    aggregate:
+      queryRootField: collabProfileAggregate
+      subscription:
+        rootField: collabProfileAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabProfile
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabAlerts
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabAlert
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabAlertAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profileId
+  graphql:
+    aggregateFieldName: collabAlertsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabAuditLogs
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabAuditLog
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabAuditLogAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profileId
+  graphql:
+    aggregateFieldName: collabAuditLogsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabBlockedUsers
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabBlockedUser
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabBlockedUserAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profileId
+  graphql:
+    aggregateFieldName: collabBlockedUsersAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabBookmarks
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabBookmark
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabBookmarkAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profileId
+  graphql:
+    aggregateFieldName: collabBookmarksAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPosts
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabPostAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profileId
+  graphql:
+    aggregateFieldName: collabPostsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabReports
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabReport
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabReportAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: reportedByProfileId
+  graphql:
+    aggregateFieldName: collabReportsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabReportsByReportedProfileId
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabReport
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabReportAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: reportedProfileId
+  graphql:
+    aggregateFieldName: collabReportsByReportedProfileIdAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabResponses
+  sourceType: CollabProfile
+  target:
+    model:
+      name: CollabResponse
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabResponseAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: profileId
+  graphql:
+    aggregateFieldName: collabResponsesAggregate
+

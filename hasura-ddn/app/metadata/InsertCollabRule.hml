@@ -1,0 +1,151 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabRuleInsertInput
+  description: Input type for inserting into collab.rule
+  fields:
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.rule.created_at
+    - name: description
+      type: String_1!
+      description: New value for collab.rule.description
+    - name: guildId
+      type: Int64!
+      description: New value for collab.rule.guild_id
+    - name: id
+      type: String_1!
+      description: New value for collab.rule.id
+    - name: isActive
+      type: Boolean_1!
+      description: New value for collab.rule.is_active
+    - name: ruleNumber
+      type: Int32!
+      description: New value for collab.rule.rule_number
+    - name: title
+      type: String_1!
+      description: New value for collab.rule.title
+    - name: updatedAt
+      type: Timestamp!
+      description: New value for collab.rule.updated_at
+  graphql:
+    typeName: CollabRuleInsertInput
+    inputTypeName: CollabRuleInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.rule_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        isActive:
+          column:
+            name: is_active
+        ruleNumber:
+          column:
+            name: rule_number
+        title:
+          column:
+            name: title
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabRuleInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - description
+          - guildId
+          - id
+          - isActive
+          - ruleNumber
+          - title
+          - updatedAt
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabRuleResult
+  description: insert from collab.rule result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabRule!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabRuleResult
+    inputTypeName: InsertCollabRuleResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.rule_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabRuleResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabRule
+  outputType: InsertCollabRuleResult!
+  arguments:
+    - name: objects
+      type: "[CollabRuleInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.rule
+  graphql:
+    rootFieldName: insertCollabRule
+    rootFieldKind: Mutation
+  description: Insert into collab.rule
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabRule
+  permissions:
+    - role: admin
+      allowExecution: true
+

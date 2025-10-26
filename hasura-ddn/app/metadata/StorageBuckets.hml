@@ -1,0 +1,1145 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BucketAutoclass
+  fields:
+    - name: enabled
+      type: Boolean!
+    - name: terminalStorageClass
+      type: String!
+    - name: terminalStorageClassUpdateTime
+      type: Timestamptz!
+    - name: toggleTime
+      type: Timestamptz!
+  graphql:
+    typeName: BucketAutoclass
+    inputTypeName: BucketAutoclassInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: BucketAutoclass
+      fieldMapping:
+        enabled:
+          column:
+            name: enabled
+        terminalStorageClass:
+          column:
+            name: terminal_storage_class
+        terminalStorageClassUpdateTime:
+          column:
+            name: terminal_storage_class_update_time
+        toggleTime:
+          column:
+            name: toggle_time
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BucketAutoclass
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - enabled
+          - terminalStorageClass
+          - terminalStorageClassUpdateTime
+          - toggleTime
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BucketCors
+  description: is the bucket's Cross-Origin Resource Sharing (CORS) configuration.
+  fields:
+    - name: maxAge
+      type: String_1!
+    - name: methods
+      type: "[String!]!"
+    - name: origins
+      type: "[String!]!"
+    - name: responseHeaders
+      type: "[String!]!"
+  graphql:
+    typeName: BucketCors
+    inputTypeName: BucketCorsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: BucketCors
+      fieldMapping:
+        maxAge:
+          column:
+            name: max_age
+        methods:
+          column:
+            name: methods
+        origins:
+          column:
+            name: origins
+        responseHeaders:
+          column:
+            name: response_headers
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BucketCors
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - maxAge
+          - methods
+          - origins
+          - responseHeaders
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CustomPlacementConfig
+  description: holds the bucket's custom placement configuration for Custom Dual
+    Regions. See https://cloud.google.com/storage/docs/locations#location-dr for
+    more information.
+  fields:
+    - name: dataLocations
+      type: "[String!]!"
+  graphql:
+    typeName: CustomPlacementConfig
+    inputTypeName: CustomPlacementConfigInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: CustomPlacementConfig
+      fieldMapping:
+        dataLocations:
+          column:
+            name: data_locations
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CustomPlacementConfig
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - dataLocations
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ServerSideEncryptionConfiguration
+  description: is the default encryption configuration structure.
+  fields:
+    - name: kmsMasterKeyId
+      type: String
+    - name: sseAlgorithm
+      type: String
+  graphql:
+    typeName: ServerSideEncryptionConfiguration
+    inputTypeName: ServerSideEncryptionConfigurationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ServerSideEncryptionConfiguration
+      fieldMapping:
+        kmsMasterKeyId:
+          column:
+            name: kms_master_key_id
+        sseAlgorithm:
+          column:
+            name: sse_algorithm
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ServerSideEncryptionConfiguration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - kmsMasterKeyId
+          - sseAlgorithm
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BucketHierarchicalNamespace
+  fields:
+    - name: enabled
+      type: Boolean!
+  graphql:
+    typeName: BucketHierarchicalNamespace
+    inputTypeName: BucketHierarchicalNamespaceInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: BucketHierarchicalNamespace
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BucketHierarchicalNamespace
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - enabled
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectAbortIncompleteMultipartUpload
+  fields:
+    - name: daysAfterInitiation
+      type: Int32
+  graphql:
+    typeName: ObjectAbortIncompleteMultipartUpload
+    inputTypeName: ObjectAbortIncompleteMultipartUploadInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectAbortIncompleteMultipartUpload
+      fieldMapping:
+        daysAfterInitiation:
+          column:
+            name: days_after_initiation
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectAbortIncompleteMultipartUpload
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - daysAfterInitiation
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleAllVersionsExpiration
+  description: represents AllVersionsExpiration actions element in an ILM policy
+  fields:
+    - name: days
+      type: Int32
+    - name: deleteMarker
+      type: Boolean
+  graphql:
+    typeName: ObjectLifecycleAllVersionsExpiration
+    inputTypeName: ObjectLifecycleAllVersionsExpirationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleAllVersionsExpiration
+      fieldMapping:
+        days:
+          column:
+            name: days
+        deleteMarker:
+          column:
+            name: delete_marker
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleAllVersionsExpiration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - days
+          - deleteMarker
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleDelMarkerExpiration
+  fields:
+    - name: days
+      type: Int32
+  graphql:
+    typeName: ObjectLifecycleDelMarkerExpiration
+    inputTypeName: ObjectLifecycleDelMarkerExpirationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleDelMarkerExpiration
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleDelMarkerExpiration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - days
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleExpiration
+  description: expiration details of lifecycle configuration
+  fields:
+    - name: date
+      type: Date
+    - name: days
+      type: Int32
+    - name: expiredObjectAllVersions
+      type: Boolean
+    - name: expiredObjectDeleteMarker
+      type: Boolean
+  graphql:
+    typeName: ObjectLifecycleExpiration
+    inputTypeName: ObjectLifecycleExpirationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleExpiration
+      fieldMapping:
+        date:
+          column:
+            name: date
+        days:
+          column:
+            name: days
+        expiredObjectAllVersions:
+          column:
+            name: expired_object_all_versions
+        expiredObjectDeleteMarker:
+          column:
+            name: expired_object_delete_marker
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleExpiration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - date
+          - days
+          - expiredObjectAllVersions
+          - expiredObjectDeleteMarker
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageKeyValue
+  description: represent a key-value string pair
+  fields:
+    - name: key
+      type: String!
+    - name: value
+      type: String!
+  graphql:
+    typeName: StorageKeyValue
+    inputTypeName: StorageKeyValueInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageKeyValue
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageKeyValue
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - key
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleFilter
+  description: will be used in selecting rule(s) for lifecycle configuration
+  fields:
+    - name: matchesPrefix
+      type: "[String!]"
+    - name: matchesStorageClasses
+      type: "[String!]"
+    - name: matchesSuffix
+      type: "[String!]"
+    - name: objectSizeGreaterThan
+      type: Int64
+    - name: objectSizeLessThan
+      type: Int64
+    - name: tags
+      type: "[StorageKeyValue!]"
+  graphql:
+    typeName: ObjectLifecycleFilter
+    inputTypeName: ObjectLifecycleFilterInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleFilter
+      fieldMapping:
+        matchesPrefix:
+          column:
+            name: matches_prefix
+        matchesStorageClasses:
+          column:
+            name: matches_storage_classes
+        matchesSuffix:
+          column:
+            name: matches_suffix
+        objectSizeGreaterThan:
+          column:
+            name: object_size_greater_than
+        objectSizeLessThan:
+          column:
+            name: object_size_less_than
+        tags:
+          column:
+            name: tags
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleFilter
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - matchesPrefix
+          - matchesStorageClasses
+          - matchesSuffix
+          - objectSizeGreaterThan
+          - objectSizeLessThan
+          - tags
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleNoncurrentVersionExpiration
+  description: "- Specifies when noncurrent object versions expire. Upon
+    expiration, server permanently deletes the noncurrent object versions. Set
+    this lifecycle configuration action on a bucket that has versioning enabled
+    (or suspended) to request server delete noncurrent object versions at a
+    specific period in the object's lifetime."
+  fields:
+    - name: newerNoncurrentVersions
+      type: Int32
+    - name: noncurrentDays
+      type: Int32
+  graphql:
+    typeName: ObjectLifecycleNoncurrentVersionExpiration
+    inputTypeName: ObjectLifecycleNoncurrentVersionExpirationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleNoncurrentVersionExpiration
+      fieldMapping:
+        newerNoncurrentVersions:
+          column:
+            name: newer_noncurrent_versions
+        noncurrentDays:
+          column:
+            name: noncurrent_days
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleNoncurrentVersionExpiration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - newerNoncurrentVersions
+          - noncurrentDays
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleNoncurrentVersionTransition
+  description: sets this action to request server to transition noncurrent object
+    versions to different set storage classes at a specific period in the
+    object's lifetime.
+  fields:
+    - name: newerNoncurrentVersions
+      type: Int32
+    - name: noncurrentDays
+      type: Int32
+    - name: storageClass
+      type: String
+  graphql:
+    typeName: ObjectLifecycleNoncurrentVersionTransition
+    inputTypeName: ObjectLifecycleNoncurrentVersionTransitionInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleNoncurrentVersionTransition
+      fieldMapping:
+        newerNoncurrentVersions:
+          column:
+            name: newer_noncurrent_versions
+        noncurrentDays:
+          column:
+            name: noncurrent_days
+        storageClass:
+          column:
+            name: storage_class
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleNoncurrentVersionTransition
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - newerNoncurrentVersions
+          - noncurrentDays
+          - storageClass
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleTransition
+  description: transition details of lifecycle configuration
+  fields:
+    - name: date
+      type: Date
+    - name: days
+      type: Int32
+    - name: storageClass
+      type: String
+  graphql:
+    typeName: ObjectLifecycleTransition
+    inputTypeName: ObjectLifecycleTransitionInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleTransition
+      fieldMapping:
+        date:
+          column:
+            name: date
+        days:
+          column:
+            name: days
+        storageClass:
+          column:
+            name: storage_class
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleTransition
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - date
+          - days
+          - storageClass
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleRule
+  description: represents a single rule in lifecycle configuration
+  fields:
+    - name: abortIncompleteMultipartUpload
+      type: ObjectAbortIncompleteMultipartUpload
+    - name: allVersionsExpiration
+      type: ObjectLifecycleAllVersionsExpiration
+    - name: delMarkerExpiration
+      type: ObjectLifecycleDelMarkerExpiration
+    - name: enabled
+      type: Boolean
+    - name: expiration
+      type: ObjectLifecycleExpiration
+    - name: filter
+      type: "[ObjectLifecycleFilter!]"
+    - name: id
+      type: String
+    - name: noncurrentVersionExpiration
+      type: ObjectLifecycleNoncurrentVersionExpiration
+    - name: noncurrentVersionTransition
+      type: ObjectLifecycleNoncurrentVersionTransition
+    - name: prefix
+      type: String
+    - name: transition
+      type: ObjectLifecycleTransition
+  graphql:
+    typeName: ObjectLifecycleRule
+    inputTypeName: ObjectLifecycleRuleInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleRule
+      fieldMapping:
+        abortIncompleteMultipartUpload:
+          column:
+            name: abort_incomplete_multipart_upload
+        allVersionsExpiration:
+          column:
+            name: all_versions_expiration
+        delMarkerExpiration:
+          column:
+            name: del_marker_expiration
+        enabled:
+          column:
+            name: enabled
+        expiration:
+          column:
+            name: expiration
+        filter:
+          column:
+            name: filter
+        id:
+          column:
+            name: id
+        noncurrentVersionExpiration:
+          column:
+            name: noncurrent_version_expiration
+        noncurrentVersionTransition:
+          column:
+            name: noncurrent_version_transition
+        prefix:
+          column:
+            name: prefix
+        transition:
+          column:
+            name: transition
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleRule
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - abortIncompleteMultipartUpload
+          - allVersionsExpiration
+          - delMarkerExpiration
+          - enabled
+          - expiration
+          - filter
+          - id
+          - noncurrentVersionExpiration
+          - noncurrentVersionTransition
+          - prefix
+          - transition
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ObjectLifecycleConfiguration
+  description: is a collection of lifecycle Rule objects.
+  fields:
+    - name: rules
+      type: "[ObjectLifecycleRule!]!"
+  graphql:
+    typeName: ObjectLifecycleConfiguration
+    inputTypeName: ObjectLifecycleConfigurationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: ObjectLifecycleConfiguration
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ObjectLifecycleConfiguration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - rules
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BucketLogging
+  description: holds the bucket's logging configuration, which defines the
+    destination bucket and optional name prefix for the current bucket's logs.
+  fields:
+    - name: logBucket
+      type: String!
+    - name: logObjectPrefix
+      type: String!
+  graphql:
+    typeName: BucketLogging
+    inputTypeName: BucketLoggingInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: BucketLogging
+      fieldMapping:
+        logBucket:
+          column:
+            name: log_bucket
+        logObjectPrefix:
+          column:
+            name: log_object_prefix
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BucketLogging
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - logBucket
+          - logObjectPrefix
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageObjectLockConfig
+  description: represents the object lock configuration in given bucket
+  fields:
+    - name: enabled
+      type: Boolean!
+    - name: mode
+      type: Enum
+    - name: unit
+      type: Enum
+    - name: validity
+      type: Int32
+  graphql:
+    typeName: StorageObjectLockConfig
+    inputTypeName: StorageObjectLockConfigInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageObjectLockConfig
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageObjectLockConfig
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - enabled
+          - mode
+          - unit
+          - validity
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageObjectSoftDeletePolicy
+  description: contains the bucket's soft delete policy, which defines the period
+    of time that soft-deleted objects will be retained, and cannot be
+    permanently deleted.
+  fields:
+    - name: effectiveTime
+      type: Timestamptz!
+    - name: retentionDuration
+      type: String_1!
+  graphql:
+    typeName: StorageObjectSoftDeletePolicy
+    inputTypeName: StorageObjectSoftDeletePolicyInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageObjectSoftDeletePolicy
+      fieldMapping:
+        effectiveTime:
+          column:
+            name: effective_time
+        retentionDuration:
+          column:
+            name: retention_duration
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageObjectSoftDeletePolicy
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - effectiveTime
+          - retentionDuration
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageBucketVersioningConfiguration
+  description: is the versioning configuration structure
+  fields:
+    - name: enabled
+      type: Boolean!
+    - name: excludeFolders
+      type: Boolean
+    - name: excludedPrefixes
+      type: "[String!]"
+    - name: mfaDelete
+      type: String
+  graphql:
+    typeName: StorageBucketVersioningConfiguration
+    inputTypeName: StorageBucketVersioningConfigurationInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageBucketVersioningConfiguration
+      fieldMapping:
+        enabled:
+          column:
+            name: enabled
+        excludeFolders:
+          column:
+            name: exclude_folders
+        excludedPrefixes:
+          column:
+            name: excluded_prefixes
+        mfaDelete:
+          column:
+            name: mfa_delete
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageBucketVersioningConfiguration
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - enabled
+          - excludeFolders
+          - excludedPrefixes
+          - mfaDelete
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: BucketWebsite
+  description: holds the bucket's website configuration, controlling how the
+    service behaves when accessing bucket contents as a web site. See
+    https://cloud.google.com/storage/docs/static-website for more information.
+  fields:
+    - name: mainPageSuffix
+      type: String!
+    - name: notFoundPage
+      type: String
+  graphql:
+    typeName: BucketWebsite
+    inputTypeName: BucketWebsiteInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: BucketWebsite
+      fieldMapping:
+        mainPageSuffix:
+          column:
+            name: main_page_suffix
+        notFoundPage:
+          column:
+            name: not_found_page
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: BucketWebsite
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - mainPageSuffix
+          - notFoundPage
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageBucket
+  description: the container for bucket metadata.
+  fields:
+    - name: autoclass
+      type: BucketAutoclass
+    - name: clientId
+      type: Enum!
+    - name: cors
+      type: "[BucketCors!]"
+    - name: creationTime
+      type: Timestamptz
+    - name: customPlacementConfig
+      type: CustomPlacementConfig
+    - name: defaultEventBasedHold
+      type: Boolean
+    - name: encryption
+      type: ServerSideEncryptionConfiguration
+    - name: etag
+      type: String
+    - name: hierarchicalNamespace
+      type: BucketHierarchicalNamespace
+    - name: lastModified
+      type: Timestamptz
+    - name: lifecycle
+      type: ObjectLifecycleConfiguration
+    - name: locationType
+      type: String
+    - name: logging
+      type: BucketLogging
+    - name: name
+      type: String_1!
+    - name: objectLock
+      type: StorageObjectLockConfig
+    - name: region
+      type: String
+    - name: requesterPays
+      type: Boolean
+    - name: rpo
+      type: Enum
+    - name: softDeletePolicy
+      type: StorageObjectSoftDeletePolicy
+    - name: storageClass
+      type: String
+    - name: tags
+      type: "[StorageKeyValue!]"
+    - name: versioning
+      type: StorageBucketVersioningConfiguration
+    - name: website
+      type: BucketWebsite
+  graphql:
+    typeName: StorageBucket
+    inputTypeName: StorageBucketInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageBucket
+      fieldMapping:
+        autoclass:
+          column:
+            name: autoclass
+        clientId:
+          column:
+            name: client_id
+        cors:
+          column:
+            name: cors
+        creationTime:
+          column:
+            name: creation_time
+        customPlacementConfig:
+          column:
+            name: custom_placement_config
+        defaultEventBasedHold:
+          column:
+            name: default_event_based_hold
+        encryption:
+          column:
+            name: encryption
+        etag:
+          column:
+            name: etag
+        hierarchicalNamespace:
+          column:
+            name: hierarchical_namespace
+        lastModified:
+          column:
+            name: last_modified
+        lifecycle:
+          column:
+            name: lifecycle
+        locationType:
+          column:
+            name: location_type
+        logging:
+          column:
+            name: logging
+        name:
+          column:
+            name: name
+        objectLock:
+          column:
+            name: object_lock
+        region:
+          column:
+            name: region
+        requesterPays:
+          column:
+            name: requester_pays
+        rpo:
+          column:
+            name: rpo
+        softDeletePolicy:
+          column:
+            name: soft_delete_policy
+        storageClass:
+          column:
+            name: storage_class
+        tags:
+          column:
+            name: tags
+        versioning:
+          column:
+            name: versioning
+        website:
+          column:
+            name: website
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageBucket
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - autoclass
+          - clientId
+          - cors
+          - creationTime
+          - customPlacementConfig
+          - defaultEventBasedHold
+          - encryption
+          - etag
+          - hierarchicalNamespace
+          - lastModified
+          - lifecycle
+          - locationType
+          - logging
+          - name
+          - objectLock
+          - region
+          - requesterPays
+          - rpo
+          - softDeletePolicy
+          - storageClass
+          - tags
+          - versioning
+          - website
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: StorageBucketBoolExp
+  operand:
+    object:
+      type: StorageBucket
+      comparableFields:
+        - fieldName: clientId
+          booleanExpressionType: StorageClientIdBoolExp
+        - fieldName: creationTime
+          booleanExpressionType: TimestampTzBoolExp
+        - fieldName: defaultEventBasedHold
+          booleanExpressionType: BooleanBoolExp_1
+        - fieldName: etag
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: lastModified
+          booleanExpressionType: TimestampTzBoolExp
+        - fieldName: locationType
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: name
+          booleanExpressionType: StorageStringFilterBoolExp
+        - fieldName: region
+          booleanExpressionType: StringBoolExp_1
+        - fieldName: requesterPays
+          booleanExpressionType: BooleanBoolExp_1
+        - fieldName: rpo
+          booleanExpressionType: GoogleStorageRpoBoolExp
+        - fieldName: storageClass
+          booleanExpressionType: StringBoolExp_1
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: StorageBucketBoolExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: StorageBucketOrderByExp
+  operand:
+    object:
+      orderedType: StorageBucket
+      orderableFields:
+        - fieldName: clientId
+          orderByExpression: EnumOrderByExp
+        - fieldName: creationTime
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: defaultEventBasedHold
+          orderByExpression: BooleanOrderByExp
+        - fieldName: etag
+          orderByExpression: StringOrderByExp
+        - fieldName: lastModified
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: locationType
+          orderByExpression: StringOrderByExp
+        - fieldName: name
+          orderByExpression: String1OrderByExp
+        - fieldName: region
+          orderByExpression: StringOrderByExp
+        - fieldName: requesterPays
+          orderByExpression: BooleanOrderByExp
+        - fieldName: rpo
+          orderByExpression: EnumOrderByExp
+        - fieldName: storageClass
+          orderByExpression: StringOrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: StorageBucketOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: StorageBuckets
+  objectType: StorageBucket
+  arguments:
+    - name: after
+      type: String
+  source:
+    dataConnectorName: storage
+    collection: storage_buckets
+  filterExpressionType: StorageBucketBoolExp
+  orderByExpression: StorageBucketOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: storageBuckets
+      subscription:
+        rootField: storageBuckets
+    selectUniques: []
+    argumentsInputType: StorageBucketsArguments
+  description: List storage buckets
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: StorageBuckets
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

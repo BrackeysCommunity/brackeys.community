@@ -1,0 +1,154 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabBlockedUserSetInput
+  description: Input type for updating collab.blocked_user
+  fields:
+    - name: blockedAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.blocked_user.blocked_at
+    - name: blockedByStaffId
+      type: BigintSetInput
+      description: New value wrapper for collab.blocked_user.blocked_by_staff_id
+    - name: expiresAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.blocked_user.expires_at
+    - name: guildId
+      type: BigintSetInput
+      description: New value wrapper for collab.blocked_user.guild_id
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.blocked_user.id
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.blocked_user.profile_id
+    - name: reason
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.blocked_user.reason
+    - name: violatedRuleId
+      type: UuidSetInput
+      description: New value wrapper for collab.blocked_user.violated_rule_id
+  graphql:
+    typeName: CollabBlockedUserSetInput
+    inputTypeName: CollabBlockedUserSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.blocked_user_set_input
+      fieldMapping:
+        blockedAt:
+          column:
+            name: blocked_at
+        blockedByStaffId:
+          column:
+            name: blocked_by_staff_id
+        expiresAt:
+          column:
+            name: expires_at
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        profileId:
+          column:
+            name: profile_id
+        reason:
+          column:
+            name: reason
+        violatedRuleId:
+          column:
+            name: violated_rule_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabBlockedUserSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - blockedAt
+          - blockedByStaffId
+          - expiresAt
+          - guildId
+          - id
+          - profileId
+          - reason
+          - violatedRuleId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabBlockedUserResult
+  description: update from collab.blocked_user result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabBlockedUser!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabBlockedUserResult
+    inputTypeName: UpdateCollabBlockedUserResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.blocked_user_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabBlockedUserResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabBlockedUser
+  outputType: UpdateCollabBlockedUserResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabBlockedUserSetInput!
+      description: Values to set
+    - name: where
+      type: CollabBlockedUserBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.blocked_user
+  graphql:
+    rootFieldName: updateCollabBlockedUser
+    rootFieldKind: Mutation
+  description: Update collab.blocked_user
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabBlockedUser
+  permissions:
+    - role: admin
+      allowExecution: true
+

@@ -1,0 +1,1122 @@
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Timestamp
+  graphql:
+    typeName: Timestamp
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: TimestampWithoutTimeZoneBoolExp
+  operand:
+    scalar:
+      type: Timestamp
+      comparisonOperators:
+        - name: _eq
+          argumentType: Timestamp!
+        - name: _gt
+          argumentType: Timestamp!
+        - name: _gte
+          argumentType: Timestamp!
+        - name: _in
+          argumentType: "[Timestamp!]!"
+        - name: _lt
+          argumentType: Timestamp!
+        - name: _lte
+          argumentType: Timestamp!
+        - name: _neq
+          argumentType: Timestamp!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: timestamp_without_time_zone
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: TimestampWithoutTimeZoneBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: timestamp_without_time_zone
+  representation: Timestamp
+  graphql:
+    comparisonExpressionTypeName: TimestampComparisonExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Int64
+  graphql:
+    typeName: Int64
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: BigintBoolExp
+  operand:
+    scalar:
+      type: Int64
+      comparisonOperators:
+        - name: _eq
+          argumentType: Int64!
+        - name: _gt
+          argumentType: Int64!
+        - name: _gte
+          argumentType: Int64!
+        - name: _in
+          argumentType: "[Int64!]!"
+        - name: _lt
+          argumentType: Int64!
+        - name: _lte
+          argumentType: Int64!
+        - name: _neq
+          argumentType: Int64!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: bigint
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: BigintBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: bigint
+  representation: Int64
+  graphql:
+    comparisonExpressionTypeName: Int64ComparisonExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Int32
+  graphql:
+    typeName: Int32
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: IntegerBoolExp
+  operand:
+    scalar:
+      type: Int32
+      comparisonOperators:
+        - name: _eq
+          argumentType: Int32!
+        - name: _gt
+          argumentType: Int32!
+        - name: _gte
+          argumentType: Int32!
+        - name: _in
+          argumentType: "[Int32!]!"
+        - name: _lt
+          argumentType: Int32!
+        - name: _lte
+          argumentType: Int32!
+        - name: _neq
+          argumentType: Int32!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: integer
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: IntegerBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: integer
+  representation: Int32
+  graphql:
+    comparisonExpressionTypeName: Int32ComparisonExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: String_1
+  graphql:
+    typeName: String1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: UuidBoolExp
+  operand:
+    scalar:
+      type: String_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: String_1!
+        - name: _gt
+          argumentType: String_1!
+        - name: _gte
+          argumentType: String_1!
+        - name: _ilike
+          argumentType: String_1!
+        - name: _in
+          argumentType: "[String_1!]!"
+        - name: _iregex
+          argumentType: String_1!
+        - name: _like
+          argumentType: String_1!
+        - name: _lt
+          argumentType: String_1!
+        - name: _lte
+          argumentType: String_1!
+        - name: _neq
+          argumentType: String_1!
+        - name: _nilike
+          argumentType: String_1!
+        - name: _niregex
+          argumentType: String_1!
+        - name: _nlike
+          argumentType: String_1!
+        - name: _nregex
+          argumentType: String_1!
+        - name: _regex
+          argumentType: String_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: uuid
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: UuidBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: uuid
+  representation: String_1
+  graphql:
+    comparisonExpressionTypeName: String1ComparisonExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Boolean_1
+  graphql:
+    typeName: Boolean1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: BooleanBoolExp
+  operand:
+    scalar:
+      type: Boolean_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: Boolean_1!
+        - name: _in
+          argumentType: "[Boolean_1!]!"
+        - name: _neq
+          argumentType: Boolean_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: boolean
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: BooleanBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: boolean
+  representation: Boolean_1
+  graphql:
+    comparisonExpressionTypeName: Boolean1ComparisonExp
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: TextBoolExp
+  operand:
+    scalar:
+      type: String_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: String_1!
+        - name: _gt
+          argumentType: String_1!
+        - name: _gte
+          argumentType: String_1!
+        - name: _ilike
+          argumentType: String_1!
+        - name: _in
+          argumentType: "[String_1!]!"
+        - name: _iregex
+          argumentType: String_1!
+        - name: _like
+          argumentType: String_1!
+        - name: _lt
+          argumentType: String_1!
+        - name: _lte
+          argumentType: String_1!
+        - name: _neq
+          argumentType: String_1!
+        - name: _nilike
+          argumentType: String_1!
+        - name: _niregex
+          argumentType: String_1!
+        - name: _nlike
+          argumentType: String_1!
+        - name: _nregex
+          argumentType: String_1!
+        - name: _regex
+          argumentType: String_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: text
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: TextBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: text
+  representation: String_1
+  graphql:
+    comparisonExpressionTypeName: String1ComparisonExp_1
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CharacterVaryingBoolExp
+  operand:
+    scalar:
+      type: String_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: String_1!
+        - name: _gt
+          argumentType: String_1!
+        - name: _gte
+          argumentType: String_1!
+        - name: _ilike
+          argumentType: String_1!
+        - name: _in
+          argumentType: "[String_1!]!"
+        - name: _iregex
+          argumentType: String_1!
+        - name: _like
+          argumentType: String_1!
+        - name: _lt
+          argumentType: String_1!
+        - name: _lte
+          argumentType: String_1!
+        - name: _neq
+          argumentType: String_1!
+        - name: _nilike
+          argumentType: String_1!
+        - name: _niregex
+          argumentType: String_1!
+        - name: _nlike
+          argumentType: String_1!
+        - name: _nregex
+          argumentType: String_1!
+        - name: _regex
+          argumentType: String_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: character_varying
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CharacterVaryingBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: character_varying
+  representation: String_1
+  graphql:
+    comparisonExpressionTypeName: String1ComparisonExp_2
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: JsonbBoolExp
+  operand:
+    scalar:
+      type: String_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: String_1!
+        - name: _gt
+          argumentType: String_1!
+        - name: _gte
+          argumentType: String_1!
+        - name: _ilike
+          argumentType: String_1!
+        - name: _in
+          argumentType: "[String_1!]!"
+        - name: _iregex
+          argumentType: String_1!
+        - name: _like
+          argumentType: String_1!
+        - name: _lt
+          argumentType: String_1!
+        - name: _lte
+          argumentType: String_1!
+        - name: _neq
+          argumentType: String_1!
+        - name: _nilike
+          argumentType: String_1!
+        - name: _niregex
+          argumentType: String_1!
+        - name: _nlike
+          argumentType: String_1!
+        - name: _nregex
+          argumentType: String_1!
+        - name: _regex
+          argumentType: String_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: jsonb
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: JsonbBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: jsonb
+  representation: String_1
+  graphql:
+    comparisonExpressionTypeName: String1ComparisonExp_3
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: TimestampWithoutTimeZoneAggExp
+  operand:
+    scalar:
+      aggregatedType: Timestamp
+      aggregationFunctions:
+        - name: max
+          returnType: Timestamp
+        - name: min
+          returnType: Timestamp
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: timestamp_without_time_zone
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: TimestampWithoutTimeZoneAggExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Bigdecimal
+  graphql:
+    typeName: Bigdecimal
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: DecimalBoolExp
+  operand:
+    scalar:
+      type: Bigdecimal
+      comparisonOperators:
+        - name: _eq
+          argumentType: Bigdecimal!
+        - name: _gt
+          argumentType: Bigdecimal!
+        - name: _gte
+          argumentType: Bigdecimal!
+        - name: _in
+          argumentType: "[Bigdecimal!]!"
+        - name: _lt
+          argumentType: Bigdecimal!
+        - name: _lte
+          argumentType: Bigdecimal!
+        - name: _neq
+          argumentType: Bigdecimal!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: decimal
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: DecimalBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: decimal
+  representation: Bigdecimal
+  graphql:
+    comparisonExpressionTypeName: BigdecimalComparisonExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: BigintAggExp
+  operand:
+    scalar:
+      aggregatedType: Int64
+      aggregationFunctions:
+        - name: avg
+          returnType: Bigdecimal
+        - name: max
+          returnType: Int64
+        - name: min
+          returnType: Int64
+        - name: stddev_pop
+          returnType: Int64!
+        - name: stddev_samp
+          returnType: Int64!
+        - name: sum
+          returnType: Int64
+        - name: var_pop
+          returnType: Int64!
+        - name: var_samp
+          returnType: Int64!
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: bigint
+          functionMapping:
+            avg:
+              name: avg
+            max:
+              name: max
+            min:
+              name: min
+            stddev_pop:
+              name: stddev_pop
+            stddev_samp:
+              name: stddev_samp
+            sum:
+              name: sum
+            var_pop:
+              name: var_pop
+            var_samp:
+              name: var_samp
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: BigintAggExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: IntegerAggExp
+  operand:
+    scalar:
+      aggregatedType: Int32
+      aggregationFunctions:
+        - name: avg
+          returnType: Bigdecimal
+        - name: max
+          returnType: Int32
+        - name: min
+          returnType: Int32
+        - name: stddev_pop
+          returnType: Int32!
+        - name: stddev_samp
+          returnType: Int32!
+        - name: sum
+          returnType: Int64
+        - name: var_pop
+          returnType: Int32!
+        - name: var_samp
+          returnType: Int32!
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: integer
+          functionMapping:
+            avg:
+              name: avg
+            max:
+              name: max
+            min:
+              name: min
+            stddev_pop:
+              name: stddev_pop
+            stddev_samp:
+              name: stddev_samp
+            sum:
+              name: sum
+            var_pop:
+              name: var_pop
+            var_samp:
+              name: var_samp
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: IntegerAggExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: UuidAggExp
+  operand:
+    scalar:
+      aggregatedType: String_1
+      aggregationFunctions:
+        - name: max
+          returnType: String_1
+        - name: min
+          returnType: String_1
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: uuid
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: UuidAggExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: BooleanAggExp
+  operand:
+    scalar:
+      aggregatedType: Boolean_1
+      aggregationFunctions:
+        - name: max
+          returnType: Boolean_1
+        - name: min
+          returnType: Boolean_1
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: boolean
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: BooleanAggExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: TextAggExp
+  operand:
+    scalar:
+      aggregatedType: String_1
+      aggregationFunctions:
+        - name: max
+          returnType: String_1
+        - name: min
+          returnType: String_1
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: text
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: TextAggExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CharacterVaryingAggExp
+  operand:
+    scalar:
+      aggregatedType: String_1
+      aggregationFunctions:
+        - name: max
+          returnType: String_1
+        - name: min
+          returnType: String_1
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: character_varying
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: CharacterVaryingAggExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: JsonbAggExp
+  operand:
+    scalar:
+      aggregatedType: String_1
+      aggregationFunctions:
+        - name: max
+          returnType: String_1
+        - name: min
+          returnType: String_1
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: jsonb
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: JsonbAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: TimestampOrderByExp
+  operand:
+    scalar:
+      orderedType: Timestamp
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: TimestampOrderByExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: Int64OrderByExp
+  operand:
+    scalar:
+      orderedType: Int64
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: Int64OrderByExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: Int32OrderByExp
+  operand:
+    scalar:
+      orderedType: Int32
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: Int32OrderByExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: String1OrderByExp
+  operand:
+    scalar:
+      orderedType: String_1
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: String1OrderByExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: Boolean1OrderByExp
+  operand:
+    scalar:
+      orderedType: Boolean_1
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: Boolean1OrderByExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Timestamptz
+  graphql:
+    typeName: Timestamptz
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: TimestampWithTimeZoneBoolExp
+  operand:
+    scalar:
+      type: Timestamptz
+      comparisonOperators:
+        - name: _eq
+          argumentType: Timestamptz!
+        - name: _gt
+          argumentType: Timestamptz!
+        - name: _gte
+          argumentType: Timestamptz!
+        - name: _in
+          argumentType: "[Timestamptz!]!"
+        - name: _lt
+          argumentType: Timestamptz!
+        - name: _lte
+          argumentType: Timestamptz!
+        - name: _neq
+          argumentType: Timestamptz!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: timestamp_with_time_zone
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: TimestampWithTimeZoneBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: timestamp_with_time_zone
+  representation: Timestamptz
+  graphql:
+    comparisonExpressionTypeName: TimestamptzComparisonExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: TimestampWithTimeZoneAggExp
+  operand:
+    scalar:
+      aggregatedType: Timestamptz
+      aggregationFunctions:
+        - name: max
+          returnType: Timestamptz
+        - name: min
+          returnType: Timestamptz
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: timestamp_with_time_zone
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: TimestampWithTimeZoneAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: TimestamptzOrderByExp
+  operand:
+    scalar:
+      orderedType: Timestamptz
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: TimestamptzOrderByExp
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: JsonBoolExp
+  operand:
+    scalar:
+      type: String_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: String_1!
+        - name: _gt
+          argumentType: String_1!
+        - name: _gte
+          argumentType: String_1!
+        - name: _ilike
+          argumentType: String_1!
+        - name: _in
+          argumentType: "[String_1!]!"
+        - name: _iregex
+          argumentType: String_1!
+        - name: _like
+          argumentType: String_1!
+        - name: _lt
+          argumentType: String_1!
+        - name: _lte
+          argumentType: String_1!
+        - name: _neq
+          argumentType: String_1!
+        - name: _nilike
+          argumentType: String_1!
+        - name: _niregex
+          argumentType: String_1!
+        - name: _nlike
+          argumentType: String_1!
+        - name: _nregex
+          argumentType: String_1!
+        - name: _regex
+          argumentType: String_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: json
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: JsonBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: json
+  representation: String_1
+  graphql:
+    comparisonExpressionTypeName: String1ComparisonExp_4
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: JsonAggExp
+  operand:
+    scalar:
+      aggregatedType: String_1
+      aggregationFunctions:
+        - name: max
+          returnType: String_1
+        - name: min
+          returnType: String_1
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: json
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: JsonAggExp
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: StringBoolExp
+  operand:
+    scalar:
+      type: String_1
+      comparisonOperators:
+        - name: _eq
+          argumentType: String_1!
+        - name: _gt
+          argumentType: String_1!
+        - name: _gte
+          argumentType: String_1!
+        - name: _ilike
+          argumentType: String_1!
+        - name: _in
+          argumentType: "[String_1!]!"
+        - name: _iregex
+          argumentType: String_1!
+        - name: _like
+          argumentType: String_1!
+        - name: _lt
+          argumentType: String_1!
+        - name: _lte
+          argumentType: String_1!
+        - name: _neq
+          argumentType: String_1!
+        - name: _nilike
+          argumentType: String_1!
+        - name: _niregex
+          argumentType: String_1!
+        - name: _nlike
+          argumentType: String_1!
+        - name: _nregex
+          argumentType: String_1!
+        - name: _regex
+          argumentType: String_1!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: string
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: StringBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: string
+  representation: String_1
+  graphql:
+    comparisonExpressionTypeName: String1ComparisonExp_5
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: IntBoolExp
+  operand:
+    scalar:
+      type: Int32
+      comparisonOperators:
+        - name: _eq
+          argumentType: Int32!
+        - name: _gt
+          argumentType: Int32!
+        - name: _gte
+          argumentType: Int32!
+        - name: _in
+          argumentType: "[Int32!]!"
+        - name: _lt
+          argumentType: Int32!
+        - name: _lte
+          argumentType: Int32!
+        - name: _neq
+          argumentType: Int32!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: int
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: IntBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: int
+  representation: Int32
+  graphql:
+    comparisonExpressionTypeName: Int32ComparisonExp_1
+

@@ -1,0 +1,242 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabBlockedUser
+  fields:
+    - name: blockedAt
+      type: Timestamp!
+    - name: blockedByStaffId
+      type: Int64!
+    - name: expiresAt
+      type: Timestamp
+    - name: guildId
+      type: Int64!
+    - name: id
+      type: String_1!
+    - name: profileId
+      type: String_1!
+    - name: reason
+      type: String_1
+    - name: violatedRuleId
+      type: String_1
+  graphql:
+    typeName: CollabBlockedUser
+    inputTypeName: CollabBlockedUserInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.blocked_user
+      fieldMapping:
+        blockedAt:
+          column:
+            name: blocked_at
+        blockedByStaffId:
+          column:
+            name: blocked_by_staff_id
+        expiresAt:
+          column:
+            name: expires_at
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        profileId:
+          column:
+            name: profile_id
+        reason:
+          column:
+            name: reason
+        violatedRuleId:
+          column:
+            name: violated_rule_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabBlockedUser
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - blockedAt
+          - blockedByStaffId
+          - expiresAt
+          - guildId
+          - id
+          - profileId
+          - reason
+          - violatedRuleId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabBlockedUserBoolExp
+  operand:
+    object:
+      type: CollabBlockedUser
+      comparableFields:
+        - fieldName: blockedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: blockedByStaffId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: expiresAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: guildId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: profileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: reason
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: violatedRuleId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabBlockedUserBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabBlockedUserAggExp
+  operand:
+    object:
+      aggregatedType: CollabBlockedUser
+      aggregatableFields:
+        - fieldName: blockedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: blockedByStaffId
+          aggregateExpression: BigintAggExp
+        - fieldName: expiresAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: guildId
+          aggregateExpression: BigintAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: profileId
+          aggregateExpression: UuidAggExp
+        - fieldName: reason
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: violatedRuleId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabBlockedUserAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabBlockedUserOrderByExp
+  operand:
+    object:
+      orderedType: CollabBlockedUser
+      orderableFields:
+        - fieldName: blockedAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: blockedByStaffId
+          orderByExpression: Int64OrderByExp
+        - fieldName: expiresAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+        - fieldName: reason
+          orderByExpression: String1OrderByExp
+        - fieldName: violatedRuleId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: collabProfile
+        - relationshipName: collabRule
+  graphql:
+    expressionTypeName: CollabBlockedUserOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabBlockedUser
+  objectType: CollabBlockedUser
+  source:
+    dataConnectorName: postgres
+    collection: collab.blocked_user
+  filterExpressionType: CollabBlockedUserBoolExp
+  aggregateExpression: CollabBlockedUserAggExp
+  orderByExpression: CollabBlockedUserOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabBlockedUser
+      subscription:
+        rootField: collabBlockedUser
+    selectUniques:
+      - queryRootField: collabBlockedUserById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabBlockedUserById
+    filterInputTypeName: CollabBlockedUserFilterInput
+    aggregate:
+      queryRootField: collabBlockedUserAggregate
+      subscription:
+        rootField: collabBlockedUserAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabBlockedUser
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabProfile
+  sourceType: CollabBlockedUser
+  target:
+    model:
+      name: CollabProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profileId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabRule
+  sourceType: CollabBlockedUser
+  target:
+    model:
+      name: CollabRule
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: violatedRuleId
+      target:
+        modelField:
+          - fieldName: id
+

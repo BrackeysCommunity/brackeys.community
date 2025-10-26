@@ -1,0 +1,189 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabResponseVisibleSetInput
+  description: Input type for updating collab.response_visible
+  fields:
+    - name: contactInfo
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.response_visible.contact_info
+    - name: createdAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.response_visible.created_at
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.response_visible.id
+    - name: isHidden
+      type: BooleanSetInput
+      description: New value wrapper for collab.response_visible.is_hidden
+    - name: isPublic
+      type: BooleanSetInput
+      description: New value wrapper for collab.response_visible.is_public
+    - name: isRead
+      type: BooleanSetInput
+      description: New value wrapper for collab.response_visible.is_read
+    - name: message
+      type: TextSetInput
+      description: New value wrapper for collab.response_visible.message
+    - name: postAuthorProfileId
+      type: UuidSetInput
+      description: New value wrapper for collab.response_visible.post_author_profile_id
+    - name: postAuthorUserId
+      type: BigintSetInput
+      description: New value wrapper for collab.response_visible.post_author_user_id
+    - name: postId
+      type: UuidSetInput
+      description: New value wrapper for collab.response_visible.post_id
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.response_visible.profile_id
+    - name: readAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.response_visible.read_at
+    - name: responderUserId
+      type: BigintSetInput
+      description: New value wrapper for collab.response_visible.responder_user_id
+  graphql:
+    typeName: CollabResponseVisibleSetInput
+    inputTypeName: CollabResponseVisibleSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.response_visible_set_input
+      fieldMapping:
+        contactInfo:
+          column:
+            name: contact_info
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        isHidden:
+          column:
+            name: is_hidden
+        isPublic:
+          column:
+            name: is_public
+        isRead:
+          column:
+            name: is_read
+        message:
+          column:
+            name: message
+        postAuthorProfileId:
+          column:
+            name: post_author_profile_id
+        postAuthorUserId:
+          column:
+            name: post_author_user_id
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        readAt:
+          column:
+            name: read_at
+        responderUserId:
+          column:
+            name: responder_user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabResponseVisibleSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - contactInfo
+          - createdAt
+          - id
+          - isHidden
+          - isPublic
+          - isRead
+          - message
+          - postAuthorProfileId
+          - postAuthorUserId
+          - postId
+          - profileId
+          - readAt
+          - responderUserId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabResponseVisibleResult
+  description: update from collab.response_visible result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabResponseVisible!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabResponseVisibleResult
+    inputTypeName: UpdateCollabResponseVisibleResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.response_visible_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabResponseVisibleResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabResponseVisible
+  outputType: UpdateCollabResponseVisibleResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabResponseVisibleSetInput!
+      description: Values to set
+    - name: where
+      type: CollabResponseVisibleBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.response_visible
+  graphql:
+    rootFieldName: updateCollabResponseVisible
+    rootFieldKind: Mutation
+  description: Update collab.response_visible
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabResponseVisible
+  permissions:
+    - role: admin
+      allowExecution: true
+

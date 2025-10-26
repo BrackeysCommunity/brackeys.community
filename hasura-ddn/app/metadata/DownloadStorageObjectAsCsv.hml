@@ -1,0 +1,147 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CsvDecodeOptions
+  fields:
+    - name: comment
+      type: String
+    - name: delimiter
+      type: String
+    - name: lazyQuotes
+      type: Boolean
+    - name: noHeader
+      type: Boolean
+    - name: parseJson
+      type: Boolean
+    - name: transpose
+      type: Boolean
+    - name: trimLeadingSpace
+      type: Boolean
+  graphql:
+    typeName: CsvDecodeOptions
+    inputTypeName: CsvDecodeOptionsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: CSVDecodeOptions
+      fieldMapping:
+        comment:
+          column:
+            name: comment
+        delimiter:
+          column:
+            name: delimiter
+        lazyQuotes:
+          column:
+            name: lazy_quotes
+        noHeader:
+          column:
+            name: no_header
+        parseJson:
+          column:
+            name: parse_json
+        transpose:
+          column:
+            name: transpose
+        trimLeadingSpace:
+          column:
+            name: trim_leading_space
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CsvDecodeOptions
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - comment
+          - delimiter
+          - lazyQuotes
+          - noHeader
+          - parseJson
+          - transpose
+          - trimLeadingSpace
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DownloadStorageObjectJsonResponse
+  description: represents the object data response in arbitrary JSON format.
+  fields:
+    - name: data
+      type: Json!
+  graphql:
+    typeName: DownloadStorageObjectJsonResponse
+    inputTypeName: DownloadStorageObjectJsonResponseInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: DownloadStorageObjectJsonResponse
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DownloadStorageObjectJsonResponse
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - data
+
+---
+kind: Command
+version: v1
+definition:
+  name: DownloadStorageObjectAsCsv
+  outputType: DownloadStorageObjectJsonResponse
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: headers
+      type: "[StorageKeyValue!]"
+    - name: name
+      type: String!
+    - name: options
+      type: CsvDecodeOptions
+    - name: partNumber
+      type: Int32
+    - name: requestParams
+      type: "[StorageKeyValue!]"
+    - name: versionId
+      type: String
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: download_storage_object_as_csv
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      headers: headers
+      name: name
+      options: options
+      partNumber: part_number
+      requestParams: request_params
+      versionId: version_id
+      where: where
+  graphql:
+    rootFieldName: downloadStorageObjectAsCsv
+    rootFieldKind: Query
+  description: downloads and decode the object content from CSV. Returns error if
+    the content is unable to be decoded.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DownloadStorageObjectAsCsv
+  permissions:
+    - role: admin
+      allowExecution: true
+

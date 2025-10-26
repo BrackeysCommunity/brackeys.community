@@ -1,0 +1,182 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabProfileSetInput
+  description: Input type for updating collab.profile
+  fields:
+    - name: bio
+      type: TextSetInput
+      description: New value wrapper for collab.profile.bio
+    - name: contactPreferences
+      type: JsonbSetInput
+      description: New value wrapper for collab.profile.contact_preferences
+    - name: createdAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.profile.created_at
+    - name: displayName
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.profile.display_name
+    - name: guildId
+      type: BigintSetInput
+      description: New value wrapper for collab.profile.guild_id
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.profile.id
+    - name: isPublic
+      type: BooleanSetInput
+      description: New value wrapper for collab.profile.is_public
+    - name: lastActiveAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.profile.last_active_at
+    - name: portfolio
+      type: TextSetInput
+      description: New value wrapper for collab.profile.portfolio
+    - name: skills
+      type: TextSetInput
+      description: New value wrapper for collab.profile.skills
+    - name: updatedAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.profile.updated_at
+    - name: userId
+      type: BigintSetInput
+      description: New value wrapper for collab.profile.user_id
+  graphql:
+    typeName: CollabProfileSetInput
+    inputTypeName: CollabProfileSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.profile_set_input
+      fieldMapping:
+        bio:
+          column:
+            name: bio
+        contactPreferences:
+          column:
+            name: contact_preferences
+        createdAt:
+          column:
+            name: created_at
+        displayName:
+          column:
+            name: display_name
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        isPublic:
+          column:
+            name: is_public
+        lastActiveAt:
+          column:
+            name: last_active_at
+        portfolio:
+          column:
+            name: portfolio
+        skills:
+          column:
+            name: skills
+        updatedAt:
+          column:
+            name: updated_at
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabProfileSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bio
+          - contactPreferences
+          - createdAt
+          - displayName
+          - guildId
+          - id
+          - isPublic
+          - lastActiveAt
+          - portfolio
+          - skills
+          - updatedAt
+          - userId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabProfileResult
+  description: update from collab.profile result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabProfile!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabProfileResult
+    inputTypeName: UpdateCollabProfileResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.profile_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabProfileResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabProfile
+  outputType: UpdateCollabProfileResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabProfileSetInput!
+      description: Values to set
+    - name: where
+      type: CollabProfileBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.profile
+  graphql:
+    rootFieldName: updateCollabProfile
+    rootFieldKind: Mutation
+  description: Update collab.profile
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabProfile
+  permissions:
+    - role: admin
+      allowExecution: true
+

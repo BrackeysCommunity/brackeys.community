@@ -1,0 +1,133 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabBookmarkSetInput
+  description: Input type for updating collab.bookmark
+  fields:
+    - name: createdAt
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for collab.bookmark.created_at
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.bookmark.id
+    - name: notes
+      type: TextSetInput
+      description: New value wrapper for collab.bookmark.notes
+    - name: postId
+      type: UuidSetInput
+      description: New value wrapper for collab.bookmark.post_id
+    - name: profileId
+      type: UuidSetInput
+      description: New value wrapper for collab.bookmark.profile_id
+  graphql:
+    typeName: CollabBookmarkSetInput
+    inputTypeName: CollabBookmarkSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.bookmark_set_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        notes:
+          column:
+            name: notes
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabBookmarkSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - id
+          - notes
+          - postId
+          - profileId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabBookmarkResult
+  description: update from collab.bookmark result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabBookmark!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabBookmarkResult
+    inputTypeName: UpdateCollabBookmarkResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.bookmark_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabBookmarkResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabBookmark
+  outputType: UpdateCollabBookmarkResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabBookmarkSetInput!
+      description: Values to set
+    - name: where
+      type: CollabBookmarkBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.bookmark
+  graphql:
+    rootFieldName: updateCollabBookmark
+    rootFieldKind: Mutation
+  description: Update collab.bookmark
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabBookmark
+  permissions:
+    - role: admin
+      allowExecution: true
+

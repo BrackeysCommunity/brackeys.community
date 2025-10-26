@@ -1,0 +1,130 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabBookmarkInsertInput
+  description: Input type for inserting into collab.bookmark
+  fields:
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.bookmark.created_at
+    - name: id
+      type: String_1!
+      description: New value for collab.bookmark.id
+    - name: notes
+      type: String_1
+      description: New value for collab.bookmark.notes
+    - name: postId
+      type: String_1!
+      description: New value for collab.bookmark.post_id
+    - name: profileId
+      type: String_1!
+      description: New value for collab.bookmark.profile_id
+  graphql:
+    typeName: CollabBookmarkInsertInput
+    inputTypeName: CollabBookmarkInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.bookmark_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        notes:
+          column:
+            name: notes
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabBookmarkInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - id
+          - notes
+          - postId
+          - profileId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabBookmarkResult
+  description: insert from collab.bookmark result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabBookmark!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabBookmarkResult
+    inputTypeName: InsertCollabBookmarkResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.bookmark_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabBookmarkResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabBookmark
+  outputType: InsertCollabBookmarkResult!
+  arguments:
+    - name: objects
+      type: "[CollabBookmarkInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.bookmark
+  graphql:
+    rootFieldName: insertCollabBookmark
+    rootFieldKind: Mutation
+  description: Insert into collab.bookmark
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabBookmark
+  permissions:
+    - role: admin
+      allowExecution: true
+

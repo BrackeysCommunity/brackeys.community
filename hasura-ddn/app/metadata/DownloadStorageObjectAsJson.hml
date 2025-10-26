@@ -1,0 +1,51 @@
+---
+kind: Command
+version: v1
+definition:
+  name: DownloadStorageObjectAsJson
+  outputType: DownloadStorageObjectJsonResponse
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: headers
+      type: "[StorageKeyValue!]"
+    - name: name
+      type: String!
+    - name: partNumber
+      type: Int32
+    - name: requestParams
+      type: "[StorageKeyValue!]"
+    - name: versionId
+      type: String
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: download_storage_object_as_json
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      headers: headers
+      name: name
+      partNumber: part_number
+      requestParams: request_params
+      versionId: version_id
+      where: where
+  graphql:
+    rootFieldName: downloadStorageObjectAsJson
+    rootFieldKind: Query
+  description: returns the object content in arbitrary json. Returns error if the
+    content is unable to be decoded.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DownloadStorageObjectAsJson
+  permissions:
+    - role: admin
+      allowExecution: true
+

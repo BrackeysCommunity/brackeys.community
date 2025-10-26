@@ -1,0 +1,391 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabPostSearch
+  fields:
+    - name: authorDisplayName
+      type: String_1
+    - name: authorIsBlocked
+      type: Boolean_1
+    - name: authorIsPublic
+      type: Boolean_1
+    - name: authorUserId
+      type: Int64
+    - name: createdAt
+      type: Timestamp
+    - name: deletedAt
+      type: Timestamp
+    - name: discordChannelId
+      type: Int64
+    - name: discordMessageId
+      type: Int64
+    - name: expiresAt
+      type: Timestamp
+    - name: fieldValuesText
+      type: String_1
+    - name: guildId
+      type: Int64
+    - name: hiringStatusId
+      type: Int32
+    - name: id
+      type: String_1
+    - name: isDeleted
+      type: Boolean_1
+    - name: isHighlighted
+      type: Boolean_1
+    - name: postedAt
+      type: Timestamp
+    - name: profileId
+      type: String_1
+    - name: responseCount
+      type: Int32
+    - name: statusId
+      type: Int32
+    - name: tags
+      type: String_1
+    - name: tagsText
+      type: String_1
+    - name: typeId
+      type: Int32
+    - name: updatedAt
+      type: Timestamp
+    - name: viewCount
+      type: Int32
+  graphql:
+    typeName: CollabPostSearch
+    inputTypeName: CollabPostSearchInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.post_search
+      fieldMapping:
+        authorDisplayName:
+          column:
+            name: author_display_name
+        authorIsBlocked:
+          column:
+            name: author_is_blocked
+        authorIsPublic:
+          column:
+            name: author_is_public
+        authorUserId:
+          column:
+            name: author_user_id
+        createdAt:
+          column:
+            name: created_at
+        deletedAt:
+          column:
+            name: deleted_at
+        discordChannelId:
+          column:
+            name: discord_channel_id
+        discordMessageId:
+          column:
+            name: discord_message_id
+        expiresAt:
+          column:
+            name: expires_at
+        fieldValuesText:
+          column:
+            name: field_values_text
+        guildId:
+          column:
+            name: guild_id
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isDeleted:
+          column:
+            name: is_deleted
+        isHighlighted:
+          column:
+            name: is_highlighted
+        postedAt:
+          column:
+            name: posted_at
+        profileId:
+          column:
+            name: profile_id
+        responseCount:
+          column:
+            name: response_count
+        statusId:
+          column:
+            name: status_id
+        tags:
+          column:
+            name: tags
+        tagsText:
+          column:
+            name: tags_text
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabPostSearch
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - authorDisplayName
+          - authorIsBlocked
+          - authorIsPublic
+          - authorUserId
+          - createdAt
+          - deletedAt
+          - discordChannelId
+          - discordMessageId
+          - expiresAt
+          - fieldValuesText
+          - guildId
+          - hiringStatusId
+          - id
+          - isDeleted
+          - isHighlighted
+          - postedAt
+          - profileId
+          - responseCount
+          - statusId
+          - tags
+          - tagsText
+          - typeId
+          - updatedAt
+          - viewCount
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabPostSearchBoolExp
+  operand:
+    object:
+      type: CollabPostSearch
+      comparableFields:
+        - fieldName: authorDisplayName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: authorIsBlocked
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: authorIsPublic
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: authorUserId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: deletedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: discordChannelId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: discordMessageId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: expiresAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: fieldValuesText
+          booleanExpressionType: TextBoolExp
+        - fieldName: guildId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: hiringStatusId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: isDeleted
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: isHighlighted
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: postedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: profileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: responseCount
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: statusId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: tags
+          booleanExpressionType: JsonbBoolExp
+        - fieldName: tagsText
+          booleanExpressionType: TextBoolExp
+        - fieldName: typeId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: viewCount
+          booleanExpressionType: IntegerBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabPostSearchBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabPostSearchAggExp
+  operand:
+    object:
+      aggregatedType: CollabPostSearch
+      aggregatableFields:
+        - fieldName: authorDisplayName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: authorIsBlocked
+          aggregateExpression: BooleanAggExp
+        - fieldName: authorIsPublic
+          aggregateExpression: BooleanAggExp
+        - fieldName: authorUserId
+          aggregateExpression: BigintAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: deletedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: discordChannelId
+          aggregateExpression: BigintAggExp
+        - fieldName: discordMessageId
+          aggregateExpression: BigintAggExp
+        - fieldName: expiresAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: fieldValuesText
+          aggregateExpression: TextAggExp
+        - fieldName: guildId
+          aggregateExpression: BigintAggExp
+        - fieldName: hiringStatusId
+          aggregateExpression: IntegerAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: isDeleted
+          aggregateExpression: BooleanAggExp
+        - fieldName: isHighlighted
+          aggregateExpression: BooleanAggExp
+        - fieldName: postedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: profileId
+          aggregateExpression: UuidAggExp
+        - fieldName: responseCount
+          aggregateExpression: IntegerAggExp
+        - fieldName: statusId
+          aggregateExpression: IntegerAggExp
+        - fieldName: tags
+          aggregateExpression: JsonbAggExp
+        - fieldName: tagsText
+          aggregateExpression: TextAggExp
+        - fieldName: typeId
+          aggregateExpression: IntegerAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: viewCount
+          aggregateExpression: IntegerAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabPostSearchAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabPostSearchOrderByExp
+  operand:
+    object:
+      orderedType: CollabPostSearch
+      orderableFields:
+        - fieldName: authorDisplayName
+          orderByExpression: String1OrderByExp
+        - fieldName: authorIsBlocked
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: authorIsPublic
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: authorUserId
+          orderByExpression: Int64OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: deletedAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: discordChannelId
+          orderByExpression: Int64OrderByExp
+        - fieldName: discordMessageId
+          orderByExpression: Int64OrderByExp
+        - fieldName: expiresAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: fieldValuesText
+          orderByExpression: String1OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: hiringStatusId
+          orderByExpression: Int32OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: isDeleted
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: isHighlighted
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: postedAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+        - fieldName: responseCount
+          orderByExpression: Int32OrderByExp
+        - fieldName: statusId
+          orderByExpression: Int32OrderByExp
+        - fieldName: tags
+          orderByExpression: String1OrderByExp
+        - fieldName: tagsText
+          orderByExpression: String1OrderByExp
+        - fieldName: typeId
+          orderByExpression: Int32OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: viewCount
+          orderByExpression: Int32OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabPostSearchOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabPostSearch
+  objectType: CollabPostSearch
+  source:
+    dataConnectorName: postgres
+    collection: collab.post_search
+  filterExpressionType: CollabPostSearchBoolExp
+  aggregateExpression: CollabPostSearchAggExp
+  orderByExpression: CollabPostSearchOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabPostSearch
+      subscription:
+        rootField: collabPostSearch
+    selectUniques: []
+    filterInputTypeName: CollabPostSearchFilterInput
+    aggregate:
+      queryRootField: collabPostSearchAggregate
+      subscription:
+        rootField: collabPostSearchAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabPostSearch
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

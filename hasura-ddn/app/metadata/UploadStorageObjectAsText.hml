@@ -1,0 +1,45 @@
+---
+kind: Command
+version: v1
+definition:
+  name: UploadStorageObjectAsText
+  outputType: StorageUploadInfo!
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: data
+      type: String!
+    - name: name
+      type: String!
+    - name: options
+      type: PutStorageObjectOptions
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: upload_storage_object_as_text
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      data: data
+      name: name
+      options: options
+      where: where
+  graphql:
+    rootFieldName: uploadStorageObjectAsText
+    rootFieldKind: Mutation
+  description: uploads object in plain text to the storage server. The file
+    content is not encoded to base64 so the input size is smaller than 30%.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UploadStorageObjectAsText
+  permissions:
+    - role: admin
+      allowExecution: true
+

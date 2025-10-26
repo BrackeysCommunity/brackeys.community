@@ -1,0 +1,28 @@
+packagingDefinition:
+  type: PrebuiltDockerImage
+  dockerImage: ghcr.io/hasura/ndc-storage:v0.1.0
+supportedEnvironmentVariables:
+  - name: ACCESS_KEY_ID
+    description: The access key ID
+    required: true
+  - name: SECRET_ACCESS_KEY
+    description: The secret access key
+    required: true
+  - name: STORAGE_ENDPOINT
+    description: The base endpoint of the storage service. Required if the provider is another S3 compatible service such as MinIO, Cloudflare R2.
+    required: false
+  - name: DEFAULT_BUCKET
+    description: The default bucket to be used. If not set the client must input the bucket in input arguments
+    required: false
+commands:
+  update: hasura-ndc-storage update
+  upgradeConfiguration: hasura-ndc-storage version
+cliPlugin:
+  type: null
+  name: ndc-storage
+  version: v0.1.0
+dockerComposeWatch:
+  - path: ./configuration.yaml
+    action: sync+restart
+    target: /etc/connector/configuration.yaml
+documentationPage: https://github.com/hasura/ndc-storage

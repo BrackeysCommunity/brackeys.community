@@ -1,0 +1,106 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabHiringStatusInsertInput
+  description: Input type for inserting into collab.hiring_status
+  fields:
+    - name: description
+      type: String_1
+      description: New value for collab.hiring_status.description
+    - name: id
+      type: Int32!
+      description: New value for collab.hiring_status.id
+    - name: name
+      type: String_1!
+      description: New value for collab.hiring_status.name
+  graphql:
+    typeName: CollabHiringStatusInsertInput
+    inputTypeName: CollabHiringStatusInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.hiring_status_insert_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabHiringStatusInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabHiringStatusResult
+  description: insert from collab.hiring_status result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabHiringStatus!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabHiringStatusResult
+    inputTypeName: InsertCollabHiringStatusResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.hiring_status_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabHiringStatusResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabHiringStatus
+  outputType: InsertCollabHiringStatusResult!
+  arguments:
+    - name: objects
+      type: "[CollabHiringStatusInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.hiring_status
+  graphql:
+    rootFieldName: insertCollabHiringStatus
+    rootFieldKind: Mutation
+  description: Insert into collab.hiring_status
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabHiringStatus
+  permissions:
+    - role: admin
+      allowExecution: true
+

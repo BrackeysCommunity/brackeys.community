@@ -1,0 +1,347 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabReport
+  fields:
+    - name: createdAt
+      type: Timestamp!
+    - name: details
+      type: String_1
+    - name: id
+      type: String_1!
+    - name: postId
+      type: String_1
+    - name: reason
+      type: String_1!
+    - name: reportedByProfileId
+      type: String_1!
+    - name: reportedProfileId
+      type: String_1!
+    - name: resolution
+      type: String_1
+    - name: resolvedAt
+      type: Timestamp
+    - name: resolvedByStaffId
+      type: Int64
+    - name: responseId
+      type: String_1
+    - name: violatedRuleId
+      type: String_1
+  graphql:
+    typeName: CollabReport
+    inputTypeName: CollabReportInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.report
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        details:
+          column:
+            name: details
+        id:
+          column:
+            name: id
+        postId:
+          column:
+            name: post_id
+        reason:
+          column:
+            name: reason
+        reportedByProfileId:
+          column:
+            name: reported_by_profile_id
+        reportedProfileId:
+          column:
+            name: reported_profile_id
+        resolution:
+          column:
+            name: resolution
+        resolvedAt:
+          column:
+            name: resolved_at
+        resolvedByStaffId:
+          column:
+            name: resolved_by_staff_id
+        responseId:
+          column:
+            name: response_id
+        violatedRuleId:
+          column:
+            name: violated_rule_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabReport
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - details
+          - id
+          - postId
+          - reason
+          - reportedByProfileId
+          - reportedProfileId
+          - resolution
+          - resolvedAt
+          - resolvedByStaffId
+          - responseId
+          - violatedRuleId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabReportBoolExp
+  operand:
+    object:
+      type: CollabReport
+      comparableFields:
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: details
+          booleanExpressionType: TextBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: postId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: reason
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: reportedByProfileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: reportedProfileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: resolution
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: resolvedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: resolvedByStaffId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: responseId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: violatedRuleId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabReportBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabReportAggExp
+  operand:
+    object:
+      aggregatedType: CollabReport
+      aggregatableFields:
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: details
+          aggregateExpression: TextAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: postId
+          aggregateExpression: UuidAggExp
+        - fieldName: reason
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: reportedByProfileId
+          aggregateExpression: UuidAggExp
+        - fieldName: reportedProfileId
+          aggregateExpression: UuidAggExp
+        - fieldName: resolution
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: resolvedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: resolvedByStaffId
+          aggregateExpression: BigintAggExp
+        - fieldName: responseId
+          aggregateExpression: UuidAggExp
+        - fieldName: violatedRuleId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabReportAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabReportOrderByExp
+  operand:
+    object:
+      orderedType: CollabReport
+      orderableFields:
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: details
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: postId
+          orderByExpression: String1OrderByExp
+        - fieldName: reason
+          orderByExpression: String1OrderByExp
+        - fieldName: reportedByProfileId
+          orderByExpression: String1OrderByExp
+        - fieldName: reportedProfileId
+          orderByExpression: String1OrderByExp
+        - fieldName: resolution
+          orderByExpression: String1OrderByExp
+        - fieldName: resolvedAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: resolvedByStaffId
+          orderByExpression: Int64OrderByExp
+        - fieldName: responseId
+          orderByExpression: String1OrderByExp
+        - fieldName: violatedRuleId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: collabPost
+        - relationshipName: collabProfile
+        - relationshipName: collabProfileByReportedProfileId
+        - relationshipName: collabResponse
+        - relationshipName: collabRule
+  graphql:
+    expressionTypeName: CollabReportOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabReport
+  objectType: CollabReport
+  source:
+    dataConnectorName: postgres
+    collection: collab.report
+  filterExpressionType: CollabReportBoolExp
+  aggregateExpression: CollabReportAggExp
+  orderByExpression: CollabReportOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabReport
+      subscription:
+        rootField: collabReport
+    selectUniques:
+      - queryRootField: collabReportById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabReportById
+    filterInputTypeName: CollabReportFilterInput
+    aggregate:
+      queryRootField: collabReportAggregate
+      subscription:
+        rootField: collabReportAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabReport
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPost
+  sourceType: CollabReport
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: postId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabProfile
+  sourceType: CollabReport
+  target:
+    model:
+      name: CollabProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: reportedByProfileId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabProfileByReportedProfileId
+  sourceType: CollabReport
+  target:
+    model:
+      name: CollabProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: reportedProfileId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabResponse
+  sourceType: CollabReport
+  target:
+    model:
+      name: CollabResponse
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: responseId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabRule
+  sourceType: CollabReport
+  target:
+    model:
+      name: CollabRule
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: violatedRuleId
+      target:
+        modelField:
+          - fieldName: id
+

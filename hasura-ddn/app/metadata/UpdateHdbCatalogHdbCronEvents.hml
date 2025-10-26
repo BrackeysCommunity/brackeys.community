@@ -1,0 +1,147 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: HdbCatalogHdbCronEventsSetInput
+  description: Input type for updating hdb_catalog.hdb_cron_events
+  fields:
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.created_at
+    - name: id
+      type: TextSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.id
+    - name: nextRetryAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.next_retry_at
+    - name: scheduledTime
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.scheduled_time
+    - name: status
+      type: TextSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.status
+    - name: tries
+      type: IntegerSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.tries
+    - name: triggerName
+      type: TextSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_events.trigger_name
+  graphql:
+    typeName: HdbCatalogHdbCronEventsSetInput
+    inputTypeName: HdbCatalogHdbCronEventsSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: hdb_catalog.hdb_cron_events_set_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        nextRetryAt:
+          column:
+            name: next_retry_at
+        scheduledTime:
+          column:
+            name: scheduled_time
+        status:
+          column:
+            name: status
+        tries:
+          column:
+            name: tries
+        triggerName:
+          column:
+            name: trigger_name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: HdbCatalogHdbCronEventsSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - id
+          - nextRetryAt
+          - scheduledTime
+          - status
+          - tries
+          - triggerName
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateHdbCatalogHdbCronEventsResult
+  description: update from hdb_catalog.hdb_cron_events result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbCronEvents!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateHdbCatalogHdbCronEventsResult
+    inputTypeName: UpdateHdbCatalogHdbCronEventsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_hdb_catalog.hdb_cron_events_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateHdbCatalogHdbCronEventsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateHdbCatalogHdbCronEvents
+  outputType: UpdateHdbCatalogHdbCronEventsResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: HdbCatalogHdbCronEventsSetInput!
+      description: Values to set
+    - name: where
+      type: HdbCatalogHdbCronEventsBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_hdb_catalog.hdb_cron_events
+  graphql:
+    rootFieldName: updateHdbCatalogHdbCronEvents
+    rootFieldKind: Mutation
+  description: Update hdb_catalog.hdb_cron_events
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateHdbCatalogHdbCronEvents
+  permissions:
+    - role: admin
+      allowExecution: true
+

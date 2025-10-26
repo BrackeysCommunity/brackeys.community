@@ -1,0 +1,186 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabFieldDefinitionInsertInput
+  description: Input type for inserting into collab.field_definition
+  fields:
+    - name: displayName
+      type: String_1!
+      description: New value for collab.field_definition.display_name
+    - name: fieldName
+      type: String_1!
+      description: New value for collab.field_definition.field_name
+    - name: fieldOrder
+      type: Int32!
+      description: New value for collab.field_definition.field_order
+    - name: fieldType
+      type: String_1!
+      description: New value for collab.field_definition.field_type
+    - name: helpText
+      type: String_1
+      description: New value for collab.field_definition.help_text
+    - name: hiringStatusId
+      type: Int32!
+      description: New value for collab.field_definition.hiring_status_id
+    - name: id
+      type: String_1!
+      description: New value for collab.field_definition.id
+    - name: isRequired
+      type: Boolean_1!
+      description: New value for collab.field_definition.is_required
+    - name: isSearchable
+      type: Boolean_1!
+      description: New value for collab.field_definition.is_searchable
+    - name: maxLength
+      type: Int32
+      description: New value for collab.field_definition.max_length
+    - name: options
+      type: String_1
+      description: New value for collab.field_definition.options
+    - name: typeId
+      type: Int32!
+      description: New value for collab.field_definition.type_id
+    - name: validationRegex
+      type: String_1
+      description: New value for collab.field_definition.validation_regex
+  graphql:
+    typeName: CollabFieldDefinitionInsertInput
+    inputTypeName: CollabFieldDefinitionInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.field_definition_insert_input
+      fieldMapping:
+        displayName:
+          column:
+            name: display_name
+        fieldName:
+          column:
+            name: field_name
+        fieldOrder:
+          column:
+            name: field_order
+        fieldType:
+          column:
+            name: field_type
+        helpText:
+          column:
+            name: help_text
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isRequired:
+          column:
+            name: is_required
+        isSearchable:
+          column:
+            name: is_searchable
+        maxLength:
+          column:
+            name: max_length
+        options:
+          column:
+            name: options
+        typeId:
+          column:
+            name: type_id
+        validationRegex:
+          column:
+            name: validation_regex
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabFieldDefinitionInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - displayName
+          - fieldName
+          - fieldOrder
+          - fieldType
+          - helpText
+          - hiringStatusId
+          - id
+          - isRequired
+          - isSearchable
+          - maxLength
+          - options
+          - typeId
+          - validationRegex
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabFieldDefinitionResult
+  description: insert from collab.field_definition result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabFieldDefinition!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabFieldDefinitionResult
+    inputTypeName: InsertCollabFieldDefinitionResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.field_definition_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabFieldDefinitionResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabFieldDefinition
+  outputType: InsertCollabFieldDefinitionResult!
+  arguments:
+    - name: objects
+      type: "[CollabFieldDefinitionInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.field_definition
+  graphql:
+    rootFieldName: insertCollabFieldDefinition
+    rootFieldKind: Mutation
+  description: Insert into collab.field_definition
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabFieldDefinition
+  permissions:
+    - role: admin
+      allowExecution: true
+

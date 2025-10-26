@@ -1,0 +1,85 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: PresignedUrlResponse
+  description: holds the presigned URL and expiry information.
+  fields:
+    - name: expiredAt
+      type: Timestamptz!
+    - name: url
+      type: String!
+  graphql:
+    typeName: PresignedUrlResponse
+    inputTypeName: PresignedUrlResponseInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: PresignedURLResponse
+      fieldMapping:
+        expiredAt:
+          column:
+            name: expired_at
+        url:
+          column:
+            name: url
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: PresignedUrlResponse
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - expiredAt
+          - url
+
+---
+kind: Command
+version: v1
+definition:
+  name: StoragePresignedDownloadUrl
+  outputType: PresignedUrlResponse
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: expiry
+      type: String_1
+    - name: name
+      type: String!
+    - name: requestParams
+      type: "[StorageKeyValue!]"
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: storage_presigned_download_url
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      expiry: expiry
+      name: name
+      requestParams: request_params
+      where: where
+  graphql:
+    rootFieldName: storagePresignedDownloadUrl
+    rootFieldKind: Query
+  description: generates a presigned URL for HTTP GET operations. Browsers/Mobile
+    clients may point to this URL to directly download objects even if the
+    bucket is private. This presigned URL can have an associated expiration time
+    in seconds after which it is no longer operational. The maximum expiry is
+    604800 seconds (i.e. 7 days) and minimum is 1 second.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: StoragePresignedDownloadUrl
+  permissions:
+    - role: admin
+      allowExecution: true
+

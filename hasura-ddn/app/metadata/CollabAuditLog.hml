@@ -1,0 +1,242 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabAuditLog
+  fields:
+    - name: action
+      type: String_1!
+    - name: createdAt
+      type: Timestamp!
+    - name: id
+      type: String_1!
+    - name: metadata
+      type: String_1
+    - name: postId
+      type: String_1
+    - name: profileId
+      type: String_1
+    - name: reason
+      type: String_1
+    - name: staffMemberId
+      type: Int64!
+  graphql:
+    typeName: CollabAuditLog
+    inputTypeName: CollabAuditLogInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.audit_log
+      fieldMapping:
+        action:
+          column:
+            name: action
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        metadata:
+          column:
+            name: metadata
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        reason:
+          column:
+            name: reason
+        staffMemberId:
+          column:
+            name: staff_member_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabAuditLog
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - action
+          - createdAt
+          - id
+          - metadata
+          - postId
+          - profileId
+          - reason
+          - staffMemberId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabAuditLogBoolExp
+  operand:
+    object:
+      type: CollabAuditLog
+      comparableFields:
+        - fieldName: action
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: metadata
+          booleanExpressionType: JsonbBoolExp
+        - fieldName: postId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: profileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: reason
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: staffMemberId
+          booleanExpressionType: BigintBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabAuditLogBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabAuditLogAggExp
+  operand:
+    object:
+      aggregatedType: CollabAuditLog
+      aggregatableFields:
+        - fieldName: action
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: metadata
+          aggregateExpression: JsonbAggExp
+        - fieldName: postId
+          aggregateExpression: UuidAggExp
+        - fieldName: profileId
+          aggregateExpression: UuidAggExp
+        - fieldName: reason
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: staffMemberId
+          aggregateExpression: BigintAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabAuditLogAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabAuditLogOrderByExp
+  operand:
+    object:
+      orderedType: CollabAuditLog
+      orderableFields:
+        - fieldName: action
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: metadata
+          orderByExpression: String1OrderByExp
+        - fieldName: postId
+          orderByExpression: String1OrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+        - fieldName: reason
+          orderByExpression: String1OrderByExp
+        - fieldName: staffMemberId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships:
+        - relationshipName: collabPost
+        - relationshipName: collabProfile
+  graphql:
+    expressionTypeName: CollabAuditLogOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabAuditLog
+  objectType: CollabAuditLog
+  source:
+    dataConnectorName: postgres
+    collection: collab.audit_log
+  filterExpressionType: CollabAuditLogBoolExp
+  aggregateExpression: CollabAuditLogAggExp
+  orderByExpression: CollabAuditLogOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabAuditLog
+      subscription:
+        rootField: collabAuditLog
+    selectUniques:
+      - queryRootField: collabAuditLogById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabAuditLogById
+    filterInputTypeName: CollabAuditLogFilterInput
+    aggregate:
+      queryRootField: collabAuditLogAggregate
+      subscription:
+        rootField: collabAuditLogAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabAuditLog
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPost
+  sourceType: CollabAuditLog
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: postId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabProfile
+  sourceType: CollabAuditLog
+  target:
+    model:
+      name: CollabProfile
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: profileId
+      target:
+        modelField:
+          - fieldName: id
+

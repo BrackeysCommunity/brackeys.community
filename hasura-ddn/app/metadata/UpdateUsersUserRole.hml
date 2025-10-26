@@ -1,0 +1,126 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UsersUserRoleSetInput
+  description: Input type for updating users.user_role
+  fields:
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for users.user_role.created_at
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for users.user_role.id
+    - name: role
+      type: TextSetInput
+      description: New value wrapper for users.user_role.role
+    - name: userId
+      type: UuidSetInput
+      description: New value wrapper for users.user_role.user_id
+  graphql:
+    typeName: UsersUserRoleSetInput
+    inputTypeName: UsersUserRoleSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: users.user_role_set_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        role:
+          column:
+            name: role
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UsersUserRoleSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - id
+          - role
+          - userId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateUsersUserRoleResult
+  description: update from users.user_role result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[UsersUserRole!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateUsersUserRoleResult
+    inputTypeName: UpdateUsersUserRoleResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_users.user_role_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateUsersUserRoleResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateUsersUserRole
+  outputType: UpdateUsersUserRoleResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: UsersUserRoleSetInput!
+      description: Values to set
+    - name: where
+      type: UsersUserRoleBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_users.user_role
+  graphql:
+    rootFieldName: updateUsersUserRole
+    rootFieldKind: Mutation
+  description: Update users.user_role
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateUsersUserRole
+  permissions:
+    - role: admin
+      allowExecution: true
+

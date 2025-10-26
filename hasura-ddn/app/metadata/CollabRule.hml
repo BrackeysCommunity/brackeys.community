@@ -1,0 +1,248 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabRule
+  fields:
+    - name: createdAt
+      type: Timestamp!
+    - name: description
+      type: String_1!
+    - name: guildId
+      type: Int64!
+    - name: id
+      type: String_1!
+    - name: isActive
+      type: Boolean_1!
+    - name: ruleNumber
+      type: Int32!
+    - name: title
+      type: String_1!
+    - name: updatedAt
+      type: Timestamp!
+  graphql:
+    typeName: CollabRule
+    inputTypeName: CollabRuleInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.rule
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        isActive:
+          column:
+            name: is_active
+        ruleNumber:
+          column:
+            name: rule_number
+        title:
+          column:
+            name: title
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabRule
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - description
+          - guildId
+          - id
+          - isActive
+          - ruleNumber
+          - title
+          - updatedAt
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabRuleBoolExp
+  operand:
+    object:
+      type: CollabRule
+      comparableFields:
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: description
+          booleanExpressionType: TextBoolExp
+        - fieldName: guildId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: isActive
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: ruleNumber
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: title
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabRuleBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabRuleAggExp
+  operand:
+    object:
+      aggregatedType: CollabRule
+      aggregatableFields:
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: description
+          aggregateExpression: TextAggExp
+        - fieldName: guildId
+          aggregateExpression: BigintAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: isActive
+          aggregateExpression: BooleanAggExp
+        - fieldName: ruleNumber
+          aggregateExpression: IntegerAggExp
+        - fieldName: title
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabRuleAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabRuleOrderByExp
+  operand:
+    object:
+      orderedType: CollabRule
+      orderableFields:
+        - fieldName: createdAt
+          orderByExpression: TimestampOrderByExp
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: isActive
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: ruleNumber
+          orderByExpression: Int32OrderByExp
+        - fieldName: title
+          orderByExpression: String1OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestampOrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabRuleOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabRule
+  objectType: CollabRule
+  source:
+    dataConnectorName: postgres
+    collection: collab.rule
+  filterExpressionType: CollabRuleBoolExp
+  aggregateExpression: CollabRuleAggExp
+  orderByExpression: CollabRuleOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabRule
+      subscription:
+        rootField: collabRule
+    selectUniques:
+      - queryRootField: collabRuleById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabRuleById
+    filterInputTypeName: CollabRuleFilterInput
+    aggregate:
+      queryRootField: collabRuleAggregate
+      subscription:
+        rootField: collabRuleAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabRule
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabBlockedUsers
+  sourceType: CollabRule
+  target:
+    model:
+      name: CollabBlockedUser
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabBlockedUserAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: violatedRuleId
+  graphql:
+    aggregateFieldName: collabBlockedUsersAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabReports
+  sourceType: CollabRule
+  target:
+    model:
+      name: CollabReport
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabReportAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: violatedRuleId
+  graphql:
+    aggregateFieldName: collabReportsAggregate
+

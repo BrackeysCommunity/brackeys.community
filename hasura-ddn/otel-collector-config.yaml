@@ -1,0 +1,21 @@
+exporters:
+  logging:
+    loglevel: info
+processors:
+  batch: {}
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+service:
+  pipelines:
+    traces:
+      exporters:
+        - logging
+      processors:
+        - batch
+      receivers:
+        - otlp

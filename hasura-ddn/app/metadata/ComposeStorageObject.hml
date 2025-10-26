@@ -1,0 +1,315 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageCopyDestOptions
+  description: represents options specified by user for CopyObject/ComposeObject APIs.
+  fields:
+    - name: bucket
+      type: String
+    - name: legalHold
+      type: Boolean
+    - name: metadata
+      type: "[StorageKeyValue!]"
+    - name: mode
+      type: Enum
+    - name: name
+      type: String!
+    - name: retainUntilDate
+      type: Timestamptz
+    - name: size
+      type: Int64
+    - name: tags
+      type: "[StorageKeyValue!]"
+  graphql:
+    typeName: StorageCopyDestOptions
+    inputTypeName: StorageCopyDestOptionsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageCopyDestOptions
+      fieldMapping:
+        bucket:
+          column:
+            name: bucket
+        legalHold:
+          column:
+            name: legal_hold
+        metadata:
+          column:
+            name: metadata
+        mode:
+          column:
+            name: mode
+        name:
+          column:
+            name: name
+        retainUntilDate:
+          column:
+            name: retain_until_date
+        size:
+          column:
+            name: size
+        tags:
+          column:
+            name: tags
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageCopyDestOptions
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bucket
+          - legalHold
+          - metadata
+          - mode
+          - name
+          - retainUntilDate
+          - size
+          - tags
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageCopySrcOptions
+  description: represents a source object to be copied, using server-side copying APIs.
+  fields:
+    - name: bucket
+      type: String
+    - name: end
+      type: Int64
+    - name: matchEtag
+      type: String
+    - name: matchModifiedSince
+      type: Timestamptz
+    - name: matchRange
+      type: Boolean
+    - name: matchUnmodifiedSince
+      type: Timestamptz
+    - name: name
+      type: String!
+    - name: noMatchEtag
+      type: String
+    - name: start
+      type: Int64
+    - name: versionId
+      type: String
+  graphql:
+    typeName: StorageCopySrcOptions
+    inputTypeName: StorageCopySrcOptionsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageCopySrcOptions
+      fieldMapping:
+        bucket:
+          column:
+            name: bucket
+        end:
+          column:
+            name: end
+        matchEtag:
+          column:
+            name: match_etag
+        matchModifiedSince:
+          column:
+            name: match_modified_since
+        matchRange:
+          column:
+            name: match_range
+        matchUnmodifiedSince:
+          column:
+            name: match_unmodified_since
+        name:
+          column:
+            name: name
+        noMatchEtag:
+          column:
+            name: no_match_etag
+        start:
+          column:
+            name: start
+        versionId:
+          column:
+            name: version_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageCopySrcOptions
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bucket
+          - end
+          - matchEtag
+          - matchModifiedSince
+          - matchRange
+          - matchUnmodifiedSince
+          - name
+          - noMatchEtag
+          - start
+          - versionId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageUploadInfo
+  description: represents the information of the uploaded object.
+  fields:
+    - name: bucket
+      type: String!
+    - name: checksumCrc32
+      type: String
+    - name: checksumCrc32C
+      type: String
+    - name: checksumCrc64Nvme
+      type: String
+    - name: checksumSha1
+      type: String
+    - name: checksumSha256
+      type: String
+    - name: clientId
+      type: String!
+    - name: contentMd5
+      type: String
+    - name: etag
+      type: String
+    - name: expiration
+      type: Timestamptz
+    - name: expirationRuleId
+      type: String
+    - name: lastModified
+      type: Timestamptz
+    - name: location
+      type: String
+    - name: name
+      type: String!
+    - name: size
+      type: Int64
+    - name: versionId
+      type: String
+  graphql:
+    typeName: StorageUploadInfo
+    inputTypeName: StorageUploadInfoInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageUploadInfo
+      fieldMapping:
+        bucket:
+          column:
+            name: bucket
+        checksumCrc32:
+          column:
+            name: checksum_crc32
+        checksumCrc32C:
+          column:
+            name: checksum_crc32c
+        checksumCrc64Nvme:
+          column:
+            name: checksum_crc64_nvme
+        checksumSha1:
+          column:
+            name: checksum_sha1
+        checksumSha256:
+          column:
+            name: checksum_sha256
+        clientId:
+          column:
+            name: client_id
+        contentMd5:
+          column:
+            name: content_md5
+        etag:
+          column:
+            name: etag
+        expiration:
+          column:
+            name: expiration
+        expirationRuleId:
+          column:
+            name: expiration_rule_id
+        lastModified:
+          column:
+            name: last_modified
+        location:
+          column:
+            name: location
+        name:
+          column:
+            name: name
+        size:
+          column:
+            name: size
+        versionId:
+          column:
+            name: version_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageUploadInfo
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bucket
+          - checksumCrc32
+          - checksumCrc32C
+          - checksumCrc64Nvme
+          - checksumSha1
+          - checksumSha256
+          - clientId
+          - contentMd5
+          - etag
+          - expiration
+          - expirationRuleId
+          - lastModified
+          - location
+          - name
+          - size
+          - versionId
+
+---
+kind: Command
+version: v1
+definition:
+  name: ComposeStorageObject
+  outputType: StorageUploadInfo!
+  arguments:
+    - name: clientId
+      type: Enum
+    - name: dest
+      type: StorageCopyDestOptions!
+    - name: sources
+      type: "[StorageCopySrcOptions!]!"
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: compose_storage_object
+    argumentMapping:
+      clientId: client_id
+      dest: dest
+      sources: sources
+  graphql:
+    rootFieldName: composeStorageObject
+    rootFieldKind: Mutation
+  description: creates an object by concatenating a list of source objects using
+    server-side copying.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: ComposeStorageObject
+  permissions:
+    - role: admin
+      allowExecution: true
+

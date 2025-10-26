@@ -1,0 +1,151 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabBlockedUserInsertInput
+  description: Input type for inserting into collab.blocked_user
+  fields:
+    - name: blockedAt
+      type: Timestamp!
+      description: New value for collab.blocked_user.blocked_at
+    - name: blockedByStaffId
+      type: Int64!
+      description: New value for collab.blocked_user.blocked_by_staff_id
+    - name: expiresAt
+      type: Timestamp
+      description: New value for collab.blocked_user.expires_at
+    - name: guildId
+      type: Int64!
+      description: New value for collab.blocked_user.guild_id
+    - name: id
+      type: String_1!
+      description: New value for collab.blocked_user.id
+    - name: profileId
+      type: String_1!
+      description: New value for collab.blocked_user.profile_id
+    - name: reason
+      type: String_1
+      description: New value for collab.blocked_user.reason
+    - name: violatedRuleId
+      type: String_1
+      description: New value for collab.blocked_user.violated_rule_id
+  graphql:
+    typeName: CollabBlockedUserInsertInput
+    inputTypeName: CollabBlockedUserInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.blocked_user_insert_input
+      fieldMapping:
+        blockedAt:
+          column:
+            name: blocked_at
+        blockedByStaffId:
+          column:
+            name: blocked_by_staff_id
+        expiresAt:
+          column:
+            name: expires_at
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        profileId:
+          column:
+            name: profile_id
+        reason:
+          column:
+            name: reason
+        violatedRuleId:
+          column:
+            name: violated_rule_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabBlockedUserInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - blockedAt
+          - blockedByStaffId
+          - expiresAt
+          - guildId
+          - id
+          - profileId
+          - reason
+          - violatedRuleId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabBlockedUserResult
+  description: insert from collab.blocked_user result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabBlockedUser!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabBlockedUserResult
+    inputTypeName: InsertCollabBlockedUserResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.blocked_user_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabBlockedUserResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabBlockedUser
+  outputType: InsertCollabBlockedUserResult!
+  arguments:
+    - name: objects
+      type: "[CollabBlockedUserInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.blocked_user
+  graphql:
+    rootFieldName: insertCollabBlockedUser
+    rootFieldKind: Mutation
+  description: Insert into collab.blocked_user
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabBlockedUser
+  permissions:
+    - role: admin
+      allowExecution: true
+

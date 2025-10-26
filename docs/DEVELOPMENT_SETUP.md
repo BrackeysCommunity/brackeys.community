@@ -16,12 +16,75 @@ This guide helps you set up and troubleshoot the Brackeys Web development enviro
 1. **Run the setup script:**
    - macOS/Linux/Git Bash: `./setup.sh`
 
-2. **Start development:**
+2. **Set up environment variables:**
+   ```bash
+   # Create .env file with required variables
+   cp .env.example .env  # If available, or create manually
+   # Edit .env and set POSTGRES_PASSWORD and other required values
+   ```
+
+3. **Start infrastructure services:**
+   ```bash
+   docker compose up -d
+   ```
+
+4. **Start Hasura DDN services:**
+   ```bash
+   cd hasura-ddn
+   ddn run docker-start
+   ```
+
+5. **Start development server:**
    ```bash
    mise run dev
    ```
 
-That's it! The setup script handles everything else.
+That's it! The setup script handles tool installation, and Docker Compose handles infrastructure.
+
+## Docker Infrastructure
+
+The project uses Docker Compose for infrastructure services:
+
+### Services
+
+- **PostgreSQL** (`:5432`) - Main database for application and Bytebase metadata
+- **Bytebase** (`:8081`) - Database schema migration and management tool
+- **MinIO** (`:9000`, `:9001`) - S3-compatible object storage
+- **Hasura DDN** (`:3280`) - GraphQL API engine (started separately via `ddn run docker-start`)
+
+### Database Setup
+
+PostgreSQL automatically initializes with:
+- Main `brackeys` database for your application
+- `bytebase` database for Bytebase metadata
+- Proper users and permissions via `init-scripts/01-bytebase.sql`
+
+### Environment Variables
+
+Required in your `.env` file:
+
+```bash
+# PostgreSQL
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_secure_password
+POSTGRES_DB=brackeys
+
+# Bytebase (optional, defaults to 'bytebase')
+BYTEBASE_PASSWORD=bytebase
+
+# Hasura DDN Service Tokens (generate with: openssl rand -base64 32)
+APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET=your_secret_here
+APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET=your_secret_here
+
+# Optional: Hasura DDN PAT for telemetry
+HASURA_DDN_PAT=your_pat_token
+```
+
+### Network Architecture
+
+- Main compose file (`docker-compose.yml`) creates the `brackeys` network
+- Hasura DDN compose (`hasura-ddn/compose.yaml`) joins the same network
+- All services can communicate using service names (e.g., `postgres:5432`, `minio:9000`)
 
 ## Mise (Tool Manager)
 

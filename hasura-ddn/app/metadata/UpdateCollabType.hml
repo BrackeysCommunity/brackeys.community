@@ -1,0 +1,109 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabTypeSetInput
+  description: Input type for updating collab.type
+  fields:
+    - name: description
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.type.description
+    - name: id
+      type: IntegerSetInput
+      description: New value wrapper for collab.type.id
+    - name: name
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.type.name
+  graphql:
+    typeName: CollabTypeSetInput
+    inputTypeName: CollabTypeSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.type_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabTypeSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabTypeResult
+  description: update from collab.type result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabType!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabTypeResult
+    inputTypeName: UpdateCollabTypeResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.type_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabTypeResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabType
+  outputType: UpdateCollabTypeResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabTypeSetInput!
+      description: Values to set
+    - name: where
+      type: CollabTypeBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.type
+  graphql:
+    rootFieldName: updateCollabType
+    rootFieldKind: Mutation
+  description: Update collab.type
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabType
+  permissions:
+    - role: admin
+      allowExecution: true
+

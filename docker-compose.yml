@@ -1,36 +1,4 @@
 services:
-  hasura-migrations-init:
-    image: oven/bun:latest
-    environment:
-      HASURA_MIGRATIONS_REPO: ${HASURA_MIGRATIONS_REPO}
-      HASURA_MIGRATIONS_BRANCH: ${HASURA_MIGRATIONS_BRANCH:-main}
-    volumes:
-      - hasura_migrations:/migrations
-      - hasura_metadata:/metadata
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        if [ -z "$$HASURA_MIGRATIONS_REPO" ]; then
-          echo 'HASURA_MIGRATIONS_REPO not set, skipping clone';
-          exit 0;
-        fi
-        echo 'Installing git...'
-        apt-get update && apt-get install -y git
-        echo 'Cloning Hasura migrations from' $$HASURA_MIGRATIONS_REPO
-        rm -rf /tmp/repo
-        git clone --depth 1 --branch $$HASURA_MIGRATIONS_BRANCH $$HASURA_MIGRATIONS_REPO /tmp/repo
-        if [ -d /tmp/repo/hasura/migrations ]; then
-          echo 'Copying migrations...'
-          cp -r /tmp/repo/hasura/migrations/. /migrations/ 2>/dev/null || true
-        fi
-        if [ -d /tmp/repo/hasura/metadata ]; then
-          echo 'Copying metadata...'
-          cp -r /tmp/repo/hasura/metadata/. /metadata/ 2>/dev/null || true
-        fi
-        echo 'Migration data clone complete'
-    networks:
-      - brackeys
-
   postgres:
     image: postgres:alpine
     restart: unless-stopped
@@ -42,6 +10,7 @@ services:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 5s
@@ -50,52 +19,104 @@ services:
     networks:
       - brackeys
 
-  hasura:
-    image: hasura/graphql-engine:latest.cli-migrations-v3
-    restart: unless-stopped
-    ports:
-      - '8080:8080'
+  flyway:
+    image: flyway/flyway:latest
+    command: migrate
+    volumes:
+      - ./flyway/sql:/flyway/sql:ro
+      - ./flyway/conf:/flyway/conf:ro
+    environment:
+      - FLYWAY_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-brackeys}
+      - FLYWAY_USER=${POSTGRES_USER:-postgres}
+      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD}
+      - FLYWAY_SCHEMAS=public
+      - FLYWAY_BASELINE_ON_MIGRATE=true
     depends_on:
-      hasura-migrations-init:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
-    environment:
-      HASURA_GRAPHQL_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-brackeys}
-      HASURA_GRAPHQL_ENABLE_CONSOLE: 'true'
-      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
-      HASURA_GRAPHQL_JWT_SECRET: ${HASURA_GRAPHQL_JWT_SECRET}
-      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: ${HASURA_GRAPHQL_UNAUTHORIZED_ROLE:-anonymous}
-      HASURA_GRAPHQL_EXPERIMENTAL_FEATURES: 'naming_convention'
-      HASURA_GRAPHQL_DEFAULT_NAMING_CONVENTION: 'graphql-default'
-      HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: 'true'
-      HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false'
-      HASURA_GRAPHQL_DEV_MODE: 'true'
-      HASURA_GRAPHQL_ENABLE_ALLOWLIST: 'false'
-      HASURA_GRAPHQL_CORS_DOMAIN: ${HASURA_GRAPHQL_CORS_DOMAIN:-*}
-      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: 'false'
-      HASURA_GRAPHQL_LOG_LEVEL: ${HASURA_GRAPHQL_LOG_LEVEL:-info}
+    networks:
+      - brackeys
+    restart: 'no'
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
-      # Use local directories
-      # - ./hasura/migrations:/hasura-migrations
-      # - ./hasura/metadata:/hasura-metadata
-      # Or use cloned volumes
-      - hasura_migrations:/hasura-migrations
-      - hasura_metadata:/hasura-metadata
+      - minio_data:/data
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8080/healthz']
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
+    networks:
+      - brackeys
+
+  hasura-ddn:
+    image: docker:cli
+    working_dir: /workspace/hasura-ddn
+    command: >
+      sh -c "
+      echo 'Installing DDN CLI...' &&
+      apk add --no-cache curl bash &&
+      curl -L https://graphql-engine-cdn.hasura.io/ddn/cli/v4/get.sh | bash &&
+      export PATH=\"$$HOME/.local/bin:$$PATH\" &&
+      echo 'Authenticating DDN CLI...' &&
+      ddn auth login &&
+      echo 'Starting Hasura DDN services...' &&
+      ddn run docker-start
+      "
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-brackeys}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - HASURA_DDN_PAT=${HASURA_DDN_PAT}
+      - PROMPTQL_SECRET_KEY=${PROMPTQL_SECRET_KEY}
+      - APP_POSTGRES_AUTHORIZATION_HEADER=${DDN_APP_POSTGRES_AUTHORIZATION_HEADER}
+      - APP_POSTGRES_HASURA_CONNECTOR_PORT=${DDN_APP_POSTGRES_HASURA_CONNECTOR_PORT}
+      - APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET=${DDN_APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET}
+      - APP_POSTGRES_JDBC_SCHEMAS=${DDN_APP_POSTGRES_JDBC_SCHEMAS}
+      - APP_POSTGRES_JDBC_URL=${DDN_APP_POSTGRES_JDBC_URL}
+      - APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT=${DDN_APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT}
+      - APP_POSTGRES_OTEL_SERVICE_NAME=${DDN_APP_POSTGRES_OTEL_SERVICE_NAME}
+      - APP_POSTGRES_READ_URL=${DDN_APP_POSTGRES_READ_URL}
+      - APP_POSTGRES_WRITE_URL=${DDN_APP_POSTGRES_WRITE_URL}
+      - APP_STORAGE_ACCESS_KEY_ID=${DDN_APP_STORAGE_ACCESS_KEY_ID}
+      - APP_STORAGE_AUTHORIZATION_HEADER=${DDN_APP_STORAGE_AUTHORIZATION_HEADER}
+      - APP_STORAGE_DEFAULT_BUCKET=${DDN_APP_STORAGE_DEFAULT_BUCKET}
+      - APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET=${DDN_APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET}
+      - APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT=${DDN_APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT}
+      - APP_STORAGE_OTEL_SERVICE_NAME=${DDN_APP_STORAGE_OTEL_SERVICE_NAME}
+      - APP_STORAGE_READ_URL=${DDN_APP_STORAGE_READ_URL}
+      - APP_STORAGE_SECRET_ACCESS_KEY=${DDN_APP_STORAGE_SECRET_ACCESS_KEY}
+      - APP_STORAGE_STORAGE_ENDPOINT=${DDN_APP_STORAGE_STORAGE_ENDPOINT}
+      - APP_STORAGE_WRITE_URL=${DDN_APP_STORAGE_WRITE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
     networks:
       - brackeys
 
 volumes:
   postgres_data:
-  hasura_migrations:
-  hasura_metadata:
+  minio_data:
 
 networks:
   brackeys:
+    name: brackeys
     driver: bridge

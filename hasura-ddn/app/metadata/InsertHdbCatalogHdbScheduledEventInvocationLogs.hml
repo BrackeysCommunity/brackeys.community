@@ -1,0 +1,137 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: HdbCatalogHdbScheduledEventInvocationLogsInsertInput
+  description: Input type for inserting into hdb_catalog.hdb_scheduled_event_invocation_logs
+  fields:
+    - name: createdAt
+      type: Timestamptz
+      description: New value for hdb_catalog.hdb_scheduled_event_invocation_logs.created_at
+    - name: eventId
+      type: String_1
+      description: New value for hdb_catalog.hdb_scheduled_event_invocation_logs.event_id
+    - name: id
+      type: String_1!
+      description: New value for hdb_catalog.hdb_scheduled_event_invocation_logs.id
+    - name: request
+      type: String_1
+      description: New value for hdb_catalog.hdb_scheduled_event_invocation_logs.request
+    - name: response
+      type: String_1
+      description: New value for hdb_catalog.hdb_scheduled_event_invocation_logs.response
+    - name: status
+      type: Int32
+      description: New value for hdb_catalog.hdb_scheduled_event_invocation_logs.status
+  graphql:
+    typeName: HdbCatalogHdbScheduledEventInvocationLogsInsertInput
+    inputTypeName: HdbCatalogHdbScheduledEventInvocationLogsInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: hdb_catalog.hdb_scheduled_event_invocation_logs_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        eventId:
+          column:
+            name: event_id
+        id:
+          column:
+            name: id
+        request:
+          column:
+            name: request
+        response:
+          column:
+            name: response
+        status:
+          column:
+            name: status
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: HdbCatalogHdbScheduledEventInvocationLogsInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - eventId
+          - id
+          - request
+          - response
+          - status
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertHdbCatalogHdbScheduledEventInvocationLogsResult
+  description: insert from hdb_catalog.hdb_scheduled_event_invocation_logs result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbScheduledEventInvocationLogs!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertHdbCatalogHdbScheduledEventInvocationLogsResult
+    inputTypeName: InsertHdbCatalogHdbScheduledEventInvocationLogsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_hdb_catalog.hdb_scheduled_event_invocation_logs_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertHdbCatalogHdbScheduledEventInvocationLogsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertHdbCatalogHdbScheduledEventInvocationLogs
+  outputType: InsertHdbCatalogHdbScheduledEventInvocationLogsResult!
+  arguments:
+    - name: objects
+      type: "[HdbCatalogHdbScheduledEventInvocationLogsInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_hdb_catalog.hdb_scheduled_event_invocation_logs
+  graphql:
+    rootFieldName: insertHdbCatalogHdbScheduledEventInvocationLogs
+    rootFieldKind: Mutation
+  description: Insert into hdb_catalog.hdb_scheduled_event_invocation_logs
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertHdbCatalogHdbScheduledEventInvocationLogs
+  permissions:
+    - role: admin
+      allowExecution: true
+

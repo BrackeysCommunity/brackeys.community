@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/hasura/ndc-storage/main/jsonschema/configuration.schema.json
+clients:
+  - id: default
+    type: s3
+    endpoint:
+      env: STORAGE_ENDPOINT
+    defaultBucket:
+      env: DEFAULT_BUCKET
+    authentication:
+      type: static
+      accessKeyId:
+        env: ACCESS_KEY_ID
+      secretAccessKey:
+        env: SECRET_ACCESS_KEY
+    region: null
+    defaultPresignedExpiry: 24h
+    maxRetries: 10
+    trailingHeaders: false
+    allowedBuckets: []
+concurrency:
+  query: 5
+  mutation: 1
+runtime:
+  maxDownloadSizeMBs: 20
+  maxUploadSizeMBs: 20
+generator:
+  promptqlCompatible: false

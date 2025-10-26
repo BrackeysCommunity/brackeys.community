@@ -1,0 +1,38 @@
+---
+kind: Command
+version: v1
+definition:
+  name: RestoreStorageObject
+  outputType: SuccessResponse!
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: name
+      type: String!
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: restore_storage_object
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      name: name
+      where: where
+  graphql:
+    rootFieldName: restoreStorageObject
+    rootFieldKind: Mutation
+  description: restore a soft-deleted object.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: RestoreStorageObject
+  permissions:
+    - role: admin
+      allowExecution: true
+

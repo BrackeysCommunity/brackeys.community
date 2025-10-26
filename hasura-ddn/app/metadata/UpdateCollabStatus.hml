@@ -1,0 +1,109 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabStatusSetInput
+  description: Input type for updating collab.status
+  fields:
+    - name: description
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.status.description
+    - name: id
+      type: IntegerSetInput
+      description: New value wrapper for collab.status.id
+    - name: name
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.status.name
+  graphql:
+    typeName: CollabStatusSetInput
+    inputTypeName: CollabStatusSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.status_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabStatusSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabStatusResult
+  description: update from collab.status result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabStatus!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabStatusResult
+    inputTypeName: UpdateCollabStatusResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.status_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabStatusResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabStatus
+  outputType: UpdateCollabStatusResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabStatusSetInput!
+      description: Values to set
+    - name: where
+      type: CollabStatusBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.status
+  graphql:
+    rootFieldName: updateCollabStatus
+    rootFieldKind: Mutation
+  description: Update collab.status
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabStatus
+  permissions:
+    - role: admin
+      allowExecution: true
+

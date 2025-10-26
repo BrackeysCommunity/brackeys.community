@@ -29,7 +29,13 @@
     "version:all": "lerna version --conventional-commits",
     "version:graduate": "lerna version --conventional-graduate",
     "publish:all": "lerna publish from-package",
-    "graphql-codegen": "graphql-codegen --config codegen.ts"
+    "graphql-codegen": "graphql-codegen --config codegen.ts",
+    "db:migrate": "docker compose run --rm flyway migrate",
+    "db:info": "docker compose run --rm flyway info",
+    "db:validate": "docker compose run --rm flyway validate",
+    "db:clean": "docker compose run --rm flyway clean",
+    "db:baseline": "docker compose run --rm flyway baseline",
+    "db:repair": "docker compose run --rm flyway repair"
   },
   "dependencies": {
     "@clerk/clerk-sdk-node": "^5.1.6",

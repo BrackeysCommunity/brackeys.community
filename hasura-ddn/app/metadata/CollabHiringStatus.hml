@@ -1,0 +1,200 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabHiringStatus
+  fields:
+    - name: description
+      type: String_1
+    - name: id
+      type: Int32!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: CollabHiringStatus
+    inputTypeName: CollabHiringStatusInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.hiring_status
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabHiringStatus
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabHiringStatusBoolExp
+  operand:
+    object:
+      type: CollabHiringStatus
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: name
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabHiringStatusBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabHiringStatusAggExp
+  operand:
+    object:
+      aggregatedType: CollabHiringStatus
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: IntegerAggExp
+        - fieldName: name
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabHiringStatusAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabHiringStatusOrderByExp
+  operand:
+    object:
+      orderedType: CollabHiringStatus
+      orderableFields:
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: Int32OrderByExp
+        - fieldName: name
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabHiringStatusOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabHiringStatus
+  objectType: CollabHiringStatus
+  source:
+    dataConnectorName: postgres
+    collection: collab.hiring_status
+  filterExpressionType: CollabHiringStatusBoolExp
+  aggregateExpression: CollabHiringStatusAggExp
+  orderByExpression: CollabHiringStatusOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabHiringStatus
+      subscription:
+        rootField: collabHiringStatus
+    selectUniques:
+      - queryRootField: collabHiringStatusById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabHiringStatusById
+    filterInputTypeName: CollabHiringStatusFilterInput
+    aggregate:
+      queryRootField: collabHiringStatusAggregate
+      subscription:
+        rootField: collabHiringStatusAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabHiringStatus
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabAlerts
+  sourceType: CollabHiringStatus
+  target:
+    model:
+      name: CollabAlert
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabAlertAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: hiringStatusId
+  graphql:
+    aggregateFieldName: collabAlertsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabFieldDefinitions
+  sourceType: CollabHiringStatus
+  target:
+    model:
+      name: CollabFieldDefinition
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabFieldDefinitionAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: hiringStatusId
+  graphql:
+    aggregateFieldName: collabFieldDefinitionsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPosts
+  sourceType: CollabHiringStatus
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabPostAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: hiringStatusId
+  graphql:
+    aggregateFieldName: collabPostsAggregate
+

@@ -1,0 +1,200 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabType
+  fields:
+    - name: description
+      type: String_1
+    - name: id
+      type: Int32!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: CollabType
+    inputTypeName: CollabTypeInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.type
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabType
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabTypeBoolExp
+  operand:
+    object:
+      type: CollabType
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: name
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabTypeBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabTypeAggExp
+  operand:
+    object:
+      aggregatedType: CollabType
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: IntegerAggExp
+        - fieldName: name
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabTypeAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabTypeOrderByExp
+  operand:
+    object:
+      orderedType: CollabType
+      orderableFields:
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: Int32OrderByExp
+        - fieldName: name
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabTypeOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabType
+  objectType: CollabType
+  source:
+    dataConnectorName: postgres
+    collection: collab.type
+  filterExpressionType: CollabTypeBoolExp
+  aggregateExpression: CollabTypeAggExp
+  orderByExpression: CollabTypeOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabType
+      subscription:
+        rootField: collabType
+    selectUniques:
+      - queryRootField: collabTypeById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: collabTypeById
+    filterInputTypeName: CollabTypeFilterInput
+    aggregate:
+      queryRootField: collabTypeAggregate
+      subscription:
+        rootField: collabTypeAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabType
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabAlerts
+  sourceType: CollabType
+  target:
+    model:
+      name: CollabAlert
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabAlertAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: typeId
+  graphql:
+    aggregateFieldName: collabAlertsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabFieldDefinitions
+  sourceType: CollabType
+  target:
+    model:
+      name: CollabFieldDefinition
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabFieldDefinitionAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: typeId
+  graphql:
+    aggregateFieldName: collabFieldDefinitionsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: collabPosts
+  sourceType: CollabType
+  target:
+    model:
+      name: CollabPost
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: CollabPostAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: typeId
+  graphql:
+    aggregateFieldName: collabPostsAggregate
+

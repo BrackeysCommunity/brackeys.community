@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteHdbCatalogHdbScheduledEventInvocationLogsResult
+  description: delete from hdb_catalog.hdb_scheduled_event_invocation_logs result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbScheduledEventInvocationLogs!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteHdbCatalogHdbScheduledEventInvocationLogsResult
+    inputTypeName: DeleteHdbCatalogHdbScheduledEventInvocationLogsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_hdb_catalog.hdb_scheduled_event_invocation_logs_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteHdbCatalogHdbScheduledEventInvocationLogsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteHdbCatalogHdbScheduledEventInvocationLogs
+  outputType: DeleteHdbCatalogHdbScheduledEventInvocationLogsResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: HdbCatalogHdbScheduledEventInvocationLogsBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_hdb_catalog.hdb_scheduled_event_invocation_logs
+  graphql:
+    rootFieldName: deleteHdbCatalogHdbScheduledEventInvocationLogs
+    rootFieldKind: Mutation
+  description: Delete from hdb_catalog.hdb_scheduled_event_invocation_logs
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteHdbCatalogHdbScheduledEventInvocationLogs
+  permissions:
+    - role: admin
+      allowExecution: true
+

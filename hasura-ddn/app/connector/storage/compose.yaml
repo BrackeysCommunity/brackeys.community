@@ -1,0 +1,24 @@
+services:
+  app_storage:
+    build:
+      context: .
+      dockerfile: .hasura-connector/Dockerfile.storage
+    environment:
+      ACCESS_KEY_ID: ${APP_STORAGE_ACCESS_KEY_ID:-minioadmin}
+      DEFAULT_BUCKET: ${APP_STORAGE_DEFAULT_BUCKET:-resources}
+      HASURA_SERVICE_TOKEN_SECRET: ${APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT:-http://local.hasura.dev:4317}
+      OTEL_SERVICE_NAME: ${APP_STORAGE_OTEL_SERVICE_NAME:-app_storage}
+      SECRET_ACCESS_KEY: ${APP_STORAGE_SECRET_ACCESS_KEY:-minioadmin}
+      STORAGE_ENDPOINT: ${APP_STORAGE_STORAGE_ENDPOINT:-http://minio:9000}
+    extra_hosts:
+      - local.hasura.dev:host-gateway
+    ports:
+      - 4526:8080
+    networks:
+      - brackeys
+
+networks:
+  brackeys:
+    name: brackeys
+    external: true

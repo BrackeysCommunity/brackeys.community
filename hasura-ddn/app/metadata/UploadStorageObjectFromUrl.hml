@@ -1,0 +1,55 @@
+---
+kind: Command
+version: v1
+definition:
+  name: UploadStorageObjectFromUrl
+  outputType: StorageUploadInfo!
+  arguments:
+    - name: bodyText
+      type: String
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: headers
+      type: "[StorageKeyValue!]"
+    - name: method
+      type: Enum
+    - name: name
+      type: String!
+    - name: options
+      type: PutStorageObjectOptions
+    - name: url
+      type: String!
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: upload_storage_object_from_url
+    argumentMapping:
+      bodyText: body_text
+      bucket: bucket
+      clientId: client_id
+      headers: headers
+      method: method
+      name: name
+      options: options
+      url: url
+      where: where
+  graphql:
+    rootFieldName: uploadStorageObjectFromUrl
+    rootFieldKind: Mutation
+  description: uploads an object from a remote file that is downloaded from an
+    HTTP URL. The HTTP clients download the file and upload it to the storage
+    bucket.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UploadStorageObjectFromUrl
+  permissions:
+    - role: admin
+      allowExecution: true
+

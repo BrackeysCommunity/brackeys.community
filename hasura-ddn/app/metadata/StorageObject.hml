@@ -1,0 +1,50 @@
+---
+kind: Command
+version: v1
+definition:
+  name: StorageObject
+  outputType: StorageObject
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: headers
+      type: "[StorageKeyValue!]"
+    - name: name
+      type: String!
+    - name: partNumber
+      type: Int32
+    - name: requestParams
+      type: "[StorageKeyValue!]"
+    - name: versionId
+      type: String
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: storage_object
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      headers: headers
+      name: name
+      partNumber: part_number
+      requestParams: request_params
+      versionId: version_id
+      where: where
+  graphql:
+    rootFieldName: storageObject
+    rootFieldKind: Query
+  description: fetches metadata of an object.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: StorageObject
+  permissions:
+    - role: admin
+      allowExecution: true
+

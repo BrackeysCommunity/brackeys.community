@@ -1,0 +1,168 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: HdbCatalogHdbSchemaNotifications
+  fields:
+    - name: id
+      type: Int32!
+    - name: instanceId
+      type: String_1!
+    - name: notification
+      type: String_1!
+    - name: resourceVersion
+      type: Int32!
+    - name: updatedAt
+      type: Timestamptz
+  graphql:
+    typeName: HdbCatalogHdbSchemaNotifications
+    inputTypeName: HdbCatalogHdbSchemaNotificationsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: hdb_catalog.hdb_schema_notifications
+      fieldMapping:
+        id:
+          column:
+            name: id
+        instanceId:
+          column:
+            name: instance_id
+        notification:
+          column:
+            name: notification
+        resourceVersion:
+          column:
+            name: resource_version
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: HdbCatalogHdbSchemaNotifications
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - id
+          - instanceId
+          - notification
+          - resourceVersion
+          - updatedAt
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: HdbCatalogHdbSchemaNotificationsBoolExp
+  operand:
+    object:
+      type: HdbCatalogHdbSchemaNotifications
+      comparableFields:
+        - fieldName: id
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: instanceId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: notification
+          booleanExpressionType: JsonBoolExp
+        - fieldName: resourceVersion
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: HdbCatalogHdbSchemaNotificationsBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: HdbCatalogHdbSchemaNotificationsAggExp
+  operand:
+    object:
+      aggregatedType: HdbCatalogHdbSchemaNotifications
+      aggregatableFields:
+        - fieldName: id
+          aggregateExpression: IntegerAggExp
+        - fieldName: instanceId
+          aggregateExpression: UuidAggExp
+        - fieldName: notification
+          aggregateExpression: JsonAggExp
+        - fieldName: resourceVersion
+          aggregateExpression: IntegerAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: HdbCatalogHdbSchemaNotificationsAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: HdbCatalogHdbSchemaNotificationsOrderByExp
+  operand:
+    object:
+      orderedType: HdbCatalogHdbSchemaNotifications
+      orderableFields:
+        - fieldName: id
+          orderByExpression: Int32OrderByExp
+        - fieldName: instanceId
+          orderByExpression: String1OrderByExp
+        - fieldName: notification
+          orderByExpression: String1OrderByExp
+        - fieldName: resourceVersion
+          orderByExpression: Int32OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestamptzOrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: HdbCatalogHdbSchemaNotificationsOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: HdbCatalogHdbSchemaNotifications
+  objectType: HdbCatalogHdbSchemaNotifications
+  source:
+    dataConnectorName: postgres
+    collection: hdb_catalog.hdb_schema_notifications
+  filterExpressionType: HdbCatalogHdbSchemaNotificationsBoolExp
+  aggregateExpression: HdbCatalogHdbSchemaNotificationsAggExp
+  orderByExpression: HdbCatalogHdbSchemaNotificationsOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: hdbCatalogHdbSchemaNotifications
+      subscription:
+        rootField: hdbCatalogHdbSchemaNotifications
+    selectUniques:
+      - queryRootField: hdbCatalogHdbSchemaNotificationsById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: hdbCatalogHdbSchemaNotificationsById
+    filterInputTypeName: HdbCatalogHdbSchemaNotificationsFilterInput
+    aggregate:
+      queryRootField: hdbCatalogHdbSchemaNotificationsAggregate
+      subscription:
+        rootField: hdbCatalogHdbSchemaNotificationsAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: HdbCatalogHdbSchemaNotifications
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

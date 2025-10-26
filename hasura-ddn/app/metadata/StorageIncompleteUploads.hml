@@ -1,0 +1,90 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageObjectMultipartInfo
+  description: container for multipart object metadata.
+  fields:
+    - name: initiated
+      type: Timestamptz
+    - name: name
+      type: String
+    - name: size
+      type: Int64
+    - name: storageClass
+      type: String
+    - name: uploadId
+      type: String
+  graphql:
+    typeName: StorageObjectMultipartInfo
+    inputTypeName: StorageObjectMultipartInfoInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageObjectMultipartInfo
+      fieldMapping:
+        initiated:
+          column:
+            name: initiated
+        name:
+          column:
+            name: name
+        size:
+          column:
+            name: size
+        storageClass:
+          column:
+            name: storage_class
+        uploadId:
+          column:
+            name: upload_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageObjectMultipartInfo
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - initiated
+          - name
+          - size
+          - storageClass
+          - uploadId
+
+---
+kind: Command
+version: v1
+definition:
+  name: StorageIncompleteUploads
+  outputType: "[StorageObjectMultipartInfo!]!"
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: prefix
+      type: String
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: storage_incomplete_uploads
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      prefix: prefix
+  graphql:
+    rootFieldName: storageIncompleteUploads
+    rootFieldKind: Query
+  description: list partially uploaded objects in a bucket.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: StorageIncompleteUploads
+  permissions:
+    - role: admin
+      allowExecution: true
+

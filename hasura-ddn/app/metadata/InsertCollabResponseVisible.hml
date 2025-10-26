@@ -1,0 +1,186 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabResponseVisibleInsertInput
+  description: Input type for inserting into collab.response_visible
+  fields:
+    - name: contactInfo
+      type: String_1
+      description: New value for collab.response_visible.contact_info
+    - name: createdAt
+      type: Timestamp
+      description: New value for collab.response_visible.created_at
+    - name: id
+      type: String_1
+      description: New value for collab.response_visible.id
+    - name: isHidden
+      type: Boolean_1
+      description: New value for collab.response_visible.is_hidden
+    - name: isPublic
+      type: Boolean_1
+      description: New value for collab.response_visible.is_public
+    - name: isRead
+      type: Boolean_1
+      description: New value for collab.response_visible.is_read
+    - name: message
+      type: String_1
+      description: New value for collab.response_visible.message
+    - name: postAuthorProfileId
+      type: String_1
+      description: New value for collab.response_visible.post_author_profile_id
+    - name: postAuthorUserId
+      type: Int64
+      description: New value for collab.response_visible.post_author_user_id
+    - name: postId
+      type: String_1
+      description: New value for collab.response_visible.post_id
+    - name: profileId
+      type: String_1
+      description: New value for collab.response_visible.profile_id
+    - name: readAt
+      type: Timestamp
+      description: New value for collab.response_visible.read_at
+    - name: responderUserId
+      type: Int64
+      description: New value for collab.response_visible.responder_user_id
+  graphql:
+    typeName: CollabResponseVisibleInsertInput
+    inputTypeName: CollabResponseVisibleInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.response_visible_insert_input
+      fieldMapping:
+        contactInfo:
+          column:
+            name: contact_info
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        isHidden:
+          column:
+            name: is_hidden
+        isPublic:
+          column:
+            name: is_public
+        isRead:
+          column:
+            name: is_read
+        message:
+          column:
+            name: message
+        postAuthorProfileId:
+          column:
+            name: post_author_profile_id
+        postAuthorUserId:
+          column:
+            name: post_author_user_id
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        readAt:
+          column:
+            name: read_at
+        responderUserId:
+          column:
+            name: responder_user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabResponseVisibleInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - contactInfo
+          - createdAt
+          - id
+          - isHidden
+          - isPublic
+          - isRead
+          - message
+          - postAuthorProfileId
+          - postAuthorUserId
+          - postId
+          - profileId
+          - readAt
+          - responderUserId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabResponseVisibleResult
+  description: insert from collab.response_visible result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabResponseVisible!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabResponseVisibleResult
+    inputTypeName: InsertCollabResponseVisibleResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.response_visible_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabResponseVisibleResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabResponseVisible
+  outputType: InsertCollabResponseVisibleResult!
+  arguments:
+    - name: objects
+      type: "[CollabResponseVisibleInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.response_visible
+  graphql:
+    rootFieldName: insertCollabResponseVisible
+    rootFieldKind: Mutation
+  description: Insert into collab.response_visible
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabResponseVisible
+  permissions:
+    - role: admin
+      allowExecution: true
+

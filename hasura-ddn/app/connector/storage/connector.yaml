@@ -1,0 +1,22 @@
+kind: Connector
+version: v2
+definition:
+  name: storage
+  subgraph: app
+  source: hasura/storage:v0.1.0
+  context: .
+  envMapping:
+    ACCESS_KEY_ID:
+      fromEnv: APP_STORAGE_ACCESS_KEY_ID
+    DEFAULT_BUCKET:
+      fromEnv: APP_STORAGE_DEFAULT_BUCKET
+    HASURA_SERVICE_TOKEN_SECRET:
+      fromEnv: APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET
+    OTEL_EXPORTER_OTLP_ENDPOINT:
+      fromEnv: APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT
+    OTEL_SERVICE_NAME:
+      fromEnv: APP_STORAGE_OTEL_SERVICE_NAME
+    SECRET_ACCESS_KEY:
+      fromEnv: APP_STORAGE_SECRET_ACCESS_KEY
+    STORAGE_ENDPOINT:
+      fromEnv: APP_STORAGE_STORAGE_ENDPOINT

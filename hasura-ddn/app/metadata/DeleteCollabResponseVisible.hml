@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabResponseVisibleResult
+  description: delete from collab.response_visible result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabResponseVisible!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabResponseVisibleResult
+    inputTypeName: DeleteCollabResponseVisibleResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.response_visible_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabResponseVisibleResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabResponseVisible
+  outputType: DeleteCollabResponseVisibleResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabResponseVisibleBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.response_visible
+  graphql:
+    rootFieldName: deleteCollabResponseVisible
+    rootFieldKind: Mutation
+  description: Delete from collab.response_visible
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabResponseVisible
+  permissions:
+    - role: admin
+      allowExecution: true
+

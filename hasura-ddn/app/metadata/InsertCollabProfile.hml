@@ -1,0 +1,179 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabProfileInsertInput
+  description: Input type for inserting into collab.profile
+  fields:
+    - name: bio
+      type: String_1
+      description: New value for collab.profile.bio
+    - name: contactPreferences
+      type: String_1
+      description: New value for collab.profile.contact_preferences
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.profile.created_at
+    - name: displayName
+      type: String_1
+      description: New value for collab.profile.display_name
+    - name: guildId
+      type: Int64!
+      description: New value for collab.profile.guild_id
+    - name: id
+      type: String_1!
+      description: New value for collab.profile.id
+    - name: isPublic
+      type: Boolean_1!
+      description: New value for collab.profile.is_public
+    - name: lastActiveAt
+      type: Timestamp
+      description: New value for collab.profile.last_active_at
+    - name: portfolio
+      type: String_1
+      description: New value for collab.profile.portfolio
+    - name: skills
+      type: String_1
+      description: New value for collab.profile.skills
+    - name: updatedAt
+      type: Timestamp!
+      description: New value for collab.profile.updated_at
+    - name: userId
+      type: Int64!
+      description: New value for collab.profile.user_id
+  graphql:
+    typeName: CollabProfileInsertInput
+    inputTypeName: CollabProfileInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.profile_insert_input
+      fieldMapping:
+        bio:
+          column:
+            name: bio
+        contactPreferences:
+          column:
+            name: contact_preferences
+        createdAt:
+          column:
+            name: created_at
+        displayName:
+          column:
+            name: display_name
+        guildId:
+          column:
+            name: guild_id
+        id:
+          column:
+            name: id
+        isPublic:
+          column:
+            name: is_public
+        lastActiveAt:
+          column:
+            name: last_active_at
+        portfolio:
+          column:
+            name: portfolio
+        skills:
+          column:
+            name: skills
+        updatedAt:
+          column:
+            name: updated_at
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabProfileInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bio
+          - contactPreferences
+          - createdAt
+          - displayName
+          - guildId
+          - id
+          - isPublic
+          - lastActiveAt
+          - portfolio
+          - skills
+          - updatedAt
+          - userId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabProfileResult
+  description: insert from collab.profile result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabProfile!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabProfileResult
+    inputTypeName: InsertCollabProfileResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.profile_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabProfileResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabProfile
+  outputType: InsertCollabProfileResult!
+  arguments:
+    - name: objects
+      type: "[CollabProfileInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.profile
+  graphql:
+    rootFieldName: insertCollabProfile
+    rootFieldKind: Mutation
+  description: Insert into collab.profile
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabProfile
+  permissions:
+    - role: admin
+      allowExecution: true
+

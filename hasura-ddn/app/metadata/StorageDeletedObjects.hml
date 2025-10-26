@@ -1,0 +1,77 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageObjectListResults
+  description: hold the paginated results of the storage object list.
+  fields:
+    - name: objects
+      type: "[StorageObject!]!"
+    - name: pageInfo
+      type: StoragePaginationInfo!
+  graphql:
+    typeName: StorageObjectListResults
+    inputTypeName: StorageObjectListResultsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageObjectListResults
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageObjectListResults
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - objects
+          - pageInfo
+
+---
+kind: Command
+version: v1
+definition:
+  name: StorageDeletedObjects
+  outputType: StorageObjectListResults!
+  arguments:
+    - name: after
+      type: String
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: first
+      type: Int32
+    - name: prefix
+      type: String
+    - name: recursive
+      type: Boolean
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: storage_deleted_objects
+    argumentMapping:
+      after: after
+      bucket: bucket
+      clientId: client_id
+      first: first
+      prefix: prefix
+      recursive: recursive
+      where: where
+  graphql:
+    rootFieldName: storageDeletedObjects
+    rootFieldKind: Query
+  description: list deleted objects in a bucket.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: StorageDeletedObjects
+  permissions:
+    - role: admin
+      allowExecution: true
+

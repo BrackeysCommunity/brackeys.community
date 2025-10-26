@@ -1,0 +1,189 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabFieldDefinitionSetInput
+  description: Input type for updating collab.field_definition
+  fields:
+    - name: displayName
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.field_definition.display_name
+    - name: fieldName
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.field_definition.field_name
+    - name: fieldOrder
+      type: IntegerSetInput
+      description: New value wrapper for collab.field_definition.field_order
+    - name: fieldType
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.field_definition.field_type
+    - name: helpText
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.field_definition.help_text
+    - name: hiringStatusId
+      type: IntegerSetInput
+      description: New value wrapper for collab.field_definition.hiring_status_id
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.field_definition.id
+    - name: isRequired
+      type: BooleanSetInput
+      description: New value wrapper for collab.field_definition.is_required
+    - name: isSearchable
+      type: BooleanSetInput
+      description: New value wrapper for collab.field_definition.is_searchable
+    - name: maxLength
+      type: IntegerSetInput
+      description: New value wrapper for collab.field_definition.max_length
+    - name: options
+      type: JsonbSetInput
+      description: New value wrapper for collab.field_definition.options
+    - name: typeId
+      type: IntegerSetInput
+      description: New value wrapper for collab.field_definition.type_id
+    - name: validationRegex
+      type: CharacterVaryingSetInput
+      description: New value wrapper for collab.field_definition.validation_regex
+  graphql:
+    typeName: CollabFieldDefinitionSetInput
+    inputTypeName: CollabFieldDefinitionSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.field_definition_set_input
+      fieldMapping:
+        displayName:
+          column:
+            name: display_name
+        fieldName:
+          column:
+            name: field_name
+        fieldOrder:
+          column:
+            name: field_order
+        fieldType:
+          column:
+            name: field_type
+        helpText:
+          column:
+            name: help_text
+        hiringStatusId:
+          column:
+            name: hiring_status_id
+        id:
+          column:
+            name: id
+        isRequired:
+          column:
+            name: is_required
+        isSearchable:
+          column:
+            name: is_searchable
+        maxLength:
+          column:
+            name: max_length
+        options:
+          column:
+            name: options
+        typeId:
+          column:
+            name: type_id
+        validationRegex:
+          column:
+            name: validation_regex
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabFieldDefinitionSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - displayName
+          - fieldName
+          - fieldOrder
+          - fieldType
+          - helpText
+          - hiringStatusId
+          - id
+          - isRequired
+          - isSearchable
+          - maxLength
+          - options
+          - typeId
+          - validationRegex
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabFieldDefinitionResult
+  description: update from collab.field_definition result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabFieldDefinition!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabFieldDefinitionResult
+    inputTypeName: UpdateCollabFieldDefinitionResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.field_definition_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabFieldDefinitionResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabFieldDefinition
+  outputType: UpdateCollabFieldDefinitionResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabFieldDefinitionSetInput!
+      description: Values to set
+    - name: where
+      type: CollabFieldDefinitionBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.field_definition
+  graphql:
+    rootFieldName: updateCollabFieldDefinition
+    rootFieldKind: Mutation
+  description: Update collab.field_definition
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabFieldDefinition
+  permissions:
+    - role: admin
+      allowExecution: true
+

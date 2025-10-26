@@ -1,0 +1,1 @@
+{"version":"v2","definition":{"systemInstructions":null,"llm":{"provider":"hasura","fallback":null,"specificLlm":null},"schemaSelector":null,"aiPrimitivesLlm":null,"overrideAiPrimitivesLlm":[],"threadTitleGeneration":null,"maxAssistantActions":null,"maxTableArtifactSampleRows":null,"featureFlags":null,"contextWindowLimit":null}}

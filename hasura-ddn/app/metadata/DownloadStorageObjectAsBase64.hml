@@ -1,0 +1,143 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageObjectFilter
+  fields:
+    - name: bucket
+      type: String_1!
+    - name: clientId
+      type: Enum!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: StorageObjectFilter
+    inputTypeName: StorageObjectFilterInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageObjectFilter
+      fieldMapping:
+        bucket:
+          column:
+            name: bucket
+        clientId:
+          column:
+            name: client_id
+        name:
+          column:
+            name: name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageObjectFilter
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - bucket
+          - clientId
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: StorageObjectFilterBoolExp
+  operand:
+    object:
+      type: StorageObjectFilter
+      comparableFields:
+        - fieldName: bucket
+          booleanExpressionType: StorageBucketNameBoolExp
+        - fieldName: clientId
+          booleanExpressionType: StorageClientIdBoolExp
+        - fieldName: name
+          booleanExpressionType: StorageStringFilterBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: StorageObjectFilterBoolExp
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DownloadStorageObjectResponse
+  description: represents the object data response in base64-encode string format.
+  fields:
+    - name: data
+      type: Bytes!
+  graphql:
+    typeName: DownloadStorageObjectResponse
+    inputTypeName: DownloadStorageObjectResponseInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: DownloadStorageObjectResponse
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DownloadStorageObjectResponse
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - data
+
+---
+kind: Command
+version: v1
+definition:
+  name: DownloadStorageObjectAsBase64
+  outputType: DownloadStorageObjectResponse
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: headers
+      type: "[StorageKeyValue!]"
+    - name: name
+      type: String!
+    - name: partNumber
+      type: Int32
+    - name: requestParams
+      type: "[StorageKeyValue!]"
+    - name: versionId
+      type: String
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: download_storage_object_as_base64
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      headers: headers
+      name: name
+      partNumber: part_number
+      requestParams: request_params
+      versionId: version_id
+      where: where
+  graphql:
+    rootFieldName: downloadStorageObjectAsBase64
+    rootFieldKind: Query
+  description: returns a stream of the object data. Most of the common errors
+    occur when reading the stream.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DownloadStorageObjectAsBase64
+  permissions:
+    - role: admin
+      allowExecution: true
+

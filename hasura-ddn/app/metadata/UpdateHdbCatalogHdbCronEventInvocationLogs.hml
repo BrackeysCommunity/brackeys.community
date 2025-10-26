@@ -1,0 +1,169 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: JsonSetInput
+  description: Wrapper for setting scalar json
+  fields:
+    - name: value
+      type: String_1
+      description: New value for scalar json
+  graphql:
+    typeName: JsonSetInput
+    inputTypeName: JsonSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: json_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: JsonSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: HdbCatalogHdbCronEventInvocationLogsSetInput
+  description: Input type for updating hdb_catalog.hdb_cron_event_invocation_logs
+  fields:
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for
+        hdb_catalog.hdb_cron_event_invocation_logs.created_at
+    - name: eventId
+      type: TextSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_event_invocation_logs.event_id
+    - name: id
+      type: TextSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_event_invocation_logs.id
+    - name: request
+      type: JsonSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_event_invocation_logs.request
+    - name: response
+      type: JsonSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_event_invocation_logs.response
+    - name: status
+      type: IntegerSetInput
+      description: New value wrapper for hdb_catalog.hdb_cron_event_invocation_logs.status
+  graphql:
+    typeName: HdbCatalogHdbCronEventInvocationLogsSetInput
+    inputTypeName: HdbCatalogHdbCronEventInvocationLogsSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: hdb_catalog.hdb_cron_event_invocation_logs_set_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        eventId:
+          column:
+            name: event_id
+        id:
+          column:
+            name: id
+        request:
+          column:
+            name: request
+        response:
+          column:
+            name: response
+        status:
+          column:
+            name: status
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: HdbCatalogHdbCronEventInvocationLogsSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - eventId
+          - id
+          - request
+          - response
+          - status
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateHdbCatalogHdbCronEventInvocationLogsResult
+  description: update from hdb_catalog.hdb_cron_event_invocation_logs result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbCronEventInvocationLogs!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateHdbCatalogHdbCronEventInvocationLogsResult
+    inputTypeName: UpdateHdbCatalogHdbCronEventInvocationLogsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_hdb_catalog.hdb_cron_event_invocation_logs_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateHdbCatalogHdbCronEventInvocationLogsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateHdbCatalogHdbCronEventInvocationLogs
+  outputType: UpdateHdbCatalogHdbCronEventInvocationLogsResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: HdbCatalogHdbCronEventInvocationLogsSetInput!
+      description: Values to set
+    - name: where
+      type: HdbCatalogHdbCronEventInvocationLogsBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_hdb_catalog.hdb_cron_event_invocation_logs
+  graphql:
+    rootFieldName: updateHdbCatalogHdbCronEventInvocationLogs
+    rootFieldKind: Mutation
+  description: Update hdb_catalog.hdb_cron_event_invocation_logs
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateHdbCatalogHdbCronEventInvocationLogs
+  permissions:
+    - role: admin
+      allowExecution: true
+

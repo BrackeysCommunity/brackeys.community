@@ -1,0 +1,92 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: StorageBucketFilter
+  fields:
+    - name: clientId
+      type: Enum!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: StorageBucketFilter
+    inputTypeName: StorageBucketFilterInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: StorageBucketFilter
+      fieldMapping:
+        clientId:
+          column:
+            name: client_id
+        name:
+          column:
+            name: name
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: StorageBucketFilter
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - clientId
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: StorageBucketFilterBoolExp
+  operand:
+    object:
+      type: StorageBucketFilter
+      comparableFields:
+        - fieldName: clientId
+          booleanExpressionType: StorageClientIdBoolExp
+        - fieldName: name
+          booleanExpressionType: StorageStringFilterBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: StorageBucketFilterBoolExp
+
+---
+kind: Command
+version: v1
+definition:
+  name: StorageBucket
+  outputType: StorageBucket
+  arguments:
+    - name: clientId
+      type: Enum
+    - name: name
+      type: String!
+    - name: where
+      type: StorageBucketFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      function: storage_bucket
+    argumentMapping:
+      clientId: client_id
+      name: name
+      where: where
+  graphql:
+    rootFieldName: storageBucket
+    rootFieldKind: Query
+  description: gets a bucket by name.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: StorageBucket
+  permissions:
+    - role: admin
+      allowExecution: true
+

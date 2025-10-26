@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteHdbCatalogHdbScheduledEventsResult
+  description: delete from hdb_catalog.hdb_scheduled_events result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbScheduledEvents!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteHdbCatalogHdbScheduledEventsResult
+    inputTypeName: DeleteHdbCatalogHdbScheduledEventsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_hdb_catalog.hdb_scheduled_events_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteHdbCatalogHdbScheduledEventsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteHdbCatalogHdbScheduledEvents
+  outputType: DeleteHdbCatalogHdbScheduledEventsResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: HdbCatalogHdbScheduledEventsBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_hdb_catalog.hdb_scheduled_events
+  graphql:
+    rootFieldName: deleteHdbCatalogHdbScheduledEvents
+    rootFieldKind: Mutation
+  description: Delete from hdb_catalog.hdb_scheduled_events
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteHdbCatalogHdbScheduledEvents
+  permissions:
+    - role: admin
+      allowExecution: true
+

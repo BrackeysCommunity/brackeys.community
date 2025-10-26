@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteCollabRuleResult
+  description: delete from collab.rule result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabRule!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteCollabRuleResult
+    inputTypeName: DeleteCollabRuleResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_collab.rule_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteCollabRuleResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteCollabRule
+  outputType: DeleteCollabRuleResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: CollabRuleBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_collab.rule
+  graphql:
+    rootFieldName: deleteCollabRule
+    rootFieldKind: Mutation
+  description: Delete from collab.rule
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteCollabRule
+  permissions:
+    - role: admin
+      allowExecution: true
+

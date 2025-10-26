@@ -1,0 +1,235 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: PutStorageObjectRetentionOptions
+  description: represent options of object retention configuration.
+  fields:
+    - name: governanceBypass
+      type: Boolean
+    - name: mode
+      type: Enum!
+    - name: retainUntilDate
+      type: Timestamptz!
+  graphql:
+    typeName: PutStorageObjectRetentionOptions
+    inputTypeName: PutStorageObjectRetentionOptionsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: PutStorageObjectRetentionOptions
+      fieldMapping:
+        governanceBypass:
+          column:
+            name: governance_bypass
+        mode:
+          column:
+            name: mode
+        retainUntilDate:
+          column:
+            name: retain_until_date
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: PutStorageObjectRetentionOptions
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - governanceBypass
+          - mode
+          - retainUntilDate
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: PutStorageObjectOptions
+  description: represents options specified by user for PutObject call.
+  fields:
+    - name: autoChecksum
+      type: Enum
+    - name: cacheControl
+      type: String
+    - name: checksum
+      type: Enum
+    - name: concurrentStreamParts
+      type: Boolean
+    - name: contentDisposition
+      type: String
+    - name: contentEncoding
+      type: String
+    - name: contentLanguage
+      type: String
+    - name: contentType
+      type: String
+    - name: disableContentSha256
+      type: Boolean
+    - name: disableMultipart
+      type: Boolean
+    - name: expires
+      type: Timestamptz
+    - name: legalHold
+      type: Boolean
+    - name: metadata
+      type: "[StorageKeyValue!]"
+    - name: numThreads
+      type: Int32
+    - name: partSize
+      type: Int64
+    - name: retention
+      type: PutStorageObjectRetentionOptions
+    - name: sendContentMd5
+      type: Boolean
+    - name: storageClass
+      type: String
+    - name: tags
+      type: "[StorageKeyValue!]"
+    - name: websiteRedirectLocation
+      type: String
+  graphql:
+    typeName: PutStorageObjectOptions
+    inputTypeName: PutStorageObjectOptionsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: storage
+      dataConnectorObjectType: PutStorageObjectOptions
+      fieldMapping:
+        autoChecksum:
+          column:
+            name: auto_checksum
+        cacheControl:
+          column:
+            name: cache_control
+        checksum:
+          column:
+            name: checksum
+        concurrentStreamParts:
+          column:
+            name: concurrent_stream_parts
+        contentDisposition:
+          column:
+            name: content_disposition
+        contentEncoding:
+          column:
+            name: content_encoding
+        contentLanguage:
+          column:
+            name: content_language
+        contentType:
+          column:
+            name: content_type
+        disableContentSha256:
+          column:
+            name: disable_content_sha256
+        disableMultipart:
+          column:
+            name: disable_multipart
+        expires:
+          column:
+            name: expires
+        legalHold:
+          column:
+            name: legal_hold
+        metadata:
+          column:
+            name: metadata
+        numThreads:
+          column:
+            name: num_threads
+        partSize:
+          column:
+            name: part_size
+        retention:
+          column:
+            name: retention
+        sendContentMd5:
+          column:
+            name: send_content_md5
+        storageClass:
+          column:
+            name: storage_class
+        tags:
+          column:
+            name: tags
+        websiteRedirectLocation:
+          column:
+            name: website_redirect_location
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: PutStorageObjectOptions
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - autoChecksum
+          - cacheControl
+          - checksum
+          - concurrentStreamParts
+          - contentDisposition
+          - contentEncoding
+          - contentLanguage
+          - contentType
+          - disableContentSha256
+          - disableMultipart
+          - expires
+          - legalHold
+          - metadata
+          - numThreads
+          - partSize
+          - retention
+          - sendContentMd5
+          - storageClass
+          - tags
+          - websiteRedirectLocation
+
+---
+kind: Command
+version: v1
+definition:
+  name: UploadStorageObjectAsBase64
+  outputType: StorageUploadInfo!
+  arguments:
+    - name: bucket
+      type: String
+    - name: clientId
+      type: Enum
+    - name: data
+      type: Bytes!
+    - name: name
+      type: String!
+    - name: options
+      type: PutStorageObjectOptions
+    - name: where
+      type: StorageObjectFilterBoolExp
+  source:
+    dataConnectorName: storage
+    dataConnectorCommand:
+      procedure: upload_storage_object_as_base64
+    argumentMapping:
+      bucket: bucket
+      clientId: client_id
+      data: data
+      name: name
+      options: options
+      where: where
+  graphql:
+    rootFieldName: uploadStorageObjectAsBase64
+    rootFieldKind: Mutation
+  description: uploads object that are less than 128MiB in a single PUT operation.
+    For objects that are greater than 128MiB in size, PutObject seamlessly
+    uploads the object as parts of 128MiB or more depending on the actual file
+    size. The max upload size for an object is 5TB.
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UploadStorageObjectAsBase64
+  permissions:
+    - role: admin
+      allowExecution: true
+

@@ -1,0 +1,151 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabAuditLogInsertInput
+  description: Input type for inserting into collab.audit_log
+  fields:
+    - name: action
+      type: String_1!
+      description: New value for collab.audit_log.action
+    - name: createdAt
+      type: Timestamp!
+      description: New value for collab.audit_log.created_at
+    - name: id
+      type: String_1!
+      description: New value for collab.audit_log.id
+    - name: metadata
+      type: String_1
+      description: New value for collab.audit_log.metadata
+    - name: postId
+      type: String_1
+      description: New value for collab.audit_log.post_id
+    - name: profileId
+      type: String_1
+      description: New value for collab.audit_log.profile_id
+    - name: reason
+      type: String_1
+      description: New value for collab.audit_log.reason
+    - name: staffMemberId
+      type: Int64!
+      description: New value for collab.audit_log.staff_member_id
+  graphql:
+    typeName: CollabAuditLogInsertInput
+    inputTypeName: CollabAuditLogInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.audit_log_insert_input
+      fieldMapping:
+        action:
+          column:
+            name: action
+        createdAt:
+          column:
+            name: created_at
+        id:
+          column:
+            name: id
+        metadata:
+          column:
+            name: metadata
+        postId:
+          column:
+            name: post_id
+        profileId:
+          column:
+            name: profile_id
+        reason:
+          column:
+            name: reason
+        staffMemberId:
+          column:
+            name: staff_member_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabAuditLogInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - action
+          - createdAt
+          - id
+          - metadata
+          - postId
+          - profileId
+          - reason
+          - staffMemberId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertCollabAuditLogResult
+  description: insert from collab.audit_log result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabAuditLog!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertCollabAuditLogResult
+    inputTypeName: InsertCollabAuditLogResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_collab.audit_log_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertCollabAuditLogResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertCollabAuditLog
+  outputType: InsertCollabAuditLogResult!
+  arguments:
+    - name: objects
+      type: "[CollabAuditLogInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_collab.audit_log
+  graphql:
+    rootFieldName: insertCollabAuditLog
+    rootFieldKind: Mutation
+  description: Insert into collab.audit_log
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertCollabAuditLog
+  permissions:
+    - role: admin
+      allowExecution: true
+

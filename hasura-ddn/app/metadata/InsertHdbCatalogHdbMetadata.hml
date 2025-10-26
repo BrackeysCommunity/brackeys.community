@@ -1,0 +1,116 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: HdbCatalogHdbMetadataInsertInput
+  description: Input type for inserting into hdb_catalog.hdb_metadata
+  fields:
+    - name: id
+      type: Int32!
+      description: New value for hdb_catalog.hdb_metadata.id
+    - name: metadata
+      type: String_1!
+      description: New value for hdb_catalog.hdb_metadata.metadata
+    - name: resourceVersion
+      type: Int32!
+      description: New value for hdb_catalog.hdb_metadata.resource_version
+  graphql:
+    typeName: HdbCatalogHdbMetadataInsertInput
+    inputTypeName: HdbCatalogHdbMetadataInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: hdb_catalog.hdb_metadata_insert_input
+      fieldMapping:
+        id:
+          column:
+            name: id
+        metadata:
+          column:
+            name: metadata
+        resourceVersion:
+          column:
+            name: resource_version
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: HdbCatalogHdbMetadataInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - id
+          - metadata
+          - resourceVersion
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertHdbCatalogHdbMetadataResult
+  description: insert from hdb_catalog.hdb_metadata result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[HdbCatalogHdbMetadata!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertHdbCatalogHdbMetadataResult
+    inputTypeName: InsertHdbCatalogHdbMetadataResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_hdb_catalog.hdb_metadata_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertHdbCatalogHdbMetadataResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertHdbCatalogHdbMetadata
+  outputType: InsertHdbCatalogHdbMetadataResult!
+  arguments:
+    - name: objects
+      type: "[HdbCatalogHdbMetadataInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_hdb_catalog.hdb_metadata
+  graphql:
+    rootFieldName: insertHdbCatalogHdbMetadata
+    rootFieldKind: Mutation
+  description: Insert into hdb_catalog.hdb_metadata
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertHdbCatalogHdbMetadata
+  permissions:
+    - role: admin
+      allowExecution: true
+

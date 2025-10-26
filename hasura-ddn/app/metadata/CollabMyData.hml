@@ -1,0 +1,211 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabMyData
+  fields:
+    - name: activePosts
+      type: Int64
+    - name: guildId
+      type: Int64
+    - name: isBlocked
+      type: Boolean_1
+    - name: profileId
+      type: String_1
+    - name: profileIsPublic
+      type: Boolean_1
+    - name: totalPosts
+      type: Int64
+    - name: totalResponses
+      type: Int64
+    - name: unreadResponses
+      type: Int64
+    - name: userId
+      type: Int64
+  graphql:
+    typeName: CollabMyData
+    inputTypeName: CollabMyDataInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.my_data
+      fieldMapping:
+        activePosts:
+          column:
+            name: active_posts
+        guildId:
+          column:
+            name: guild_id
+        isBlocked:
+          column:
+            name: is_blocked
+        profileId:
+          column:
+            name: profile_id
+        profileIsPublic:
+          column:
+            name: profile_is_public
+        totalPosts:
+          column:
+            name: total_posts
+        totalResponses:
+          column:
+            name: total_responses
+        unreadResponses:
+          column:
+            name: unread_responses
+        userId:
+          column:
+            name: user_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabMyData
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - activePosts
+          - guildId
+          - isBlocked
+          - profileId
+          - profileIsPublic
+          - totalPosts
+          - totalResponses
+          - unreadResponses
+          - userId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: CollabMyDataBoolExp
+  operand:
+    object:
+      type: CollabMyData
+      comparableFields:
+        - fieldName: activePosts
+          booleanExpressionType: BigintBoolExp
+        - fieldName: guildId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: isBlocked
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: profileId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: profileIsPublic
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: totalPosts
+          booleanExpressionType: BigintBoolExp
+        - fieldName: totalResponses
+          booleanExpressionType: BigintBoolExp
+        - fieldName: unreadResponses
+          booleanExpressionType: BigintBoolExp
+        - fieldName: userId
+          booleanExpressionType: BigintBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: CollabMyDataBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: CollabMyDataAggExp
+  operand:
+    object:
+      aggregatedType: CollabMyData
+      aggregatableFields:
+        - fieldName: activePosts
+          aggregateExpression: BigintAggExp
+        - fieldName: guildId
+          aggregateExpression: BigintAggExp
+        - fieldName: isBlocked
+          aggregateExpression: BooleanAggExp
+        - fieldName: profileId
+          aggregateExpression: UuidAggExp
+        - fieldName: profileIsPublic
+          aggregateExpression: BooleanAggExp
+        - fieldName: totalPosts
+          aggregateExpression: BigintAggExp
+        - fieldName: totalResponses
+          aggregateExpression: BigintAggExp
+        - fieldName: unreadResponses
+          aggregateExpression: BigintAggExp
+        - fieldName: userId
+          aggregateExpression: BigintAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: CollabMyDataAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: CollabMyDataOrderByExp
+  operand:
+    object:
+      orderedType: CollabMyData
+      orderableFields:
+        - fieldName: activePosts
+          orderByExpression: Int64OrderByExp
+        - fieldName: guildId
+          orderByExpression: Int64OrderByExp
+        - fieldName: isBlocked
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: profileId
+          orderByExpression: String1OrderByExp
+        - fieldName: profileIsPublic
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: totalPosts
+          orderByExpression: Int64OrderByExp
+        - fieldName: totalResponses
+          orderByExpression: Int64OrderByExp
+        - fieldName: unreadResponses
+          orderByExpression: Int64OrderByExp
+        - fieldName: userId
+          orderByExpression: Int64OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: CollabMyDataOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: CollabMyData
+  objectType: CollabMyData
+  source:
+    dataConnectorName: postgres
+    collection: collab.my_data
+  filterExpressionType: CollabMyDataBoolExp
+  aggregateExpression: CollabMyDataAggExp
+  orderByExpression: CollabMyDataOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: collabMyData
+      subscription:
+        rootField: collabMyData
+    selectUniques: []
+    filterInputTypeName: CollabMyDataFilterInput
+    aggregate:
+      queryRootField: collabMyDataAggregate
+      subscription:
+        rootField: collabMyDataAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: CollabMyData
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

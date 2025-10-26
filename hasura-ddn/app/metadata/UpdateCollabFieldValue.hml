@@ -1,0 +1,126 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: CollabFieldValueSetInput
+  description: Input type for updating collab.field_value
+  fields:
+    - name: fieldDefinitionId
+      type: UuidSetInput
+      description: New value wrapper for collab.field_value.field_definition_id
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for collab.field_value.id
+    - name: postId
+      type: UuidSetInput
+      description: New value wrapper for collab.field_value.post_id
+    - name: value
+      type: TextSetInput
+      description: New value wrapper for collab.field_value.value
+  graphql:
+    typeName: CollabFieldValueSetInput
+    inputTypeName: CollabFieldValueSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: collab.field_value_set_input
+      fieldMapping:
+        fieldDefinitionId:
+          column:
+            name: field_definition_id
+        id:
+          column:
+            name: id
+        postId:
+          column:
+            name: post_id
+        value:
+          column:
+            name: value
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: CollabFieldValueSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - fieldDefinitionId
+          - id
+          - postId
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateCollabFieldValueResult
+  description: update from collab.field_value result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[CollabFieldValue!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateCollabFieldValueResult
+    inputTypeName: UpdateCollabFieldValueResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_collab.field_value_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateCollabFieldValueResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateCollabFieldValue
+  outputType: UpdateCollabFieldValueResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: CollabFieldValueSetInput!
+      description: Values to set
+    - name: where
+      type: CollabFieldValueBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_collab.field_value
+  graphql:
+    rootFieldName: updateCollabFieldValue
+    rootFieldKind: Mutation
+  description: Update collab.field_value
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateCollabFieldValue
+  permissions:
+    - role: admin
+      allowExecution: true
+
