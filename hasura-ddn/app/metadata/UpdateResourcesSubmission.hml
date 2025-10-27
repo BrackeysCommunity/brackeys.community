@@ -1,0 +1,217 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionSetInput
+  description: Input type for updating resources.submission
+  fields:
+    - name: approvedResourceId
+      type: UuidSetInput
+      description: New value wrapper for resources.submission.approved_resource_id
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.submission.created_at
+    - name: description
+      type: TextSetInput
+      description: New value wrapper for resources.submission.description
+    - name: developer
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.submission.developer
+    - name: developerUrl
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.submission.developer_url
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for resources.submission.id
+    - name: imageUrl
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.submission.image_url
+    - name: rejectionReason
+      type: TextSetInput
+      description: New value wrapper for resources.submission.rejection_reason
+    - name: releaseDate
+      type: DateSetInput
+      description: New value wrapper for resources.submission.release_date
+    - name: resourceUrl
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.submission.resource_url
+    - name: reviewedAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.submission.reviewed_at
+    - name: reviewedByUserId
+      type: BigintSetInput
+      description: New value wrapper for resources.submission.reviewed_by_user_id
+    - name: status
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.submission.status
+    - name: submittedByUserId
+      type: BigintSetInput
+      description: New value wrapper for resources.submission.submitted_by_user_id
+    - name: title
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.submission.title
+    - name: typeId
+      type: IntegerSetInput
+      description: New value wrapper for resources.submission.type_id
+    - name: updatedAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.submission.updated_at
+  graphql:
+    typeName: ResourcesSubmissionSetInput
+    inputTypeName: ResourcesSubmissionSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_set_input
+      fieldMapping:
+        approvedResourceId:
+          column:
+            name: approved_resource_id
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        rejectionReason:
+          column:
+            name: rejection_reason
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        reviewedAt:
+          column:
+            name: reviewed_at
+        reviewedByUserId:
+          column:
+            name: reviewed_by_user_id
+        status:
+          column:
+            name: status
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - approvedResourceId
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - reviewedByUserId
+          - status
+          - submittedByUserId
+          - title
+          - typeId
+          - updatedAt
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesSubmissionResult
+  description: update from resources.submission result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmission!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesSubmissionResult
+    inputTypeName: UpdateResourcesSubmissionResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.submission_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesSubmissionResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesSubmission
+  outputType: UpdateResourcesSubmissionResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesSubmissionSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesSubmissionBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.submission
+  graphql:
+    rootFieldName: updateResourcesSubmission
+    rootFieldKind: Mutation
+  description: Update resources.submission
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesSubmission
+  permissions:
+    - role: admin
+      allowExecution: true
+

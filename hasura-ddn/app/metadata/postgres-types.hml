@@ -2,6 +2,90 @@
 kind: ScalarType
 version: v1
 definition:
+  name: Int64
+  graphql:
+    typeName: Int64
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Int32
+  graphql:
+    typeName: Int32
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: String_1
+  graphql:
+    typeName: String1
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: Int64OrderByExp
+  operand:
+    scalar:
+      orderedType: Int64
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: Int64OrderByExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: Int32OrderByExp
+  operand:
+    scalar:
+      orderedType: Int32
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: Int32OrderByExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: String1OrderByExp
+  operand:
+    scalar:
+      orderedType: String_1
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: String1OrderByExp
+
+---
+kind: ScalarType
+version: v1
+definition:
+  name: Timestamptz
+  graphql:
+    typeName: Timestamptz
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: TimestamptzOrderByExp
+  operand:
+    scalar:
+      orderedType: Timestamptz
+      enableOrderByDirections:
+        enableAll: true
+  graphql:
+    expressionTypeName: TimestamptzOrderByExp
+
+---
+kind: ScalarType
+version: v1
+definition:
   name: Timestamp
   graphql:
     typeName: Timestamp
@@ -51,14 +135,6 @@ definition:
     comparisonExpressionTypeName: TimestampComparisonExp
 
 ---
-kind: ScalarType
-version: v1
-definition:
-  name: Int64
-  graphql:
-    typeName: Int64
-
----
 kind: BooleanExpressionType
 version: v1
 definition:
@@ -103,14 +179,6 @@ definition:
     comparisonExpressionTypeName: Int64ComparisonExp
 
 ---
-kind: ScalarType
-version: v1
-definition:
-  name: Int32
-  graphql:
-    typeName: Int32
-
----
 kind: BooleanExpressionType
 version: v1
 definition:
@@ -153,14 +221,6 @@ definition:
   representation: Int32
   graphql:
     comparisonExpressionTypeName: Int32ComparisonExp
-
----
-kind: ScalarType
-version: v1
-definition:
-  name: String_1
-  graphql:
-    typeName: String1
 
 ---
 kind: BooleanExpressionType
@@ -787,45 +847,6 @@ definition:
 kind: OrderByExpression
 version: v1
 definition:
-  name: Int64OrderByExp
-  operand:
-    scalar:
-      orderedType: Int64
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: Int64OrderByExp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: Int32OrderByExp
-  operand:
-    scalar:
-      orderedType: Int32
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: Int32OrderByExp
-
----
-kind: OrderByExpression
-version: v1
-definition:
-  name: String1OrderByExp
-  operand:
-    scalar:
-      orderedType: String_1
-      enableOrderByDirections:
-        enableAll: true
-  graphql:
-    expressionTypeName: String1OrderByExp
-
----
-kind: OrderByExpression
-version: v1
-definition:
   name: Boolean1OrderByExp
   operand:
     scalar:
@@ -834,14 +855,6 @@ definition:
         enableAll: true
   graphql:
     expressionTypeName: Boolean1OrderByExp
-
----
-kind: ScalarType
-version: v1
-definition:
-  name: Timestamptz
-  graphql:
-    typeName: Timestamptz
 
 ---
 kind: BooleanExpressionType
@@ -916,17 +929,89 @@ definition:
     selectTypeName: TimestampWithTimeZoneAggExp
 
 ---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: DateBoolExp
+  operand:
+    scalar:
+      type: Date
+      comparisonOperators:
+        - name: _eq
+          argumentType: Date!
+        - name: _gt
+          argumentType: Date!
+        - name: _gte
+          argumentType: Date!
+        - name: _in
+          argumentType: "[Date!]!"
+        - name: _lt
+          argumentType: Date!
+        - name: _lte
+          argumentType: Date!
+        - name: _neq
+          argumentType: Date!
+      dataConnectorOperatorMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: date
+          operatorMapping: {}
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: DateBoolExp
+
+---
+kind: DataConnectorScalarRepresentation
+version: v1
+definition:
+  dataConnectorName: postgres
+  dataConnectorScalarType: date
+  representation: Date
+  graphql:
+    comparisonExpressionTypeName: DateComparisonExp_1
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: DateAggExp
+  operand:
+    scalar:
+      aggregatedType: Date
+      aggregationFunctions:
+        - name: max
+          returnType: Date
+        - name: min
+          returnType: Date
+      dataConnectorAggregationFunctionMapping:
+        - dataConnectorName: postgres
+          dataConnectorScalarType: date
+          functionMapping:
+            max:
+              name: max
+            min:
+              name: min
+  count:
+    enable: true
+  countDistinct:
+    enable: true
+  graphql:
+    selectTypeName: DateAggExp
+
+---
 kind: OrderByExpression
 version: v1
 definition:
-  name: TimestamptzOrderByExp
+  name: DateOrderByExp
   operand:
     scalar:
-      orderedType: Timestamptz
+      orderedType: Date
       enableOrderByDirections:
         enableAll: true
   graphql:
-    expressionTypeName: TimestamptzOrderByExp
+    expressionTypeName: DateOrderByExp
 
 ---
 kind: BooleanExpressionType

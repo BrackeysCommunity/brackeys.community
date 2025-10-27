@@ -1,0 +1,140 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesTagSetInput
+  description: Input type for updating resources.tag
+  fields:
+    - name: colorClass
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.tag.color_class
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.tag.created_at
+    - name: iconName
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.tag.icon_name
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for resources.tag.id
+    - name: label
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.tag.label
+    - name: slug
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.tag.slug
+  graphql:
+    typeName: ResourcesTagSetInput
+    inputTypeName: ResourcesTagSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.tag_set_input
+      fieldMapping:
+        colorClass:
+          column:
+            name: color_class
+        createdAt:
+          column:
+            name: created_at
+        iconName:
+          column:
+            name: icon_name
+        id:
+          column:
+            name: id
+        label:
+          column:
+            name: label
+        slug:
+          column:
+            name: slug
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesTagSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - colorClass
+          - createdAt
+          - iconName
+          - id
+          - label
+          - slug
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesTagResult
+  description: update from resources.tag result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesTag!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesTagResult
+    inputTypeName: UpdateResourcesTagResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.tag_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesTagResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesTag
+  outputType: UpdateResourcesTagResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesTagSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesTagBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.tag
+  graphql:
+    rootFieldName: updateResourcesTag
+    rootFieldKind: Mutation
+  description: Update resources.tag
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesTag
+  permissions:
+    - role: admin
+      allowExecution: true
+

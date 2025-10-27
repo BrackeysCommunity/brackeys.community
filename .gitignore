@@ -38,3 +38,7 @@ codegen.ts
 
 # ESLint cache
 .eslintcache
+
+# Hasura metadata
+hasura-ddn/engine/build/*
+hasura-ddn/engine/build/metadata.json

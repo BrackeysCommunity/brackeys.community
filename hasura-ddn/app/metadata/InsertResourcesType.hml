@@ -1,0 +1,106 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesTypeInsertInput
+  description: Input type for inserting into resources.type
+  fields:
+    - name: description
+      type: String_1
+      description: New value for resources.type.description
+    - name: id
+      type: Int32!
+      description: New value for resources.type.id
+    - name: name
+      type: String_1!
+      description: New value for resources.type.name
+  graphql:
+    typeName: ResourcesTypeInsertInput
+    inputTypeName: ResourcesTypeInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.type_insert_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesTypeInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesTypeResult
+  description: insert from resources.type result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesType!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesTypeResult
+    inputTypeName: InsertResourcesTypeResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.type_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesTypeResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesType
+  outputType: InsertResourcesTypeResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesTypeInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.type
+  graphql:
+    rootFieldName: insertResourcesType
+    rootFieldKind: Mutation
+  description: Insert into resources.type
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesType
+  permissions:
+    - role: admin
+      allowExecution: true
+

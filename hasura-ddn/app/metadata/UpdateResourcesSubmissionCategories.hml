@@ -1,0 +1,119 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionCategoriesSetInput
+  description: Input type for updating resources.submission_categories
+  fields:
+    - name: categoryId
+      type: UuidSetInput
+      description: New value wrapper for resources.submission_categories.category_id
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.submission_categories.created_at
+    - name: submissionId
+      type: UuidSetInput
+      description: New value wrapper for resources.submission_categories.submission_id
+  graphql:
+    typeName: ResourcesSubmissionCategoriesSetInput
+    inputTypeName: ResourcesSubmissionCategoriesSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_categories_set_input
+      fieldMapping:
+        categoryId:
+          column:
+            name: category_id
+        createdAt:
+          column:
+            name: created_at
+        submissionId:
+          column:
+            name: submission_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionCategoriesSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categoryId
+          - createdAt
+          - submissionId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesSubmissionCategoriesResult
+  description: update from resources.submission_categories result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmissionCategories!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesSubmissionCategoriesResult
+    inputTypeName: UpdateResourcesSubmissionCategoriesResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.submission_categories_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesSubmissionCategoriesResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesSubmissionCategories
+  outputType: UpdateResourcesSubmissionCategoriesResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesSubmissionCategoriesSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesSubmissionCategoriesBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.submission_categories
+  graphql:
+    rootFieldName: updateResourcesSubmissionCategories
+    rootFieldKind: Mutation
+  description: Update resources.submission_categories
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesSubmissionCategories
+  permissions:
+    - role: admin
+      allowExecution: true
+

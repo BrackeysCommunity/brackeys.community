@@ -1,0 +1,343 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionDetail
+  fields:
+    - name: approvedResourceId
+      type: String_1
+    - name: categories
+      type: String_1
+    - name: createdAt
+      type: Timestamptz
+    - name: description
+      type: String_1
+    - name: developer
+      type: String_1
+    - name: developerUrl
+      type: String_1
+    - name: id
+      type: String_1
+    - name: imageUrl
+      type: String_1
+    - name: rejectionReason
+      type: String_1
+    - name: releaseDate
+      type: Date
+    - name: resourceUrl
+      type: String_1
+    - name: reviewedAt
+      type: Timestamptz
+    - name: reviewedByUserId
+      type: Int64
+    - name: status
+      type: String_1
+    - name: submittedByUserId
+      type: Int64
+    - name: tags
+      type: String_1
+    - name: title
+      type: String_1
+    - name: typeId
+      type: Int32
+    - name: typeName
+      type: String_1
+    - name: updatedAt
+      type: Timestamptz
+  graphql:
+    typeName: ResourcesSubmissionDetail
+    inputTypeName: ResourcesSubmissionDetailInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_detail
+      fieldMapping:
+        approvedResourceId:
+          column:
+            name: approved_resource_id
+        categories:
+          column:
+            name: categories
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        rejectionReason:
+          column:
+            name: rejection_reason
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        reviewedAt:
+          column:
+            name: reviewed_at
+        reviewedByUserId:
+          column:
+            name: reviewed_by_user_id
+        status:
+          column:
+            name: status
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        tags:
+          column:
+            name: tags
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        typeName:
+          column:
+            name: type_name
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionDetail
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - approvedResourceId
+          - categories
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - reviewedByUserId
+          - status
+          - submittedByUserId
+          - tags
+          - title
+          - typeId
+          - typeName
+          - updatedAt
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesSubmissionDetailBoolExp
+  operand:
+    object:
+      type: ResourcesSubmissionDetail
+      comparableFields:
+        - fieldName: approvedResourceId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: categories
+          booleanExpressionType: JsonBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: description
+          booleanExpressionType: TextBoolExp
+        - fieldName: developer
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: developerUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: imageUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: rejectionReason
+          booleanExpressionType: TextBoolExp
+        - fieldName: releaseDate
+          booleanExpressionType: DateBoolExp
+        - fieldName: resourceUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: reviewedAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: reviewedByUserId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: status
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: submittedByUserId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: tags
+          booleanExpressionType: JsonBoolExp
+        - fieldName: title
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: typeId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: typeName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesSubmissionDetailBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesSubmissionDetailAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesSubmissionDetail
+      aggregatableFields:
+        - fieldName: approvedResourceId
+          aggregateExpression: UuidAggExp
+        - fieldName: categories
+          aggregateExpression: JsonAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: description
+          aggregateExpression: TextAggExp
+        - fieldName: developer
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: developerUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: imageUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: rejectionReason
+          aggregateExpression: TextAggExp
+        - fieldName: releaseDate
+          aggregateExpression: DateAggExp
+        - fieldName: resourceUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: reviewedAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: reviewedByUserId
+          aggregateExpression: BigintAggExp
+        - fieldName: status
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: submittedByUserId
+          aggregateExpression: BigintAggExp
+        - fieldName: tags
+          aggregateExpression: JsonAggExp
+        - fieldName: title
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: typeId
+          aggregateExpression: IntegerAggExp
+        - fieldName: typeName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesSubmissionDetailAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesSubmissionDetailOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesSubmissionDetail
+      orderableFields:
+        - fieldName: approvedResourceId
+          orderByExpression: String1OrderByExp
+        - fieldName: categories
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: developer
+          orderByExpression: String1OrderByExp
+        - fieldName: developerUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: imageUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: rejectionReason
+          orderByExpression: String1OrderByExp
+        - fieldName: releaseDate
+          orderByExpression: DateOrderByExp
+        - fieldName: resourceUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: reviewedAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: reviewedByUserId
+          orderByExpression: Int64OrderByExp
+        - fieldName: status
+          orderByExpression: String1OrderByExp
+        - fieldName: submittedByUserId
+          orderByExpression: Int64OrderByExp
+        - fieldName: tags
+          orderByExpression: String1OrderByExp
+        - fieldName: title
+          orderByExpression: String1OrderByExp
+        - fieldName: typeId
+          orderByExpression: Int32OrderByExp
+        - fieldName: typeName
+          orderByExpression: String1OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestamptzOrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: ResourcesSubmissionDetailOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesSubmissionDetail
+  objectType: ResourcesSubmissionDetail
+  source:
+    dataConnectorName: postgres
+    collection: resources.submission_detail
+  filterExpressionType: ResourcesSubmissionDetailBoolExp
+  aggregateExpression: ResourcesSubmissionDetailAggExp
+  orderByExpression: ResourcesSubmissionDetailOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesSubmissionDetail
+      subscription:
+        rootField: resourcesSubmissionDetail
+    selectUniques: []
+    filterInputTypeName: ResourcesSubmissionDetailFilterInput
+    aggregate:
+      queryRootField: resourcesSubmissionDetailAggregate
+      subscription:
+        rootField: resourcesSubmissionDetailAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesSubmissionDetail
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

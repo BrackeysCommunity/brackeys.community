@@ -1,0 +1,183 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionCategories
+  fields:
+    - name: categoryId
+      type: String_1!
+    - name: createdAt
+      type: Timestamptz!
+    - name: submissionId
+      type: String_1!
+  graphql:
+    typeName: ResourcesSubmissionCategories
+    inputTypeName: ResourcesSubmissionCategoriesInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_categories
+      fieldMapping:
+        categoryId:
+          column:
+            name: category_id
+        createdAt:
+          column:
+            name: created_at
+        submissionId:
+          column:
+            name: submission_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionCategories
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categoryId
+          - createdAt
+          - submissionId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesSubmissionCategoriesBoolExp
+  operand:
+    object:
+      type: ResourcesSubmissionCategories
+      comparableFields:
+        - fieldName: categoryId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: submissionId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesSubmissionCategoriesBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesSubmissionCategoriesAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesSubmissionCategories
+      aggregatableFields:
+        - fieldName: categoryId
+          aggregateExpression: UuidAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: submissionId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesSubmissionCategoriesAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesSubmissionCategoriesOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesSubmissionCategories
+      orderableFields:
+        - fieldName: categoryId
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: submissionId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: resourcesCategory
+        - relationshipName: resourcesSubmission
+  graphql:
+    expressionTypeName: ResourcesSubmissionCategoriesOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesSubmissionCategories
+  objectType: ResourcesSubmissionCategories
+  source:
+    dataConnectorName: postgres
+    collection: resources.submission_categories
+  filterExpressionType: ResourcesSubmissionCategoriesBoolExp
+  aggregateExpression: ResourcesSubmissionCategoriesAggExp
+  orderByExpression: ResourcesSubmissionCategoriesOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesSubmissionCategories
+      subscription:
+        rootField: resourcesSubmissionCategories
+    selectUniques:
+      - queryRootField: resourcesSubmissionCategoriesByPrimaryKey
+        uniqueIdentifier:
+          - submissionId
+          - categoryId
+        subscription:
+          rootField: resourcesSubmissionCategoriesByPrimaryKey
+    filterInputTypeName: ResourcesSubmissionCategoriesFilterInput
+    aggregate:
+      queryRootField: resourcesSubmissionCategoriesAggregate
+      subscription:
+        rootField: resourcesSubmissionCategoriesAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesSubmissionCategories
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesCategory
+  sourceType: ResourcesSubmissionCategories
+  target:
+    model:
+      name: ResourcesCategory
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: categoryId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmission
+  sourceType: ResourcesSubmissionCategories
+  target:
+    model:
+      name: ResourcesSubmission
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: submissionId
+      target:
+        modelField:
+          - fieldName: id
+

@@ -1,0 +1,224 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesTag
+  fields:
+    - name: colorClass
+      type: String_1
+    - name: createdAt
+      type: Timestamptz!
+    - name: iconName
+      type: String_1
+    - name: id
+      type: String_1!
+    - name: label
+      type: String_1!
+    - name: slug
+      type: String_1!
+  graphql:
+    typeName: ResourcesTag
+    inputTypeName: ResourcesTagInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.tag
+      fieldMapping:
+        colorClass:
+          column:
+            name: color_class
+        createdAt:
+          column:
+            name: created_at
+        iconName:
+          column:
+            name: icon_name
+        id:
+          column:
+            name: id
+        label:
+          column:
+            name: label
+        slug:
+          column:
+            name: slug
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesTag
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - colorClass
+          - createdAt
+          - iconName
+          - id
+          - label
+          - slug
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesTagBoolExp
+  operand:
+    object:
+      type: ResourcesTag
+      comparableFields:
+        - fieldName: colorClass
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: iconName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: label
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: slug
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesTagBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesTagAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesTag
+      aggregatableFields:
+        - fieldName: colorClass
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: iconName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: label
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: slug
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesTagAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesTagOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesTag
+      orderableFields:
+        - fieldName: colorClass
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: iconName
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: label
+          orderByExpression: String1OrderByExp
+        - fieldName: slug
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: ResourcesTagOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesTag
+  objectType: ResourcesTag
+  source:
+    dataConnectorName: postgres
+    collection: resources.tag
+  filterExpressionType: ResourcesTagBoolExp
+  aggregateExpression: ResourcesTagAggExp
+  orderByExpression: ResourcesTagOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesTag
+      subscription:
+        rootField: resourcesTag
+    selectUniques:
+      - queryRootField: resourcesTagById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: resourcesTagById
+    filterInputTypeName: ResourcesTagFilterInput
+    aggregate:
+      queryRootField: resourcesTagAggregate
+      subscription:
+        rootField: resourcesTagAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesTag
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesResourceTags
+  sourceType: ResourcesTag
+  target:
+    model:
+      name: ResourcesResourceTags
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesResourceTagsAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: tagId
+  graphql:
+    aggregateFieldName: resourcesResourceTagsAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmissionTags
+  sourceType: ResourcesTag
+  target:
+    model:
+      name: ResourcesSubmissionTags
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesSubmissionTagsAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: tagId
+  graphql:
+    aggregateFieldName: resourcesSubmissionTagsAggregate
+

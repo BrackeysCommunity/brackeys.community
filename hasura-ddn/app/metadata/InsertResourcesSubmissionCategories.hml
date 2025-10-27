@@ -1,0 +1,116 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionCategoriesInsertInput
+  description: Input type for inserting into resources.submission_categories
+  fields:
+    - name: categoryId
+      type: String_1!
+      description: New value for resources.submission_categories.category_id
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for resources.submission_categories.created_at
+    - name: submissionId
+      type: String_1!
+      description: New value for resources.submission_categories.submission_id
+  graphql:
+    typeName: ResourcesSubmissionCategoriesInsertInput
+    inputTypeName: ResourcesSubmissionCategoriesInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_categories_insert_input
+      fieldMapping:
+        categoryId:
+          column:
+            name: category_id
+        createdAt:
+          column:
+            name: created_at
+        submissionId:
+          column:
+            name: submission_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionCategoriesInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categoryId
+          - createdAt
+          - submissionId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesSubmissionCategoriesResult
+  description: insert from resources.submission_categories result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmissionCategories!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesSubmissionCategoriesResult
+    inputTypeName: InsertResourcesSubmissionCategoriesResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.submission_categories_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesSubmissionCategoriesResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesSubmissionCategories
+  outputType: InsertResourcesSubmissionCategoriesResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesSubmissionCategoriesInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.submission_categories
+  graphql:
+    rootFieldName: insertResourcesSubmissionCategories
+    rootFieldKind: Mutation
+  description: Insert into resources.submission_categories
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesSubmissionCategories
+  permissions:
+    - role: admin
+      allowExecution: true
+

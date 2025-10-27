@@ -1,6 +1,10 @@
 include:
-  - path: app/connector/postgres/compose.yaml
   - path: app/connector/storage/compose.yaml
+  - path: app/connector/postgres/compose.yaml
+networks:
+  brackeys:
+    external: true
+    name: brackeys
 services:
   engine:
     build:
@@ -18,23 +22,23 @@ services:
       - local.hasura.dev:host-gateway
     labels:
       io.hasura.ddn.service-name: engine
-    ports:
-      - 3280:3000
     networks:
       - brackeys
+    ports:
+      - 3280:3000
   otel-collector:
     command:
       - --config=/etc/otel-collector-config.yaml
     environment:
       HASURA_DDN_PAT: ${HASURA_DDN_PAT}
     image: otel/opentelemetry-collector:0.104.0
+    networks:
+      - brackeys
     ports:
       - 4317:4317
       - 4318:4318
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    networks:
-      - brackeys
   promptql-playground:
     environment:
       CONFIG_PATH: /app/promptql_config.json
@@ -47,15 +51,10 @@ services:
     image: us-east4-docker.pkg.dev/promptql-execution-service/promptql-public/promptql-playground-local
     labels:
       io.hasura.ddn.service-name: promptql-playground
+    networks:
+      - brackeys
     ports:
       - 3282:5000
     volumes:
       - ./engine/build/promptql_config.json:/app/promptql_config.json
       - ./.promptql_playground.db:/app/promptql_playground/promptql_playground.db
-    networks:
-      - brackeys
-
-networks:
-  brackeys:
-    name: brackeys
-    external: true

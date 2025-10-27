@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteResourcesTypeResult
+  description: delete from resources.type result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesType!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteResourcesTypeResult
+    inputTypeName: DeleteResourcesTypeResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_resources.type_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteResourcesTypeResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteResourcesType
+  outputType: DeleteResourcesTypeResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: ResourcesTypeBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_resources.type
+  graphql:
+    rootFieldName: deleteResourcesType
+    rootFieldKind: Mutation
+  description: Delete from resources.type
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteResourcesType
+  permissions:
+    - role: admin
+      allowExecution: true
+

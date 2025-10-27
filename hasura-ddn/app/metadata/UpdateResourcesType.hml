@@ -1,0 +1,109 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesTypeSetInput
+  description: Input type for updating resources.type
+  fields:
+    - name: description
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.type.description
+    - name: id
+      type: IntegerSetInput
+      description: New value wrapper for resources.type.id
+    - name: name
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.type.name
+  graphql:
+    typeName: ResourcesTypeSetInput
+    inputTypeName: ResourcesTypeSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.type_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesTypeSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesTypeResult
+  description: update from resources.type result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesType!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesTypeResult
+    inputTypeName: UpdateResourcesTypeResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.type_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesTypeResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesType
+  outputType: UpdateResourcesTypeResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesTypeSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesTypeBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.type
+  graphql:
+    rootFieldName: updateResourcesType
+    rootFieldKind: Mutation
+  description: Update resources.type
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesType
+  permissions:
+    - role: admin
+      allowExecution: true
+

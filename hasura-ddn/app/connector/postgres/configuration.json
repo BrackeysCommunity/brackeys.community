@@ -2011,604 +2011,128 @@
             "foreign_keys": {}
         },
         {
-            "name": "hdb_catalog.hdb_action_log",
+            "name": "public.flyway_schema_history",
             "description": null,
             "category": "TABLE",
             "columns": [
                 {
-                    "name": "id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "uuid"
-                    }
-                },
-                {
-                    "name": "action_name",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "input_payload",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "request_headers",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "session_variables",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "response_payload",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "errors",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "created_at",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "response_received_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "status",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {}
-        },
-        {
-            "name": "hdb_catalog.hdb_cron_event_invocation_logs",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "event_id",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "status",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "request",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "response",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "created_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {
-                "hdb_cron_event_invocation_logs_event_id_fkey": {
-                    "column_mapping": {
-                        "event_id": "id"
-                    },
-                    "foreign_collection": "hdb_catalog.hdb_cron_events"
-                }
-            }
-        },
-        {
-            "name": "hdb_catalog.hdb_cron_events",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "trigger_name",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "scheduled_time",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "status",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "tries",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "created_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "next_retry_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {}
-        },
-        {
-            "name": "hdb_catalog.hdb_metadata",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "id",
+                    "name": "installed_rank",
                     "nullable": false,
                     "auto_increment": false,
                     "is_primarykey": true,
                     "data": {
                         "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "metadata",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "resource_version",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {}
-        },
-        {
-            "name": "hdb_catalog.hdb_scheduled_event_invocation_logs",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "event_id",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "status",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "request",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "response",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "created_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {
-                "hdb_scheduled_event_invocation_logs_event_id_fkey": {
-                    "column_mapping": {
-                        "event_id": "id"
-                    },
-                    "foreign_collection": "hdb_catalog.hdb_scheduled_events"
-                }
-            }
-        },
-        {
-            "name": "hdb_catalog.hdb_scheduled_events",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "webhook_conf",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "scheduled_time",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "retry_conf",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "payload",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "header_conf",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "status",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "tries",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "created_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "next_retry_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "comment",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {}
-        },
-        {
-            "name": "hdb_catalog.hdb_schema_notifications",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "notification",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "json"
-                    }
-                },
-                {
-                    "name": "resource_version",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "integer"
-                    }
-                },
-                {
-                    "name": "instance_id",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "uuid"
-                    }
-                },
-                {
-                    "name": "updated_at",
-                    "nullable": true,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                }
-            ],
-            "primary_keys": [
-                "id"
-            ],
-            "foreign_keys": {}
-        },
-        {
-            "name": "hdb_catalog.hdb_version",
-            "description": null,
-            "category": "TABLE",
-            "columns": [
-                {
-                    "name": "hasura_uuid",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": true,
-                    "data": {
-                        "database_type": "uuid"
                     }
                 },
                 {
                     "name": "version",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "text"
-                    }
-                },
-                {
-                    "name": "upgraded_on",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "timestamp_with_time_zone"
-                    }
-                },
-                {
-                    "name": "cli_state",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "console_state",
-                    "nullable": false,
-                    "auto_increment": false,
-                    "is_primarykey": false,
-                    "data": {
-                        "database_type": "jsonb"
-                    }
-                },
-                {
-                    "name": "ee_client_id",
                     "nullable": true,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
-                        "database_type": "text"
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
                     }
                 },
                 {
-                    "name": "ee_client_secret",
+                    "name": "description",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "type",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 20
+                        }
+                    }
+                },
+                {
+                    "name": "script",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "checksum",
                     "nullable": true,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
-                        "database_type": "text"
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "installed_by",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 100
+                        }
+                    }
+                },
+                {
+                    "name": "installed_on",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_without_time_zone"
+                    }
+                },
+                {
+                    "name": "execution_time",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "success",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "boolean"
                     }
                 }
             ],
             "primary_keys": [
-                "hasura_uuid"
+                "installed_rank"
             ],
             "foreign_keys": {}
         },
         {
-            "name": "users.user",
+            "name": "resources.category",
             "description": null,
             "category": "TABLE",
             "columns": [
@@ -2622,16 +2146,117 @@
                     }
                 },
                 {
-                    "name": "ory_identity_id",
+                    "name": "slug",
                     "nullable": false,
                     "auto_increment": false,
                     "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                },
+                {
+                    "name": "label",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 100
+                        }
+                    }
+                },
+                {
+                    "name": "type_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "icon_name",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                },
+                {
+                    "name": "color_class",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 100
+                        }
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                }
+            ],
+            "primary_keys": [
+                "id"
+            ],
+            "foreign_keys": {
+                "category_type_id_fkey": {
+                    "column_mapping": {
+                        "type_id": "id"
+                    },
+                    "foreign_collection": "resources.type"
+                }
+            }
+        },
+        {
+            "name": "resources.resource",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
                     "data": {
                         "database_type": "uuid"
                     }
                 },
                 {
-                    "name": "email",
+                    "name": "title",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "description",
                     "nullable": false,
                     "auto_increment": false,
                     "is_primarykey": false,
@@ -2640,39 +2265,91 @@
                     }
                 },
                 {
-                    "name": "username",
+                    "name": "image_url",
                     "nullable": true,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
-                        "database_type": "text"
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
                     }
                 },
                 {
-                    "name": "display_name",
-                    "nullable": true,
+                    "name": "type_id",
+                    "nullable": false,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
-                        "database_type": "text"
+                        "database_type": "integer"
                     }
                 },
                 {
-                    "name": "avatar_url",
-                    "nullable": true,
+                    "name": "resource_url",
+                    "nullable": false,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
-                        "database_type": "text"
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
                     }
                 },
                 {
-                    "name": "discord_id",
+                    "name": "release_date",
                     "nullable": true,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
-                        "database_type": "text"
+                        "database_type": "date"
+                    }
+                },
+                {
+                    "name": "developer",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "developer_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "is_published",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "boolean"
+                    }
+                },
+                {
+                    "name": "view_count",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
                     }
                 },
                 {
@@ -2692,15 +2369,321 @@
                     "data": {
                         "database_type": "timestamp_with_time_zone"
                     }
+                },
+                {
+                    "name": "submitted_by_user_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "bigint"
+                    }
                 }
             ],
             "primary_keys": [
                 "id"
             ],
+            "foreign_keys": {
+                "resource_type_id_fkey": {
+                    "column_mapping": {
+                        "type_id": "id"
+                    },
+                    "foreign_collection": "resources.type"
+                }
+            }
+        },
+        {
+            "name": "resources.resource_categories",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "resource_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "category_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                }
+            ],
+            "primary_keys": [
+                "resource_id",
+                "category_id"
+            ],
+            "foreign_keys": {
+                "resource_categories_category_id_fkey": {
+                    "column_mapping": {
+                        "category_id": "id"
+                    },
+                    "foreign_collection": "resources.category"
+                },
+                "resource_categories_resource_id_fkey": {
+                    "column_mapping": {
+                        "resource_id": "id"
+                    },
+                    "foreign_collection": "resources.resource"
+                }
+            }
+        },
+        {
+            "name": "resources.resource_detail",
+            "description": null,
+            "category": "VIEW",
+            "columns": [
+                {
+                    "name": "id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "title",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "description",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "text"
+                    }
+                },
+                {
+                    "name": "image_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "type_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "resource_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "release_date",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "date"
+                    }
+                },
+                {
+                    "name": "developer",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "developer_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "is_published",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "boolean"
+                    }
+                },
+                {
+                    "name": "view_count",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "updated_at",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "submitted_by_user_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "bigint"
+                    }
+                },
+                {
+                    "name": "categories",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "json"
+                    }
+                },
+                {
+                    "name": "tags",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "json"
+                    }
+                },
+                {
+                    "name": "type_name",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                }
+            ],
+            "primary_keys": [],
             "foreign_keys": {}
         },
         {
-            "name": "users.user_role",
+            "name": "resources.resource_tags",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "resource_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "tag_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                }
+            ],
+            "primary_keys": [
+                "resource_id",
+                "tag_id"
+            ],
+            "foreign_keys": {
+                "resource_tags_resource_id_fkey": {
+                    "column_mapping": {
+                        "resource_id": "id"
+                    },
+                    "foreign_collection": "resources.resource"
+                },
+                "resource_tags_tag_id_fkey": {
+                    "column_mapping": {
+                        "tag_id": "id"
+                    },
+                    "foreign_collection": "resources.tag"
+                }
+            }
+        },
+        {
+            "name": "resources.submission",
             "description": null,
             "category": "TABLE",
             "columns": [
@@ -2714,8 +2697,252 @@
                     }
                 },
                 {
-                    "name": "user_id",
+                    "name": "title",
                     "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "description",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "text"
+                    }
+                },
+                {
+                    "name": "image_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "type_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "resource_url",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "release_date",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "date"
+                    }
+                },
+                {
+                    "name": "developer",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "developer_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "status",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 20
+                        }
+                    }
+                },
+                {
+                    "name": "submitted_by_user_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "bigint"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "updated_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "reviewed_at",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "reviewed_by_user_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "bigint"
+                    }
+                },
+                {
+                    "name": "rejection_reason",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "text"
+                    }
+                },
+                {
+                    "name": "approved_resource_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                }
+            ],
+            "primary_keys": [
+                "id"
+            ],
+            "foreign_keys": {
+                "submission_approved_resource_id_fkey": {
+                    "column_mapping": {
+                        "approved_resource_id": "id"
+                    },
+                    "foreign_collection": "resources.resource"
+                },
+                "submission_type_id_fkey": {
+                    "column_mapping": {
+                        "type_id": "id"
+                    },
+                    "foreign_collection": "resources.type"
+                }
+            }
+        },
+        {
+            "name": "resources.submission_categories",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "submission_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "category_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                }
+            ],
+            "primary_keys": [
+                "submission_id",
+                "category_id"
+            ],
+            "foreign_keys": {
+                "submission_categories_category_id_fkey": {
+                    "column_mapping": {
+                        "category_id": "id"
+                    },
+                    "foreign_collection": "resources.category"
+                },
+                "submission_categories_submission_id_fkey": {
+                    "column_mapping": {
+                        "submission_id": "id"
+                    },
+                    "foreign_collection": "resources.submission"
+                }
+            }
+        },
+        {
+            "name": "resources.submission_detail",
+            "description": null,
+            "category": "VIEW",
+            "columns": [
+                {
+                    "name": "id",
+                    "nullable": true,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
@@ -2723,12 +2950,324 @@
                     }
                 },
                 {
-                    "name": "role",
-                    "nullable": false,
+                    "name": "title",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "description",
+                    "nullable": true,
                     "auto_increment": false,
                     "is_primarykey": false,
                     "data": {
                         "database_type": "text"
+                    }
+                },
+                {
+                    "name": "image_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "type_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "resource_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "release_date",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "date"
+                    }
+                },
+                {
+                    "name": "developer",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 200
+                        }
+                    }
+                },
+                {
+                    "name": "developer_url",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 1000
+                        }
+                    }
+                },
+                {
+                    "name": "status",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 20
+                        }
+                    }
+                },
+                {
+                    "name": "submitted_by_user_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "bigint"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "updated_at",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "reviewed_at",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                },
+                {
+                    "name": "reviewed_by_user_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "bigint"
+                    }
+                },
+                {
+                    "name": "rejection_reason",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "text"
+                    }
+                },
+                {
+                    "name": "approved_resource_id",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "categories",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "json"
+                    }
+                },
+                {
+                    "name": "tags",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "json"
+                    }
+                },
+                {
+                    "name": "type_name",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                }
+            ],
+            "primary_keys": [],
+            "foreign_keys": {}
+        },
+        {
+            "name": "resources.submission_tags",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "submission_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "tag_id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "created_at",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "timestamp_with_time_zone"
+                    }
+                }
+            ],
+            "primary_keys": [
+                "submission_id",
+                "tag_id"
+            ],
+            "foreign_keys": {
+                "submission_tags_submission_id_fkey": {
+                    "column_mapping": {
+                        "submission_id": "id"
+                    },
+                    "foreign_collection": "resources.submission"
+                },
+                "submission_tags_tag_id_fkey": {
+                    "column_mapping": {
+                        "tag_id": "id"
+                    },
+                    "foreign_collection": "resources.tag"
+                }
+            }
+        },
+        {
+            "name": "resources.tag",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "uuid"
+                    }
+                },
+                {
+                    "name": "slug",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                },
+                {
+                    "name": "label",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 100
+                        }
+                    }
+                },
+                {
+                    "name": "icon_name",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                },
+                {
+                    "name": "color_class",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 100
+                        }
                     }
                 },
                 {
@@ -2744,14 +3283,53 @@
             "primary_keys": [
                 "id"
             ],
-            "foreign_keys": {
-                "user_role_user_id_fkey": {
-                    "column_mapping": {
-                        "user_id": "id"
-                    },
-                    "foreign_collection": "users.user"
+            "foreign_keys": {}
+        },
+        {
+            "name": "resources.type",
+            "description": null,
+            "category": "TABLE",
+            "columns": [
+                {
+                    "name": "id",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": true,
+                    "data": {
+                        "database_type": "integer"
+                    }
+                },
+                {
+                    "name": "name",
+                    "nullable": false,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 50
+                        }
+                    }
+                },
+                {
+                    "name": "description",
+                    "nullable": true,
+                    "auto_increment": false,
+                    "is_primarykey": false,
+                    "data": {
+                        "database_type": "character_varying",
+                        "metadata": {
+                            "type": "length",
+                            "length": 255
+                        }
+                    }
                 }
-            }
+            ],
+            "primary_keys": [
+                "id"
+            ],
+            "foreign_keys": {}
         }
     ]
 }

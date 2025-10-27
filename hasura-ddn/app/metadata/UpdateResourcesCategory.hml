@@ -1,0 +1,175 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: TimestampWithTimeZoneSetInput
+  description: Wrapper for setting scalar timestamp_with_time_zone
+  fields:
+    - name: value
+      type: Timestamptz
+      description: New value for scalar timestamp_with_time_zone
+  graphql:
+    typeName: TimestampWithTimeZoneSetInput
+    inputTypeName: TimestampWithTimeZoneSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: timestamp_with_time_zone_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: TimestampWithTimeZoneSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesCategorySetInput
+  description: Input type for updating resources.category
+  fields:
+    - name: colorClass
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.category.color_class
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.category.created_at
+    - name: iconName
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.category.icon_name
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for resources.category.id
+    - name: label
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.category.label
+    - name: slug
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.category.slug
+    - name: typeId
+      type: IntegerSetInput
+      description: New value wrapper for resources.category.type_id
+  graphql:
+    typeName: ResourcesCategorySetInput
+    inputTypeName: ResourcesCategorySetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.category_set_input
+      fieldMapping:
+        colorClass:
+          column:
+            name: color_class
+        createdAt:
+          column:
+            name: created_at
+        iconName:
+          column:
+            name: icon_name
+        id:
+          column:
+            name: id
+        label:
+          column:
+            name: label
+        slug:
+          column:
+            name: slug
+        typeId:
+          column:
+            name: type_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesCategorySetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - colorClass
+          - createdAt
+          - iconName
+          - id
+          - label
+          - slug
+          - typeId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesCategoryResult
+  description: update from resources.category result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesCategory!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesCategoryResult
+    inputTypeName: UpdateResourcesCategoryResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.category_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesCategoryResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesCategory
+  outputType: UpdateResourcesCategoryResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesCategorySetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesCategoryBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.category
+  graphql:
+    rootFieldName: updateResourcesCategory
+    rootFieldKind: Mutation
+  description: Update resources.category
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesCategory
+  permissions:
+    - role: admin
+      allowExecution: true
+
