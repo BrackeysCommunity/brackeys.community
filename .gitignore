@@ -41,3 +41,5 @@ codegen.ts
 
 # Hasura metadata
 hasura-ddn/engine/build
+
+target/rust-analyzer/

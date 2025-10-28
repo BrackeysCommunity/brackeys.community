@@ -74,7 +74,7 @@ jobs:
             --network host \
             -v $PWD/flyway/sql:/flyway/sql:ro \
             -v $PWD/flyway/conf:/flyway/conf:ro \
-            -e FLYWAY_URL=jdbc:postgresql://host.docker.internal:5433/brackeys_test \
+            -e FLYWAY_URL=jdbc:postgresql://localhost:5433/brackeys_test \
             -e FLYWAY_USER=postgres \
             -e FLYWAY_PASSWORD=postgres \
             -e FLYWAY_SCHEMAS=collab,public \
@@ -86,7 +86,7 @@ jobs:
             --network host \
             -v $PWD/flyway/sql:/flyway/sql:ro \
             -v $PWD/flyway/conf:/flyway/conf:ro \
-            -e FLYWAY_URL=jdbc:postgresql://host.docker.internal:5433/brackeys_test \
+            -e FLYWAY_URL=jdbc:postgresql://localhost:5433/brackeys_test \
             -e FLYWAY_USER=postgres \
             -e FLYWAY_PASSWORD=postgres \
             -e FLYWAY_SCHEMAS=collab,public \
