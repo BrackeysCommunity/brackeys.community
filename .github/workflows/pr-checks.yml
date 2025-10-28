@@ -77,7 +77,7 @@ jobs:
             -e FLYWAY_URL=jdbc:postgresql://localhost:5433/brackeys_test \
             -e FLYWAY_USER=postgres \
             -e FLYWAY_PASSWORD=postgres \
-            -e FLYWAY_SCHEMAS=collab,public \
+            -e FLYWAY_SCHEMAS=flyway \
             flyway/flyway:latest migrate
 
       - name: Run migration info
@@ -89,6 +89,6 @@ jobs:
             -e FLYWAY_URL=jdbc:postgresql://localhost:5433/brackeys_test \
             -e FLYWAY_USER=postgres \
             -e FLYWAY_PASSWORD=postgres \
-            -e FLYWAY_SCHEMAS=collab,public \
+            -e FLYWAY_SCHEMAS=flyway \
             flyway/flyway:latest info
 
