@@ -40,5 +40,4 @@ codegen.ts
 .eslintcache
 
 # Hasura metadata
-hasura-ddn/engine/build/*
-hasura-ddn/engine/build/metadata.json
+hasura-ddn/engine/build

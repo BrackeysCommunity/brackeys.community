@@ -123,6 +123,25 @@ definition:
           - title
           - typeId
           - updatedAt
+    - role: user
+      output:
+        allowedFields:
+          - approvedResourceId
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - status
+          - submittedByUserId
+          - title
+          - typeId
+          - updatedAt
 
 ---
 kind: BooleanExpressionType
@@ -310,6 +329,15 @@ definition:
     - role: admin
       select:
         filter: null
+        allowSubscriptions: true
+    - role: user
+      select:
+        filter:
+          fieldComparison:
+            field: submittedByUserId
+            operator: _eq
+            value:
+              session_variable: x-hasura-user-id
         allowSubscriptions: true
 
 ---

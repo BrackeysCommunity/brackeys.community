@@ -105,6 +105,34 @@ definition:
           - typeId
           - updatedAt
           - viewCount
+    - role: user
+      output:
+        allowedFields:
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - releaseDate
+          - resourceUrl
+          - title
+          - typeId
+          - updatedAt
+          - viewCount
+    - role: anonymous
+      output:
+        allowedFields:
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - releaseDate
+          - resourceUrl
+          - title
+          - typeId
+          - viewCount
 
 ---
 kind: BooleanExpressionType
@@ -274,6 +302,24 @@ definition:
       select:
         filter: null
         allowSubscriptions: true
+    - role: user
+      select:
+        filter:
+          fieldComparison:
+            field: isPublished
+            operator: _eq
+            value:
+              literal: true
+        allowSubscriptions: true
+    - role: anonymous
+      select:
+        filter:
+          fieldComparison:
+            field: isPublished
+            operator: _eq
+            value:
+              literal: true
+        allowSubscriptions: false
 
 ---
 kind: Relationship

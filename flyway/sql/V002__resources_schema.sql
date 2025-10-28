@@ -1,6 +1,10 @@
 -- Resources management schema
 -- This migration creates tables for community resources (games and tools)
 
+-- Create extensions (if not already created)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- Create the resources schema
 CREATE SCHEMA IF NOT EXISTS resources;
 
