@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useTimeout } from '@uidotdev/usehooks';
+import { useTimeout } from './useTimeout';
 
 /**
  * Returns true after a short delay to prevent hydration errors
