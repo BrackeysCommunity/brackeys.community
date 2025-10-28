@@ -1,0 +1,183 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionTags
+  fields:
+    - name: createdAt
+      type: Timestamptz!
+    - name: submissionId
+      type: String_1!
+    - name: tagId
+      type: String_1!
+  graphql:
+    typeName: ResourcesSubmissionTags
+    inputTypeName: ResourcesSubmissionTagsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_tags
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        submissionId:
+          column:
+            name: submission_id
+        tagId:
+          column:
+            name: tag_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionTags
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - submissionId
+          - tagId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesSubmissionTagsBoolExp
+  operand:
+    object:
+      type: ResourcesSubmissionTags
+      comparableFields:
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: submissionId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: tagId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesSubmissionTagsBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesSubmissionTagsAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesSubmissionTags
+      aggregatableFields:
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: submissionId
+          aggregateExpression: UuidAggExp
+        - fieldName: tagId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesSubmissionTagsAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesSubmissionTagsOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesSubmissionTags
+      orderableFields:
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: submissionId
+          orderByExpression: String1OrderByExp
+        - fieldName: tagId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: resourcesSubmission
+        - relationshipName: resourcesTag
+  graphql:
+    expressionTypeName: ResourcesSubmissionTagsOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesSubmissionTags
+  objectType: ResourcesSubmissionTags
+  source:
+    dataConnectorName: postgres
+    collection: resources.submission_tags
+  filterExpressionType: ResourcesSubmissionTagsBoolExp
+  aggregateExpression: ResourcesSubmissionTagsAggExp
+  orderByExpression: ResourcesSubmissionTagsOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesSubmissionTags
+      subscription:
+        rootField: resourcesSubmissionTags
+    selectUniques:
+      - queryRootField: resourcesSubmissionTagsByPrimaryKey
+        uniqueIdentifier:
+          - submissionId
+          - tagId
+        subscription:
+          rootField: resourcesSubmissionTagsByPrimaryKey
+    filterInputTypeName: ResourcesSubmissionTagsFilterInput
+    aggregate:
+      queryRootField: resourcesSubmissionTagsAggregate
+      subscription:
+        rootField: resourcesSubmissionTagsAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesSubmissionTags
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmission
+  sourceType: ResourcesSubmissionTags
+  target:
+    model:
+      name: ResourcesSubmission
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: submissionId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesTag
+  sourceType: ResourcesSubmissionTags
+  target:
+    model:
+      name: ResourcesTag
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: tagId
+      target:
+        modelField:
+          - fieldName: id
+

@@ -1,14 +1,14 @@
-import type { ResourceFilterProps, ResourceCategory } from './types';
-import { useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   Disclosure,
   DisclosureButton,
   DisclosurePanel,
 } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
-import { FilterButton } from './FilterButton';
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useRef } from 'react';
 import { categoryInfo } from './data';
+import { FilterButton } from './FilterButton';
+import type { ResourceCategory, ResourceFilterProps } from './types';
 
 type CategoryFilterProps = Pick<
   ResourceFilterProps,

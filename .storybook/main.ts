@@ -1,15 +1,29 @@
 import type { StorybookConfig } from '@storybook/react-vite';
 
 const config: StorybookConfig = {
-  stories: ['../src/**/*.stories.@(js|jsx|mjs|ts|tsx)'],
-  addons: [],
+  stories: ['../src/**/*.mdx', '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)'],
+  addons: [
+    '@chromatic-com/storybook',
+    '@storybook/addon-docs',
+    '@storybook/addon-a11y',
+    '@storybook/addon-vitest',
+  ],
   framework: {
     name: '@storybook/react-vite',
     options: {},
   },
-  async viteFinal(config) {
+  viteFinal: async (config) => {
+    // Only set base URL for GitHub Pages deployment, not for Chromatic
+    if (process.env.GITHUB_PAGES === 'true') {
+      config.base = '/brackeys.community/';
+    }
+    config.plugins = (config.plugins ?? []).filter(
+      (plugin) => plugin && 'name' in plugin && plugin.name !== 'vite:dts',
+    );
+    config.optimizeDeps = {
+      exclude: ['lucide-react', '@uidotdev/usehooks'],
+    };
     const { default: tailwindcss } = await import('@tailwindcss/vite');
-    config.plugins = config.plugins || [];
     config.plugins.push(tailwindcss());
     return config;
   },

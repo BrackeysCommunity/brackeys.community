@@ -1,0 +1,116 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceCategoriesInsertInput
+  description: Input type for inserting into resources.resource_categories
+  fields:
+    - name: categoryId
+      type: String_1!
+      description: New value for resources.resource_categories.category_id
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for resources.resource_categories.created_at
+    - name: resourceId
+      type: String_1!
+      description: New value for resources.resource_categories.resource_id
+  graphql:
+    typeName: ResourcesResourceCategoriesInsertInput
+    inputTypeName: ResourcesResourceCategoriesInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_categories_insert_input
+      fieldMapping:
+        categoryId:
+          column:
+            name: category_id
+        createdAt:
+          column:
+            name: created_at
+        resourceId:
+          column:
+            name: resource_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceCategoriesInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categoryId
+          - createdAt
+          - resourceId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesResourceCategoriesResult
+  description: insert from resources.resource_categories result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesResourceCategories!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesResourceCategoriesResult
+    inputTypeName: InsertResourcesResourceCategoriesResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.resource_categories_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesResourceCategoriesResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesResourceCategories
+  outputType: InsertResourcesResourceCategoriesResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesResourceCategoriesInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.resource_categories
+  graphql:
+    rootFieldName: insertResourcesResourceCategories
+    rootFieldKind: Mutation
+  description: Insert into resources.resource_categories
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesResourceCategories
+  permissions:
+    - role: admin
+      allowExecution: true
+

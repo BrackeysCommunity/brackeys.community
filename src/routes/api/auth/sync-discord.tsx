@@ -33,7 +33,7 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
           { name: 'Manual Discord Sync' },
           async () => {
             try {
-              console.log('\n\n' + '▓'.repeat(100));
+              console.log(`\n\n${'▓'.repeat(100)}`);
               console.log('🔄 MANUAL DISCORD SYNC REQUEST');
               console.log('▓'.repeat(100));
               console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
@@ -53,7 +53,7 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
                 console.error(
                   '❌ [MANUAL SYNC] Missing userId in request body!',
                 );
-                console.log('▓'.repeat(100) + '\n\n');
+                console.log(`${'▓'.repeat(100)}\n\n`);
                 return json({ error: 'Missing userId' }, { status: 400 });
               }
 
@@ -79,7 +79,7 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
                 console.log(
                   `   Available OAuth providers: ${tokenResponse.data.map((t) => t.provider).join(', ') || 'none'}`,
                 );
-                console.log('▓'.repeat(100) + '\n\n');
+                console.log(`${'▓'.repeat(100)}\n\n`);
                 return json(
                   { error: 'No Discord access token found' },
                   { status: 401 },
@@ -134,7 +134,7 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
                   console.log(
                     `✅ [MANUAL SYNC] Metadata updated for non-guild user`,
                   );
-                  console.log('▓'.repeat(100) + '\n\n');
+                  console.log(`${'▓'.repeat(100)}\n\n`);
 
                   return json({
                     success: true,
@@ -143,7 +143,7 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
                   });
                 }
 
-                console.log('▓'.repeat(100) + '\n\n');
+                console.log(`${'▓'.repeat(100)}\n\n`);
                 return json(
                   {
                     error: 'Failed to fetch Discord member data',
@@ -237,7 +237,7 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
               console.log(
                 `✅ [MANUAL SYNC] Successfully synced Discord roles for user ${userId}`,
               );
-              console.log('▓'.repeat(100) + '\n\n');
+              console.log(`${'▓'.repeat(100)}\n\n`);
 
               return json({
                 success: true,
@@ -251,13 +251,13 @@ export const Route = createFileRoute('/api/auth/sync-discord')({
                 },
               });
             } catch (error) {
-              console.error('\n\n' + '▓'.repeat(100));
+              console.error(`\n\n${'▓'.repeat(100)}`);
               console.error(
                 '❌ [MANUAL SYNC] Fatal error during manual Discord sync:',
               );
               console.error('▓'.repeat(100));
               console.error(error);
-              console.error('▓'.repeat(100) + '\n\n');
+              console.error(`${'▓'.repeat(100)}\n\n`);
 
               Sentry.captureException(error, {
                 tags: { operation: 'manual-discord-sync' },

@@ -1,0 +1,255 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesCategory
+  fields:
+    - name: colorClass
+      type: String_1
+    - name: createdAt
+      type: Timestamptz!
+    - name: iconName
+      type: String_1
+    - name: id
+      type: String_1!
+    - name: label
+      type: String_1!
+    - name: slug
+      type: String_1!
+    - name: typeId
+      type: Int32!
+  graphql:
+    typeName: ResourcesCategory
+    inputTypeName: ResourcesCategoryInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.category
+      fieldMapping:
+        colorClass:
+          column:
+            name: color_class
+        createdAt:
+          column:
+            name: created_at
+        iconName:
+          column:
+            name: icon_name
+        id:
+          column:
+            name: id
+        label:
+          column:
+            name: label
+        slug:
+          column:
+            name: slug
+        typeId:
+          column:
+            name: type_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesCategory
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - colorClass
+          - createdAt
+          - iconName
+          - id
+          - label
+          - slug
+          - typeId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesCategoryBoolExp
+  operand:
+    object:
+      type: ResourcesCategory
+      comparableFields:
+        - fieldName: colorClass
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: iconName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: label
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: slug
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: typeId
+          booleanExpressionType: IntegerBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesCategoryBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesCategoryAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesCategory
+      aggregatableFields:
+        - fieldName: colorClass
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: iconName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: label
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: slug
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: typeId
+          aggregateExpression: IntegerAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesCategoryAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesCategoryOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesCategory
+      orderableFields:
+        - fieldName: colorClass
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: iconName
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: label
+          orderByExpression: String1OrderByExp
+        - fieldName: slug
+          orderByExpression: String1OrderByExp
+        - fieldName: typeId
+          orderByExpression: Int32OrderByExp
+      orderableRelationships:
+        - relationshipName: resourcesType
+  graphql:
+    expressionTypeName: ResourcesCategoryOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesCategory
+  objectType: ResourcesCategory
+  source:
+    dataConnectorName: postgres
+    collection: resources.category
+  filterExpressionType: ResourcesCategoryBoolExp
+  aggregateExpression: ResourcesCategoryAggExp
+  orderByExpression: ResourcesCategoryOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesCategory
+      subscription:
+        rootField: resourcesCategory
+    selectUniques:
+      - queryRootField: resourcesCategoryById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: resourcesCategoryById
+    filterInputTypeName: ResourcesCategoryFilterInput
+    aggregate:
+      queryRootField: resourcesCategoryAggregate
+      subscription:
+        rootField: resourcesCategoryAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesCategory
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesType
+  sourceType: ResourcesCategory
+  target:
+    model:
+      name: ResourcesType
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: typeId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesResourceCategories
+  sourceType: ResourcesCategory
+  target:
+    model:
+      name: ResourcesResourceCategories
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesResourceCategoriesAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: categoryId
+  graphql:
+    aggregateFieldName: resourcesResourceCategoriesAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmissionCategories
+  sourceType: ResourcesCategory
+  target:
+    model:
+      name: ResourcesSubmissionCategories
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesSubmissionCategoriesAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: categoryId
+  graphql:
+    aggregateFieldName: resourcesSubmissionCategoriesAggregate
+

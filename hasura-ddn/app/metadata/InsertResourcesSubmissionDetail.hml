@@ -1,0 +1,235 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionDetailInsertInput
+  description: Input type for inserting into resources.submission_detail
+  fields:
+    - name: approvedResourceId
+      type: String_1
+      description: New value for resources.submission_detail.approved_resource_id
+    - name: categories
+      type: String_1
+      description: New value for resources.submission_detail.categories
+    - name: createdAt
+      type: Timestamptz
+      description: New value for resources.submission_detail.created_at
+    - name: description
+      type: String_1
+      description: New value for resources.submission_detail.description
+    - name: developer
+      type: String_1
+      description: New value for resources.submission_detail.developer
+    - name: developerUrl
+      type: String_1
+      description: New value for resources.submission_detail.developer_url
+    - name: id
+      type: String_1
+      description: New value for resources.submission_detail.id
+    - name: imageUrl
+      type: String_1
+      description: New value for resources.submission_detail.image_url
+    - name: rejectionReason
+      type: String_1
+      description: New value for resources.submission_detail.rejection_reason
+    - name: releaseDate
+      type: Date
+      description: New value for resources.submission_detail.release_date
+    - name: resourceUrl
+      type: String_1
+      description: New value for resources.submission_detail.resource_url
+    - name: reviewedAt
+      type: Timestamptz
+      description: New value for resources.submission_detail.reviewed_at
+    - name: reviewedByUserId
+      type: Int64
+      description: New value for resources.submission_detail.reviewed_by_user_id
+    - name: status
+      type: String_1
+      description: New value for resources.submission_detail.status
+    - name: submittedByUserId
+      type: Int64
+      description: New value for resources.submission_detail.submitted_by_user_id
+    - name: tags
+      type: String_1
+      description: New value for resources.submission_detail.tags
+    - name: title
+      type: String_1
+      description: New value for resources.submission_detail.title
+    - name: typeId
+      type: Int32
+      description: New value for resources.submission_detail.type_id
+    - name: typeName
+      type: String_1
+      description: New value for resources.submission_detail.type_name
+    - name: updatedAt
+      type: Timestamptz
+      description: New value for resources.submission_detail.updated_at
+  graphql:
+    typeName: ResourcesSubmissionDetailInsertInput
+    inputTypeName: ResourcesSubmissionDetailInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_detail_insert_input
+      fieldMapping:
+        approvedResourceId:
+          column:
+            name: approved_resource_id
+        categories:
+          column:
+            name: categories
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        rejectionReason:
+          column:
+            name: rejection_reason
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        reviewedAt:
+          column:
+            name: reviewed_at
+        reviewedByUserId:
+          column:
+            name: reviewed_by_user_id
+        status:
+          column:
+            name: status
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        tags:
+          column:
+            name: tags
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        typeName:
+          column:
+            name: type_name
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionDetailInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - approvedResourceId
+          - categories
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - reviewedByUserId
+          - status
+          - submittedByUserId
+          - tags
+          - title
+          - typeId
+          - typeName
+          - updatedAt
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesSubmissionDetailResult
+  description: insert from resources.submission_detail result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmissionDetail!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesSubmissionDetailResult
+    inputTypeName: InsertResourcesSubmissionDetailResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.submission_detail_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesSubmissionDetailResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesSubmissionDetail
+  outputType: InsertResourcesSubmissionDetailResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesSubmissionDetailInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.submission_detail
+  graphql:
+    rootFieldName: insertResourcesSubmissionDetail
+    rootFieldKind: Mutation
+  description: Insert into resources.submission_detail
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesSubmissionDetail
+  permissions:
+    - role: admin
+      allowExecution: true
+

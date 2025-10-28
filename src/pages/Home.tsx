@@ -11,8 +11,6 @@ const HomeContainer = () => {
   return <HomeView />;
 };
 
-const HomeView = () => (
-  <HeroSection />
-);
+const HomeView = () => <HeroSection />;
 
 export const Home = HomeContainer;

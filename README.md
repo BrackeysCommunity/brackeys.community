@@ -217,10 +217,6 @@ VITE_SPACETIME_MODULE=brackeys-sandbox
 # Discord
 VITE_BRACKEYS_GUILD_ID=240491168985399296
 DISCORD_GUILD_ID=240491168985399296
-
-# Application
-VITE_APP_URL=http://localhost:3000
-VITE_API_BASE_URL=http://localhost:3000
 ```
 
 ## 🧪 Testing

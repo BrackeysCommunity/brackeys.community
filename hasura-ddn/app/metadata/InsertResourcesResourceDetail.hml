@@ -1,0 +1,214 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceDetailInsertInput
+  description: Input type for inserting into resources.resource_detail
+  fields:
+    - name: categories
+      type: String_1
+      description: New value for resources.resource_detail.categories
+    - name: createdAt
+      type: Timestamptz
+      description: New value for resources.resource_detail.created_at
+    - name: description
+      type: String_1
+      description: New value for resources.resource_detail.description
+    - name: developer
+      type: String_1
+      description: New value for resources.resource_detail.developer
+    - name: developerUrl
+      type: String_1
+      description: New value for resources.resource_detail.developer_url
+    - name: id
+      type: String_1
+      description: New value for resources.resource_detail.id
+    - name: imageUrl
+      type: String_1
+      description: New value for resources.resource_detail.image_url
+    - name: isPublished
+      type: Boolean_1
+      description: New value for resources.resource_detail.is_published
+    - name: releaseDate
+      type: Date
+      description: New value for resources.resource_detail.release_date
+    - name: resourceUrl
+      type: String_1
+      description: New value for resources.resource_detail.resource_url
+    - name: submittedByUserId
+      type: Int64
+      description: New value for resources.resource_detail.submitted_by_user_id
+    - name: tags
+      type: String_1
+      description: New value for resources.resource_detail.tags
+    - name: title
+      type: String_1
+      description: New value for resources.resource_detail.title
+    - name: typeId
+      type: Int32
+      description: New value for resources.resource_detail.type_id
+    - name: typeName
+      type: String_1
+      description: New value for resources.resource_detail.type_name
+    - name: updatedAt
+      type: Timestamptz
+      description: New value for resources.resource_detail.updated_at
+    - name: viewCount
+      type: Int32
+      description: New value for resources.resource_detail.view_count
+  graphql:
+    typeName: ResourcesResourceDetailInsertInput
+    inputTypeName: ResourcesResourceDetailInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_detail_insert_input
+      fieldMapping:
+        categories:
+          column:
+            name: categories
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        isPublished:
+          column:
+            name: is_published
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        tags:
+          column:
+            name: tags
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        typeName:
+          column:
+            name: type_name
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceDetailInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categories
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - isPublished
+          - releaseDate
+          - resourceUrl
+          - submittedByUserId
+          - tags
+          - title
+          - typeId
+          - typeName
+          - updatedAt
+          - viewCount
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesResourceDetailResult
+  description: insert from resources.resource_detail result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesResourceDetail!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesResourceDetailResult
+    inputTypeName: InsertResourcesResourceDetailResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.resource_detail_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesResourceDetailResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesResourceDetail
+  outputType: InsertResourcesResourceDetailResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesResourceDetailInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.resource_detail
+  graphql:
+    rootFieldName: insertResourcesResourceDetail
+    rootFieldKind: Mutation
+  description: Insert into resources.resource_detail
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesResourceDetail
+  permissions:
+    - role: admin
+      allowExecution: true
+

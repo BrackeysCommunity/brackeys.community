@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 
 type SplashScreenProps = {
   onComplete: () => void;

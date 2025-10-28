@@ -1,0 +1,144 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesCategoryInsertInput
+  description: Input type for inserting into resources.category
+  fields:
+    - name: colorClass
+      type: String_1
+      description: New value for resources.category.color_class
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for resources.category.created_at
+    - name: iconName
+      type: String_1
+      description: New value for resources.category.icon_name
+    - name: id
+      type: String_1!
+      description: New value for resources.category.id
+    - name: label
+      type: String_1!
+      description: New value for resources.category.label
+    - name: slug
+      type: String_1!
+      description: New value for resources.category.slug
+    - name: typeId
+      type: Int32!
+      description: New value for resources.category.type_id
+  graphql:
+    typeName: ResourcesCategoryInsertInput
+    inputTypeName: ResourcesCategoryInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.category_insert_input
+      fieldMapping:
+        colorClass:
+          column:
+            name: color_class
+        createdAt:
+          column:
+            name: created_at
+        iconName:
+          column:
+            name: icon_name
+        id:
+          column:
+            name: id
+        label:
+          column:
+            name: label
+        slug:
+          column:
+            name: slug
+        typeId:
+          column:
+            name: type_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesCategoryInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - colorClass
+          - createdAt
+          - iconName
+          - id
+          - label
+          - slug
+          - typeId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesCategoryResult
+  description: insert from resources.category result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesCategory!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesCategoryResult
+    inputTypeName: InsertResourcesCategoryResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.category_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesCategoryResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesCategory
+  outputType: InsertResourcesCategoryResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesCategoryInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.category
+  graphql:
+    rootFieldName: insertResourcesCategory
+    rootFieldKind: Mutation
+  description: Insert into resources.category
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesCategory
+  permissions:
+    - role: admin
+      allowExecution: true
+

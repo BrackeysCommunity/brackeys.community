@@ -89,26 +89,6 @@ definition:
     comparisonExpressionTypeName: EnumComparisonExp
 
 ---
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: DurationStringBoolExp
-  operand:
-    scalar:
-      type: String_1
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: DurationString
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: DurationStringBoolExp
-
----
 kind: DataConnectorScalarRepresentation
 version: v1
 definition:
@@ -155,26 +135,6 @@ definition:
   name: Date
   graphql:
     typeName: Date
-
----
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: DateBoolExp
-  operand:
-    scalar:
-      type: Date
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: Date
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: DateBoolExp
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -255,26 +215,6 @@ definition:
     comparisonExpressionTypeName: String1ComparisonExp_7
 
 ---
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: StorageRetentionModeBoolExp
-  operand:
-    scalar:
-      type: Enum
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: StorageRetentionMode
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: StorageRetentionModeBoolExp
-
----
 kind: DataConnectorScalarRepresentation
 version: v1
 definition:
@@ -283,26 +223,6 @@ definition:
   representation: Enum
   graphql:
     comparisonExpressionTypeName: EnumComparisonExp_1
-
----
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: StorageRetentionValidityUnitBoolExp
-  operand:
-    scalar:
-      type: Enum
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: StorageRetentionValidityUnit
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: StorageRetentionValidityUnitBoolExp
 
 ---
 kind: DataConnectorScalarRepresentation
@@ -545,26 +465,6 @@ definition:
     typeName: Bytes
 
 ---
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: BytesBoolExp
-  operand:
-    scalar:
-      type: Bytes
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: Bytes
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: BytesBoolExp
-
----
 kind: DataConnectorScalarRepresentation
 version: v1
 definition:
@@ -575,26 +475,6 @@ definition:
     comparisonExpressionTypeName: BytesComparisonExp
 
 ---
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: ChecksumTypeBoolExp
-  operand:
-    scalar:
-      type: Enum
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: ChecksumType
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: ChecksumTypeBoolExp
-
----
 kind: DataConnectorScalarRepresentation
 version: v1
 definition:
@@ -603,26 +483,6 @@ definition:
   representation: Enum
   graphql:
     comparisonExpressionTypeName: EnumComparisonExp_5
-
----
-kind: BooleanExpressionType
-version: v1
-definition:
-  name: DownloadHttpMethodBoolExp
-  operand:
-    scalar:
-      type: Enum
-      comparisonOperators: []
-      dataConnectorOperatorMapping:
-        - dataConnectorName: storage
-          dataConnectorScalarType: DownloadHTTPMethod
-          operatorMapping: {}
-  logicalOperators:
-    enable: true
-  isNull:
-    enable: true
-  graphql:
-    typeName: DownloadHttpMethodBoolExp
 
 ---
 kind: DataConnectorScalarRepresentation

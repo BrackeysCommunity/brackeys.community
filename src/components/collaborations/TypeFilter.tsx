@@ -1,12 +1,12 @@
-import { motion } from 'motion/react';
 import {
   Disclosure,
   DisclosureButton,
   DisclosurePanel,
 } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
+import { motion } from 'motion/react';
 import { FilterButton } from './FilterButton';
-import type { CollaborationType, CollaborationFilters } from './types';
+import type { CollaborationFilters, CollaborationType } from './types';
 
 type TypeFilterProps = {
   filters: CollaborationFilters;

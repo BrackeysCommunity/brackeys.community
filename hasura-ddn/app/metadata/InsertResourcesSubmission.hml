@@ -1,0 +1,214 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionInsertInput
+  description: Input type for inserting into resources.submission
+  fields:
+    - name: approvedResourceId
+      type: String_1
+      description: New value for resources.submission.approved_resource_id
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for resources.submission.created_at
+    - name: description
+      type: String_1!
+      description: New value for resources.submission.description
+    - name: developer
+      type: String_1
+      description: New value for resources.submission.developer
+    - name: developerUrl
+      type: String_1
+      description: New value for resources.submission.developer_url
+    - name: id
+      type: String_1!
+      description: New value for resources.submission.id
+    - name: imageUrl
+      type: String_1
+      description: New value for resources.submission.image_url
+    - name: rejectionReason
+      type: String_1
+      description: New value for resources.submission.rejection_reason
+    - name: releaseDate
+      type: Date
+      description: New value for resources.submission.release_date
+    - name: resourceUrl
+      type: String_1!
+      description: New value for resources.submission.resource_url
+    - name: reviewedAt
+      type: Timestamptz
+      description: New value for resources.submission.reviewed_at
+    - name: reviewedByUserId
+      type: Int64
+      description: New value for resources.submission.reviewed_by_user_id
+    - name: status
+      type: String_1!
+      description: New value for resources.submission.status
+    - name: submittedByUserId
+      type: Int64!
+      description: New value for resources.submission.submitted_by_user_id
+    - name: title
+      type: String_1!
+      description: New value for resources.submission.title
+    - name: typeId
+      type: Int32!
+      description: New value for resources.submission.type_id
+    - name: updatedAt
+      type: Timestamptz!
+      description: New value for resources.submission.updated_at
+  graphql:
+    typeName: ResourcesSubmissionInsertInput
+    inputTypeName: ResourcesSubmissionInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_insert_input
+      fieldMapping:
+        approvedResourceId:
+          column:
+            name: approved_resource_id
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        rejectionReason:
+          column:
+            name: rejection_reason
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        reviewedAt:
+          column:
+            name: reviewed_at
+        reviewedByUserId:
+          column:
+            name: reviewed_by_user_id
+        status:
+          column:
+            name: status
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - approvedResourceId
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - reviewedByUserId
+          - status
+          - submittedByUserId
+          - title
+          - typeId
+          - updatedAt
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesSubmissionResult
+  description: insert from resources.submission result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmission!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesSubmissionResult
+    inputTypeName: InsertResourcesSubmissionResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.submission_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesSubmissionResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesSubmission
+  outputType: InsertResourcesSubmissionResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesSubmissionInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.submission
+  graphql:
+    rootFieldName: insertResourcesSubmission
+    rootFieldKind: Mutation
+  description: Insert into resources.submission
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesSubmission
+  permissions:
+    - role: admin
+      allowExecution: true
+

@@ -21,7 +21,7 @@ definition:
     APP_STORAGE_WRITE_URL:
       fromEnv: APP_STORAGE_WRITE_URL
   connectors:
-    - path: connector/postgres/connector.yaml
-      connectorLinkName: postgres
     - path: connector/storage/connector.yaml
       connectorLinkName: storage
+    - path: connector/postgres/connector.yaml
+      connectorLinkName: postgres

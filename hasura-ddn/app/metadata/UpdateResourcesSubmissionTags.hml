@@ -1,0 +1,119 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmissionTagsSetInput
+  description: Input type for updating resources.submission_tags
+  fields:
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.submission_tags.created_at
+    - name: submissionId
+      type: UuidSetInput
+      description: New value wrapper for resources.submission_tags.submission_id
+    - name: tagId
+      type: UuidSetInput
+      description: New value wrapper for resources.submission_tags.tag_id
+  graphql:
+    typeName: ResourcesSubmissionTagsSetInput
+    inputTypeName: ResourcesSubmissionTagsSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission_tags_set_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        submissionId:
+          column:
+            name: submission_id
+        tagId:
+          column:
+            name: tag_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmissionTagsSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - submissionId
+          - tagId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesSubmissionTagsResult
+  description: update from resources.submission_tags result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmissionTags!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesSubmissionTagsResult
+    inputTypeName: UpdateResourcesSubmissionTagsResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.submission_tags_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesSubmissionTagsResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesSubmissionTags
+  outputType: UpdateResourcesSubmissionTagsResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesSubmissionTagsSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesSubmissionTagsBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.submission_tags
+  graphql:
+    rootFieldName: updateResourcesSubmissionTags
+    rootFieldKind: Mutation
+  description: Update resources.submission_tags
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesSubmissionTags
+  permissions:
+    - role: admin
+      allowExecution: true
+

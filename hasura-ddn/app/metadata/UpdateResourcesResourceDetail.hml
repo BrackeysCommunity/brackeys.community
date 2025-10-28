@@ -1,0 +1,245 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: JsonSetInput
+  description: Wrapper for setting scalar json
+  fields:
+    - name: value
+      type: String_1
+      description: New value for scalar json
+  graphql:
+    typeName: JsonSetInput
+    inputTypeName: JsonSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: json_set_input
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: JsonSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - value
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceDetailSetInput
+  description: Input type for updating resources.resource_detail
+  fields:
+    - name: categories
+      type: JsonSetInput
+      description: New value wrapper for resources.resource_detail.categories
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.resource_detail.created_at
+    - name: description
+      type: TextSetInput
+      description: New value wrapper for resources.resource_detail.description
+    - name: developer
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.resource_detail.developer
+    - name: developerUrl
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.resource_detail.developer_url
+    - name: id
+      type: UuidSetInput
+      description: New value wrapper for resources.resource_detail.id
+    - name: imageUrl
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.resource_detail.image_url
+    - name: isPublished
+      type: BooleanSetInput
+      description: New value wrapper for resources.resource_detail.is_published
+    - name: releaseDate
+      type: DateSetInput
+      description: New value wrapper for resources.resource_detail.release_date
+    - name: resourceUrl
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.resource_detail.resource_url
+    - name: submittedByUserId
+      type: BigintSetInput
+      description: New value wrapper for resources.resource_detail.submitted_by_user_id
+    - name: tags
+      type: JsonSetInput
+      description: New value wrapper for resources.resource_detail.tags
+    - name: title
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.resource_detail.title
+    - name: typeId
+      type: IntegerSetInput
+      description: New value wrapper for resources.resource_detail.type_id
+    - name: typeName
+      type: CharacterVaryingSetInput
+      description: New value wrapper for resources.resource_detail.type_name
+    - name: updatedAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.resource_detail.updated_at
+    - name: viewCount
+      type: IntegerSetInput
+      description: New value wrapper for resources.resource_detail.view_count
+  graphql:
+    typeName: ResourcesResourceDetailSetInput
+    inputTypeName: ResourcesResourceDetailSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_detail_set_input
+      fieldMapping:
+        categories:
+          column:
+            name: categories
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        isPublished:
+          column:
+            name: is_published
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        tags:
+          column:
+            name: tags
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        typeName:
+          column:
+            name: type_name
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceDetailSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categories
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - isPublished
+          - releaseDate
+          - resourceUrl
+          - submittedByUserId
+          - tags
+          - title
+          - typeId
+          - typeName
+          - updatedAt
+          - viewCount
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesResourceDetailResult
+  description: update from resources.resource_detail result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesResourceDetail!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesResourceDetailResult
+    inputTypeName: UpdateResourcesResourceDetailResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.resource_detail_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesResourceDetailResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesResourceDetail
+  outputType: UpdateResourcesResourceDetailResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesResourceDetailSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesResourceDetailBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.resource_detail
+  graphql:
+    rootFieldName: updateResourcesResourceDetail
+    rootFieldKind: Mutation
+  description: Update resources.resource_detail
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesResourceDetail
+  permissions:
+    - role: admin
+      allowExecution: true
+

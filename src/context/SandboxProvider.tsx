@@ -1,4 +1,4 @@
-import { useState, useCallback, type PropsWithChildren, useRef } from 'react';
+import { type PropsWithChildren, useCallback, useRef, useState } from 'react';
 import { type CursorState, Provider } from './sandboxContext';
 
 export const SandboxProvider = ({ children }: PropsWithChildren) => {

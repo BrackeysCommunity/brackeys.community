@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 import {
-  resources,
-  type ResourceType,
-  type ResourceCategory,
-  type ResourceTag,
-  type ResourceItem,
   FilterSidebar,
-  ResourceSearch,
+  type ResourceCategory,
   ResourceGrid,
+  type ResourceItem,
+  ResourceSearch,
+  type ResourceTag,
+  type ResourceType,
+  resources,
 } from '../components/resources';
 
 type ResourcesViewProps = {

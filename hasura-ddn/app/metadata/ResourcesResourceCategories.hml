@@ -1,0 +1,183 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceCategories
+  fields:
+    - name: categoryId
+      type: String_1!
+    - name: createdAt
+      type: Timestamptz!
+    - name: resourceId
+      type: String_1!
+  graphql:
+    typeName: ResourcesResourceCategories
+    inputTypeName: ResourcesResourceCategoriesInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_categories
+      fieldMapping:
+        categoryId:
+          column:
+            name: category_id
+        createdAt:
+          column:
+            name: created_at
+        resourceId:
+          column:
+            name: resource_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceCategories
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categoryId
+          - createdAt
+          - resourceId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesResourceCategoriesBoolExp
+  operand:
+    object:
+      type: ResourcesResourceCategories
+      comparableFields:
+        - fieldName: categoryId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: resourceId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesResourceCategoriesBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesResourceCategoriesAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesResourceCategories
+      aggregatableFields:
+        - fieldName: categoryId
+          aggregateExpression: UuidAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: resourceId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesResourceCategoriesAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesResourceCategoriesOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesResourceCategories
+      orderableFields:
+        - fieldName: categoryId
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: resourceId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: resourcesCategory
+        - relationshipName: resourcesResource
+  graphql:
+    expressionTypeName: ResourcesResourceCategoriesOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesResourceCategories
+  objectType: ResourcesResourceCategories
+  source:
+    dataConnectorName: postgres
+    collection: resources.resource_categories
+  filterExpressionType: ResourcesResourceCategoriesBoolExp
+  aggregateExpression: ResourcesResourceCategoriesAggExp
+  orderByExpression: ResourcesResourceCategoriesOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesResourceCategories
+      subscription:
+        rootField: resourcesResourceCategories
+    selectUniques:
+      - queryRootField: resourcesResourceCategoriesByPrimaryKey
+        uniqueIdentifier:
+          - resourceId
+          - categoryId
+        subscription:
+          rootField: resourcesResourceCategoriesByPrimaryKey
+    filterInputTypeName: ResourcesResourceCategoriesFilterInput
+    aggregate:
+      queryRootField: resourcesResourceCategoriesAggregate
+      subscription:
+        rootField: resourcesResourceCategoriesAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesResourceCategories
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesCategory
+  sourceType: ResourcesResourceCategories
+  target:
+    model:
+      name: ResourcesCategory
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: categoryId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesResource
+  sourceType: ResourcesResourceCategories
+  target:
+    model:
+      name: ResourcesResource
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: resourceId
+      target:
+        modelField:
+          - fieldName: id
+

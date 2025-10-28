@@ -7,5 +7,5 @@ import { createMiddleware } from '@tanstack/react-start';
 
 // Sentry middleware for error tracking and instrumentation
 export const sentryMiddleware = createMiddleware().server(
-  Sentry.sentryGlobalServerMiddlewareHandler()
+  Sentry.sentryGlobalServerMiddlewareHandler(),
 );

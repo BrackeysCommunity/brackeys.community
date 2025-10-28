@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeletePublicFlywaySchemaHistoryResult
+  description: delete from public.flyway_schema_history result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[PublicFlywaySchemaHistory!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeletePublicFlywaySchemaHistoryResult
+    inputTypeName: DeletePublicFlywaySchemaHistoryResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_public.flyway_schema_history_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeletePublicFlywaySchemaHistoryResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeletePublicFlywaySchemaHistory
+  outputType: DeletePublicFlywaySchemaHistoryResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: PublicFlywaySchemaHistoryBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_public.flyway_schema_history
+  graphql:
+    rootFieldName: deletePublicFlywaySchemaHistory
+    rootFieldKind: Mutation
+  description: Delete from public.flyway_schema_history
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeletePublicFlywaySchemaHistory
+  permissions:
+    - role: admin
+      allowExecution: true
+

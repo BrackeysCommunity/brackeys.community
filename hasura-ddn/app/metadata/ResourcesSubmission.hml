@@ -1,0 +1,422 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesSubmission
+  fields:
+    - name: approvedResourceId
+      type: String_1
+    - name: createdAt
+      type: Timestamptz!
+    - name: description
+      type: String_1!
+    - name: developer
+      type: String_1
+    - name: developerUrl
+      type: String_1
+    - name: id
+      type: String_1!
+    - name: imageUrl
+      type: String_1
+    - name: rejectionReason
+      type: String_1
+    - name: releaseDate
+      type: Date
+    - name: resourceUrl
+      type: String_1!
+    - name: reviewedAt
+      type: Timestamptz
+    - name: reviewedByUserId
+      type: Int64
+    - name: status
+      type: String_1!
+    - name: submittedByUserId
+      type: Int64!
+    - name: title
+      type: String_1!
+    - name: typeId
+      type: Int32!
+    - name: updatedAt
+      type: Timestamptz!
+  graphql:
+    typeName: ResourcesSubmission
+    inputTypeName: ResourcesSubmissionInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.submission
+      fieldMapping:
+        approvedResourceId:
+          column:
+            name: approved_resource_id
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        rejectionReason:
+          column:
+            name: rejection_reason
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        reviewedAt:
+          column:
+            name: reviewed_at
+        reviewedByUserId:
+          column:
+            name: reviewed_by_user_id
+        status:
+          column:
+            name: status
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesSubmission
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - approvedResourceId
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - reviewedByUserId
+          - status
+          - submittedByUserId
+          - title
+          - typeId
+          - updatedAt
+    - role: user
+      output:
+        allowedFields:
+          - approvedResourceId
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - rejectionReason
+          - releaseDate
+          - resourceUrl
+          - reviewedAt
+          - status
+          - submittedByUserId
+          - title
+          - typeId
+          - updatedAt
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesSubmissionBoolExp
+  operand:
+    object:
+      type: ResourcesSubmission
+      comparableFields:
+        - fieldName: approvedResourceId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: description
+          booleanExpressionType: TextBoolExp
+        - fieldName: developer
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: developerUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: imageUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: rejectionReason
+          booleanExpressionType: TextBoolExp
+        - fieldName: releaseDate
+          booleanExpressionType: DateBoolExp
+        - fieldName: resourceUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: reviewedAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: reviewedByUserId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: status
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: submittedByUserId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: title
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: typeId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesSubmissionBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesSubmissionAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesSubmission
+      aggregatableFields:
+        - fieldName: approvedResourceId
+          aggregateExpression: UuidAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: description
+          aggregateExpression: TextAggExp
+        - fieldName: developer
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: developerUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: imageUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: rejectionReason
+          aggregateExpression: TextAggExp
+        - fieldName: releaseDate
+          aggregateExpression: DateAggExp
+        - fieldName: resourceUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: reviewedAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: reviewedByUserId
+          aggregateExpression: BigintAggExp
+        - fieldName: status
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: submittedByUserId
+          aggregateExpression: BigintAggExp
+        - fieldName: title
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: typeId
+          aggregateExpression: IntegerAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesSubmissionAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesSubmissionOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesSubmission
+      orderableFields:
+        - fieldName: approvedResourceId
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: developer
+          orderByExpression: String1OrderByExp
+        - fieldName: developerUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: imageUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: rejectionReason
+          orderByExpression: String1OrderByExp
+        - fieldName: releaseDate
+          orderByExpression: DateOrderByExp
+        - fieldName: resourceUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: reviewedAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: reviewedByUserId
+          orderByExpression: Int64OrderByExp
+        - fieldName: status
+          orderByExpression: String1OrderByExp
+        - fieldName: submittedByUserId
+          orderByExpression: Int64OrderByExp
+        - fieldName: title
+          orderByExpression: String1OrderByExp
+        - fieldName: typeId
+          orderByExpression: Int32OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestamptzOrderByExp
+      orderableRelationships:
+        - relationshipName: resourcesResource
+        - relationshipName: resourcesType
+  graphql:
+    expressionTypeName: ResourcesSubmissionOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesSubmission
+  objectType: ResourcesSubmission
+  source:
+    dataConnectorName: postgres
+    collection: resources.submission
+  filterExpressionType: ResourcesSubmissionBoolExp
+  aggregateExpression: ResourcesSubmissionAggExp
+  orderByExpression: ResourcesSubmissionOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesSubmission
+      subscription:
+        rootField: resourcesSubmission
+    selectUniques:
+      - queryRootField: resourcesSubmissionById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: resourcesSubmissionById
+    filterInputTypeName: ResourcesSubmissionFilterInput
+    aggregate:
+      queryRootField: resourcesSubmissionAggregate
+      subscription:
+        rootField: resourcesSubmissionAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesSubmission
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+    - role: user
+      select:
+        filter:
+          fieldComparison:
+            field: submittedByUserId
+            operator: _eq
+            value:
+              session_variable: x-hasura-user-id
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesResource
+  sourceType: ResourcesSubmission
+  target:
+    model:
+      name: ResourcesResource
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: approvedResourceId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesType
+  sourceType: ResourcesSubmission
+  target:
+    model:
+      name: ResourcesType
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: typeId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmissionCategories
+  sourceType: ResourcesSubmission
+  target:
+    model:
+      name: ResourcesSubmissionCategories
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesSubmissionCategoriesAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: submissionId
+  graphql:
+    aggregateFieldName: resourcesSubmissionCategoriesAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmissionTags
+  sourceType: ResourcesSubmission
+  target:
+    model:
+      name: ResourcesSubmissionTags
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesSubmissionTagsAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: submissionId
+  graphql:
+    aggregateFieldName: resourcesSubmissionTagsAggregate
+

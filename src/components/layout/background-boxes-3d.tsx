@@ -17,9 +17,9 @@ interface Cube {
 
 // Brackeys brand colors for the wave gradient
 const BRACKEYS_COLORS = [
-  { r: 255, g: 169, b: 73 },   // brackeys-yellow: #ffa949
-  { r: 210, g: 53, b: 107 },   // brackeys-fuscia: #d2356b
-  { r: 88, g: 101, b: 242 },   // brackeys-purple-500: #5865f2
+  { r: 255, g: 169, b: 73 }, // brackeys-yellow: #ffa949
+  { r: 210, g: 53, b: 107 }, // brackeys-fuscia: #d2356b
+  { r: 88, g: 101, b: 242 }, // brackeys-purple-500: #5865f2
 ];
 
 export const Boxes = ({ className, ...rest }: BoxesProps) => {
@@ -30,8 +30,16 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
   const currentHoverRef = useRef<string | null>(null);
   const lastTriggeredCubeRef = useRef<string | null>(null);
   const colorPositionRef = useRef<number>(0); // 0 to 1, continuously incrementing
-  const lastHoverPositionRef = useRef<{ row: number; col: number; time: number } | null>(null);
-  const velocityRef = useRef<{ speed: number; dirX: number; dirY: number }>({ speed: 0, dirX: 0, dirY: 0 });
+  const lastHoverPositionRef = useRef<{
+    row: number;
+    col: number;
+    time: number;
+  } | null>(null);
+  const velocityRef = useRef<{ speed: number; dirX: number; dirY: number }>({
+    speed: 0,
+    dirX: 0,
+    dirY: 0,
+  });
   const lastFrameTimeRef = useRef<number>(performance.now());
 
   const CUBE_WIDTH = 100; // Width of cube
@@ -91,7 +99,11 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
     };
 
     // Helper function to lerp between two colors
-    const lerpColor = (color1: [number, number, number], color2: [number, number, number], t: number): [number, number, number] => {
+    const lerpColor = (
+      color1: [number, number, number],
+      color2: [number, number, number],
+      t: number,
+    ): [number, number, number] => {
       return [
         Math.floor(color1[0] + (color2[0] - color1[0]) * t),
         Math.floor(color1[1] + (color2[1] - color1[1]) * t),
@@ -118,13 +130,14 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
         const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
         if (rgbMatch) {
           const highlightColor: [number, number, number] = [
-            Number.parseInt(rgbMatch[1]),
-            Number.parseInt(rgbMatch[2]),
-            Number.parseInt(rgbMatch[3]),
+            Number.parseInt(rgbMatch[1], 10),
+            Number.parseInt(rgbMatch[2], 10),
+            Number.parseInt(rgbMatch[3], 10),
           ];
 
           // Apply different shading to each face for 3D effect
-          const shadingMultiplier = face === 'top' ? 1 : face === 'left' ? 0.7 : 0.85;
+          const shadingMultiplier =
+            face === 'top' ? 1 : face === 'left' ? 0.7 : 0.85;
           const shadedColor: [number, number, number] = [
             Math.floor(highlightColor[0] * shadingMultiplier),
             Math.floor(highlightColor[1] * shadingMultiplier),
@@ -137,7 +150,8 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
         }
       } else {
         // Apply shading to base color too
-        const shadingMultiplier = face === 'top' ? 1 : face === 'left' ? 0.7 : 0.85;
+        const shadingMultiplier =
+          face === 'top' ? 1 : face === 'left' ? 0.7 : 0.85;
         fillColor = `rgb(${Math.floor(baseColor[0] * shadingMultiplier)}, ${Math.floor(baseColor[1] * shadingMultiplier)}, ${Math.floor(baseColor[2] * shadingMultiplier)})`;
       }
 
@@ -186,7 +200,7 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
 
       // Adjust mouse position to account for visual center of isometric cube
       // The top face of the cube is offset from the base coordinate
-      const adjustedX = screenX - offsetX - (CUBE_WIDTH / 2);
+      const adjustedX = screenX - offsetX - CUBE_WIDTH / 2;
       const adjustedY = screenY - offsetY;
 
       // Inverse isometric transformation
@@ -223,7 +237,9 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
           if (lastHoverPositionRef.current) {
             const deltaRow = row - lastHoverPositionRef.current.row;
             const deltaCol = col - lastHoverPositionRef.current.col;
-            const distance = Math.sqrt(deltaRow * deltaRow + deltaCol * deltaCol);
+            const distance = Math.sqrt(
+              deltaRow * deltaRow + deltaCol * deltaCol,
+            );
             const deltaTime = currentTime - lastHoverPositionRef.current.time;
 
             // Calculate velocity (cubes per millisecond, scaled up for visibility)
@@ -272,15 +288,28 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
           const velocityBonus = Math.min(velocityRef.current.speed * 0.5, 7); // Up to +7 radius from velocity
           const waveRadius = baseRadius + velocityBonus;
 
-          for (let dr = -Math.ceil(waveRadius); dr <= Math.ceil(waveRadius); dr++) {
-            for (let dc = -Math.ceil(waveRadius); dc <= Math.ceil(waveRadius); dc++) {
+          for (
+            let dr = -Math.ceil(waveRadius);
+            dr <= Math.ceil(waveRadius);
+            dr++
+          ) {
+            for (
+              let dc = -Math.ceil(waveRadius);
+              dc <= Math.ceil(waveRadius);
+              dc++
+            ) {
               if (dr === 0 && dc === 0) continue;
 
               const neighborRow = row + dr;
               const neighborCol = col + dc;
               const neighborKey = `${neighborRow}-${neighborCol}`;
 
-              if (neighborRow >= 0 && neighborRow < ROWS && neighborCol >= 0 && neighborCol < COLS) {
+              if (
+                neighborRow >= 0 &&
+                neighborRow < ROWS &&
+                neighborCol >= 0 &&
+                neighborCol < COLS
+              ) {
                 const distance = Math.sqrt(dr * dr + dc * dc);
                 if (distance <= waveRadius) {
                   // Calculate directional strength based on velocity
@@ -291,11 +320,14 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
                     const neighborDirY = dr / distance;
 
                     // Dot product to see alignment with movement direction
-                    const alignment = (neighborDirX * velocityRef.current.dirX +
-                                     neighborDirY * velocityRef.current.dirY);
+                    const alignment =
+                      neighborDirX * velocityRef.current.dirX +
+                      neighborDirY * velocityRef.current.dirY;
 
                     // Boost strength in direction of movement (1x to 2x)
-                    directionalMultiplier = 1 + Math.max(0, alignment) * (velocityRef.current.speed / 10);
+                    directionalMultiplier =
+                      1 +
+                      Math.max(0, alignment) * (velocityRef.current.speed / 10);
                   }
 
                   // Gentler falloff with directional boost
@@ -303,57 +335,82 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
                   const baseFalloff = 1 - (distance / waveRadius) * 0.3;
                   const strengthFactor = baseFalloff * directionalMultiplier;
 
-                setTimeout(() => {
-                  const neighborCube = cubesRef.current.get(neighborKey);
+                  setTimeout(() => {
+                    const neighborCube = cubesRef.current.get(neighborKey);
 
-                  if (!neighborCube) {
-                    // Create a wave effect with velocity-based strength
-                    cubesRef.current.set(neighborKey, {
-                      row: neighborRow,
-                      col: neighborCol,
-                      color: waveColor,
-                      fadeProgress: Math.min(1, 0.8 * strengthFactor),
-                      yOffset: 0,
-                      yVelocity: -12 * Math.min(strengthFactor, 1.5),
-                      targetY: -22 * Math.min(strengthFactor, 1.5),
-                    });
-                  } else {
-                    // Always blend colors when waves intersect
-                    if (neighborCube.color) {
-                      const newColorMatch = waveColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                      const existingColorMatch = neighborCube.color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-
-                      if (newColorMatch && existingColorMatch) {
-                        // Blend the colors
-                        const blendFactor = 0.5;
-                        const r = Math.floor(Number.parseInt(existingColorMatch[1]) * (1 - blendFactor) + Number.parseInt(newColorMatch[1]) * blendFactor);
-                        const g = Math.floor(Number.parseInt(existingColorMatch[2]) * (1 - blendFactor) + Number.parseInt(newColorMatch[2]) * blendFactor);
-                        const b = Math.floor(Number.parseInt(existingColorMatch[3]) * (1 - blendFactor) + Number.parseInt(newColorMatch[3]) * blendFactor);
-                        neighborCube.color = `rgb(${r}, ${g}, ${b})`;
-                      }
+                    if (!neighborCube) {
+                      // Create a wave effect with velocity-based strength
+                      cubesRef.current.set(neighborKey, {
+                        row: neighborRow,
+                        col: neighborCol,
+                        color: waveColor,
+                        fadeProgress: Math.min(1, 0.8 * strengthFactor),
+                        yOffset: 0,
+                        yVelocity: -12 * Math.min(strengthFactor, 1.5),
+                        targetY: -22 * Math.min(strengthFactor, 1.5),
+                      });
                     } else {
-                      // If cube has no color, give it the wave color
-                      neighborCube.color = waveColor;
-                    }
+                      // Always blend colors when waves intersect
+                      if (neighborCube.color) {
+                        const newColorMatch = waveColor.match(
+                          /rgb\((\d+),\s*(\d+),\s*(\d+)\)/,
+                        );
+                        const existingColorMatch = neighborCube.color.match(
+                          /rgb\((\d+),\s*(\d+),\s*(\d+)\)/,
+                        );
 
-                    // Add energy to the wave with velocity-based strength
-                    const clampedStrength = Math.min(strengthFactor, 1.5);
-                    neighborCube.fadeProgress = Math.min(1, neighborCube.fadeProgress + 0.3 * clampedStrength);
-                    neighborCube.yVelocity += -10 * clampedStrength;
-                    neighborCube.targetY = Math.min(neighborCube.targetY, -22 * clampedStrength);
-                  }
-                }, delayFactor * 50);
+                        if (newColorMatch && existingColorMatch) {
+                          // Blend the colors
+                          const blendFactor = 0.5;
+                          const r = Math.floor(
+                            Number.parseInt(existingColorMatch[1], 10) *
+                              (1 - blendFactor) +
+                              Number.parseInt(newColorMatch[1], 10) *
+                                blendFactor,
+                          );
+                          const g = Math.floor(
+                            Number.parseInt(existingColorMatch[2], 10) *
+                              (1 - blendFactor) +
+                              Number.parseInt(newColorMatch[2], 10) *
+                                blendFactor,
+                          );
+                          const b = Math.floor(
+                            Number.parseInt(existingColorMatch[3], 10) *
+                              (1 - blendFactor) +
+                              Number.parseInt(newColorMatch[3], 10) *
+                                blendFactor,
+                          );
+                          neighborCube.color = `rgb(${r}, ${g}, ${b})`;
+                        }
+                      } else {
+                        // If cube has no color, give it the wave color
+                        neighborCube.color = waveColor;
+                      }
+
+                      // Add energy to the wave with velocity-based strength
+                      const clampedStrength = Math.min(strengthFactor, 1.5);
+                      neighborCube.fadeProgress = Math.min(
+                        1,
+                        neighborCube.fadeProgress + 0.3 * clampedStrength,
+                      );
+                      neighborCube.yVelocity += -10 * clampedStrength;
+                      neighborCube.targetY = Math.min(
+                        neighborCube.targetY,
+                        -22 * clampedStrength,
+                      );
+                    }
+                  }, delayFactor * 50);
+                }
               }
             }
           }
         }
+      } else {
+        currentHoverRef.current = null;
+        lastTriggeredCubeRef.current = null;
+        lastHoverPositionRef.current = null;
       }
-    } else {
-      currentHoverRef.current = null;
-      lastTriggeredCubeRef.current = null;
-      lastHoverPositionRef.current = null;
-    }
-  };
+    };
 
     const animate = () => {
       // Calculate delta time in seconds
@@ -384,7 +441,7 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
           let colorToUse = null;
 
           // Check if this cube should have color
-          if (cube && cube.color) {
+          if (cube?.color) {
             const isCurrentlyHovered = currentHoverRef.current === key;
 
             if (isCurrentlyHovered) {
@@ -424,14 +481,20 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
             } else {
               // Lerp between base gray-900 and highlight color
               const baseColor: [number, number, number] = [16, 24, 40];
-              const rgbMatch = cube.color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+              const rgbMatch = cube.color.match(
+                /rgb\((\d+),\s*(\d+),\s*(\d+)\)/,
+              );
               if (rgbMatch) {
                 const highlightColor: [number, number, number] = [
-                  Number.parseInt(rgbMatch[1]),
-                  Number.parseInt(rgbMatch[2]),
-                  Number.parseInt(rgbMatch[3]),
+                  Number.parseInt(rgbMatch[1], 10),
+                  Number.parseInt(rgbMatch[2], 10),
+                  Number.parseInt(rgbMatch[3], 10),
                 ];
-                const lerpedColor = lerpColor(baseColor, highlightColor, cube.fadeProgress);
+                const lerpedColor = lerpColor(
+                  baseColor,
+                  highlightColor,
+                  cube.fadeProgress,
+                );
                 colorToUse = `rgb(${lerpedColor[0]}, ${lerpedColor[1]}, ${lerpedColor[2]})`;
               } else {
                 colorToUse = cube.color;

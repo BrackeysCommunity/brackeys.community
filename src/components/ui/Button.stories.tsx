@@ -1,21 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
+  AlertTriangle,
+  CheckCircle,
+  Code,
+  Database,
+  Download,
+  Globe,
+  Heart,
+  Paintbrush,
   Play,
   Settings,
-  Download,
-  Heart,
+  Shield,
   Star,
   Trash,
-  CheckCircle,
-  AlertTriangle,
   Zap,
-  Globe,
-  Shield,
-  Database,
-  Code,
-  Paintbrush,
 } from 'lucide-react';
-import { Button } from '../components/ui/Button';
+import { Button } from './Button';
 
 const meta = {
   title: 'UI/Button',

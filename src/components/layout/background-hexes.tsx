@@ -1,4 +1,4 @@
-import { RefObject, useEffect, useRef, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface BoxesProps {
@@ -208,7 +208,7 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
               if (alignment < 0.2) continue;
 
               // Strong directional focusing (cubic falloff from center of cone)
-              const directionalStrength = Math.pow(alignment, 3);
+              const directionalStrength = alignment ** 3;
               waveContribution *= directionalStrength;
             }
 

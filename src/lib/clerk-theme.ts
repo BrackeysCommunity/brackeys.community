@@ -1,4 +1,4 @@
-import type { Appearance } from '@clerk/types'
+import type { Appearance } from '@clerk/types';
 
 /**
  * Shared Clerk appearance configuration for the Brackeys Community theme.
@@ -47,8 +47,7 @@ export const clerkAppearance: Appearance = {
 
     // Profile sections
     profilePage: 'space-y-4',
-    profileSection:
-      '!bg-gray-900/50 !border !border-gray-700 !rounded-lg !p-4',
+    profileSection: '!bg-gray-900/50 !border !border-gray-700 !rounded-lg !p-4',
     profileSectionTitle: '!text-white !font-semibold !text-base',
     profileSectionContent: '!text-gray-300',
     profileSectionPrimaryButton:
@@ -150,5 +149,4 @@ export const clerkAppearance: Appearance = {
     // Internal (sign in/sign up forms)
     internal: '!bg-gray-800',
   },
-}
-
+};

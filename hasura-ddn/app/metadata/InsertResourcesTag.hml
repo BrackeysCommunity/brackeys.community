@@ -1,0 +1,137 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesTagInsertInput
+  description: Input type for inserting into resources.tag
+  fields:
+    - name: colorClass
+      type: String_1
+      description: New value for resources.tag.color_class
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for resources.tag.created_at
+    - name: iconName
+      type: String_1
+      description: New value for resources.tag.icon_name
+    - name: id
+      type: String_1!
+      description: New value for resources.tag.id
+    - name: label
+      type: String_1!
+      description: New value for resources.tag.label
+    - name: slug
+      type: String_1!
+      description: New value for resources.tag.slug
+  graphql:
+    typeName: ResourcesTagInsertInput
+    inputTypeName: ResourcesTagInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.tag_insert_input
+      fieldMapping:
+        colorClass:
+          column:
+            name: color_class
+        createdAt:
+          column:
+            name: created_at
+        iconName:
+          column:
+            name: icon_name
+        id:
+          column:
+            name: id
+        label:
+          column:
+            name: label
+        slug:
+          column:
+            name: slug
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesTagInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - colorClass
+          - createdAt
+          - iconName
+          - id
+          - label
+          - slug
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesTagResult
+  description: insert from resources.tag result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesTag!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesTagResult
+    inputTypeName: InsertResourcesTagResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.tag_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesTagResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesTag
+  outputType: InsertResourcesTagResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesTagInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.tag
+  graphql:
+    rootFieldName: insertResourcesTag
+    rootFieldKind: Mutation
+  description: Insert into resources.tag
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesTag
+  permissions:
+    - role: admin
+      allowExecution: true
+

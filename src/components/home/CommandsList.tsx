@@ -1,5 +1,5 @@
-import { memo } from 'react';
 import { Terminal } from 'lucide-react';
+import { memo } from 'react';
 
 interface Command {
   name: string;
@@ -84,4 +84,3 @@ export const CommandsList = memo(() => {
     </div>
   );
 });
-

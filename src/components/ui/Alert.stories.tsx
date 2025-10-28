@@ -25,7 +25,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Info: Story = {
+export const InfoAlert: Story = {
   args: {
     variant: 'info',
     title: 'Information',
@@ -33,7 +33,7 @@ export const Info: Story = {
   },
 };
 
-export const Success: Story = {
+export const SuccessAlert: Story = {
   args: {
     variant: 'success',
     title: 'Success!',
@@ -41,7 +41,7 @@ export const Success: Story = {
   },
 };
 
-export const Warning: Story = {
+export const WarningAlert: Story = {
   args: {
     variant: 'warning',
     title: 'Warning',
@@ -49,7 +49,7 @@ export const Warning: Story = {
   },
 };
 
-export const Error: Story = {
+export const ErrorAlert: Story = {
   args: {
     variant: 'error',
     title: 'Error',
@@ -57,28 +57,31 @@ export const Error: Story = {
   },
 };
 
-export const TitleOnly: Story = {
+export const TitleOnlyAlert: Story = {
   args: {
     variant: 'info',
     title: 'This alert only has a title',
   },
 };
 
-export const DescriptionOnly: Story = {
+export const DescriptionOnlyAlert: Story = {
   args: {
     variant: 'info',
     description: 'This alert only has a description without a title.',
   },
 };
 
-export const WithChildren: Story = {
+export const WithChildrenAlert: Story = {
   args: {
     variant: 'info',
     title: 'Custom Content',
     children: (
       <div className="space-y-2">
         <p>This alert contains custom child elements.</p>
-        <button className="text-blue-400 underline hover:text-blue-300">
+        <button
+          type="button"
+          className="text-blue-400 underline hover:text-blue-300"
+        >
           Learn more
         </button>
       </div>
@@ -86,7 +89,7 @@ export const WithChildren: Story = {
   },
 };
 
-export const LongContent: Story = {
+export const LongContentAlert: Story = {
   args: {
     variant: 'warning',
     title: 'Important Notice',

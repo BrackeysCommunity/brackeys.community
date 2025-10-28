@@ -1,6 +1,6 @@
-import { toast as sonnerToast } from 'sonner';
-import { CheckCircle, XCircle, Info, AlertTriangle, X } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { AlertTriangle, CheckCircle, Info, X, XCircle } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
 import { cn } from '../../lib/utils';
 
 const toastVariants = cva(
@@ -119,6 +119,7 @@ export const Toast = ({
         )}
         {action && (
           <button
+            type="button"
             className={cn(
               'mt-3 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
               'bg-gray-700/50 hover:bg-gray-600/50 text-gray-200 hover:text-white',
@@ -135,6 +136,7 @@ export const Toast = ({
       </div>
 
       <button
+        type="button"
         className="flex-shrink-0 text-gray-400 hover:text-gray-200 transition-colors p-1 hover:bg-gray-700/50 rounded"
         onClick={() => sonnerToast.dismiss(id)}
         aria-label="Dismiss notification"

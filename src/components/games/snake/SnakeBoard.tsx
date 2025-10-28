@@ -41,7 +41,7 @@ export const SnakeBoard = ({
       {grid.map((row, rowIndex) =>
         row.map((_, colIndex) => (
           <div
-            key={`${rowIndex}-${colIndex}`}
+            key={`${rowIndex.toString()}-${colIndex.toString()}`}
             className={cn(
               isSnakeHead(rowIndex, colIndex) && 'bg-green-500',
               isSnake(rowIndex, colIndex) &&

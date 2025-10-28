@@ -11,7 +11,30 @@
       "**/src/**/*",
       "**/*.ts",
       "**/*.tsx",
-      "!**/src/routeTree.gen.ts"
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.json",
+      "**/*.md",
+      "**/*.yml",
+      "**/*.yaml",
+      "**/*.css",
+      "**/*.scss",
+      "!**/src/routeTree.gen.ts",
+      "!**/src/api/spacetime-db",
+      "!**/src/spacetime-bindings",
+      "!**/spacetime-db",
+      "!**/sandbox",
+      "!**/child",
+      "!**/.nitro",
+      "!**/.output",
+      "!**/.vercel",
+      "!**/.vscode",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/storybook-static",
+      "!**/src/lib/gql",
+      "!**/hasura-ddn/engine/build"
     ]
   },
   "formatter": {
@@ -22,7 +45,13 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "suspicious": {
+        "noUnknownAtRules": "off"
+      },
+      "complexity": {
+        "noImportantStyles": "warn"
+      }
     }
   },
   "javascript": {

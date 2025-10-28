@@ -1,4 +1,4 @@
-import { useSignIn, useClerk } from '@clerk/tanstack-react-start';
+import { useClerk, useSignIn } from '@clerk/tanstack-react-start';
 
 /**
  * Hook that provides authentication helper functions
@@ -11,7 +11,7 @@ export function useAuthHelpers() {
   const signInWithDiscord = async () => {
     try {
       console.log('Initiating Discord OAuth flow...');
-      
+
       // Use Clerk's authenticateWithRedirect method which handles BOTH
       // sign-in (returning users) and sign-up (new users) automatically
       await signIn?.authenticateWithRedirect({
@@ -40,4 +40,3 @@ export function useAuthHelpers() {
     signOut,
   };
 }
-

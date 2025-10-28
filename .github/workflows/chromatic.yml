@@ -19,9 +19,44 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun ci
+        run: bun install --frozen-lockfile
+
       - name: Build Storybook
-        run: bun run build-storybook
+        run: |
+          echo "Building Storybook..."
+          bun run build-storybook 2>&1 | tee storybook-build.log
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+
+          echo ""
+          echo "=== Build Exit Code: $BUILD_EXIT_CODE ==="
+          echo ""
+
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Storybook build failed with exit code $BUILD_EXIT_CODE"
+            echo "Build log:"
+            cat storybook-build.log
+            exit 1
+          fi
+
+          echo "Checking output directory..."
+          if [ ! -d "storybook-static" ]; then
+            echo "❌ storybook-static directory not found!"
+            ls -la
+            exit 1
+          fi
+
+          echo "Contents of storybook-static:"
+          ls -la storybook-static
+
+          if [ ! -f "storybook-static/index.html" ]; then
+            echo "❌ index.html not found in storybook-static"
+            echo "Directory contents:"
+            find storybook-static -type f | head -20
+            exit 1
+          fi
+
+          echo "✅ Storybook built successfully"
+
       - name: Run Chromatic
         uses: chromaui/action@latest
         with:

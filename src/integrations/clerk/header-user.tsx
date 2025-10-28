@@ -1,10 +1,10 @@
 import {
   SignedIn,
-  SignInButton,
   SignedOut,
+  SignInButton,
   UserButton,
 } from '@clerk/tanstack-react-start';
-import { DiscordInfo, DiscordIcon } from './discord-info';
+import { DiscordIcon, DiscordInfo } from './discord-info';
 
 type HeaderUserProps = {
   onMenuOpen?: () => void;
@@ -15,11 +15,12 @@ export const HeaderUser = ({ onMenuOpen, onMenuClose }: HeaderUserProps) => {
   return (
     <>
       <SignedIn>
-        <div
+        <button
+          type="button"
           onMouseEnter={onMenuOpen}
           onMouseLeave={onMenuClose}
           onClick={onMenuOpen}
-          className="flex items-center justify-center"
+          className="flex items-center justify-center cursor-pointer"
         >
           <UserButton>
             <UserButton.UserProfilePage
@@ -30,11 +31,11 @@ export const HeaderUser = ({ onMenuOpen, onMenuClose }: HeaderUserProps) => {
               <DiscordInfo variant="compact" />
             </UserButton.UserProfilePage>
           </UserButton>
-        </div>
+        </button>
       </SignedIn>
       <SignedOut>
         <SignInButton />
       </SignedOut>
     </>
   );
-}
+};

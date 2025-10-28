@@ -1,0 +1,193 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceInsertInput
+  description: Input type for inserting into resources.resource
+  fields:
+    - name: createdAt
+      type: Timestamptz!
+      description: New value for resources.resource.created_at
+    - name: description
+      type: String_1!
+      description: New value for resources.resource.description
+    - name: developer
+      type: String_1
+      description: New value for resources.resource.developer
+    - name: developerUrl
+      type: String_1
+      description: New value for resources.resource.developer_url
+    - name: id
+      type: String_1!
+      description: New value for resources.resource.id
+    - name: imageUrl
+      type: String_1
+      description: New value for resources.resource.image_url
+    - name: isPublished
+      type: Boolean_1!
+      description: New value for resources.resource.is_published
+    - name: releaseDate
+      type: Date
+      description: New value for resources.resource.release_date
+    - name: resourceUrl
+      type: String_1!
+      description: New value for resources.resource.resource_url
+    - name: submittedByUserId
+      type: Int64
+      description: New value for resources.resource.submitted_by_user_id
+    - name: title
+      type: String_1!
+      description: New value for resources.resource.title
+    - name: typeId
+      type: Int32!
+      description: New value for resources.resource.type_id
+    - name: updatedAt
+      type: Timestamptz!
+      description: New value for resources.resource.updated_at
+    - name: viewCount
+      type: Int32!
+      description: New value for resources.resource.view_count
+  graphql:
+    typeName: ResourcesResourceInsertInput
+    inputTypeName: ResourcesResourceInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_insert_input
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        isPublished:
+          column:
+            name: is_published
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - isPublished
+          - releaseDate
+          - resourceUrl
+          - submittedByUserId
+          - title
+          - typeId
+          - updatedAt
+          - viewCount
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertResourcesResourceResult
+  description: insert from resources.resource result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesResource!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertResourcesResourceResult
+    inputTypeName: InsertResourcesResourceResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_resources.resource_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertResourcesResourceResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertResourcesResource
+  outputType: InsertResourcesResourceResult!
+  arguments:
+    - name: objects
+      type: "[ResourcesResourceInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_resources.resource
+  graphql:
+    rootFieldName: insertResourcesResource
+    rootFieldKind: Mutation
+  description: Insert into resources.resource
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertResourcesResource
+  permissions:
+    - role: admin
+      allowExecution: true
+

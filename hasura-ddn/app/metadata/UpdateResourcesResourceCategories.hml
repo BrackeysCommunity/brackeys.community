@@ -1,0 +1,119 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceCategoriesSetInput
+  description: Input type for updating resources.resource_categories
+  fields:
+    - name: categoryId
+      type: UuidSetInput
+      description: New value wrapper for resources.resource_categories.category_id
+    - name: createdAt
+      type: TimestampWithTimeZoneSetInput
+      description: New value wrapper for resources.resource_categories.created_at
+    - name: resourceId
+      type: UuidSetInput
+      description: New value wrapper for resources.resource_categories.resource_id
+  graphql:
+    typeName: ResourcesResourceCategoriesSetInput
+    inputTypeName: ResourcesResourceCategoriesSetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_categories_set_input
+      fieldMapping:
+        categoryId:
+          column:
+            name: category_id
+        createdAt:
+          column:
+            name: created_at
+        resourceId:
+          column:
+            name: resource_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceCategoriesSetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categoryId
+          - createdAt
+          - resourceId
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdateResourcesResourceCategoriesResult
+  description: update from resources.resource_categories result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesResourceCategories!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdateResourcesResourceCategoriesResult
+    inputTypeName: UpdateResourcesResourceCategoriesResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_resources.resource_categories_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdateResourcesResourceCategoriesResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdateResourcesResourceCategories
+  outputType: UpdateResourcesResourceCategoriesResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: ResourcesResourceCategoriesSetInput!
+      description: Values to set
+    - name: where
+      type: ResourcesResourceCategoriesBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_resources.resource_categories
+  graphql:
+    rootFieldName: updateResourcesResourceCategories
+    rootFieldKind: Mutation
+  description: Update resources.resource_categories
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdateResourcesResourceCategories
+  permissions:
+    - role: admin
+      allowExecution: true
+

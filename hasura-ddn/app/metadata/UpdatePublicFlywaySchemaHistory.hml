@@ -1,0 +1,168 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: PublicFlywaySchemaHistorySetInput
+  description: Input type for updating public.flyway_schema_history
+  fields:
+    - name: checksum
+      type: IntegerSetInput
+      description: New value wrapper for public.flyway_schema_history.checksum
+    - name: description
+      type: CharacterVaryingSetInput
+      description: New value wrapper for public.flyway_schema_history.description
+    - name: executionTime
+      type: IntegerSetInput
+      description: New value wrapper for public.flyway_schema_history.execution_time
+    - name: installedBy
+      type: CharacterVaryingSetInput
+      description: New value wrapper for public.flyway_schema_history.installed_by
+    - name: installedOn
+      type: TimestampWithoutTimeZoneSetInput
+      description: New value wrapper for public.flyway_schema_history.installed_on
+    - name: installedRank
+      type: IntegerSetInput
+      description: New value wrapper for public.flyway_schema_history.installed_rank
+    - name: script
+      type: CharacterVaryingSetInput
+      description: New value wrapper for public.flyway_schema_history.script
+    - name: success
+      type: BooleanSetInput
+      description: New value wrapper for public.flyway_schema_history.success
+    - name: type
+      type: CharacterVaryingSetInput
+      description: New value wrapper for public.flyway_schema_history.type
+    - name: version
+      type: CharacterVaryingSetInput
+      description: New value wrapper for public.flyway_schema_history.version
+  graphql:
+    typeName: PublicFlywaySchemaHistorySetInput
+    inputTypeName: PublicFlywaySchemaHistorySetInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: public.flyway_schema_history_set_input
+      fieldMapping:
+        checksum:
+          column:
+            name: checksum
+        description:
+          column:
+            name: description
+        executionTime:
+          column:
+            name: execution_time
+        installedBy:
+          column:
+            name: installed_by
+        installedOn:
+          column:
+            name: installed_on
+        installedRank:
+          column:
+            name: installed_rank
+        script:
+          column:
+            name: script
+        success:
+          column:
+            name: success
+        type:
+          column:
+            name: type
+        version:
+          column:
+            name: version
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: PublicFlywaySchemaHistorySetInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - checksum
+          - description
+          - executionTime
+          - installedBy
+          - installedOn
+          - installedRank
+          - script
+          - success
+          - type
+          - version
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: UpdatePublicFlywaySchemaHistoryResult
+  description: update from public.flyway_schema_history result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[PublicFlywaySchemaHistory!]!"
+      description: Objects that were affected by update
+  graphql:
+    typeName: UpdatePublicFlywaySchemaHistoryResult
+    inputTypeName: UpdatePublicFlywaySchemaHistoryResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: update_public.flyway_schema_history_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: UpdatePublicFlywaySchemaHistoryResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: UpdatePublicFlywaySchemaHistory
+  outputType: UpdatePublicFlywaySchemaHistoryResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: set
+      type: PublicFlywaySchemaHistorySetInput!
+      description: Values to set
+    - name: where
+      type: PublicFlywaySchemaHistoryBoolExp!
+      description: Filter for rows to update
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: update_public.flyway_schema_history
+  graphql:
+    rootFieldName: updatePublicFlywaySchemaHistory
+    rootFieldKind: Mutation
+  description: Update public.flyway_schema_history
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: UpdatePublicFlywaySchemaHistory
+  permissions:
+    - role: admin
+      allowExecution: true
+

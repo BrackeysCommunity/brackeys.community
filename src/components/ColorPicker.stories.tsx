@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
+import { getColorGradient, RAINBOW_PALETTE } from '../lib/colors';
 import { ColorPicker } from './ColorPicker';
-import { RAINBOW_PALETTE, getColorGradient } from '../lib/colors';
 
 const meta = {
   title: 'UI/ColorPicker',

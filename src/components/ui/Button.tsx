@@ -1,10 +1,10 @@
 import { Button as HeadlessButton } from '@headlessui/react';
-import { type ReactNode, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Check } from 'lucide-react';
+import { type MotionProps, motion } from 'motion/react';
+import { type ReactNode, useState } from 'react';
 import { cn } from '../../lib/utils';
-import { motion, type MotionProps } from 'motion/react';
-import { Link } from '@tanstack/react-router';
 
 const buttonVariants = cva(
   'transition-all focus:outline-none outline-2 -outline-offset-1 focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center leading-none',
@@ -86,7 +86,7 @@ const buttonVariants = cva(
         className: 'focus:ring-gray-500 focus:ring-offset-gray-800',
       },
     ],
-  }
+  },
 );
 
 const colorStyles = {
@@ -218,7 +218,8 @@ export const Button = ({
 
   // For card modes with specific content
   if (isCard && (icon || title || subtitle)) {
-    const shouldApplyColoredStyles = selected || (colorizeHover && isHovered && cardColor);
+    const shouldApplyColoredStyles =
+      selected || (colorizeHover && isHovered && cardColor);
 
     return (
       <HeadlessButton
@@ -249,137 +250,136 @@ export const Button = ({
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           />
-        ) : (
+        ) : layout === 'horizontal' ? (
           <>
-            {layout === 'horizontal' ? (
-              <>
-                {icon && (
-                  <motion.div
-                    className={`p-2 rounded-lg ${
-                      selected || (colorizeHover && cardColor)
-                        ? colorStyles[cardColor || 'purple'].selected.iconBg
-                        : 'bg-gray-600'
-                    }`}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 }}
-                  >
-                    <motion.div
-                      className={
-                        shouldApplyColoredStyles
-                          ? colorStyles[cardColor || 'purple'].selected.icon
-                          : 'text-gray-400'
-                      }
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      {icon}
-                    </motion.div>
-                  </motion.div>
-                )}
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    {title && (
-                      <motion.h3
-                        className={cn(
-                          'font-medium',
-                          shouldApplyColoredStyles
-                            ? colorStyles[cardColor || 'purple'].selected.text
-                            : 'text-white'
-                        )}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.15 }}
-                      >
-                        {title}
-                      </motion.h3>
-                    )}
-                    {isCheckbox && selected && showCheckmark && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
-                      >
-                        <Check
-                          className={`w-5 h-5 ${colorStyles[cardColor || 'purple'].selected.icon}`}
-                        />
-                      </motion.div>
-                    )}
-                  </div>
-                  {subtitle && (
-                    <motion.p
-                      className={`text-sm mt-1 text-left ${
-                        shouldApplyColoredStyles
-                          ? colorStyles[cardColor || 'purple'].selected.textLight
-                          : 'text-gray-400'
-                      }`}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.25 }}
-                    >
-                      {subtitle}
-                    </motion.p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                {icon && (
-                  <motion.div
-                    className={`w-6 h-6 mx-auto mb-2 ${
-                      shouldApplyColoredStyles
-                        ? colorStyles[cardColor || 'purple'].selected.icon
-                        : 'text-gray-400'
-                    }`}
-                    initial={{ opacity: 0, scale: 0.8, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
-                  >
-                    {icon}
-                  </motion.div>
-                )}
+            {icon && (
+              <motion.div
+                className={`p-2 rounded-lg ${
+                  selected || (colorizeHover && cardColor)
+                    ? colorStyles[cardColor || 'purple'].selected.iconBg
+                    : 'bg-gray-600'
+                }`}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                <motion.div
+                  className={
+                    shouldApplyColoredStyles
+                      ? colorStyles[cardColor || 'purple'].selected.icon
+                      : 'text-gray-400'
+                  }
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  {icon}
+                </motion.div>
+              </motion.div>
+            )}
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
                 {title && (
-                  <motion.p
-                    className={`font-medium ${
+                  <motion.h3
+                    className={cn(
+                      'font-medium',
                       shouldApplyColoredStyles
                         ? colorStyles[cardColor || 'purple'].selected.text
-                        : 'text-gray-300'
-                    }`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+                        : 'text-white',
+                    )}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.15 }}
                   >
                     {title}
-                  </motion.p>
+                  </motion.h3>
                 )}
-                {subtitle && (
-                  <motion.p
-                    className={`text-sm text-center mt-1 ${
-                      shouldApplyColoredStyles
-                        ? colorStyles[cardColor || 'purple'].selected.textLight
-                        : 'text-gray-400'
-                    }`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25 }}
-                  >
-                    {subtitle}
-                  </motion.p>
-                )}
-                {isCheckbox && selected && showCheckmark && layout === 'vertical' && (
+                {isCheckbox && selected && showCheckmark && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.5, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
                   >
                     <Check
-                      className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`}
+                      className={`w-5 h-5 ${colorStyles[cardColor || 'purple'].selected.icon}`}
                     />
                   </motion.div>
                 )}
-              </>
+              </div>
+              {subtitle && (
+                <motion.p
+                  className={`text-sm mt-1 text-left ${
+                    shouldApplyColoredStyles
+                      ? colorStyles[cardColor || 'purple'].selected.textLight
+                      : 'text-gray-400'
+                  }`}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.25 }}
+                >
+                  {subtitle}
+                </motion.p>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {icon && (
+              <motion.div
+                className={`w-6 h-6 mx-auto mb-2 ${
+                  shouldApplyColoredStyles
+                    ? colorStyles[cardColor || 'purple'].selected.icon
+                    : 'text-gray-400'
+                }`}
+                initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
+              >
+                {icon}
+              </motion.div>
             )}
+            {title && (
+              <motion.p
+                className={`font-medium ${
+                  shouldApplyColoredStyles
+                    ? colorStyles[cardColor || 'purple'].selected.text
+                    : 'text-gray-300'
+                }`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+              >
+                {title}
+              </motion.p>
+            )}
+            {subtitle && (
+              <motion.p
+                className={`text-sm text-center mt-1 ${
+                  shouldApplyColoredStyles
+                    ? colorStyles[cardColor || 'purple'].selected.textLight
+                    : 'text-gray-400'
+                }`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+              >
+                {subtitle}
+              </motion.p>
+            )}
+            {isCheckbox &&
+              selected &&
+              showCheckmark &&
+              layout === 'vertical' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, delay: 0.3 }}
+                >
+                  <Check
+                    className={`w-4 h-4 mt-2 ${colorStyles[cardColor || 'purple'].selected.icon}`}
+                  />
+                </motion.div>
+              )}
           </>
         )}
       </HeadlessButton>
@@ -423,7 +423,11 @@ export const Button = ({
           {icon}
         </motion.span>
       )}
-      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
         {children}
       </motion.span>
     </HeadlessButton>

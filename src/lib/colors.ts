@@ -212,7 +212,7 @@ export function generateColorScheme(mainColor: string): ColorScheme {
 
 // Get the index of a color in the palette
 export function getColorIndex(color: string): number {
-  const index = RAINBOW_PALETTE.findIndex(c => c === color);
+  const index = RAINBOW_PALETTE.indexOf(color);
   return index >= 0 ? index : 0;
 }
 
@@ -222,9 +222,9 @@ export function getColorGradient(color: string): string {
   const match = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
   if (!match) return color;
 
-  const h = parseInt(match[1]);
-  const s = parseInt(match[2]);
-  const l = parseInt(match[3]);
+  const h = parseInt(match[1], 10);
+  const s = parseInt(match[2], 10);
+  const l = parseInt(match[3], 10);
 
   const lighter = `hsl(${h}, ${Math.max(s - 10, 40)}%, ${Math.min(l + 15, 85)}%)`;
   const darker = `hsl(${h}, ${Math.min(s + 10, 90)}%, ${Math.max(l - 10, 30)}%)`;

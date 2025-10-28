@@ -1,16 +1,16 @@
-import { Link, useRouterState } from '@tanstack/react-router';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   Disclosure,
   DisclosureButton,
   DisclosurePanel,
 } from '@headlessui/react';
-import { Menu as MenuIcon, X, ChevronDown } from 'lucide-react';
-import { useUser, useAuthHelpers } from '../../store';
-import { cn } from '../../lib/utils';
-import { useState, useRef, useEffect } from 'react';
+import { Link, useRouterState } from '@tanstack/react-router';
+import { ChevronDown, Menu as MenuIcon, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
 import { HeaderUser } from '../../integrations/clerk';
+import { cn } from '../../lib/utils';
 import { getRouteDisplayName } from '../../router';
+import { useAuthHelpers, useUser } from '../../store';
 
 type NavigationItem = {
   name: string;
@@ -27,9 +27,9 @@ const navigation: NavigationItem[] = [
 
 // Mapping of nav item names to their active/collapsed display titles
 const activeNavTitles: Record<string, string> = {
-  'Home': 'Community',
-  'Resources': 'Resources',
-  'Collab': 'Collab',
+  Home: 'Community',
+  Resources: 'Resources',
+  Collab: 'Collab',
 };
 
 export const Header = () => {
@@ -50,13 +50,11 @@ export const Header = () => {
 
   // Build navigation with current page if not in default list
   const buildNavigation = (): NavigationItem[] => {
-    const filtered = navigation.filter(
-      (item) => !item.requiresAuth || user,
-    );
+    const filtered = navigation.filter((item) => !item.requiresAuth || user);
 
     // Check if current path is in the navigation
     const currentPathInNav = filtered.some(
-      (item) => location.pathname === item.href
+      (item) => location.pathname === item.href,
     );
 
     // If current path is not in navigation, add it as a dynamic item
@@ -141,7 +139,11 @@ export const Header = () => {
 
   // Update active tab position when route changes (while hovering)
   useEffect(() => {
-    if (showBackground && currentItemIndex >= 0 && navItemRefs.current[currentItemIndex]) {
+    if (
+      showBackground &&
+      currentItemIndex >= 0 &&
+      navItemRefs.current[currentItemIndex]
+    ) {
       const activeElement = navItemRefs.current[currentItemIndex];
       const container = navContainerRef.current;
 
@@ -158,12 +160,13 @@ export const Header = () => {
   }, [currentItemIndex, showBackground]);
 
   // Handle user menu state changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: we don't want to re-render the effect on every render
   useEffect(() => {
     // When user menu closes, trigger collapse if not hovering
     if (!userMenuOpen && navExpanded) {
       handleHoverEnd();
     }
-  }, [userMenuOpen]);
+  }, [userMenuOpen, navExpanded]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -224,15 +227,16 @@ export const Header = () => {
                       ease: 'linear',
                     }}
                   />
-                  <span className="font-bold text-white text-lg">
-                    Brackeys
-                  </span>
+                  <span className="font-bold text-white text-lg">Brackeys</span>
                 </Link>
 
                 {/* Expandable Navigation (Desktop) */}
                 <motion.div
                   ref={navContainerRef}
-                  className={cn("hidden sm:flex items-center relative rounded-lg py-1", navExpanded ? "space-x-2" : "mr-2")}
+                  className={cn(
+                    'hidden sm:flex items-center relative rounded-lg py-1',
+                    navExpanded ? 'space-x-2' : 'mr-2',
+                  )}
                   initial={false}
                 >
                   {/* Bouncing Chevron Indicator - Right side, absolutely positioned */}
@@ -287,9 +291,10 @@ export const Header = () => {
                     const isActive = location.pathname === item.href;
                     const isActiveOrExpanded = isActive || navExpanded;
                     // Use active title when collapsed and active, otherwise use regular name
-                    const displayName = !navExpanded && isActive && activeNavTitles[item.name]
-                      ? activeNavTitles[item.name]
-                      : item.name;
+                    const displayName =
+                      !navExpanded && isActive && activeNavTitles[item.name]
+                        ? activeNavTitles[item.name]
+                        : item.name;
 
                     return (
                       <motion.div
@@ -315,12 +320,15 @@ export const Header = () => {
                             // Padding - consistent px-3 when expanded, pr-3 when collapsed
                             navExpanded ? 'px-3' : 'pr-3',
                             // When collapsed (not expanded), make active item larger and bolder with gradient
-                            !navExpanded && isActive && 'text-lg font-bold bg-gradient-to-r from-brackeys-yellow via-brackeys-fuscia to-brackeys-purple bg-clip-text text-transparent',
+                            !navExpanded &&
+                              isActive &&
+                              'text-lg font-bold bg-gradient-to-r from-brackeys-yellow via-brackeys-fuscia to-brackeys-purple bg-clip-text text-transparent',
                             // When expanded, all items are same size
                             navExpanded && 'text-sm font-medium',
                             // Color styling - only apply when not the special collapsed active case
                             navExpanded && isActive && 'text-gray-200',
-                            !isActive && 'text-gray-300 hover:text-white hover:bg-gray-700/50',
+                            !isActive &&
+                              'text-gray-300 hover:text-white hover:bg-gray-700/50',
                           )}
                           style={{ zIndex: 1 }}
                         >
@@ -338,10 +346,7 @@ export const Header = () => {
                     {open ? (
                       <X className="block h-6 w-6" aria-hidden="true" />
                     ) : (
-                      <MenuIcon
-                        className="block h-6 w-6"
-                        aria-hidden="true"
-                      />
+                      <MenuIcon className="block h-6 w-6" aria-hidden="true" />
                     )}
                   </DisclosureButton>
                 </div>
@@ -349,7 +354,7 @@ export const Header = () => {
             </div>
 
             {/* Right Container: User Profile Only */}
-            <div className={cn(containerClasses, "hidden sm:block")}>
+            <div className={cn(containerClasses, 'hidden sm:block')}>
               <div className={cn(containerInnerClasses, '!px-3')}>
                 <HeaderUser
                   onMenuOpen={() => setUserMenuOpen(true)}

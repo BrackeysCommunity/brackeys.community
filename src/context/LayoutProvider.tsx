@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
+  defaultLayoutProps,
   type LayoutProps,
   Provider,
   useLayout,
   useLayoutProps,
-  defaultLayoutProps,
 } from './layoutContext';
 
 export { useLayout, useLayoutProps, defaultLayoutProps };
@@ -19,5 +19,7 @@ export const LayoutProvider = ({ children }: { children: ReactNode }) => {
     fullHeight: false,
   });
 
-  return <Provider value={{ layoutProps, setLayoutProps }}>{children}</Provider>;
+  return (
+    <Provider value={{ layoutProps, setLayoutProps }}>{children}</Provider>
+  );
 };

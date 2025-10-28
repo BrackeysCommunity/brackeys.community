@@ -12,9 +12,9 @@ interface Box {
 
 // Brackeys brand colors for the sequential gradient
 const BRACKEYS_COLORS = [
-  { r: 255, g: 169, b: 73 },   // brackeys-yellow: #ffa949
-  { r: 210, g: 53, b: 107 },   // brackeys-fuscia: #d2356b
-  { r: 88, g: 101, b: 242 },   // brackeys-purple-500: #5865f2
+  { r: 255, g: 169, b: 73 }, // brackeys-yellow: #ffa949
+  { r: 210, g: 53, b: 107 }, // brackeys-fuscia: #d2356b
+  { r: 88, g: 101, b: 242 }, // brackeys-purple-500: #5865f2
 ];
 
 export const Boxes = ({ className, ...rest }: BoxesProps) => {
@@ -22,7 +22,7 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const boxesRef = useRef<Box[]>([]);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const colorPositionRef = useRef<number>(0);
 
   const rows = 50;
@@ -52,10 +52,10 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
-          setDimensions({
+        setDimensions({
           width: containerRef.current.offsetWidth,
           height: containerRef.current.offsetHeight,
-          });
+        });
       }
     };
 
@@ -64,6 +64,7 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: we don't want to re-render the canvas on every render
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || dimensions.width === 0) return;
@@ -78,10 +79,12 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
     // Initialize boxes only once
     if (boxesRef.current.length === 0) {
       const totalBoxes = rows * cols;
-      boxesRef.current = Array(totalBoxes).fill(null).map(() => ({
-        color: null,
-        fadeProgress: 0,
-      }));
+      boxesRef.current = Array(totalBoxes)
+        .fill(null)
+        .map(() => ({
+          color: null,
+          fadeProgress: 0,
+        }));
     }
 
     const draw = () => {
@@ -181,7 +184,7 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
       const scaled_ty = ty / scale;
 
       // 3. Inverse of transform matrix (1, 0.24, -0.83, 1, 0, 0)
-      const det = 1 * 1 - 0.24 * (-0.83);
+      const det = 1 * 1 - 0.24 * -0.83;
       const inv_a = 1 / det;
       const inv_b = -0.24 / det;
       const inv_c = 0.83 / det;
@@ -199,14 +202,21 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
       const boxJ = Math.floor(gridY / boxHeight);
       const index = boxI * cols + boxJ;
 
-      if (index >= 0 && index < boxesRef.current.length && boxI >= 0 && boxI < rows && boxJ >= 0 && boxJ < cols) {
+      if (
+        index >= 0 &&
+        index < boxesRef.current.length &&
+        boxI >= 0 &&
+        boxI < rows &&
+        boxJ >= 0 &&
+        boxJ < cols
+      ) {
         const box = boxesRef.current[index];
 
         if (!box.color || box.fadeProgress < 0.5) {
           const color = getNextColor();
           boxesRef.current[index] = {
             color: color,
-              fadeProgress: 1,
+            fadeProgress: 1,
           };
         }
       }
@@ -221,15 +231,12 @@ export const Boxes = ({ className, ...rest }: BoxesProps) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [dimensions, rows, cols, boxWidth, boxHeight]);
+  }, [dimensions]);
 
   return (
     <div
       ref={containerRef}
-      className={cn(
-        'absolute inset-0 w-full h-full z-0',
-        className,
-      )}
+      className={cn('absolute inset-0 w-full h-full z-0', className)}
       {...rest}
     >
       <canvas

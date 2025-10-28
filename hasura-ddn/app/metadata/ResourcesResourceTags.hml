@@ -1,0 +1,183 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceTags
+  fields:
+    - name: createdAt
+      type: Timestamptz!
+    - name: resourceId
+      type: String_1!
+    - name: tagId
+      type: String_1!
+  graphql:
+    typeName: ResourcesResourceTags
+    inputTypeName: ResourcesResourceTagsInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_tags
+      fieldMapping:
+        createdAt:
+          column:
+            name: created_at
+        resourceId:
+          column:
+            name: resource_id
+        tagId:
+          column:
+            name: tag_id
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceTags
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - createdAt
+          - resourceId
+          - tagId
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesResourceTagsBoolExp
+  operand:
+    object:
+      type: ResourcesResourceTags
+      comparableFields:
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: resourceId
+          booleanExpressionType: UuidBoolExp
+        - fieldName: tagId
+          booleanExpressionType: UuidBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesResourceTagsBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesResourceTagsAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesResourceTags
+      aggregatableFields:
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: resourceId
+          aggregateExpression: UuidAggExp
+        - fieldName: tagId
+          aggregateExpression: UuidAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesResourceTagsAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesResourceTagsOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesResourceTags
+      orderableFields:
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: resourceId
+          orderByExpression: String1OrderByExp
+        - fieldName: tagId
+          orderByExpression: String1OrderByExp
+      orderableRelationships:
+        - relationshipName: resourcesResource
+        - relationshipName: resourcesTag
+  graphql:
+    expressionTypeName: ResourcesResourceTagsOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesResourceTags
+  objectType: ResourcesResourceTags
+  source:
+    dataConnectorName: postgres
+    collection: resources.resource_tags
+  filterExpressionType: ResourcesResourceTagsBoolExp
+  aggregateExpression: ResourcesResourceTagsAggExp
+  orderByExpression: ResourcesResourceTagsOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesResourceTags
+      subscription:
+        rootField: resourcesResourceTags
+    selectUniques:
+      - queryRootField: resourcesResourceTagsByPrimaryKey
+        uniqueIdentifier:
+          - resourceId
+          - tagId
+        subscription:
+          rootField: resourcesResourceTagsByPrimaryKey
+    filterInputTypeName: ResourcesResourceTagsFilterInput
+    aggregate:
+      queryRootField: resourcesResourceTagsAggregate
+      subscription:
+        rootField: resourcesResourceTagsAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesResourceTags
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesResource
+  sourceType: ResourcesResourceTags
+  target:
+    model:
+      name: ResourcesResource
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: resourceId
+      target:
+        modelField:
+          - fieldName: id
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesTag
+  sourceType: ResourcesResourceTags
+  target:
+    model:
+      name: ResourcesTag
+      relationshipType: Object
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: tagId
+      target:
+        modelField:
+          - fieldName: id
+

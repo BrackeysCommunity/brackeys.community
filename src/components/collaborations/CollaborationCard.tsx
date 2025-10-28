@@ -1,17 +1,17 @@
-import { motion } from 'motion/react';
 import { Link } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  Briefcase,
-  Heart,
-  TestTube,
-  GraduationCap,
-  Eye,
-  MessageCircle,
-  Bookmark,
   ArrowUpRight,
+  Bookmark,
+  Briefcase,
+  Eye,
+  GraduationCap,
+  Heart,
+  MessageCircle,
+  TestTube,
   User,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import type { CollaborationPost } from './types';
 
@@ -153,7 +153,7 @@ export const CollaborationCard = ({
           <div className="flex flex-wrap gap-1 mb-4">
             {tags.slice(0, 3).map((tag: string, index: number) => (
               <span
-                key={index}
+                key={tag + index.toString()}
                 className="px-2 py-1 bg-gray-700/50 text-gray-400 rounded-full text-xs"
               >
                 {tag}

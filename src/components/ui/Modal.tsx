@@ -1,11 +1,11 @@
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
+import { useRouter } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { ArrowLeft, X } from 'lucide-react';
-import { type ReactNode, useState, useCallback } from 'react';
-import { useRouter } from '@tanstack/react-router';
+import { type ReactNode, useCallback, useState } from 'react';
 import { ModalProvider } from '../../context/modalContext';
-import { Button } from './Button';
 import { cn } from '../../lib/utils';
+import { Button } from './Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -68,16 +68,13 @@ export const Modal = ({
     setInternalActions(newActions);
   }, []);
 
-  const setTitle = useCallback(
-    (newTitle: string) => {
-      setInternalTitle(newTitle);
-    },
-    [setInternalTitle],
-  );
+  const setTitle = useCallback((newTitle: string) => {
+    setInternalTitle(newTitle);
+  }, []);
 
   const resetTitle = useCallback(() => {
     setInternalTitle(title);
-  }, [setInternalTitle, title]);
+  }, [title]);
 
   return (
     <Dialog

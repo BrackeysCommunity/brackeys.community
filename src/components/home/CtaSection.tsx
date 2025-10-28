@@ -16,6 +16,7 @@ const CtaBackgroundAnimation = () => {
         className="absolute inset-0 w-full h-full opacity-20"
         viewBox="0 0 1200 600"
         preserveAspectRatio="none"
+        aria-hidden="true"
       >
         <motion.path
           d="M0,100 C300,180 500,0 1200,100 L1200,600 L0,600 Z"
@@ -34,7 +35,7 @@ const CtaBackgroundAnimation = () => {
           }}
         />
         <defs>
-          <linearGradient id="ctaGradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#6b38e0" />
             <stop offset="50%" stopColor="#8c63f3" />
             <stop offset="100%" stopColor="#4c2cd1" />
@@ -47,6 +48,7 @@ const CtaBackgroundAnimation = () => {
         className="absolute inset-0 w-full h-full opacity-20"
         viewBox="0 0 1200 600"
         preserveAspectRatio="none"
+        aria-hidden="true"
       >
         <motion.path
           d="M0,50 C250,150 700,0 1200,80 L1200,600 L0,600 Z"
@@ -65,7 +67,7 @@ const CtaBackgroundAnimation = () => {
           }}
         />
         <defs>
-          <linearGradient id="ctaGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#7c4dff" />
             <stop offset="50%" stopColor="#9c7aff" />
             <stop offset="100%" stopColor="#5d3ccc" />
@@ -78,6 +80,7 @@ const CtaBackgroundAnimation = () => {
         className="absolute inset-0 w-full h-full opacity-15"
         viewBox="0 0 1200 600"
         preserveAspectRatio="none"
+        aria-hidden="true"
       >
         <motion.path
           d="M0,20 C350,180 650,-50 1200,20 L1200,600 L0,600 Z"
@@ -96,7 +99,7 @@ const CtaBackgroundAnimation = () => {
           }}
         />
         <defs>
-          <linearGradient id="ctaGradient3" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#6c37e3" />
             <stop offset="50%" stopColor="#8d5bf7" />
             <stop offset="100%" stopColor="#4932ba" />
@@ -113,7 +116,7 @@ const CtaBackgroundAnimation = () => {
       {/* small particles */}
       {[...Array(12)].map((_, i) => (
         <motion.div
-          key={`particle-${i}`}
+          key={`particle-${i.toString()}`}
           className="absolute bg-white rounded-full opacity-0"
           style={{
             width: `${Math.random() * 4 + 1}px`,
@@ -140,7 +143,7 @@ const CtaBackgroundAnimation = () => {
       {/* larger particles */}
       {[...Array(3)].map((_, i) => (
         <motion.div
-          key={`large-particle-${i}`}
+          key={`large-particle-${i.toString()}`}
           className="absolute rounded-full opacity-0"
           style={{
             width: `${Math.random() * 6 + 4}px`,
@@ -191,7 +194,7 @@ export const CtaSection = () => {
         viewport={{ once: true, margin: '-100px' }}
         className="max-w-4xl w-full mx-auto text-center space-y-8 relative z-10"
       >
-        <h2 id="cta-heading" className="text-3xl font-bold text-white">
+        <h2 className="text-3xl font-bold text-white">
           Ready to join our developer community?
         </h2>
         <p className="text-xl text-gray-300 max-w-2xl mx-auto">

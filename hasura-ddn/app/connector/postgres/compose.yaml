@@ -4,19 +4,12 @@ services:
       context: .
       dockerfile: .hasura-connector/Dockerfile.postgres
     environment:
-      HASURA_SERVICE_TOKEN_SECRET: ${APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET}
-      JDBC_SCHEMAS: ${APP_POSTGRES_JDBC_SCHEMAS:-public,collab}
-      JDBC_URL: ${APP_POSTGRES_JDBC_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-brackeys}?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT:-http://local.hasura.dev:4317}
-      OTEL_SERVICE_NAME: ${APP_POSTGRES_OTEL_SERVICE_NAME:-app_postgres}
+      HASURA_SERVICE_TOKEN_SECRET: $APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET
+      JDBC_SCHEMAS: $APP_POSTGRES_JDBC_SCHEMAS
+      JDBC_URL: $APP_POSTGRES_JDBC_URL
+      OTEL_EXPORTER_OTLP_ENDPOINT: $APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT
+      OTEL_SERVICE_NAME: $APP_POSTGRES_OTEL_SERVICE_NAME
     extra_hosts:
       - local.hasura.dev:host-gateway
     ports:
-      - 9490:8080
-    networks:
-      - brackeys
-
-networks:
-  brackeys:
-    name: brackeys
-    external: true
+      - 9938:8080

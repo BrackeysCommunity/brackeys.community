@@ -1,6 +1,6 @@
-import { createPortal } from 'react-dom';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, ExternalLink, Minimize } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 
 type ToolPortalProps = {
@@ -21,7 +21,7 @@ export const ToolPortal = ({
       <div className="bg-gray-800 p-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-4">
           <Link
-            to="/tools"
+            to="/resources"
             className="text-gray-400 hover:text-gray-300 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />

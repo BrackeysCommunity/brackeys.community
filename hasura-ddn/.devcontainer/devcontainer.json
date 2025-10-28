@@ -1,14 +1,10 @@
 {
   "customizations": {
     "vscode": {
-      "extensions": [
-        "HasuraHQ.hasura"
-      ],
+      "extensions": ["HasuraHQ.hasura"],
       "settings": {
         "terminal.integrated.shell.linux": "/bin/bash",
-        "terminal.integrated.shellArgs.linux": [
-          "-l"
-        ]
+        "terminal.integrated.shellArgs.linux": ["-l"]
       }
     }
   },

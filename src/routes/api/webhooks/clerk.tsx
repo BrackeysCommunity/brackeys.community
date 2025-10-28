@@ -1,4 +1,4 @@
-import { clerkClient } from '@clerk/clerk-sdk-node';
+import { clerkClient, type WebhookEvent } from '@clerk/clerk-sdk-node';
 import * as Sentry from '@sentry/tanstackstart-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { json } from '@tanstack/react-start';
@@ -20,7 +20,7 @@ async function syncDiscordRoles(userId: string) {
     { name: 'syncDiscordRoles', attributes: { userId } },
     async () => {
       try {
-        console.log('\n' + '='.repeat(80));
+        console.log(`\n${'='.repeat(80)}`);
         console.log(
           `🔄 [DISCORD SYNC] Starting Discord role sync for user: ${userId}`,
         );
@@ -43,7 +43,7 @@ async function syncDiscordRoles(userId: string) {
           console.log(
             `   Available providers: ${tokenResponse.data.map((t) => t.provider).join(', ') || 'none'}`,
           );
-          console.log('='.repeat(80) + '\n');
+          console.log(`${'='.repeat(80)}\n`);
           return { success: false, error: 'No Discord token' };
         }
 
@@ -93,11 +93,11 @@ async function syncDiscordRoles(userId: string) {
             console.log(
               `✅ [DISCORD SYNC] Metadata updated for non-guild user`,
             );
-            console.log('='.repeat(80) + '\n');
+            console.log(`${'='.repeat(80)}\n`);
             return { success: true, notInGuild: true };
           }
 
-          console.log('='.repeat(80) + '\n');
+          console.log(`${'='.repeat(80)}\n`);
           return {
             success: false,
             error: `Discord API error: ${discordResponse.status}`,
@@ -172,7 +172,7 @@ async function syncDiscordRoles(userId: string) {
         console.log(
           `✅ [DISCORD SYNC] Successfully synced Discord roles for user ${userId}`,
         );
-        console.log('='.repeat(80) + '\n');
+        console.log(`${'='.repeat(80)}\n`);
 
         return {
           success: true,
@@ -180,11 +180,11 @@ async function syncDiscordRoles(userId: string) {
           defaultRole,
         };
       } catch (error) {
-        console.error('\n' + '='.repeat(80));
+        console.error(`\n${'='.repeat(80)}`);
         console.error('❌ [DISCORD SYNC] Error syncing Discord roles:');
         console.error('='.repeat(80));
         console.error(error);
-        console.error('='.repeat(80) + '\n');
+        console.error(`${'='.repeat(80)}\n`);
 
         Sentry.captureException(error, {
           tags: { operation: 'discord-sync', userId },
@@ -214,7 +214,7 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
           { name: 'Clerk Webhook Handler' },
           async () => {
             try {
-              console.log('\n\n' + '█'.repeat(100));
+              console.log(`\n\n${'█'.repeat(100)}`);
               console.log('🔔 CLERK WEBHOOK RECEIVED');
               console.log('█'.repeat(100));
               console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
@@ -227,7 +227,7 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
 
               if (!CLERK_WEBHOOK_SECRET) {
                 console.error('❌ [WEBHOOK] CLERK_WEBHOOK_SECRET is not set!');
-                console.log('█'.repeat(100) + '\n\n');
+                console.log(`${'█'.repeat(100)}\n\n`);
                 return json(
                   { error: 'Webhook secret not configured' },
                   { status: 500 },
@@ -248,7 +248,7 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
 
               if (!svix_id || !svix_timestamp || !svix_signature) {
                 console.error('❌ [WEBHOOK] Missing Svix headers!');
-                console.log('█'.repeat(100) + '\n\n');
+                console.log(`${'█'.repeat(100)}\n\n`);
                 return json({ error: 'Missing svix headers' }, { status: 400 });
               }
 
@@ -259,7 +259,7 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
               // Verify the webhook
               console.log(`🔍 [WEBHOOK] Verifying webhook signature...`);
               const wh = new Webhook(CLERK_WEBHOOK_SECRET);
-              let evt: any;
+              let evt: unknown;
 
               try {
                 evt = wh.verify(body, {
@@ -273,21 +273,21 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
                   '❌ [WEBHOOK] Error verifying webhook signature:',
                 );
                 console.error(err);
-                console.log('█'.repeat(100) + '\n\n');
+                console.log(`${'█'.repeat(100)}\n\n`);
                 Sentry.captureException(err, {
                   tags: { operation: 'webhook-verification' },
                 });
                 return json({ error: 'Invalid signature' }, { status: 400 });
               }
 
-              const eventType = evt.type;
-              const userId = evt.data.user_id || evt.data.id;
+              const eventType = (evt as WebhookEvent).type;
+              const userId = (evt as WebhookEvent).data.id;
 
               console.log(`📋 [WEBHOOK] Event details:`);
               console.log(`   Type: ${eventType}`);
               console.log(`   User ID: ${userId || 'N/A'}`);
               console.log(
-                `   Data keys: ${Object.keys(evt.data || {}).join(', ')}`,
+                `   Data keys: ${Object.keys((evt as WebhookEvent).data || {}).join(', ')}`,
               );
               console.log(`\n📄 [WEBHOOK] Full event payload:`);
               console.log(JSON.stringify(evt, null, 2));
@@ -303,7 +303,7 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
 
                 if (!userId) {
                   console.error('❌ [WEBHOOK] No user ID found in event!');
-                  console.log('█'.repeat(100) + '\n\n');
+                  console.log(`${'█'.repeat(100)}\n\n`);
                   return json(
                     { error: 'No user ID in event' },
                     { status: 400 },
@@ -340,18 +340,18 @@ export const Route = createFileRoute('/api/webhooks/clerk')({
               }
 
               console.log(`\n✅ [WEBHOOK] Webhook processed successfully`);
-              console.log('█'.repeat(100) + '\n\n');
+              console.log(`${'█'.repeat(100)}\n\n`);
 
               return json({
                 received: true,
                 timestamp: new Date().toISOString(),
               });
             } catch (error) {
-              console.error('\n\n' + '█'.repeat(100));
+              console.error(`\n\n${'█'.repeat(100)}`);
               console.error('❌ [WEBHOOK] Fatal webhook error:');
               console.error('█'.repeat(100));
               console.error(error);
-              console.error('█'.repeat(100) + '\n\n');
+              console.error(`${'█'.repeat(100)}\n\n`);
 
               Sentry.captureException(error, {
                 tags: { operation: 'webhook-handler' },

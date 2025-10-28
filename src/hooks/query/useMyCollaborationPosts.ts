@@ -1,5 +1,5 @@
-import { useGraphQLRequestConfig } from './useGraphQLRequestConfig';
 import { useQuery } from '@tanstack/react-query';
+import { useGraphQLRequestConfig } from './useGraphQLRequestConfig';
 
 const COLLABORATION_POSTS_QUERY = `
   query MyCollaborationPosts($profileId: String!) {

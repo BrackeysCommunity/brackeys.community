@@ -1,6 +1,6 @@
+import { useLocation } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { type PropsWithChildren, useRef } from 'react';
-import { useLocation } from '@tanstack/react-router';
 import { useLayout } from '../../context/layoutContext';
 import { useGrained } from '../../hooks/useGrained';
 import { cn } from '../../lib/utils';
@@ -32,9 +32,17 @@ export const MainLayout = ({ children }: PropsWithChildren) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 relative overflow-clip">
-      <div ref={containerRef} className="absolute pointer-events-none inset-0 z-10" />
+      <div
+        ref={containerRef}
+        className="absolute pointer-events-none inset-0 z-10"
+      />
       {/* Grid background */}
-      <div className={cn("fixed inset-0 h-[1000px] overflow-hidden flex items-start justify-center blur-[2px]", !isHomePage && 'blur-xl opacity-50')}>
+      <div
+        className={cn(
+          'fixed inset-0 h-[1000px] overflow-hidden flex items-start justify-center blur-[2px]',
+          !isHomePage && 'blur-xl opacity-50',
+        )}
+      >
         <Boxes className="!left-0" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-60% to-gray-900 pointer-events-none" />
       </div>
@@ -60,7 +68,12 @@ export const MainLayout = ({ children }: PropsWithChildren) => {
         {children}
       </motion.main>
       {showFooter && (
-        <div className={cn("relative z-10", isHomePage && 'fixed bottom-0 inset-x-0')}>
+        <div
+          className={cn(
+            'relative z-10',
+            isHomePage && 'fixed bottom-0 inset-x-0',
+          )}
+        >
           <Footer />
         </div>
       )}

@@ -8,7 +8,11 @@ const config: CodegenConfig = {
   ignoreNoDocuments: true,
   generates: {
     './src/lib/gql/generated.ts': {
-      plugins: ['typescript', 'typescript-operations', 'typescript-react-query'],
+      plugins: [
+        'typescript',
+        'typescript-operations',
+        'typescript-react-query',
+      ],
       config: {
         documentMode: 'string',
         skipTypename: true,

@@ -1,17 +1,17 @@
 import { motion } from 'motion/react';
-import { useMemo, useCallback, useState, useEffect } from 'react';
-import { SandboxCanvas } from '../components/sandbox/SandboxCanvas';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RoomManager } from '../components/sandbox/RoomManager';
-import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider';
-import { SandboxProvider } from '../context/SandboxProvider';
+import { SandboxCanvas } from '../components/sandbox/SandboxCanvas';
 import { useLayoutProps } from '../context/layoutContext';
-import { useSpacetimeDB } from '../context/spacetimeDBContext';
-import { useDocTitle } from '../hooks/useDocTitle';
+import { SandboxProvider } from '../context/SandboxProvider';
+import { SpacetimeDBProvider } from '../context/SpacetimeDBProvider';
 import { useSandbox } from '../context/sandboxContext';
-import { useMessageGroups } from '../hooks/sandbox/useMessageGroups';
+import { useSpacetimeDB } from '../context/spacetimeDBContext';
 import { useCursorTracking } from '../hooks/sandbox/useCursorTracking';
 import { useKeyboardShortcuts } from '../hooks/sandbox/useKeyboardShortcuts';
+import { useMessageGroups } from '../hooks/sandbox/useMessageGroups';
 import { useTypingHandlers } from '../hooks/sandbox/useTypingHandlers';
+import { useDocTitle } from '../hooks/useDocTitle';
 import { toast } from '../lib/toast';
 
 // Container component handling state and logic

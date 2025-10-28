@@ -1,0 +1,228 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: PublicFlywaySchemaHistory
+  fields:
+    - name: checksum
+      type: Int32
+    - name: description
+      type: String_1!
+    - name: executionTime
+      type: Int32!
+    - name: installedBy
+      type: String_1!
+    - name: installedOn
+      type: Timestamp!
+    - name: installedRank
+      type: Int32!
+    - name: script
+      type: String_1!
+    - name: success
+      type: Boolean_1!
+    - name: type
+      type: String_1!
+    - name: version
+      type: String_1
+  graphql:
+    typeName: PublicFlywaySchemaHistory
+    inputTypeName: PublicFlywaySchemaHistoryInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: public.flyway_schema_history
+      fieldMapping:
+        checksum:
+          column:
+            name: checksum
+        description:
+          column:
+            name: description
+        executionTime:
+          column:
+            name: execution_time
+        installedBy:
+          column:
+            name: installed_by
+        installedOn:
+          column:
+            name: installed_on
+        installedRank:
+          column:
+            name: installed_rank
+        script:
+          column:
+            name: script
+        success:
+          column:
+            name: success
+        type:
+          column:
+            name: type
+        version:
+          column:
+            name: version
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: PublicFlywaySchemaHistory
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - checksum
+          - description
+          - executionTime
+          - installedBy
+          - installedOn
+          - installedRank
+          - script
+          - success
+          - type
+          - version
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: PublicFlywaySchemaHistoryBoolExp
+  operand:
+    object:
+      type: PublicFlywaySchemaHistory
+      comparableFields:
+        - fieldName: checksum
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: description
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: executionTime
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: installedBy
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: installedOn
+          booleanExpressionType: TimestampWithoutTimeZoneBoolExp
+        - fieldName: installedRank
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: script
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: success
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: type
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: version
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: PublicFlywaySchemaHistoryBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: PublicFlywaySchemaHistoryAggExp
+  operand:
+    object:
+      aggregatedType: PublicFlywaySchemaHistory
+      aggregatableFields:
+        - fieldName: checksum
+          aggregateExpression: IntegerAggExp
+        - fieldName: description
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: executionTime
+          aggregateExpression: IntegerAggExp
+        - fieldName: installedBy
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: installedOn
+          aggregateExpression: TimestampWithoutTimeZoneAggExp
+        - fieldName: installedRank
+          aggregateExpression: IntegerAggExp
+        - fieldName: script
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: success
+          aggregateExpression: BooleanAggExp
+        - fieldName: type
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: version
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: PublicFlywaySchemaHistoryAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: PublicFlywaySchemaHistoryOrderByExp
+  operand:
+    object:
+      orderedType: PublicFlywaySchemaHistory
+      orderableFields:
+        - fieldName: checksum
+          orderByExpression: Int32OrderByExp
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: executionTime
+          orderByExpression: Int32OrderByExp
+        - fieldName: installedBy
+          orderByExpression: String1OrderByExp
+        - fieldName: installedOn
+          orderByExpression: TimestampOrderByExp
+        - fieldName: installedRank
+          orderByExpression: Int32OrderByExp
+        - fieldName: script
+          orderByExpression: String1OrderByExp
+        - fieldName: success
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: type
+          orderByExpression: String1OrderByExp
+        - fieldName: version
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: PublicFlywaySchemaHistoryOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: PublicFlywaySchemaHistory
+  objectType: PublicFlywaySchemaHistory
+  source:
+    dataConnectorName: postgres
+    collection: public.flyway_schema_history
+  filterExpressionType: PublicFlywaySchemaHistoryBoolExp
+  aggregateExpression: PublicFlywaySchemaHistoryAggExp
+  orderByExpression: PublicFlywaySchemaHistoryOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: publicFlywaySchemaHistory
+      subscription:
+        rootField: publicFlywaySchemaHistory
+    selectUniques:
+      - queryRootField: publicFlywaySchemaHistoryByInstalledRank
+        uniqueIdentifier:
+          - installedRank
+        subscription:
+          rootField: publicFlywaySchemaHistoryByInstalledRank
+    filterInputTypeName: PublicFlywaySchemaHistoryFilterInput
+    aggregate:
+      queryRootField: publicFlywaySchemaHistoryAggregate
+      subscription:
+        rootField: publicFlywaySchemaHistoryAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: PublicFlywaySchemaHistory
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

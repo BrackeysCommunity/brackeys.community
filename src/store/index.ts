@@ -1,24 +1,21 @@
 // Export all store-related functionality
-export { userStore, userStoreActions, initialUserState } from './userStore';
+
+export { useAuthHelpers } from './authHelpers';
+export { UserStoreProvider } from './UserStoreProvider';
+export {
+  useActiveUser,
+  useDiscordData,
+  useHasuraClaims,
+  useIsSignedIn,
+  useUser,
+  useUserLoading,
+} from './useActiveUser';
 export type {
   ActiveUser,
-  UserEmail,
   DiscordExternalAccount,
   DiscordGuildMemberData,
   HasuraClaims,
+  UserEmail,
   UserStoreState,
 } from './userStore';
-
-export { UserStoreProvider } from './UserStoreProvider';
-
-export {
-  useActiveUser,
-  useUser,
-  useIsSignedIn,
-  useUserLoading,
-  useDiscordData,
-  useHasuraClaims,
-} from './useActiveUser';
-
-export { useAuthHelpers } from './authHelpers';
-
+export { initialUserState, userStore, userStoreActions } from './userStore';

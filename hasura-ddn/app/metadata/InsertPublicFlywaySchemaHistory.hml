@@ -1,0 +1,165 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: PublicFlywaySchemaHistoryInsertInput
+  description: Input type for inserting into public.flyway_schema_history
+  fields:
+    - name: checksum
+      type: Int32
+      description: New value for public.flyway_schema_history.checksum
+    - name: description
+      type: String_1!
+      description: New value for public.flyway_schema_history.description
+    - name: executionTime
+      type: Int32!
+      description: New value for public.flyway_schema_history.execution_time
+    - name: installedBy
+      type: String_1!
+      description: New value for public.flyway_schema_history.installed_by
+    - name: installedOn
+      type: Timestamp!
+      description: New value for public.flyway_schema_history.installed_on
+    - name: installedRank
+      type: Int32!
+      description: New value for public.flyway_schema_history.installed_rank
+    - name: script
+      type: String_1!
+      description: New value for public.flyway_schema_history.script
+    - name: success
+      type: Boolean_1!
+      description: New value for public.flyway_schema_history.success
+    - name: type
+      type: String_1!
+      description: New value for public.flyway_schema_history.type
+    - name: version
+      type: String_1
+      description: New value for public.flyway_schema_history.version
+  graphql:
+    typeName: PublicFlywaySchemaHistoryInsertInput
+    inputTypeName: PublicFlywaySchemaHistoryInsertInputInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: public.flyway_schema_history_insert_input
+      fieldMapping:
+        checksum:
+          column:
+            name: checksum
+        description:
+          column:
+            name: description
+        executionTime:
+          column:
+            name: execution_time
+        installedBy:
+          column:
+            name: installed_by
+        installedOn:
+          column:
+            name: installed_on
+        installedRank:
+          column:
+            name: installed_rank
+        script:
+          column:
+            name: script
+        success:
+          column:
+            name: success
+        type:
+          column:
+            name: type
+        version:
+          column:
+            name: version
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: PublicFlywaySchemaHistoryInsertInput
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - checksum
+          - description
+          - executionTime
+          - installedBy
+          - installedOn
+          - installedRank
+          - script
+          - success
+          - type
+          - version
+
+---
+kind: ObjectType
+version: v1
+definition:
+  name: InsertPublicFlywaySchemaHistoryResult
+  description: insert from public.flyway_schema_history result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[PublicFlywaySchemaHistory!]!"
+      description: Objects that were affected by insert
+  graphql:
+    typeName: InsertPublicFlywaySchemaHistoryResult
+    inputTypeName: InsertPublicFlywaySchemaHistoryResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: insert_public.flyway_schema_history_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: InsertPublicFlywaySchemaHistoryResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: InsertPublicFlywaySchemaHistory
+  outputType: InsertPublicFlywaySchemaHistoryResult!
+  arguments:
+    - name: objects
+      type: "[PublicFlywaySchemaHistoryInsertInput!]!"
+      description: Objects to insert
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: insert_public.flyway_schema_history
+  graphql:
+    rootFieldName: insertPublicFlywaySchemaHistory
+    rootFieldKind: Mutation
+  description: Insert into public.flyway_schema_history
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: InsertPublicFlywaySchemaHistory
+  permissions:
+    - role: admin
+      allowExecution: true
+

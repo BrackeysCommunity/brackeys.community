@@ -1,0 +1,200 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesType
+  fields:
+    - name: description
+      type: String_1
+    - name: id
+      type: Int32!
+    - name: name
+      type: String_1!
+  graphql:
+    typeName: ResourcesType
+    inputTypeName: ResourcesTypeInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.type
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesType
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - description
+          - id
+          - name
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesTypeBoolExp
+  operand:
+    object:
+      type: ResourcesType
+      comparableFields:
+        - fieldName: description
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: name
+          booleanExpressionType: CharacterVaryingBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesTypeBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesTypeAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesType
+      aggregatableFields:
+        - fieldName: description
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: IntegerAggExp
+        - fieldName: name
+          aggregateExpression: CharacterVaryingAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesTypeAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesTypeOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesType
+      orderableFields:
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: Int32OrderByExp
+        - fieldName: name
+          orderByExpression: String1OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: ResourcesTypeOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesType
+  objectType: ResourcesType
+  source:
+    dataConnectorName: postgres
+    collection: resources.type
+  filterExpressionType: ResourcesTypeBoolExp
+  aggregateExpression: ResourcesTypeAggExp
+  orderByExpression: ResourcesTypeOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesType
+      subscription:
+        rootField: resourcesType
+    selectUniques:
+      - queryRootField: resourcesTypeById
+        uniqueIdentifier:
+          - id
+        subscription:
+          rootField: resourcesTypeById
+    filterInputTypeName: ResourcesTypeFilterInput
+    aggregate:
+      queryRootField: resourcesTypeAggregate
+      subscription:
+        rootField: resourcesTypeAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesType
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesCategories
+  sourceType: ResourcesType
+  target:
+    model:
+      name: ResourcesCategory
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesCategoryAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: typeId
+  graphql:
+    aggregateFieldName: resourcesCategoriesAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesResources
+  sourceType: ResourcesType
+  target:
+    model:
+      name: ResourcesResource
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesResourceAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: typeId
+  graphql:
+    aggregateFieldName: resourcesResourcesAggregate
+
+---
+kind: Relationship
+version: v1
+definition:
+  name: resourcesSubmissions
+  sourceType: ResourcesType
+  target:
+    model:
+      name: ResourcesSubmission
+      relationshipType: Array
+      aggregate:
+        aggregateExpression: ResourcesSubmissionAggExp
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: typeId
+  graphql:
+    aggregateFieldName: resourcesSubmissionsAggregate
+

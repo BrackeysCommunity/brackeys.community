@@ -1,7 +1,7 @@
-import { motion } from 'motion/react';
-import { useUser } from '../store';
 import { ShieldQuestion } from 'lucide-react';
+import { motion } from 'motion/react';
 import { Button } from '../components/ui/Button';
+import { useUser } from '../store';
 
 export const NotFound = () => {
   const user = useUser();

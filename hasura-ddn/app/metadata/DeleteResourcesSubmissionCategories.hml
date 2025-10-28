@@ -1,0 +1,70 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: DeleteResourcesSubmissionCategoriesResult
+  description: delete from resources.submission_categories result
+  fields:
+    - name: affectedRows
+      type: Int32!
+      description: Number of affected rows
+    - name: returning
+      type: "[ResourcesSubmissionCategories!]!"
+      description: Objects that were affected by delete
+  graphql:
+    typeName: DeleteResourcesSubmissionCategoriesResult
+    inputTypeName: DeleteResourcesSubmissionCategoriesResultInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: delete_resources.submission_categories_result
+      fieldMapping:
+        affectedRows:
+          column:
+            name: affected_rows
+        returning:
+          column:
+            name: returning
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: DeleteResourcesSubmissionCategoriesResult
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - affectedRows
+          - returning
+
+---
+kind: Command
+version: v1
+definition:
+  name: DeleteResourcesSubmissionCategories
+  outputType: DeleteResourcesSubmissionCategoriesResult!
+  arguments:
+    - name: returning
+      type: "[String_1!]"
+      description: Fields to return
+    - name: where
+      type: ResourcesSubmissionCategoriesBoolExp!
+      description: Filter for rows to delete
+  source:
+    dataConnectorName: postgres
+    dataConnectorCommand:
+      procedure: delete_resources.submission_categories
+  graphql:
+    rootFieldName: deleteResourcesSubmissionCategories
+    rootFieldKind: Mutation
+  description: Delete from resources.submission_categories
+
+---
+kind: CommandPermissions
+version: v1
+definition:
+  commandName: DeleteResourcesSubmissionCategories
+  permissions:
+    - role: admin
+      allowExecution: true
+

@@ -1,10 +1,10 @@
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react';
 import {
   DbConnection,
-  type SandboxUser,
   type LiveTyping,
-  type SandboxMessage,
   type Room,
+  type SandboxMessage,
+  type SandboxUser,
 } from '../spacetime-bindings';
 import { Provider, type SpacetimeState } from './spacetimeDBContext';
 
@@ -255,8 +255,8 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     if (!connectionRef.current) throw new Error('Not connected');
 
     return new Promise<void>((resolve) => {
-      connectionRef
-        .current!.subscriptionBuilder()
+      connectionRef.current
+        ?.subscriptionBuilder()
         .onApplied(() => resolve())
         .subscribe(queries);
     });
@@ -387,24 +387,24 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
     if (!connectionRef.current) throw new Error('Not connected');
 
     return new Promise<void>((resolve, reject) => {
-      const connection = connectionRef.current!;
-      const userIdentity = identityRef.current!;
+      const connection = connectionRef.current;
+      const userIdentity = identityRef.current;
 
       // Set up a timeout for the operation
       const timeout = setTimeout(() => {
-        connection.reducers.removeOnJoinRoom(onJoinRoomComplete);
+        connection?.reducers.removeOnJoinRoom(onJoinRoomComplete);
         reject(new Error('Join room operation timed out'));
       }, 10000);
 
       const onJoinRoomComplete = () => {
         clearTimeout(timeout);
-        connection.reducers.removeOnJoinRoom(onJoinRoomComplete);
+        connection?.reducers.removeOnJoinRoom(onJoinRoomComplete);
 
         // Wait a brief moment for state to update, then check if we joined successfully
         setTimeout(async () => {
           try {
             const users = Array.from(
-              connection.db.sandboxUser.iter(),
+              connection?.db.sandboxUser.iter() || [],
             ) as SandboxUser[];
             const currentUser = users.find(
               (user) => user.identity.toHexString() === userIdentity,
@@ -413,7 +413,9 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
             if (!currentUser?.roomCode || currentUser.roomCode !== roomCode) {
               // If we're not in the room, the join failed - assume it was due to room not found or invalid password
               // We need to determine which based on whether the room exists
-              const rooms = Array.from(connection.db.room.iter()) as Room[];
+              const rooms = Array.from(
+                connection?.db.room.iter() || [],
+              ) as Room[];
               const roomExists = rooms.some((room) => room.code === roomCode);
 
               if (!roomExists) {
@@ -438,10 +440,10 @@ export const SpacetimeDBProvider = ({ children }: PropsWithChildren) => {
       };
 
       // Listen for the reducer completion
-      connection.reducers.onJoinRoom(onJoinRoomComplete);
+      connection?.reducers.onJoinRoom(onJoinRoomComplete);
 
       // Fire the reducer
-      connection.reducers.joinRoom(roomCode, password);
+      connection?.reducers.joinRoom(roomCode, password);
     });
   };
 

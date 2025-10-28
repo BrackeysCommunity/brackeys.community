@@ -1,0 +1,307 @@
+---
+kind: ObjectType
+version: v1
+definition:
+  name: ResourcesResourceDetail
+  fields:
+    - name: categories
+      type: String_1
+    - name: createdAt
+      type: Timestamptz
+    - name: description
+      type: String_1
+    - name: developer
+      type: String_1
+    - name: developerUrl
+      type: String_1
+    - name: id
+      type: String_1
+    - name: imageUrl
+      type: String_1
+    - name: isPublished
+      type: Boolean_1
+    - name: releaseDate
+      type: Date
+    - name: resourceUrl
+      type: String_1
+    - name: submittedByUserId
+      type: Int64
+    - name: tags
+      type: String_1
+    - name: title
+      type: String_1
+    - name: typeId
+      type: Int32
+    - name: typeName
+      type: String_1
+    - name: updatedAt
+      type: Timestamptz
+    - name: viewCount
+      type: Int32
+  graphql:
+    typeName: ResourcesResourceDetail
+    inputTypeName: ResourcesResourceDetailInput
+  dataConnectorTypeMapping:
+    - dataConnectorName: postgres
+      dataConnectorObjectType: resources.resource_detail
+      fieldMapping:
+        categories:
+          column:
+            name: categories
+        createdAt:
+          column:
+            name: created_at
+        description:
+          column:
+            name: description
+        developer:
+          column:
+            name: developer
+        developerUrl:
+          column:
+            name: developer_url
+        id:
+          column:
+            name: id
+        imageUrl:
+          column:
+            name: image_url
+        isPublished:
+          column:
+            name: is_published
+        releaseDate:
+          column:
+            name: release_date
+        resourceUrl:
+          column:
+            name: resource_url
+        submittedByUserId:
+          column:
+            name: submitted_by_user_id
+        tags:
+          column:
+            name: tags
+        title:
+          column:
+            name: title
+        typeId:
+          column:
+            name: type_id
+        typeName:
+          column:
+            name: type_name
+        updatedAt:
+          column:
+            name: updated_at
+        viewCount:
+          column:
+            name: view_count
+
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: ResourcesResourceDetail
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - categories
+          - createdAt
+          - description
+          - developer
+          - developerUrl
+          - id
+          - imageUrl
+          - isPublished
+          - releaseDate
+          - resourceUrl
+          - submittedByUserId
+          - tags
+          - title
+          - typeId
+          - typeName
+          - updatedAt
+          - viewCount
+
+---
+kind: BooleanExpressionType
+version: v1
+definition:
+  name: ResourcesResourceDetailBoolExp
+  operand:
+    object:
+      type: ResourcesResourceDetail
+      comparableFields:
+        - fieldName: categories
+          booleanExpressionType: JsonBoolExp
+        - fieldName: createdAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: description
+          booleanExpressionType: TextBoolExp
+        - fieldName: developer
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: developerUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: id
+          booleanExpressionType: UuidBoolExp
+        - fieldName: imageUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: isPublished
+          booleanExpressionType: BooleanBoolExp
+        - fieldName: releaseDate
+          booleanExpressionType: DateBoolExp
+        - fieldName: resourceUrl
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: submittedByUserId
+          booleanExpressionType: BigintBoolExp
+        - fieldName: tags
+          booleanExpressionType: JsonBoolExp
+        - fieldName: title
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: typeId
+          booleanExpressionType: IntegerBoolExp
+        - fieldName: typeName
+          booleanExpressionType: CharacterVaryingBoolExp
+        - fieldName: updatedAt
+          booleanExpressionType: TimestampWithTimeZoneBoolExp
+        - fieldName: viewCount
+          booleanExpressionType: IntegerBoolExp
+      comparableRelationships: []
+  logicalOperators:
+    enable: true
+  isNull:
+    enable: true
+  graphql:
+    typeName: ResourcesResourceDetailBoolExp
+
+---
+kind: AggregateExpression
+version: v1
+definition:
+  name: ResourcesResourceDetailAggExp
+  operand:
+    object:
+      aggregatedType: ResourcesResourceDetail
+      aggregatableFields:
+        - fieldName: categories
+          aggregateExpression: JsonAggExp
+        - fieldName: createdAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: description
+          aggregateExpression: TextAggExp
+        - fieldName: developer
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: developerUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: id
+          aggregateExpression: UuidAggExp
+        - fieldName: imageUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: isPublished
+          aggregateExpression: BooleanAggExp
+        - fieldName: releaseDate
+          aggregateExpression: DateAggExp
+        - fieldName: resourceUrl
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: submittedByUserId
+          aggregateExpression: BigintAggExp
+        - fieldName: tags
+          aggregateExpression: JsonAggExp
+        - fieldName: title
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: typeId
+          aggregateExpression: IntegerAggExp
+        - fieldName: typeName
+          aggregateExpression: CharacterVaryingAggExp
+        - fieldName: updatedAt
+          aggregateExpression: TimestampWithTimeZoneAggExp
+        - fieldName: viewCount
+          aggregateExpression: IntegerAggExp
+  count:
+    enable: true
+  graphql:
+    selectTypeName: ResourcesResourceDetailAggExp
+
+---
+kind: OrderByExpression
+version: v1
+definition:
+  name: ResourcesResourceDetailOrderByExp
+  operand:
+    object:
+      orderedType: ResourcesResourceDetail
+      orderableFields:
+        - fieldName: categories
+          orderByExpression: String1OrderByExp
+        - fieldName: createdAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: description
+          orderByExpression: String1OrderByExp
+        - fieldName: developer
+          orderByExpression: String1OrderByExp
+        - fieldName: developerUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: id
+          orderByExpression: String1OrderByExp
+        - fieldName: imageUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: isPublished
+          orderByExpression: Boolean1OrderByExp
+        - fieldName: releaseDate
+          orderByExpression: DateOrderByExp
+        - fieldName: resourceUrl
+          orderByExpression: String1OrderByExp
+        - fieldName: submittedByUserId
+          orderByExpression: Int64OrderByExp
+        - fieldName: tags
+          orderByExpression: String1OrderByExp
+        - fieldName: title
+          orderByExpression: String1OrderByExp
+        - fieldName: typeId
+          orderByExpression: Int32OrderByExp
+        - fieldName: typeName
+          orderByExpression: String1OrderByExp
+        - fieldName: updatedAt
+          orderByExpression: TimestamptzOrderByExp
+        - fieldName: viewCount
+          orderByExpression: Int32OrderByExp
+      orderableRelationships: []
+  graphql:
+    expressionTypeName: ResourcesResourceDetailOrderByExp
+
+---
+kind: Model
+version: v2
+definition:
+  name: ResourcesResourceDetail
+  objectType: ResourcesResourceDetail
+  source:
+    dataConnectorName: postgres
+    collection: resources.resource_detail
+  filterExpressionType: ResourcesResourceDetailBoolExp
+  aggregateExpression: ResourcesResourceDetailAggExp
+  orderByExpression: ResourcesResourceDetailOrderByExp
+  graphql:
+    selectMany:
+      queryRootField: resourcesResourceDetail
+      subscription:
+        rootField: resourcesResourceDetail
+    selectUniques: []
+    filterInputTypeName: ResourcesResourceDetailFilterInput
+    aggregate:
+      queryRootField: resourcesResourceDetailAggregate
+      subscription:
+        rootField: resourcesResourceDetailAggregate
+
+---
+kind: ModelPermissions
+version: v1
+definition:
+  modelName: ResourcesResourceDetail
+  permissions:
+    - role: admin
+      select:
+        filter: null
+        allowSubscriptions: true
+

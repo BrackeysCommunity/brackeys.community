@@ -48,19 +48,8 @@ export function CollaborationHub() {
               }}
               style={{ originX: '100px', originY: '95px' }}
             >
-              <circle
-                cx="100"
-                cy="100"
-                r="60"
-                fill="#6366f1"
-                opacity="0.2"
-              />
-              <circle
-                cx="100"
-                cy="95"
-                r="45"
-                fill="#818cf8"
-              />
+              <circle cx="100" cy="100" r="60" fill="#6366f1" opacity="0.2" />
+              <circle cx="100" cy="95" r="45" fill="#818cf8" />
               {/* Left eye - normal */}
               <circle cx="85" cy="90" r="6" fill="#1e293b" />
               {/* Right eye - winks */}

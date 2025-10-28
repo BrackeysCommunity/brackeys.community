@@ -1,6 +1,6 @@
 import { useAuth, useUser } from '@clerk/tanstack-react-start';
-import { useGraphQLRequestConfig } from './useGraphQLRequestConfig';
 import { useQuery } from '@tanstack/react-query';
+import { useGraphQLRequestConfig } from './useGraphQLRequestConfig';
 
 // Simplified query without nested relationships to avoid SQL scoping issue
 const SIMPLE_PROFILE_QUERY = `
@@ -26,8 +26,6 @@ export const useMyCollaborationProfile = () => {
   const user = useAuth();
   const userr = useUser();
   console.log('user', userr);
-
-
 
   const {
     config,

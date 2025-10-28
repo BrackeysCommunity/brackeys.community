@@ -81,35 +81,35 @@
 
 @layer components {
   .sc-elFkmj {
-    color: var(--color-gray-300) !important;
+    color: var(--color-gray-300);
 
     > * {
-      color: var(--color-gray-400) !important;
+      color: var(--color-gray-400);
     }
   }
 
   .sc-dibcMh {
-    fill: var(--color-brackeys-purple-500) !important;
+    fill: var(--color-brackeys-purple-500);
   }
 
   .sc-byRegH.sc-fJvEKN {
-    color: var(--color-brackeys-purple-500) !important;
+    color: var(--color-brackeys-purple-500);
   }
 
   .sc-jthNAk,
   .sc-fnaTjL,
   .sc-jMpmlX.sc-hoLldG {
-    border-radius: 8px !important;
+    border-radius: 8px;
   }
 
   .sc-fnaTjL,
   .sc-jMpmlX.sc-hoLldG {
-    border: 1px solid var(--color-gray-700) !important;
+    border: 1px solid var(--color-gray-700);
   }
 
   .sc-kXtNZI {
-    position: absolute !important;
-    width: 100% !important;
+    position: absolute;
+    width: 100%;
   }
 
   .sc-JNBUd {
@@ -117,31 +117,31 @@
   }
 
   .sc-gwsNht {
-    padding-left: 0 !important;
+    padding-left: 0;
     @media (max-width: 1200px) {
-      padding-right: 0 !important;
+      padding-right: 0;
     }
   }
 
   .sc-epRJRH {
-    background-color: transparent !important;
+    background-color: transparent;
   }
 
   .tab-success {
-    color: var(--color-green-500) !important;
+    color: var(--color-green-500);
 
     &.react-tabs__tab--selected {
-      color: var(--color-green-700) !important;
-      background-color: var(--color-green-200) !important;
+      color: var(--color-green-700);
+      background-color: var(--color-green-200);
     }
   }
 
   .tab-error {
-    color: var(--color-red-500) !important;
+    color: var(--color-red-500);
 
     &.react-tabs__tab--selected {
-      color: var(--color-red-700) !important;
-      background-color: var(--color-red-200) !important;
+      color: var(--color-red-700);
+      background-color: var(--color-red-200);
     }
   }
 
