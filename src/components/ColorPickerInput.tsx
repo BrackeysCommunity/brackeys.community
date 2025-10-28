@@ -4,12 +4,12 @@ import {
   DisclosurePanel,
 } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
-import { useTimeout } from '@uidotdev/usehooks';
 import { getColorGradient } from '../lib/colors';
 import { ColorPicker } from './ColorPicker';
 import { Input } from './ui/Input';
 import { cn } from '../lib/utils';
 import { useEffect, useState } from 'react';
+import { useTimeout } from '@/hooks/useTimeout';
 
 type ColorPickerInputProps = {
   value: string;
