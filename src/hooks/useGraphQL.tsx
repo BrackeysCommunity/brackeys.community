@@ -1,15 +1,15 @@
-import {
-  useQuery,
-  useMutation,
-  type UseQueryOptions,
-  type UseMutationOptions,
-  type QueryKey,
-} from '@tanstack/react-query';
-import { request, type RequestExtendedOptions } from 'graphql-request';
-import type { Variables } from 'graphql-request';
 import { useAuth as useClerkAuth } from '@clerk/tanstack-react-start';
-import { useHasuraClaims, type HasuraClaims } from '../store';
+import {
+  type QueryKey,
+  type UseMutationOptions,
+  type UseQueryOptions,
+  useMutation,
+  useQuery,
+} from '@tanstack/react-query';
+import type { Variables } from 'graphql-request';
+import { type RequestExtendedOptions, request } from 'graphql-request';
 import { operations, preferredRoles } from '../lib/gql/operations';
+import { type HasuraClaims, useHasuraClaims } from '../store';
 
 interface GraphQLQueryOptions<
   TData,
@@ -51,7 +51,7 @@ const buildAuthHeaders = async (
   const token = await getToken({ template: 'hasura' });
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   if (operationName && hasuraClaims) {

@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { motion } from 'motion/react';
+import { useState } from 'react';
 import type { CollaborationFilters } from './types';
 
 type CollaborationSearchProps = {
@@ -39,6 +39,7 @@ export function CollaborationSearch({
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <path
             strokeLinecap="round"
@@ -61,6 +62,7 @@ export function CollaborationSearch({
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"

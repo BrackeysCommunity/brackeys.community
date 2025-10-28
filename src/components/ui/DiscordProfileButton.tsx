@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useUser } from '../../store';
-import { useState, useEffect, useRef } from 'react';
 import { DiscordLogo } from '../icons/DiscordLogo';
 
 export const DiscordProfileButton = () => {
@@ -43,7 +43,7 @@ export const DiscordProfileButton = () => {
   return (
     <a
       ref={buttonRef}
-      role="button"
+      type="button"
       aria-label="View on Discord"
       href={`${showFallback ? 'https://discord.com' : 'discords://'}/users/${discordId}`}
       onClick={() => {

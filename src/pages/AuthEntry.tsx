@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
 import {
   AuthenticateWithRedirectCallback,
   useClerk,
   useUser,
 } from '@clerk/tanstack-react-start';
 import { useNavigate } from '@tanstack/react-router';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useEffect, useId, useState } from 'react';
 import { DiscordLogo } from '../components/icons/DiscordLogo';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 type AuthStep = 'loading' | 'complete' | 'error';
 
@@ -101,6 +101,7 @@ export const AuthEntry = () => {
             </div>
 
             <button
+              type="button"
               onClick={() => navigate({ to: '/login', replace: true })}
               className="w-full bg-brackeys-purple-600 hover:bg-brackeys-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
             >
@@ -232,7 +233,7 @@ export const SSOCallback = () => {
 
       {/* Required for sign-up flows
       Clerk's bot sign-up protection is enabled by default */}
-      <div id="clerk-captcha" />
+      <div id={useId()} />
     </>
   );
 };

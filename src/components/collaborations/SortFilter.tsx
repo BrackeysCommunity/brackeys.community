@@ -1,10 +1,10 @@
-import { motion } from 'motion/react';
 import {
   Disclosure,
   DisclosureButton,
   DisclosurePanel,
 } from '@headlessui/react';
-import { ChevronDown, Clock, TrendingUp, MessageCircle } from 'lucide-react';
+import { ChevronDown, Clock, MessageCircle, TrendingUp } from 'lucide-react';
+import { motion } from 'motion/react';
 import { FilterButton } from './FilterButton';
 import type { CollaborationFilters } from './types';
 

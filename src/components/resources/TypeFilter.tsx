@@ -1,12 +1,12 @@
-import type { ResourceFilterProps } from './types';
-import { motion } from 'motion/react';
 import {
   Disclosure,
   DisclosureButton,
   DisclosurePanel,
 } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
+import { motion } from 'motion/react';
 import { FilterButton } from './FilterButton';
+import type { ResourceFilterProps } from './types';
 
 type TypeFilterProps = Pick<
   ResourceFilterProps,

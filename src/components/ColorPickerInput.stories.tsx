@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
+import { getColorGradient, RAINBOW_PALETTE } from '../lib/colors';
 import { ColorPickerInput } from './ColorPickerInput';
-import { RAINBOW_PALETTE, getColorGradient } from '../lib/colors';
 
 const meta = {
   title: 'UI/ColorPickerInput',
@@ -123,6 +123,7 @@ export const FormExample: Story = {
       <div className="w-96">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: Custom component wrapper */}
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Display Name
             </label>

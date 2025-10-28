@@ -1,9 +1,9 @@
 import { motion } from 'motion/react';
-import { TypeFilter } from './TypeFilter';
-import { TagFilter } from './TagFilter';
-import { CategoryFilter } from './CategoryFilter';
-import type { ResourceFilterProps } from './types';
 import { cn } from '../../lib/utils';
+import { CategoryFilter } from './CategoryFilter';
+import { TagFilter } from './TagFilter';
+import { TypeFilter } from './TypeFilter';
+import type { ResourceFilterProps } from './types';
 
 type FilterSidebarProps = ResourceFilterProps;
 

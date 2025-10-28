@@ -1,9 +1,9 @@
 import { createContext, useContext } from 'react';
 import type {
-  SandboxUser,
   LiveTyping,
-  SandboxMessage,
   Room,
+  SandboxMessage,
+  SandboxUser,
 } from '../spacetime-bindings';
 
 export type SpacetimeState = {

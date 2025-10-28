@@ -144,6 +144,7 @@ export function useGrained(
     options.grainHeight,
     options.patternWidth,
     options.patternHeight,
+    options,
   ]);
 
   return grainedDivRef;

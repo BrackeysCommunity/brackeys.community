@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useEffectEvent, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 
 export const useTimeout = (cb: () => void, ms: number) => {
   const id = useRef(null);
@@ -12,7 +12,7 @@ export const useTimeout = (cb: () => void, ms: number) => {
     id.current = window.setTimeout(onTimeout, ms);
 
     return handleClearTimeout;
-  }, [ms, handleClearTimeout]);
+  }, [ms, handleClearTimeout, onTimeout]);
 
   return handleClearTimeout;
-}
+};

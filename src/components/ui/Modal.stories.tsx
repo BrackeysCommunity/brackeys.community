@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { AlertTriangle, Trash2, User } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
-import { User, Trash2, AlertTriangle } from 'lucide-react';
-import { Modal } from './Modal';
+import { useId, useState } from 'react';
 import { Button } from './Button';
 import { Input } from './Input';
+import { Modal } from './Modal';
 
 const meta = {
   title: 'UI/Modal',
@@ -244,11 +244,7 @@ export const FormModal: Story = {
             </div>
           }
         >
-          <form
-            id="user-form"
-            onSubmit={handleSubmit}
-            className="py-4 space-y-4"
-          >
+          <form id={useId()} onSubmit={handleSubmit} className="py-4 space-y-4">
             <Input
               type="text"
               placeholder="Full Name"
@@ -285,7 +281,7 @@ export const ScrollableContent: Story = {
     const [isOpen, setIsOpen] = useState(false);
 
     const longContent = Array.from({ length: 50 }, (_, i) => (
-      <p key={i} className="text-gray-300 mb-3">
+      <p key={i.toString()} className="text-gray-300 mb-3">
         This is paragraph {i + 1}. Lorem ipsum dolor sit amet, consectetur
         adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
         magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco

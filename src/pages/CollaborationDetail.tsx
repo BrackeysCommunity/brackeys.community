@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowLeft, Eye, MessageCircle, Flag, Send, X } from 'lucide-react';
-import { useCollaborationPost } from '../hooks/query/useCollaborationPost';
-import { useUser } from '../store';
+import { ArrowLeft, Eye, Flag, MessageCircle, Send, X } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 import {
-  ResponseModal,
   type ResponseFormData,
+  ResponseModal,
 } from '../components/collaborations/ResponseModal';
 import { Alert } from '../components/ui/Alert';
+import { useCollaborationPost } from '../hooks/query/useCollaborationPost';
+import { useUser } from '../store';
 
 export function CollaborationDetail() {
   const { postId } = useParams({ from: '/collaborations/$postId' });
@@ -78,6 +78,7 @@ export function CollaborationDetail() {
             This collaboration post doesn't exist or has been removed.
           </p>
           <button
+            type="button"
             onClick={() => navigate({ to: '/collaborations' })}
             className="text-green-400 hover:text-green-300 font-medium"
           >
@@ -132,6 +133,7 @@ export function CollaborationDetail() {
           >
             <Alert variant={alertMessage.variant}>{alertMessage.message}</Alert>
             <button
+              type="button"
               onClick={() => setAlertMessage(null)}
               className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
             >
@@ -255,7 +257,7 @@ export function CollaborationDetail() {
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag: string, index: number) => (
                   <span
-                    key={index}
+                    key={tag + index.toString()}
                     className="px-3 py-1 bg-gray-700/50 text-gray-300 rounded-md text-sm"
                   >
                     {tag}
@@ -315,6 +317,7 @@ export function CollaborationDetail() {
             {user ? (
               <>
                 <button
+                  type="button"
                   onClick={() => setShowResponseModal(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
                 >
@@ -322,6 +325,7 @@ export function CollaborationDetail() {
                   Respond to Collaboration
                 </button>
                 <button
+                  type="button"
                   onClick={handleReport}
                   className="flex items-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors"
                 >

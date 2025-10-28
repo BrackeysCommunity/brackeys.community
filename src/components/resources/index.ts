@@ -1,4 +1,5 @@
 export * from './CategoryFilter';
+export * from './data';
 export * from './FilterButton';
 export * from './FilterSidebar';
 export * from './ResourceCard';
@@ -7,4 +8,3 @@ export * from './ResourceSearch';
 export * from './TagFilter';
 export * from './TypeFilter';
 export * from './types';
-export * from './data';

@@ -1,7 +1,7 @@
-import { useActiveUser, useAuthHelpers } from '../../store';
-import { Button } from '../ui/Button';
-import { DiscordLogo } from '../icons/DiscordLogo';
 import { useNavigate } from '@tanstack/react-router';
+import { useActiveUser, useAuthHelpers } from '../../store';
+import { DiscordLogo } from '../icons/DiscordLogo';
+import { Button } from '../ui/Button';
 
 const BUTTON_CONTENT = {
   cta: 'Join today!',
@@ -38,7 +38,11 @@ export const LoginButton = ({ className }: LoginButtonProps) => {
       aria-label={user ? 'Go to your dashboard' : 'Login with Discord'}
       fullWidth
     >
-      {user ? user.discord.guildMember ? BUTTON_CONTENT.visit : BUTTON_CONTENT.cta : BUTTON_CONTENT.login}
+      {user
+        ? user.discord.guildMember
+          ? BUTTON_CONTENT.visit
+          : BUTTON_CONTENT.cta
+        : BUTTON_CONTENT.login}
     </Button>
   );
 };

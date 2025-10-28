@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '../../lib/utils';
-import { CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { cn } from '../../lib/utils';
 
 const alertVariants = cva('flex p-4 rounded-md', {
   variants: {
@@ -60,7 +60,7 @@ const descriptionVariants = cva('text-sm', {
 });
 
 const getIconComponent = (
-  variant: 'success' | 'error' | 'warning' | 'info',
+  variant: 'success' | 'error' | 'warning' | 'info' | null,
 ) => {
   const icons = {
     success: CheckCircle,
@@ -68,7 +68,7 @@ const getIconComponent = (
     warning: AlertTriangle,
     info: Info,
   };
-  return icons[variant];
+  return icons[variant || 'info'];
 };
 
 type AlertProps = VariantProps<typeof alertVariants> & {
@@ -85,7 +85,7 @@ export const Alert = ({
   children,
   className,
 }: AlertProps) => {
-  const Icon = getIconComponent(variant!);
+  const Icon = getIconComponent(variant);
 
   return (
     <div className={cn(alertVariants({ variant }), className)}>

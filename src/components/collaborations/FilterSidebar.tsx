@@ -1,12 +1,12 @@
 import { motion } from 'motion/react';
-import { TypeFilter } from './TypeFilter';
+import { cn } from '../../lib/utils';
 import { HiringStatusFilter } from './HiringStatusFilter';
 import { SortFilter } from './SortFilter';
-import { cn } from '../../lib/utils';
+import { TypeFilter } from './TypeFilter';
 import type {
+  CollaborationFilters,
   CollaborationType,
   HiringStatus,
-  CollaborationFilters,
 } from './types';
 
 type FilterSidebarProps = {
@@ -62,6 +62,7 @@ export const FilterSidebar = ({
           className="bg-gray-800 rounded-lg p-4"
         >
           <button
+            type="button"
             onClick={() =>
               setFilters({
                 ...filters,

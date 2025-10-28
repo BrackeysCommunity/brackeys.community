@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { motion } from 'motion/react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useActiveUser } from '../store';
+import { motion } from 'motion/react';
+import { useEffect } from 'react';
 import { LoginButton } from '../components/auth/LoginButton';
 import { DiscordLogo } from '../components/icons/DiscordLogo';
 import { Alert } from '../components/ui/Alert';
+import { useActiveUser } from '../store';
 
 export const Login = () => {
   const { user, isLoading, error } = useActiveUser();

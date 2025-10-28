@@ -1,6 +1,6 @@
-import { motion } from 'motion/react';
 import { Check } from 'lucide-react';
-import { RAINBOW_PALETTE, getColorGradient } from '../lib/colors';
+import { motion } from 'motion/react';
+import { getColorGradient, RAINBOW_PALETTE } from '../lib/colors';
 
 type ColorPickerProps = {
   selectedColor: string;

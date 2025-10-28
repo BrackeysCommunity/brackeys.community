@@ -1,10 +1,9 @@
-import { type operations, preferredRoles } from '../../lib/gql/operations';
-import { useHasuraClaims } from '../../store';
-import { useState } from 'react';
 import { useAuth as useClerkAuth } from '@clerk/tanstack-react-start';
 import { AxiosHeaders, type AxiosRequestHeaders } from 'axios';
+import { useEffect, useState } from 'react';
 import { X_HASURA_ROLE } from '../../lib/constants';
-import { useEffect } from 'react';
+import { type operations, preferredRoles } from '../../lib/gql/operations';
+import { useHasuraClaims } from '../../store';
 
 /**
  * Builds headers with authentication and Hasura role headers

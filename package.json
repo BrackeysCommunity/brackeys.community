@@ -140,8 +140,14 @@
     }
   },
   "lint-staged": {
-    "*.{ts,tsx}": ["biome check --write --no-errors-on-unmatched"],
-    "*.{js,jsx}": ["biome check --write --no-errors-on-unmatched"],
-    "*.{json,md,yml,yaml,css,scss}": ["biome format --write"]
+    "*.{ts,tsx}": [
+      "biome check --write --no-errors-on-unmatched"
+    ],
+    "*.{js,jsx}": [
+      "biome check --write --no-errors-on-unmatched"
+    ],
+    "*.{json,md,yml,yaml,css,scss}": [
+      "biome format --write"
+    ]
   }
 }

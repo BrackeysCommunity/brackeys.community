@@ -1,17 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   type CollaborationFilters,
-  type CollaborationPost,
-  type CollaborationType,
-  type HiringStatus,
-  FilterSidebar,
-  CollaborationSearch,
   CollaborationGrid,
+  type CollaborationPost,
+  CollaborationSearch,
+  type CollaborationType,
+  FilterSidebar,
+  type HiringStatus,
 } from '../components/collaborations';
+import { useCollaborationPosts } from '../hooks/query/useCollaborationPosts';
 import { useCollaborationTypes } from '../hooks/query/useCollaborationTypes';
 import { useHiringStatuses } from '../hooks/query/useHiringStatuses';
-import { useCollaborationPosts } from '../hooks/query/useCollaborationPosts';
 
 type CollaborationsViewProps = {
   filters: CollaborationFilters;

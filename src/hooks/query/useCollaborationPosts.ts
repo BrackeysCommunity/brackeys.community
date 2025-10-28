@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { useCollaborationPostsQuery } from '../../lib/gql/generated';
-import { useGraphQLRequestConfig } from './useGraphQLRequestConfig';
-import { OrderBy } from '../../lib/gql/generated';
 import type { CollaborationFilters } from '../../components/collaborations/types';
+import { OrderBy, useCollaborationPostsQuery } from '../../lib/gql/generated';
+import { useGraphQLRequestConfig } from './useGraphQLRequestConfig';
 
 export const useCollaborationPosts = (filters: CollaborationFilters) => {
   const {

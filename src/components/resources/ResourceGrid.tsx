@@ -1,6 +1,6 @@
-import type { ResourceItem } from './types';
-import { ResourceCard } from './ResourceCard';
 import { motion } from 'motion/react';
+import { ResourceCard } from './ResourceCard';
+import type { ResourceItem } from './types';
 
 type ResourceGridProps = {
   resources: ResourceItem[];

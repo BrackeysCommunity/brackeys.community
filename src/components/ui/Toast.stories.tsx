@@ -31,7 +31,7 @@ export const Success: Story = {
   },
 };
 
-export const Error: Story = {
+export const ErrorToast: Story = {
   args: {
     id: 'error-toast',
     title: 'Error',
@@ -40,7 +40,7 @@ export const Error: Story = {
   },
 };
 
-export const Warning: Story = {
+export const WarningToast: Story = {
   args: {
     id: 'warning-toast',
     title: 'Warning',
@@ -49,7 +49,7 @@ export const Warning: Story = {
   },
 };
 
-export const Info: Story = {
+export const InfoToast: Story = {
   args: {
     id: 'info-toast',
     title: 'Information',
@@ -263,7 +263,7 @@ export const ToastScenarios: Story = {
         <div className="grid grid-cols-1 gap-2">
           {scenarios.map((scenario, index) => (
             <Button
-              key={index}
+              key={scenario.label + index.toString()}
               variant="ghost"
               onClick={scenario.action}
               className="justify-start"

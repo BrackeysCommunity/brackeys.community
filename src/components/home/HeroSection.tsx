@@ -23,7 +23,7 @@ const BUTTON_CONTENT = {
 
 type TabType = 'announcements' | 'commands';
 
-const DISCORD_SERVER_URL = 'https://discord.gg/brackeys';
+const _DISCORD_SERVER_URL = 'https://discord.gg/brackeys';
 
 const ContentFallback = () => (
   <div className="bg-gray-900/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-800 shadow-xl h-full flex items-center justify-center">
@@ -62,7 +62,7 @@ const TabButton = ({
 export const HeroSection = () => {
   const [activeTab, setActiveTab] = useState<TabType>('announcements');
   const { user } = useActiveUser();
-  const isInGuild = user?.discord?.guildMember?.inGuild ?? false;
+  const _isInGuild = user?.discord?.guildMember?.inGuild ?? false;
 
   return (
     <section

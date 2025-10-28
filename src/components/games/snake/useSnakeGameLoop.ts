@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Direction, type Position } from './snakeTypes';
 import {
-  generateFood,
   checkCollision,
+  generateFood,
   getLocalStorage,
   setLocalStorage,
 } from './snakeUtils';
@@ -37,7 +37,7 @@ export const useSnakeGameLoop = () => {
   useEffect(() => {
     setFood(generateFood(snake, GRID_SIZE));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [snake]);
 
   const gameLoop = useCallback(() => {
     if (isGameOver || isPaused) return;

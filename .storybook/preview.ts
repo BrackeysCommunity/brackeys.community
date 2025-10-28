@@ -1,6 +1,6 @@
 import type { Preview } from '@storybook/react-vite';
-import { Toaster } from 'sonner';
 import React from 'react';
+import { Toaster } from 'sonner';
 import '../src/styles.css';
 
 const preview: Preview = {

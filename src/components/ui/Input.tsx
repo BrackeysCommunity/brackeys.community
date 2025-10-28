@@ -1,6 +1,6 @@
 import { Button, Input as HeadlessInput } from '@headlessui/react';
-import { forwardRef, useState, type ReactNode } from 'react';
 import { Eye, EyeOff, type LucideIcon } from 'lucide-react';
+import { forwardRef, type ReactNode, useState } from 'react';
 
 interface InputProps {
   type?: 'text' | 'email' | 'password' | 'number';
@@ -37,7 +37,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       prefixButton,
       tabIndex,
     },
-    ref
+    ref,
   ) => {
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
@@ -69,7 +69,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           type={inputType}
           value={value}
-          onChange={e => onChange?.(e.target.value)}
+          onChange={(e) => onChange?.(e.target.value)}
           onBlur={onBlur}
           placeholder={placeholder}
           disabled={disabled}
@@ -105,12 +105,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           "
             aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
           >
-            {isPasswordVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {isPasswordVisible ? (
+              <EyeOff className="w-5 h-5" />
+            ) : (
+              <Eye className="w-5 h-5" />
+            )}
           </Button>
         )}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = 'Input';

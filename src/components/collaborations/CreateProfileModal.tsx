@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Dialog } from '@headlessui/react';
-import { X, User, FileText, Briefcase, Mail } from 'lucide-react';
+import { Briefcase, FileText, Mail, User, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useId, useState } from 'react';
 import { cn } from '../../lib/utils';
 
 type CreateProfileModalProps = {
@@ -28,6 +28,7 @@ export const CreateProfileModal = ({
   initialData,
   isLoading,
 }: CreateProfileModalProps) => {
+  const formId = useId();
   const [formData, setFormData] = useState<ProfileFormData>(
     initialData || {
       displayName: '',
@@ -78,6 +79,7 @@ export const CreateProfileModal = ({
                       : 'Create Collaboration Profile'}
                   </Dialog.Title>
                   <button
+                    type="button"
                     onClick={onClose}
                     className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
                   >
@@ -88,11 +90,15 @@ export const CreateProfileModal = ({
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
                   {/* Display Name */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label
+                      htmlFor={`${formId}-displayName`}
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
                       <User className="inline h-4 w-4 mr-2" />
                       Display Name
                     </label>
                     <input
+                      id={`${formId}-displayName`}
                       type="text"
                       value={formData.displayName}
                       onChange={(e) =>
@@ -114,11 +120,15 @@ export const CreateProfileModal = ({
 
                   {/* Bio */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label
+                      htmlFor={`${formId}-bio`}
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
                       <FileText className="inline h-4 w-4 mr-2" />
                       Bio
                     </label>
                     <textarea
+                      id={`${formId}-bio`}
                       value={formData.bio}
                       onChange={(e) =>
                         setFormData({ ...formData, bio: e.target.value })
@@ -136,11 +146,15 @@ export const CreateProfileModal = ({
 
                   {/* Skills */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label
+                      htmlFor={`${formId}-skills`}
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
                       <Briefcase className="inline h-4 w-4 mr-2" />
                       Skills
                     </label>
                     <textarea
+                      id={`${formId}-skills`}
                       value={formData.skills}
                       onChange={(e) =>
                         setFormData({ ...formData, skills: e.target.value })
@@ -158,10 +172,14 @@ export const CreateProfileModal = ({
 
                   {/* Portfolio */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label
+                      htmlFor={`${formId}-portfolio`}
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
                       Portfolio Links
                     </label>
                     <textarea
+                      id={`${formId}-portfolio`}
                       value={formData.portfolio}
                       onChange={(e) =>
                         setFormData({ ...formData, portfolio: e.target.value })
@@ -179,11 +197,15 @@ export const CreateProfileModal = ({
 
                   {/* Contact Preferences */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label
+                      htmlFor={`${formId}-contactPreferences`}
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
                       <Mail className="inline h-4 w-4 mr-2" />
                       Contact Preferences
                     </label>
                     <textarea
+                      id={`${formId}-contactPreferences`}
                       value={formData.contactPreferences}
                       onChange={(e) =>
                         setFormData({
@@ -204,10 +226,14 @@ export const CreateProfileModal = ({
 
                   {/* Public Profile Toggle */}
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">
+                    <label
+                      htmlFor={`${formId}-isPublic`}
+                      className="text-sm font-medium text-gray-300"
+                    >
                       Make profile public
                     </label>
                     <button
+                      id={`${formId}-isPublic`}
                       type="button"
                       onClick={() =>
                         setFormData({

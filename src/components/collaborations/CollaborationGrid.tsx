@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
-import { CollaborationCard } from './CollaborationCard';
 import { cn } from '../../lib/utils';
+import { CollaborationCard } from './CollaborationCard';
 import type { CollaborationPost } from './types';
 
 type CollaborationGridProps = {
@@ -21,7 +21,7 @@ export const CollaborationGrid = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {[...Array(6)].map((_, i) => (
           <div
-            key={i}
+            key={i.toString()}
             className="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700"
           >
             <div className="animate-pulse">
@@ -60,6 +60,7 @@ export const CollaborationGrid = ({
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"

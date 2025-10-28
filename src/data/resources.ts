@@ -1,22 +1,22 @@
 import {
-  Gamepad2,
-  Trophy,
   Brain,
   Building,
+  Gamepad2,
   Skull,
-  WholeWord,
-  Swords,
-  Wrench,
   Star,
+  Swords,
   Tag,
+  Trophy,
   Users,
+  WholeWord,
+  Wrench,
 } from 'lucide-react';
 import type {
+  CategoryInfo,
   ResourceCategory,
   ResourceItem,
-  CategoryInfo,
-  TagInfo,
   ResourceTag,
+  TagInfo,
 } from './types';
 
 export const resources: ResourceItem[] = [

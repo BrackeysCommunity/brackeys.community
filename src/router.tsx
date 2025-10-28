@@ -61,7 +61,7 @@ export function getRouteDisplayName(pathname: string): string {
   if (pathname.startsWith('/games/')) {
     const gameName = pathname.split('/')[2];
     return gameName
-      ? gameName.charAt(0).toUpperCase() + gameName.slice(1) + ' Game'
+      ? `${gameName.charAt(0).toUpperCase() + gameName.slice(1)} Game`
       : 'Game';
   }
 

@@ -1,11 +1,16 @@
-import { motion } from 'motion/react';
-import { useActiveUser } from '../store';
-import { Alert } from '../components/ui/Alert';
-import { useEffect } from 'react';
-import { RedirectToSignIn, SignedIn, SignedOut, UserProfile } from '@clerk/tanstack-react-start';
+import {
+  RedirectToSignIn,
+  SignedIn,
+  SignedOut,
+  UserProfile,
+} from '@clerk/tanstack-react-start';
 import { useNavigate } from '@tanstack/react-router';
+import { motion } from 'motion/react';
+import { useEffect } from 'react';
+import { Alert } from '../components/ui/Alert';
+import { DiscordIcon, DiscordInfo } from '../integrations/clerk/discord-info';
 import { clerkAppearance } from '../lib/clerk-theme';
-import { DiscordInfo, DiscordIcon } from '../integrations/clerk/discord-info';
+import { useActiveUser } from '../store';
 
 const ProfileContent = () => {
   const { user } = useActiveUser();
@@ -64,7 +69,7 @@ const ProfileContent = () => {
 };
 
 export const Profile = () => {
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
 
   return (
     <>
@@ -72,7 +77,13 @@ export const Profile = () => {
         <ProfileContent />
       </SignedIn>
       <SignedOut treatPendingAsSignedOut={false}>
-        <RedirectToSignIn signInForceRedirectUrl="/login" redirectUrl='/login' signUpForceRedirectUrl='/login' signInFallbackRedirectUrl='/login' signUpFallbackRedirectUrl='/login' />
+        <RedirectToSignIn
+          signInForceRedirectUrl="/login"
+          redirectUrl="/login"
+          signUpForceRedirectUrl="/login"
+          signInFallbackRedirectUrl="/login"
+          signUpFallbackRedirectUrl="/login"
+        />
       </SignedOut>
     </>
   );

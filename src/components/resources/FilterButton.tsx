@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
-import { cn } from '../../lib/utils';
 import type { ComponentType } from 'react';
+import { cn } from '../../lib/utils';
 
 type FilterButtonProps = {
   active: boolean;

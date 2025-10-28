@@ -1,7 +1,7 @@
 declare module 'grained' {
   // grained.js is an IIFE that adds itself to window.grained
   // Importing it will execute the script and make window.grained available
-  const _default: void;
+  const _default: undefined;
   export default _default;
 }
 

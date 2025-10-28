@@ -1,5 +1,5 @@
 // https://www.shadcn.io/background/retro-grid
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 interface RetroGridProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
@@ -37,21 +37,21 @@ export const RetroGrid = ({
   angle = 65,
   cellSize = 60,
   opacity = 0.5,
-  lightLineColor = "gray",
-  darkLineColor = "gray",
+  lightLineColor = 'gray',
+  darkLineColor = 'gray',
   ...props
 }: RetroGridProps) => {
   const gridStyles = {
-    "--grid-angle": `${angle}deg`,
-    "--cell-size": `${cellSize}px`,
-    "--opacity": opacity,
-    "--light-line": lightLineColor,
-    "--dark-line": darkLineColor,
+    '--grid-angle': `${angle}deg`,
+    '--cell-size': `${cellSize}px`,
+    '--opacity': opacity,
+    '--light-line': lightLineColor,
+    '--dark-line': darkLineColor,
   } as React.CSSProperties;
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-0 overflow-hidden [perspective:200px]",
+        'pointer-events-none absolute inset-0 overflow-hidden [perspective:200px]',
         `opacity-[var(--opacity)]`,
         className,
       )}

@@ -1,19 +1,20 @@
+/** biome-ignore-all lint/a11y/noLabelWithoutControl: These are just story forms */
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { useState } from 'react';
 import {
-  User,
-  Mail,
-  Lock,
-  Search,
-  Phone,
-  CreditCard,
   Copy,
-  Send,
+  CreditCard,
   Filter,
+  Lock,
+  Mail,
+  Phone,
+  Search,
+  Send,
   Settings,
+  User,
 } from 'lucide-react';
-import { Input } from './Input';
+import { useState } from 'react';
 import { Button } from './Button';
+import { Input } from './Input';
 
 const meta = {
   title: 'UI/Input',
@@ -85,7 +86,7 @@ export const Password: Story = {
   },
 };
 
-export const Number: Story = {
+export const NumberInput: Story = {
   render: () => {
     const [value, setValue] = useState('');
     return (

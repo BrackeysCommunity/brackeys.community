@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Dialog } from '@headlessui/react';
-import { X, Send, Lock, Globe, AlertCircle } from 'lucide-react';
+import { AlertCircle, Globe, Lock, Send, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useId, useState } from 'react';
 import { cn } from '../../lib/utils';
 
 type PostForResponse = {
@@ -38,6 +38,7 @@ export const ResponseModal = ({
   post,
   isLoading,
 }: ResponseModalProps) => {
+  const formId = useId();
   const [formData, setFormData] = useState<ResponseFormData>({
     message: '',
     contactInfo: '',
@@ -82,6 +83,7 @@ export const ResponseModal = ({
                     Respond to {postType}
                   </Dialog.Title>
                   <button
+                    type="button"
                     onClick={onClose}
                     className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
                   >
@@ -113,11 +115,15 @@ export const ResponseModal = ({
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Message */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label
+                        htmlFor={`${formId}-message`}
+                        className="block text-sm font-medium text-gray-300 mb-2"
+                      >
                         <Send className="inline h-4 w-4 mr-2" />
                         Your Message
                       </label>
                       <textarea
+                        id={`${formId}-message`}
                         value={formData.message}
                         onChange={(e) =>
                           setFormData({ ...formData, message: e.target.value })
@@ -140,10 +146,14 @@ export const ResponseModal = ({
 
                     {/* Contact Info */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label
+                        htmlFor={`${formId}-contactInfo`}
+                        className="block text-sm font-medium text-gray-300 mb-2"
+                      >
                         Contact Information
                       </label>
                       <input
+                        id={`${formId}-contactInfo`}
                         type="text"
                         value={formData.contactInfo}
                         onChange={(e) =>

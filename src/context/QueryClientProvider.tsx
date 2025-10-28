@@ -1,13 +1,12 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useAuth } from '@clerk/tanstack-react-start';
 import {
+  type MutationFunction,
   QueryClientProvider as Provider,
   QueryClient,
   type QueryFunction,
-  type MutationFunction,
 } from '@tanstack/react-query';
-import { useContext } from 'react';
+import { type ReactNode, useContext, useEffect, useState } from 'react';
 import { AuthContext } from './authContext';
-import { useAuth } from '@clerk/tanstack-react-start';
 
 type MutationVariables = {
   url: string;

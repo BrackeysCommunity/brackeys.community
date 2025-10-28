@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import {
   ArrowDown,
   ArrowLeft,
@@ -8,6 +7,7 @@ import {
   Play,
   RefreshCw,
 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { Direction } from './snakeTypes';
 
 type GameControlsProps = {
@@ -84,13 +84,7 @@ export const SnakeController = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [
-    onDirectionChange,
-    onReset,
-    onTogglePause,
-    currentDirection,
-    directionDebounceTime,
-  ]);
+  }, [onDirectionChange, onReset, onTogglePause, currentDirection]);
 
   const isDisabled = (direction: Direction): boolean => {
     if (direction === Direction.UP && currentDirection === Direction.DOWN)
@@ -123,6 +117,7 @@ export const SnakeController = ({
       <div className="flex items-center justify-between">
         <div className="flex space-x-2">
           <button
+            type="button"
             className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center"
             onClick={onTogglePause}
             disabled={isGameOver}
@@ -135,6 +130,7 @@ export const SnakeController = ({
             {isPaused ? 'Play' : 'Pause'}
           </button>
           <button
+            type="button"
             className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 flex items-center"
             onClick={onReset}
           >
@@ -147,6 +143,7 @@ export const SnakeController = ({
           <div />
           <div>
             <button
+              type="button"
               className={`w-full p-2 rounded-lg ${
                 isDisabled(Direction.UP)
                   ? 'bg-gray-700 text-gray-500'
@@ -162,6 +159,7 @@ export const SnakeController = ({
           <div />
           <div>
             <button
+              type="button"
               className={`w-full p-2 rounded-lg ${
                 isDisabled(Direction.LEFT)
                   ? 'bg-gray-700 text-gray-500'
@@ -176,6 +174,7 @@ export const SnakeController = ({
           </div>
           <div>
             <button
+              type="button"
               className={`w-full p-2 rounded-lg ${
                 isDisabled(Direction.DOWN)
                   ? 'bg-gray-700 text-gray-500'
@@ -190,6 +189,7 @@ export const SnakeController = ({
           </div>
           <div>
             <button
+              type="button"
               className={`w-full p-2 rounded-lg ${
                 isDisabled(Direction.RIGHT)
                   ? 'bg-gray-700 text-gray-500'

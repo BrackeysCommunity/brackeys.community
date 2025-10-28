@@ -1,6 +1,5 @@
-import { useEffect, type PropsWithChildren } from 'react';
 import { useUser as useClerkUser } from '@clerk/tanstack-react-start';
-import { userStoreActions } from './userStore';
+import { type PropsWithChildren, useEffect } from 'react';
 import type {
   ActiveUser,
   DiscordExternalAccount,
@@ -8,11 +7,12 @@ import type {
   HasuraClaims,
   UserEmail,
 } from './userStore';
+import { userStoreActions } from './userStore';
 
 /**
  * Provider component that syncs Clerk user data with the TanStack Store.
  * This should be placed within the ClerkProvider in your component tree.
- * 
+ *
  * It automatically updates the store whenever Clerk's user state changes.
  */
 export function UserStoreProvider({ children }: PropsWithChildren) {
@@ -37,23 +37,24 @@ export function UserStoreProvider({ children }: PropsWithChildren) {
         (acc) => acc.provider === 'discord',
       );
 
-      const discordExternalAccount: DiscordExternalAccount | null = discordAccount
-        ? {
-            id: discordAccount.id,
-            provider: 'discord',
-            discordId: discordAccount.providerUserId || '',
-            emailAddress: discordAccount.emailAddress,
-            approvedScopes: discordAccount.approvedScopes,
-            firstName: discordAccount.firstName || '',
-            lastName: discordAccount.lastName || '',
-            imageUrl: discordAccount.imageUrl || '',
-            username: discordAccount.username || '',
-            verification: {
-              status: discordAccount.verification?.status || 'unverified',
-              strategy: discordAccount.verification?.strategy || '',
-            },
-          }
-        : null;
+      const discordExternalAccount: DiscordExternalAccount | null =
+        discordAccount
+          ? {
+              id: discordAccount.id,
+              provider: 'discord',
+              discordId: discordAccount.providerUserId || '',
+              emailAddress: discordAccount.emailAddress,
+              approvedScopes: discordAccount.approvedScopes,
+              firstName: discordAccount.firstName || '',
+              lastName: discordAccount.lastName || '',
+              imageUrl: discordAccount.imageUrl || '',
+              username: discordAccount.username || '',
+              verification: {
+                status: discordAccount.verification?.status || 'unverified',
+                strategy: discordAccount.verification?.strategy || '',
+              },
+            }
+          : null;
 
       // Extract Discord guild member data from public metadata
       const publicMetadata = clerkUser.publicMetadata as {
@@ -74,21 +75,24 @@ export function UserStoreProvider({ children }: PropsWithChildren) {
       };
 
       // Map email addresses
-      const emailAddresses: UserEmail[] = clerkUser.emailAddresses.map((email) => ({
-        id: email.id,
-        emailAddress: email.emailAddress,
-        isPrimary: email.id === clerkUser.primaryEmailAddressId,
-        verification: {
-          status: email.verification?.status || 'unverified',
-          strategy: email.verification?.strategy || '',
-        },
-      }));
+      const emailAddresses: UserEmail[] = clerkUser.emailAddresses.map(
+        (email) => ({
+          id: email.id,
+          emailAddress: email.emailAddress,
+          isPrimary: email.id === clerkUser.primaryEmailAddressId,
+          verification: {
+            status: email.verification?.status || 'unverified',
+            strategy: email.verification?.strategy || '',
+          },
+        }),
+      );
 
       // Build the active user object
       const activeUser: ActiveUser = {
         // Core Clerk data
         id: clerkUser.id,
-        username: clerkUser.username || discordExternalAccount?.username || null,
+        username:
+          clerkUser.username || discordExternalAccount?.username || null,
         firstName: clerkUser.firstName,
         lastName: clerkUser.lastName,
         fullName: clerkUser.fullName,
@@ -96,7 +100,8 @@ export function UserStoreProvider({ children }: PropsWithChildren) {
         hasImage: clerkUser.hasImage,
 
         // Email data
-        primaryEmailAddress: clerkUser.primaryEmailAddress?.emailAddress || null,
+        primaryEmailAddress:
+          clerkUser.primaryEmailAddress?.emailAddress || null,
         emailAddresses,
 
         // Discord data
@@ -109,8 +114,12 @@ export function UserStoreProvider({ children }: PropsWithChildren) {
         hasura: hasuraClaims,
 
         // Timestamps
-        createdAt: clerkUser.createdAt ? new Date(clerkUser.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: clerkUser.updatedAt ? new Date(clerkUser.updatedAt).toISOString() : new Date().toISOString(),
+        createdAt: clerkUser.createdAt
+          ? new Date(clerkUser.createdAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: clerkUser.updatedAt
+          ? new Date(clerkUser.updatedAt).toISOString()
+          : new Date().toISOString(),
         lastSignInAt: clerkUser.lastSignInAt
           ? new Date(clerkUser.lastSignInAt).toISOString()
           : null,
@@ -140,4 +149,3 @@ export function UserStoreProvider({ children }: PropsWithChildren) {
 
   return <>{children}</>;
 }
-

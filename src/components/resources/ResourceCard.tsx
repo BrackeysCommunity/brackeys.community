@@ -1,9 +1,9 @@
-import { motion } from 'motion/react';
-import { Gamepad2, Wrench } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
+import { Gamepad2, Wrench } from 'lucide-react';
+import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
-import type { ResourceItem } from './types';
 import { categoryInfo, tagInfo } from './data';
+import type { ResourceItem } from './types';
 
 type ResourceCardProps = {
   resource: ResourceItem;
