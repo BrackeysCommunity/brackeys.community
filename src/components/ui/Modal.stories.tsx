@@ -3,8 +3,8 @@ import type React from 'react';
 import { useState } from 'react';
 import { User, Trash2, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
+import { Button } from './Button';
+import { Input } from './Input';
 
 const meta = {
   title: 'UI/Modal',

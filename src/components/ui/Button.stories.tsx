@@ -15,7 +15,7 @@ import {
   Code,
   Paintbrush,
 } from 'lucide-react';
-import { Button } from '../components/ui/Button';
+import { Button } from './Button';
 
 const meta = {
   title: 'UI/Button',

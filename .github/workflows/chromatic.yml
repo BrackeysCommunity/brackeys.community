@@ -20,8 +20,20 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
       - name: Build Storybook
-        run: bun run build-storybook
+        run: |
+          echo "Building Storybook..."
+          bun run build-storybook
+          echo "Build complete. Checking output directory..."
+          ls -la storybook-static || echo "storybook-static directory not found!"
+          if [ -f "storybook-static/index.html" ]; then
+            echo "✅ index.html found - build successful"
+          else
+            echo "❌ index.html not found - build may have failed"
+            exit 1
+          fi
+
       - name: Run Chromatic
         uses: chromaui/action@latest
         with:
