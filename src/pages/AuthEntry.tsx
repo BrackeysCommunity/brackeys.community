@@ -6,7 +6,7 @@ import {
 import { useNavigate } from '@tanstack/react-router';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DiscordLogo } from '../components/icons/DiscordLogo';
 
 type AuthStep = 'loading' | 'complete' | 'error';
@@ -233,7 +233,8 @@ export const SSOCallback = () => {
 
       {/* Required for sign-up flows
       Clerk's bot sign-up protection is enabled by default */}
-      <div id={useId()} />
+      {/** biome-ignore lint/correctness/useUniqueElementIds: needs to be clerk captcha id */}
+      <div id="clerk-captcha" />
     </>
   );
 };

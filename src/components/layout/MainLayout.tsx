@@ -26,8 +26,8 @@ export const MainLayout = ({ children }: PropsWithChildren) => {
   const isHomePage = location.pathname === '/';
 
   useGrained(containerRef as React.RefObject<HTMLElement>, {
-    animate: true,
-    grainOpacity: 0.03,
+    animate: !isHomePage,
+    grainOpacity: 0.02,
   });
 
   return (
