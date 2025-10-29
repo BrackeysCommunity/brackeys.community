@@ -23,17 +23,20 @@ services:
         echo '📦 Installing dependencies...' &&
         apk add --no-cache git curl bash unzip libstdc++ libgcc nodejs npm &&
         echo '🔄 Setting up repository...' &&
-        if [ -d /app/repo/.git ]; then
+        if [ -d /app/.git ]; then
           echo 'Repository exists, pulling latest changes...' &&
-          cd /app/repo &&
+          cd /app &&
           git fetch origin $$GIT_BRANCH &&
           git reset --hard origin/$$GIT_BRANCH &&
           git clean -fdx;
         else
           echo 'Cloning repository...' &&
-          rm -rf /app/repo &&
-          git clone --depth 1 --branch $$GIT_BRANCH $$GIT_REPO /app/repo &&
-          cd /app/repo;
+          rm -rf /app/* /app/.* 2>/dev/null || true &&
+          git clone --depth 1 --branch $$GIT_BRANCH $$GIT_REPO /app/temp &&
+          mv /app/temp/.git /app/ &&
+          mv /app/temp/* /app/temp/.* /app/ 2>/dev/null || true &&
+          rm -rf /app/temp &&
+          cd /app;
         fi &&
         echo '🔐 Installing Vercel CLI...' &&
         npm install -g vercel &&
@@ -45,7 +48,7 @@ services:
         fi &&
         echo '✓ Environment variables synced from Vercel!' &&
         echo '🐳 Loading environment variables...' &&
-        set -a && . /app/repo/.env.local && set +a &&
+        set -a && . /app/.env.local && set +a &&
         echo '🐳 Starting application services...' &&
         docker compose -f docker-compose.services.yml up -d &&
         echo '✅ All services started successfully!'
