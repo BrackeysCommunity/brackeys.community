@@ -80,11 +80,9 @@ export const getRouter = () => {
   const rqContext = TanstackQuery.getContext();
 
   Sentry.init({
-    dsn: 'https://7caaab496e6d13d17da9ea78af2d53a2@o4510194671353856.ingest.us.sentry.io/4510195032457216',
-
-    // Setting this option to true will send default PII data to Sentry.
-    // For example, automatic IP address collection on events
+    dsn: import.meta.env.VITE_SENTRY_DSN,
     sendDefaultPii: true,
+    environment: import.meta.env.DEV ? 'Staging' : 'Production',
   });
 
   const router = createTanStackRouter({

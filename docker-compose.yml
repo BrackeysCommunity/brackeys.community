@@ -1,120 +1,43 @@
 services:
-  postgres:
-    image: postgres:alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-brackeys}
-    ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - brackeys
-
-  flyway:
-    image: flyway/flyway:latest
-    command: migrate
-    volumes:
-      - ./flyway/sql:/flyway/sql:ro
-      - ./flyway/conf:/flyway/conf:ro
-    environment:
-      - FLYWAY_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-brackeys}
-      - FLYWAY_USER=${POSTGRES_USER:-postgres}
-      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD}
-      - FLYWAY_SCHEMAS=public
-      - FLYWAY_BASELINE_ON_MIGRATE=true
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - brackeys
-    restart: 'no'
-
-  minio:
-    image: minio/minio:latest
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - brackeys
-
-  hasura-ddn:
+  vercel-env-fetcher:
     image: docker:cli
-    working_dir: /workspace/hasura-ddn
-    command: >
-      sh -c "
-      echo 'Installing DDN CLI...' &&
-      apk add --no-cache curl bash &&
-      curl -L https://graphql-engine-cdn.hasura.io/ddn/cli/v4/get.sh | bash &&
-      export PATH=\"$$HOME/.local/bin:$$PATH\" &&
-      echo 'Authenticating DDN CLI...' &&
-      ddn auth login &&
-      echo 'Starting Hasura DDN services...' &&
-      ddn run docker-start
-      "
+    working_dir: /workspace
     volumes:
       - .:/workspace
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-brackeys}
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
-      - HASURA_DDN_PAT=${HASURA_DDN_PAT}
-      - PROMPTQL_SECRET_KEY=${PROMPTQL_SECRET_KEY}
-      - APP_POSTGRES_AUTHORIZATION_HEADER=${DDN_APP_POSTGRES_AUTHORIZATION_HEADER}
-      - APP_POSTGRES_HASURA_CONNECTOR_PORT=${DDN_APP_POSTGRES_HASURA_CONNECTOR_PORT}
-      - APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET=${DDN_APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET}
-      - APP_POSTGRES_JDBC_SCHEMAS=${DDN_APP_POSTGRES_JDBC_SCHEMAS}
-      - APP_POSTGRES_JDBC_URL=${DDN_APP_POSTGRES_JDBC_URL}
-      - APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT=${DDN_APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT}
-      - APP_POSTGRES_OTEL_SERVICE_NAME=${DDN_APP_POSTGRES_OTEL_SERVICE_NAME}
-      - APP_POSTGRES_READ_URL=${DDN_APP_POSTGRES_READ_URL}
-      - APP_POSTGRES_WRITE_URL=${DDN_APP_POSTGRES_WRITE_URL}
-      - APP_STORAGE_ACCESS_KEY_ID=${DDN_APP_STORAGE_ACCESS_KEY_ID}
-      - APP_STORAGE_AUTHORIZATION_HEADER=${DDN_APP_STORAGE_AUTHORIZATION_HEADER}
-      - APP_STORAGE_DEFAULT_BUCKET=${DDN_APP_STORAGE_DEFAULT_BUCKET}
-      - APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET=${DDN_APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET}
-      - APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT=${DDN_APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT}
-      - APP_STORAGE_OTEL_SERVICE_NAME=${DDN_APP_STORAGE_OTEL_SERVICE_NAME}
-      - APP_STORAGE_READ_URL=${DDN_APP_STORAGE_READ_URL}
-      - APP_STORAGE_SECRET_ACCESS_KEY=${DDN_APP_STORAGE_SECRET_ACCESS_KEY}
-      - APP_STORAGE_STORAGE_ENDPOINT=${DDN_APP_STORAGE_STORAGE_ENDPOINT}
-      - APP_STORAGE_WRITE_URL=${DDN_APP_STORAGE_WRITE_URL}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      flyway:
-        condition: service_completed_successfully
+      - VERCEL_TOKEN=${VERCEL_TOKEN}
+      - VERCEL_ORG_ID=${VERCEL_ORG_ID:-}
+      - VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID:-}
+      - VERCEL_ENVIRONMENT=${VERCEL_ENVIRONMENT:-development}
+      - COMPOSE_PROJECT_DIR=${PWD}
+    command: >
+      sh -c "
+        if [ -z \"$$VERCEL_TOKEN\" ]; then
+          echo '❌ VERCEL_TOKEN not set!';
+          echo 'Get your token from: https://vercel.com/account/tokens';
+          echo 'Then run: export VERCEL_TOKEN=your_token_here';
+          exit 1;
+        fi &&
+        echo '🔐 Installing Vercel CLI...' &&
+        apk add --no-cache curl bash unzip libstdc++ libgcc nodejs npm &&
+        npm install -g vercel &&
+        echo '🔐 Pulling environment variables from Vercel...' &&
+        vercel env pull --environment=$$VERCEL_ENVIRONMENT --yes --token=$$VERCEL_TOKEN &&
+        if [ ! -f .env.local ]; then
+          echo '❌ Failed to fetch environment variables';
+          exit 1;
+        fi &&
+        echo '✓ Environment variables synced from Vercel!' &&
+        echo '🐳 Starting application services...' &&
+        cd /workspace &&
+        export COMPOSE_PROJECT_DIR=$${COMPOSE_PROJECT_DIR:-/workspace} &&
+        docker compose --env-file .env.local -f docker-compose.services.yml up -d &&
+        echo '✅ All services started successfully!'
+      "
+    restart: 'no'
     networks:
       - brackeys
-
-volumes:
-  postgres_data:
-  minio_data:
 
 networks:
   brackeys:

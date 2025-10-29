@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.env.local
 
 # Editor directories and files
 .vscode/*
@@ -43,3 +44,4 @@ codegen.ts
 hasura-ddn/engine/build
 
 target/rust-analyzer/
+.env*.local
