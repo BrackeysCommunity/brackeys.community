@@ -2,17 +2,15 @@ services:
   postgres:
     image: postgres:alpine
     restart: unless-stopped
-    env_file:
-      - ./.env.local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - repo_data:/repo:ro
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-brackeys}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-brackeys}
     ports:
       - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ${COMPOSE_PROJECT_DIR:-.}/init-scripts:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 5s
@@ -26,17 +24,14 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "echo '=== Debugging Flyway Setup ===' &&
-      echo 'Contents of /flyway/sql:' &&
-      ls -la /flyway/sql/ &&
-      echo 'Contents of /flyway/conf:' &&
-      ls -la /flyway/conf/ &&
+      echo 'Contents of /repo/flyway/sql:' &&
+      ls -la /repo/flyway/sql/ &&
+      echo 'Contents of /repo/flyway/conf:' &&
+      ls -la /repo/flyway/conf/ &&
       echo '=== Running Flyway Migration ===' &&
-      flyway migrate"
+      flyway -locations=filesystem:/repo/flyway/sql -configFiles=/repo/flyway/conf/flyway.conf migrate"
     volumes:
-      - ${COMPOSE_PROJECT_DIR:-.}/flyway/sql:/flyway/sql:ro
-      - ${COMPOSE_PROJECT_DIR:-.}/flyway/conf:/flyway/conf:ro
-    env_file:
-      - ./.env.local
+      - repo_data:/repo:ro
     environment:
       - FLYWAY_URL=jdbc:postgresql://postgres:5432/brackeys
       - FLYWAY_USER=${FLYWAY_USER}
@@ -57,13 +52,12 @@ services:
     ports:
       - '9000:9000'
       - '9001:9001'
-    env_file:
-      - ./.env.local
+    volumes:
+      - minio_data:/data
+      - repo_data:/repo:ro
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -74,7 +68,7 @@ services:
 
   hasura-ddn:
     image: docker:cli
-    working_dir: /workspace/hasura-ddn
+    working_dir: /repo/hasura-ddn
     command: >
       sh -c "
       echo 'Installing DDN CLI...' &&
@@ -87,10 +81,8 @@ services:
       ddn run docker-start
       "
     volumes:
-      - ${COMPOSE_PROJECT_DIR:-.}:/workspace
+      - repo_data:/repo:ro
       - /var/run/docker.sock:/var/run/docker.sock
-    env_file:
-      - ./.env.local
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -131,6 +123,9 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  repo_data:
+    external: true
+    name: brackeys_repo_data
 
 networks:
   brackeys:

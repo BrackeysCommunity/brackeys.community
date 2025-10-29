@@ -1,16 +1,18 @@
 services:
   vercel-env-fetcher:
     image: docker:cli
-    working_dir: /workspace
+    working_dir: /app
     volumes:
-      - .:/workspace
+      - .:/app/local:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - repo_data:/app
     environment:
       - VERCEL_TOKEN=${VERCEL_TOKEN}
       - VERCEL_ORG_ID=${VERCEL_ORG_ID:-}
       - VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID:-}
       - VERCEL_ENVIRONMENT=${VERCEL_ENVIRONMENT:-development}
-      - COMPOSE_PROJECT_DIR=${PWD}
+      - GIT_REPO=${GIT_REPO:-https://github.com/BrackeysCommunity/brackeys.community.git}
+      - GIT_BRANCH=${GIT_BRANCH:-main}
     command: >
       sh -c "
         if [ -z \"$$VERCEL_TOKEN\" ]; then
@@ -19,8 +21,22 @@ services:
           echo 'Then run: export VERCEL_TOKEN=your_token_here';
           exit 1;
         fi &&
+        echo '📦 Installing dependencies...' &&
+        apk add --no-cache git curl bash unzip libstdc++ libgcc nodejs npm &&
+        echo '🔄 Setting up repository...' &&
+        if [ -d /app/repo/.git ]; then
+          echo 'Repository exists, pulling latest changes...' &&
+          cd /app/repo &&
+          git fetch origin $$GIT_BRANCH &&
+          git reset --hard origin/$$GIT_BRANCH &&
+          git clean -fdx;
+        else
+          echo 'Cloning repository...' &&
+          rm -rf /app/repo &&
+          git clone --depth 1 --branch $$GIT_BRANCH $$GIT_REPO /app/repo &&
+          cd /app/repo;
+        fi &&
         echo '🔐 Installing Vercel CLI...' &&
-        apk add --no-cache curl bash unzip libstdc++ libgcc nodejs npm &&
         npm install -g vercel &&
         echo '🔐 Pulling environment variables from Vercel...' &&
         vercel env pull --environment=$$VERCEL_ENVIRONMENT --yes --token=$$VERCEL_TOKEN &&
@@ -29,15 +45,20 @@ services:
           exit 1;
         fi &&
         echo '✓ Environment variables synced from Vercel!' &&
+        echo '📋 Copying local docker-compose.services.yml...' &&
+        cp /app/local/docker-compose.services.yml /app/repo/docker-compose.services.yml &&
+        echo '🐳 Loading environment variables...' &&
+        set -a && . /app/repo/.env.local && set +a &&
         echo '🐳 Starting application services...' &&
-        cd /workspace &&
-        export COMPOSE_PROJECT_DIR=$${COMPOSE_PROJECT_DIR:-/workspace} &&
-        docker compose --env-file .env.local -f docker-compose.services.yml up -d &&
+        docker compose -f docker-compose.services.yml up -d &&
         echo '✅ All services started successfully!'
       "
     restart: 'no'
     networks:
       - brackeys
+
+volumes:
+  repo_data:
 
 networks:
   brackeys:
