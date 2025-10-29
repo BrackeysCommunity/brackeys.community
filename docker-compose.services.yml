@@ -125,8 +125,10 @@ volumes:
   minio_data:
   repo_data:
     external: true
+    name: brackeys_repo_data
 
 networks:
   brackeys:
     external: true
+    name: brackeys
 

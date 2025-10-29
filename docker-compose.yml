@@ -59,6 +59,7 @@ services:
 
 volumes:
   repo_data:
+    name: brackeys_repo_data
 
 networks:
   brackeys:
