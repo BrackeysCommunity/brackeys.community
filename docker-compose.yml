@@ -21,7 +21,7 @@ services:
           exit 1;
         fi &&
         echo '📦 Installing dependencies...' &&
-        apk add --no-cache git curl bash unzip libstdc++ libgcc nodejs npm &&
+        apk add --no-cache git curl bash unzip libstdc++ libgcc nodejs npm gettext openssl &&
         echo '🔄 Setting up repository...' &&
         if [ -d /app/.git ]; then
           echo 'Repository exists, pulling latest changes...' &&
@@ -49,6 +49,41 @@ services:
         echo '✓ Environment variables synced from Vercel!' &&
         echo '🐳 Loading environment variables...' &&
         set -a && . /app/.env.local && set +a &&
+        echo '🔑 Generating PromptQL secret key if needed...' &&
+        if [ -z \"$$PROMPTQL_SECRET_KEY\" ]; then
+          export PROMPTQL_SECRET_KEY=\$(ddn auth generate-promptql-secret-key 2>/dev/null | grep -o 'ddn_pat_[a-zA-Z0-9_]*' || openssl rand -hex 32);
+          echo \"Generated PROMPTQL_SECRET_KEY=\$$PROMPTQL_SECRET_KEY\" >> /app/.env.local;
+          echo 'PromptQL secret key generated';
+        else
+          echo 'PromptQL secret key already exists';
+        fi &&
+        echo '📋 Creating DDN .env file...' &&
+        echo \"HASURA_DDN_PAT=\$$HASURA_DDN_PAT\" > /app/hasura-ddn/.env &&
+        echo \"PROMPTQL_SECRET_KEY=\$$PROMPTQL_SECRET_KEY\" >> /app/hasura-ddn/.env &&
+        echo \"POSTGRES_USER=\$$POSTGRES_USER\" >> /app/hasura-ddn/.env &&
+        echo \"POSTGRES_PASSWORD=\$$POSTGRES_PASSWORD\" >> /app/hasura-ddn/.env &&
+        echo \"POSTGRES_DB=\$$POSTGRES_DB\" >> /app/hasura-ddn/.env &&
+        echo \"MINIO_ROOT_USER=\$$MINIO_ROOT_USER\" >> /app/hasura-ddn/.env &&
+        echo \"MINIO_ROOT_PASSWORD=\$$MINIO_ROOT_PASSWORD\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_AUTHORIZATION_HEADER=\$$APP_POSTGRES_AUTHORIZATION_HEADER\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_HASURA_CONNECTOR_PORT=\$$APP_POSTGRES_HASURA_CONNECTOR_PORT\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET=\$$APP_POSTGRES_HASURA_SERVICE_TOKEN_SECRET\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_JDBC_SCHEMAS=\$$APP_POSTGRES_JDBC_SCHEMAS\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_JDBC_URL=\$$APP_POSTGRES_JDBC_URL\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT=\$$APP_POSTGRES_OTEL_EXPORTER_OTLP_ENDPOINT\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_OTEL_SERVICE_NAME=\$$APP_POSTGRES_OTEL_SERVICE_NAME\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_READ_URL=\$$APP_POSTGRES_READ_URL\" >> /app/hasura-ddn/.env &&
+        echo \"APP_POSTGRES_WRITE_URL=\$$APP_POSTGRES_WRITE_URL\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_ACCESS_KEY_ID=\$$APP_STORAGE_ACCESS_KEY_ID\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_AUTHORIZATION_HEADER=\$$APP_STORAGE_AUTHORIZATION_HEADER\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_DEFAULT_BUCKET=\$$APP_STORAGE_DEFAULT_BUCKET\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET=\$$APP_STORAGE_HASURA_SERVICE_TOKEN_SECRET\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT=\$$APP_STORAGE_OTEL_EXPORTER_OTLP_ENDPOINT\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_OTEL_SERVICE_NAME=\$$APP_STORAGE_OTEL_SERVICE_NAME\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_READ_URL=\$$APP_STORAGE_READ_URL\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_SECRET_ACCESS_KEY=\$$APP_STORAGE_SECRET_ACCESS_KEY\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_STORAGE_ENDPOINT=\$$APP_STORAGE_STORAGE_ENDPOINT\" >> /app/hasura-ddn/.env &&
+        echo \"APP_STORAGE_WRITE_URL=\$$APP_STORAGE_WRITE_URL\" >> /app/hasura-ddn/.env &&
         echo '🐳 Starting application services...' &&
         docker compose -f docker-compose.services.yml up -d &&
         echo '✅ All services started successfully!'
