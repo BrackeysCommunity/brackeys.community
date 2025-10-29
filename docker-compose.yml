@@ -3,7 +3,6 @@ services:
     image: docker:cli
     working_dir: /app
     volumes:
-      - .:/app/local:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - repo_data:/app
     environment:
@@ -45,8 +44,6 @@ services:
           exit 1;
         fi &&
         echo '✓ Environment variables synced from Vercel!' &&
-        echo '📋 Copying local docker-compose.services.yml...' &&
-        cp /app/local/docker-compose.services.yml /app/repo/docker-compose.services.yml &&
         echo '🐳 Loading environment variables...' &&
         set -a && . /app/repo/.env.local && set +a &&
         echo '🐳 Starting application services...' &&

@@ -24,12 +24,12 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "echo '=== Debugging Flyway Setup ===' &&
-      echo 'Contents of /repo/flyway/sql:' &&
-      ls -la /repo/flyway/sql/ &&
-      echo 'Contents of /repo/flyway/conf:' &&
-      ls -la /repo/flyway/conf/ &&
+      echo 'Contents of /repo/repo/flyway/sql:' &&
+      ls -la /repo/repo/flyway/sql/ &&
+      echo 'Contents of /repo/repo/flyway/conf:' &&
+      ls -la /repo/repo/flyway/conf/ &&
       echo '=== Running Flyway Migration ===' &&
-      flyway -locations=filesystem:/repo/flyway/sql -configFiles=/repo/flyway/conf/flyway.conf migrate"
+      flyway -locations=filesystem:/repo/repo/flyway/sql -configFiles=/repo/repo/flyway/conf/flyway.conf migrate"
     volumes:
       - repo_data:/repo:ro
     environment:
@@ -68,7 +68,7 @@ services:
 
   hasura-ddn:
     image: docker:cli
-    working_dir: /repo/hasura-ddn
+    working_dir: /repo/repo/hasura-ddn
     command: >
       sh -c "
       echo 'Installing DDN CLI...' &&
