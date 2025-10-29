@@ -125,10 +125,8 @@ volumes:
   minio_data:
   repo_data:
     external: true
-    name: brackeys_repo_data
 
 networks:
   brackeys:
-    name: brackeys
-    driver: bridge
+    external: true
 
