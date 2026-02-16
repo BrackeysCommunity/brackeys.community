@@ -1,0 +1,34 @@
+{
+  "projectName": "brackeys",
+  "mode": "file-router",
+  "typescript": true,
+  "tailwind": true,
+  "packageManager": "bun",
+  "git": true,
+  "install": true,
+  "addOnOptions": {
+    "drizzle": {
+      "database": "postgresql"
+    }
+  },
+  "version": 1,
+  "framework": "react-cra",
+  "chosenAddOns": [
+    "strapi",
+    "tanstack-query",
+    "sentry",
+    "nitro",
+    "drizzle",
+    "better-auth",
+    "t3env",
+    "compiler",
+    "oRPC",
+    "paraglide",
+    "biome",
+    "storybook",
+    "table",
+    "form",
+    "store",
+    "shadcn"
+  ]
+}
