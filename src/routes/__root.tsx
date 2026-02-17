@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Cursor } from '@/components/ui/cursor'
 import { getLocale, shouldRedirect } from '@/paraglide/runtime'
 import Header from '../components/Header'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -63,6 +64,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <Cursor />
         <TanStackQueryProvider>
           <TooltipProvider>
             <Header />

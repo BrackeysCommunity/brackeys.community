@@ -123,5 +123,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    cursor: none;
+  }
+  a, button, [role="button"], input, select, textarea {
+    cursor: none !important;
   }
   }
