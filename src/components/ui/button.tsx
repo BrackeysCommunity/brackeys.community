@@ -37,11 +37,13 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  isMagnetic,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { isMagnetic?: boolean }) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      data-magnetic={isMagnetic || undefined}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

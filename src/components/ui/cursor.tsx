@@ -13,7 +13,7 @@ export function Cursor({ className, ...props }: CursorProps) {
   const mouseY = useMotionValue(0);
   const [isPressed, setIsPressed] = React.useState(false);
 
-  const springConfig = { damping: 30, stiffness: 1000, mass: 0.1 };
+  const springConfig = { damping: 20, stiffness: 1500, mass: 0.05 };
   
   const springX = useSpring(mouseX, springConfig);
   const springY = useSpring(mouseY, springConfig);
@@ -95,7 +95,7 @@ export function Cursor({ className, ...props }: CursorProps) {
         translateY: '-50%',
       }}
       className={cn(
-        'pointer-events-none fixed top-0 left-0 z-0 flex items-center justify-center transition-colors duration-200',
+        'pointer-events-none fixed top-0 left-0 z-[9999] flex items-center justify-center transition-colors duration-200',
         cursorState.type === 'default' && 'backdrop-invert',
         cursorState.type === 'pointer' && 'bg-primary/20 backdrop-blur-sm border border-primary/50',
         cursorState.type === 'text' && 'bg-primary',

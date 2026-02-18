@@ -7,8 +7,8 @@ import {
   redirect,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { Cursor } from '@/components/ui/cursor'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { getLocale, shouldRedirect } from '@/paraglide/runtime'
 import Header from '../components/Header'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -59,7 +59,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={getLocale()}>
+    <html lang={getLocale()} className="dark">
       <head>
         <HeadContent />
       </head>
@@ -67,7 +67,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Cursor />
         <TanStackQueryProvider>
           <TooltipProvider>
-            <Header />
             {children}
             <TanStackDevtools
               config={{
