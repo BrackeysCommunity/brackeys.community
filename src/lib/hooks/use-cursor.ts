@@ -1,10 +1,25 @@
 import { useState, useCallback, useRef } from 'react';
 import { useEventListener } from 'ahooks';
 
+const CORNER_SIZE_MAP = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
+
+export type CursorCornerSize = keyof typeof CORNER_SIZE_MAP;
+
+export function resolveCornerSize(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  if (value in CORNER_SIZE_MAP) return CORNER_SIZE_MAP[value as CursorCornerSize];
+  const n = parseInt(value);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 export interface CursorState {
   type: 'default' | 'pointer' | 'text' | 'hidden' | 'magnetic';
   label?: string;
-  targetRect?: DOMRect;
+  targetElement?: HTMLElement;
+  color?: string;
+  cornerSize?: number;
+  paddingX?: number;
+  paddingY?: number;
 }
 
 export function useCursorState() {
@@ -15,12 +30,20 @@ export function useCursorState() {
     const magneticTarget = target.closest('[data-magnetic]') as HTMLElement;
     const cursorType = target.closest('[data-cursor]')?.getAttribute('data-cursor');
     const cursorLabel = target.closest('[data-cursor-label]')?.getAttribute('data-cursor-label');
+    const cursorColor = target.closest('[data-cursor-color]')?.getAttribute('data-cursor-color');
+    const cornerSize = target.closest('[data-cursor-corner-size]')?.getAttribute('data-cursor-corner-size');
+    const paddingX = target.closest('[data-cursor-padding-x]')?.getAttribute('data-cursor-padding-x');
+    const paddingY = target.closest('[data-cursor-padding-y]')?.getAttribute('data-cursor-padding-y');
 
     if (magneticTarget) {
       setState({
         type: 'magnetic',
-        targetRect: magneticTarget.getBoundingClientRect(),
+        targetElement: magneticTarget,
         label: cursorLabel || undefined,
+        color: cursorColor || undefined,
+        cornerSize: resolveCornerSize(cornerSize ?? undefined),
+        paddingX: paddingX ? parseInt(paddingX) : undefined,
+        paddingY: paddingY ? parseInt(paddingY) : undefined,
       });
       return;
     }
@@ -70,13 +93,9 @@ export function useMagnetic(strength = 0.2) {
     const distanceX = e.clientX - centerX;
     const distanceY = e.clientY - centerY;
 
-    // Much tighter threshold for magnetism
     const threshold = Math.max(width, height) * 0.6;
     if (Math.abs(distanceX) < threshold && Math.abs(distanceY) < threshold) {
-      setPosition({
-        x: distanceX * strength,
-        y: distanceY * strength,
-      });
+      setPosition({ x: distanceX * strength, y: distanceY * strength });
     } else {
       setPosition({ x: 0, y: 0 });
     }
@@ -86,8 +105,8 @@ export function useMagnetic(strength = 0.2) {
     setPosition({ x: 0, y: 0 });
   }, []);
 
-  useEventListener('mousemove', handleMouseMove, { target: ref.current });
-  useEventListener('mouseleave', handleMouseLeave, { target: ref.current });
+  useEventListener('mousemove', handleMouseMove, { target: () => ref.current });
+  useEventListener('mouseleave', handleMouseLeave, { target: () => ref.current });
 
   return { ref, position };
 }

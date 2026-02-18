@@ -1,4 +1,5 @@
-import { ExternalLink } from 'lucide-react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Share01Icon } from '@hugeicons/core-free-icons';
 import { Button } from '@/components/ui/button';
 
 export function Sidebar() {
@@ -64,7 +65,7 @@ export function Sidebar() {
             className="border-cyan-400/50 text-cyan-400 hover:bg-cyan-400 hover:text-black font-mono text-xs font-bold"
           >
             JOIN DISCORD
-            <ExternalLink size={14} className="ml-2" />
+            <HugeiconsIcon icon={Share01Icon} size={14} className="ml-2" />
           </Button>
         </div>
       </div>

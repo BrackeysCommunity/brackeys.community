@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Wifi, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Wifi01Icon, Clock01Icon } from '@hugeicons/core-free-icons';
+import { Button } from '@/components/ui/button';
 
 export function HomeHeader() {
   return (
@@ -43,11 +44,11 @@ export function HomeHeader() {
 
       <div className="hidden items-center gap-8 md:flex">
         <div className="flex items-center gap-1 text-sm font-mono text-cyan-400">
-          <Wifi size={16} />
+          <HugeiconsIcon icon={Wifi01Icon} size={16} />
           <span>CONNECTED</span>
         </div>
         <div className="flex items-center gap-1 text-sm font-mono text-muted-foreground">
-          <Clock size={16} />
+          <HugeiconsIcon icon={Clock01Icon} size={16} />
           <span>UTC 14:02</span>
         </div>
       </div>

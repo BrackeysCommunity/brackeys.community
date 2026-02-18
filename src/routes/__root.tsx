@@ -9,12 +9,13 @@ import {
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { Cursor } from '@/components/ui/cursor'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AppHeader } from '@/components/layout/AppHeader'
 import { getLocale, shouldRedirect } from '@/paraglide/runtime'
-import Header from '../components/Header'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
 import StoreDevtools from '../lib/demo-store-devtools'
 import appCss from '../styles.css?url'
+import fontsCss from '../fonts.css?url'
 
 interface MyRouterContext {
   queryClient: QueryClient
@@ -27,8 +28,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       throw redirect({ href: decision.redirectUrl?.href })
     }
 
-    // Other redirect strategies are possible; see
-    // https://github.com/TanStack/router/tree/main/examples/react/i18n-paraglide#offline-redirect
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('lang', getLocale())
     }
@@ -36,22 +35,13 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
   head: () => ({
     meta: [
-      {
-        charSet: 'utf-8',
-      },
-      {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
-      },
-      {
-        title: 'TanStack Start Starter',
-      },
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { title: 'Brackeys Community' },
     ],
     links: [
-      {
-        rel: 'stylesheet',
-        href: appCss,
-      },
+      { rel: 'stylesheet', href: fontsCss },
+      { rel: 'stylesheet', href: appCss },
     ],
   }),
   shellComponent: RootDocument,
@@ -63,20 +53,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="min-h-screen flex flex-col">
         <Cursor />
         <TanStackQueryProvider>
           <TooltipProvider>
-            {children}
+            <AppHeader />
+            <div className="flex flex-col flex-1">
+              {children}
+            </div>
             <TanStackDevtools
-              config={{
-                position: 'bottom-right',
-              }}
+              config={{ position: 'bottom-right' }}
               plugins={[
-                {
-                  name: 'Tanstack Router',
-                  render: <TanStackRouterDevtoolsPanel />,
-                },
+                { name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> },
                 TanStackQueryDevtools,
                 StoreDevtools,
               ]}

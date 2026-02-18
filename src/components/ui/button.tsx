@@ -1,6 +1,7 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
-
+import { motion } from "framer-motion"
+import { useMagnetic } from "@/lib/hooks/use-cursor"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
@@ -33,6 +34,8 @@ const buttonVariants = cva(
   }
 )
 
+const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const
+
 function Button({
   className,
   variant = "default",
@@ -40,10 +43,29 @@ function Button({
   isMagnetic,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { isMagnetic?: boolean }) {
+  const { ref, position } = useMagnetic(0.2)
+
+  if (isMagnetic) {
+    return (
+      <motion.div
+        ref={ref as React.RefObject<HTMLDivElement>}
+        data-magnetic
+        animate={{ x: position.x, y: position.y }}
+        transition={springTransition}
+        className="relative z-10 inline-flex"
+      >
+        <ButtonPrimitive
+          data-slot="button"
+          className={cn(buttonVariants({ variant, size, className }))}
+          {...props}
+        />
+      </motion.div>
+    )
+  }
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      data-magnetic={isMagnetic || undefined}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
