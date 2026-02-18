@@ -19,7 +19,7 @@ export function GridBackground({ className, opacity = 0.1 }: GridBackgroundProps
         aria-hidden="true"
         width="100%"
         height={`calc(100% + ${CELL * 2}px)`}
-        className="animate-[gridScroll_8s_linear_infinite]"
+        className="animate-[gridScroll_3s_linear_infinite]"
         style={{ marginTop: -CELL }}
       >
         <defs>

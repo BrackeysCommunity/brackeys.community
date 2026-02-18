@@ -7,15 +7,15 @@ import {
   redirect,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
+import { AppHeader } from '@/components/layout/AppHeader'
 import { Cursor } from '@/components/ui/cursor'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { AppHeader } from '@/components/layout/AppHeader'
 import { getLocale, shouldRedirect } from '@/paraglide/runtime'
+import fontsCss from '../fonts.css?url'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
 import StoreDevtools from '../lib/demo-store-devtools'
 import appCss from '../styles.css?url'
-import fontsCss from '../fonts.css?url'
 
 interface MyRouterContext {
   queryClient: QueryClient

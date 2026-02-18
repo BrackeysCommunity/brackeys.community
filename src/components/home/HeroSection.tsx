@@ -4,6 +4,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { CyclingWord } from './CyclingWord';
 
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
@@ -63,7 +64,8 @@ export function HeroSection() {
 
       <div className="flex flex-col justify-center">
         <h1 className="font-mono font-bold text-[15vw] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
-          MAKE.<br />
+          <CyclingWord />
+          <br />
           <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300 cursor-default">
             GAMES.
           </span>
