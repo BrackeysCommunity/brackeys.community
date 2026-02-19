@@ -66,7 +66,7 @@ export function HeroSection() {
         <h1 className="font-mono font-bold text-[15vw] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
           <CyclingWord />
           <br />
-          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300 cursor-default">
+          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
             GAMES.
           </span>
         </h1>
@@ -76,7 +76,7 @@ export function HeroSection() {
         </p>
       </div>
 
-      <nav className="mt-12 flex flex-col gap-4 sm:flex-row sm:items-end">
+      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:items-end">
         {NAV_ITEMS.map((item) => (
           <NavCard key={item.id} item={item} />
         ))}

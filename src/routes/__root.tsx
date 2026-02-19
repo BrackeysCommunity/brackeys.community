@@ -58,7 +58,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <TanStackQueryProvider>
           <TooltipProvider>
             <AppHeader />
-            <div className="flex flex-col flex-1">
+            <div className="flex flex-col flex-1 pt-16">
               {children}
             </div>
             <TanStackDevtools

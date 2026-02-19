@@ -13,7 +13,7 @@ export function GridBackground({ className, opacity = 0.1 }: GridBackgroundProps
   const patternId = useId();
 
   return (
-    <div className={cn('absolute inset-0 z-0 pointer-events-none overflow-hidden', className)} style={{ opacity }}>
+    <div className={cn('fixed inset-0 z-0 pointer-events-none overflow-hidden', className)} style={{ opacity }}>
       <svg
         role="presentation"
         aria-hidden="true"

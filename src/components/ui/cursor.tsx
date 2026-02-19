@@ -13,18 +13,15 @@ export function Cursor({ className, ...props }: CursorProps) {
   const mouseY = useMotionValue(0);
   const [isPressed, setIsPressed] = React.useState(false);
 
-  const springConfig = { damping: 20, stiffness: 1500, mass: 0.05 };
-  
-  const springX = useSpring(mouseX, springConfig);
-  const springY = useSpring(mouseY, springConfig);
+  const shapeSpring = { damping: 20, stiffness: 1500, mass: 0.05 };
 
   const width = useMotionValue(8);
   const height = useMotionValue(8);
   const borderRadius = useMotionValue(9999);
 
-  const springWidth = useSpring(width, springConfig);
-  const springHeight = useSpring(height, springConfig);
-  const springBorderRadius = useSpring(borderRadius, springConfig);
+  const springWidth = useSpring(width, shapeSpring);
+  const springHeight = useSpring(height, shapeSpring);
+  const springBorderRadius = useSpring(borderRadius, shapeSpring);
 
   React.useEffect(() => {
     const handleMouseDown = () => setIsPressed(true);
@@ -50,8 +47,8 @@ export function Cursor({ className, ...props }: CursorProps) {
         const offsetX = (e.clientX - centerX) * 0.1;
         const offsetY = (e.clientY - centerY) * 0.1;
 
-        springX.set(centerX + offsetX);
-        springY.set(centerY + offsetY);
+        mouseX.set(centerX + offsetX);
+        mouseY.set(centerY + offsetY);
 
         const px = cursorState.paddingX ?? 12;
         const py = cursorState.paddingY ?? 8;
@@ -81,7 +78,7 @@ export function Cursor({ className, ...props }: CursorProps) {
 
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mouseX, mouseY, width, height, borderRadius, cursorState, springX, springY]);
+  }, [mouseX, mouseY, width, height, borderRadius, cursorState]);
 
   if (cursorState.type === 'hidden') return null;
 
@@ -90,8 +87,8 @@ export function Cursor({ className, ...props }: CursorProps) {
   return (
     <motion.div
       style={{
-        x: springX,
-        y: springY,
+        x: mouseX,
+        y: mouseY,
         width: springWidth,
         height: springHeight,
         borderRadius: springBorderRadius,
@@ -121,23 +118,23 @@ export function Cursor({ className, ...props }: CursorProps) {
           }}
         >
           <motion.div
-            animate={{ scaleY: isPressed ? -1 : 1, scaleX: isPressed ? -1 : 1 }}
-            className={cn('absolute top-0 left-0 border-t-4 border-l-4 border-foreground', isPressed && '-top-1.5 -left-1.5')}
+            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
+            className={cn('absolute top-0 left-0 border-t-4 border-l-4 border-foreground')}
             style={{ width: cornerPx, height: cornerPx }}
           />
           <motion.div
-            animate={{ scaleY: isPressed ? -1 : 1, scaleX: isPressed ? -1 : 1 }}
-            className={cn('absolute top-0 right-0 border-t-4 border-r-4 border-foreground', isPressed && '-top-1.5 -right-1.5')}
+            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
+            className={cn('absolute top-0 right-0 border-t-4 border-r-4 border-foreground')}
             style={{ width: cornerPx, height: cornerPx }}
           />
           <motion.div
-            animate={{ scaleY: isPressed ? -1 : 1, scaleX: isPressed ? -1 : 1 }}
-            className={cn('absolute bottom-0 left-0 border-b-4 border-l-4 border-foreground', isPressed && '-bottom-1.5 -left-1.5')}
+            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
+            className={cn('absolute bottom-0 left-0 border-b-4 border-l-4 border-foreground')}
             style={{ width: cornerPx, height: cornerPx }}
           />
           <motion.div
-            animate={{ scaleY: isPressed ? -1 : 1, scaleX: isPressed ? -1 : 1 }}
-            className={cn('absolute bottom-0 right-0 border-b-4 border-r-4 border-foreground', isPressed && '-bottom-1.5 -right-1.5')}
+            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
+            className={cn('absolute bottom-0 right-0 border-b-4 border-r-4 border-foreground')}
             style={{ width: cornerPx, height: cornerPx }}
           />
         </motion.div>

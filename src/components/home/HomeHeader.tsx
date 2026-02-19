@@ -2,9 +2,19 @@ import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Wifi01Icon, Clock01Icon } from '@hugeicons/core-free-icons';
+import { useInterval } from 'ahooks';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
+const getUtcTime = () => {
+  const now = new Date();
+  return `UTC ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+};
+
 export function HomeHeader() {
+  const [utcTime, setUtcTime] = useState(getUtcTime);
+  useInterval(() => setUtcTime(getUtcTime()), 1000);
+
   return (
     <header className="relative z-50 flex items-center justify-between border-b-2 border-primary bg-background/90 px-6 py-4 backdrop-blur-sm lg:px-12">
       <div className="flex items-center gap-4">
@@ -37,7 +47,7 @@ export function HomeHeader() {
             }}
           />
           <span className="font-bold text-foreground text-lg">
-            Brackeys<span className="bg-gradient-to-r from-[#FFC107] via-[#E91E63] to-[#9C27B0] bg-clip-text text-transparent">Community</span>
+            Brackeys<span className="bg-linear-to-r from-[#FFC107] via-[#E91E63] to-[#9C27B0] bg-clip-text text-transparent">Community</span>
           </span>
         </Link>
       </div>
@@ -49,7 +59,7 @@ export function HomeHeader() {
         </div>
         <div className="flex items-center gap-1 text-sm font-mono text-muted-foreground">
           <HugeiconsIcon icon={Clock01Icon} size={16} />
-          <span>UTC 14:02</span>
+          <span>{utcTime}</span>
         </div>
       </div>
 
@@ -58,7 +68,7 @@ export function HomeHeader() {
         isMagnetic
         className="bg-primary hover:bg-foreground hover:text-background transition-all px-6 font-display font-bold"
       >
-        LOGIN_SYSTEM
+        LOGIN
       </Button>
     </header>
   );

@@ -1,7 +1,9 @@
-import { Clock01Icon, ComputerTerminal01Icon, Menu01Icon, Wifi01Icon } from '@hugeicons/core-free-icons';
+import { Clock01Icon, ComputerTerminal01Icon, Menu01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Link } from '@tanstack/react-router';
+import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
 
@@ -23,11 +25,19 @@ function MagneticLink({ children, className }: { children: React.ReactNode; clas
   );
 }
 
+const getUtcTime = () => {
+  const now = new Date();
+  return `UTC ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+};
+
 export function AppHeader() {
+  const [utcTime, setUtcTime] = useState(getUtcTime);
+  useInterval(() => setUtcTime(getUtcTime()), 1000);
+
   return (
-    <header className="flex items-center justify-between border-b-2 border-primary bg-background/95 px-6 py-3 backdrop-blur-sm lg:px-10">
+    <header className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between px-6 pt-5 lg:px-10 pointer-events-none">
       {/* Logo */}
-      <MagneticLink className="shrink-0">
+      <MagneticLink className="shrink-0 pointer-events-auto">
         <Link to="/" className="flex items-center gap-2">
           <motion.div
             className="h-7 w-7"
@@ -58,32 +68,23 @@ export function AppHeader() {
         </Link>
       </MagneticLink>
 
-      {/* Nav Links */}
-      <nav className="hidden md:flex items-center gap-6 font-mono text-sm font-bold tracking-widest">
-        <MagneticLink>
-          <Link to="/" className="px-2 py-1 text-foreground hover:text-primary transition-colors [&.active]:text-primary">
-            HUB
-          </Link>
-        </MagneticLink>
-        <MagneticLink>
-          <a className="px-2 py-1 text-foreground hover:text-primary transition-colors" href="/collab">COLLAB</a>
-        </MagneticLink>
-        <MagneticLink>
-          <a className="px-2 py-1 text-foreground hover:text-primary transition-colors" href="/profile">PROFILE</a>
-        </MagneticLink>
-      </nav>
+      {/* Right side: nav + status + actions */}
+      <div className="hidden md:flex items-center gap-6 pointer-events-auto">
+        <nav className="flex items-center gap-6 font-mono text-sm font-bold tracking-widest">
+          <MagneticLink>
+            <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/command-center">COMMANDS</Link>
+          </MagneticLink>
+          <MagneticLink>
+            <a className="px-2 py-1 text-foreground hover:text-primary transition-colors" href="/collab">COLLAB</a>
+          </MagneticLink>
+          <MagneticLink>
+            <a className="px-2 py-1 text-foreground hover:text-primary transition-colors" href="/profile">PROFILE</a>
+          </MagneticLink>
+        </nav>
 
-      {/* Right side: status + actions */}
-      <div className="hidden md:flex items-center gap-5">
-        <div className="flex items-center gap-4 font-mono text-xs">
-          <div className="flex items-center gap-1.5 text-cyan-400">
-            <HugeiconsIcon icon={Wifi01Icon} size={14} />
-            <span>CONNECTED</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <HugeiconsIcon icon={Clock01Icon} size={14} />
-            <span>UTC 14:02</span>
-          </div>
+        <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+          <HugeiconsIcon icon={Clock01Icon} size={14} />
+          <span>{utcTime}</span>
         </div>
 
         <Button
@@ -100,12 +101,12 @@ export function AppHeader() {
           isMagnetic
           className="font-mono text-xs font-bold tracking-widest px-5"
         >
-          LOGIN_SYSTEM
+          LOGIN
         </Button>
       </div>
 
       {/* Mobile: hamburger only */}
-      <div className="md:hidden text-foreground">
+      <div className="md:hidden text-foreground pointer-events-auto">
         <HugeiconsIcon icon={Menu01Icon} size={22} />
       </div>
     </header>
