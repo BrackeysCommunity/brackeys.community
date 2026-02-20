@@ -52,7 +52,7 @@ const NAV_ITEMS = [
 
 export function HeroSection() {
   return (
-    <div className="flex w-full flex-col justify-between p-6 lg:w-3/5 lg:p-12 xl:p-16">
+    <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16">
       <div className="mb-4 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
         {'SYSTEM READY'}

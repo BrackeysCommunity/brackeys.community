@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { ScrambleText, stagger } from '@/components/ui/scramble-text';
 
-const WORDS = ['MAKE.', 'DESIGN.', 'PRODUCE.', 'DEVELOP.', 'TEST.', 'CREATE.', 'PLAY.'];
+const WORDS = ['MAKE', 'DESIGN', 'PRODUCE', 'DEVELOP', 'TEST', 'CREATE', 'PLAY', 'BUILD'];
 
 const STAGGER_INCREMENT = 0.15;
 const START_DELAY = 0.3;

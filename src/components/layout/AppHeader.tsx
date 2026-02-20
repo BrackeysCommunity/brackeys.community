@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { useCommandPalette } from '@/lib/hooks/use-command-palette';
+import { Kbd, KbdGroup } from '@/components/ui/kbd';
 
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
@@ -33,6 +35,7 @@ const getUtcTime = () => {
 export function AppHeader() {
   const [utcTime, setUtcTime] = useState(getUtcTime);
   useInterval(() => setUtcTime(getUtcTime()), 1000);
+  const { setOpen: openPalette } = useCommandPalette();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between px-6 pt-5 lg:px-10 pointer-events-none">
@@ -89,11 +92,17 @@ export function AppHeader() {
 
         <Button
           variant="outline"
-          size="icon-sm"
+          size="sm"
           isMagnetic
-          className="border-muted hover:border-primary hover:text-primary shadow-[2px_2px_0px_var(--color-primary)]"
+          onClick={() => openPalette(true)}
+          className="border-muted hover:border-primary hover:text-primary shadow-[2px_2px_0px_var(--color-primary)] font-mono text-xs gap-2 text-muted-foreground"
         >
-          <HugeiconsIcon icon={ComputerTerminal01Icon} size={16} />
+          <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} />
+          <span className="hidden lg:inline">TERMINAL</span>
+          <KbdGroup className="hidden lg:inline-flex opacity-60">
+            <Kbd>⌃</Kbd>
+            <Kbd>K</Kbd>
+          </KbdGroup>
         </Button>
 
         <Button

@@ -1,68 +1,119 @@
-import { useMemo, useRef, useState } from 'react';
 import {
-  AlertCircleIcon,
-  CheckListIcon,
   LegalHammerIcon,
   PencilIcon,
   Robot01Icon,
 } from '@hugeicons/core-free-icons';
+import type { IconSvgElement } from '@hugeicons/react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { CommandRow } from './CommandRow';
-import { MacroRow } from './MacroRow';
+import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import type { BotId } from '@/data/commands';
 import {
   allBotCommands,
   hammerCommands,
   marcoMacros,
   pencilCommands,
 } from '@/data/commands';
-import type { BotId } from '@/data/commands';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { usePageSidebar } from '@/lib/hooks/use-page-layout';
+import { CommandCenterSidebar } from './CommandCenterSidebar';
 
 type ActiveBot = 'all' | BotId;
 
-const BOT_TABS: { id: ActiveBot; label: string }[] = [
-  { id: 'all', label: 'ALL' },
-  { id: 'hammer', label: 'HAMMER' },
-  { id: 'pencil', label: 'PENCIL' },
-  { id: 'marco', label: 'MARCO' },
-];
+const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
-const botCards = [
+interface BotCard {
+  id: ActiveBot;
+  label: string;
+  index: string;
+  icon: IconSvgElement;
+  desc: string;
+}
+
+const BOT_CARDS: BotCard[] = [
   {
     id: 'hammer',
-    title: 'HAMMER',
+    index: '01',
+    label: 'HAMMER\nBOT',
     icon: LegalHammerIcon,
-    desc: 'Enforcement bot for rule lookups and infraction management. Keeps the server in check.',
-    commandCount: hammerCommands.length,
+    desc: 'Enforcement & rule lookups',
   },
   {
     id: 'pencil',
-    title: 'PENCIL',
+    index: '02',
+    label: 'PENCIL\nBOT',
     icon: PencilIcon,
-    desc: 'Utility bot for color inspection and TeX rendering. Visual tools for creative folks.',
-    commandCount: pencilCommands.length,
+    desc: 'Color & TeX rendering tools',
   },
   {
     id: 'marco',
-    title: 'MARCO',
+    index: '03',
+    label: 'MARCO\nBOT',
     icon: Robot01Icon,
-    desc: `Macro bot with ${marcoMacros.length} community shortcuts. Invokable with / or [] prefix.`,
-    commandCount: marcoMacros.length,
+    desc: `${marcoMacros.length} community macros`,
   },
 ];
+
+function BotNavCard({
+  card,
+  isActive,
+  onClick,
+}: {
+  card: BotCard;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const { ref, position } = useMagnetic(0.2);
+  return (
+    <motion.div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      {...(!isActive && {
+        'data-magnetic': true,
+        'data-cursor-corner-size': 'lg',
+        'data-cursor-padding-x': '24',
+        'data-cursor-padding-y': '24',
+      })}
+      animate={{ x: isActive ? 0 : position.x, y: isActive ? 0 : position.y }}
+      transition={springTransition}
+      className="relative z-10 w-full sm:w-auto"
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className={`group flex h-24 w-full min-w-[200px] flex-col justify-between border-2 bg-card p-4 text-left transition-all duration-100 ${
+          isActive
+            ? 'border-primary shadow-[4px_4px_0px_var(--color-primary)] cursor-default'
+            : 'border-muted hover:-translate-y-1 hover:border-primary hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none'
+        }`}
+      >
+        <div className="flex justify-between">
+          <span className={`font-mono text-xs ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'}`}>
+            {card.index}
+          </span>
+          <HugeiconsIcon
+            icon={card.icon}
+            size={20}
+            className={isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'}
+          />
+        </div>
+        <div className={`font-mono font-bold text-2xl leading-none tracking-tight whitespace-pre-line ${isActive ? 'text-primary' : 'text-foreground group-hover:text-primary'}`}>
+          {card.label}
+        </div>
+      </button>
+    </motion.div>
+  );
+}
 
 export function CommandCenterPage() {
   const [search, setSearch] = useState('');
   const [activeBot, setActiveBot] = useState<ActiveBot>('all');
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const filteredCommands = useMemo(() => {
     const q = search.toLowerCase();
-
     let pool = allBotCommands;
     if (activeBot === 'hammer') pool = hammerCommands;
     else if (activeBot === 'pencil') pool = pencilCommands;
     else if (activeBot === 'marco') return [];
-
     if (!q) return pool;
     return pool.filter(
       (c) =>
@@ -89,225 +140,63 @@ export function CommandCenterPage() {
   const totalResults = filteredCommands.length + filteredMacros.length;
   const hasNoResults = search.length > 0 && totalResults === 0;
 
-  const handleTabChange = (tab: ActiveBot) => {
-    setActiveBot(tab);
-    setSearch('');
-    inputRef.current?.focus();
-  };
+  usePageSidebar(
+    <CommandCenterSidebar
+      search={search}
+      onSearch={setSearch}
+      activeBot={activeBot}
+      onBotChange={setActiveBot}
+      filteredCommands={filteredCommands}
+      filteredMacros={filteredMacros}
+      totalResults={totalResults}
+      hasNoResults={hasNoResults}
+      showCommandSection={showCommandSection}
+      showMacroSection={showMacroSection}
+      showMacroHeader={showMacroHeader}
+    />,
+  );
 
   return (
-    <div className="bg-background text-foreground min-h-[calc(100vh-57px)] flex flex-col relative selection:bg-primary selection:text-white">
-      {/* Background Grid */}
-      <div
-        className="fixed inset-0 z-0 pointer-events-none opacity-5"
-        style={{
-          backgroundImage:
-            'linear-gradient(#6B6B6B 1px, transparent 1px), linear-gradient(90deg, #6B6B6B 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }}
-      />
-
-      {/* CRT Scanline Overlay */}
-      <div
-        className="fixed inset-0 z-55 pointer-events-none opacity-10"
-        style={{
-          background:
-            'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))',
-          backgroundSize: '100% 4px',
-        }}
-      />
-
-      <div className="relative z-10 flex flex-col flex-1">
-        <main className="flex-1 flex flex-col p-4 md:p-8 max-w-5xl mx-auto w-full gap-8">
-          {/* Page Header */}
-          <section className="flex flex-col gap-2 mt-4">
-            <div className="flex items-center gap-3 text-primary mb-1">
-              <HugeiconsIcon icon={CheckListIcon} size={20} className="animate-pulse" />
-              <span className="font-mono text-sm tracking-widest uppercase">
-                {'System Online // Database Connected'}
-              </span>
-            </div>
-            <h1 className="text-foreground font-sans font-bold text-4xl md:text-6xl lg:text-7xl uppercase leading-[0.9] tracking-tighter">
-              Bot_Documentation<span className="text-primary">_V.1.0</span>
-            </h1>
-            <p className="text-muted-foreground font-mono max-w-2xl mt-2 text-sm md:text-base border-l-2 border-muted pl-4">
-              {'// ACCESS LEVEL: UNRESTRICTED'} <br />
-              {'// USE SEARCH TO FILTER COMMAND PROTOCOLS.'}
-            </p>
-          </section>
-
-          {/* Terminal Interface */}
-          <div className="flex flex-col shadow-[4px_4px_0px_var(--color-primary)] border-2 border-primary bg-[#0a0a0a]">
-            {/* Title bar */}
-            <div className="bg-primary text-black px-4 py-1 flex justify-between items-center font-mono text-xs font-bold select-none">
-              <span>ROOT@BRACKEYS-SERVER:~</span>
-              <span>BASH_V3.2</span>
-            </div>
-
-            {/* Bot Tabs */}
-            <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-muted/20 bg-[#0d0d0d] flex-wrap">
-              {BOT_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`font-mono text-xs font-bold px-3 py-1 uppercase border transition-colors ${
-                    activeBot === tab.id
-                      ? 'bg-primary text-black border-primary'
-                      : 'border-muted text-muted-foreground hover:border-primary hover:text-primary bg-black'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-              <span className="ml-auto text-[10px] font-mono text-muted-foreground self-center">
-                {totalResults} PROTOCOL{totalResults !== 1 ? 'S' : ''} LOADED
-              </span>
-            </div>
-
-            {/* Search Bar */}
-            <div className="p-6 border-b border-muted/30 bg-[#121212]">
-              <div className="relative flex items-center w-full">
-                <span className="text-primary font-mono text-xl mr-3 font-bold">&gt;</span>
-                <input
-                  ref={inputRef}
-                  autoComplete="off"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Escape' && setSearch('')}
-                  className="w-full bg-transparent border-none focus:ring-0 p-0 text-xl font-mono text-cyan-400 placeholder-muted/50 caret-transparent uppercase outline-none"
-                  placeholder="TYPE COMMAND SEARCH..."
-                  spellCheck="false"
-                  type="text"
-                />
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground bg-card px-2 py-1 border border-muted">
-                    ESC to clear
-                  </span>
-                </div>
-                <span className="absolute left-[calc(1.25rem+1.5rem+12px)] top-1/2 -translate-y-1/2 w-3 h-6 bg-primary animate-[blink_1s_step-end_infinite] hidden md:block" />
-              </div>
-            </div>
-
-            {/* Content List */}
-            <div className="flex flex-col max-h-[560px] overflow-y-auto divide-y divide-muted/20">
-              {/* Bot Commands */}
-              {showCommandSection &&
-                filteredCommands.map((cmd) => <CommandRow key={cmd.id} command={cmd} />)}
-
-              {/* Macro Section Header */}
-              {showMacroHeader && (
-                <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
-                  <HugeiconsIcon icon={Robot01Icon} size={14} className="text-muted-foreground" />
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                    Marco Macro Protocols — works with / or [] prefix
-                  </span>
-                </div>
-              )}
-
-              {/* Marco note header (when marco tab only) */}
-              {activeBot === 'marco' && !search && (
-                <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
-                  <HugeiconsIcon icon={Robot01Icon} size={14} className="text-muted-foreground" />
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                    {marcoMacros.length} macros — invokable with / or [] prefix
-                  </span>
-                </div>
-              )}
-
-              {/* Macros */}
-              {showMacroSection && (
-                <ul className="flex flex-col divide-y divide-muted/20">
-                  {filteredMacros.map((macro) => (
-                    <MacroRow key={macro.name} macro={macro} />
-                  ))}
-                </ul>
-              )}
-
-              {/* No Results */}
-              {hasNoResults && (
-                <div className="p-6 bg-[#1a0a0a] border-l-4 border-destructive/50 flex items-start gap-4">
-                  <HugeiconsIcon
-                    icon={AlertCircleIcon}
-                    size={20}
-                    className="text-destructive mt-0.5 shrink-0"
-                  />
-                  <div>
-                    <h4 className="text-destructive font-mono font-bold uppercase mb-1">
-                      System Error: 404
-                    </h4>
-                    <p className="text-muted-foreground font-mono text-sm">
-                      COMMAND &quot;{search}&quot; NOT FOUND IN DATABASE.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Default error easter egg (only when not searching and showing all commands) */}
-              {!search && activeBot !== 'marco' && (
-                <div className="p-6 bg-[#1a0a0a] border-l-4 border-destructive/50 flex items-start gap-4">
-                  <HugeiconsIcon
-                    icon={AlertCircleIcon}
-                    size={20}
-                    className="text-destructive mt-0.5 shrink-0"
-                  />
-                  <div>
-                    <h4 className="text-destructive font-mono font-bold uppercase mb-1">
-                      System Error: 404
-                    </h4>
-                    <p className="text-muted-foreground font-mono text-sm">
-                      COMMAND &quot;sudo hack mainframe&quot; NOT RECOGNIZED. ACCESS DENIED.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-[#0a0a0a] border-t border-muted/20 p-2 flex justify-end">
-              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest animate-pulse">
-                Awaiting Input...
-              </span>
-            </div>
-          </div>
-
-          {/* Bot Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-            {botCards.map((bot) => (
-              <div
-                key={bot.id}
-                className="bg-card border-2 border-muted p-4 hover:border-cyan-400 group transition-colors relative z-10"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-sans font-bold text-foreground text-lg">{bot.title}</h3>
-                  <HugeiconsIcon
-                    icon={bot.icon}
-                    size={20}
-                    className="text-muted-foreground group-hover:text-cyan-400 transition-colors"
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground font-sans">{bot.desc}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveBot(bot.id as ActiveBot);
-                    setSearch('');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="inline-block mt-4 text-xs font-mono font-bold text-primary hover:text-foreground hover:underline uppercase"
-                >
-                  View Commands &gt;&gt;
-                </button>
-              </div>
-            ))}
-          </div>
-        </main>
-
-        <footer className="mt-auto border-t border-muted/30 py-6 text-center">
-          <p className="text-muted-foreground font-mono text-xs uppercase tracking-widest">
-            {'Brackeys Community © 2025 // Built for Game Devs'}
-          </p>
-        </footer>
+    <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+      {/* Status bar — mirrors HeroSection top bar */}
+      <div className="mb-4 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+        <span className="text-primary">{'>'}</span>
+        {'SYSTEM ONLINE'}
+        <span className="mx-2 text-primary">{'//'}</span>
+        {'DB CONNECTED'}
+        <span className="mx-2 text-primary">{'//'}</span>
+        {'ACCESS: UNRESTRICTED'}
       </div>
+
+      {/* Heading block */}
+      <div className="flex flex-col justify-center">
+        <h1 className="font-mono font-bold text-[15vw] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+          BOT
+          <br />
+          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+            DOCS.
+          </span>
+        </h1>
+        <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
+          Full command reference for every bot in the Brackeys server.
+          Filter by bot or search for a specific command.
+        </p>
+      </div>
+
+      {/* Bot nav cards — same style as HeroSection NavCards */}
+      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:items-end">
+        {BOT_CARDS.map((card) => (
+          <BotNavCard
+            key={card.id}
+            card={card}
+            isActive={activeBot === card.id}
+            onClick={() => {
+              setActiveBot(card.id);
+              setSearch('');
+            }}
+          />
+        ))}
+      </nav>
     </div>
   );
 }

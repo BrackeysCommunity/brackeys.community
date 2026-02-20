@@ -7,9 +7,13 @@ import {
   redirect,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
+import { GridBackground } from '@/components/home/GridBackground'
 import { AppHeader } from '@/components/layout/AppHeader'
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import { Cursor } from '@/components/ui/cursor'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { CommandPaletteProvider } from '@/lib/hooks/use-command-palette'
+import { PageLayoutProvider, useCurrentSidebar } from '@/lib/hooks/use-page-layout'
 import { getLocale, shouldRedirect } from '@/paraglide/runtime'
 import fontsCss from '../fonts.css?url'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -53,26 +57,60 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-screen flex flex-col">
+      <body className="h-screen flex flex-col overflow-hidden min-w-[1024px]">
         <Cursor />
+        <GridBackground />
+        {/* CRT scanline overlay */}
+        <div
+          className="fixed inset-0 z-55 pointer-events-none opacity-10"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))',
+            backgroundSize: '100% 4px',
+          }}
+        />
         <TanStackQueryProvider>
           <TooltipProvider>
-            <AppHeader />
-            <div className="flex flex-col flex-1 pt-16">
-              {children}
-            </div>
-            <TanStackDevtools
-              config={{ position: 'bottom-right' }}
-              plugins={[
-                { name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> },
-                TanStackQueryDevtools,
-                StoreDevtools,
-              ]}
-            />
+            <CommandPaletteProvider>
+              <PageLayoutProvider>
+                <CommandPalette />
+                <AppHeader />
+                <TwoColumnShell>{children}</TwoColumnShell>
+                <TanStackDevtools
+                  config={{ position: 'bottom-right' }}
+                  plugins={[
+                    { name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> },
+                    TanStackQueryDevtools,
+                    StoreDevtools,
+                  ]}
+                />
+              </PageLayoutProvider>
+            </CommandPaletteProvider>
           </TooltipProvider>
         </TanStackQueryProvider>
         <Scripts />
       </body>
     </html>
+  )
+}
+
+function TwoColumnShell({ children }: { children: React.ReactNode }) {
+  const sidebar = useCurrentSidebar()
+
+  return (
+    <div className="flex flex-1 overflow-hidden pt-[57px]">
+      {/* Left column — main page content */}
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+        {children}
+      </div>
+
+      {/* Vertical divider */}
+      <div className="w-px bg-border/40 shrink-0" />
+
+      {/* Right column — page-specific sidebar */}
+      <aside className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {sidebar}
+      </aside>
+    </div>
   )
 }
