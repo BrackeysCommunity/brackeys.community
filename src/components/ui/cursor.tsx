@@ -1,151 +1,224 @@
-import { AnimatePresence, motion, useMotionValue, useSpring } from 'framer-motion';
+import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from 'framer-motion';
 import * as React from 'react';
 import { useCursorState } from '@/lib/hooks/use-cursor';
 import { cn } from '@/lib/utils';
 
-interface CursorProps extends React.HTMLAttributes<HTMLDivElement> {
+const BORDER = 3;
+const CORNER = 12;
+
+const IDLE_POS = [
+  { x: -CORNER * 1.5, y: -CORNER * 1.5 }, // TL
+  { x: CORNER * 0.5,  y: -CORNER * 1.5 }, // TR
+  { x: CORNER * 0.5,  y: CORNER * 0.5  }, // BR
+  { x: -CORNER * 1.5, y: CORNER * 0.5  }, // BL
+] as const;
+
+const CURSOR_SPRING = { damping: 20, stiffness: 1500, mass: 0.05 };
+const CORNER_SPRING = { stiffness: 400, damping: 30, mass: 0.08 };
+
+const CORNER_CLASSES = [
+  'border-t-[3px] border-l-[3px]',
+  'border-t-[3px] border-r-[3px]',
+  'border-b-[3px] border-r-[3px]',
+  'border-b-[3px] border-l-[3px]',
+] as const;
+
+interface CursorProps {
   className?: string;
+  spinDuration?: number;
 }
 
-export function Cursor({ className, ...props }: CursorProps) {
+export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const cursorState = useCursorState();
+  const isMagnetic = cursorState.type === 'magnetic';
+  const isHidden = cursorState.type === 'hidden';
+  const isText = cursorState.type === 'text';
+
+  const [isPressed, setIsPressed] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  // Cursor position with spring physics
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const [isPressed, setIsPressed] = React.useState(false);
+  const springX = useSpring(mouseX, CURSOR_SPRING);
+  const springY = useSpring(mouseY, CURSOR_SPRING);
 
-  const shapeSpring = { damping: 20, stiffness: 1500, mass: 0.05 };
+  // Spin animation controller
+  const spinControls = useAnimation();
+  const isSpinRef = React.useRef(false);
+  const spinTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const width = useMotionValue(8);
-  const height = useMotionValue(8);
-  const borderRadius = useMotionValue(9999);
+  // Corner source motion values (raw targets that springs track)
+  const c0x = useMotionValue(IDLE_POS[0].x);
+  const c0y = useMotionValue(IDLE_POS[0].y);
+  const c1x = useMotionValue(IDLE_POS[1].x);
+  const c1y = useMotionValue(IDLE_POS[1].y);
+  const c2x = useMotionValue(IDLE_POS[2].x);
+  const c2y = useMotionValue(IDLE_POS[2].y);
+  const c3x = useMotionValue(IDLE_POS[3].x);
+  const c3y = useMotionValue(IDLE_POS[3].y);
 
-  const springWidth = useSpring(width, shapeSpring);
-  const springHeight = useSpring(height, shapeSpring);
-  const springBorderRadius = useSpring(borderRadius, shapeSpring);
+  // Corner spring outputs — physics on the corners
+  const sc0x = useSpring(c0x, CORNER_SPRING);
+  const sc0y = useSpring(c0y, CORNER_SPRING);
+  const sc1x = useSpring(c1x, CORNER_SPRING);
+  const sc1y = useSpring(c1y, CORNER_SPRING);
+  const sc2x = useSpring(c2x, CORNER_SPRING);
+  const sc2y = useSpring(c2y, CORNER_SPRING);
+  const sc3x = useSpring(c3x, CORNER_SPRING);
+  const sc3y = useSpring(c3y, CORNER_SPRING);
 
   React.useEffect(() => {
-    const handleMouseDown = () => setIsPressed(true);
-    const handleMouseUp = () => setIsPressed(false);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    setIsMobile(hasTouch && window.innerWidth <= 768);
   }, []);
 
   React.useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (cursorState.type === 'magnetic' && cursorState.targetElement) {
-        // Re-read rect live so we track the element even as it moves via spring animation
-        const { left, top, width: targetWidth, height: targetHeight } =
-          cursorState.targetElement.getBoundingClientRect();
-
-        const centerX = left + targetWidth / 2;
-        const centerY = top + targetHeight / 2;
-
-        const offsetX = (e.clientX - centerX) * 0.1;
-        const offsetY = (e.clientY - centerY) * 0.1;
-
-        mouseX.set(centerX + offsetX);
-        mouseY.set(centerY + offsetY);
-
-        const px = cursorState.paddingX ?? 12;
-        const py = cursorState.paddingY ?? 8;
-
-        width.set(targetWidth + px);
-        height.set(targetHeight + py);
-        borderRadius.set(0);
-      } else {
-        mouseX.set(e.clientX);
-        mouseY.set(e.clientY);
-
-        if (cursorState.type === 'pointer') {
-          width.set(48);
-          height.set(48);
-          borderRadius.set(9999);
-        } else if (cursorState.type === 'text') {
-          width.set(2);
-          height.set(24);
-          borderRadius.set(2);
-        } else {
-          width.set(12);
-          height.set(12);
-          borderRadius.set(9999);
-        }
-      }
+    if (isMobile) return;
+    const onMove = (e: MouseEvent) => {
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
     };
+    const onDown = () => setIsPressed(true);
+    const onUp = () => setIsPressed(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isMobile, mouseX, mouseY]);
 
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mouseX, mouseY, width, height, borderRadius, cursorState]);
+  const startSpin = React.useCallback(() => {
+    if (isSpinRef.current) return;
+    isSpinRef.current = true;
+    void spinControls.start({
+      rotate: [0, 360],
+      transition: { duration: spinDuration, ease: 'linear', repeat: Infinity },
+    });
+  }, [spinControls, spinDuration]);
 
-  if (cursorState.type === 'hidden') return null;
+  React.useEffect(() => {
+    if (isMobile) return;
 
-  const cornerPx = cursorState.cornerSize ?? 12;
+    if (isMagnetic && cursorState.targetElement) {
+      if (spinTimeoutRef.current) {
+        clearTimeout(spinTimeoutRef.current);
+        spinTimeoutRef.current = null;
+      }
+
+      spinControls.stop();
+      void spinControls.set({ rotate: 0 });
+      isSpinRef.current = false;
+
+      const cs = cursorState.cornerSize ?? CORNER;
+      const hpx = (cursorState.paddingX ?? 0) / 2;
+      const hpy = (cursorState.paddingY ?? 0) / 2;
+
+      const updateCorners = () => {
+        const cx = springX.get();
+        const cy = springY.get();
+        const el = cursorState.targetElement;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        c0x.set(r.left   - BORDER - hpx - cx);
+        c0y.set(r.top    - BORDER - hpy - cy);
+        c1x.set(r.right  + BORDER + hpx - cs - cx);
+        c1y.set(r.top    - BORDER - hpy - cy);
+        c2x.set(r.right  + BORDER + hpx - cs - cx);
+        c2y.set(r.bottom + BORDER + hpy - cs - cy);
+        c3x.set(r.left   - BORDER - hpx - cx);
+        c3y.set(r.bottom + BORDER + hpy - cs - cy);
+      };
+
+      updateCorners();
+      const unsubX = springX.on('change', updateCorners);
+      const unsubY = springY.on('change', updateCorners);
+
+      return () => {
+        unsubX();
+        unsubY();
+        c0x.set(IDLE_POS[0].x); c0y.set(IDLE_POS[0].y);
+        c1x.set(IDLE_POS[1].x); c1y.set(IDLE_POS[1].y);
+        c2x.set(IDLE_POS[2].x); c2y.set(IDLE_POS[2].y);
+        c3x.set(IDLE_POS[3].x); c3y.set(IDLE_POS[3].y);
+        spinTimeoutRef.current = setTimeout(startSpin, 50);
+      };
+    } else {
+      startSpin();
+    }
+  }, [
+    isMagnetic,
+    cursorState.targetElement,
+    cursorState.cornerSize,
+    cursorState.paddingX,
+    cursorState.paddingY,
+    isMobile,
+    startSpin,
+    spinControls,
+    springX,
+    springY,
+    c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y,
+  ]);
+
+  if (isMobile || isHidden) return null;
+
+  const corners = [
+    { x: sc0x, y: sc0y },
+    { x: sc1x, y: sc1y },
+    { x: sc2x, y: sc2y },
+    { x: sc3x, y: sc3y },
+  ];
 
   return (
     <motion.div
-      style={{
-        x: mouseX,
-        y: mouseY,
-        width: springWidth,
-        height: springHeight,
-        borderRadius: springBorderRadius,
-        translateX: '-50%',
-        translateY: '-50%',
-      }}
-      className={cn(
-        'pointer-events-none fixed top-0 left-0 z-9999 flex items-center justify-center transition-colors duration-200',
-        cursorState.type === 'default' && 'backdrop-invert',
-        cursorState.type === 'pointer' && 'bg-primary/20 backdrop-blur-sm border border-primary/50',
-        cursorState.type === 'text' && 'bg-primary',
-        cursorState.type === 'magnetic' && (cursorState.color || 'bg-transparent'),
-        className
-      )}
-      {...props}
+      className={cn('fixed top-0 left-0 w-0 h-0 pointer-events-none z-9999', className)}
+      style={{ x: springX, y: springY, willChange: 'transform' }}
     >
-      {cursorState.type === 'magnetic' && (
+      {/* Center dot */}
+      <motion.div
+        className="absolute rounded-full bg-foreground"
+        style={{ width: 4, height: 4, top: 0, left: 0, x: '-50%', y: '-50%', willChange: 'transform' }}
+        animate={{ scale: isPressed ? 0.5 : 1 }}
+        transition={{ duration: 0.2 }}
+      />
+
+      {/* Text cursor bar */}
+      {isText && (
+        <div
+          className="absolute bg-foreground"
+          style={{ width: 2, height: 24, top: 0, left: 0, transform: 'translate(-50%, -50%)' }}
+        />
+      )}
+
+      {/* Spinning corners wrapper */}
+      {!isText && (
         <motion.div
-          className="absolute inset-0 pointer-events-none"
-          animate={{
-            scale: !isPressed ? [1, 0.95, 1] : [1, 1, 1],
-          }}
-          transition={{
-            duration: .5,
-            repeat: Infinity,
-            ease: 'backInOut',
-          }}
+          className="absolute top-0 left-0 w-0 h-0"
+          animate={spinControls}
+          style={{ willChange: 'transform' }}
         >
-          <motion.div
-            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
-            className={cn('absolute top-0 left-0 border-t-4 border-l-4 border-foreground')}
-            style={{ width: cornerPx, height: cornerPx }}
-          />
-          <motion.div
-            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
-            className={cn('absolute top-0 right-0 border-t-4 border-r-4 border-foreground')}
-            style={{ width: cornerPx, height: cornerPx }}
-          />
-          <motion.div
-            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
-            className={cn('absolute bottom-0 left-0 border-b-4 border-l-4 border-foreground')}
-            style={{ width: cornerPx, height: cornerPx }}
-          />
-          <motion.div
-            animate={{ scaleY: isPressed ? -0.5 : 1, scaleX: isPressed ? -0.5 : 1, transition: { duration: 0.15 } }}
-            className={cn('absolute bottom-0 right-0 border-b-4 border-r-4 border-foreground')}
-            style={{ width: cornerPx, height: cornerPx }}
-          />
+          {corners.map((pos, i) => (
+            <motion.div
+              key={CORNER_CLASSES[i]}
+              className={cn('absolute top-0 left-0 border-foreground', CORNER_CLASSES[i])}
+              style={{ width: CORNER, height: CORNER, x: pos.x, y: pos.y, willChange: 'transform' }}
+            />
+          ))}
         </motion.div>
       )}
+
+      {/* Label */}
       <AnimatePresence>
         {cursorState.label && (
           <motion.span
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            className="absolute whitespace-nowrap text-xs font-medium text-primary-foreground"
+            className="absolute whitespace-nowrap text-xs font-medium text-foreground"
+            style={{ left: 12, top: 12 }}
           >
             {cursorState.label}
           </motion.span>
