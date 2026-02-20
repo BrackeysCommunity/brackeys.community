@@ -53,11 +53,11 @@ const NAV_ITEMS = [
 export function HeroSection() {
   return (
     <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16">
-      <div className="mb-4 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+      <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
         {'SYSTEM READY'}
         <span className="mx-2 text-primary">{'//'}</span>
-        {'v2.0.4'}
+        {'v0.0.0-alpha.127'}
         <span className="mx-2 text-primary">{'//'}</span>
         {'WELCOME USER'}
       </div>

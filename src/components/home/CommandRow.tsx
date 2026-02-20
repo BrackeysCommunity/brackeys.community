@@ -9,7 +9,7 @@ interface CommandRowProps {
 }
 
 const botBadgeStyles: Record<string, string> = {
-  hammer: 'text-orange-400 border-orange-400/40 bg-orange-950/20',
+  hammer: 'text-cyan-400 border-cyan-400/40 bg-cyan-950/20',
   pencil: 'text-violet-400 border-violet-400/40 bg-violet-950/20',
 };
 
@@ -26,7 +26,7 @@ export function CommandRow({ command }: CommandRowProps) {
     <div className="group flex flex-col md:flex-row md:items-start justify-between p-6 hover:bg-card/50 transition-colors gap-4">
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-3 flex-wrap">
-          <code className="text-cyan-400 font-mono text-lg font-bold bg-cyan-950/30 px-2 py-0.5 border border-cyan-400/30">
+          <code className="text-brackeys-yellow font-mono text-lg font-bold bg-brackeys-yellow-muted/20 px-2 py-0.5 border border-brackeys-yellow/30">
             {command.cmd}
           </code>
           <span

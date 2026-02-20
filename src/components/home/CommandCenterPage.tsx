@@ -159,13 +159,13 @@ export function CommandCenterPage() {
   return (
     <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
       {/* Status bar — mirrors HeroSection top bar */}
-      <div className="mb-4 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+      <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
-        {'SYSTEM ONLINE'}
+        {'SYSTEM READY'}
         <span className="mx-2 text-primary">{'//'}</span>
-        {'DB CONNECTED'}
+        {'v0.0.0-alpha.127'}
         <span className="mx-2 text-primary">{'//'}</span>
-        {'ACCESS: UNRESTRICTED'}
+        {'WELCOME USER'}
       </div>
 
       {/* Heading block */}

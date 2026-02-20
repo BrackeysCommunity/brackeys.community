@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDebounceFn } from 'ahooks';
 import { Copy01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
+import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
 import type { Macro } from '@/data/commands';
 
 interface MacroRowProps {
@@ -45,8 +46,8 @@ export function MacroRow({ macro }: MacroRowProps) {
           <code
             className={`font-mono text-sm font-bold px-2 py-0.5 border shrink-0 self-start transition-colors duration-150 ${
               expanded
-                ? 'text-primary border-primary/60 bg-primary/10'
-                : 'text-cyan-400 bg-cyan-950/30 border-cyan-400/30'
+                ? 'text-brackeys-yellow border-brackeys-yellow/60 bg-brackeys-yellow-muted/20'
+                : 'text-brackeys-yellow bg-brackeys-yellow-muted/20 border-brackeys-yellow/30'
             }`}
           >
             /{macro.name}
@@ -86,9 +87,22 @@ export function MacroRow({ macro }: MacroRowProps) {
           expanded ? 'max-h-48 opacity-100 mt-2.5' : 'max-h-0 opacity-0 mt-0'
         }`}
       >
-        <p className="text-xs font-mono text-muted-foreground leading-relaxed whitespace-pre-wrap overflow-y-auto max-h-40 pr-1">
-          {macro.description}
-        </p>
+        <OverlayScrollbarsComponent
+          element="div"
+          className="max-h-40"
+          options={{
+            scrollbars: {
+              theme: 'os-theme-dark',
+              autoHide: 'scroll',
+              autoHideDelay: 600,
+            },
+          }}
+          defer
+        >
+          <p className="text-xs font-mono text-muted-foreground leading-relaxed whitespace-pre-wrap pr-1">
+            {macro.description}
+          </p>
+        </OverlayScrollbarsComponent>
       </div>
     </li>
   );

@@ -1,10 +1,12 @@
 import { AlertCircleIcon, Robot01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { BotCommand, BotId, Macro } from '@/data/commands';
+import { marcoMacros } from '@/data/commands';
 import { CommandRow } from './CommandRow';
 import { MacroRow } from './MacroRow';
-import type { BotId } from '@/data/commands';
-import { marcoMacros } from '@/data/commands';
 
 type ActiveBot = 'all' | BotId;
 
@@ -19,12 +21,42 @@ const BOT_TABS: { id: ActiveBot; label: string }[] = [
   { id: 'marco', label: 'MARCO' },
 ];
 
+const IDLE_ERRORS = [
+  {
+    code: 218,
+    title: '218 THIS IS FINE',
+    msg: 'EVERYTHING IS FINE. THE SERVER IS NOT ON FIRE. PLEASE ENTER A COMMAND.',
+  },
+  {
+    code: 418,
+    title: "418 I'M A TEAPOT",
+    msg: 'SERVER IS READY. NOT A COFFEE MACHINE. TYPE SOMETHING.',
+  },
+  {
+    code: 420,
+    title: '420 NOT BLAZED ENOUGH',
+    msg: 'NO QUERY DETECTED. SERVER VIBES INSUFFICIENT. START TYPING.',
+  },
+  {
+    code: 451,
+    title: '451 UNAVAILABLE FOR LEGAL REASONS',
+    msg: 'ALL COMMANDS REDACTED UNTIL SEARCH QUERY RECEIVED. FAHRENHEIT 451.',
+  },
+] as const;
+
+type VItem =
+  | { type: 'command'; data: BotCommand }
+  | { type: 'macro-header' }
+  | { type: 'marco-header' }
+  | { type: 'macro'; data: Macro }
+  | { type: 'error'; code: number; title: string; msg: string };
+
 interface CommandCenterSidebarProps {
   search: string;
   onSearch: (value: string) => void;
   activeBot: ActiveBot;
   onBotChange: (bot: ActiveBot) => void;
-  filteredCommands: Array<{ id: string; cmd: string; description: string; params?: string }>;
+  filteredCommands: BotCommand[];
   filteredMacros: typeof marcoMacros;
   totalResults: number;
   hasNoResults: boolean;
@@ -47,6 +79,9 @@ export function CommandCenterSidebar({
   showMacroHeader,
 }: CommandCenterSidebarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const mirrorRef = useRef<HTMLSpanElement>(null);
+  const [cursorX, setCursorX] = useState(0);
+  const [viewport, setViewport] = useState<Element | null>(null);
 
   const handleTabChange = (tab: ActiveBot) => {
     onBotChange(tab);
@@ -54,9 +89,92 @@ export function CommandCenterSidebar({
     inputRef.current?.focus();
   };
 
+  // Block cursor: measure text width up to caret position using a hidden mirror span
+  const updateCursor = useCallback(() => {
+    const input = inputRef.current;
+    const mirror = mirrorRef.current;
+    if (!input || !mirror) return;
+    const pos = input.selectionStart ?? input.value.length;
+    mirror.textContent = input.value.slice(0, pos).toUpperCase();
+    setCursorX(mirror.getBoundingClientRect().width - (input.scrollLeft ?? 0));
+  }, []);
+
+  // Focus on mount without using the banned autoFocus attribute
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: search is an intentional trigger to recalculate cursor after controlled updates
+  useLayoutEffect(() => {
+    updateCursor();
+  }, [search, updateCursor]);
+
+  const idleError = useMemo(() => {
+    const idxMap: Record<ActiveBot, number> = { all: 0, hammer: 1, pencil: 2, marco: 3 };
+    return IDLE_ERRORS[(idxMap[activeBot] ?? 0) % IDLE_ERRORS.length];
+  }, [activeBot]);
+
+  // Flatten everything into a single list for the virtualizer
+  const items = useMemo<VItem[]>(() => {
+    const result: VItem[] = [];
+    if (showCommandSection) {
+      for (const cmd of filteredCommands) result.push({ type: 'command', data: cmd });
+    }
+    if (showMacroHeader) result.push({ type: 'macro-header' });
+    if (activeBot === 'marco' && !search) result.push({ type: 'marco-header' });
+    if (showMacroSection) {
+      for (const macro of filteredMacros) result.push({ type: 'macro', data: macro });
+    }
+    if (hasNoResults) result.push({
+      type: 'error',
+      code: 404,
+      title: '404 NOT FOUND',
+      msg: `COMMAND "${search}" NOT FOUND IN DATABASE.`,
+    });
+    if (!search && activeBot !== 'marco') result.push({ type: 'error', ...idleError });
+    return result;
+  }, [
+    filteredCommands,
+    filteredMacros,
+    showCommandSection,
+    showMacroSection,
+    showMacroHeader,
+    hasNoResults,
+    activeBot,
+    search,
+    idleError,
+  ]);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => viewport,
+    estimateSize: (i) => {
+      const item = items[i];
+      if (item.type === 'command') return 120;
+      if (item.type === 'macro') return 48;
+      return 48;
+    },
+    measureElement: (el) => el.getBoundingClientRect().height,
+    getItemKey: (i) => {
+      const item = items[i];
+      if (item.type === 'command') return `cmd-${item.data.id}`;
+      if (item.type === 'macro') return `macro-${item.data.name}`;
+      return item.type;
+    },
+  });
+
+  // Capture the OverlayScrollbars viewport once initialized so the virtualizer
+  // has the actual scrollable element to observe
+  const osEvents = useMemo(
+    () => ({
+      initialized: (instance: { elements(): { viewport: Element } }) =>
+        setViewport(instance.elements().viewport),
+    }),
+    [],
+  );
+
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
-      {/* Notched border shell — matches Sidebar styling */}
       <div
         className="flex-1 min-h-0 min-w-0 bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
@@ -66,12 +184,11 @@ export function CommandCenterSidebar({
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-cyan-400/50 pointer-events-none z-10" />
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-400/50 pointer-events-none z-10" />
-          {/* Notch corner accent line */}
+          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none z-10" />
+          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
           <svg
             aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-cyan-400/40 z-10"
+            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
             width={NOTCH_SIZE + 2}
             height={NOTCH_SIZE + 2}
             viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -81,106 +198,105 @@ export function CommandCenterSidebar({
           </svg>
 
           {/* Title bar */}
-          <div className="bg-primary text-black px-4 py-1.5 flex justify-between items-center font-mono text-xs font-bold select-none shrink-0">
+          <div className="text-muted-foreground px-4 py-2.5 flex justify-between items-center font-mono text-xs font-bold select-none shrink-0">
             <span>ROOT@BRACKEYS-SERVER:~</span>
-            <span>BASH_V3.2</span>
-          </div>
-
-          {/* Bot Tabs */}
-          <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-muted/20 bg-[#0d0d0d] flex-wrap shrink-0">
-            {BOT_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabChange(tab.id)}
-                className={`font-mono text-xs font-bold px-3 py-1 uppercase border transition-colors ${
-                  activeBot === tab.id
-                    ? 'bg-primary text-black border-primary'
-                    : 'border-muted text-muted-foreground hover:border-primary hover:text-primary bg-black'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-            <span className="ml-auto text-[10px] font-mono text-muted-foreground self-center">
-              {totalResults} PROTOCOL{totalResults !== 1 ? 'S' : ''} LOADED
-            </span>
+            <span>{totalResults} PROTOCOL{totalResults !== 1 ? 'S' : ''} LOADED</span>
           </div>
 
           {/* Search Bar */}
           <div className="px-4 py-4 border-b border-muted/30 bg-[#121212] shrink-0">
-            <div className="relative flex items-center w-full">
-              <span className="text-primary font-mono text-lg mr-3 font-bold">&gt;</span>
-              <input
-                ref={inputRef}
-                autoComplete="off"
-                value={search}
-                onChange={(e) => onSearch(e.target.value)}
-                onKeyDown={(e) => e.key === 'Escape' && onSearch('')}
-                className="w-full bg-transparent border-none focus:ring-0 p-0 text-base font-mono text-cyan-400 placeholder-muted/50 caret-transparent uppercase outline-none"
-                placeholder="SEARCH COMMANDS..."
-                spellCheck="false"
-                type="text"
-              />
-              <span className="absolute left-[calc(1rem+1.125rem+12px)] top-1/2 -translate-y-1/2 w-2.5 h-5 bg-primary animate-[blink_1s_step-end_infinite]" />
+            <div className="flex items-center w-full gap-3">
+              <span className="text-primary font-mono text-lg font-bold shrink-0 leading-none">&gt;</span>
+              {/* Wrapper provides positioning context for the block cursor */}
+              <div className="relative flex-1 overflow-hidden">
+                {/* Hidden mirror span used to measure text width at caret position */}
+                <span
+                  ref={mirrorRef}
+                  aria-hidden
+                  className="absolute top-0 left-0 invisible pointer-events-none font-mono text-base uppercase whitespace-pre"
+                />
+                <input
+                  ref={inputRef}
+                  autoComplete="off"
+                  value={search}
+                  onChange={(e) => onSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Escape' && onSearch('')}
+                  onBlur={() => setTimeout(() => inputRef.current?.focus(), 0)}
+                  onSelect={updateCursor}
+                  onKeyUp={updateCursor}
+                  className="w-full bg-transparent border-none focus:ring-0 p-0 text-base font-mono text-brackeys-yellow placeholder-muted/50 caret-transparent uppercase outline-none"
+                  placeholder="SEARCH COMMANDS..."
+                  spellCheck="false"
+                  type="text"
+                />
+                {/* Block cursor — positioned by measured text width */}
+                <span
+                  className="absolute top-1/2 -translate-y-1/2 w-[0.6em] h-[1.15em] bg-brackeys-yellow pointer-events-none"
+                  style={{ left: cursorX, animation: 'terminal-blink 1.1s step-end infinite' }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Content List — scrollable */}
-          <div className="flex flex-col flex-1 overflow-y-auto divide-y divide-muted/20">
-            {showCommandSection &&
-              filteredCommands.map((cmd) => <CommandRow key={cmd.id} command={cmd} />)}
+          {/* Virtualized content list */}
+          <OverlayScrollbarsComponent
+            element="div"
+            className="flex-1 min-h-0"
+            options={{
+              scrollbars: {
+                theme: 'os-theme-dark',
+                autoHide: 'scroll',
+                autoHideDelay: 800,
+              },
+            }}
+            events={osEvents}
+          >
+            <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+              {virtualizer.getVirtualItems().map((vItem) => {
+                const item = items[vItem.index];
+                return (
+                  <div
+                    key={vItem.key}
+                    data-index={vItem.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${vItem.start}px)`,
+                    }}
+                    className="border-b border-muted/20"
+                  >
+                    {item.type === 'command' && <CommandRow command={item.data} />}
 
-            {showMacroHeader && (
-              <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
-                <HugeiconsIcon icon={Robot01Icon} size={14} className="text-muted-foreground" />
-                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                  Marco Macro Protocols — works with / or [] prefix
-                </span>
-              </div>
-            )}
+                    {item.type === 'macro' && <MacroRow macro={item.data} />}
 
-            {activeBot === 'marco' && !search && (
-              <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
-                <HugeiconsIcon icon={Robot01Icon} size={14} className="text-muted-foreground" />
-                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                  {marcoMacros.length} macros — invokable with / or [] prefix
-                </span>
-              </div>
-            )}
+                    {(item.type === 'macro-header' || item.type === 'marco-header') && (
+                      <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
+                        <HugeiconsIcon icon={Robot01Icon} size={14} className="text-muted-foreground" />
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                          Marco Macro Protocols work with either / or [] prefixes
+                        </span>
+                      </div>
+                    )}
 
-            {showMacroSection && (
-              <ul className="flex flex-col divide-y divide-muted/20">
-                {filteredMacros.map((macro) => (
-                  <MacroRow key={macro.name} macro={macro} />
-                ))}
-              </ul>
-            )}
-
-            {hasNoResults && (
-              <div className="p-6 bg-[#1a0a0a] border-l-4 border-destructive/50 flex items-start gap-4">
-                <HugeiconsIcon icon={AlertCircleIcon} size={20} className="text-destructive mt-0.5 shrink-0" />
-                <div>
-                  <h4 className="text-destructive font-mono font-bold uppercase mb-1">System Error: 404</h4>
-                  <p className="text-muted-foreground font-mono text-sm">
-                    COMMAND &quot;{search}&quot; NOT FOUND IN DATABASE.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!search && activeBot !== 'marco' && (
-              <div className="p-6 bg-[#1a0a0a] border-l-4 border-destructive/50 flex items-start gap-4">
-                <HugeiconsIcon icon={AlertCircleIcon} size={20} className="text-destructive mt-0.5 shrink-0" />
-                <div>
-                  <h4 className="text-destructive font-mono font-bold uppercase mb-1">System Error: 404</h4>
-                  <p className="text-muted-foreground font-mono text-sm">
-                    COMMAND &quot;sudo hack mainframe&quot; NOT RECOGNIZED. ACCESS DENIED.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+                    {item.type === 'error' && (
+                      <div className="p-6 bg-[#1a0a0a] border-l-4 border-destructive/50 flex items-start gap-4">
+                        <HugeiconsIcon icon={AlertCircleIcon} size={20} className="text-destructive mt-0.5 shrink-0" />
+                        <div>
+                          <h4 className="text-destructive font-mono font-bold uppercase mb-1">
+                            System Error: {item.title}
+                          </h4>
+                          <p className="text-muted-foreground font-mono text-sm">{item.msg}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </OverlayScrollbarsComponent>
 
           {/* Footer */}
           <div className="border-t border-muted/20 px-4 py-2 flex justify-end shrink-0 bg-[#0a0a0a]">

@@ -5,11 +5,12 @@ import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { useCommandPalette } from '@/lib/hooks/use-command-palette';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
+import { useCommandPalette } from '@/lib/hooks/use-command-palette';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
 
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+const isMac = navigator.platform.toLowerCase().includes('mac');
 
 function MagneticLink({ children, className }: { children: React.ReactNode; className?: string }) {
   const { ref, position } = useMagnetic(0.2);
@@ -55,16 +56,16 @@ export function AppHeader() {
               WebkitMaskPosition: 'center',
             }}
             initial={{
-              backgroundImage: 'linear-gradient(to bottom, #FFC107, #E91E63, #9C27B0, #E91E63, #FFC107)',
+              backgroundImage: 'linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))',
               backgroundPosition: '0 0%',
               backgroundSize: '100% 500%',
             }}
             animate={{ backgroundPosition: ['0 0%', '0 0%', '0 100%', '0 100%', '0 0%'] }}
             transition={{ duration: 6, times: [0, 0.2, 0.4, 0.6, 0.8], repeat: Infinity, ease: 'linear' }}
           />
-          <span className="font-bold text-foreground text-base leading-none">
+          <span className="font-mono font-bold text-foreground text-xl leading-wide">
             Brackeys
-            <span className="bg-linear-to-r from-[#FFC107] via-[#E91E63] to-[#9C27B0] bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
               Community
             </span>
           </span>
@@ -98,9 +99,8 @@ export function AppHeader() {
           className="border-muted hover:border-primary hover:text-primary shadow-[2px_2px_0px_var(--color-primary)] font-mono text-xs gap-2 text-muted-foreground"
         >
           <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} />
-          <span className="hidden lg:inline">TERMINAL</span>
           <KbdGroup className="hidden lg:inline-flex opacity-60">
-            <Kbd>⌃</Kbd>
+            <Kbd>{isMac ? '⌘' : 'CTRL'}</Kbd>
             <Kbd>K</Kbd>
           </KbdGroup>
         </Button>

@@ -1,8 +1,16 @@
-import { Share01Icon } from '@hugeicons/core-free-icons';
+import { GridViewIcon, Share01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
+import { useQuery } from '@tanstack/react-query';
+import { useStore } from '@tanstack/react-store';
 import { useCountDown } from 'ahooks';
+import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { buttonVariants } from '@/components/ui/button';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { jamStore, setJamData, setJamError, setJamLoading, setJamView } from '@/lib/jam-store';
 import { cn } from '@/lib/utils';
+import { orpc } from '@/orpc/client';
+import { SubmissionsList } from './SubmissionsList';
 
 // Feb 22, 2026 at 5:00 AM CST = 11:00 AM UTC
 const JAM_DEADLINE = new Date('2026-02-22T11:00:00Z');
@@ -19,14 +27,96 @@ const deadlineLocalStr = JAM_DEADLINE.toLocaleString(undefined, {
 
 const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`;
 const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`;
+const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+
+function MagneticFooterLink({
+  href,
+  children,
+  className,
+}: {
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { ref, position } = useMagnetic(0.25);
+  return (
+    <motion.div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      data-magnetic
+      animate={{ x: position.x, y: position.y }}
+      transition={springTransition}
+      className="flex-1"
+    >
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {children}
+      </a>
+    </motion.div>
+  );
+}
+
+function MagneticFooterButton({
+  onClick,
+  children,
+  className,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { ref, position } = useMagnetic(0.25);
+  return (
+    <motion.div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      data-magnetic
+      animate={{ x: position.x, y: position.y }}
+      transition={springTransition}
+      className="flex-1"
+    >
+      <button type="button" onClick={onClick} className={className}>
+        {children}
+      </button>
+    </motion.div>
+  );
+}
 
 export function Sidebar() {
   const [, { days, hours, minutes, seconds }] = useCountDown({ targetDate: JAM_DEADLINE });
+
+  const { view, joinedCount, submissionCount, submissions, loading } = useStore(jamStore);
+
+  const { data, isLoading, isError } = useQuery({
+    ...orpc.getJamData.queryOptions({ input: {} }),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    setJamLoading(isLoading);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (data) {
+      setJamData(data);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (isError) {
+      setJamError('Failed to load jam data');
+    }
+  }, [isError]);
 
   const countdownStr =
     days > 0
       ? `${days}D ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
       : `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  const isSubmissionsView = view === 'submissions';
 
   return (
     <div className="flex h-full items-center justify-center p-6">
@@ -35,16 +125,16 @@ export function Sidebar() {
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
-          className="flex flex-col justify-between w-full h-full bg-background/90 backdrop-blur-md relative"
+          className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative"
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-cyan-400/50 pointer-events-none" />
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-400/50 pointer-events-none" />
+          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
+          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
           {/* Notch corner accent line */}
           <svg
             aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-cyan-400/40"
+            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40"
             width={NOTCH_SIZE + 2}
             height={NOTCH_SIZE + 2}
             viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -55,63 +145,96 @@ export function Sidebar() {
 
           {/* Card header */}
           <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
-            <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Event Log</span>
+            <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">2026.1</span>
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
               </span>
-              <span className="animate-pulse font-mono text-[10px] font-bold tracking-widest text-destructive">LIVE JAM</span>
+              <span className="animate-pulse font-mono text-xs font-bold tracking-widest text-destructive">LIVE JAM</span>
             </div>
           </div>
 
-          {/* Jam title above image */}
-          <div className="px-5 pt-4 pb-3 text-center border-b border-muted/60 bg-card/20">
-            <p className="font-display text-xl font-bold text-foreground leading-tight">
-              BRACKEYS GAME JAM
-              <br />
-              2026.1
-            </p>
-          </div>
-
-          {/* Jam image */}
-          <div className="relative overflow-hidden border-b border-muted/60" style={{ minHeight: '110px' }}>
-            <img
-              alt="Strange Places theme art"
-              className="w-full h-full object-cover object-top grayscale transition-all duration-500 hover:grayscale-0"
-              src="https://img.itch.zone/aW1nLzI1NTk5ODA3LnBuZw==/original/vYJgdy.png"
-            />
-            <div
-              className="absolute inset-0 pointer-events-none opacity-20"
-              style={{
-                background: 'linear-gradient(to bottom, rgba(255,255,255,0) 50%, rgba(0,0,0,0.4) 50%)',
-                backgroundSize: '100% 4px',
-              }}
-            />
-          </div>
-
           {/* Deadline info */}
-          <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center">
-            <h3 className="font-mono text-[10px] tracking-[0.2em] text-destructive uppercase">{'// Deadline'}</h3>
-            <p className="font-mono text-3xl font-bold text-foreground tabular-nums tracking-tight">{countdownStr}</p>
-            <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">Remaining</p>
-            <p className="font-mono text-[9px] text-muted-foreground/40 mt-0.5">{deadlineLocalStr}</p>
+          <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center justify-center border-b border-muted/60">
+            <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">{'// Deadline'}</h3>
+            <p className="font-mono text-6xl font-bold text-foreground tabular-nums tracking-tight">{countdownStr}</p>
+            <p className="font-mono text-md tracking-[0.2em] text-muted-foreground uppercase">Remaining</p>
+            <p className="font-mono text-md text-muted-foreground/40 mt-0.5">{deadlineLocalStr}</p>
+          </div>
+
+          {/* Jam stats */}
+          <div className="grid grid-cols-2 divide-x divide-muted/60 border-b border-muted/60">
+            <div className="flex flex-col items-center py-3 px-2 gap-0.5">
+              <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">Joined</span>
+              <span className={cn(
+                'font-mono text-xl font-bold tabular-nums tracking-tight text-brackeys-yellow transition-opacity duration-300',
+                loading && 'opacity-40 animate-pulse',
+              )}>
+                {joinedCount ?? '—'}
+              </span>
+            </div>
+            <div className="flex flex-col items-center py-3 px-2 gap-0.5">
+              <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">Entries</span>
+              <span className={cn(
+                'font-mono text-xl font-bold tabular-nums tracking-tight text-brackeys-yellow transition-opacity duration-300',
+                loading && 'opacity-40 animate-pulse',
+              )}>
+                {submissionCount ?? '—'}
+              </span>
+            </div>
+          </div>
+
+          {/* Main content: jam image or submissions list */}
+          <div className="flex-1 relative overflow-hidden">
+            {isSubmissionsView ? (
+              <SubmissionsList entries={submissions} />
+            ) : (
+              <>
+                <div className="p-5 flex items-center justify-center h-full">
+                  <img
+                    alt="Strange Places theme art"
+                    className="max-w-3xl w-full m-auto object-cover object-top grayscale transition-all duration-500 hover:grayscale-0"
+                    src="https://img.itch.zone/aW1nLzI1NTk5ODA3LnBuZw==/original/vYJgdy.png"
+                  />
+                </div>
+                <div
+                  className="absolute inset-0 pointer-events-none opacity-20 animate-scanlines"
+                  style={{
+                    background: 'linear-gradient(to bottom, rgba(255,255,255,0) 50%, rgba(0,0,0,0.4) 50%)',
+                    backgroundSize: '100% 4px',
+                  }}
+                />
+              </>
+            )}
           </div>
 
           {/* Footer */}
-          <div className="border-t border-muted/60 bg-card/30 px-6 py-4">
-            <a
+          <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-2">
+            <MagneticFooterLink
               href="https://discord.gg/brackeys"
-              target="_blank"
-              rel="noopener noreferrer"
               className={cn(
                 buttonVariants({ variant: 'outline', size: 'sm' }),
-                'w-full border-cyan-400/40 text-cyan-400 hover:bg-cyan-400/10 hover:border-cyan-400 font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
+                'w-full border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
               )}
             >
-              Join Discord
+              Discord
               <HugeiconsIcon icon={Share01Icon} size={13} />
-            </a>
+            </MagneticFooterLink>
+
+            <MagneticFooterButton
+              onClick={() => setJamView(isSubmissionsView ? 'jam' : 'submissions')}
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'sm' }),
+                'w-full font-mono text-[10px] font-bold tracking-widest uppercase justify-between transition-colors duration-150',
+                isSubmissionsView
+                  ? 'border-brackeys-yellow/80 text-brackeys-yellow bg-brackeys-yellow/10 hover:bg-brackeys-yellow/20'
+                  : 'border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow',
+              )}
+            >
+              {isSubmissionsView ? 'Jam Info' : 'Entries'}
+              <HugeiconsIcon icon={GridViewIcon} size={13} />
+            </MagneticFooterButton>
           </div>
         </div>
       </div>

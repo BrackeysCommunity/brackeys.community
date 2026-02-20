@@ -28,8 +28,7 @@ export function CyclingWord({ className }: CyclingWordProps) {
   return (
     <ScrambleText
       duration={stagger(STAGGER_INCREMENT, { startDelay: START_DELAY })}
-      chars="!@#$%^&*()[];:,.<>?`'~{}-_=+\|/"
-      className={className}
+      className={`whitespace-nowrap${className ? ` ${className}` : ''}`}
     >
       {WORDS[index]}
     </ScrambleText>

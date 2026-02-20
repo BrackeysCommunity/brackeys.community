@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-const DEFAULT_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const DEFAULT_CHARS = "■□▲△◆◇●◼●○◎◉◌●•⋱⋰⋮⋯⋆⋇⋈∘☉☀☼▪▫●‣⁃◦▣▦▧▨▩▭▰▱▬▭◢◣◤◥!@#%^*[]-_=+\\|/";
 
 interface StaggerOptions {
   startDelay?: number;
@@ -55,6 +55,10 @@ export function ScrambleText({
   const rafRef = React.useRef<number | null>(null);
   const startTimeRef = React.useRef<number | null>(null);
 
+  // Slowness multiplier: scramble updates every X milliseconds (e.g., 40ms is slower than 16ms)
+  const SCRAMBLE_MIN_CYCLE_MS = 30; // was 16ms for requestAnimationFrame; increase for slower effect
+  const lastScrambleUpdateRef = React.useRef<number>(0);
+
   // Stable ref that always holds the latest props — read inside RAF without restarts
   const paramsRef = React.useRef({ children, active, duration, delay, chars });
   paramsRef.current = { children, active, duration, delay, chars };
@@ -98,44 +102,49 @@ export function ScrambleText({
 
       if (startTimeRef.current === null) {
         startTimeRef.current = timestamp;
+        lastScrambleUpdateRef.current = timestamp;
       }
 
       const elapsed = (timestamp - startTimeRef.current) / 1000;
       const textChars = Array.from(text);
       const count = textChars.length;
 
-      textChars.forEach((char, index) => {
-        const span = spans[index];
-        if (!span) return;
+      // Control the "generation" rate of new random characters
+      if (timestamp - lastScrambleUpdateRef.current >= SCRAMBLE_MIN_CYCLE_MS || elapsed === 0) {
+        lastScrambleUpdateRef.current = timestamp;
 
-        if (char === ' ' || char === '\n') {
-          span.textContent = char;
-          return;
-        }
+        textChars.forEach((char, index) => {
+          const span = spans[index];
+          if (!span) return;
 
-        const charDelay = resolveValue(del, index, count);
-        const charDuration = resolveValue(dur, index, count);
+          if (char === ' ' || char === '\n') {
+            span.textContent = char;
+            return;
+          }
 
-        if (elapsed < charDelay) {
+          const charDelay = resolveValue(del, index, count);
+          const charDuration = resolveValue(dur, index, count);
+
+          if (elapsed < charDelay) {
+            span.textContent = getRandomChar(charSet);
+            return;
+          }
+
+          const charElapsed = elapsed - charDelay;
+
+          if (charDuration === Infinity) {
+            span.textContent = getRandomChar(charSet);
+            return;
+          }
+
+          if (charElapsed >= charDuration) {
+            span.textContent = char;
+            return;
+          }
+
           span.textContent = getRandomChar(charSet);
-          return;
-        }
-
-        const charElapsed = elapsed - charDelay;
-
-        if (charDuration === Infinity) {
-          span.textContent = getRandomChar(charSet);
-          return;
-        }
-
-        if (charElapsed >= charDuration) {
-          span.textContent = char;
-          return;
-        }
-
-        span.textContent = getRandomChar(charSet);
-      });
-
+        });
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
 
