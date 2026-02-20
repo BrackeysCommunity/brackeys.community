@@ -3,8 +3,8 @@ import type { QueryClient } from '@tanstack/react-query'
 import {
   createRootRouteWithContext,
   HeadContent,
-  Scripts,
   redirect,
+  Scripts,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { GridBackground } from '@/components/home/GridBackground'
@@ -103,9 +103,6 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
         {children}
       </div>
-
-      {/* Vertical divider */}
-      <div className="w-px bg-border/40 shrink-0" />
 
       {/* Right column — page-specific sidebar */}
       <aside className="flex-1 min-w-0 flex flex-col overflow-hidden">

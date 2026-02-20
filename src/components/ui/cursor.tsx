@@ -180,7 +180,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       {/* Center dot */}
       <motion.div
         className="absolute rounded-full bg-foreground"
-        style={{ width: 4, height: 4, top: 0, left: 0, x: '-50%', y: '-50%', willChange: 'transform' }}
+        style={{ width: 4, height: 4, top: 0, left: 0, x: -2, y: -2, willChange: 'transform' }}
         animate={{ scale: isPressed ? 0.5 : 1 }}
         transition={{ duration: 0.2 }}
       />
@@ -197,16 +197,31 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       {!isText && (
         <motion.div
           className="absolute top-0 left-0 w-0 h-0"
-          animate={spinControls}
-          style={{ willChange: 'transform' }}
+          animate={isMagnetic && !isPressed ? { scale: [1, 0.98, 1] } : { scale: 1 }}
+          transition={
+            isMagnetic && !isPressed
+              ? { duration: 0.5, repeat: Infinity, ease: 'backInOut' }
+              : { duration: 0.3 }
+          }
         >
-          {corners.map((pos, i) => (
-            <motion.div
-              key={CORNER_CLASSES[i]}
-              className={cn('absolute top-0 left-0 border-foreground', CORNER_CLASSES[i])}
-              style={{ width: CORNER, height: CORNER, x: pos.x, y: pos.y, willChange: 'transform' }}
-            />
-          ))}
+          <motion.div
+            className="absolute top-0 left-0 w-0 h-0"
+            animate={spinControls}
+            style={{ willChange: 'transform' }}
+          >
+            {corners.map((pos, i) => (
+              <motion.div
+                key={CORNER_CLASSES[i]}
+                className={cn('absolute top-0 left-0 border-foreground rounded-[3px]', CORNER_CLASSES[i])}
+                animate={{
+                  scaleX: isPressed ? -0.5 : 1,
+                  scaleY: isPressed ? -0.5 : 1,
+                }}
+                transition={{ duration: 0.15 }}
+                style={{ width: CORNER, height: CORNER, x: pos.x, y: pos.y, willChange: 'transform' }}
+              />
+            ))}
+          </motion.div>
         </motion.div>
       )}
 

@@ -210,7 +210,7 @@ export function Sidebar() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-2">
+          <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-8">
             <MagneticFooterLink
               href="https://discord.gg/brackeys"
               className={cn(
