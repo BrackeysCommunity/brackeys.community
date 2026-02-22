@@ -214,8 +214,8 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
                 key={CORNER_CLASSES[i]}
                 className={cn('absolute top-0 left-0 border-foreground rounded-[3px]', CORNER_CLASSES[i])}
                 animate={{
-                  scaleX: isPressed ? -0.5 : 1,
-                  scaleY: isPressed ? -0.5 : 1,
+                  scaleX: isPressed ? -1 : 1,
+                  scaleY: isPressed ? -1 : 1,
                 }}
                 transition={{ duration: 0.15 }}
                 style={{ width: CORNER, height: CORNER, x: pos.x, y: pos.y, willChange: 'transform' }}

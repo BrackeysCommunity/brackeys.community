@@ -44,6 +44,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { title: 'Brackeys Community' },
     ],
     links: [
+      { rel: 'icon', type: 'image/svg+xml', href: '/brackeys-logo.svg', media: '(prefers-color-scheme: light)' },
+      { rel: 'icon', type: 'image/svg+xml', href: '/brackeys-logo-inverted.svg', media: '(prefers-color-scheme: dark)' },
       { rel: 'stylesheet', href: fontsCss },
       { rel: 'stylesheet', href: appCss },
     ],
@@ -62,7 +64,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <GridBackground />
         {/* CRT scanline overlay */}
         <div
-          className="fixed inset-0 z-55 pointer-events-none opacity-10"
+          className="fixed inset-0 z-55 pointer-events-none opacity-10 animate-scanlines"
           style={{
             background:
               'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))',

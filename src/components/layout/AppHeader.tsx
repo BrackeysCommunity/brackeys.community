@@ -3,9 +3,12 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { Link } from '@tanstack/react-router';
 import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
+import { UserMenu } from '@/components/layout/UserMenu';
+import { authClient } from '@/lib/auth-client';
+import { setAuthSession } from '@/lib/auth-store';
 import { useCommandPalette } from '@/lib/hooks/use-command-palette';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
 
@@ -37,6 +40,11 @@ export function AppHeader() {
   const [utcTime, setUtcTime] = useState(getUtcTime);
   useInterval(() => setUtcTime(getUtcTime()), 1000);
   const { setOpen: openPalette } = useCommandPalette();
+  const { data: session } = authClient.useSession();
+
+  useEffect(() => {
+    setAuthSession(session ?? null);
+  }, [session]);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between px-6 pt-5 lg:px-10 pointer-events-none">
@@ -105,13 +113,18 @@ export function AppHeader() {
           </KbdGroup>
         </Button>
 
-        <Button
-          variant="default"
-          isMagnetic
-          className="font-mono text-xs font-bold tracking-widest px-5"
-        >
-          LOGIN
-        </Button>
+        {session?.user ? (
+          <UserMenu user={session.user} />
+        ) : (
+          <Button
+            variant="default"
+            isMagnetic
+            className="font-mono text-xs font-bold tracking-widest px-5"
+            onClick={() => authClient.signIn.social({ provider: 'discord' })}
+          >
+            LOGIN
+          </Button>
+        )}
       </div>
 
       {/* Mobile: hamburger only */}

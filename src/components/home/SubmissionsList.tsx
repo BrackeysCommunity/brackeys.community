@@ -1,8 +1,9 @@
 import { LinkSquare02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDebounceFn } from 'ahooks';
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { JamEntry } from '@/lib/jam-store';
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -29,10 +30,10 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
   };
 
   return (
-    <li
+    <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative flex flex-col list-none px-3 py-2.5 transition-all duration-200 ${
+      className={`relative flex flex-col px-3 py-2.5 transition-all duration-200 ${
         expanded
           ? 'bg-card/80 border-x border-primary/40 shadow-[0_6px_24px_rgba(0,0,0,0.6)] -translate-y-px z-20'
           : 'z-0'
@@ -114,11 +115,29 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           )}
         </p>
       </div>
-    </li>
+    </div>
   );
 }
 
 export function SubmissionsList({ entries }: { entries: JamEntry[] }) {
+  const [viewport, setViewport] = useState<Element | null>(null);
+
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => viewport,
+    estimateSize: () => 60,
+    measureElement: (el) => el.getBoundingClientRect().height,
+    getItemKey: (i) => entries[i].id,
+  });
+
+  const osEvents = useMemo(
+    () => ({
+      initialized: (instance: { elements(): { viewport: Element } }) =>
+        setViewport(instance.elements().viewport),
+    }),
+    [],
+  );
+
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground/40">
@@ -138,12 +157,27 @@ export function SubmissionsList({ entries }: { entries: JamEntry[] }) {
           autoHideDelay: 800,
         },
       }}
+      events={osEvents}
       defer
     >
-      <ul className="flex flex-col divide-y divide-muted/20">
-        {entries.map((entry) => (
-          <SubmissionCard key={entry.id} entry={entry} />
-        ))}
+      <ul
+        className="relative"
+        style={{ height: virtualizer.getTotalSize(), width: '100%' }}
+      >
+        {virtualizer.getVirtualItems().map((vItem) => {
+          const entry = entries[vItem.index];
+          return (
+            <li
+              key={vItem.key}
+              ref={virtualizer.measureElement}
+              data-index={vItem.index}
+              className="absolute top-0 left-0 w-full border-b border-muted/20 list-none"
+              style={{ transform: `translateY(${vItem.start}px)` }}
+            >
+              <SubmissionCard entry={entry} />
+            </li>
+          );
+        })}
       </ul>
     </OverlayScrollbarsComponent>
   );
