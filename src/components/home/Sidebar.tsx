@@ -87,7 +87,7 @@ function MagneticFooterButton({
 export function Sidebar() {
   const [, { days, hours, minutes, seconds }] = useCountDown({ targetDate: JAM_DEADLINE });
 
-  const { view, joinedCount, submissionCount, submissions, loading } = useStore(jamStore);
+  const { view, joinedCount, submissionCount, ratingCount, submissions, loading } = useStore(jamStore);
 
   const { data, isLoading, isError } = useQuery({
     ...orpc.getJamData.queryOptions({ input: {} }),
@@ -110,6 +110,14 @@ export function Sidebar() {
       setJamError('Failed to load jam data');
     }
   }, [isError]);
+
+  const isDeadlinePassed = Date.now() >= JAM_DEADLINE.getTime();
+
+  useEffect(() => {
+    if (isDeadlinePassed) {
+      setJamView('submissions');
+    }
+  }, [isDeadlinePassed]);
 
   const countdownStr =
     days > 0
@@ -157,21 +165,33 @@ export function Sidebar() {
 
           {/* Deadline info */}
           <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center justify-center border-b border-muted/60">
-            <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">{'// Deadline'}</h3>
-            <p className="font-mono text-6xl font-bold text-foreground tabular-nums tracking-tight">{countdownStr}</p>
-            <p className="font-mono text-md tracking-[0.2em] text-muted-foreground uppercase">Remaining</p>
-            <p className="font-mono text-md text-muted-foreground/40 mt-0.5">{deadlineLocalStr}</p>
+            {isDeadlinePassed ? (
+              <>
+                <h3 className="font-mono text-sm tracking-[0.2em] text-muted-foreground uppercase">{'// Deadline'}</h3>
+                <p className="font-mono text-4xl font-bold text-muted-foreground tabular-nums tracking-tight">JAM ENDED</p>
+                <p className="font-mono text-md text-muted-foreground/40 mt-0.5">{deadlineLocalStr}</p>
+              </>
+            ) : (
+              <>
+                <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">{'// Deadline'}</h3>
+                <p className="font-mono text-6xl font-bold text-foreground tabular-nums tracking-tight">{countdownStr}</p>
+                <p className="font-mono text-md tracking-[0.2em] text-muted-foreground uppercase">Remaining</p>
+                <p className="font-mono text-md text-muted-foreground/40 mt-0.5">{deadlineLocalStr}</p>
+              </>
+            )}
           </div>
 
           {/* Jam stats */}
           <div className="grid grid-cols-2 divide-x divide-muted/60 border-b border-muted/60">
             <div className="flex flex-col items-center py-3 px-2 gap-0.5">
-              <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">Joined</span>
+              <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                {isDeadlinePassed ? 'Ratings' : 'Joined'}
+              </span>
               <span className={cn(
                 'font-mono text-xl font-bold tabular-nums tracking-tight text-brackeys-yellow transition-opacity duration-300',
                 loading && 'opacity-40 animate-pulse',
               )}>
-                {joinedCount ?? '—'}
+                {(isDeadlinePassed ? ratingCount : joinedCount) ?? '—'}
               </span>
             </div>
             <div className="flex flex-col items-center py-3 px-2 gap-0.5">
@@ -222,19 +242,21 @@ export function Sidebar() {
               <HugeiconsIcon icon={Share01Icon} size={13} />
             </MagneticFooterLink>
 
-            <MagneticFooterButton
-              onClick={() => setJamView(isSubmissionsView ? 'jam' : 'submissions')}
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'sm' }),
-                'w-full font-mono text-[10px] font-bold tracking-widest uppercase justify-between transition-colors duration-150',
-                isSubmissionsView
-                  ? 'border-brackeys-yellow/80 text-brackeys-yellow bg-brackeys-yellow/10 hover:bg-brackeys-yellow/20'
-                  : 'border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow',
-              )}
-            >
-              {isSubmissionsView ? 'Jam Info' : 'Entries'}
-              <HugeiconsIcon icon={GridViewIcon} size={13} />
-            </MagneticFooterButton>
+            {!isDeadlinePassed && (
+              <MagneticFooterButton
+                onClick={() => setJamView(isSubmissionsView ? 'jam' : 'submissions')}
+                className={cn(
+                  buttonVariants({ variant: 'outline', size: 'sm' }),
+                  'w-full font-mono text-[10px] font-bold tracking-widest uppercase justify-between transition-colors duration-150',
+                  isSubmissionsView
+                    ? 'border-brackeys-yellow/80 text-brackeys-yellow bg-brackeys-yellow/10 hover:bg-brackeys-yellow/20'
+                    : 'border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow',
+                )}
+              >
+                {isSubmissionsView ? 'Jam Info' : 'Entries'}
+                <HugeiconsIcon icon={GridViewIcon} size={13} />
+              </MagneticFooterButton>
+            )}
           </div>
         </div>
       </div>

@@ -27,6 +27,7 @@ type JamView = 'jam' | 'submissions'
 type JamState = {
   joinedCount: string | null
   submissionCount: string | null
+  ratingCount: string | null
   submissions: JamEntry[]
   view: JamView
   loading: boolean
@@ -36,6 +37,7 @@ type JamState = {
 export const jamStore = new Store<JamState>({
   joinedCount: null,
   submissionCount: null,
+  ratingCount: null,
   submissions: [],
   view: 'jam',
   loading: false,
@@ -49,6 +51,7 @@ export function setJamView(view: JamView) {
 export function setJamData(data: {
   joinedCount: string
   submissionCount: string
+  ratingCount: string
   submissions: JamEntry[]
 }) {
   jamStore.setState((s) => ({ ...s, ...data, loading: false, error: null }))

@@ -2,6 +2,9 @@ import { os } from '@orpc/server'
 import * as z from 'zod'
 import type { JamEntry } from '@/lib/jam-store'
 
+// Feb 22, 2026 at 5:00 AM CST = 11:00 AM UTC
+const JAM_DEADLINE = new Date('2026-02-22T11:00:00Z')
+
 export const getJamData = os.input(z.object({})).handler(async () => {
   const [htmlRes, entriesRes] = await Promise.all([
     fetch('https://itch.io/jam/brackeys-15/feed', {
@@ -17,14 +20,22 @@ export const getJamData = os.input(z.object({})).handler(async () => {
     }),
   ])
 
+  const isDeadlinePassed = Date.now() >= JAM_DEADLINE.getTime()
   let joinedCount = '0'
   let submissionCount = '0'
+  let ratingCount = '0'
 
   if (htmlRes.ok) {
     const html = await htmlRes.text()
     const statMatches = [...html.matchAll(/class="stat_value"[^>]*>([^<]+)</g)]
-    joinedCount = statMatches[0]?.[1]?.trim() ?? '0'
-    submissionCount = statMatches[1]?.[1]?.trim() ?? '0'
+    if (isDeadlinePassed) {
+      // After the jam ends itch swaps the stats: [0] = entries, [1] = ratings
+      submissionCount = statMatches[0]?.[1]?.trim() ?? '0'
+      ratingCount = statMatches[1]?.[1]?.trim() ?? '0'
+    } else {
+      joinedCount = statMatches[0]?.[1]?.trim() ?? '0'
+      submissionCount = statMatches[1]?.[1]?.trim() ?? '0'
+    }
   }
 
   let submissions: JamEntry[] = []
@@ -68,5 +79,5 @@ export const getJamData = os.input(z.object({})).handler(async () => {
       })
   }
 
-  return { joinedCount, submissionCount, submissions }
+  return { joinedCount, submissionCount, ratingCount, submissions }
 })
