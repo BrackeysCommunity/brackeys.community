@@ -4,11 +4,14 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { user, account, developerProfiles } from '@/db/schema'
+import { user, session, account, verification, developerProfiles } from '@/db/schema'
 import { fetchGuildMember, resolveRoleNames } from '@/lib/discord'
 
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
+  database: drizzleAdapter(db, {
+    provider: 'pg',
+    schema: { user, session, account, verification },
+  }),
   socialProviders: {
     discord: {
       clientId: process.env.DISCORD_CLIENT_ID!,
