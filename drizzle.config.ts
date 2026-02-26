@@ -10,5 +10,5 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-  schemaFilter: ['public', 'auth', 'user', 'hammer'],
+  schemaFilter: ['public', 'auth', 'user', 'hammer', 'collab'],
 })

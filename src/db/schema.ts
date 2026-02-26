@@ -1,4 +1,4 @@
-import { bigint, bigserial, boolean, integer, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, bigserial, boolean, integer, pgSchema, pgTable, serial, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { primaryKey } from 'drizzle-orm/pg-core'
 
 // ── Schemas ─────────────────────────────────────────────────────────────────
@@ -6,6 +6,7 @@ import { primaryKey } from 'drizzle-orm/pg-core'
 export const authSchema = pgSchema('auth')
 export const userSchema = pgSchema('user')
 export const hammerSchema = pgSchema('hammer')
+export const collabSchema = pgSchema('collab')
 
 // ── Better Auth core tables (auth schema) ───────────────────────────────────
 
@@ -249,4 +250,69 @@ export const trackedMessages = hammerSchema.table('tracked_messages', {
   deletionTimestamp: timestamp('deletion_timestamp'),
   isDeleted: integer('is_deleted').notNull(),
   guildId: bigint('guild_id', { mode: 'bigint' }).notNull(),
+})
+
+// ── Collaboration tables (collab schema) ─────────────────────────────────────
+
+export const collabPosts = collabSchema.table('collab_posts', {
+  id: serial('id').primaryKey(),
+  authorId: text('author_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  subtype: text('subtype'),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  projectName: text('project_name'),
+  compensation: text('compensation'),
+  teamSize: text('team_size'),
+  projectLength: text('project_length'),
+  platforms: text('platforms').array(),
+  experience: text('experience'),
+  portfolioUrl: text('portfolio_url'),
+  contactMethod: text('contact_method'),
+  status: text('status').notNull().default('recruiting'),
+  featuredAt: timestamp('featured_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export const collabRoles = collabSchema.table('collab_roles', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  category: text('category'),
+})
+
+export const collabPostRoles = collabSchema.table('collab_post_roles', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').notNull().references(() => collabPosts.id, { onDelete: 'cascade' }),
+  roleId: integer('role_id').notNull().references(() => collabRoles.id, { onDelete: 'cascade' }),
+})
+
+export const collabResponses = collabSchema.table('collab_responses', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').notNull().references(() => collabPosts.id, { onDelete: 'cascade' }),
+  responderId: text('responder_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  message: text('message').notNull(),
+  portfolioUrl: text('portfolio_url'),
+  status: text('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  unique().on(table.postId, table.responderId),
+])
+
+export const collabPostImages = collabSchema.table('collab_post_images', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').notNull().references(() => collabPosts.id, { onDelete: 'cascade' }),
+  strapiMediaId: text('strapi_media_id').notNull(),
+  url: text('url').notNull(),
+  alt: text('alt'),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
+export const collabPostReports = collabSchema.table('collab_post_reports', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').notNull().references(() => collabPosts.id, { onDelete: 'cascade' }),
+  reporterId: text('reporter_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  reason: text('reason').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
 })
