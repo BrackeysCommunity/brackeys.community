@@ -129,7 +129,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div
-        className="w-full h-full bg-muted/60"
+        className="w-full h-full bg-muted/60 pointer-events-auto"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div

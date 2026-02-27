@@ -81,7 +81,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             backgroundSize: '100% 4px',
           }}
         />
-        <div className="relative z-[1] flex flex-col flex-1 overflow-hidden pointer-events-none">
+        <div className="relative z-1 flex flex-col flex-1 overflow-hidden pointer-events-none">
           <TanStackQueryProvider>
             <TooltipProvider>
               <CommandPaletteProvider>
@@ -112,14 +112,14 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   const sidebar = useCurrentSidebar()
 
   return (
-    <div className="flex flex-1 overflow-hidden pt-[57px]">
+    <div className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none">
       {/* Left column — main page content */}
-      <div className="flex-1 min-w-0 overflow-hidden flex flex-col pointer-events-auto">
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
         {children}
       </div>
 
       {/* Right column — page-specific sidebar */}
-      <aside className="flex-1 min-w-0 flex flex-col overflow-hidden pointer-events-auto">
+      <aside className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {sidebar}
       </aside>
     </div>

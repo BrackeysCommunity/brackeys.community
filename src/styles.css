@@ -133,8 +133,13 @@
     @apply bg-background text-foreground;
     cursor: none;
   }
-  a, button, [role="button"], input, select, textarea {
+  a, button, [role="button"], [role="menuitem"], [role="option"],
+  [role="tab"], [role="checkbox"], [role="radio"], [role="switch"],
+  [role="slider"], [role="combobox"], [role="listbox"],
+  input, select, textarea, label, [tabindex]:not([tabindex="-1"]),
+  [data-radix-popper-content-wrapper], [cmdk-item] {
     cursor: none !important;
+    pointer-events: auto;
   }
   }
 

@@ -176,7 +176,7 @@ export function CommandCenterSidebar({
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 bg-muted/60 pointer-events-auto"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div

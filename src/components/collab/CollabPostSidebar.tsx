@@ -9,8 +9,8 @@ import {
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useStore } from '@tanstack/react-store'
 import { useNavigate } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
 import { motion } from 'framer-motion'
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-react'
 import { useState } from 'react'
@@ -283,7 +283,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 bg-muted/60 pointer-events-auto"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
