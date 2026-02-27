@@ -6,7 +6,7 @@ import {
   englishRecommendedTransformers,
 } from 'obscenity'
 import * as z from 'zod'
-import { and, eq, ilike, inArray, or, desc, asc, count } from 'drizzle-orm'
+import { and, eq, ilike, inArray, or, desc, asc, count, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import {
   collabPosts,
@@ -16,6 +16,8 @@ import {
   collabPostImages,
   collabPostReports,
   developerProfiles,
+  userSkills,
+  skills,
 } from '@/db/schema'
 import { isStaffMember } from '@/lib/discord'
 import { authMiddleware, requireAuth, requireAuthWithPermissions, requireStaff, requireAdmin } from '@/orpc/middleware/auth'
@@ -33,6 +35,12 @@ function checkProfanity(text: string, fieldName: string) {
   }
 }
 
+const compensationTypeSchema = z.enum(['hourly', 'fixed', 'rev_share', 'negotiable'])
+const teamSizeSchema = z.enum(['solo', '2-3', '4-6', '7+'])
+const projectLengthSchema = z.enum(['<1 week', '1-4 weeks', '1-3 months', '3-6 months', '6+ months', 'ongoing'])
+const experienceLevelSchema = z.enum(['any', 'beginner', 'intermediate', 'experienced'])
+const contactTypeSchema = z.enum(['discord_dm', 'discord_server', 'email', 'other'])
+
 // ── Post CRUD ────────────────────────────────────────────────────────────────
 
 export const createPost = os
@@ -45,18 +53,26 @@ export const createPost = os
       description: z.string().min(1).max(5000),
       projectName: z.string().max(200).optional(),
       compensation: z.string().max(500).optional(),
-      teamSize: z.string().max(50).optional(),
-      projectLength: z.string().max(100).optional(),
+      compensationType: compensationTypeSchema.optional(),
+      teamSize: teamSizeSchema.optional(),
+      projectLength: projectLengthSchema.optional(),
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
-      portfolioUrl: z.string().url().max(500).optional(),
+      experienceLevel: experienceLevelSchema.optional(),
+      portfolioUrl: z.string().max(500).optional(),
       contactMethod: z.string().max(500).optional(),
+      contactType: contactTypeSchema.optional(),
+      isIndividual: z.boolean().optional(),
       roleIds: z.array(z.number()).optional(),
     }),
   )
   .handler(async ({ input, context }) => {
     checkProfanity(input.title, 'Title')
     checkProfanity(input.description, 'Description')
+    if (input.projectName) checkProfanity(input.projectName, 'Project name')
+    if (input.compensation) checkProfanity(input.compensation, 'Compensation')
+    if (input.experience) checkProfanity(input.experience, 'Experience')
+    if (input.contactMethod) checkProfanity(input.contactMethod, 'Contact method')
 
     const { roleIds, ...postData } = input
 
@@ -89,12 +105,16 @@ export const updatePost = os
       subtype: z.enum(['hiring', 'offering']).optional(),
       projectName: z.string().max(200).optional(),
       compensation: z.string().max(500).optional(),
-      teamSize: z.string().max(50).optional(),
-      projectLength: z.string().max(100).optional(),
+      compensationType: compensationTypeSchema.optional(),
+      teamSize: teamSizeSchema.optional(),
+      projectLength: projectLengthSchema.optional(),
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
-      portfolioUrl: z.string().url().max(500).optional(),
+      experienceLevel: experienceLevelSchema.optional(),
+      portfolioUrl: z.string().max(500).optional(),
       contactMethod: z.string().max(500).optional(),
+      contactType: contactTypeSchema.optional(),
+      isIndividual: z.boolean().optional(),
       roleIds: z.array(z.number()).optional(),
     }),
   )
@@ -116,6 +136,10 @@ export const updatePost = os
 
     if (input.title) checkProfanity(input.title, 'Title')
     if (input.description) checkProfanity(input.description, 'Description')
+    if (input.projectName) checkProfanity(input.projectName, 'Project name')
+    if (input.compensation) checkProfanity(input.compensation, 'Compensation')
+    if (input.experience) checkProfanity(input.experience, 'Experience')
+    if (input.contactMethod) checkProfanity(input.contactMethod, 'Contact method')
 
     const { postId, roleIds, ...data } = input
 
@@ -245,6 +269,34 @@ export const getPost = os
         .where(eq(collabResponses.postId, input.postId)),
     ])
 
+    // For individual posts, fetch author profile + skills
+    let author = null
+    if (post.isIndividual) {
+      const [profile] = await db
+        .select({
+          avatarUrl: developerProfiles.avatarUrl,
+          discordUsername: developerProfiles.discordUsername,
+          tagline: developerProfiles.tagline,
+          bio: developerProfiles.bio,
+          githubUrl: developerProfiles.githubUrl,
+          twitterUrl: developerProfiles.twitterUrl,
+          websiteUrl: developerProfiles.websiteUrl,
+        })
+        .from(developerProfiles)
+        .where(eq(developerProfiles.id, post.authorId))
+        .limit(1)
+
+      if (profile) {
+        const authorSkills = await db
+          .select({ id: skills.id, name: skills.name })
+          .from(userSkills)
+          .innerJoin(skills, eq(userSkills.skillId, skills.id))
+          .where(eq(userSkills.userId, post.authorId))
+
+        author = { ...profile, skills: authorSkills }
+      }
+    }
+
     const isOwner = context.user?.id === post.authorId
     let responses = null
 
@@ -263,6 +315,7 @@ export const getPost = os
       responseCount: responseCount?.count ?? 0,
       responses,
       isOwner,
+      author,
     }
   })
 
@@ -284,6 +337,9 @@ export const listPosts = os
       roleIds: z.array(z.number()).optional(),
       status: z.enum(['recruiting', 'party_full']).optional(),
       search: z.string().optional(),
+      experienceLevel: experienceLevelSchema.optional(),
+      compensationType: compensationTypeSchema.optional(),
+      isIndividual: z.boolean().optional(),
       sortBy: z.enum(['createdAt', 'updatedAt']).default('createdAt'),
       sortOrder: z.enum(['asc', 'desc']).default('desc'),
       limit: z.number().min(1).max(100).default(20),
@@ -296,13 +352,19 @@ export const listPosts = os
     if (input.type) conditions.push(eq(collabPosts.type, input.type))
     if (input.subtype) conditions.push(eq(collabPosts.subtype, input.subtype))
     if (input.status) conditions.push(eq(collabPosts.status, input.status))
+    if (input.experienceLevel) conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel))
+    if (input.compensationType) conditions.push(eq(collabPosts.compensationType, input.compensationType))
+    if (input.isIndividual === true) {
+      conditions.push(eq(collabPosts.isIndividual, true))
+    } else if (input.isIndividual === false) {
+      conditions.push(or(eq(collabPosts.isIndividual, false), sql`${collabPosts.isIndividual} IS NULL`))
+    }
     if (input.search) {
-      conditions.push(
-        or(
-          ilike(collabPosts.title, `%${input.search}%`),
-          ilike(collabPosts.description, `%${input.search}%`),
-        ),
+      const searchCondition = or(
+        ilike(collabPosts.title, `%${input.search}%`),
+        ilike(collabPosts.description, `%${input.search}%`),
       )
+      if (searchCondition) conditions.push(searchCondition)
     }
 
     let query = db.select().from(collabPosts)
@@ -362,7 +424,7 @@ export const respondToPost = os
     z.object({
       postId: z.number(),
       message: z.string().min(1).max(2000),
-      portfolioUrl: z.string().url().max(500).optional(),
+      portfolioUrl: z.string().max(500).optional(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -589,6 +651,8 @@ export const reportPost = os
     if (!post) {
       throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
     }
+
+    checkProfanity(input.reason, 'Report reason')
 
     const [report] = await db
       .insert(collabPostReports)

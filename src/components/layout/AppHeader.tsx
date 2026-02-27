@@ -47,7 +47,7 @@ export function AppHeader() {
   }, [session]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between px-6 pt-5 lg:px-10 pointer-events-none">
+    <header className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between px-6 pt-5 lg:px-10 pointer-events-none before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-32 before:bg-gradient-to-b before:from-background before:via-background/70 before:to-transparent before:pointer-events-none before:-z-10">
       {/* Logo */}
       <MagneticLink className="shrink-0 pointer-events-auto">
         <Link to="/" className="flex items-center gap-2">

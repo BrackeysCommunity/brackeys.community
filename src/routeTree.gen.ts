@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
+import { Route as CollabRouteImport } from './routes/collab'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
+import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as DemoTanstackQueryRouteImport } from './routes/demo/tanstack-query'
 import { Route as DemoTableRouteImport } from './routes/demo/table'
@@ -23,6 +25,8 @@ import { Route as DemoOrpcTodoRouteImport } from './routes/demo/orpc-todo'
 import { Route as DemoI18nRouteImport } from './routes/demo.i18n'
 import { Route as DemoDrizzleRouteImport } from './routes/demo/drizzle'
 import { Route as DemoBetterAuthRouteImport } from './routes/demo/better-auth'
+import { Route as CollabNewRouteImport } from './routes/collab.new'
+import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as DemoStrapiArticleIdRouteImport } from './routes/demo/strapi_.$articleId'
 import { Route as DemoSentryTestingRouteImport } from './routes/demo/sentry.testing'
@@ -41,6 +45,11 @@ const CommandCenterRoute = CommandCenterRouteImport.update({
   path: '/command-center',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CollabRoute = CollabRouteImport.update({
+  id: '/collab',
+  path: '/collab',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -50,6 +59,11 @@ const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ProfileRoute,
+} as any)
+const CollabIndexRoute = CollabIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CollabRoute,
 } as any)
 const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
   id: '/$userId',
@@ -101,6 +115,16 @@ const DemoBetterAuthRoute = DemoBetterAuthRouteImport.update({
   path: '/demo/better-auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CollabNewRoute = CollabNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => CollabRoute,
+} as any)
+const CollabPostIdRoute = CollabPostIdRouteImport.update({
+  id: '/$postId',
+  path: '/$postId',
+  getParentRoute: () => CollabRoute,
+} as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
@@ -139,9 +163,12 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
+  '/collab/$postId': typeof CollabPostIdRoute
+  '/collab/new': typeof CollabNewRoute
   '/demo/better-auth': typeof DemoBetterAuthRoute
   '/demo/drizzle': typeof DemoDrizzleRoute
   '/demo/i18n': typeof DemoI18nRoute
@@ -152,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/collab/': typeof CollabIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -164,6 +192,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/command-center': typeof CommandCenterRoute
   '/api/$': typeof ApiSplatRoute
+  '/collab/$postId': typeof CollabPostIdRoute
+  '/collab/new': typeof CollabNewRoute
   '/demo/better-auth': typeof DemoBetterAuthRoute
   '/demo/drizzle': typeof DemoDrizzleRoute
   '/demo/i18n': typeof DemoI18nRoute
@@ -174,6 +204,7 @@ export interface FileRoutesByTo {
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/collab': typeof CollabIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -185,9 +216,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
+  '/collab/$postId': typeof CollabPostIdRoute
+  '/collab/new': typeof CollabNewRoute
   '/demo/better-auth': typeof DemoBetterAuthRoute
   '/demo/drizzle': typeof DemoDrizzleRoute
   '/demo/i18n': typeof DemoI18nRoute
@@ -198,6 +232,7 @@ export interface FileRoutesById {
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/collab/': typeof CollabIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -210,9 +245,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/collab'
     | '/command-center'
     | '/profile'
     | '/api/$'
+    | '/collab/$postId'
+    | '/collab/new'
     | '/demo/better-auth'
     | '/demo/drizzle'
     | '/demo/i18n'
@@ -223,6 +261,7 @@ export interface FileRouteTypes {
     | '/demo/table'
     | '/demo/tanstack-query'
     | '/profile/$userId'
+    | '/collab/'
     | '/profile/'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -235,6 +274,8 @@ export interface FileRouteTypes {
     | '/'
     | '/command-center'
     | '/api/$'
+    | '/collab/$postId'
+    | '/collab/new'
     | '/demo/better-auth'
     | '/demo/drizzle'
     | '/demo/i18n'
@@ -245,6 +286,7 @@ export interface FileRouteTypes {
     | '/demo/table'
     | '/demo/tanstack-query'
     | '/profile/$userId'
+    | '/collab'
     | '/profile'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -255,9 +297,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/collab'
     | '/command-center'
     | '/profile'
     | '/api/$'
+    | '/collab/$postId'
+    | '/collab/new'
     | '/demo/better-auth'
     | '/demo/drizzle'
     | '/demo/i18n'
@@ -268,6 +313,7 @@ export interface FileRouteTypes {
     | '/demo/table'
     | '/demo/tanstack-query'
     | '/profile/$userId'
+    | '/collab/'
     | '/profile/'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -279,6 +325,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
@@ -315,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommandCenterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/collab': {
+      id: '/collab'
+      path: '/collab'
+      fullPath: '/collab'
+      preLoaderRoute: typeof CollabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -328,6 +382,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/'
       preLoaderRoute: typeof ProfileIndexRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/collab/': {
+      id: '/collab/'
+      path: '/'
+      fullPath: '/collab/'
+      preLoaderRoute: typeof CollabIndexRouteImport
+      parentRoute: typeof CollabRoute
     }
     '/profile/$userId': {
       id: '/profile/$userId'
@@ -399,6 +460,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoBetterAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/collab/new': {
+      id: '/collab/new'
+      path: '/new'
+      fullPath: '/collab/new'
+      preLoaderRoute: typeof CollabNewRouteImport
+      parentRoute: typeof CollabRoute
+    }
+    '/collab/$postId': {
+      id: '/collab/$postId'
+      path: '/$postId'
+      fullPath: '/collab/$postId'
+      preLoaderRoute: typeof CollabPostIdRouteImport
+      parentRoute: typeof CollabRoute
+    }
     '/api/$': {
       id: '/api/$'
       path: '/api/$'
@@ -451,6 +526,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CollabRouteChildren {
+  CollabPostIdRoute: typeof CollabPostIdRoute
+  CollabNewRoute: typeof CollabNewRoute
+  CollabIndexRoute: typeof CollabIndexRoute
+}
+
+const CollabRouteChildren: CollabRouteChildren = {
+  CollabPostIdRoute: CollabPostIdRoute,
+  CollabNewRoute: CollabNewRoute,
+  CollabIndexRoute: CollabIndexRoute,
+}
+
+const CollabRouteWithChildren =
+  CollabRoute._addFileChildren(CollabRouteChildren)
+
 interface ProfileRouteChildren {
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
@@ -466,6 +556,7 @@ const ProfileRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
   ProfileRoute: ProfileRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,

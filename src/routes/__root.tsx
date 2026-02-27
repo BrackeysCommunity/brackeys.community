@@ -7,7 +7,7 @@ import {
   Scripts,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { GridBackground } from '@/components/home/GridBackground'
+import Dither from '@/components/Dither'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { Cursor } from '@/components/ui/cursor'
@@ -61,7 +61,17 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="h-screen flex flex-col overflow-hidden min-w-[1024px]">
         <Cursor />
-        <GridBackground />
+        {/* <GridBackground /> */}
+        <Dither
+          waveColor={[0.2, 0.22, 0.55]}
+          disableAnimation={false}
+          enableMouseInteraction
+          mouseRadius={0.3}
+          colorNum={4}
+          waveAmplitude={0.3}
+          waveFrequency={3}
+          waveSpeed={0.04}
+        />
         {/* CRT scanline overlay */}
         <div
           className="fixed inset-0 z-55 pointer-events-none opacity-10 animate-scanlines"
@@ -71,25 +81,27 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             backgroundSize: '100% 4px',
           }}
         />
-        <TanStackQueryProvider>
-          <TooltipProvider>
-            <CommandPaletteProvider>
-              <PageLayoutProvider>
-                <CommandPalette />
-                <AppHeader />
-                <TwoColumnShell>{children}</TwoColumnShell>
-                <TanStackDevtools
-                  config={{ position: 'bottom-right' }}
-                  plugins={[
-                    { name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> },
-                    TanStackQueryDevtools,
-                    StoreDevtools,
-                  ]}
-                />
-              </PageLayoutProvider>
-            </CommandPaletteProvider>
-          </TooltipProvider>
-        </TanStackQueryProvider>
+        <div className="relative z-[1] flex flex-col flex-1 overflow-hidden pointer-events-none">
+          <TanStackQueryProvider>
+            <TooltipProvider>
+              <CommandPaletteProvider>
+                <PageLayoutProvider>
+                  <CommandPalette />
+                  <AppHeader />
+                  <TwoColumnShell>{children}</TwoColumnShell>
+                  <TanStackDevtools
+                    config={{ position: 'bottom-right' }}
+                    plugins={[
+                      { name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> },
+                      TanStackQueryDevtools,
+                      StoreDevtools,
+                    ]}
+                  />
+                </PageLayoutProvider>
+              </CommandPaletteProvider>
+            </TooltipProvider>
+          </TanStackQueryProvider>
+        </div>
         <Scripts />
       </body>
     </html>
@@ -102,12 +114,12 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-1 overflow-hidden pt-[57px]">
       {/* Left column — main page content */}
-      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col pointer-events-auto">
         {children}
       </div>
 
       {/* Right column — page-specific sidebar */}
-      <aside className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <aside className="flex-1 min-w-0 flex flex-col overflow-hidden pointer-events-auto">
         {sidebar}
       </aside>
     </div>

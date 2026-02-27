@@ -43,6 +43,13 @@
       "when": 1772072847809,
       "tag": "0005_melted_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772091131359,
+      "tag": "0006_lumpy_silvermane",
+      "breakpoints": true
     }
   ]
 }
