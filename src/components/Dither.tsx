@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, wrapEffect } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
-import { forwardRef, useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import './Dither.css';
@@ -261,6 +261,27 @@ function DitheredWaves({
   );
 }
 
+const MAX_DITHER_RES = 1920;
+
+function useCappedDpr() {
+  const [dpr, setDpr] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    const maxDim = Math.max(window.innerWidth, window.innerHeight);
+    return maxDim > MAX_DITHER_RES ? MAX_DITHER_RES / maxDim : 1;
+  });
+
+  useEffect(() => {
+    const update = () => {
+      const maxDim = Math.max(window.innerWidth, window.innerHeight);
+      setDpr(maxDim > MAX_DITHER_RES ? MAX_DITHER_RES / maxDim : 1);
+    };
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  return dpr;
+}
+
 export default function Dither({
   waveSpeed = 0.05,
   waveFrequency = 3,
@@ -272,12 +293,14 @@ export default function Dither({
   enableMouseInteraction = true,
   mouseRadius = 1
 }) {
+  const dpr = useCappedDpr();
+
   return (
     <div className="dither-container">
     <Canvas
       camera={{ position: [0, 0, 6] }}
-      dpr={1}
-      gl={{ antialias: true, preserveDrawingBuffer: true }}
+      dpr={dpr}
+      gl={{ antialias: false }}
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
     >
       <DitheredWaves
