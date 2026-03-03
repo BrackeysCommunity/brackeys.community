@@ -22,6 +22,10 @@ import {
 import { isStaffMember } from '@/lib/discord'
 import { authMiddleware, requireAuth, requireAuthWithPermissions, requireStaff, requireAdmin } from '@/orpc/middleware/auth'
 
+function escapeLike(str: string): string {
+  return str.replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
 const profanityMatcher = new RegExpMatcher({
   ...englishDataset.build(),
   ...englishRecommendedTransformers,
@@ -59,7 +63,7 @@ export const createPost = os
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
       experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.string().max(500).optional(),
+      portfolioUrl: z.string().url().max(500).optional().or(z.literal('')),
       contactMethod: z.string().max(500).optional(),
       contactType: contactTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
@@ -111,7 +115,7 @@ export const updatePost = os
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
       experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.string().max(500).optional(),
+      portfolioUrl: z.string().url().max(500).optional().or(z.literal('')),
       contactMethod: z.string().max(500).optional(),
       contactType: contactTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
@@ -360,9 +364,10 @@ export const listPosts = os
       conditions.push(or(eq(collabPosts.isIndividual, false), sql`${collabPosts.isIndividual} IS NULL`))
     }
     if (input.search) {
+      const escaped = escapeLike(input.search)
       const searchCondition = or(
-        ilike(collabPosts.title, `%${input.search}%`),
-        ilike(collabPosts.description, `%${input.search}%`),
+        ilike(collabPosts.title, `%${escaped}%`),
+        ilike(collabPosts.description, `%${escaped}%`),
       )
       if (searchCondition) conditions.push(searchCondition)
     }
@@ -424,7 +429,7 @@ export const respondToPost = os
     z.object({
       postId: z.number(),
       message: z.string().min(1).max(2000),
-      portfolioUrl: z.string().max(500).optional(),
+      portfolioUrl: z.string().url().max(500).optional().or(z.literal('')),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -535,7 +540,7 @@ export const listCollabRoles = os
       return db
         .select()
         .from(collabRoles)
-        .where(ilike(collabRoles.name, `%${input.search}%`))
+        .where(ilike(collabRoles.name, `%${escapeLike(input.search)}%`))
     }
     return db.select().from(collabRoles)
   })

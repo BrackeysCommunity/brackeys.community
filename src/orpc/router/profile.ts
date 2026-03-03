@@ -19,6 +19,10 @@ import {
 } from '@/db/schema'
 import { authMiddleware, requireAuth } from '@/orpc/middleware/auth'
 
+function escapeLike(str: string): string {
+  return str.replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
 const profanityMatcher = new RegExpMatcher({
   ...englishDataset.build(),
   ...englishRecommendedTransformers,
@@ -165,7 +169,7 @@ export const listSkills = os
       return db
         .select()
         .from(skills)
-        .where(ilike(skills.name, `%${input.search}%`))
+        .where(ilike(skills.name, `%${escapeLike(input.search)}%`))
     }
     return db.select().from(skills)
   })
@@ -185,10 +189,15 @@ export const addUserSkill = os
 export const removeUserSkill = os
   .use(requireAuth)
   .input(z.object({ userSkillId: z.number() }))
-  .handler(async ({ input }) => {
-    await db
+  .handler(async ({ input, context }) => {
+    const [deleted] = await db
       .delete(userSkills)
-      .where(eq(userSkills.id, input.userSkillId))
+      .where(and(eq(userSkills.id, input.userSkillId), eq(userSkills.userId, context.user.id)))
+      .returning()
+
+    if (!deleted) {
+      throw new ORPCError('NOT_FOUND', { message: 'Skill not found or not owned by you.' })
+    }
 
     return { success: true }
   })
@@ -215,9 +224,9 @@ export const addProject = os
     z.object({
       title: z.string(),
       description: z.string().optional(),
-      url: z.string().optional(),
-      screenshotUrl: z.string().optional(),
-      imageUrl: z.string().optional(),
+      url: z.string().url().optional().or(z.literal('')),
+      screenshotUrl: z.string().url().optional().or(z.literal('')),
+      imageUrl: z.string().url().optional().or(z.literal('')),
       tags: z.array(z.string()).optional(),
       pinned: z.boolean().optional(),
     }),
@@ -238,21 +247,25 @@ export const updateProject = os
       projectId: z.number(),
       title: z.string().optional(),
       description: z.string().optional(),
-      url: z.string().optional(),
-      screenshotUrl: z.string().optional(),
-      imageUrl: z.string().optional(),
+      url: z.string().url().optional().or(z.literal('')),
+      screenshotUrl: z.string().url().optional().or(z.literal('')),
+      imageUrl: z.string().url().optional().or(z.literal('')),
       tags: z.array(z.string()).optional(),
       pinned: z.boolean().optional(),
     }),
   )
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     const { projectId, ...data } = input
 
     const [updated] = await db
       .update(profileProjects)
       .set(data)
-      .where(eq(profileProjects.id, projectId))
+      .where(and(eq(profileProjects.id, projectId), eq(profileProjects.profileId, context.user.id)))
       .returning()
+
+    if (!updated) {
+      throw new ORPCError('NOT_FOUND', { message: 'Project not found or not owned by you.' })
+    }
 
     return updated
   })
@@ -260,10 +273,15 @@ export const updateProject = os
 export const removeProject = os
   .use(requireAuth)
   .input(z.object({ projectId: z.number() }))
-  .handler(async ({ input }) => {
-    await db
+  .handler(async ({ input, context }) => {
+    const [deleted] = await db
       .delete(profileProjects)
-      .where(eq(profileProjects.id, input.projectId))
+      .where(and(eq(profileProjects.id, input.projectId), eq(profileProjects.profileId, context.user.id)))
+      .returning()
+
+    if (!deleted) {
+      throw new ORPCError('NOT_FOUND', { message: 'Project not found or not owned by you.' })
+    }
 
     return { success: true }
   })
@@ -273,9 +291,9 @@ export const addJamParticipation = os
   .input(
     z.object({
       jamName: z.string(),
-      jamUrl: z.string().optional(),
+      jamUrl: z.string().url().optional().or(z.literal('')),
       submissionTitle: z.string().optional(),
-      submissionUrl: z.string().optional(),
+      submissionUrl: z.string().url().optional().or(z.literal('')),
       result: z.string().optional(),
       teamMembers: z.array(z.string()).optional(),
       participatedAt: z.string().optional(),
@@ -297,10 +315,15 @@ export const addJamParticipation = os
 export const removeJamParticipation = os
   .use(requireAuth)
   .input(z.object({ jamId: z.number() }))
-  .handler(async ({ input }) => {
-    await db
+  .handler(async ({ input, context }) => {
+    const [deleted] = await db
       .delete(jamParticipations)
-      .where(eq(jamParticipations.id, input.jamId))
+      .where(and(eq(jamParticipations.id, input.jamId), eq(jamParticipations.profileId, context.user.id)))
+      .returning()
+
+    if (!deleted) {
+      throw new ORPCError('NOT_FOUND', { message: 'Jam participation not found or not owned by you.' })
+    }
 
     return { success: true }
   })
