@@ -46,7 +46,7 @@ export function CollabPostPage() {
   }
 
   return (
-    <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+    <>
       {/* Status bar */}
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
@@ -241,6 +241,6 @@ export function CollabPostPage() {
           )}
         </div>
       )}
-    </div>
+    </>
   )
 }

@@ -136,7 +136,7 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="w-full h-full bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
+        <div className="w-full h-full max-h-[800px] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
           <div className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative" style={{ clipPath: notchClipInner }}>
             <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
               <SkeletonBlock className="h-3 w-24" />
@@ -165,7 +165,7 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
   if (!profileData) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="w-full h-full bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
+        <div className="w-full h-full max-h-[800px] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
           <div className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative items-center justify-center" style={{ clipPath: notchClipInner }}>
             <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
             <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
@@ -207,7 +207,7 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div
-        className="w-full h-full bg-muted/60"
+        className="w-full h-full max-h-[800px] bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div

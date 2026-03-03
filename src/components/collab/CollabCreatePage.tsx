@@ -1,7 +1,7 @@
 import { useStore } from '@tanstack/react-store'
 import { useEffect } from 'react'
 import { authStore } from '@/lib/auth-store'
-import { collabStore, resetWizard, getWizardSteps } from '@/lib/collab-store'
+import { collabStore, getWizardSteps, resetWizard } from '@/lib/collab-store'
 import { usePageSidebar } from '@/lib/hooks/use-page-layout'
 import { CollabCreateSidebar } from './CollabCreateSidebar'
 
@@ -18,7 +18,7 @@ export function CollabCreatePage() {
   const steps = getWizardSteps(wizard.draft)
 
   return (
-    <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+    <>
       {/* Status bar */}
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
@@ -64,6 +64,6 @@ export function CollabCreatePage() {
           </div>
         ))}
       </nav>
-    </div>
+    </>
   )
 }

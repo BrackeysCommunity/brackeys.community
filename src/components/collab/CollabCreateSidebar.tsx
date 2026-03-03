@@ -1663,7 +1663,7 @@ function UnauthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
@@ -1956,7 +1956,7 @@ function AuthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div

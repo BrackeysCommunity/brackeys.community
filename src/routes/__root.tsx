@@ -12,6 +12,7 @@ import Dither from '@/components/Dither'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 
 const AppHeader = lazy(() => import('@/components/layout/AppHeader').then(m => ({ default: m.AppHeader })))
+
 import { Cursor } from '@/components/ui/cursor'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPaletteProvider } from '@/lib/hooks/use-command-palette'
@@ -119,12 +120,16 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none max-w-[1920px] w-full mx-auto">
       {/* Left column — main page content */}
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-        {children}
+        <div className="flex w-full h-full flex-col justify-center p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+          {children}
+        </div>
       </div>
 
       {/* Right column — page-specific sidebar */}
-      <aside className="w-full max-w-[600px] shrink-0 flex flex-col overflow-hidden">
-        {sidebar}
+      <aside className="w-full flex-1 flex shrink-0 overflow-hidden justify-center">
+        <div className="max-w-2xl min-w-xl w-full h-full flex flex-col">
+          {sidebar}
+        </div>
       </aside>
     </div>
   )

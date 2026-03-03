@@ -283,7 +283,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 bg-muted/60 pointer-events-auto"
+        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60 pointer-events-auto"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
