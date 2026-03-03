@@ -87,10 +87,10 @@ export function AppHeader() {
             <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/command-center">COMMANDS</Link>
           </MagneticLink>
           <MagneticLink>
-            <a className="px-2 py-1 text-foreground hover:text-primary transition-colors" href="/collab">COLLAB</a>
+            <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/collab">COLLAB</Link>
           </MagneticLink>
           <MagneticLink>
-            <a className="px-2 py-1 text-foreground hover:text-primary transition-colors" href="/profile">PROFILE</a>
+            <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/profile">PROFILE</Link>
           </MagneticLink>
         </nav>
 

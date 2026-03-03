@@ -7,9 +7,11 @@ import {
   Scripts,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
+import { lazy, Suspense } from 'react'
 import Dither from '@/components/Dither'
-import { AppHeader } from '@/components/layout/AppHeader'
 import { CommandPalette } from '@/components/layout/CommandPalette'
+
+const AppHeader = lazy(() => import('@/components/layout/AppHeader').then(m => ({ default: m.AppHeader })))
 import { Cursor } from '@/components/ui/cursor'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPaletteProvider } from '@/lib/hooks/use-command-palette'
@@ -87,7 +89,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <CommandPaletteProvider>
                 <PageLayoutProvider>
                   <CommandPalette />
-                  <AppHeader />
+                  <Suspense>
+                    <AppHeader />
+                  </Suspense>
                   <TwoColumnShell>{children}</TwoColumnShell>
                   <TanStackDevtools
                     config={{ position: 'bottom-right' }}
