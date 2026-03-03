@@ -530,8 +530,8 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                   </>
                 )}
 
-                {/* Staff actions (feature) */}
-                {isAuthenticated && !isOwner && (
+                {/* Staff actions -- only visible if backend granted response access (owner or staff) */}
+                {!isOwner && post.responses && (
                   <>
                     <SectionHeader>Staff</SectionHeader>
                     <div className="px-4 py-3 border-b border-muted/30 space-y-2">

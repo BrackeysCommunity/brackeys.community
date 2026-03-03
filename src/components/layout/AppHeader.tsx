@@ -1,4 +1,4 @@
-import { Clock01Icon, ComputerTerminal01Icon, Menu01Icon } from '@hugeicons/core-free-icons';
+import { Clock01Icon, ComputerTerminal01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Link } from '@tanstack/react-router';
 import { useInterval } from 'ahooks';
@@ -127,10 +127,7 @@ export function AppHeader() {
         )}
       </div>
 
-      {/* Mobile: hamburger only */}
-      <div className="md:hidden text-foreground pointer-events-auto">
-        <HugeiconsIcon icon={Menu01Icon} size={22} />
-      </div>
+      
     </header>
   );
 }

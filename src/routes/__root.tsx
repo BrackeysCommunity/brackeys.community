@@ -54,7 +54,37 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  errorComponent: RouteErrorBoundary,
+  pendingComponent: RoutePendingFallback,
 })
+
+function RouteErrorBoundary({ error }: { error: Error }) {
+  return (
+    <div className="flex flex-1 items-center justify-center p-12 pointer-events-auto">
+      <div className="text-center space-y-4 max-w-md">
+        <p className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">{'// SYSTEM ERROR'}</p>
+        <p className="font-mono text-xs text-muted-foreground">{error.message || 'An unexpected error occurred.'}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="font-mono text-xs text-primary border border-primary/40 px-4 py-2 hover:bg-primary/10 transition-colors uppercase tracking-widest"
+        >
+          Reload
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RoutePendingFallback() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-12">
+      <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+        Loading...
+      </span>
+    </div>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

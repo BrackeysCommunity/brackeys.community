@@ -9,6 +9,7 @@ import {
 } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useNavigate } from '@tanstack/react-router';
+import { authClient } from '@/lib/auth-client';
 import {
   Command,
   CommandDialog,
@@ -57,7 +58,7 @@ export function CommandPalette() {
 
           {/* Quick Actions */}
           <CommandGroup heading="ACTIONS">
-            <CommandItem onSelect={() => run(() => {})}>
+            <CommandItem onSelect={() => run(() => authClient.signIn.social({ provider: 'discord' }))}>
               <HugeiconsIcon icon={Login01Icon} className="text-primary" />
               <span>Login</span>
             </CommandItem>

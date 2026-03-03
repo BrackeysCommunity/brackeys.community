@@ -13,6 +13,7 @@ export function HomePage() {
       ? `${days}D ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
       : `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
+  const isJamOver = Date.now() >= JAM_DEADLINE.getTime();
   const ticker = `LIVE JAM IN PROGRESS: THEME IS STRANGE PLACES  ///  ${timeStr} REMAINING  ///  CHECK DISCORD FOR UPDATES  ///  `;
 
   usePageSidebar(<Sidebar />);
@@ -23,16 +24,18 @@ export function HomePage() {
         <HeroSection />
       </div>
 
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-primary z-50 overflow-hidden py-1 border-t-2 border-black">
-        <div className="flex w-max animate-[marquee_20s_linear_infinite]">
-          <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap">
-            {ticker}
-          </span>
-          <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap" aria-hidden>
-            {ticker}
-          </span>
+      {!isJamOver && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-primary z-50 overflow-hidden py-1 border-t-2 border-black">
+          <div className="flex w-max animate-[marquee_20s_linear_infinite]">
+            <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap">
+              {ticker}
+            </span>
+            <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap" aria-hidden>
+              {ticker}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

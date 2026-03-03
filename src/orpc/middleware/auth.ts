@@ -1,3 +1,4 @@
+import { ORPCError } from '@orpc/client'
 import { os } from '@orpc/server'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
@@ -34,7 +35,7 @@ export const requireAuth = os.middleware(async ({ context, next }) => {
   }
 
   if (!session) {
-    throw new Error('Unauthorized')
+    throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required.' })
   }
 
   return next({
@@ -67,7 +68,7 @@ export const requireAuthWithPermissions = os.middleware(async ({ context, next }
   }
 
   if (!session) {
-    throw new Error('Unauthorized')
+    throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required.' })
   }
 
   const guildRoles = await fetchGuildRoles(session.user.id)
@@ -93,13 +94,13 @@ export const requireStaff = os.middleware(async ({ context, next }) => {
   }
 
   if (!session) {
-    throw new Error('Unauthorized')
+    throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required.' })
   }
 
   const guildRoles = await fetchGuildRoles(session.user.id)
 
   if (!checkIsStaff(guildRoles)) {
-    throw new Error('Forbidden: staff access required')
+    throw new ORPCError('FORBIDDEN', { message: 'Staff access required.' })
   }
 
   return next({
@@ -123,13 +124,13 @@ export const requireAdmin = os.middleware(async ({ context, next }) => {
   }
 
   if (!session) {
-    throw new Error('Unauthorized')
+    throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required.' })
   }
 
   const guildRoles = await fetchGuildRoles(session.user.id)
 
   if (!checkIsAdmin(guildRoles)) {
-    throw new Error('Forbidden: admin access required')
+    throw new ORPCError('FORBIDDEN', { message: 'Admin access required.' })
   }
 
   return next({
