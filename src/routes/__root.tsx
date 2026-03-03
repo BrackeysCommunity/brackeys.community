@@ -116,14 +116,14 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   const sidebar = useCurrentSidebar()
 
   return (
-    <div className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none">
+    <div className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none max-w-[1920px] w-full mx-auto">
       {/* Left column — main page content */}
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
         {children}
       </div>
 
       {/* Right column — page-specific sidebar */}
-      <aside className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <aside className="w-full max-w-[600px] shrink-0 flex flex-col overflow-hidden">
         {sidebar}
       </aside>
     </div>
