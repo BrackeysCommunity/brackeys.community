@@ -132,6 +132,9 @@
   body {
     @apply bg-background text-foreground;
     cursor: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar { display: none; }
   }
   a, button, [role="button"], [role="menuitem"], [role="option"],
   [role="tab"], [role="checkbox"], [role="radio"], [role="switch"],

@@ -170,7 +170,7 @@ export function CommandCenterPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[15vw] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+        <h1 className="font-mono font-bold text-[clamp(3rem,15vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
           BOT
           <br />
           <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
@@ -184,7 +184,7 @@ export function CommandCenterPage() {
       </div>
 
       {/* Bot nav cards — same style as HeroSection NavCards */}
-      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:items-end">
+      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         {BOT_CARDS.map((card) => (
           <BotNavCard
             key={card.id}

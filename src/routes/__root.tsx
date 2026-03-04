@@ -16,7 +16,7 @@ const AppHeader = lazy(() => import('@/components/layout/AppHeader').then(m => (
 import { Cursor } from '@/components/ui/cursor'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPaletteProvider } from '@/lib/hooks/use-command-palette'
-import { PageLayoutProvider, useCurrentSidebar } from '@/lib/hooks/use-page-layout'
+import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from '@/lib/hooks/use-page-layout'
 import { getLocale, shouldRedirect } from '@/paraglide/runtime'
 import fontsCss from '../fonts.css?url'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -92,7 +92,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="h-screen flex flex-col overflow-hidden min-w-[1024px]">
+      <body className="h-screen flex flex-col overflow-hidden">
         <Cursor />
         {/* <GridBackground /> */}
         <Dither
@@ -114,7 +114,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             backgroundSize: '100% 4px',
           }}
         />
-        <div className="relative z-1 flex flex-col flex-1 overflow-hidden pointer-events-none">
+        <div className="relative z-1 flex flex-col flex-1 min-h-0 overflow-hidden pointer-events-none">
           <TanStackQueryProvider>
             <TooltipProvider>
               <CommandPaletteProvider>
@@ -145,19 +145,21 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
 function TwoColumnShell({ children }: { children: React.ReactNode }) {
   const sidebar = useCurrentSidebar()
+  const mobileMode = useMobileMode()
+  const showContentOnMobile = mobileMode === 'content'
 
   return (
     <div className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none max-w-[1920px] w-full mx-auto">
       {/* Left column — main page content */}
-      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-        <div className="flex w-full h-full flex-col justify-center p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+      <div className={`flex-1 min-w-0 overflow-hidden flex flex-col ${showContentOnMobile ? '' : 'hidden lg:flex'}`}>
+        <div className="flex w-full h-full flex-col justify-center p-4 sm:p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
           {children}
         </div>
       </div>
 
       {/* Right column — page-specific sidebar */}
-      <aside className="w-full flex-1 flex shrink-0 overflow-hidden justify-center">
-        <div className="max-w-2xl min-w-xl w-full h-full flex flex-col">
+      <aside className={`w-full flex-1 flex shrink-0 overflow-hidden justify-center ${showContentOnMobile ? 'hidden lg:flex' : ''}`}>
+        <div className="max-w-2xl min-w-0 xl:min-w-xl w-full h-full flex flex-col">
           {sidebar}
         </div>
       </aside>

@@ -52,7 +52,7 @@ const NAV_ITEMS = [
 
 export function HeroSection() {
   return (
-    <div className="flex w-full h-full flex-col justify-between p-6 lg:p-12 xl:p-16">
+    <div className="flex w-full h-full flex-col justify-between">
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
         {'SYSTEM READY'}
@@ -63,7 +63,7 @@ export function HeroSection() {
       </div>
 
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[15vw] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+        <h1 className="font-mono font-bold text-[clamp(3rem,15vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
           <CyclingWord />
           <br />
           <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
@@ -76,7 +76,7 @@ export function HeroSection() {
         </p>
       </div>
 
-      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:items-end">
+      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         {NAV_ITEMS.map((item) => (
           <NavCard key={item.id} item={item} />
         ))}

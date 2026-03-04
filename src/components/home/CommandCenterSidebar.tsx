@@ -221,7 +221,7 @@ export function CommandCenterSidebar({
                   value={search}
                   onChange={(e) => onSearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Escape' && onSearch('')}
-                  onBlur={() => setTimeout(() => inputRef.current?.focus(), 0)}
+                  onBlur={() => {}}
                   onSelect={updateCursor}
                   onKeyUp={updateCursor}
                   className="w-full bg-transparent border-none focus:ring-0 p-0 text-base font-mono text-brackeys-yellow placeholder-muted/50 caret-transparent uppercase outline-none"

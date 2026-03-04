@@ -34,7 +34,7 @@ export function CollabCreatePage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[15vw] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+        <h1 className="font-mono font-bold text-[clamp(3rem,15vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
           NEW
           <br />
           <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
@@ -47,7 +47,7 @@ export function CollabCreatePage() {
       </div>
 
       {/* Step indicator */}
-      <nav className="my-6 sm:mt-12 flex flex-col gap-3 sm:flex-row sm:items-end">
+      <nav className="my-6 sm:mt-12 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         {steps.map((step, i) => (
           <div
             key={step.id}

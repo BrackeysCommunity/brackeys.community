@@ -71,7 +71,7 @@ export function CollabPostPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[12vw] leading-[0.85] tracking-tighter text-foreground lg:text-[7rem] xl:text-[9rem]">
+          <h1 className="font-mono font-bold text-[clamp(2.5rem,12vw,9rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[7rem] xl:text-[9rem]">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : post ? (

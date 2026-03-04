@@ -16,7 +16,7 @@ export function HomePage() {
   const isJamOver = Date.now() >= JAM_DEADLINE.getTime();
   const ticker = `LIVE JAM IN PROGRESS: THEME IS STRANGE PLACES  ///  ${timeStr} REMAINING  ///  CHECK DISCORD FOR UPDATES  ///  `;
 
-  usePageSidebar(<Sidebar />);
+  usePageSidebar(<Sidebar />, 'content');
 
   return (
     <div className="flex-1 h-full overflow-hidden relative flex flex-col">
