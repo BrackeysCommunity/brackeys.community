@@ -20,13 +20,13 @@ export function ProfileJams({ jams, className }: ProfileJamsProps) {
 
   return (
     <div className={cn('relative', className)}>
-      <div className="absolute left-[5px] top-2 bottom-2 w-px bg-muted/40" />
+      <div className="absolute left-[5.5px] top-2 bottom-2 w-px bg-muted/30" />
 
       <div className="flex flex-col gap-3">
         {jams.map((jam) => (
           <div key={jam.id} className="flex items-start gap-3 relative group">
             <div className="relative z-10 mt-1.5 shrink-0">
-              <div className="w-[11px] h-[11px] rounded-full border-2 border-muted/60 bg-background group-hover:border-brackeys-yellow/60 transition-colors" />
+              <div className="w-3 h-3 rounded-full border-2 border-muted/50 bg-background group-hover:border-brackeys-yellow/60 group-hover:bg-brackeys-yellow/10 transition-colors" />
             </div>
 
             <div className="flex-1 min-w-0 pb-0.5">

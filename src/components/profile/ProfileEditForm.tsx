@@ -51,6 +51,9 @@ interface ProfileEditFormProps {
   urlStub: string | null;
   profileQueryKey: readonly unknown[];
   onCompletenessChange?: (items: CompletenessItem[]) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onDiscard?: () => void;
+  discardRequested?: boolean;
 }
 
 function EditSection({
@@ -124,6 +127,9 @@ export function ProfileEditForm({
   urlStub: initialUrlStub,
   profileQueryKey,
   onCompletenessChange,
+  onDirtyChange,
+  onDiscard,
+  discardRequested,
 }: ProfileEditFormProps) {
   const queryClient = useQueryClient();
 
@@ -143,11 +149,35 @@ export function ProfileEditForm({
   const [twitterUrl, setTwitterUrl] = useState(profile.twitterUrl ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '');
 
+  const isDirty =
+    tagline !== (profile.tagline ?? '') ||
+    bio !== (profile.bio ?? '') ||
+    githubUrl !== (profile.githubUrl ?? '') ||
+    twitterUrl !== (profile.twitterUrl ?? '') ||
+    websiteUrl !== (profile.websiteUrl ?? '');
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (discardRequested) {
+      setTagline(profile.tagline ?? '');
+      setBio(profile.bio ?? '');
+      setGithubUrl(profile.githubUrl ?? '');
+      setTwitterUrl(profile.twitterUrl ?? '');
+      setWebsiteUrl(profile.websiteUrl ?? '');
+      onDiscard?.();
+    }
+  }, [discardRequested, profile, onDiscard]);
+
   useEffect(() => {
     onCompletenessChange?.(buildCompletenessItems({
-      tagline, bio, skills, githubUrl, twitterUrl, websiteUrl, projects, jams,
+      tagline, bio, skills,
+      pendingSkillCount: pendingRequests.length,
+      githubUrl, twitterUrl, websiteUrl, projects, jams,
     }));
-  }, [tagline, bio, skills, githubUrl, twitterUrl, websiteUrl, projects, jams, onCompletenessChange]);
+  }, [tagline, bio, skills, pendingRequests.length, githubUrl, twitterUrl, websiteUrl, projects, jams, onCompletenessChange]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const updateMutation = useMutation({

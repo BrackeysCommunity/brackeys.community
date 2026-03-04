@@ -46,6 +46,7 @@ export function ProfileViewPage() {
         tagline: profile?.tagline ?? null,
         bio: profile?.bio ?? null,
         skills: profileData.skills,
+        pendingSkillCount: profileData.pendingSkillRequests?.length ?? 0,
         githubUrl: profile?.githubUrl ?? null,
         twitterUrl: profile?.twitterUrl ?? null,
         websiteUrl: profile?.websiteUrl ?? null,

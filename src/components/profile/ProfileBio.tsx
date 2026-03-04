@@ -11,7 +11,7 @@ export function ProfileBio({ bio, maxLines, className }: ProfileBioProps) {
     <div className={cn('relative', className)}>
       <p
         className={cn(
-          'font-sans text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap',
+          'font-sans text-[13px] text-muted-foreground/80 leading-[1.7] whitespace-pre-wrap',
           maxLines && `line-clamp-${maxLines}`,
         )}
       >
