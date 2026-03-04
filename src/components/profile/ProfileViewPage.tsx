@@ -1,51 +1,15 @@
-import { ComputerTerminal01Icon, IdentityCardIcon, UserGroupIcon } from '@hugeicons/core-free-icons';
-import type { IconSvgElement } from '@hugeicons/react';
-import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  Calendar03Icon,
+  ComputerTerminal01Icon,
+  IdentityCardIcon,
+  UserGroupIcon,
+} from '@hugeicons/core-free-icons';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { usePageSidebar } from '@/lib/hooks/use-page-layout';
 import { orpc } from '@/orpc/client';
 import { Route } from '@/routes/profile.$userId';
+import { ProfileStatCard } from './ProfileStatCard';
 import { ProfileViewSidebar } from './ProfileViewSidebar';
-
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
-
-interface StatCardProps {
-  index: string;
-  label: string;
-  value: number;
-  icon: IconSvgElement;
-}
-
-function StatCard({ index, label, value, icon }: StatCardProps) {
-  const { ref, position } = useMagnetic(0.2);
-  return (
-    <motion.div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      data-magnetic
-      data-cursor-corner-size="lg"
-      data-cursor-padding-x="24"
-      data-cursor-padding-y="24"
-      animate={{ x: position.x, y: position.y }}
-      transition={springTransition}
-      className="relative z-10 w-full sm:w-auto pointer-events-auto"
-    >
-      <div className="group flex h-24 w-full min-w-[200px] flex-col justify-between border-2 border-muted bg-card p-4 transition-all duration-100 hover:-translate-y-1 hover:border-primary hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)]">
-        <div className="flex justify-between">
-          <span className="font-mono text-xs text-muted-foreground group-hover:text-primary">{index}</span>
-          <HugeiconsIcon icon={icon} size={20} className="text-muted-foreground group-hover:text-primary" />
-        </div>
-        <div className="flex items-baseline gap-3">
-          <span className="font-mono font-bold text-2xl leading-none tracking-tight text-foreground group-hover:text-primary">
-            {value}
-          </span>
-          <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">{label}</span>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 export function ProfileViewPage() {
   const { userId } = Route.useParams();
@@ -58,6 +22,11 @@ export function ProfileViewPage() {
   const profile = profileData?.profile;
   const username = profile?.discordUsername ?? 'UNKNOWN';
   const tagline = profile?.tagline || 'A member of the Brackeys community.';
+  const bio = profile?.bio;
+
+  const memberSince = profile?.createdAt
+    ? new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    : null;
 
   usePageSidebar(
     <ProfileViewSidebar profileData={profileData ?? null} isLoading={isLoading} />,
@@ -71,6 +40,12 @@ export function ProfileViewPage() {
         {isLoading ? 'LOADING...' : profileData ? 'PROFILE LOADED' : 'NOT FOUND'}
         <span className="mx-2 text-primary">{'//'}</span>
         {isLoading ? '...' : `@${username.toUpperCase()}`}
+        {profileData?.isOwner && (
+          <>
+            <span className="mx-2 text-primary">{'//'}</span>
+            <span className="text-brackeys-yellow/60">YOUR PROFILE</span>
+          </>
+        )}
       </div>
 
       {/* Heading block */}
@@ -111,31 +86,46 @@ export function ProfileViewPage() {
             </>
           )}
         </h1>
+
         <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
           {isLoading ? 'Loading profile data...' : profileData ? tagline : 'This profile does not exist or has not been set up yet.'}
         </p>
+
+        {bio && !isLoading && (
+          <p className="mt-4 max-w-xl font-sans text-sm text-muted-foreground/60 leading-relaxed line-clamp-2">
+            {bio}
+          </p>
+        )}
       </div>
 
       {/* Stats cards */}
       <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-        <StatCard
+        <ProfileStatCard
           index="01"
           label="PROJECTS"
           value={profileData?.projects?.length ?? 0}
           icon={ComputerTerminal01Icon}
         />
-        <StatCard
+        <ProfileStatCard
           index="02"
           label="JAMS"
           value={profileData?.jams?.length ?? 0}
           icon={UserGroupIcon}
         />
-        <StatCard
+        <ProfileStatCard
           index="03"
           label="SKILLS"
           value={profileData?.skills?.length ?? 0}
           icon={IdentityCardIcon}
         />
+        {memberSince && (
+          <ProfileStatCard
+            index="04"
+            label="MEMBER"
+            value={memberSince.toUpperCase()}
+            icon={Calendar03Icon}
+          />
+        )}
       </nav>
     </>
   );

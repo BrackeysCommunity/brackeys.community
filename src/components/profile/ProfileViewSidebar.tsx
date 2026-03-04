@@ -1,14 +1,14 @@
-import { Github01Icon, GlobalIcon, Link01Icon, Share01Icon, TwitterIcon } from '@hugeicons/core-free-icons';
-import type { IconSvgElement } from '@hugeicons/react';
+import { PencilEdit01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { motion } from 'framer-motion';
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
-import { buttonVariants } from '@/components/ui/button';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch';
+import { NotchedCard } from '@/components/ui/notched-card';
 import { cn } from '@/lib/utils';
-
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+import { ProfileAvatar } from './ProfileAvatar';
+import { ProfileBio } from './ProfileBio';
+import { ProfileJams } from './ProfileJams';
+import { buildSocialLinks, ProfileLinks } from './ProfileLinks';
+import { ProfileProjects } from './ProfileProjects';
+import { ProfileRoles } from './ProfileRoles';
+import { ProfileSkills } from './ProfileSkills';
 
 interface ProfileData {
   profile: {
@@ -56,141 +56,50 @@ interface ProfileViewSidebarProps {
   isLoading: boolean;
 }
 
-function MagneticFooterLink({
-  href,
-  children,
-  className,
-}: {
-  href: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const { ref, position } = useMagnetic(0.25);
-  return (
-    <motion.div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      data-magnetic
-      animate={{ x: position.x, y: position.y }}
-      transition={springTransition}
-      className="flex-1"
-    >
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-      >
-        {children}
-      </a>
-    </motion.div>
-  );
-}
-
-function MagneticFooterButton({
-  onClick,
-  children,
-  className,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const { ref, position } = useMagnetic(0.25);
-  return (
-    <motion.div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      data-magnetic
-      animate={{ x: position.x, y: position.y }}
-      transition={springTransition}
-      className="flex-1"
-    >
-      <button type="button" onClick={onClick} className={className}>
-        {children}
-      </button>
-    </motion.div>
-  );
-}
-
-function SocialLink({ href, icon, label }: { href: string; icon: IconSvgElement; label: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground hover:text-primary transition-colors"
-      title={label}
-    >
-      <HugeiconsIcon icon={icon} size={14} />
-      <span className="uppercase truncate">{label}</span>
-    </a>
-  );
-}
-
 function SkeletonBlock({ className }: { className?: string }) {
   return <div className={cn('animate-pulse bg-muted/40 rounded-sm', className)} />;
 }
 
+function SidebarSection({
+  label,
+  count,
+  children,
+  className,
+}: {
+  label: string;
+  count?: number;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('px-5 py-4 border-b border-muted/60', className)}>
+      <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2.5">
+        {label}
+        {count !== undefined && (
+          <span className="text-muted-foreground/30 ml-1.5">({count})</span>
+        )}
+      </h4>
+      {children}
+    </div>
+  );
+}
+
 export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSidebarProps) {
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="w-full h-full max-h-[min(800px,calc(100vh-120px))] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
-          <div className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative" style={{ clipPath: notchClipInner }}>
-            <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
-              <SkeletonBlock className="h-3 w-24" />
-              <SkeletonBlock className="h-3 w-16" />
-            </div>
-            <div className="flex flex-col items-center gap-3 px-5 py-6 border-b border-muted/60">
-              <SkeletonBlock className="h-20 w-20 rounded-full" />
-              <SkeletonBlock className="h-4 w-32" />
-            </div>
-            <div className="p-5 space-y-4">
-              <SkeletonBlock className="h-3 w-full" />
-              <SkeletonBlock className="h-3 w-3/4" />
-              <SkeletonBlock className="h-3 w-1/2" />
-              <div className="flex gap-2 mt-4">
-                <SkeletonBlock className="h-5 w-16" />
-                <SkeletonBlock className="h-5 w-20" />
-                <SkeletonBlock className="h-5 w-14" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   if (!profileData) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="w-full h-full max-h-[min(800px,calc(100vh-120px))] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
-          <div className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative items-center justify-center" style={{ clipPath: notchClipInner }}>
-            <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-            <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
-            <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-              <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
-            </svg>
-            <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-              <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
-            </svg>
-            <p className="font-mono text-sm font-bold tracking-widest text-destructive uppercase">PROFILE NOT FOUND</p>
-            <p className="font-mono text-xs text-muted-foreground mt-2">ERR_404 // NO DATA</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <NotFoundState />;
   }
 
-  const { profile, skills, projects, jams } = profileData;
+  const { profile, skills, projects, jams, isOwner } = profileData;
   const username = profile.discordUsername ?? 'Unknown';
   const memberSince = profile.createdAt
     ? new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
     : null;
 
-  const socialLinks: { href: string; icon: IconSvgElement; label: string }[] = [];
-  if (profile.githubUrl) socialLinks.push({ href: profile.githubUrl, icon: Github01Icon, label: 'GitHub' });
-  if (profile.twitterUrl) socialLinks.push({ href: profile.twitterUrl, icon: TwitterIcon, label: 'Twitter' });
-  if (profile.websiteUrl) socialLinks.push({ href: profile.websiteUrl, icon: GlobalIcon, label: 'Website' });
+  const socialLinks = buildSocialLinks(profile);
 
   const handleShareProfile = () => {
     const slug = profileData.urlStub ?? profile.id;
@@ -198,249 +107,161 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
     navigator.clipboard.writeText(url);
   };
 
+  const header = (
+    <div className="flex items-center justify-between">
+      <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
+        @{username.toUpperCase()}
+      </span>
+      <div className="flex items-center gap-2">
+        {isOwner && (
+          <span
+            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-primary/60 transition-colors cursor-default"
+            title="Edit mode coming soon"
+          >
+            <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
+            EDIT
+          </span>
+        )}
+        {memberSince && (
+          <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+            SINCE {memberSince.toUpperCase()}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  const footer = (
+    <div className="px-4 py-3 flex items-center justify-center">
+      <ProfileLinks
+        links={socialLinks}
+        discordId={profile.discordId}
+        onShare={handleShareProfile}
+      />
+    </div>
+  );
+
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <div
-        className="w-full h-full max-h-[800px] bg-muted/60"
-        style={{ clipPath: notchClip, padding: '2px' }}
+      <NotchedCard
+        className="w-full h-full max-h-[800px]"
+        header={header}
+        footer={footer}
       >
-        <div
-          className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative"
-          style={{ clipPath: notchClipInner }}
-        >
-          {/* Corner decorators */}
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
-          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-            <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
-          </svg>
-          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
-          </svg>
+        {/* Avatar */}
+        <div className="flex flex-col items-center px-5 py-6 border-b border-muted/60">
+          <ProfileAvatar
+            avatarUrl={profile.avatarUrl}
+            username={username}
+            tagline={profile.tagline}
+            size={96}
+          />
+        </div>
 
-          {/* Card header */}
-          <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
-            <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-              @{username.toUpperCase()}
-            </span>
-            {memberSince && (
-              <span className="font-mono text-[10px] tracking-widest text-muted-foreground/60 uppercase">
-                SINCE {memberSince.toUpperCase()}
-              </span>
-            )}
+        {/* Roles */}
+        {profile.guildRoles && profile.guildRoles.length > 0 && (
+          <SidebarSection label="Roles">
+            <ProfileRoles roles={profile.guildRoles} />
+          </SidebarSection>
+        )}
+
+        {/* Bio */}
+        {profile.bio && (
+          <SidebarSection label="Bio">
+            <ProfileBio bio={profile.bio} />
+          </SidebarSection>
+        )}
+
+        {/* Skills */}
+        {skills.length > 0 && (
+          <SidebarSection label="Skills" count={skills.length}>
+            <ProfileSkills skills={skills} />
+          </SidebarSection>
+        )}
+
+        {/* Projects */}
+        {projects.length > 0 && (
+          <SidebarSection label="Projects" count={projects.length}>
+            <ProfileProjects projects={projects} />
+          </SidebarSection>
+        )}
+
+        {/* Jams */}
+        {jams.length > 0 && (
+          <SidebarSection label="Jam History" count={jams.length} className="border-b-0">
+            <ProfileJams jams={jams} />
+          </SidebarSection>
+        )}
+      </NotchedCard>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <NotchedCard
+        className="w-full h-full max-h-[800px]"
+        header={
+          <div className="flex items-center justify-between">
+            <SkeletonBlock className="h-3 w-24" />
+            <SkeletonBlock className="h-3 w-16" />
           </div>
+        }
+      >
+        <div className="flex flex-col items-center gap-3 px-5 py-6 border-b border-muted/60">
+          <SkeletonBlock className="h-24 w-24 rounded-full" />
+          <SkeletonBlock className="h-4 w-32" />
+          <SkeletonBlock className="h-3 w-44" />
+        </div>
 
-          {/* Scrollable content */}
-          <OverlayScrollbarsComponent
-            className="flex-1 overflow-hidden"
-            options={{ scrollbars: { autoHide: 'scroll' } }}
-            defer
-          >
-            {/* Avatar section */}
-            <div className="flex flex-col items-center gap-3 px-5 py-6 border-b border-muted/60">
-              {profile.avatarUrl ? (
-                <img
-                  src={profile.avatarUrl}
-                  alt={username}
-                  className="h-20 w-20 rounded-full border-2 border-muted grayscale transition-all duration-300 hover:grayscale-0 hover:border-primary"
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-muted bg-card/60 font-mono text-2xl font-bold text-muted-foreground">
-                  {username.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="text-center">
-                <p className="font-mono text-sm font-bold tracking-widest text-foreground">{username}</p>
-                {profile.tagline && (
-                  <p className="font-mono text-xs text-muted-foreground mt-1">{profile.tagline}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Roles */}
-            {profile.guildRoles && profile.guildRoles.length > 0 && (
-              <div className="px-5 py-4 border-b border-muted/60">
-                <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2">ROLES</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.guildRoles.map((role) => (
-                    <span
-                      key={role}
-                      className="inline-flex items-center px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest uppercase border border-[#5865f2]/40 text-[#5865f2] bg-[#5865f2]/10"
-                    >
-                      {role}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Bio */}
-            {profile.bio && (
-              <div className="px-5 py-4 border-b border-muted/60">
-                <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2">BIO</h4>
-                <p className="font-sans text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{profile.bio}</p>
-              </div>
-            )}
-
-            {/* Skills */}
-            {skills.length > 0 && (
-              <div className="px-5 py-4 border-b border-muted/60">
-                <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2">
-                  SKILLS ({skills.length})
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {skills.map((skill) => (
-                    <span
-                      key={skill.id}
-                      className="inline-flex items-center px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest uppercase border border-brackeys-yellow/40 text-brackeys-yellow bg-brackeys-yellow/10"
-                    >
-                      {skill.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Social links */}
-            {socialLinks.length > 0 && (
-              <div className="px-5 py-4 border-b border-muted/60">
-                <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2">LINKS</h4>
-                <div className="flex flex-col gap-2">
-                  {socialLinks.map((link) => (
-                    <SocialLink key={link.label} {...link} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Projects */}
-            {projects.length > 0 && (
-              <div className="px-5 py-4 border-b border-muted/60">
-                <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2">
-                  PROJECTS ({projects.length})
-                </h4>
-                <div className="flex flex-col gap-3">
-                  {projects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="border border-muted/60 bg-card/40 p-3"
-                    >
-                      {project.imageUrl && (
-                        <img src={project.imageUrl} alt={project.title} className="w-full h-24 object-cover border border-muted/20 mb-2" />
-                      )}
-                      <div className="flex items-start justify-between gap-2">
-                        <h5 className="font-mono text-xs font-bold tracking-widest text-foreground uppercase">{project.title}</h5>
-                        {project.url && (
-                          <a
-                            href={project.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-primary transition-colors shrink-0"
-                          >
-                            <HugeiconsIcon icon={Link01Icon} size={12} />
-                          </a>
-                        )}
-                      </div>
-                      {project.description && (
-                        <p className="font-sans text-xs text-muted-foreground mt-1 line-clamp-2">{project.description}</p>
-                      )}
-                      {project.tags && project.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {project.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground/60 border border-muted/40 uppercase"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Jam history */}
-            {jams.length > 0 && (
-              <div className="px-5 py-4">
-                <h4 className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase mb-2">
-                  JAM HISTORY ({jams.length})
-                </h4>
-                <div className="flex flex-col gap-2">
-                  {jams.map((jam) => (
-                    <div
-                      key={jam.id}
-                      className="flex items-start gap-3 border-l-2 border-muted/60 pl-3 py-1"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-xs font-bold tracking-widest text-foreground uppercase truncate">
-                          {jam.jamUrl ? (
-                            <a href={jam.jamUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-                              {jam.jamName}
-                            </a>
-                          ) : (
-                            jam.jamName
-                          )}
-                        </p>
-                        {jam.submissionTitle && (
-                          <p className="font-mono text-[10px] text-muted-foreground truncate mt-0.5">
-                            {jam.submissionUrl ? (
-                              <a href={jam.submissionUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-                                {jam.submissionTitle}
-                              </a>
-                            ) : (
-                              jam.submissionTitle
-                            )}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {jam.result && (
-                            <span className="font-mono text-[10px] font-bold tracking-widest text-brackeys-yellow uppercase">{jam.result}</span>
-                          )}
-                          {jam.participatedAt && (
-                            <span className="font-mono text-[10px] text-muted-foreground/50">
-                              {new Date(jam.participatedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </OverlayScrollbarsComponent>
-
-          {/* Footer */}
-          <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-8">
-            {profile.discordId && (
-              <MagneticFooterLink
-                href={`https://discord.com/users/${profile.discordId}`}
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'w-full border-[#5865f2]/40 text-[#5865f2] hover:bg-[#5865f2]/10 hover:border-[#5865f2] font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
-                )}
-              >
-                Discord
-                <HugeiconsIcon icon={Share01Icon} size={13} />
-              </MagneticFooterLink>
-            )}
-
-            <MagneticFooterButton
-              onClick={handleShareProfile}
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'sm' }),
-                'w-full border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
-              )}
-            >
-              Share Profile
-              <HugeiconsIcon icon={Share01Icon} size={13} />
-            </MagneticFooterButton>
+        <div className="px-5 py-4 border-b border-muted/60 space-y-2">
+          <SkeletonBlock className="h-2.5 w-12" />
+          <div className="flex gap-1.5">
+            <SkeletonBlock className="h-5 w-16" />
+            <SkeletonBlock className="h-5 w-20" />
           </div>
         </div>
-      </div>
+
+        <div className="px-5 py-4 border-b border-muted/60 space-y-2">
+          <SkeletonBlock className="h-2.5 w-8" />
+          <SkeletonBlock className="h-3 w-full" />
+          <SkeletonBlock className="h-3 w-3/4" />
+          <SkeletonBlock className="h-3 w-1/2" />
+        </div>
+
+        <div className="px-5 py-4 space-y-2">
+          <SkeletonBlock className="h-2.5 w-14" />
+          <div className="flex flex-wrap gap-1.5">
+            <SkeletonBlock className="h-5 w-16" />
+            <SkeletonBlock className="h-5 w-20" />
+            <SkeletonBlock className="h-5 w-14" />
+            <SkeletonBlock className="h-5 w-18" />
+          </div>
+        </div>
+      </NotchedCard>
+    </div>
+  );
+}
+
+function NotFoundState() {
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <NotchedCard className="w-full h-full max-h-[800px]" scrollable={false}>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+          <div className="w-16 h-16 rounded-full border-2 border-muted/40 flex items-center justify-center">
+            <span className="font-mono text-2xl text-muted-foreground/30">?</span>
+          </div>
+          <div className="text-center space-y-1.5">
+            <p className="font-mono text-sm font-bold tracking-widest text-destructive/80 uppercase">
+              Profile Not Found
+            </p>
+            <p className="font-mono text-xs text-muted-foreground/50 max-w-[200px]">
+              This user hasn't set up their profile yet, or the link may be incorrect.
+            </p>
+          </div>
+        </div>
+      </NotchedCard>
     </div>
   );
 }
