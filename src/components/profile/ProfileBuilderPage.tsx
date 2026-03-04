@@ -1,74 +1,14 @@
-import {
-  CodeIcon,
-  GameController01Icon,
-  IdentityCardIcon,
-  Login01Icon,
-} from '@hugeicons/core-free-icons';
-import type { IconSvgElement } from '@hugeicons/react';
+import { Login01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useStore } from '@tanstack/react-store';
+import { useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { authClient } from '@/lib/auth-client';
 import { authStore } from '@/lib/auth-store';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { usePageSidebar } from '@/lib/hooks/use-page-layout';
-import { ProfileBuilderSidebar } from './ProfileBuilderSidebar';
 
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
-
-interface ProfileNavItem {
-  id: string;
-  label: string;
-  icon: IconSvgElement;
-  desc: string;
-}
-
-const NAV_CARDS: ProfileNavItem[] = [
-  {
-    id: '01',
-    label: 'SKILLS\nSTACK',
-    icon: CodeIcon,
-    desc: 'Languages, engines & tools',
-  },
-  {
-    id: '02',
-    label: 'PROJECT\nSHOWCASE',
-    icon: IdentityCardIcon,
-    desc: 'Your shipped builds',
-  },
-  {
-    id: '03',
-    label: 'JAM\nHISTORY',
-    icon: GameController01Icon,
-    desc: 'Competition track record',
-  },
-];
-
-function ProfileNavCard({ card }: { card: ProfileNavItem }) {
-  const { ref, position } = useMagnetic(0.2);
-  return (
-    <motion.div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      data-magnetic
-      data-cursor-corner-size="lg"
-      data-cursor-padding-x="24"
-      data-cursor-padding-y="24"
-      animate={{ x: position.x, y: position.y }}
-      transition={springTransition}
-      className="relative z-10 w-full sm:w-auto pointer-events-auto"
-    >
-      <div className="group flex h-24 w-full min-w-[200px] flex-col justify-between border-2 border-muted bg-card p-4 transition-all duration-100 hover:-translate-y-1 hover:border-primary hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)]">
-        <div className="flex justify-between">
-          <span className="font-mono text-xs text-muted-foreground group-hover:text-primary">{card.id}</span>
-          <HugeiconsIcon icon={card.icon} size={20} className="text-muted-foreground group-hover:text-primary" />
-        </div>
-        <div className="font-mono font-bold text-2xl leading-none tracking-tight text-foreground group-hover:text-primary whitespace-pre-line">
-          {card.label}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 function DiscordSignInCTA() {
   const { ref, position } = useMagnetic(0.2);
@@ -99,7 +39,7 @@ function DiscordSignInCTA() {
         </button>
       </motion.div>
       <p className="mt-4 font-mono text-xs text-muted-foreground tracking-wider">
-        {'> AUTHENTICATION REQUIRED TO ACCESS PROFILE EDITOR'}
+        {'> SIGN IN TO VIEW AND EDIT YOUR PROFILE'}
       </p>
     </div>
   );
@@ -107,29 +47,41 @@ function DiscordSignInCTA() {
 
 export function ProfileBuilderPage() {
   const { session, isPending } = useStore(authStore);
+  const navigate = useNavigate();
 
-  usePageSidebar(<ProfileBuilderSidebar />);
+  useEffect(() => {
+    if (!isPending && session?.user?.id) {
+      navigate({ to: '/profile/$userId', params: { userId: session.user.id }, replace: true });
+    }
+  }, [isPending, session?.user?.id, navigate]);
 
-  const agentName = isPending
-    ? 'LOADING...'
-    : session?.user?.name
-      ? session.user.name.toUpperCase()
-      : 'UNAUTHORIZED';
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+          Authenticating...
+        </span>
+      </div>
+    );
+  }
+
+  if (session?.user) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+          Redirecting to your profile...
+        </span>
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* Status bar */}
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{'>'}</span>
-        {'SYSTEM READY'}
-        <span className="mx-2 text-primary">{'//'}</span>
-        {'v0.0.0-alpha.127'}
-        <span className="mx-2 text-primary">{'//'}</span>
-        {'AGENT: '}
-        <span className={session?.user ? 'text-primary' : 'text-destructive'}>{agentName}</span>
+        AUTHENTICATION REQUIRED
       </div>
 
-      {/* Heading block */}
       <div className="flex flex-col justify-center">
         <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
           DEV
@@ -140,20 +92,11 @@ export function ProfileBuilderPage() {
         </h1>
         <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
           Your developer identity in the Brackeys network.
-          Showcase your skills, ship your projects, and track your jam history.
+          Sign in with Discord to view and edit your profile.
         </p>
       </div>
 
-      {/* Nav cards or sign-in CTA */}
-      {session?.user ? (
-        <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-          {NAV_CARDS.map((card) => (
-            <ProfileNavCard key={card.id} card={card} />
-          ))}
-        </nav>
-      ) : (
-        <DiscordSignInCTA />
-      )}
+      <DiscordSignInCTA />
     </>
   );
 }

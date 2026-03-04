@@ -14,8 +14,9 @@ import { ProfileViewSidebar } from './ProfileViewSidebar';
 export function ProfileViewPage() {
   const { userId } = Route.useParams();
 
+  const queryOptions = orpc.getProfile.queryOptions({ input: { userId } });
   const { data: profileData, isLoading } = useQuery({
-    ...orpc.getProfile.queryOptions({ input: { userId } }),
+    ...queryOptions,
     staleTime: 60 * 1000,
   });
 
@@ -29,7 +30,11 @@ export function ProfileViewPage() {
     : null;
 
   usePageSidebar(
-    <ProfileViewSidebar profileData={profileData ?? null} isLoading={isLoading} />,
+    <ProfileViewSidebar
+      profileData={profileData ?? null}
+      isLoading={isLoading}
+      profileQueryKey={queryOptions.queryKey}
+    />,
   );
 
   return (

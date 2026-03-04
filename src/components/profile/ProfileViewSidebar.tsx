@@ -1,9 +1,12 @@
-import { PencilEdit01Icon } from '@hugeicons/core-free-icons';
+import { Cancel01Icon, PencilEdit01Icon, Tick01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useState } from 'react';
 import { NotchedCard } from '@/components/ui/notched-card';
 import { cn } from '@/lib/utils';
 import { ProfileAvatar } from './ProfileAvatar';
 import { ProfileBio } from './ProfileBio';
+import { ProfileEditForm } from './ProfileEditForm';
 import { ProfileJams } from './ProfileJams';
 import { buildSocialLinks, ProfileLinks } from './ProfileLinks';
 import { ProfileProjects } from './ProfileProjects';
@@ -49,11 +52,13 @@ interface ProfileData {
   }>;
   isOwner: boolean;
   urlStub: string | null;
+  pendingSkillRequests?: Array<{ name: string }>;
 }
 
 interface ProfileViewSidebarProps {
   profileData: ProfileData | null;
   isLoading: boolean;
+  profileQueryKey: readonly unknown[];
 }
 
 function SkeletonBlock({ className }: { className?: string }) {
@@ -84,7 +89,16 @@ function SidebarSection({
   );
 }
 
-export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSidebarProps) {
+const fadeVariants = {
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -6 },
+};
+const fadeTransition = { duration: 0.2, ease: 'easeInOut' as const };
+
+export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: ProfileViewSidebarProps) {
+  const [isEditing, setIsEditing] = useState(false);
+
   if (isLoading) {
     return <LoadingSkeleton />;
   }
@@ -113,25 +127,45 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
         @{username.toUpperCase()}
       </span>
       <div className="flex items-center gap-2">
-        {isOwner && (
-          <span
-            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-primary/60 transition-colors cursor-default"
-            title="Edit mode coming soon"
+        {isOwner && !isEditing && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-primary transition-colors"
           >
             <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
             EDIT
-          </span>
+          </button>
         )}
-        {memberSince && (
+        {isOwner && isEditing && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(false)}
+            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:text-primary/70 transition-colors"
+          >
+            <HugeiconsIcon icon={Tick01Icon} size={10} />
+            DONE
+          </button>
+        )}
+        {memberSince && !isEditing && (
           <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
             SINCE {memberSince.toUpperCase()}
           </span>
+        )}
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(false)}
+            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-destructive transition-colors"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={10} />
+          </button>
         )}
       </div>
     </div>
   );
 
-  const footer = (
+  const viewFooter = (
     <div className="px-4 py-3 flex items-center justify-center">
       <ProfileLinks
         links={socialLinks}
@@ -141,57 +175,97 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
     </div>
   );
 
+  const editFooter = (
+    <div className="px-4 py-3 flex items-center justify-center">
+      <span className="font-mono text-[10px] text-muted-foreground/40 tracking-widest uppercase">
+        Auto-saving changes
+      </span>
+    </div>
+  );
+
   return (
     <div className="flex h-full items-center justify-center p-6">
       <NotchedCard
         className="w-full h-full max-h-[800px]"
         header={header}
-        footer={footer}
+        footer={isEditing ? editFooter : viewFooter}
       >
-        {/* Avatar */}
-        <div className="flex flex-col items-center px-5 py-6 border-b border-muted/60">
-          <ProfileAvatar
-            avatarUrl={profile.avatarUrl}
-            username={username}
-            tagline={profile.tagline}
-            size={96}
-          />
-        </div>
+        <AnimatePresence mode="wait">
+          {isEditing ? (
+            <motion.div
+              key="edit"
+              variants={fadeVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={fadeTransition}
+            >
+              <ProfileEditForm
+                profile={profile}
+                skills={skills}
+                projects={projects}
+                jams={jams}
+                pendingSkillRequests={profileData.pendingSkillRequests}
+                urlStub={profileData.urlStub}
+                profileQueryKey={profileQueryKey}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="view"
+              variants={fadeVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={fadeTransition}
+            >
+              {/* Avatar */}
+              <div className="flex flex-col items-center px-5 py-6 border-b border-muted/60">
+                <ProfileAvatar
+                  avatarUrl={profile.avatarUrl}
+                  username={username}
+                  tagline={profile.tagline}
+                  size={96}
+                />
+              </div>
 
-        {/* Roles */}
-        {profile.guildRoles && profile.guildRoles.length > 0 && (
-          <SidebarSection label="Roles">
-            <ProfileRoles roles={profile.guildRoles} />
-          </SidebarSection>
-        )}
+              {/* Roles */}
+              {profile.guildRoles && profile.guildRoles.length > 0 && (
+                <SidebarSection label="Roles">
+                  <ProfileRoles roles={profile.guildRoles} />
+                </SidebarSection>
+              )}
 
-        {/* Bio */}
-        {profile.bio && (
-          <SidebarSection label="Bio">
-            <ProfileBio bio={profile.bio} />
-          </SidebarSection>
-        )}
+              {/* Bio */}
+              {profile.bio && (
+                <SidebarSection label="Bio">
+                  <ProfileBio bio={profile.bio} />
+                </SidebarSection>
+              )}
 
-        {/* Skills */}
-        {skills.length > 0 && (
-          <SidebarSection label="Skills" count={skills.length}>
-            <ProfileSkills skills={skills} />
-          </SidebarSection>
-        )}
+              {/* Skills */}
+              {skills.length > 0 && (
+                <SidebarSection label="Skills" count={skills.length}>
+                  <ProfileSkills skills={skills} />
+                </SidebarSection>
+              )}
 
-        {/* Projects */}
-        {projects.length > 0 && (
-          <SidebarSection label="Projects" count={projects.length}>
-            <ProfileProjects projects={projects} />
-          </SidebarSection>
-        )}
+              {/* Projects */}
+              {projects.length > 0 && (
+                <SidebarSection label="Projects" count={projects.length}>
+                  <ProfileProjects projects={projects} />
+                </SidebarSection>
+              )}
 
-        {/* Jams */}
-        {jams.length > 0 && (
-          <SidebarSection label="Jam History" count={jams.length} className="border-b-0">
-            <ProfileJams jams={jams} />
-          </SidebarSection>
-        )}
+              {/* Jams */}
+              {jams.length > 0 && (
+                <SidebarSection label="Jam History" count={jams.length} className="border-b-0">
+                  <ProfileJams jams={jams} />
+                </SidebarSection>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </NotchedCard>
     </div>
   );
@@ -257,7 +331,7 @@ function NotFoundState() {
               Profile Not Found
             </p>
             <p className="font-mono text-xs text-muted-foreground/50 max-w-[200px]">
-              This user hasn't set up their profile yet, or the link may be incorrect.
+              This user hasn&apos;t set up their profile yet, or the link may be incorrect.
             </p>
           </div>
         </div>

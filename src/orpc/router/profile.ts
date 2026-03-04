@@ -73,16 +73,19 @@ export const getProfile = os
     const profileId = profile.id
     const isOwner = context.user?.id === profileId
 
-    const [skillList, projects, jams, urlStub] = await Promise.all([
+    const [skillList, projects, jams, urlStub, pendingSkillRequests] = await Promise.all([
       queryUserSkills(profileId),
       isOwner
         ? db.select().from(profileProjects).where(eq(profileProjects.profileId, profileId))
         : db.select().from(profileProjects).where(and(eq(profileProjects.profileId, profileId), eq(profileProjects.status, 'approved'))),
       db.select().from(jamParticipations).where(eq(jamParticipations.profileId, profileId)),
       db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
+      isOwner
+        ? db.select().from(skillRequests).where(and(eq(skillRequests.userId, profileId), eq(skillRequests.status, 'pending')))
+        : Promise.resolve([]),
     ])
 
-    return { profile, skills: skillList, projects, jams, isOwner, urlStub: urlStub[0]?.stub ?? null }
+    return { profile, skills: skillList, projects, jams, isOwner, urlStub: urlStub[0]?.stub ?? null, pendingSkillRequests }
   })
 
 export const getMyProfile = os
