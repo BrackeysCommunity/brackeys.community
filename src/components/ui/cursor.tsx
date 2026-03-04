@@ -5,16 +5,22 @@ import { cn } from '@/lib/utils';
 
 const BORDER = 3;
 const CORNER = 12;
+const ARC_RADIUS = 14;
+const ARC_STROKE = 3;
+const ARC_GAP = 40;
+const ARC_SWEEP = 90 - ARC_GAP;
 
 const IDLE_POS = [
-  { x: -CORNER * 1.5, y: -CORNER * 1.5 }, // TL
-  { x: CORNER * 0.5,  y: -CORNER * 1.5 }, // TR
-  { x: CORNER * 0.5,  y: CORNER * 0.5  }, // BR
-  { x: -CORNER * 1.5, y: CORNER * 0.5  }, // BL
+  { x: -CORNER * 1.5, y: -CORNER * 1.5 },
+  { x: CORNER * 0.5,  y: -CORNER * 1.5 },
+  { x: CORNER * 0.5,  y: CORNER * 0.5  },
+  { x: -CORNER * 1.5, y: CORNER * 0.5  },
 ] as const;
 
 const CURSOR_SPRING = { damping: 20, stiffness: 1500, mass: 0.05 };
 const CORNER_SPRING = { stiffness: 400, damping: 30, mass: 0.08 };
+const FADE_TRANSITION = { duration: 0.15, ease: 'easeInOut' } as const;
+const ARC_SPRING = { type: 'spring', stiffness: 500, damping: 25, mass: 0.08 } as const;
 
 const CORNER_CLASSES = [
   'border-t-[3px] border-l-[3px]',
@@ -22,6 +28,37 @@ const CORNER_CLASSES = [
   'border-b-[3px] border-r-[3px]',
   'border-b-[3px] border-l-[3px]',
 ] as const;
+
+const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+function bezierArc(r: number, startDeg: number, endDeg: number, controlRadius: number) {
+  const midDeg = (startDeg + endDeg) / 2;
+  const x1 = r * Math.cos(toRad(startDeg));
+  const y1 = r * Math.sin(toRad(startDeg));
+  const x2 = r * Math.cos(toRad(endDeg));
+  const y2 = r * Math.sin(toRad(endDeg));
+  const cx = controlRadius * Math.cos(toRad(midDeg));
+  const cy = controlRadius * Math.sin(toRad(midDeg));
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} Q ${cx.toFixed(2)} ${cy.toFixed(2)} ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+
+const halfGap = ARC_GAP / 2;
+const arcAngles = [
+  [225 + halfGap, 225 + halfGap + ARC_SWEEP],
+  [315 + halfGap, 315 + halfGap + ARC_SWEEP],
+  [45 + halfGap, 45 + halfGap + ARC_SWEEP],
+  [135 + halfGap, 135 + halfGap + ARC_SWEEP],
+] as const;
+
+const halfSweepRad = toRad(ARC_SWEEP / 2);
+const outwardControlR = ARC_RADIUS / Math.cos(halfSweepRad);
+const inwardControlR = ARC_RADIUS * Math.cos(halfSweepRad) * 0.55;
+
+const ARC_NORMAL = arcAngles.map(([s, e]) => bezierArc(ARC_RADIUS, s, e, outwardControlR));
+const ARC_PRESSED = arcAngles.map(([s, e]) => bezierArc(ARC_RADIUS, s, e, inwardControlR));
+
+const svgSize = ARC_RADIUS * 2 + ARC_STROKE;
+const svgHalf = ARC_RADIUS + ARC_STROKE / 2;
 
 interface CursorProps {
   className?: string;
@@ -37,18 +74,15 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const [isPressed, setIsPressed] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(false);
 
-  // Cursor position with spring physics
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springX = useSpring(mouseX, CURSOR_SPRING);
   const springY = useSpring(mouseY, CURSOR_SPRING);
 
-  // Spin animation controller
   const spinControls = useAnimation();
   const isSpinRef = React.useRef(false);
   const spinTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Corner source motion values (raw targets that springs track)
   const c0x = useMotionValue(IDLE_POS[0].x);
   const c0y = useMotionValue(IDLE_POS[0].y);
   const c1x = useMotionValue(IDLE_POS[1].x);
@@ -58,7 +92,6 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const c3x = useMotionValue(IDLE_POS[3].x);
   const c3y = useMotionValue(IDLE_POS[3].y);
 
-  // Corner spring outputs — physics on the corners
   const sc0x = useSpring(c0x, CORNER_SPRING);
   const sc0y = useSpring(c0y, CORNER_SPRING);
   const sc1x = useSpring(c1x, CORNER_SPRING);
@@ -146,9 +179,8 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
         c3x.set(IDLE_POS[3].x); c3y.set(IDLE_POS[3].y);
         spinTimeoutRef.current = setTimeout(startSpin, 50);
       };
-    } else {
-      startSpin();
     }
+    startSpin();
   }, [
     isMagnetic,
     cursorState.targetElement,
@@ -172,6 +204,8 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     { x: sc3x, y: sc3y },
   ];
 
+  const idlePressed = isPressed && !isMagnetic;
+
   return (
     <motion.div
       className={cn('fixed top-0 left-0 w-0 h-0 pointer-events-none z-9999', className)}
@@ -193,7 +227,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
         />
       )}
 
-      {/* Spinning corners wrapper */}
+      {/* Spinning shape wrapper */}
       {!isText && (
         <motion.div
           className="absolute top-0 left-0 w-0 h-0"
@@ -209,18 +243,48 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
             animate={spinControls}
             style={{ willChange: 'transform' }}
           >
+            {/* Square corner brackets — visible when magnetic */}
             {corners.map((pos, i) => (
               <motion.div
                 key={CORNER_CLASSES[i]}
                 className={cn('absolute top-0 left-0 border-foreground rounded-[3px]', CORNER_CLASSES[i])}
                 animate={{
+                  opacity: isMagnetic ? 1 : 0,
                   scaleX: isPressed ? -1 : 1,
                   scaleY: isPressed ? -1 : 1,
                 }}
-                transition={{ duration: 0.15 }}
+                transition={FADE_TRANSITION}
                 style={{ width: CORNER, height: CORNER, x: pos.x, y: pos.y, willChange: 'transform' }}
               />
             ))}
+
+            {/* Broken circle arcs — bezier curves that bend inward on press */}
+            <motion.svg
+              aria-hidden="true"
+              width={svgSize}
+              height={svgSize}
+              viewBox={`${-svgHalf} ${-svgHalf} ${svgSize} ${svgSize}`}
+              className="absolute top-0 left-0"
+              style={{ x: -svgHalf, y: -svgHalf }}
+              animate={{ opacity: isMagnetic ? 0 : 1 }}
+              transition={FADE_TRANSITION}
+            >
+              {arcAngles.map((_, i) => (
+                <motion.path
+                  key={ARC_NORMAL[i]}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={ARC_STROKE}
+                  strokeLinecap="round"
+                  className="text-foreground"
+                  animate={{
+                    d: idlePressed ? ARC_PRESSED[i] : ARC_NORMAL[i],
+                    strokeWidth: idlePressed ? 2 : ARC_STROKE,
+                  }}
+                  transition={ARC_SPRING}
+                />
+              ))}
+            </motion.svg>
           </motion.div>
         </motion.div>
       )}
