@@ -1,4 +1,4 @@
-import { ArrowLeft01Icon, ArrowRight01Icon, Login01Icon, Tick01Icon, Image01Icon, Delete02Icon } from '@hugeicons/core-free-icons'
+import { ArrowLeft01Icon, ArrowRight01Icon, BriefcaseIcon, GameController01Icon, Login01Icon, MultiplicationSignIcon, Tick01Icon, UserGroupIcon, Image01Icon, Delete02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useForm } from '@tanstack/react-form'
 import { useQuery } from '@tanstack/react-query'
@@ -53,11 +53,13 @@ function profanityCheck(value: string, fieldName: string): string | undefined {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const POST_TYPES: { value: CollabPostType; label: string; desc: string }[] = [
-  { value: 'paid', label: 'PAID WORK', desc: 'Paid gigs & contracts' },
-  { value: 'hobby', label: 'HOBBY PROJECT', desc: 'Passion projects & jams' },
-  { value: 'playtest', label: 'PLAYTEST', desc: 'Get feedback on your game' },
-  { value: 'mentor', label: 'MENTORSHIP', desc: 'Teach or learn from others' },
+import type { IconSvgElement } from '@hugeicons/react'
+
+const POST_TYPES: { value: CollabPostType; label: string; desc: string; icon: IconSvgElement }[] = [
+  { value: 'paid', label: 'PAID WORK', desc: 'Paid gigs & contracts', icon: BriefcaseIcon },
+  { value: 'hobby', label: 'HOBBY PROJECT', desc: 'Passion projects & jams', icon: GameController01Icon },
+  { value: 'playtest', label: 'PLAYTEST', desc: 'Get feedback on your game', icon: MultiplicationSignIcon },
+  { value: 'mentor', label: 'MENTORSHIP', desc: 'Teach or learn from others', icon: UserGroupIcon },
 ]
 
 const SUBTYPES: { value: CollabSubtype; label: string }[] = [
@@ -426,22 +428,28 @@ function StepTypeAndBasics() {
           {(field) => (
             <>
               <div className="grid grid-cols-2 gap-2">
-                {POST_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => {
-                      field.handleChange(t.value)
-                      updateWizardDraft({ type: t.value })
-                    }}
-                    className={`flex flex-col gap-1 p-3 border-2 text-left transition-all ${field.state.value === t.value ? 'border-primary bg-primary/5' : 'border-muted/30 bg-muted/10 hover:border-primary/30'}`}
-                  >
-                    <span className={`font-mono text-[10px] font-bold tracking-wider uppercase ${field.state.value === t.value ? 'text-primary' : 'text-foreground'}`}>
-                      {t.label}
-                    </span>
-                    <span className="font-mono text-[10px] text-muted-foreground/60">{t.desc}</span>
-                  </button>
-                ))}
+                {POST_TYPES.map((t) => {
+                  const active = field.state.value === t.value
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => {
+                        field.handleChange(t.value)
+                        updateWizardDraft({ type: t.value })
+                      }}
+                      className={`flex flex-col gap-2 p-3 border-2 text-left transition-all ${active ? 'border-primary bg-primary/5 shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.08)]' : 'border-muted/25 bg-muted/5 hover:border-primary/25 hover:bg-muted/10'}`}
+                    >
+                      <HugeiconsIcon icon={t.icon} size={16} className={active ? 'text-primary' : 'text-muted-foreground/40'} />
+                      <div>
+                        <span className={`block font-mono text-[10px] font-bold tracking-wider uppercase ${active ? 'text-primary' : 'text-foreground'}`}>
+                          {t.label}
+                        </span>
+                        <span className="font-mono text-[10px] text-muted-foreground/50">{t.desc}</span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
               <FieldError errors={field.state.meta.errors.map(String)} />
             </>
@@ -463,7 +471,7 @@ function StepTypeAndBasics() {
                     const opts = typeVal === 'mentor' ? MENTOR_SUBTYPES : SUBTYPES
                     return (
                       <>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1.5">
                           {opts.map((s) => (
                             <button
                               key={s.value}
@@ -472,7 +480,7 @@ function StepTypeAndBasics() {
                                 field.handleChange(s.value)
                                 updateWizardDraft({ subtype: s.value })
                               }}
-                              className={`flex-1 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider border transition-colors ${field.state.value === s.value ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
+                              className={`flex-1 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-widest border transition-all ${field.state.value === s.value ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.12)]' : 'bg-muted/5 border-muted/20 text-muted-foreground hover:border-primary/25 hover:text-foreground'}`}
                             >
                               {s.label}
                             </button>
@@ -1373,16 +1381,6 @@ function StepRoles() {
 
 // ── Review step ──────────────────────────────────────────────────────────────
 
-function ReviewField({ label, value }: { label: string; value: React.ReactNode }) {
-  if (!value) return null
-  return (
-    <div>
-      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">{label}</span>
-      <div className="font-mono text-xs text-foreground">{value}</div>
-    </div>
-  )
-}
-
 function ReviewBadge({ value, color = 'primary' }: { value: string; color?: string }) {
   const colorClasses: Record<string, string> = {
     primary: 'bg-primary/10 border-primary/30 text-primary',
@@ -1393,13 +1391,6 @@ function ReviewBadge({ value, color = 'primary' }: { value: string; color?: stri
       {value}
     </span>
   )
-}
-
-const COMP_TYPE_LABELS: Record<string, string> = {
-  hourly: 'Hourly',
-  fixed: 'Fixed Price',
-  rev_share: 'Revenue Share',
-  negotiable: 'Negotiable',
 }
 
 const CONTACT_TYPE_LABELS: Record<string, string> = {
@@ -1430,132 +1421,99 @@ function StepReview() {
 
   const compDisplay = formatCompensation(v.compensationType, v.compensationMin, v.compensationMax)
 
+  const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon
+
   return (
     <div className="space-y-0">
-      <SectionHeader>Review Your Post</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-3">
-        <div className="flex flex-wrap gap-1">
-          {v.type && <ReviewBadge value={v.type} />}
-          {v.subtype && <ReviewBadge value={v.subtype} />}
-          {v.isIndividual && <ReviewBadge value="Individual" />}
+      <SectionHeader>Post Preview</SectionHeader>
+      {/* Mock post card preview */}
+      <div className="mx-4 my-3 border border-primary/20 bg-primary/3">
+        <div className="px-4 pt-4 pb-3 border-b border-muted/20">
+          <div className="flex items-start gap-3">
+            {postTypeIcon && (
+              <div className="shrink-0 w-8 h-8 border border-primary/20 bg-primary/5 flex items-center justify-center mt-0.5">
+                <HugeiconsIcon icon={postTypeIcon} size={14} className="text-primary/60" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="font-mono text-xs font-bold text-foreground leading-tight">
+                {v.title || <span className="text-muted-foreground/40 italic font-normal">Untitled post</span>}
+              </p>
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {v.type && <ReviewBadge value={v.type} />}
+                {v.subtype && <ReviewBadge value={v.subtype} />}
+                {v.isIndividual && <ReviewBadge value="Individual" />}
+              </div>
+            </div>
+          </div>
+          {v.description && (
+            <p className="font-mono text-[10px] text-muted-foreground/60 mt-2.5 leading-relaxed line-clamp-4 whitespace-pre-wrap">
+              {v.description}
+            </p>
+          )}
         </div>
-        <ReviewField label="Title" value={v.title || 'Untitled'} />
-        <ReviewField
-          label="Description"
-          value={
-            <p className="font-mono text-[10px] text-muted-foreground whitespace-pre-wrap line-clamp-6">
-              {v.description || 'No description'}
-            </p>
-          }
-        />
+        {v.images.length > 0 && (
+          <div className="flex gap-1.5 px-3 py-2 border-b border-muted/20">
+            {v.images.slice(0, 3).map((img) => (
+              <img key={img.strapiMediaId} src={img.url} alt={img.alt ?? ''} className="w-14 h-10 object-cover border border-muted/20" />
+            ))}
+            {v.images.length > 3 && (
+              <div className="w-14 h-10 bg-muted/20 border border-muted/20 flex items-center justify-center">
+                <span className="font-mono text-[10px] text-muted-foreground">+{v.images.length - 3}</span>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="px-4 py-2.5 text-[10px] font-mono text-muted-foreground/50 space-y-1">
+          {v.projectName && <span className="block">{v.projectName}</span>}
+          {compDisplay && <span className="block text-green-500/70">{compDisplay}</span>}
+          {v.platforms.length > 0 && <span className="block">{v.platforms.join(' · ')}</span>}
+          {selectedRoleNames.length > 0 && <span className="block">{selectedRoleNames.slice(0, 4).join(', ')}{selectedRoleNames.length > 4 ? ` +${selectedRoleNames.length - 4}` : ''}</span>}
+        </div>
       </div>
-
-      {(v.projectName || v.teamSize || v.projectLength || v.experienceLevel || v.platforms.length > 0) && (
-        <>
-          <SectionHeader>Details</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-            {v.projectName && <ReviewField label="Project" value={v.projectName} />}
-            {v.platforms.length > 0 && (
-              <div>
-                <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">Platforms</span>
-                <div className="flex flex-wrap gap-1 mt-0.5">
-                  {v.platforms.map((p) => <ReviewBadge key={p} value={p} />)}
-                </div>
-              </div>
-            )}
-            {v.teamSize && <ReviewField label="Team Size" value={v.teamSize} />}
-            {v.projectLength && <ReviewField label="Timeline" value={v.projectLength} />}
-            {v.experienceLevel && <ReviewField label="Experience" value={v.experienceLevel} />}
+      <div className="px-4 py-3 border-b border-muted/30 space-y-2.5">
+        {selectedRoleNames.length > 0 && (
+          <div>
+            <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              {v.type === 'mentor' ? 'Topics' : 'Roles'}
+            </span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {selectedRoleNames.map((name) => (
+                <ReviewBadge key={name} value={name} />
+              ))}
+            </div>
           </div>
-        </>
-      )}
-
-      {v.type === 'playtest' && (
-        <>
-          {v.portfolioUrl && (
-            <>
-              <SectionHeader>Game Link</SectionHeader>
-              <div className="px-4 py-3 border-b border-muted/30">
-                <a href={v.portfolioUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-primary hover:underline break-all">
-                  {v.portfolioUrl}
-                </a>
-              </div>
-            </>
-          )}
-          {feedbackTypes.length > 0 && (
-            <>
-              <SectionHeader>Feedback Types</SectionHeader>
-              <div className="px-4 py-3 border-b border-muted/30 flex flex-wrap gap-1">
-                {feedbackTypes.map((ft) => <ReviewBadge key={ft} value={ft} />)}
-              </div>
-            </>
-          )}
-        </>
-      )}
-
-      {(v.compensationType || compDisplay) && (
-        <>
-          <SectionHeader>Compensation</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-            {v.compensationType && (
-              <ReviewField label="Type" value={<ReviewBadge value={COMP_TYPE_LABELS[v.compensationType] ?? v.compensationType} color="green" />} />
-            )}
-            {compDisplay && <ReviewField label="Rate" value={compDisplay} />}
+        )}
+        {feedbackTypes.length > 0 && (
+          <div>
+            <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">Feedback</span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {feedbackTypes.map((ft) => <ReviewBadge key={ft} value={ft} />)}
+            </div>
           </div>
-        </>
-      )}
-
-      {selectedRoleNames.length > 0 && (
-        <>
-          <SectionHeader>{v.type === 'mentor' ? 'Topics' : 'Roles'} ({selectedRoleNames.length})</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 flex flex-wrap gap-1">
-            {selectedRoleNames.map((name) => (
-              <span key={name} className="bg-primary/10 border border-primary/30 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
-                {name}
-              </span>
-            ))}
+        )}
+        {v.portfolioUrl && (
+          <div>
+            <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase block">Game Link</span>
+            <a href={v.portfolioUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-primary hover:underline break-all">{v.portfolioUrl}</a>
           </div>
-        </>
-      )}
-
-      {v.isIndividual ? (
-        <>
-          <SectionHeader>Contact</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30">
-            <ReviewField label="Method" value="Discord DM (via your profile)" />
-          </div>
-        </>
-      ) : (v.contactType || v.contactMethod) ? (
-        <>
-          <SectionHeader>Contact</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-            {v.contactType && <ReviewField label="Method" value={CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType} />}
-            {v.contactMethod && <ReviewField label="Value" value={v.contactMethod} />}
-          </div>
-        </>
-      ) : null}
-
-      {v.images.length > 0 && (
-        <>
-          <SectionHeader>Images ({v.images.length})</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 flex flex-wrap gap-2">
-            {v.images.map((img) => (
-              <img key={img.strapiMediaId} src={img.url} alt={img.alt ?? ''} className="w-16 h-16 object-cover border border-muted/30" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {v.isIndividual && (
-        <>
-          <SectionHeader>Profile</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30">
-            <p className="font-mono text-[10px] text-muted-foreground">
-              Your Discord profile will be shown to respondents. They'll contact you via DM.
-            </p>
-          </div>
-        </>
-      )}
+        )}
+        <div>
+          <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase block">Contact</span>
+          <span className="font-mono text-[10px] text-foreground">
+            {v.isIndividual
+              ? 'Discord DM (via your profile)'
+              : v.contactMethod
+              ? `${v.contactType ? (CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType) + ': ' : ''}${v.contactMethod}`
+              : '—'}
+          </span>
+        </div>
+      </div>
+      <div className="px-4 py-3 bg-primary/3 border-t border-primary/10">
+        <p className="font-mono text-[10px] text-muted-foreground/50 leading-relaxed">
+          Review carefully — once submitted your post will be live. You can edit or delete it from your profile at any time.
+        </p>
+      </div>
     </div>
   )
 }

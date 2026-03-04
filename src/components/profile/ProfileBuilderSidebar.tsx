@@ -2,7 +2,10 @@ import {
   Add01Icon,
   Cancel01Icon,
   Delete02Icon,
+  Github01Icon,
+  Globe02Icon,
   Login01Icon,
+  NewTwitterIcon,
   Share01Icon,
 } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
@@ -16,28 +19,28 @@ import { authStore } from '@/lib/auth-store';
 import { cn } from '@/lib/utils';
 import { client, orpc } from '@/orpc/client';
 
-function FieldInput({
-  label,
+function LinkInput({
+  icon,
   value,
   onChange,
   placeholder,
 }: {
-  label: string;
+  icon: React.ReactNode;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
-        {label}
-      </label>
+    <div className="flex items-center gap-2 bg-muted/10 border border-muted/20 px-2.5 py-1.5 focus-within:border-primary/40 transition-colors group">
+      <span className="text-muted-foreground/40 group-focus-within:text-primary/50 transition-colors shrink-0">
+        {icon}
+      </span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+        className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none"
       />
     </div>
   );
@@ -86,14 +89,14 @@ function SkillTag({
   onRemove: () => void;
 }) {
   return (
-    <span className="inline-flex items-center gap-1 bg-primary/10 border border-primary/30 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+    <span className="group inline-flex items-center gap-1 bg-primary/10 border border-primary/25 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:border-primary/50 transition-colors">
       {name}
       <button
         type="button"
         onClick={onRemove}
-        className="hover:text-destructive transition-colors"
+        className="opacity-50 group-hover:opacity-100 hover:text-destructive transition-all"
       >
-        <HugeiconsIcon icon={Cancel01Icon} size={10} />
+        <HugeiconsIcon icon={Cancel01Icon} size={9} />
       </button>
     </span>
   );
@@ -101,9 +104,9 @@ function SkillTag({
 
 function PendingSkillTag({ name }: { name: string }) {
   return (
-    <span className="inline-flex items-center gap-1 bg-muted/20 border border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+    <span className="inline-flex items-center gap-1.5 bg-brackeys-yellow/5 border border-brackeys-yellow/20 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
       {name}
-      <span className="text-[10px] text-brackeys-yellow">PENDING</span>
+      <span className="text-[9px] text-brackeys-yellow font-bold tracking-widest">PENDING</span>
     </span>
   );
 }
@@ -216,34 +219,38 @@ function ProjectCard({
   onRemove: () => void;
 }) {
   return (
-    <div className="border border-muted/30 bg-muted/10 p-3 space-y-1">
-      <div className="flex justify-between items-start gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider truncate">{project.title}</span>
-          {project.status === 'pending' && (
-            <span className="shrink-0 bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[10px] text-brackeys-yellow uppercase tracking-wider">
-              PENDING
-            </span>
-          )}
-        </div>
-        <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
-          <HugeiconsIcon icon={Delete02Icon} size={12} />
-        </button>
-      </div>
+    <div className="group border border-muted/20 bg-muted/5 hover:border-muted/40 hover:bg-muted/10 transition-colors overflow-hidden">
       {project.imageUrl && (
-        <img src={project.imageUrl} alt={project.title} className="w-full h-24 object-cover border border-muted/20" />
+        <img src={project.imageUrl} alt={project.title} className="w-full h-28 object-cover border-b border-muted/20" />
       )}
-      {project.description && (
-        <p className="font-mono text-[10px] text-muted-foreground line-clamp-2">{project.description}</p>
-      )}
-      {project.url && (
-        <a href={project.url} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-primary hover:underline truncate block">
-          {project.url}
-        </a>
-      )}
+      <div className="p-3 space-y-1.5">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono text-[11px] font-bold text-foreground uppercase tracking-wider truncate">{project.title}</span>
+            {project.status === 'pending' && (
+              <span className="shrink-0 bg-brackeys-yellow/10 border border-brackeys-yellow/25 px-1.5 py-0.5 font-mono text-[9px] text-brackeys-yellow uppercase tracking-wider">
+                PENDING
+              </span>
+            )}
+          </div>
+          <button type="button" onClick={onRemove} className="opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all shrink-0">
+            <HugeiconsIcon icon={Delete02Icon} size={12} />
+          </button>
+        </div>
+        {project.description && (
+          <p className="font-mono text-[10px] text-muted-foreground/60 line-clamp-2 leading-relaxed">{project.description}</p>
+        )}
+        {project.url && (
+          <a href={project.url} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-primary/60 hover:text-primary transition-colors truncate block">
+            {project.url}
+          </a>
+        )}
+      </div>
     </div>
   );
 }
+
+const inputCls = 'w-full bg-transparent border border-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors';
 
 function AddProjectForm({ onAdd }: { onAdd: (data: { title: string; description?: string; url?: string; imageUrl?: string }) => void }) {
   const [open, setOpen] = useState(false);
@@ -272,57 +279,25 @@ function AddProjectForm({ onAdd }: { onAdd: (data: { title: string; description?
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full border border-dashed border-muted/40 py-2 font-mono text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors uppercase tracking-widest"
+        className="w-full border border-dashed border-muted/25 py-3 font-mono text-[10px] text-muted-foreground/50 hover:border-primary/40 hover:text-primary transition-colors uppercase tracking-widest flex items-center justify-center gap-1.5"
       >
-        <HugeiconsIcon icon={Add01Icon} size={10} className="inline mr-1" />
+        <HugeiconsIcon icon={Add01Icon} size={10} />
         Add Project
       </button>
     );
   }
 
   return (
-    <div className="border border-primary/30 bg-primary/5 p-3 space-y-2">
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Project title"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <input
-        type="text"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Description (optional)"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <input
-        type="text"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="URL (optional)"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <input
-        type="text"
-        value={imageUrl}
-        onChange={(e) => setImageUrl(e.target.value)}
-        placeholder="Image URL (optional)"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="flex-1 bg-primary/20 border border-primary/40 py-1 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/30 transition-colors"
-        >
+    <div className="border border-primary/20 bg-primary/3 p-3 space-y-2">
+      <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project title *" className={inputCls} />
+      <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description" className={inputCls} />
+      <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="URL (itch.io, GitHub…)" className={inputCls} />
+      <input type="text" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Cover image URL" className={inputCls} />
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={handleSubmit} className="flex-1 bg-primary/15 border border-primary/30 py-1.5 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/25 transition-colors">
           Save
         </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="flex-1 border border-muted/30 py-1 font-mono text-[10px] text-muted-foreground uppercase tracking-widest hover:border-muted/60 transition-colors"
-        >
+        <button type="button" onClick={() => setOpen(false)} className="flex-1 border border-muted/20 py-1.5 font-mono text-[10px] text-muted-foreground/50 uppercase tracking-widest hover:border-muted/40 transition-colors">
           Cancel
         </button>
       </div>
@@ -338,21 +313,23 @@ function JamEntry({
   onRemove: () => void;
 }) {
   return (
-    <div className="border border-muted/30 bg-muted/10 p-3 space-y-1">
+    <div className="group border border-muted/20 bg-muted/5 hover:border-muted/40 transition-colors p-3">
       <div className="flex justify-between items-start gap-2">
-        <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider">{jam.jamName}</span>
-        <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
+        <div className="min-w-0">
+          <span className="font-mono text-[11px] font-bold text-foreground uppercase tracking-wider block truncate">{jam.jamName}</span>
+          {jam.submissionTitle && (
+            <p className="font-mono text-[10px] text-muted-foreground/60 mt-0.5 truncate">{jam.submissionTitle}</p>
+          )}
+          {jam.result && (
+            <span className="inline-block mt-1.5 bg-brackeys-yellow/10 border border-brackeys-yellow/25 px-1.5 py-0.5 font-mono text-[9px] text-brackeys-yellow uppercase tracking-wider">
+              {jam.result}
+            </span>
+          )}
+        </div>
+        <button type="button" onClick={onRemove} className="opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all shrink-0 mt-0.5">
           <HugeiconsIcon icon={Delete02Icon} size={12} />
         </button>
       </div>
-      {jam.submissionTitle && (
-        <p className="font-mono text-[10px] text-muted-foreground">{jam.submissionTitle}</p>
-      )}
-      {jam.result && (
-        <span className="inline-block bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[10px] text-brackeys-yellow uppercase">
-          {jam.result}
-        </span>
-      )}
     </div>
   );
 }
@@ -381,50 +358,24 @@ function AddJamForm({ onAdd }: { onAdd: (data: { jamName: string; submissionTitl
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full border border-dashed border-muted/40 py-2 font-mono text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors uppercase tracking-widest"
+        className="w-full border border-dashed border-muted/25 py-3 font-mono text-[10px] text-muted-foreground/50 hover:border-primary/40 hover:text-primary transition-colors uppercase tracking-widest flex items-center justify-center gap-1.5"
       >
-        <HugeiconsIcon icon={Add01Icon} size={10} className="inline mr-1" />
+        <HugeiconsIcon icon={Add01Icon} size={10} />
         Add Jam Entry
       </button>
     );
   }
 
   return (
-    <div className="border border-primary/30 bg-primary/5 p-3 space-y-2">
-      <input
-        type="text"
-        value={jamName}
-        onChange={(e) => setJamName(e.target.value)}
-        placeholder="Jam name (e.g. Brackeys 2025.1)"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <input
-        type="text"
-        value={submissionTitle}
-        onChange={(e) => setSubmissionTitle(e.target.value)}
-        placeholder="Submission title (optional)"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <input
-        type="text"
-        value={result}
-        onChange={(e) => setResult(e.target.value)}
-        placeholder="Result (optional, e.g. 3rd Place)"
-        className="w-full bg-transparent border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50"
-      />
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="flex-1 bg-primary/20 border border-primary/40 py-1 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/30 transition-colors"
-        >
+    <div className="border border-primary/20 bg-primary/3 p-3 space-y-2">
+      <input type="text" value={jamName} onChange={(e) => setJamName(e.target.value)} placeholder="Jam name (e.g. Brackeys 2025.1) *" className={inputCls} />
+      <input type="text" value={submissionTitle} onChange={(e) => setSubmissionTitle(e.target.value)} placeholder="Submission title" className={inputCls} />
+      <input type="text" value={result} onChange={(e) => setResult(e.target.value)} placeholder="Result (e.g. 3rd Place)" className={inputCls} />
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={handleSubmit} className="flex-1 bg-primary/15 border border-primary/30 py-1.5 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/25 transition-colors">
           Save
         </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="flex-1 border border-muted/30 py-1 font-mono text-[10px] text-muted-foreground uppercase tracking-widest hover:border-muted/60 transition-colors"
-        >
+        <button type="button" onClick={() => setOpen(false)} className="flex-1 border border-muted/20 py-1.5 font-mono text-[10px] text-muted-foreground/50 uppercase tracking-widest hover:border-muted/40 transition-colors">
           Cancel
         </button>
       </div>
@@ -679,7 +630,7 @@ function AuthenticatedSidebar() {
         footer={footerContent}
       >
                 {/* Discord info (read-only) */}
-                <div className="px-4 py-4 border-b border-muted/30 bg-gradient-to-r from-primary/5 to-transparent">
+                <div className="px-4 py-4 border-b border-muted/30 bg-linear-to-r from-primary/5 to-transparent">
                   <div className="flex items-center gap-3">
                     {profile.avatarUrl ? (
                       <img
@@ -735,7 +686,7 @@ function AuthenticatedSidebar() {
                     onChange={(e) => handleFieldChange('tagline', e.target.value, setTagline)}
                     placeholder="A short tagline about yourself..."
                     maxLength={120}
-                    className="w-full bg-transparent border-b border-muted/20 pb-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+                    className="w-full bg-transparent border-b border-muted/20 pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors"
                   />
                   <div className="flex justify-end">
                     <CharCount current={tagline.length} min={5} max={120} />
@@ -749,9 +700,9 @@ function AuthenticatedSidebar() {
                     value={bio}
                     onChange={(e) => handleFieldChange('bio', e.target.value, setBio)}
                     placeholder="Tell the community about yourself..."
-                    rows={3}
+                    rows={4}
                     maxLength={500}
-                    className="w-full bg-transparent border border-muted/20 p-2 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
+                    className="w-full bg-transparent border border-muted/15 p-2.5 font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 resize-none transition-colors leading-relaxed"
                   />
                   <div className="flex justify-end">
                     <CharCount current={bio.length} min={20} max={500} />
@@ -808,24 +759,24 @@ function AuthenticatedSidebar() {
 
                 {/* Links */}
                 <SectionHeader>Links</SectionHeader>
-                <div className="px-4 py-3 border-b border-muted/30 space-y-2.5">
-                  <FieldInput
-                    label="GitHub"
+                <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+                  <LinkInput
+                    icon={<HugeiconsIcon icon={Github01Icon} size={13} />}
                     value={githubUrl}
                     onChange={(v) => handleFieldChange('githubUrl', v, setGithubUrl)}
-                    placeholder="https://github.com/username"
+                    placeholder="github.com/username"
                   />
-                  <FieldInput
-                    label="Twitter"
+                  <LinkInput
+                    icon={<HugeiconsIcon icon={NewTwitterIcon} size={13} />}
                     value={twitterUrl}
                     onChange={(v) => handleFieldChange('twitterUrl', v, setTwitterUrl)}
-                    placeholder="https://twitter.com/username"
+                    placeholder="twitter.com/username"
                   />
-                  <FieldInput
-                    label="Website"
+                  <LinkInput
+                    icon={<HugeiconsIcon icon={Globe02Icon} size={13} />}
                     value={websiteUrl}
                     onChange={(v) => handleFieldChange('websiteUrl', v, setWebsiteUrl)}
-                    placeholder="https://portfolio.dev"
+                    placeholder="portfolio.dev"
                   />
                 </div>
 
