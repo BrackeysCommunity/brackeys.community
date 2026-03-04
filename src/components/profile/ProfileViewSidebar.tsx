@@ -1,8 +1,6 @@
-import { Cancel01Icon, PencilEdit01Icon, Tick01Icon } from '@hugeicons/core-free-icons';
+import { PencilEdit01Icon, Tick01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useCallback, useState } from 'react';
-import { buttonVariants } from '@/components/ui/button';
 import { NotchedCard } from '@/components/ui/notched-card';
 import { cn } from '@/lib/utils';
 import { ProfileAvatar } from './ProfileAvatar';
@@ -103,38 +101,6 @@ const fadeVariants = {
 const fadeTransition = { duration: 0.2, ease: 'easeInOut' as const };
 
 export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, isEditing, onToggleEdit, completenessItems, onCompletenessChange }: ProfileViewSidebarProps) {
-  const [isDirty, setIsDirty] = useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const [discardRequested, setDiscardRequested] = useState(false);
-
-  const handleDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
-
-  const handleDone = () => {
-    onToggleEdit(false);
-    setIsDirty(false);
-  };
-
-  const handleDiscardClick = () => {
-    if (isDirty) {
-      setShowDiscardConfirm(true);
-    } else {
-      onToggleEdit(false);
-    }
-  };
-
-  const handleDiscardConfirm = () => {
-    setDiscardRequested(true);
-    setShowDiscardConfirm(false);
-    onToggleEdit(false);
-    setIsDirty(false);
-  };
-
-  const handleDiscardComplete = useCallback(() => {
-    setDiscardRequested(false);
-  }, []);
-
   if (isLoading) {
     return <LoadingSkeleton />;
   }
@@ -176,7 +142,7 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
         {isOwner && isEditing && (
           <button
             type="button"
-            onClick={handleDone}
+            onClick={() => onToggleEdit(false)}
             className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:text-primary/70 transition-colors"
           >
             <HugeiconsIcon icon={Tick01Icon} size={10} />
@@ -187,15 +153,6 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
           <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
             SINCE {memberSince.toUpperCase()}
           </span>
-        )}
-        {isEditing && (
-          <button
-            type="button"
-            onClick={handleDiscardClick}
-            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-destructive transition-colors"
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={10} />
-          </button>
         )}
       </div>
     </div>
@@ -212,35 +169,10 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
   );
 
   const editFooter = (
-    <div className="px-4 py-3 flex items-center justify-between gap-3">
-      <span className={cn(
-        'font-mono text-[10px] tracking-widest uppercase transition-colors',
-        isDirty ? 'text-brackeys-yellow/60' : 'text-green-500/50',
-      )}>
-        {isDirty ? 'Unsaved changes' : 'All saved'}
+    <div className="px-4 py-3 flex items-center justify-center">
+      <span className="font-mono text-[10px] text-muted-foreground/40 tracking-widest uppercase">
+        Auto-saving changes
       </span>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={handleDiscardClick}
-          className={cn(
-            buttonVariants({ variant: 'outline', size: 'sm' }),
-            'h-7 px-3 font-mono text-[10px] tracking-widest uppercase border-muted/40 text-muted-foreground/50 hover:text-destructive hover:border-destructive/40',
-          )}
-        >
-          Discard
-        </button>
-        <button
-          type="button"
-          onClick={handleDone}
-          className={cn(
-            buttonVariants({ variant: 'outline', size: 'sm' }),
-            'h-7 px-3 font-mono text-[10px] tracking-widest uppercase border-primary/40 text-primary hover:bg-primary/10',
-          )}
-        >
-          Done
-        </button>
-      </div>
     </div>
   );
 
@@ -273,9 +205,6 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
                 urlStub={profileData.urlStub}
                 profileQueryKey={profileQueryKey}
                 onCompletenessChange={onCompletenessChange}
-                onDirtyChange={handleDirtyChange}
-                onDiscard={handleDiscardComplete}
-                discardRequested={discardRequested}
               />
             </motion.div>
           ) : (
@@ -336,40 +265,6 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
         </AnimatePresence>
       </NotchedCard>
 
-      {showDiscardConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-          <div className="bg-card border-2 border-muted p-6 max-w-xs space-y-4 shadow-xl">
-            <h3 className="font-mono text-sm font-bold tracking-widest text-foreground uppercase">
-              Discard Changes?
-            </h3>
-            <p className="font-mono text-xs text-muted-foreground leading-relaxed">
-              You have unsaved changes. Discarding will revert all text edits to their last saved values.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleDiscardConfirm}
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'flex-1 border-destructive/40 text-destructive hover:bg-destructive/10 font-mono text-[10px] tracking-widest uppercase',
-                )}
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowDiscardConfirm(false)}
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'flex-1 border-primary/40 text-primary hover:bg-primary/10 font-mono text-[10px] tracking-widest uppercase',
-                )}
-              >
-                Keep Editing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -221,6 +221,26 @@ export const requestSkill = os
     return request
   })
 
+export const cancelSkillRequest = os
+  .use(requireAuth)
+  .input(z.object({ name: z.string() }))
+  .handler(async ({ input, context }) => {
+    const [deleted] = await db
+      .delete(skillRequests)
+      .where(and(
+        eq(skillRequests.userId, context.user.id),
+        eq(skillRequests.name, input.name),
+        eq(skillRequests.status, 'pending'),
+      ))
+      .returning()
+
+    if (!deleted) {
+      throw new ORPCError('NOT_FOUND', { message: 'Skill request not found.' })
+    }
+
+    return { success: true }
+  })
+
 export const addProject = os
   .use(requireAuth)
   .input(

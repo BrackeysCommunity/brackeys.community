@@ -1,14 +1,17 @@
 import { Github01Icon, Globe02Icon, NewTwitterIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { CharCount } from '@/components/ui/form-primitives';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { cn } from '@/lib/utils';
 import { client } from '@/orpc/client';
-import { type CompletenessItem, buildCompletenessItems } from './ProfileCompleteness';
-import { EditableJamEntry, AddJamForm } from './ProfileJamEditor';
-import { EditableProjectCard, AddProjectForm } from './ProfileProjectEditor';
-import { SkillTag, PendingSkillTag, SkillAutocomplete } from './ProfileSkillEditor';
+import { buildCompletenessItems, type CompletenessItem } from './ProfileCompleteness';
+import { AddJamForm, EditableJamEntry } from './ProfileJamEditor';
+import { AddProjectForm, EditableProjectCard } from './ProfileProjectEditor';
+import { PendingSkillTag, SkillAutocomplete, SkillTag } from './ProfileSkillEditor';
 
 interface ProfileEditFormProps {
   profile: {
@@ -51,9 +54,6 @@ interface ProfileEditFormProps {
   urlStub: string | null;
   profileQueryKey: readonly unknown[];
   onCompletenessChange?: (items: CompletenessItem[]) => void;
-  onDirtyChange?: (dirty: boolean) => void;
-  onDiscard?: () => void;
-  discardRequested?: boolean;
 }
 
 function EditSection({
@@ -88,6 +88,25 @@ function EditSection({
   );
 }
 
+const fieldSpring = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+
+function MagneticField({ children, className, bounce = 0.01 }: { children: React.ReactNode; className?: string, bounce?: number }) {
+  const { ref, position } = useMagnetic(0);
+  return (
+    <motion.div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      data-magnetic
+      data-cursor-no-drift
+      data-cursor-bounce={bounce}
+      animate={{ x: position.x, y: position.y }}
+      transition={fieldSpring}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function LinkInput({
   icon,
   value,
@@ -100,21 +119,23 @@ function LinkInput({
   placeholder?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 focus-within:bg-muted/10 transition-all group/link">
-      <span className="text-muted-foreground/30 group-focus-within/link:text-primary/50 transition-colors shrink-0">
-        {icon}
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none"
-      />
-      {value && (
-        <span className="w-1.5 h-1.5 rounded-full bg-green-500/60 shrink-0" />
-      )}
-    </div>
+    <MagneticField>
+      <div className="flex items-center gap-2 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 focus-within:bg-muted/10 transition-all group/link">
+        <span className="text-muted-foreground/30 group-focus-within/link:text-primary/50 transition-colors shrink-0">
+          {icon}
+        </span>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none"
+        />
+        {value && (
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500/60 shrink-0" />
+        )}
+      </div>
+    </MagneticField>
   );
 }
 
@@ -127,9 +148,6 @@ export function ProfileEditForm({
   urlStub: initialUrlStub,
   profileQueryKey,
   onCompletenessChange,
-  onDirtyChange,
-  onDiscard,
-  discardRequested,
 }: ProfileEditFormProps) {
   const queryClient = useQueryClient();
 
@@ -148,28 +166,6 @@ export function ProfileEditForm({
   const [githubUrl, setGithubUrl] = useState(profile.githubUrl ?? '');
   const [twitterUrl, setTwitterUrl] = useState(profile.twitterUrl ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '');
-
-  const isDirty =
-    tagline !== (profile.tagline ?? '') ||
-    bio !== (profile.bio ?? '') ||
-    githubUrl !== (profile.githubUrl ?? '') ||
-    twitterUrl !== (profile.twitterUrl ?? '') ||
-    websiteUrl !== (profile.websiteUrl ?? '');
-
-  useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  useEffect(() => {
-    if (discardRequested) {
-      setTagline(profile.tagline ?? '');
-      setBio(profile.bio ?? '');
-      setGithubUrl(profile.githubUrl ?? '');
-      setTwitterUrl(profile.twitterUrl ?? '');
-      setWebsiteUrl(profile.websiteUrl ?? '');
-      onDiscard?.();
-    }
-  }, [discardRequested, profile, onDiscard]);
 
   useEffect(() => {
     onCompletenessChange?.(buildCompletenessItems({
@@ -203,42 +199,111 @@ export function ProfileEditForm({
 
   const addUserSkillMutation = useMutation({
     mutationFn: (skillId: number) => client.addUserSkill({ skillId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      toast.success('Skill added');
+    },
   });
 
+  const [removedSkillIds, setRemovedSkillIds] = useState<Set<number>>(new Set());
   const removeUserSkillMutation = useMutation({
     mutationFn: (userSkillId: number) => client.removeUserSkill({ userSkillId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
+    onMutate: (userSkillId) => {
+      setRemovedSkillIds((prev) => new Set(prev).add(userSkillId));
+    },
+    onSuccess: async (_data, userSkillId) => {
+      await queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      setRemovedSkillIds((prev) => { const next = new Set(prev); next.delete(userSkillId); return next; });
+      toast.success('Skill removed');
+    },
+    onError: (_err, userSkillId) => {
+      setRemovedSkillIds((prev) => { const next = new Set(prev); next.delete(userSkillId); return next; });
+      toast.error('Failed to remove skill');
+    },
   });
 
   const requestSkillMutation = useMutation({
     mutationFn: (name: string) => client.requestSkill({ name }),
     onSuccess: (_data, name) => {
       setLocalPendingRequests((prev) => [...prev, name]);
+      toast.success('Skill requested');
+    },
+  });
+
+  const [removedPendingNames, setRemovedPendingNames] = useState<Set<string>>(new Set());
+  const cancelSkillRequestMutation = useMutation({
+    mutationFn: (name: string) => client.cancelSkillRequest({ name }),
+    onMutate: (name) => {
+      setRemovedPendingNames((prev) => new Set(prev).add(name));
+      setLocalPendingRequests((prev) => prev.filter((n) => n !== name));
+    },
+    onSuccess: async (_data, name) => {
+      await queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      setRemovedPendingNames((prev) => { const next = new Set(prev); next.delete(name); return next; });
+      toast.success('Skill request cancelled');
+    },
+    onError: (_err, name) => {
+      setRemovedPendingNames((prev) => { const next = new Set(prev); next.delete(name); return next; });
+      toast.error('Failed to cancel skill request');
     },
   });
 
   const addProjectMutation = useMutation({
     mutationFn: (data: { title: string; description?: string; url?: string; imageUrl?: string }) =>
       client.addProject(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      toast.success('Project added');
+    },
   });
 
+  const [removedProjectIds, setRemovedProjectIds] = useState<Set<number>>(new Set());
   const removeProjectMutation = useMutation({
     mutationFn: (projectId: number) => client.removeProject({ projectId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
+    onMutate: (projectId) => {
+      setRemovedProjectIds((prev) => new Set(prev).add(projectId));
+    },
+    onSuccess: async (_data, projectId) => {
+      await queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      setRemovedProjectIds((prev) => { const next = new Set(prev); next.delete(projectId); return next; });
+      toast.success('Project removed');
+    },
+    onError: (_err, projectId) => {
+      setRemovedProjectIds((prev) => { const next = new Set(prev); next.delete(projectId); return next; });
+      toast.error('Failed to remove project');
+    },
   });
 
   const addJamMutation = useMutation({
     mutationFn: (data: { jamName: string; submissionTitle?: string; submissionUrl?: string; result?: string }) =>
       client.addJamParticipation(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      toast.success('Jam entry added');
+    },
   });
 
+  const [removedJamIds, setRemovedJamIds] = useState<Set<number>>(new Set());
   const removeJamMutation = useMutation({
     mutationFn: (jamId: number) => client.removeJamParticipation({ jamId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
+    onMutate: (jamId) => {
+      setRemovedJamIds((prev) => new Set(prev).add(jamId));
+    },
+    onSuccess: async (_data, jamId) => {
+      await queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      setRemovedJamIds((prev) => { const next = new Set(prev); next.delete(jamId); return next; });
+      toast.success('Jam entry removed');
+    },
+    onError: (_err, jamId) => {
+      setRemovedJamIds((prev) => { const next = new Set(prev); next.delete(jamId); return next; });
+      toast.error('Failed to remove jam entry');
+    },
   });
+
+  const visibleSkills = skills.filter((s) => !removedSkillIds.has(s.id));
+  const visiblePendingRequests = pendingRequests.filter((n) => !removedPendingNames.has(n));
+  const visibleProjects = projects.filter((p) => !removedProjectIds.has(p.id));
+  const visibleJams = jams.filter((j) => !removedJamIds.has(j.id));
 
   const [urlStub, setUrlStub] = useState(initialUrlStub ?? '');
   const [urlStubError, setUrlStubError] = useState('');
@@ -277,14 +342,16 @@ export function ProfileEditForm({
     <>
       <EditSection label="Tagline" complete={!!tagline.trim()}>
         <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-          <input
-            type="text"
-            value={tagline}
-            onChange={(e) => handleFieldChange('tagline', e.target.value, setTagline)}
-            placeholder="What do you do? e.g. 'Unity developer & pixel art enthusiast'"
-            maxLength={120}
-            className="w-full bg-transparent border-b border-muted/15 pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 transition-colors"
-          />
+          <MagneticField>
+            <input
+              type="text"
+              value={tagline}
+              onChange={(e) => handleFieldChange('tagline', e.target.value, setTagline)}
+              placeholder="What do you do? e.g. 'Unity developer & pixel art enthusiast'"
+              maxLength={120}
+              className="w-full bg-transparent border-b border-muted/15 pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 transition-colors"
+            />
+          </MagneticField>
           <div className="flex justify-end">
             <CharCount current={tagline.length} min={5} max={120} />
           </div>
@@ -293,23 +360,25 @@ export function ProfileEditForm({
 
       <EditSection label="Bio" complete={!!bio.trim()}>
         <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-          <textarea
-            value={bio}
-            onChange={(e) => handleFieldChange('bio', e.target.value, setBio)}
-            placeholder="Tell the community about yourself, your experience, what you're working on..."
-            rows={4}
-            maxLength={500}
-            className="w-full bg-muted/5 border border-muted/15 p-2.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 hover:bg-muted/10 resize-none transition-all leading-relaxed"
-          />
+          <MagneticField bounce={0.01}>
+            <textarea
+              value={bio}
+              onChange={(e) => handleFieldChange('bio', e.target.value, setBio)}
+              placeholder="Tell the community about yourself, your experience, what you're working on..."
+              rows={4}
+              maxLength={500}
+              className="w-full bg-muted/5 border border-muted/15 p-2.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 hover:bg-muted/10 resize-none transition-all leading-relaxed"
+            />
+          </MagneticField>
           <div className="flex justify-end">
             <CharCount current={bio.length} min={20} max={500} />
           </div>
         </div>
       </EditSection>
 
-      <EditSection label="Skills" complete={skills.length > 0}>
+      <EditSection label="Skills" complete={visibleSkills.length > 0}>
         <div className="px-4 py-3 border-b border-muted/30">
-          {skills.length === 0 && pendingRequests.length === 0 ? (
+          {visibleSkills.length === 0 && visiblePendingRequests.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-2">
               <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider">
                 No skills added yet
@@ -321,15 +390,19 @@ export function ProfileEditForm({
             </div>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {skills.map((skill) => (
+              {visibleSkills.map((skill) => (
                 <SkillTag
                   key={skill.id}
                   name={skill.name}
                   onRemove={() => removeUserSkillMutation.mutate(skill.id)}
                 />
               ))}
-              {pendingRequests.map((name) => (
-                <PendingSkillTag key={name} name={name} />
+              {visiblePendingRequests.map((name) => (
+                <PendingSkillTag
+                  key={name}
+                  name={name}
+                  onRemove={() => cancelSkillRequestMutation.mutate(name)}
+                />
               ))}
               <SkillAutocomplete
                 onAddSkill={(skillId) => addUserSkillMutation.mutate(skillId)}
@@ -342,17 +415,19 @@ export function ProfileEditForm({
 
       <EditSection label="Profile URL">
         <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
-          <div className="flex items-center gap-1 hover:bg-muted/5 -mx-1 px-1 py-0.5 rounded transition-colors">
-            <span className="font-mono text-[10px] text-muted-foreground/40 shrink-0">/profile/</span>
-            <input
-              type="text"
-              value={urlStub}
-              onChange={(e) => handleUrlStubChange(e.target.value)}
-              placeholder="your-name"
-              maxLength={32}
-              className="flex-1 bg-transparent border-b border-muted/15 pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/50 hover:border-muted/40 transition-colors"
-            />
-          </div>
+          <MagneticField>
+            <div className="flex items-center gap-1 hover:bg-muted/5 -mx-1 px-1 py-0.5 rounded transition-colors">
+              <span className="font-mono text-[10px] text-muted-foreground/40 shrink-0">/profile/</span>
+              <input
+                type="text"
+                value={urlStub}
+                onChange={(e) => handleUrlStubChange(e.target.value)}
+                placeholder="your-name"
+                maxLength={32}
+                className="flex-1 bg-transparent border-b border-muted/15 pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/50 hover:border-muted/40 transition-colors"
+              />
+            </div>
+          </MagneticField>
           <div className="flex justify-between items-center">
             <div>
               {urlStubError && (
@@ -390,9 +465,9 @@ export function ProfileEditForm({
         </div>
       </EditSection>
 
-      <EditSection label="Projects" complete={projects.length > 0}>
+      <EditSection label="Projects" complete={visibleProjects.length > 0}>
         <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-          {projects.length === 0 ? (
+          {visibleProjects.length === 0 ? (
             <div className="text-center py-2">
               <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
                 Showcase your work
@@ -401,7 +476,7 @@ export function ProfileEditForm({
             </div>
           ) : (
             <>
-              {projects.map((project) => (
+              {visibleProjects.map((project) => (
                 <EditableProjectCard
                   key={project.id}
                   project={project}
@@ -414,9 +489,9 @@ export function ProfileEditForm({
         </div>
       </EditSection>
 
-      <EditSection label="Jam History" complete={jams.length > 0}>
+      <EditSection label="Jam History" complete={visibleJams.length > 0}>
         <div className="px-4 py-3 space-y-2">
-          {jams.length === 0 ? (
+          {visibleJams.length === 0 ? (
             <div className="text-center py-2">
               <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
                 Track your competition history
@@ -425,7 +500,7 @@ export function ProfileEditForm({
             </div>
           ) : (
             <>
-              {jams.map((jam) => (
+              {visibleJams.map((jam) => (
                 <EditableJamEntry
                   key={jam.id}
                   jam={jam}

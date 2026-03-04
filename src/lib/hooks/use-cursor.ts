@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
 import { useEventListener } from 'ahooks';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CORNER_SIZE_MAP = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
 
@@ -20,35 +20,49 @@ export interface CursorState {
   cornerSize?: number;
   paddingX?: number;
   paddingY?: number;
+  noDrift?: boolean;
+  bounce?: number;
 }
 
 export function useCursorState() {
   const [state, setState] = useState<CursorState>({ type: 'default' });
+  const focusLockedRef = useRef<HTMLElement | null>(null);
+
+  const buildMagneticState = useCallback((magneticTarget: HTMLElement, target: HTMLElement): CursorState => {
+    const cursorLabel = target.closest('[data-cursor-label]')?.getAttribute('data-cursor-label');
+    const cursorColor = target.closest('[data-cursor-color]')?.getAttribute('data-cursor-color');
+    const cornerSize = target.closest('[data-cursor-corner-size]')?.getAttribute('data-cursor-corner-size');
+    const paddingX = target.closest('[data-cursor-padding-x]')?.getAttribute('data-cursor-padding-x');
+    const paddingY = target.closest('[data-cursor-padding-y]')?.getAttribute('data-cursor-padding-y');
+    const noDrift = target.closest('[data-cursor-no-drift]') !== null;
+    const bounceAttr = target.closest('[data-cursor-bounce]')?.getAttribute('data-cursor-bounce');
+    return {
+      type: 'magnetic',
+      targetElement: magneticTarget,
+      label: cursorLabel || undefined,
+      color: cursorColor || undefined,
+      cornerSize: resolveCornerSize(cornerSize ?? undefined),
+      paddingX: paddingX ? parseInt(paddingX) : undefined,
+      paddingY: paddingY ? parseInt(paddingY) : undefined,
+      noDrift,
+      bounce: bounceAttr ? parseFloat(bounceAttr) : undefined,
+    };
+  }, []);
 
   const onMouseEnter = useCallback((e: MouseEvent) => {
     const target = e.target as HTMLElement;
     const magneticTarget = target.closest('[data-magnetic]') as HTMLElement;
     const cursorType = target.closest('[data-cursor]')?.getAttribute('data-cursor');
     const cursorLabel = target.closest('[data-cursor-label]')?.getAttribute('data-cursor-label');
-    const cursorColor = target.closest('[data-cursor-color]')?.getAttribute('data-cursor-color');
-    const cornerSize = target.closest('[data-cursor-corner-size]')?.getAttribute('data-cursor-corner-size');
-    const paddingX = target.closest('[data-cursor-padding-x]')?.getAttribute('data-cursor-padding-x');
-    const paddingY = target.closest('[data-cursor-padding-y]')?.getAttribute('data-cursor-padding-y');
 
     if (magneticTarget) {
-      setState({
-        type: 'magnetic',
-        targetElement: magneticTarget,
-        label: cursorLabel || undefined,
-        color: cursorColor || undefined,
-        cornerSize: resolveCornerSize(cornerSize ?? undefined),
-        paddingX: paddingX ? parseInt(paddingX) : undefined,
-        paddingY: paddingY ? parseInt(paddingY) : undefined,
-      });
+      focusLockedRef.current = null;
+      setState(buildMagneticState(magneticTarget, target));
       return;
     }
 
     if (cursorType || cursorLabel) {
+      focusLockedRef.current = null;
       setState({ 
         type: (cursorType as CursorState['type']) || 'pointer', 
         label: cursorLabel || undefined 
@@ -59,19 +73,59 @@ export function useCursorState() {
         setState({ type: 'pointer' });
       } else if (style.cursor === 'text') {
         setState({ type: 'text' });
-      } else {
+      } else if (!focusLockedRef.current) {
         setState({ type: 'default' });
       }
     }
-  }, []);
+  }, [buildMagneticState]);
 
   const onMouseLeave = useCallback((e: MouseEvent) => {
     const target = e.target as HTMLElement;
     const magneticTarget = target.closest('[data-magnetic]') as HTMLElement;
-    if (magneticTarget) {
-      setState({ type: 'default' });
+    if (!magneticTarget) return;
+
+    const active = document.activeElement;
+    if (active && magneticTarget.contains(active)) {
+      focusLockedRef.current = magneticTarget;
+      return;
     }
+
+    setState({ type: 'default' });
   }, []);
+
+  useEffect(() => {
+    const onFocusOut = () => {
+      if (focusLockedRef.current) {
+        requestAnimationFrame(() => {
+          const active = document.activeElement as HTMLElement | null;
+          if (!focusLockedRef.current || !active || !focusLockedRef.current.contains(active)) {
+            const newMagnetic = active?.closest('[data-magnetic]') as HTMLElement | null;
+            if (newMagnetic && active) {
+              focusLockedRef.current = newMagnetic;
+              setState(buildMagneticState(newMagnetic, active));
+            } else {
+              focusLockedRef.current = null;
+              setState({ type: 'default' });
+            }
+          }
+        });
+      }
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (focusLockedRef.current && !focusLockedRef.current.contains(e.target as Node)) {
+        focusLockedRef.current = null;
+        setState({ type: 'default' });
+      }
+    };
+
+    document.addEventListener('focusout', onFocusOut);
+    document.addEventListener('mousedown', onMouseDown);
+    return () => {
+      document.removeEventListener('focusout', onFocusOut);
+      document.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [buildMagneticState]);
 
   useEventListener('mouseover', onMouseEnter, { target: () => document.body });
   useEventListener('mouseout', onMouseLeave, { target: () => document.body });

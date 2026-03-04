@@ -60,6 +60,59 @@ const ARC_PRESSED = arcAngles.map(([s, e]) => bezierArc(ARC_RADIUS, s, e, inward
 const svgSize = ARC_RADIUS * 2 + ARC_STROKE;
 const svgHalf = ARC_RADIUS + ARC_STROKE / 2;
 
+function BounceWrapper({
+  isMagnetic,
+  isPressed,
+  targetElement,
+  springX,
+  springY,
+  bounce,
+  children,
+}: {
+  isMagnetic: boolean;
+  isPressed: boolean;
+  targetElement?: HTMLElement;
+  springX: { get: () => number };
+  springY: { get: () => number };
+  bounce?: number;
+  children: React.ReactNode;
+}) {
+  const strength = bounce ?? 0.02;
+  const [origin, setOrigin] = React.useState('0px 0px');
+
+  React.useEffect(() => {
+    if (!isMagnetic || !targetElement) return;
+
+    let rafId: number;
+    const update = () => {
+      const r = targetElement.getBoundingClientRect();
+      const cx = r.left + r.width / 2 - springX.get();
+      const cy = r.top + r.height / 2 - springY.get();
+      setOrigin(`${cx}px ${cy}px`);
+      rafId = requestAnimationFrame(update);
+    };
+    rafId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(rafId);
+  }, [isMagnetic, targetElement, springX, springY]);
+
+  const shouldBounce = isMagnetic && !isPressed && strength > 0;
+
+  return (
+    <motion.div
+      className="absolute top-0 left-0 w-0 h-0"
+      animate={shouldBounce ? { scale: [1, 1 - strength, 1] } : { scale: 1 }}
+      transition={
+        shouldBounce
+          ? { duration: 0.5, repeat: Infinity, ease: 'backInOut' }
+          : { duration: 0.3 }
+      }
+      style={{ transformOrigin: origin }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 interface CursorProps {
   className?: string;
   spinDuration?: number;
@@ -150,29 +203,69 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       const hpx = (cursorState.paddingX ?? 0) / 2;
       const hpy = (cursorState.paddingY ?? 0) / 2;
 
+      const noDrift = cursorState.noDrift ?? false;
+
+      const jumpToIdle = () => {
+        c0x.set(IDLE_POS[0].x); c0y.set(IDLE_POS[0].y);
+        c1x.set(IDLE_POS[1].x); c1y.set(IDLE_POS[1].y);
+        c2x.set(IDLE_POS[2].x); c2y.set(IDLE_POS[2].y);
+        c3x.set(IDLE_POS[3].x); c3y.set(IDLE_POS[3].y);
+        sc0x.jump(IDLE_POS[0].x); sc0y.jump(IDLE_POS[0].y);
+        sc1x.jump(IDLE_POS[1].x); sc1y.jump(IDLE_POS[1].y);
+        sc2x.jump(IDLE_POS[2].x); sc2y.jump(IDLE_POS[2].y);
+        sc3x.jump(IDLE_POS[3].x); sc3y.jump(IDLE_POS[3].y);
+      };
+
       const updateCorners = () => {
+        const el = cursorState.targetElement;
+        if (!el || !el.isConnected) {
+          jumpToIdle();
+          return;
+        }
+        const r = el.getBoundingClientRect();
         const cx = springX.get();
         const cy = springY.get();
-        const el = cursorState.targetElement;
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        c0x.set(r.left   - BORDER - hpx - cx);
-        c0y.set(r.top    - BORDER - hpy - cy);
-        c1x.set(r.right  + BORDER + hpx - cs - cx);
-        c1y.set(r.top    - BORDER - hpy - cy);
-        c2x.set(r.right  + BORDER + hpx - cs - cx);
-        c2y.set(r.bottom + BORDER + hpy - cs - cy);
-        c3x.set(r.left   - BORDER - hpx - cx);
-        c3y.set(r.bottom + BORDER + hpy - cs - cy);
+
+        const v0x = r.left   - BORDER - hpx - cx;
+        const v0y = r.top    - BORDER - hpy - cy;
+        const v1x = r.right  + BORDER + hpx - cs - cx;
+        const v1y = r.top    - BORDER - hpy - cy;
+        const v2x = r.right  + BORDER + hpx - cs - cx;
+        const v2y = r.bottom + BORDER + hpy - cs - cy;
+        const v3x = r.left   - BORDER - hpx - cx;
+        const v3y = r.bottom + BORDER + hpy - cs - cy;
+
+        c0x.set(v0x); c0y.set(v0y);
+        c1x.set(v1x); c1y.set(v1y);
+        c2x.set(v2x); c2y.set(v2y);
+        c3x.set(v3x); c3y.set(v3y);
+
+        if (noDrift) {
+          sc0x.jump(v0x); sc0y.jump(v0y);
+          sc1x.jump(v1x); sc1y.jump(v1y);
+          sc2x.jump(v2x); sc2y.jump(v2y);
+          sc3x.jump(v3x); sc3y.jump(v3y);
+        }
       };
 
       updateCorners();
+
+      let rafId: number;
+      if (noDrift) {
+        const tick = () => {
+          updateCorners();
+          rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+      }
+
       const unsubX = springX.on('change', updateCorners);
       const unsubY = springY.on('change', updateCorners);
 
       return () => {
         unsubX();
         unsubY();
+        if (noDrift) cancelAnimationFrame(rafId);
         c0x.set(IDLE_POS[0].x); c0y.set(IDLE_POS[0].y);
         c1x.set(IDLE_POS[1].x); c1y.set(IDLE_POS[1].y);
         c2x.set(IDLE_POS[2].x); c2y.set(IDLE_POS[2].y);
@@ -187,12 +280,14 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     cursorState.cornerSize,
     cursorState.paddingX,
     cursorState.paddingY,
+    cursorState.noDrift,
     isMobile,
     startSpin,
     spinControls,
     springX,
     springY,
     c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y,
+    sc0x, sc0y, sc1x, sc1y, sc2x, sc2y, sc3x, sc3y,
   ]);
 
   if (isMobile || isHidden) return null;
@@ -229,14 +324,13 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
 
       {/* Spinning shape wrapper */}
       {!isText && (
-        <motion.div
-          className="absolute top-0 left-0 w-0 h-0"
-          animate={isMagnetic && !isPressed ? { scale: [1, 0.98, 1] } : { scale: 1 }}
-          transition={
-            isMagnetic && !isPressed
-              ? { duration: 0.5, repeat: Infinity, ease: 'backInOut' }
-              : { duration: 0.3 }
-          }
+        <BounceWrapper
+          isMagnetic={isMagnetic}
+          isPressed={isPressed}
+          targetElement={cursorState.targetElement}
+          springX={springX}
+          springY={springY}
+          bounce={cursorState.bounce}
         >
           <motion.div
             className="absolute top-0 left-0 w-0 h-0"
@@ -286,7 +380,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
               ))}
             </motion.svg>
           </motion.div>
-        </motion.div>
+        </BounceWrapper>
       )}
 
       {/* Label */}

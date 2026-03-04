@@ -1,8 +1,12 @@
 import { Cancel01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { orpc } from '@/orpc/client';
+
+const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 export function SkillTag({
   name,
@@ -12,12 +16,12 @@ export function SkillTag({
   onRemove: () => void;
 }) {
   return (
-    <span className="group inline-flex items-center gap-1 bg-primary/10 border border-primary/25 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:border-primary/50 transition-colors">
+    <span className="group inline-flex items-center gap-1 bg-primary/10 border border-primary/25 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:border-primary/50 transition-colors overflow-hidden">
       {name}
       <button
         type="button"
         onClick={onRemove}
-        className="opacity-50 group-hover:opacity-100 hover:text-destructive transition-all"
+        className="w-0 -mr-1 opacity-0 group-hover:w-3 group-hover:opacity-100 text-primary/50 hover:text-destructive focus:text-destructive focus:w-3 focus:opacity-100 outline-none transition-all duration-200 shrink-0"
       >
         <HugeiconsIcon icon={Cancel01Icon} size={9} />
       </button>
@@ -25,12 +29,30 @@ export function SkillTag({
   );
 }
 
-export function PendingSkillTag({ name }: { name: string }) {
+export function PendingSkillTag({ name, onRemove }: { name: string; onRemove?: () => void }) {
+  const { ref, position } = useMagnetic(0);
   return (
-    <span className="inline-flex items-center gap-1.5 bg-brackeys-yellow/5 border border-brackeys-yellow/20 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+    <motion.span
+      ref={ref as React.RefObject<HTMLSpanElement>}
+      data-magnetic
+      data-cursor-no-drift
+      data-cursor-bounce={0.03}
+      animate={{ x: position.x, y: position.y }}
+      transition={springTransition}
+      className="group inline-flex items-center gap-1.5 bg-brackeys-yellow/5 border border-brackeys-yellow/20 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-brackeys-yellow/40 transition-colors overflow-hidden"
+    >
       {name}
       <span className="text-[9px] text-brackeys-yellow font-bold tracking-widest">PENDING</span>
-    </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="w-0 -mr-1.5 group-hover:mr-0 focus:mr-0 opacity-0 group-hover:w-3 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive focus:text-destructive focus:w-3 focus:opacity-100 outline-none transition-all duration-200 shrink-0"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        </button>
+      )}
+    </motion.span>
   );
 }
 
@@ -76,8 +98,18 @@ export function SkillAutocomplete({
     (s) => s.name.toLowerCase() === search.trim().toLowerCase(),
   );
 
+  const { ref: magnetRef, position } = useMagnetic(0);
+
   return (
-    <div ref={containerRef} className="relative">
+    <motion.div
+      ref={magnetRef as React.RefObject<HTMLDivElement>}
+      data-magnetic
+      data-cursor-no-drift
+      animate={{ x: position.x, y: position.y }}
+      transition={springTransition}
+      className="relative"
+    >
+      <div ref={containerRef}>
       <input
         type="text"
         value={search}
@@ -89,7 +121,7 @@ export function SkillAutocomplete({
           if (search.trim()) setShowDropdown(true);
         }}
         placeholder="+ Add skill..."
-        className="bg-transparent border border-dashed border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 w-32 transition-colors"
+        className="bg-transparent border border-dashed border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 w-28 transition-colors"
       />
       {showDropdown && search.trim() && (
         <div className="absolute top-full left-0 mt-1 w-48 max-h-40 overflow-y-auto bg-card border border-muted/60 shadow-lg z-50">
@@ -130,6 +162,7 @@ export function SkillAutocomplete({
           )}
         </div>
       )}
-    </div>
+      </div>
+    </motion.div>
   );
 }

@@ -1,7 +1,10 @@
 import { Add01Icon, Delete02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
+import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
 
+const fieldSpring = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 const inputCls = 'w-full bg-transparent border border-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors';
 
 export function EditableProjectCard({
@@ -65,16 +68,23 @@ export function AddProjectForm({ onAdd }: { onAdd: (data: { title: string; descr
     setOpen(false);
   };
 
+  const { ref, position } = useMagnetic(0);
+
   if (!open) {
     return (
-      <button
+      <motion.button
+        ref={ref as React.RefObject<HTMLButtonElement>}
+        data-magnetic
+        data-cursor-no-drift
+        animate={{ x: position.x, y: position.y }}
+        transition={fieldSpring}
         type="button"
         onClick={() => setOpen(true)}
         className="w-full border border-dashed border-muted/25 py-3 font-mono text-[10px] text-muted-foreground/50 hover:border-primary/40 hover:text-primary transition-colors uppercase tracking-widest flex items-center justify-center gap-1.5"
       >
         <HugeiconsIcon icon={Add01Icon} size={10} />
         Add Project
-      </button>
+      </motion.button>
     );
   }
 

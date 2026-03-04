@@ -14,6 +14,7 @@ import { CommandPalette } from '@/components/layout/CommandPalette'
 const AppHeader = lazy(() => import('@/components/layout/AppHeader').then(m => ({ default: m.AppHeader })))
 
 import { Cursor } from '@/components/ui/cursor'
+import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPaletteProvider } from '@/lib/hooks/use-command-palette'
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from '@/lib/hooks/use-page-layout'
@@ -143,6 +144,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </TooltipProvider>
           </TanStackQueryProvider>
         </div>
+        <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
         <Scripts />
       </body>
     </html>
