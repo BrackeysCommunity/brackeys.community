@@ -5,14 +5,26 @@ import {
   UserGroupIcon,
 } from '@hugeicons/core-free-icons';
 import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useCallback, useState } from 'react';
 import { usePageSidebar } from '@/lib/hooks/use-page-layout';
 import { orpc } from '@/orpc/client';
 import { Route } from '@/routes/profile.$userId';
+import { type CompletenessItem, buildCompletenessItems, ProfileCompletenessCard } from './ProfileCompleteness';
 import { ProfileStatCard } from './ProfileStatCard';
 import { ProfileViewSidebar } from './ProfileViewSidebar';
 
+const swapVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -12 },
+};
+const swapTransition = { duration: 0.25, ease: 'easeInOut' as const };
+
 export function ProfileViewPage() {
   const { userId } = Route.useParams();
+  const [isEditing, setIsEditing] = useState(false);
+  const [localCompleteness, setLocalCompleteness] = useState<CompletenessItem[] | null>(null);
 
   const queryOptions = orpc.getProfile.queryOptions({ input: { userId } });
   const { data: profileData, isLoading } = useQuery({
@@ -29,11 +41,34 @@ export function ProfileViewPage() {
     ? new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
     : null;
 
+  const serverCompleteness = profileData
+    ? buildCompletenessItems({
+        tagline: profile?.tagline ?? null,
+        bio: profile?.bio ?? null,
+        skills: profileData.skills,
+        githubUrl: profile?.githubUrl ?? null,
+        twitterUrl: profile?.twitterUrl ?? null,
+        websiteUrl: profile?.websiteUrl ?? null,
+        projects: profileData.projects,
+        jams: profileData.jams,
+      })
+    : [];
+
+  const completenessItems = (isEditing && localCompleteness) ? localCompleteness : serverCompleteness;
+
+  const handleCompletenessChange = useCallback((items: CompletenessItem[]) => {
+    setLocalCompleteness(items);
+  }, []);
+
   usePageSidebar(
     <ProfileViewSidebar
       profileData={profileData ?? null}
       isLoading={isLoading}
       profileQueryKey={queryOptions.queryKey}
+      isEditing={isEditing}
+      onToggleEdit={setIsEditing}
+      completenessItems={completenessItems}
+      onCompletenessChange={handleCompletenessChange}
     />,
   );
 
@@ -48,7 +83,7 @@ export function ProfileViewPage() {
         {profileData?.isOwner && (
           <>
             <span className="mx-2 text-primary">{'//'}</span>
-            <span className="text-brackeys-yellow/60">YOUR PROFILE</span>
+            <span className="text-brackeys-yellow/60">{isEditing ? 'EDITING' : 'YOUR PROFILE'}</span>
           </>
         )}
       </div>
@@ -96,42 +131,67 @@ export function ProfileViewPage() {
           {isLoading ? 'Loading profile data...' : profileData ? tagline : 'This profile does not exist or has not been set up yet.'}
         </p>
 
-        {bio && !isLoading && (
+        {bio && !isLoading && !isEditing && (
           <p className="mt-4 max-w-xl font-sans text-sm text-muted-foreground/60 leading-relaxed line-clamp-2">
             {bio}
           </p>
         )}
       </div>
 
-      {/* Stats cards */}
-      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-        <ProfileStatCard
-          index="01"
-          label="PROJECTS"
-          value={profileData?.projects?.length ?? 0}
-          icon={ComputerTerminal01Icon}
-        />
-        <ProfileStatCard
-          index="02"
-          label="JAMS"
-          value={profileData?.jams?.length ?? 0}
-          icon={UserGroupIcon}
-        />
-        <ProfileStatCard
-          index="03"
-          label="SKILLS"
-          value={profileData?.skills?.length ?? 0}
-          icon={IdentityCardIcon}
-        />
-        {memberSince && (
-          <ProfileStatCard
-            index="04"
-            label="MEMBER"
-            value={memberSince.toUpperCase()}
-            icon={Calendar03Icon}
-          />
+      {/* Cards area: stat cards (view mode) or completeness cards (edit mode) */}
+      <AnimatePresence mode="wait">
+        {isEditing && profileData?.isOwner ? (
+          <motion.div
+            key="completeness"
+            variants={swapVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={swapTransition}
+            className="hidden sm:block"
+          >
+            <ProfileCompletenessCard items={completenessItems} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="stats"
+            variants={swapVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={swapTransition}
+          >
+            <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <ProfileStatCard
+                index="01"
+                label="PROJECTS"
+                value={profileData?.projects?.length ?? 0}
+                icon={ComputerTerminal01Icon}
+              />
+              <ProfileStatCard
+                index="02"
+                label="JAMS"
+                value={profileData?.jams?.length ?? 0}
+                icon={UserGroupIcon}
+              />
+              <ProfileStatCard
+                index="03"
+                label="SKILLS"
+                value={profileData?.skills?.length ?? 0}
+                icon={IdentityCardIcon}
+              />
+              {memberSince && (
+                <ProfileStatCard
+                  index="04"
+                  label="MEMBER"
+                  value={memberSince.toUpperCase()}
+                  icon={Calendar03Icon}
+                />
+              )}
+            </nav>
+          </motion.div>
         )}
-      </nav>
+      </AnimatePresence>
     </>
   );
 }

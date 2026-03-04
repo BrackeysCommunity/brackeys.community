@@ -1,11 +1,11 @@
 import { Cancel01Icon, PencilEdit01Icon, Tick01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useState } from 'react';
 import { NotchedCard } from '@/components/ui/notched-card';
 import { cn } from '@/lib/utils';
 import { ProfileAvatar } from './ProfileAvatar';
 import { ProfileBio } from './ProfileBio';
+import { type CompletenessItem, ProfileCompletenessMini } from './ProfileCompleteness';
 import { ProfileEditForm } from './ProfileEditForm';
 import { ProfileJams } from './ProfileJams';
 import { buildSocialLinks, ProfileLinks } from './ProfileLinks';
@@ -59,6 +59,10 @@ interface ProfileViewSidebarProps {
   profileData: ProfileData | null;
   isLoading: boolean;
   profileQueryKey: readonly unknown[];
+  isEditing: boolean;
+  onToggleEdit: (editing: boolean) => void;
+  completenessItems: CompletenessItem[];
+  onCompletenessChange?: (items: CompletenessItem[]) => void;
 }
 
 function SkeletonBlock({ className }: { className?: string }) {
@@ -96,8 +100,7 @@ const fadeVariants = {
 };
 const fadeTransition = { duration: 0.2, ease: 'easeInOut' as const };
 
-export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: ProfileViewSidebarProps) {
-  const [isEditing, setIsEditing] = useState(false);
+export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, isEditing, onToggleEdit, completenessItems, onCompletenessChange }: ProfileViewSidebarProps) {
 
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -130,7 +133,7 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: 
         {isOwner && !isEditing && (
           <button
             type="button"
-            onClick={() => setIsEditing(true)}
+            onClick={() => onToggleEdit(true)}
             className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-primary transition-colors"
           >
             <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
@@ -140,7 +143,7 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: 
         {isOwner && isEditing && (
           <button
             type="button"
-            onClick={() => setIsEditing(false)}
+            onClick={() => onToggleEdit(false)}
             className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:text-primary/70 transition-colors"
           >
             <HugeiconsIcon icon={Tick01Icon} size={10} />
@@ -155,7 +158,7 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: 
         {isEditing && (
           <button
             type="button"
-            onClick={() => setIsEditing(false)}
+            onClick={() => onToggleEdit(false)}
             className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-destructive transition-colors"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={10} />
@@ -200,6 +203,9 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: 
               exit="exit"
               transition={fadeTransition}
             >
+              <div className="sm:hidden">
+                <ProfileCompletenessMini items={completenessItems} />
+              </div>
               <ProfileEditForm
                 profile={profile}
                 skills={skills}
@@ -208,6 +214,7 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey }: 
                 pendingSkillRequests={profileData.pendingSkillRequests}
                 urlStub={profileData.urlStub}
                 profileQueryKey={profileQueryKey}
+                onCompletenessChange={onCompletenessChange}
               />
             </motion.div>
           ) : (

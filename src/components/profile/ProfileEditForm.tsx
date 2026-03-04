@@ -2,8 +2,10 @@ import { Github01Icon, Globe02Icon, NewTwitterIcon } from '@hugeicons/core-free-
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CharCount, SectionHeader } from '@/components/ui/form-primitives';
+import { CharCount } from '@/components/ui/form-primitives';
+import { cn } from '@/lib/utils';
 import { client } from '@/orpc/client';
+import { type CompletenessItem, buildCompletenessItems } from './ProfileCompleteness';
 import { EditableJamEntry, AddJamForm } from './ProfileJamEditor';
 import { EditableProjectCard, AddProjectForm } from './ProfileProjectEditor';
 import { SkillTag, PendingSkillTag, SkillAutocomplete } from './ProfileSkillEditor';
@@ -48,6 +50,39 @@ interface ProfileEditFormProps {
   pendingSkillRequests?: Array<{ name: string }>;
   urlStub: string | null;
   profileQueryKey: readonly unknown[];
+  onCompletenessChange?: (items: CompletenessItem[]) => void;
+}
+
+function EditSection({
+  label,
+  complete,
+  children,
+  className,
+}: {
+  label: string;
+  complete?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('group/section', className)}>
+      <div className="px-4 py-2 border-b border-muted/30 flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
+          {label}
+        </span>
+        {complete !== undefined && (
+          <span
+            className={cn(
+              'w-1.5 h-1.5 rounded-full transition-colors',
+              complete ? 'bg-green-500' : 'bg-muted/40',
+            )}
+            title={complete ? 'Complete' : 'Incomplete'}
+          />
+        )}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function LinkInput({
@@ -62,8 +97,8 @@ function LinkInput({
   placeholder?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 bg-muted/10 border border-muted/20 px-2.5 py-1.5 focus-within:border-primary/40 transition-colors group">
-      <span className="text-muted-foreground/40 group-focus-within:text-primary/50 transition-colors shrink-0">
+    <div className="flex items-center gap-2 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 focus-within:bg-muted/10 transition-all group/link">
+      <span className="text-muted-foreground/30 group-focus-within/link:text-primary/50 transition-colors shrink-0">
         {icon}
       </span>
       <input
@@ -71,34 +106,11 @@ function LinkInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none"
+        className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none"
       />
-    </div>
-  );
-}
-
-function ProfileCompleteness({ tagline, bio, skills, projects, jams, githubUrl, twitterUrl, websiteUrl }: { tagline: string; bio: string; skills: unknown[]; projects: unknown[]; jams: unknown[]; githubUrl: string; twitterUrl: string; websiteUrl: string }) {
-  const items = [
-    { label: 'Tagline', ok: !!tagline.trim() },
-    { label: 'Bio', ok: !!bio.trim() },
-    { label: 'Skills', ok: skills.length > 0 },
-    { label: 'Links', ok: !!(githubUrl || twitterUrl || websiteUrl) },
-    { label: 'Projects', ok: projects.length > 0 },
-    { label: 'Jams', ok: jams.length > 0 },
-  ];
-  const score = items.filter((i) => i.ok).length;
-  if (score >= items.length) return null;
-  return (
-    <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">Completeness</span>
-        <span className="font-mono text-[10px] text-primary">{score}/{items.length}</span>
-      </div>
-      <div className="flex gap-0.5">
-        {items.map((item) => (
-          <div key={item.label} className={`h-1 flex-1 transition-colors ${item.ok ? 'bg-primary' : 'bg-muted/30'}`} title={item.label} />
-        ))}
-      </div>
+      {value && (
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500/60 shrink-0" />
+      )}
     </div>
   );
 }
@@ -111,6 +123,7 @@ export function ProfileEditForm({
   pendingSkillRequests,
   urlStub: initialUrlStub,
   profileQueryKey,
+  onCompletenessChange,
 }: ProfileEditFormProps) {
   const queryClient = useQueryClient();
 
@@ -129,6 +142,12 @@ export function ProfileEditForm({
   const [githubUrl, setGithubUrl] = useState(profile.githubUrl ?? '');
   const [twitterUrl, setTwitterUrl] = useState(profile.twitterUrl ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '');
+
+  useEffect(() => {
+    onCompletenessChange?.(buildCompletenessItems({
+      tagline, bio, skills, githubUrl, twitterUrl, websiteUrl, projects, jams,
+    }));
+  }, [tagline, bio, skills, githubUrl, twitterUrl, websiteUrl, projects, jams, onCompletenessChange]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const updateMutation = useMutation({
@@ -226,138 +245,168 @@ export function ProfileEditForm({
 
   return (
     <>
-      <ProfileCompleteness
-        tagline={tagline}
-        bio={bio}
-        skills={skills}
-        projects={projects}
-        jams={jams}
-        githubUrl={githubUrl}
-        twitterUrl={twitterUrl}
-        websiteUrl={websiteUrl}
-      />
-
-      <SectionHeader>Tagline</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-        <input
-          type="text"
-          value={tagline}
-          onChange={(e) => handleFieldChange('tagline', e.target.value, setTagline)}
-          placeholder="A short tagline about yourself..."
-          maxLength={120}
-          className="w-full bg-transparent border-b border-muted/20 pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors"
-        />
-        <div className="flex justify-end">
-          <CharCount current={tagline.length} min={5} max={120} />
-        </div>
-      </div>
-
-      <SectionHeader>Bio</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-        <textarea
-          value={bio}
-          onChange={(e) => handleFieldChange('bio', e.target.value, setBio)}
-          placeholder="Tell the community about yourself..."
-          rows={4}
-          maxLength={500}
-          className="w-full bg-transparent border border-muted/15 p-2.5 font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 resize-none transition-colors leading-relaxed"
-        />
-        <div className="flex justify-end">
-          <CharCount current={bio.length} min={20} max={500} />
-        </div>
-      </div>
-
-      <SectionHeader>Skills</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30">
-        <div className="flex flex-wrap gap-1.5">
-          {skills.map((skill) => (
-            <SkillTag
-              key={skill.id}
-              name={skill.name}
-              onRemove={() => removeUserSkillMutation.mutate(skill.id)}
-            />
-          ))}
-          {pendingRequests.map((name) => (
-            <PendingSkillTag key={name} name={name} />
-          ))}
-          <SkillAutocomplete
-            onAddSkill={(skillId) => addUserSkillMutation.mutate(skillId)}
-            onRequestSkill={(name) => requestSkillMutation.mutate(name)}
-          />
-        </div>
-      </div>
-
-      <SectionHeader>Profile URL</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
-        <div className="flex items-center gap-1">
-          <span className="font-mono text-[10px] text-muted-foreground/50 shrink-0">/profile/</span>
+      <EditSection label="Tagline" complete={!!tagline.trim()}>
+        <div className="px-4 py-3 border-b border-muted/30 space-y-1">
           <input
             type="text"
-            value={urlStub}
-            onChange={(e) => handleUrlStubChange(e.target.value)}
-            placeholder="your-name"
-            maxLength={32}
-            className="flex-1 bg-transparent border-b border-muted/20 pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+            value={tagline}
+            onChange={(e) => handleFieldChange('tagline', e.target.value, setTagline)}
+            placeholder="What do you do? e.g. 'Unity developer & pixel art enthusiast'"
+            maxLength={120}
+            className="w-full bg-transparent border-b border-muted/15 pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 transition-colors"
           />
-        </div>
-        <div className="flex justify-between items-center">
-          <div>
-            {urlStubError && (
-              <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
-            )}
-            {!urlStubError && urlStub.length >= 3 && initialUrlStub === urlStub && (
-              <p className="font-mono text-[10px] text-green-500">Saved</p>
-            )}
+          <div className="flex justify-end">
+            <CharCount current={tagline.length} min={5} max={120} />
           </div>
-          <CharCount current={urlStub.length} min={3} max={32} />
         </div>
-      </div>
+      </EditSection>
 
-      <SectionHeader>Links</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-        <LinkInput
-          icon={<HugeiconsIcon icon={Github01Icon} size={13} />}
-          value={githubUrl}
-          onChange={(v) => handleFieldChange('githubUrl', v, setGithubUrl)}
-          placeholder="github.com/username"
-        />
-        <LinkInput
-          icon={<HugeiconsIcon icon={NewTwitterIcon} size={13} />}
-          value={twitterUrl}
-          onChange={(v) => handleFieldChange('twitterUrl', v, setTwitterUrl)}
-          placeholder="twitter.com/username"
-        />
-        <LinkInput
-          icon={<HugeiconsIcon icon={Globe02Icon} size={13} />}
-          value={websiteUrl}
-          onChange={(v) => handleFieldChange('websiteUrl', v, setWebsiteUrl)}
-          placeholder="portfolio.dev"
-        />
-      </div>
-
-      <SectionHeader>Projects</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-        {projects.map((project) => (
-          <EditableProjectCard
-            key={project.id}
-            project={project}
-            onRemove={() => removeProjectMutation.mutate(project.id)}
+      <EditSection label="Bio" complete={!!bio.trim()}>
+        <div className="px-4 py-3 border-b border-muted/30 space-y-1">
+          <textarea
+            value={bio}
+            onChange={(e) => handleFieldChange('bio', e.target.value, setBio)}
+            placeholder="Tell the community about yourself, your experience, what you're working on..."
+            rows={4}
+            maxLength={500}
+            className="w-full bg-muted/5 border border-muted/15 p-2.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 hover:bg-muted/10 resize-none transition-all leading-relaxed"
           />
-        ))}
-        <AddProjectForm onAdd={(data) => addProjectMutation.mutate(data)} />
-      </div>
+          <div className="flex justify-end">
+            <CharCount current={bio.length} min={20} max={500} />
+          </div>
+        </div>
+      </EditSection>
 
-      <SectionHeader>Jam History</SectionHeader>
-      <div className="px-4 py-3 space-y-2">
-        {jams.map((jam) => (
-          <EditableJamEntry
-            key={jam.id}
-            jam={jam}
-            onRemove={() => removeJamMutation.mutate(jam.id)}
+      <EditSection label="Skills" complete={skills.length > 0}>
+        <div className="px-4 py-3 border-b border-muted/30">
+          {skills.length === 0 && pendingRequests.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider">
+                No skills added yet
+              </p>
+              <SkillAutocomplete
+                onAddSkill={(skillId) => addUserSkillMutation.mutate(skillId)}
+                onRequestSkill={(name) => requestSkillMutation.mutate(name)}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {skills.map((skill) => (
+                <SkillTag
+                  key={skill.id}
+                  name={skill.name}
+                  onRemove={() => removeUserSkillMutation.mutate(skill.id)}
+                />
+              ))}
+              {pendingRequests.map((name) => (
+                <PendingSkillTag key={name} name={name} />
+              ))}
+              <SkillAutocomplete
+                onAddSkill={(skillId) => addUserSkillMutation.mutate(skillId)}
+                onRequestSkill={(name) => requestSkillMutation.mutate(name)}
+              />
+            </div>
+          )}
+        </div>
+      </EditSection>
+
+      <EditSection label="Profile URL">
+        <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
+          <div className="flex items-center gap-1 hover:bg-muted/5 -mx-1 px-1 py-0.5 rounded transition-colors">
+            <span className="font-mono text-[10px] text-muted-foreground/40 shrink-0">/profile/</span>
+            <input
+              type="text"
+              value={urlStub}
+              onChange={(e) => handleUrlStubChange(e.target.value)}
+              placeholder="your-name"
+              maxLength={32}
+              className="flex-1 bg-transparent border-b border-muted/15 pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/50 hover:border-muted/40 transition-colors"
+            />
+          </div>
+          <div className="flex justify-between items-center">
+            <div>
+              {urlStubError && (
+                <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
+              )}
+              {!urlStubError && urlStub.length >= 3 && initialUrlStub === urlStub && (
+                <p className="font-mono text-[10px] text-green-500">Saved</p>
+              )}
+            </div>
+            <CharCount current={urlStub.length} min={3} max={32} />
+          </div>
+        </div>
+      </EditSection>
+
+      <EditSection label="Links" complete={!!(githubUrl || twitterUrl || websiteUrl)}>
+        <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+          <LinkInput
+            icon={<HugeiconsIcon icon={Github01Icon} size={13} />}
+            value={githubUrl}
+            onChange={(v) => handleFieldChange('githubUrl', v, setGithubUrl)}
+            placeholder="github.com/username"
           />
-        ))}
-        <AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
-      </div>
+          <LinkInput
+            icon={<HugeiconsIcon icon={NewTwitterIcon} size={13} />}
+            value={twitterUrl}
+            onChange={(v) => handleFieldChange('twitterUrl', v, setTwitterUrl)}
+            placeholder="twitter.com/username"
+          />
+          <LinkInput
+            icon={<HugeiconsIcon icon={Globe02Icon} size={13} />}
+            value={websiteUrl}
+            onChange={(v) => handleFieldChange('websiteUrl', v, setWebsiteUrl)}
+            placeholder="portfolio.dev"
+          />
+        </div>
+      </EditSection>
+
+      <EditSection label="Projects" complete={projects.length > 0}>
+        <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+          {projects.length === 0 ? (
+            <div className="text-center py-2">
+              <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
+                Showcase your work
+              </p>
+              <AddProjectForm onAdd={(data) => addProjectMutation.mutate(data)} />
+            </div>
+          ) : (
+            <>
+              {projects.map((project) => (
+                <EditableProjectCard
+                  key={project.id}
+                  project={project}
+                  onRemove={() => removeProjectMutation.mutate(project.id)}
+                />
+              ))}
+              <AddProjectForm onAdd={(data) => addProjectMutation.mutate(data)} />
+            </>
+          )}
+        </div>
+      </EditSection>
+
+      <EditSection label="Jam History" complete={jams.length > 0}>
+        <div className="px-4 py-3 space-y-2">
+          {jams.length === 0 ? (
+            <div className="text-center py-2">
+              <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
+                Track your competition history
+              </p>
+              <AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
+            </div>
+          ) : (
+            <>
+              {jams.map((jam) => (
+                <EditableJamEntry
+                  key={jam.id}
+                  jam={jam}
+                  onRemove={() => removeJamMutation.mutate(jam.id)}
+                />
+              ))}
+              <AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
+            </>
+          )}
+        </div>
+      </EditSection>
     </>
   );
 }
