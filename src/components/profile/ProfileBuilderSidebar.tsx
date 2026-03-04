@@ -8,53 +8,13 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@tanstack/react-store';
-import { motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buttonVariants } from '@/components/ui/button';
+import { CharCount, MagneticFooterButton, SectionHeader } from '@/components/ui/form-primitives';
 import { NotchedCard } from '@/components/ui/notched-card';
 import { authStore } from '@/lib/auth-store';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { cn } from '@/lib/utils';
 import { client, orpc } from '@/orpc/client';
-
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
-
-function MagneticFooterButton({
-  onClick,
-  children,
-  className,
-  disabled,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-  className?: string;
-  disabled?: boolean;
-}) {
-  const { ref, position } = useMagnetic(0.25);
-  return (
-    <motion.div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      data-magnetic
-      animate={{ x: position.x, y: position.y }}
-      transition={springTransition}
-      className="flex-1"
-    >
-      <button type="button" onClick={onClick} disabled={disabled} className={className}>
-        {children}
-      </button>
-    </motion.div>
-  );
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-4 py-2 border-b border-muted/30">
-      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
-        {children}
-      </span>
-    </div>
-  );
-}
 
 function FieldInput({
   label,
@@ -472,6 +432,32 @@ function AddJamForm({ onAdd }: { onAdd: (data: { jamName: string; submissionTitl
   );
 }
 
+function ProfileCompleteness({ tagline, bio, skills, projects, jams, githubUrl, twitterUrl, websiteUrl }: { tagline: string; bio: string; skills: unknown[]; projects: unknown[]; jams: unknown[]; githubUrl: string; twitterUrl: string; websiteUrl: string }) {
+  const items = [
+    { label: 'Tagline', ok: !!tagline.trim() },
+    { label: 'Bio', ok: !!bio.trim() },
+    { label: 'Skills', ok: skills.length > 0 },
+    { label: 'Links', ok: !!(githubUrl || twitterUrl || websiteUrl) },
+    { label: 'Projects', ok: projects.length > 0 },
+    { label: 'Jams', ok: jams.length > 0 },
+  ];
+  const score = items.filter((i) => i.ok).length;
+  if (score >= items.length) return null;
+  return (
+    <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">Completeness</span>
+        <span className="font-mono text-[10px] text-primary">{score}/{items.length}</span>
+      </div>
+      <div className="flex gap-0.5">
+        {items.map((item) => (
+          <div key={item.label} className={`h-1 flex-1 transition-colors ${item.ok ? 'bg-primary' : 'bg-muted/30'}`} title={item.label} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AuthenticatedSidebar() {
   const { session } = useStore(authStore);
   const queryClient = useQueryClient();
@@ -693,43 +679,56 @@ function AuthenticatedSidebar() {
         footer={footerContent}
       >
                 {/* Discord info (read-only) */}
-                <div className="px-4 py-4 border-b border-muted/30 flex items-center gap-3">
-                  {profile.avatarUrl ? (
-                    <img
-                      src={profile.avatarUrl}
-                      alt={username}
-                      className="w-10 h-10 rounded-full border border-muted/40 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-muted/30 border border-muted/40 shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="font-mono text-sm font-bold text-foreground truncate">
-                      @{profile.discordUsername ?? username}
-                    </p>
-                    {profile.guildRoles && profile.guildRoles.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {profile.guildRoles.slice(0, 5).map((role) => (
-                          <span
-                            key={role}
-                            className="bg-muted/30 border border-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase"
-                          >
-                            {role}
-                          </span>
-                        ))}
-                      </div>
+                <div className="px-4 py-4 border-b border-muted/30 bg-gradient-to-r from-primary/5 to-transparent">
+                  <div className="flex items-center gap-3">
+                    {profile.avatarUrl ? (
+                      <img
+                        src={profile.avatarUrl}
+                        alt={username}
+                        className="w-12 h-12 rounded-full border-2 border-primary/30 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-muted/30 border-2 border-primary/30 shrink-0" />
                     )}
-                    {profile.guildJoinedAt && (
-                      <p className="font-mono text-[10px] text-muted-foreground/50 mt-1">
-                        Joined {new Date(profile.guildJoinedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-bold text-foreground truncate">
+                        @{profile.discordUsername ?? username}
                       </p>
-                    )}
+                      {profile.guildJoinedAt && (
+                        <p className="font-mono text-[10px] text-muted-foreground/50 mt-1">
+                          Joined {new Date(profile.guildJoinedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  {profile.guildRoles && profile.guildRoles.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2.5">
+                      {profile.guildRoles.slice(0, 5).map((role) => (
+                        <span
+                          key={role}
+                          className="bg-primary/5 border border-primary/20 px-1.5 py-0.5 font-mono text-[10px] text-primary/70 uppercase tracking-wider"
+                        >
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                <ProfileCompleteness
+                  tagline={tagline}
+                  bio={bio}
+                  skills={skills}
+                  projects={projects}
+                  jams={jams}
+                  githubUrl={githubUrl}
+                  twitterUrl={twitterUrl}
+                  websiteUrl={websiteUrl}
+                />
 
                 {/* Tagline */}
                 <SectionHeader>Tagline</SectionHeader>
-                <div className="px-4 py-3 border-b border-muted/30">
+                <div className="px-4 py-3 border-b border-muted/30 space-y-1">
                   <input
                     type="text"
                     value={tagline}
@@ -738,11 +737,14 @@ function AuthenticatedSidebar() {
                     maxLength={120}
                     className="w-full bg-transparent border-b border-muted/20 pb-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
                   />
+                  <div className="flex justify-end">
+                    <CharCount current={tagline.length} min={5} max={120} />
+                  </div>
                 </div>
 
                 {/* Bio */}
                 <SectionHeader>Bio</SectionHeader>
-                <div className="px-4 py-3 border-b border-muted/30">
+                <div className="px-4 py-3 border-b border-muted/30 space-y-1">
                   <textarea
                     value={bio}
                     onChange={(e) => handleFieldChange('bio', e.target.value, setBio)}
@@ -751,6 +753,9 @@ function AuthenticatedSidebar() {
                     maxLength={500}
                     className="w-full bg-transparent border border-muted/20 p-2 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
                   />
+                  <div className="flex justify-end">
+                    <CharCount current={bio.length} min={20} max={500} />
+                  </div>
                 </div>
 
                 {/* Skills */}
@@ -788,12 +793,17 @@ function AuthenticatedSidebar() {
                       className="flex-1 bg-transparent border-b border-muted/20 pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
                     />
                   </div>
-                  {urlStubError && (
-                    <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
-                  )}
-                  {!urlStubError && urlStub.length >= 3 && profileData?.urlStub === urlStub && (
-                    <p className="font-mono text-[10px] text-green-500">Saved</p>
-                  )}
+                  <div className="flex justify-between items-center">
+                    <div>
+                      {urlStubError && (
+                        <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
+                      )}
+                      {!urlStubError && urlStub.length >= 3 && profileData?.urlStub === urlStub && (
+                        <p className="font-mono text-[10px] text-green-500">Saved</p>
+                      )}
+                    </div>
+                    <CharCount current={urlStub.length} min={3} max={32} />
+                  </div>
                 </div>
 
                 {/* Links */}

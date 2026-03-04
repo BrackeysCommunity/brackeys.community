@@ -4,15 +4,17 @@ import { useForm } from '@tanstack/react-form'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
-import { motion } from 'framer-motion'
 import {
   englishDataset,
   englishRecommendedTransformers,
   RegExpMatcher,
 } from 'obscenity'
+import { AnimatePresence, motion } from 'framer-motion'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { buttonVariants } from '@/components/ui/button'
+import { CharCount, FieldError, MagneticFooterButton, SectionHeader } from '@/components/ui/form-primitives'
 import { NotchedCard } from '@/components/ui/notched-card'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { authStore } from '@/lib/auth-store'
 import {
@@ -30,7 +32,6 @@ import {
   type UploadedImage,
   updateWizardDraft,
 } from '@/lib/collab-store'
-import { useMagnetic } from '@/lib/hooks/use-cursor'
 import { cn } from '@/lib/utils'
 import { client, orpc } from '@/orpc/client'
 
@@ -49,50 +50,6 @@ function profanityCheck(value: string, fieldName: string): string | undefined {
 }
 
 // ── Layout helpers ───────────────────────────────────────────────────────────
-
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-4 py-2 border-b border-muted/30">
-      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
-        {children}
-      </span>
-    </div>
-  )
-}
-
-function FieldError({ errors }: { errors: string[] }) {
-  if (!errors.length) return null
-  return <p className="font-mono text-[10px] text-destructive mt-1">{errors[0]}</p>
-}
-
-function MagneticFooterButton({
-  onClick,
-  children,
-  className,
-  disabled,
-}: {
-  onClick: () => void
-  children: React.ReactNode
-  className?: string
-  disabled?: boolean
-}) {
-  const { ref, position } = useMagnetic(0.25)
-  return (
-    <motion.div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      data-magnetic
-      animate={{ x: position.x, y: position.y }}
-      transition={springTransition}
-      className="flex-1"
-    >
-      <button type="button" onClick={onClick} disabled={disabled} className={className}>
-        {children}
-      </button>
-    </motion.div>
-  )
-}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -169,41 +126,14 @@ const CONTACT_PLACEHOLDERS: Record<CollabContactType, string> = {
   other: 'How to reach you',
 }
 
-// ── Compensation ranges ──────────────────────────────────────────────────────
+// ── Compensation slider config ───────────────────────────────────────────────
 
-type CompRange = { label: string; min: number; max: number | undefined }
+type CompSliderConfig = { min: number; max: number; step: number; defaultMin: number; defaultMax: number }
 
-const HOURLY_RANGES: CompRange[] = [
-  { label: '$10-20', min: 10, max: 20 },
-  { label: '$20-35', min: 20, max: 35 },
-  { label: '$35-50', min: 35, max: 50 },
-  { label: '$50-75', min: 50, max: 75 },
-  { label: '$75-100', min: 75, max: 100 },
-  { label: '$100+', min: 100, max: undefined },
-]
-
-const FIXED_RANGES: CompRange[] = [
-  { label: '$100-500', min: 100, max: 500 },
-  { label: '$500-1K', min: 500, max: 1000 },
-  { label: '$1K-5K', min: 1000, max: 5000 },
-  { label: '$5K-10K', min: 5000, max: 10000 },
-  { label: '$10K+', min: 10000, max: undefined },
-]
-
-const REV_SHARE_RANGES: CompRange[] = [
-  { label: '5-15%', min: 5, max: 15 },
-  { label: '15-30%', min: 15, max: 30 },
-  { label: '30-50%', min: 30, max: 50 },
-  { label: '50%+', min: 50, max: undefined },
-]
-
-function getCompRanges(type: CollabCompensationType | undefined): CompRange[] {
-  switch (type) {
-    case 'hourly': return HOURLY_RANGES
-    case 'fixed': return FIXED_RANGES
-    case 'rev_share': return REV_SHARE_RANGES
-    default: return []
-  }
+const COMP_SLIDER_CONFIG: Record<string, CompSliderConfig> = {
+  hourly: { min: 5, max: 200, step: 5, defaultMin: 25, defaultMax: 75 },
+  fixed: { min: 100, max: 25000, step: 100, defaultMin: 500, defaultMax: 5000 },
+  rev_share: { min: 5, max: 100, step: 5, defaultMin: 10, defaultMax: 30 },
 }
 
 function formatCompensation(type: CollabCompensationType | undefined, min: number | undefined, max: number | undefined): string {
@@ -350,82 +280,46 @@ function CompensationRangeSelector({
   onMinChange: (v: number | undefined) => void
   onMaxChange: (v: number | undefined) => void
 }) {
-  const ranges = getCompRanges(compensationType)
-  if (!ranges.length) return null
+  const config = compensationType ? COMP_SLIDER_CONFIG[compensationType] : undefined
 
-  const isCustom = min !== undefined && !ranges.some((r) => r.min === min && r.max === max)
-  const unit = compensationType === 'rev_share' ? '%' : '$'
-  const unitSuffix = compensationType === 'hourly' ? '/hr' : ''
+  const onMinRef = useRef(onMinChange)
+  const onMaxRef = useRef(onMaxChange)
+  onMinRef.current = onMinChange
+  onMaxRef.current = onMaxChange
+
+  useEffect(() => {
+    if (!config) return
+    if (min === undefined) onMinRef.current(config.defaultMin)
+    if (max === undefined) onMaxRef.current(config.defaultMax)
+  }, [config, min, max])
+
+  if (!config) return null
+
+  const currentMin = min ?? config.defaultMin
+  const currentMax = max ?? config.defaultMax
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
         Rate Range
       </span>
-      <div className="flex flex-wrap gap-1">
-        {ranges.map((r) => {
-          const active = min === r.min && max === r.max
-          return (
-            <button
-              key={r.label}
-              type="button"
-              onClick={() => { onMinChange(r.min); onMaxChange(r.max) }}
-              className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${active ? 'bg-green-500/20 border-green-500/40 text-green-500' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-green-500/30'}`}
-            >
-              {r.label}
-            </button>
-          )
-        })}
-        <button
-          type="button"
-          onClick={() => {
-            if (!isCustom) {
-              onMinChange(compensationType === 'rev_share' ? 10 : 50)
-              onMaxChange(compensationType === 'rev_share' ? 25 : 200)
+      <div className="px-1">
+        <Slider
+          min={config.min}
+          max={config.max}
+          step={config.step}
+          value={[currentMin, currentMax]}
+          onValueChange={(newValue) => {
+            if (Array.isArray(newValue)) {
+              onMinChange(newValue[0])
+              onMaxChange(newValue[1])
             }
           }}
-          className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${isCustom ? 'bg-green-500/20 border-green-500/40 text-green-500' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-green-500/30'}`}
-        >
-          Custom
-        </button>
+        />
       </div>
-
-      {isCustom && (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 flex-1">
-            <span className="font-mono text-[10px] text-muted-foreground/50">{unit}</span>
-            <input
-              type="number"
-              value={min ?? ''}
-              onChange={(e) => onMinChange(e.target.value ? Number(e.target.value) : undefined)}
-              placeholder="Min"
-              min={0}
-              className="w-full bg-muted/20 border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-green-500/50 transition-colors"
-            />
-          </div>
-          <span className="font-mono text-[10px] text-muted-foreground/30">—</span>
-          <div className="flex items-center gap-1 flex-1">
-            <span className="font-mono text-[10px] text-muted-foreground/50">{unit}</span>
-            <input
-              type="number"
-              value={max ?? ''}
-              onChange={(e) => onMaxChange(e.target.value ? Number(e.target.value) : undefined)}
-              placeholder="Max (optional)"
-              min={0}
-              className="w-full bg-muted/20 border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-green-500/50 transition-colors"
-            />
-          </div>
-          {unitSuffix && (
-            <span className="font-mono text-[10px] text-muted-foreground/50 shrink-0">{unitSuffix}</span>
-          )}
-        </div>
-      )}
-
-      {min !== undefined && (
-        <p className="font-mono text-[10px] text-green-500/60">
-          {formatCompensation(compensationType, min, max)}
-        </p>
-      )}
+      <p className="font-mono text-xs text-green-500 text-center tracking-wider">
+        {formatCompensation(compensationType, currentMin, currentMax)}
+      </p>
     </div>
   )
 }
@@ -624,19 +518,19 @@ function StepTypeAndBasics() {
         }}
       </form.Field>
 
-      <SectionHeader>Title</SectionHeader>
+      <SectionHeader>Post Title</SectionHeader>
       <div className="px-4 py-3 border-b border-muted/30">
         <form.Field
           name="title"
           validators={{
-            onChange: ({ value }: { value: string }) => profanityCheck(value, 'Title'),
+            onChange: ({ value }: { value: string }) => {
+              if (value.trim().length > 0 && value.trim().length < 10) return 'Title must be at least 10 characters.'
+              return profanityCheck(value, 'Title')
+            },
           }}
         >
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
-                Post Title
-              </label>
               <input
                 type="text"
                 value={field.state.value}
@@ -646,7 +540,10 @@ function StepTypeAndBasics() {
                 maxLength={200}
                 className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
               />
-              <FieldError errors={field.state.meta.errors.map(String)} />
+              <div className="flex justify-between items-center">
+                <FieldError errors={field.state.meta.errors.map(String)} />
+                <CharCount current={field.state.value.length} min={10} max={200} />
+              </div>
             </div>
           )}
         </form.Field>
@@ -657,14 +554,14 @@ function StepTypeAndBasics() {
         <form.Field
           name="description"
           validators={{
-            onChange: ({ value }: { value: string }) => profanityCheck(value, 'Description'),
+            onChange: ({ value }: { value: string }) => {
+              if (value.trim().length > 0 && value.trim().length < 30) return 'Description must be at least 30 characters.'
+              return profanityCheck(value, 'Description')
+            },
           }}
         >
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
-                Description
-              </label>
               <textarea
                 value={field.state.value}
                 onBlur={field.handleBlur}
@@ -674,7 +571,10 @@ function StepTypeAndBasics() {
                 rows={6}
                 className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
               />
-              <FieldError errors={field.state.meta.errors.map(String)} />
+              <div className="flex justify-between items-center">
+                <FieldError errors={field.state.meta.errors.map(String)} />
+                <CharCount current={field.state.value.length} min={30} max={5000} />
+              </div>
             </div>
           )}
         </form.Field>
@@ -722,7 +622,10 @@ function StepProjectDetails() {
         <form.Field
           name="projectName"
           validators={{
-            onChange: ({ value }: { value: string }) => profanityCheck(value, 'Project name'),
+            onChange: ({ value }: { value: string }) => {
+              if (value.trim().length > 0 && value.trim().length < 3) return 'Project name must be at least 3 characters.'
+              return profanityCheck(value, 'Project name')
+            },
           }}
         >
           {(field) => (
@@ -739,7 +642,10 @@ function StepProjectDetails() {
                 maxLength={200}
                 className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
               />
-              <FieldError errors={field.state.meta.errors.map(String)} />
+              <div className="flex justify-between items-center">
+                <FieldError errors={field.state.meta.errors.map(String)} />
+                <CharCount current={field.state.value.length} min={3} max={200} />
+              </div>
             </div>
           )}
         </form.Field>
@@ -1658,9 +1564,9 @@ function StepReview() {
 
 function UnauthenticatedSidebar() {
   return (
-    <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
+    <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
       <NotchedCard
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto"
+        className="flex-1 min-h-0"
         scrollable={false}
       >
         <div className="flex-1 flex items-center justify-center p-8">
@@ -1699,7 +1605,9 @@ function getStepValidationError(stepId: string, v: WizardFormValues): string | n
       if (!v.type) return 'Please select a post type.'
       if ((v.type === 'paid' || v.type === 'hobby' || v.type === 'mentor') && !v.subtype) return 'Please select a direction.'
       if (!v.title.trim()) return 'Please enter a title.'
+      if (v.title.trim().length < 10) return 'Title must be at least 10 characters.'
       if (!v.description.trim()) return 'Please enter a description.'
+      if (v.description.trim().length < 30) return 'Description must be at least 30 characters.'
       const titleCheck = profanityCheck(v.title, 'Title')
       if (titleCheck) return titleCheck
       const descCheck = profanityCheck(v.description, 'Description')
@@ -1708,6 +1616,7 @@ function getStepValidationError(stepId: string, v: WizardFormValues): string | n
     }
     case 'details': {
       if (!v.projectName.trim()) return 'Project name is required.'
+      if (v.projectName.trim().length < 3) return 'Project name must be at least 3 characters.'
       if (v.platforms.length === 0) return 'Please select at least one platform.'
       if (!v.teamSize) return 'Please select a team size.'
       if (!v.projectLength) return 'Please select a timeline.'
@@ -1773,7 +1682,9 @@ function getStepValidationError(stepId: string, v: WizardFormValues): string | n
     case 'review': {
       if (!v.type) return 'Post type is missing.'
       if (!v.title.trim()) return 'Title is missing.'
+      if (v.title.trim().length < 10) return 'Title must be at least 10 characters.'
       if (!v.description.trim()) return 'Description is missing.'
+      if (v.description.trim().length < 30) return 'Description must be at least 30 characters.'
       break
     }
   }
@@ -1946,17 +1857,27 @@ function AuthenticatedSidebar() {
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting)
 
   return (
-    <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
+    <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
       <NotchedCard
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto"
+        className="flex-1 min-h-0"
         header={
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-              {'NEW POST // STEP '}{wizard.step + 1}
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground/60">
-              {currentStepDef?.label}
-            </span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                {'NEW POST // STEP '}{wizard.step + 1}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground/60">
+                {currentStepDef?.label}
+              </span>
+            </div>
+            <div className="flex gap-0.5">
+              {steps.map((step, i) => (
+                <div
+                  key={step.id}
+                  className={`h-0.5 flex-1 transition-colors ${i <= wizard.step ? 'bg-primary' : 'bg-muted/30'}`}
+                />
+              ))}
+            </div>
           </div>
         }
         footer={
@@ -1995,7 +1916,17 @@ function AuthenticatedSidebar() {
         }
       >
         <WizardFormContext.Provider value={form}>
-          {renderStep()}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentStepDef?.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.15 }}
+            >
+              {renderStep()}
+            </motion.div>
+          </AnimatePresence>
         </WizardFormContext.Provider>
       </NotchedCard>
     </div>
