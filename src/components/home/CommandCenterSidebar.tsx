@@ -196,6 +196,24 @@ export function CommandCenterSidebar({
             <span>{totalResults} PROTOCOL{totalResults !== 1 ? 'S' : ''} LOADED</span>
           </div>
 
+          {/* Bot filter tabs (mobile — on desktop these are in the left column nav cards) */}
+          <div className="lg:hidden flex border-b border-muted/30 shrink-0">
+            {BOT_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleTabChange(tab.id)}
+                className={`flex-1 py-2 font-mono text-[10px] font-bold tracking-widest uppercase transition-colors ${
+                  activeBot === tab.id
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {/* Search Bar */}
           <div className="px-4 py-4 border-b border-muted/30 bg-[#121212] shrink-0">
             <div className="flex items-center w-full gap-3">

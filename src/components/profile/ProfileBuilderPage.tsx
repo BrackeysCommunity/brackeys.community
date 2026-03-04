@@ -55,7 +55,7 @@ function ProfileNavCard({ card }: { card: ProfileNavItem }) {
       data-cursor-padding-y="24"
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
-      className="relative z-10 w-full sm:w-auto"
+      className="relative z-10 w-full sm:w-auto pointer-events-auto"
     >
       <div className="group flex h-24 w-full min-w-[200px] flex-col justify-between border-2 border-muted bg-card p-4 transition-all duration-100 hover:-translate-y-1 hover:border-primary hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)]">
         <div className="flex justify-between">
@@ -82,7 +82,7 @@ function DiscordSignInCTA() {
         data-cursor-padding-y="24"
         animate={{ x: position.x, y: position.y }}
         transition={springTransition}
-        className="relative z-10 inline-block"
+        className="relative z-10 inline-block pointer-events-auto"
       >
         <button
           type="button"
@@ -131,7 +131,7 @@ export function ProfileBuilderPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(3rem,8vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
           DEV
           <br />
           <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">

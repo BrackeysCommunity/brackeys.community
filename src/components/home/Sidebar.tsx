@@ -193,7 +193,7 @@ export function Sidebar() {
           {/* Jam stats */}
           <div className="grid grid-cols-2 divide-x divide-muted/60 border-b border-muted/60">
             <div className="flex flex-col items-center py-3 px-2 gap-0.5">
-              <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 {isDeadlinePassed ? 'Ratings' : 'Joined'}
               </span>
               <span className={cn(
@@ -204,7 +204,7 @@ export function Sidebar() {
               </span>
             </div>
             <div className="flex flex-col items-center py-3 px-2 gap-0.5">
-              <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">Entries</span>
+              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">Entries</span>
               <span className={cn(
                 'font-mono text-xl font-bold tabular-nums tracking-tight text-brackeys-yellow transition-opacity duration-300',
                 loading && 'opacity-40 animate-pulse',

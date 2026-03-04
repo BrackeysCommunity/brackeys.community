@@ -72,13 +72,13 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           </code>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-mono text-[9px] text-muted-foreground/60 truncate">
+            <span className="font-mono text-[10px] text-muted-foreground/60 truncate">
               {entry.game.user.name}
             </span>
             {entry.game.platforms.slice(0, 4).map((p) => (
               <span
                 key={p}
-                className="font-mono text-[8px] font-bold tracking-widest px-1 py-px border border-muted/40 text-muted-foreground/50 leading-none"
+                className="font-mono text-[10px] font-bold tracking-widest px-1 py-px border border-muted/40 text-muted-foreground/50 leading-none"
               >
                 {PLATFORM_LABELS[p] ?? p.toUpperCase()}
               </span>
@@ -92,7 +92,7 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className={`flex items-center gap-1 px-2 py-1 bg-black border text-muted-foreground hover:text-white transition-all duration-150 shrink-0 font-mono text-[9px] font-bold uppercase ${
+          className={`flex items-center gap-1 px-2 py-1 bg-black border text-muted-foreground hover:text-white transition-all duration-150 shrink-0 font-mono text-[10px] font-bold uppercase ${
             expanded
               ? 'opacity-100 border-primary/40 hover:border-primary'
               : 'opacity-0 border-muted pointer-events-none'

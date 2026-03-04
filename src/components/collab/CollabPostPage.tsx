@@ -71,7 +71,7 @@ export function CollabPostPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-          <h1 className="font-mono font-bold text-[clamp(2.5rem,7vw,9rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[7rem] xl:text-[9rem]">
+          <h1 className="font-mono font-bold text-[clamp(2rem,5vw,6rem)] leading-[0.85] tracking-tighter text-foreground">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : post ? (
@@ -141,7 +141,7 @@ export function CollabPostPage() {
                   <span className="text-primary text-xs">PLATFORMS</span>
                   <div className="flex flex-wrap gap-1">
                     {post.platforms.map((p) => (
-                      <span key={p} className="inline-block bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-wider">
+                      <span key={p} className="inline-block bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
                         {p}
                       </span>
                     ))}
@@ -170,7 +170,7 @@ export function CollabPostPage() {
               {post.compensationType && (
                 <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
                   <span className="text-green-500 text-xs">TYPE</span>
-                  <span className="inline-block bg-green-500/10 border border-green-500/30 px-1.5 py-0.5 font-mono text-[9px] text-green-500 uppercase tracking-wider">
+                  <span className="inline-block bg-green-500/10 border border-green-500/30 px-1.5 py-0.5 font-mono text-[10px] text-green-500 uppercase tracking-wider">
                     {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
                   </span>
                 </div>
@@ -198,7 +198,7 @@ export function CollabPostPage() {
               <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">// Feedback Wanted</span>
               <div className="flex flex-wrap gap-1">
                 {feedbackTypes.map((ft) => (
-                  <span key={ft} className="inline-block bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 font-mono text-[9px] text-purple-500 uppercase tracking-wider">
+                  <span key={ft} className="inline-block bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 font-mono text-[10px] text-purple-500 uppercase tracking-wider">
                     {ft}
                   </span>
                 ))}
@@ -237,7 +237,7 @@ export function CollabPostPage() {
                 {post.author.skills && post.author.skills.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {post.author.skills.map((skill: { id: number; name: string }) => (
-                      <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-wider">
+                      <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
                         {skill.name}
                       </span>
                     ))}

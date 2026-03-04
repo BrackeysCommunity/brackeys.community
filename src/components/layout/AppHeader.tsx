@@ -1,6 +1,6 @@
 import { Clock01Icon, ComputerTerminal01Icon, Menu01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 import { useInterval } from 'ahooks';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -42,6 +42,14 @@ export function AppHeader() {
   useInterval(() => setUtcTime(getUtcTime()), 1000);
   const { setOpen: openPalette } = useCommandPalette();
   const { data: session } = authClient.useSession();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const PAGE_TITLES: Record<string, string> = {
+    '/command-center': 'COMMANDS',
+    '/collab': 'COLLAB',
+    '/profile': 'PROFILE',
+  };
+  const mobileTitle = PAGE_TITLES[pathname] ?? (pathname.startsWith('/collab/') ? 'COLLAB' : null);
 
   useEffect(() => {
     setAuthSession(session ?? null);
@@ -129,8 +137,13 @@ export function AppHeader() {
           )}
         </div>
 
-        {/* Mobile menu button */}
+        {/* Mobile page title + menu button */}
         <div className="flex lg:hidden items-center gap-3 pointer-events-auto">
+          {mobileTitle && (
+            <span className="font-mono text-xs font-bold tracking-widest text-foreground/70 uppercase">
+              {mobileTitle}
+            </span>
+          )}
           <Button
             variant="outline"
             size="sm"

@@ -349,7 +349,7 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
                           {project.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground/60 border border-muted/40 uppercase"
+                              className="px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground/60 border border-muted/40 uppercase"
                             >
                               {tag}
                             </span>
@@ -400,7 +400,7 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
                             <span className="font-mono text-[10px] font-bold tracking-widest text-brackeys-yellow uppercase">{jam.result}</span>
                           )}
                           {jam.participatedAt && (
-                            <span className="font-mono text-[9px] text-muted-foreground/50">
+                            <span className="font-mono text-[10px] text-muted-foreground/50">
                               {new Date(jam.participatedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                             </span>
                           )}

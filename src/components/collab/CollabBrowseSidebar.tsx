@@ -107,7 +107,7 @@ export function CollabBrowseSidebar() {
           <HugeiconsIcon icon={FilterIcon} size={12} />
           FILTER
           {activeFilterCount > 0 && (
-            <span className="bg-primary/30 border border-primary/60 text-primary px-1 text-[9px]">
+            <span className="bg-primary/30 border border-primary/60 text-primary px-1 text-[10px]">
               {activeFilterCount}
             </span>
           )}

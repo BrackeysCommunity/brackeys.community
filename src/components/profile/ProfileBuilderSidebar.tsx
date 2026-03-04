@@ -1,20 +1,19 @@
 import {
-  Cancel01Icon,
   Add01Icon,
-  Share01Icon,
-  Login01Icon,
+  Cancel01Icon,
   Delete02Icon,
+  Login01Icon,
+  Share01Icon,
 } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@tanstack/react-store';
 import { motion } from 'framer-motion';
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buttonVariants } from '@/components/ui/button';
+import { NotchedCard } from '@/components/ui/notched-card';
 import { authStore } from '@/lib/auth-store';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch';
 import { cn } from '@/lib/utils';
 import { client, orpc } from '@/orpc/client';
 
@@ -51,7 +50,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-4 py-2 border-b border-muted/30">
       <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
-        {'// '}{children}
+        {children}
       </span>
     </div>
   );
@@ -70,7 +69,7 @@ function FieldInput({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+      <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
         {label}
       </label>
       <input
@@ -86,24 +85,12 @@ function FieldInput({
 
 function UnauthenticatedSidebar() {
   return (
-    <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
-      <div
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
-        style={{ clipPath: notchClip, padding: '2px' }}
+    <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
+      <NotchedCard
+        className="flex-1 min-h-0"
+        scrollable={false}
       >
-        <div
-          className="flex flex-col h-full bg-background/90 backdrop-blur-md relative items-center justify-center p-8"
-          style={{ clipPath: notchClipInner }}
-        >
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
-          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-            <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
-          </svg>
-          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
-          </svg>
-
+        <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center space-y-4">
             <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">{'// ACCESS DENIED'}</h3>
             <p className="font-mono text-xs text-muted-foreground max-w-[240px]">
@@ -112,7 +99,6 @@ function UnauthenticatedSidebar() {
             <button
               type="button"
               onClick={() => {
-                // Dynamic import to avoid pulling authClient into the store-based path
                 import('@/lib/auth-client').then(({ authClient }) =>
                   authClient.signIn.social({ provider: 'discord' }),
                 );
@@ -127,7 +113,7 @@ function UnauthenticatedSidebar() {
             </button>
           </div>
         </div>
-      </div>
+      </NotchedCard>
     </div>
   );
 }
@@ -157,7 +143,7 @@ function PendingSkillTag({ name }: { name: string }) {
   return (
     <span className="inline-flex items-center gap-1 bg-muted/20 border border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
       {name}
-      <span className="text-[8px] text-brackeys-yellow">PENDING</span>
+      <span className="text-[10px] text-brackeys-yellow">PENDING</span>
     </span>
   );
 }
@@ -275,7 +261,7 @@ function ProjectCard({
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider truncate">{project.title}</span>
           {project.status === 'pending' && (
-            <span className="shrink-0 bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[8px] text-brackeys-yellow uppercase tracking-wider">
+            <span className="shrink-0 bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[10px] text-brackeys-yellow uppercase tracking-wider">
               PENDING
             </span>
           )}
@@ -403,7 +389,7 @@ function JamEntry({
         <p className="font-mono text-[10px] text-muted-foreground">{jam.submissionTitle}</p>
       )}
       {jam.result && (
-        <span className="inline-block bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[9px] text-brackeys-yellow uppercase">
+        <span className="inline-block bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[10px] text-brackeys-yellow uppercase">
           {jam.result}
         </span>
       )}
@@ -646,66 +632,66 @@ function AuthenticatedSidebar() {
 
   const username = session?.user?.name ?? 'Unknown';
 
-  return (
-    <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
-      <div
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
-        style={{ clipPath: notchClip, padding: '2px' }}
+  const headerContent = (
+    <div className="flex items-center justify-between">
+      <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
+        {'DEV // '}{username.toUpperCase()}
+      </span>
+      <div className="flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+        </span>
+        <span className="font-mono text-xs font-bold tracking-widest text-green-500">ONLINE</span>
+      </div>
+    </div>
+  );
+
+  const footerContent = profile ? (
+    <div className="px-6 py-4 flex gap-4">
+      <MagneticFooterButton
+        onClick={() => {
+          const slug = profileData?.urlStub ?? session?.user?.id;
+          if (slug) {
+            window.open(`/profile/${slug}`, '_blank');
+          }
+        }}
+        className={cn(
+          buttonVariants({ variant: 'outline', size: 'sm' }),
+          'w-full border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
+        )}
       >
-        <div
-          className="flex flex-col h-full bg-background/90 backdrop-blur-md relative"
-          style={{ clipPath: notchClipInner }}
+        View Public
+        <HugeiconsIcon icon={Share01Icon} size={13} />
+      </MagneticFooterButton>
+    </div>
+  ) : undefined;
+
+  if (isLoading || !profile) {
+    return (
+      <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
+        <NotchedCard
+          className="flex-1 min-h-0"
+          header={headerContent}
+          scrollable={false}
         >
-          {/* Corner decorators */}
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
-          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-            <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
-          </svg>
-          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
-          </svg>
-
-          {/* Header bar */}
-          <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5 shrink-0">
-            <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-              DEV // {username.toUpperCase()}
+          <div className="flex-1 flex items-center justify-center p-12">
+            <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+              {isLoading ? 'Loading profile data...' : 'Setting up profile...'}
             </span>
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
-              </span>
-              <span className="font-mono text-xs font-bold tracking-widest text-green-500">ONLINE</span>
-            </div>
           </div>
+        </NotchedCard>
+      </div>
+    );
+  }
 
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
-                Loading profile data...
-              </span>
-            </div>
-          ) : !profile ? (
-            <div className="flex-1 flex items-center justify-center">
-              <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
-                Setting up profile...
-              </span>
-            </div>
-          ) : (
-            <>
-              {/* Scrollable content */}
-              <OverlayScrollbarsComponent
-                element="div"
-                className="flex-1 min-h-0"
-                options={{
-                  scrollbars: {
-                    theme: 'os-theme-dark',
-                    autoHide: 'scroll',
-                    autoHideDelay: 800,
-                  },
-                }}
-              >
+  return (
+    <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
+      <NotchedCard
+        className="flex-1 min-h-0"
+        header={headerContent}
+        footer={footerContent}
+      >
                 {/* Discord info (read-only) */}
                 <div className="px-4 py-4 border-b border-muted/30 flex items-center gap-3">
                   {profile.avatarUrl ? (
@@ -726,7 +712,7 @@ function AuthenticatedSidebar() {
                         {profile.guildRoles.slice(0, 5).map((role) => (
                           <span
                             key={role}
-                            className="bg-muted/30 border border-muted/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground uppercase"
+                            className="bg-muted/30 border border-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase"
                           >
                             {role}
                           </span>
@@ -734,7 +720,7 @@ function AuthenticatedSidebar() {
                       </div>
                     )}
                     {profile.guildJoinedAt && (
-                      <p className="font-mono text-[9px] text-muted-foreground/50 mt-1">
+                      <p className="font-mono text-[10px] text-muted-foreground/50 mt-1">
                         Joined {new Date(profile.guildJoinedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                       </p>
                     )}
@@ -803,10 +789,10 @@ function AuthenticatedSidebar() {
                     />
                   </div>
                   {urlStubError && (
-                    <p className="font-mono text-[9px] text-destructive">{urlStubError}</p>
+                    <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
                   )}
                   {!urlStubError && urlStub.length >= 3 && profileData?.urlStub === urlStub && (
-                    <p className="font-mono text-[9px] text-green-500">Saved</p>
+                    <p className="font-mono text-[10px] text-green-500">Saved</p>
                   )}
                 </div>
 
@@ -858,30 +844,7 @@ function AuthenticatedSidebar() {
                   ))}
                   <AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
                 </div>
-              </OverlayScrollbarsComponent>
-
-              {/* Footer */}
-              <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-4 shrink-0">
-                <MagneticFooterButton
-                  onClick={() => {
-                    const slug = profileData?.urlStub ?? session?.user?.id;
-                    if (slug) {
-                      window.open(`/profile/${slug}`, '_blank');
-                    }
-                  }}
-                  className={cn(
-                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                    'w-full border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
-                  )}
-                >
-                  View Public
-                  <HugeiconsIcon icon={Share01Icon} size={13} />
-                </MagneticFooterButton>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      </NotchedCard>
     </div>
   );
 }

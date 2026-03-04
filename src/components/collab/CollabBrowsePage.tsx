@@ -6,24 +6,24 @@ import {
   Cancel01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useStore } from '@tanstack/react-store'
 import { Link } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
 import { useEffect, useRef, useState } from 'react'
+import { NotchedCard } from '@/components/ui/notched-card'
 import { authClient } from '@/lib/auth-client'
 import { authStore } from '@/lib/auth-store'
 import {
-  collabStore,
-  setCollabFilters,
-  resetCollabFilters,
-  type CollabPostType,
-  type CollabStatus,
-  type CollabExperienceLevel,
   type CollabCompensationType,
-  type CollabSubtype,
+  type CollabExperienceLevel,
+  type CollabPostType,
   type CollabSortBy,
+  type CollabStatus,
+  type CollabSubtype,
+  collabStore,
+  resetCollabFilters,
+  setCollabFilters,
 } from '@/lib/collab-store'
 import { usePageSidebar } from '@/lib/hooks/use-page-layout'
-import { NotchedCard } from '@/components/ui/notched-card'
 import { CollabBrowseSidebar } from './CollabBrowseSidebar'
 
 const TYPE_OPTIONS: { value: CollabPostType; label: string; icon: string }[] = [
@@ -65,7 +65,7 @@ const SORT_OPTIONS: { value: CollabSortBy; label: string }[] = [
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className="font-mono text-[11px] font-bold tracking-widest text-foreground/80 uppercase">
-      {'// '}{children}
+      {children}
     </span>
   )
 }

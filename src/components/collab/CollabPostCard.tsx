@@ -71,7 +71,7 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
           {post.title}
         </span>
         {isFeatured && (
-          <span className="shrink-0 font-mono text-[9px] text-brackeys-yellow tracking-widest uppercase">
+          <span className="shrink-0 font-mono text-[10px] text-brackeys-yellow tracking-widest uppercase">
             FEATURED
           </span>
         )}
@@ -106,12 +106,12 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
       {roles && roles.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {roles.slice(0, 3).map((role) => (
-            <span key={role.id} className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-wider">
+            <span key={role.id} className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
               {role.name}
             </span>
           ))}
           {roles.length > 3 && (
-            <span className="font-mono text-[9px] text-muted-foreground">+{roles.length - 3}</span>
+            <span className="font-mono text-[10px] text-muted-foreground">+{roles.length - 3}</span>
           )}
         </div>
       )}

@@ -1,11 +1,11 @@
 import {
+  Cancel01Icon,
   Delete02Icon,
-  Login01Icon,
   Flag01Icon,
+  LinkSquare01Icon,
+  Login01Icon,
   StarIcon,
   Tick01Icon,
-  Cancel01Icon,
-  LinkSquare01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -34,7 +34,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-4 py-2 border-b border-muted/30">
       <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
-        {'// '}{children}
+        {children}
       </span>
     </div>
   )
@@ -203,7 +203,7 @@ function ResponseList({ responses, postId }: { responses: NonNullable<PostData['
               </span>
             </div>
             <span className={cn(
-              'font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 border',
+              'font-mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 border',
               resp.status === 'accepted' ? 'bg-green-500/10 border-green-500/30 text-green-500' :
               resp.status === 'declined' ? 'bg-destructive/10 border-destructive/30 text-destructive' :
               'bg-brackeys-yellow/10 border-brackeys-yellow/30 text-brackeys-yellow',
@@ -217,7 +217,7 @@ function ResponseList({ responses, postId }: { responses: NonNullable<PostData['
               href={resp.portfolioUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-mono text-[9px] text-primary hover:underline"
+              className="inline-flex items-center gap-1 font-mono text-[10px] text-primary hover:underline"
             >
               <HugeiconsIcon icon={LinkSquare01Icon} size={10} />
               Portfolio
@@ -228,14 +228,14 @@ function ResponseList({ responses, postId }: { responses: NonNullable<PostData['
               <button
                 type="button"
                 onClick={() => updateStatusMutation.mutate({ responseId: resp.id, status: 'accepted' })}
-                className="flex-1 bg-green-500/10 border border-green-500/30 py-1 font-mono text-[9px] text-green-500 uppercase tracking-wider hover:bg-green-500/20 transition-colors"
+                className="flex-1 bg-green-500/10 border border-green-500/30 py-1 font-mono text-[10px] text-green-500 uppercase tracking-wider hover:bg-green-500/20 transition-colors"
               >
                 Accept
               </button>
               <button
                 type="button"
                 onClick={() => updateStatusMutation.mutate({ responseId: resp.id, status: 'declined' })}
-                className="flex-1 bg-destructive/10 border border-destructive/30 py-1 font-mono text-[9px] text-destructive uppercase tracking-wider hover:bg-destructive/20 transition-colors"
+                className="flex-1 bg-destructive/10 border border-destructive/30 py-1 font-mono text-[10px] text-destructive uppercase tracking-wider hover:bg-destructive/20 transition-colors"
               >
                 Decline
               </button>
@@ -352,21 +352,21 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 <SectionHeader>Info</SectionHeader>
                 <div className="px-4 py-3 border-b border-muted/30 space-y-2">
                   <div className="flex flex-wrap gap-1">
-                    <span className={cn('border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider', TYPE_BADGE_COLORS[post.type] ?? 'bg-muted/20 border-muted/40 text-muted-foreground')}>
+                    <span className={cn('border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider', TYPE_BADGE_COLORS[post.type] ?? 'bg-muted/20 border-muted/40 text-muted-foreground')}>
                       {post.type}
                     </span>
                     {post.subtype && (
-                      <span className="bg-muted/20 border border-muted/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground uppercase tracking-wider">
+                      <span className="bg-muted/20 border border-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
                         {post.subtype}
                       </span>
                     )}
                     {post.isIndividual && (
-                      <span className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-wider">
+                      <span className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
                         INDIVIDUAL
                       </span>
                     )}
                     {post.featuredAt && (
-                      <span className="bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[9px] text-brackeys-yellow uppercase tracking-wider">
+                      <span className="bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[10px] text-brackeys-yellow uppercase tracking-wider">
                         FEATURED
                       </span>
                     )}
@@ -443,14 +443,14 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                         <div>
                           <p className="font-mono text-xs font-bold text-foreground">{post.author.discordUsername ?? 'Unknown'}</p>
                           {post.author.tagline && (
-                            <p className="font-mono text-[9px] text-muted-foreground">{post.author.tagline}</p>
+                            <p className="font-mono text-[10px] text-muted-foreground">{post.author.tagline}</p>
                           )}
                         </div>
                       </div>
                       {post.author.skills && post.author.skills.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {post.author.skills.slice(0, 6).map((skill) => (
-                            <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[8px] text-primary uppercase tracking-wider">
+                            <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
                               {skill.name}
                             </span>
                           ))}
@@ -670,14 +670,14 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                               type="button"
                               onClick={() => reportMutation.mutate()}
                               disabled={!reportReason.trim() || reportMutation.isPending}
-                              className="flex-1 bg-destructive/10 border border-destructive/30 py-1 font-mono text-[9px] text-destructive uppercase tracking-wider hover:bg-destructive/20 transition-colors disabled:opacity-30"
+                              className="flex-1 bg-destructive/10 border border-destructive/30 py-1 font-mono text-[10px] text-destructive uppercase tracking-wider hover:bg-destructive/20 transition-colors disabled:opacity-30"
                             >
                               Submit
                             </button>
                             <button
                               type="button"
                               onClick={() => { setShowReport(false); setReportReason('') }}
-                              className="flex-1 border border-muted/30 py-1 font-mono text-[9px] text-muted-foreground uppercase tracking-wider hover:border-muted/60 transition-colors"
+                              className="flex-1 border border-muted/30 py-1 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-muted/60 transition-colors"
                             >
                               Cancel
                             </button>

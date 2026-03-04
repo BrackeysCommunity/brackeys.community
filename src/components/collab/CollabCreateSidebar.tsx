@@ -2,36 +2,35 @@ import { ArrowLeft01Icon, ArrowRight01Icon, Login01Icon, Tick01Icon, Image01Icon
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useForm } from '@tanstack/react-form'
 import { useQuery } from '@tanstack/react-query'
-import { useStore } from '@tanstack/react-store'
 import { useNavigate } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
+import { motion } from 'framer-motion'
 import {
-  RegExpMatcher,
   englishDataset,
   englishRecommendedTransformers,
+  RegExpMatcher,
 } from 'obscenity'
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
 import { buttonVariants } from '@/components/ui/button'
+import { NotchedCard } from '@/components/ui/notched-card'
 import { Switch } from '@/components/ui/switch'
 import { authStore } from '@/lib/auth-store'
 import {
-  collabStore,
-  setWizardStep,
-  updateWizardDraft,
-  resetWizard,
-  getWizardSteps,
-  type CollabPostType,
-  type CollabSubtype,
   type CollabCompensationType,
-  type CollabExperienceLevel,
   type CollabContactType,
-  type CollabTeamSize,
+  type CollabExperienceLevel,
+  type CollabPostType,
   type CollabProjectLength,
+  type CollabSubtype,
+  type CollabTeamSize,
+  collabStore,
+  getWizardSteps,
+  resetWizard,
+  setWizardStep,
   type UploadedImage,
+  updateWizardDraft,
 } from '@/lib/collab-store'
 import { useMagnetic } from '@/lib/hooks/use-cursor'
-import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
 import { cn } from '@/lib/utils'
 import { client, orpc } from '@/orpc/client'
 
@@ -57,7 +56,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-4 py-2 border-b border-muted/30">
       <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
-        {'// '}{children}
+        {children}
       </span>
     </div>
   )
@@ -65,7 +64,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function FieldError({ errors }: { errors: string[] }) {
   if (!errors.length) return null
-  return <p className="font-mono text-[9px] text-destructive mt-1">{errors[0]}</p>
+  return <p className="font-mono text-[10px] text-destructive mt-1">{errors[0]}</p>
 }
 
 function MagneticFooterButton({
@@ -277,7 +276,7 @@ function SegmentedControl<T extends string>({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
         {label}
       </span>
       <div className="flex flex-wrap gap-1">
@@ -286,7 +285,7 @@ function SegmentedControl<T extends string>({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider border transition-colors ${value === opt.value ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
+            className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${value === opt.value ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
           >
             {opt.label}
           </button>
@@ -317,7 +316,7 @@ function MultiSelectChips({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
         {label}
       </span>
       <div className="flex flex-wrap gap-1">
@@ -326,7 +325,7 @@ function MultiSelectChips({
             key={opt}
             type="button"
             onClick={() => toggle(opt)}
-            className={`px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border transition-colors ${value.includes(opt) ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
+            className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider border transition-colors ${value.includes(opt) ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
           >
             {opt}
           </button>
@@ -360,7 +359,7 @@ function CompensationRangeSelector({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
         Rate Range
       </span>
       <div className="flex flex-wrap gap-1">
@@ -371,7 +370,7 @@ function CompensationRangeSelector({
               key={r.label}
               type="button"
               onClick={() => { onMinChange(r.min); onMaxChange(r.max) }}
-              className={`px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider border transition-colors ${active ? 'bg-green-500/20 border-green-500/40 text-green-500' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-green-500/30'}`}
+              className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${active ? 'bg-green-500/20 border-green-500/40 text-green-500' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-green-500/30'}`}
             >
               {r.label}
             </button>
@@ -385,7 +384,7 @@ function CompensationRangeSelector({
               onMaxChange(compensationType === 'rev_share' ? 25 : 200)
             }
           }}
-          className={`px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider border transition-colors ${isCustom ? 'bg-green-500/20 border-green-500/40 text-green-500' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-green-500/30'}`}
+          className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${isCustom ? 'bg-green-500/20 border-green-500/40 text-green-500' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-green-500/30'}`}
         >
           Custom
         </button>
@@ -394,7 +393,7 @@ function CompensationRangeSelector({
       {isCustom && (
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 flex-1">
-            <span className="font-mono text-[9px] text-muted-foreground/50">{unit}</span>
+            <span className="font-mono text-[10px] text-muted-foreground/50">{unit}</span>
             <input
               type="number"
               value={min ?? ''}
@@ -404,9 +403,9 @@ function CompensationRangeSelector({
               className="w-full bg-muted/20 border border-muted/30 px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-green-500/50 transition-colors"
             />
           </div>
-          <span className="font-mono text-[9px] text-muted-foreground/30">—</span>
+          <span className="font-mono text-[10px] text-muted-foreground/30">—</span>
           <div className="flex items-center gap-1 flex-1">
-            <span className="font-mono text-[9px] text-muted-foreground/50">{unit}</span>
+            <span className="font-mono text-[10px] text-muted-foreground/50">{unit}</span>
             <input
               type="number"
               value={max ?? ''}
@@ -417,13 +416,13 @@ function CompensationRangeSelector({
             />
           </div>
           {unitSuffix && (
-            <span className="font-mono text-[9px] text-muted-foreground/50 shrink-0">{unitSuffix}</span>
+            <span className="font-mono text-[10px] text-muted-foreground/50 shrink-0">{unitSuffix}</span>
           )}
         </div>
       )}
 
       {min !== undefined && (
-        <p className="font-mono text-[9px] text-green-500/60">
+        <p className="font-mono text-[10px] text-green-500/60">
           {formatCompensation(compensationType, min, max)}
         </p>
       )}
@@ -469,7 +468,7 @@ function ImageUploader({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
         Project Images
       </span>
 
@@ -498,7 +497,7 @@ function ImageUploader({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading || images.length >= 5}
-        className="flex items-center justify-center gap-2 border border-dashed border-muted/40 bg-muted/10 px-3 py-3 font-mono text-[9px] text-muted-foreground uppercase tracking-wider hover:border-primary/40 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="flex items-center justify-center gap-2 border border-dashed border-muted/40 bg-muted/10 px-3 py-3 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-primary/40 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         <HugeiconsIcon icon={Image01Icon} size={14} />
         {uploading ? 'UPLOADING...' : images.length >= 5 ? 'MAX 5 IMAGES' : 'ADD IMAGE'}
@@ -516,7 +515,7 @@ function ImageUploader({
         }}
       />
 
-      {uploadError && <p className="font-mono text-[9px] text-destructive">{uploadError}</p>}
+      {uploadError && <p className="font-mono text-[10px] text-destructive">{uploadError}</p>}
     </div>
   )
 }
@@ -546,7 +545,7 @@ function StepTypeAndBasics() {
                     <span className={`font-mono text-[10px] font-bold tracking-wider uppercase ${field.state.value === t.value ? 'text-primary' : 'text-foreground'}`}>
                       {t.label}
                     </span>
-                    <span className="font-mono text-[8px] text-muted-foreground/60">{t.desc}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/60">{t.desc}</span>
                   </button>
                 ))}
               </div>
@@ -579,7 +578,7 @@ function StepTypeAndBasics() {
                                 field.handleChange(s.value)
                                 updateWizardDraft({ subtype: s.value })
                               }}
-                              className={`flex-1 px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wider border transition-colors ${field.state.value === s.value ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
+                              className={`flex-1 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider border transition-colors ${field.state.value === s.value ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30'}`}
                             >
                               {s.label}
                             </button>
@@ -635,7 +634,7 @@ function StepTypeAndBasics() {
         >
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 Post Title
               </label>
               <input
@@ -663,7 +662,7 @@ function StepTypeAndBasics() {
         >
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 Description
               </label>
               <textarea
@@ -701,7 +700,7 @@ function ContactViaDiscordNotice() {
           <p className="font-mono text-xs text-foreground">
             {username ? `@${username}` : 'Loading...'}
           </p>
-          <p className="font-mono text-[9px] text-muted-foreground">
+          <p className="font-mono text-[10px] text-muted-foreground">
             Respondents will contact you via Discord DM.
           </p>
         </div>
@@ -728,7 +727,7 @@ function StepProjectDetails() {
         >
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 Project Name *
               </label>
               <input
@@ -890,7 +889,7 @@ function StepProjectDetails() {
                   >
                     {(field) => (
                       <div className="flex flex-col gap-1">
-                        <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                        <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                           Contact Info *
                         </label>
                         <input
@@ -961,19 +960,19 @@ function StepYourProfile() {
                 <div>
                   <p className="font-mono text-xs font-bold text-foreground">{p?.discordUsername ?? 'Unknown'}</p>
                   {p?.tagline && (
-                    <p className="font-mono text-[9px] text-muted-foreground">{p.tagline}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground">{p.tagline}</p>
                   )}
                 </div>
               </div>
               {profile.skills && profile.skills.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {profile.skills.slice(0, 6).map((skill: { id: number; name: string }) => (
-                    <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[8px] text-primary uppercase tracking-wider">
+                    <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
                       {skill.name}
                     </span>
                   ))}
                   {profile.skills.length > 6 && (
-                    <span className="font-mono text-[8px] text-muted-foreground">+{profile.skills.length - 6}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">+{profile.skills.length - 6}</span>
                   )}
                 </div>
               )}
@@ -981,10 +980,10 @@ function StepYourProfile() {
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                   Profile Completeness
                 </span>
-                <span className="font-mono text-[9px] text-primary">{completenessScore}/8</span>
+                <span className="font-mono text-[10px] text-primary">{completenessScore}/8</span>
               </div>
               <div className="flex gap-0.5">
                 {completenessItems.map((item, i) => (
@@ -1106,7 +1105,7 @@ function StepYourProfile() {
                   >
                     {(field) => (
                       <div className="flex flex-col gap-1">
-                        <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                        <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                           Contact Info *
                         </label>
                         <input
@@ -1169,7 +1168,7 @@ function StepPlaytestDetails() {
         <form.Field name="portfolioUrl">
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 Link to Game/Demo
               </label>
               <input
@@ -1358,7 +1357,7 @@ function StepMentorDetails() {
                   >
                     {(field) => (
                       <div className="flex flex-col gap-1">
-                        <label className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                        <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                           Contact Info *
                         </label>
                         <input
@@ -1472,7 +1471,7 @@ function ReviewField({ label, value }: { label: string; value: React.ReactNode }
   if (!value) return null
   return (
     <div>
-      <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">{label}</span>
+      <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">{label}</span>
       <div className="font-mono text-xs text-foreground">{value}</div>
     </div>
   )
@@ -1484,7 +1483,7 @@ function ReviewBadge({ value, color = 'primary' }: { value: string; color?: stri
     green: 'bg-green-500/10 border-green-500/30 text-green-500',
   }
   return (
-    <span className={`inline-block border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${colorClasses[color] ?? colorClasses.primary}`}>
+    <span className={`inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${colorClasses[color] ?? colorClasses.primary}`}>
       {value}
     </span>
   )
@@ -1552,7 +1551,7 @@ function StepReview() {
             {v.projectName && <ReviewField label="Project" value={v.projectName} />}
             {v.platforms.length > 0 && (
               <div>
-                <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/50 uppercase">Platforms</span>
+                <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">Platforms</span>
                 <div className="flex flex-wrap gap-1 mt-0.5">
                   {v.platforms.map((p) => <ReviewBadge key={p} value={p} />)}
                 </div>
@@ -1660,16 +1659,11 @@ function StepReview() {
 function UnauthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
-      <div
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
-        style={{ clipPath: notchClip, padding: '2px' }}
+      <NotchedCard
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto"
+        scrollable={false}
       >
-        <div
-          className="flex flex-col h-full bg-background/90 backdrop-blur-md relative items-center justify-center p-8"
-          style={{ clipPath: notchClipInner }}
-        >
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
+        <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center space-y-4">
             <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">{'// ACCESS DENIED'}</h3>
             <p className="font-mono text-xs text-muted-foreground max-w-[240px]">
@@ -1692,7 +1686,7 @@ function UnauthenticatedSidebar() {
             </button>
           </div>
         </div>
-      </div>
+      </NotchedCard>
     </div>
   )
 }
@@ -1953,90 +1947,57 @@ function AuthenticatedSidebar() {
 
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
-      <div
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
-        style={{ clipPath: notchClip, padding: '2px' }}
-      >
-        <div
-          className="flex flex-col h-full bg-background/90 backdrop-blur-md relative"
-          style={{ clipPath: notchClipInner }}
-        >
-          {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <svg
-            aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
-            width={NOTCH_SIZE + 2}
-            height={NOTCH_SIZE + 2}
-            viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-            fill="none"
-          >
-            <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
-          </svg>
-
-          {/* Header bar */}
-          <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5 shrink-0">
+      <NotchedCard
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto"
+        header={
+          <div className="flex items-center justify-between">
             <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-              NEW POST // STEP {wizard.step + 1}
+              {'NEW POST // STEP '}{wizard.step + 1}
             </span>
             <span className="font-mono text-[10px] text-muted-foreground/60">
               {currentStepDef?.label}
             </span>
           </div>
-
-          {/* Scrollable form content */}
-          <WizardFormContext.Provider value={form}>
-            <OverlayScrollbarsComponent
-              element="div"
-              className="flex-1 min-h-0"
-              options={{
-                scrollbars: {
-                  theme: 'os-theme-dark',
-                  autoHide: 'scroll',
-                  autoHideDelay: 800,
-                },
-              }}
-            >
-              {renderStep()}
-            </OverlayScrollbarsComponent>
-          </WizardFormContext.Provider>
-
-          {/* Error message */}
-          {error && (
-            <div className="px-4 py-2 border-t border-destructive/30 bg-destructive/5">
-              <p className="font-mono text-[10px] text-destructive">{error}</p>
-            </div>
-          )}
-
-          {/* Footer navigation */}
-          <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-4 shrink-0">
-            {wizard.step > 0 && (
+        }
+        footer={
+          <>
+            {error && (
+              <div className="px-4 py-2 border-b border-destructive/30 bg-destructive/5">
+                <p className="font-mono text-[10px] text-destructive">{error}</p>
+              </div>
+            )}
+            <div className="px-6 py-4 flex gap-4">
+              {wizard.step > 0 && (
+                <MagneticFooterButton
+                  onClick={handleBack}
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    'w-full border-muted/40 text-muted-foreground hover:bg-muted/10 hover:border-muted font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
+                  )}
+                >
+                  <HugeiconsIcon icon={ArrowLeft01Icon} size={13} />
+                  Back
+                </MagneticFooterButton>
+              )}
               <MagneticFooterButton
-                onClick={handleBack}
+                onClick={handleNext}
+                disabled={isSubmitting}
                 className={cn(
                   buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'w-full border-muted/40 text-muted-foreground hover:bg-muted/10 hover:border-muted font-mono text-[10px] font-bold tracking-widest uppercase justify-between',
+                  'w-full border-primary/40 text-primary hover:bg-primary/10 hover:border-primary font-mono text-[10px] font-bold tracking-widest uppercase justify-between disabled:opacity-30 disabled:cursor-not-allowed',
                 )}
               >
-                <HugeiconsIcon icon={ArrowLeft01Icon} size={13} />
-                Back
+                {isLastStep ? (isSubmitting ? 'SUBMITTING...' : 'SUBMIT') : 'Next'}
+                <HugeiconsIcon icon={isLastStep ? Tick01Icon : ArrowRight01Icon} size={13} />
               </MagneticFooterButton>
-            )}
-            <MagneticFooterButton
-              onClick={handleNext}
-              disabled={isSubmitting}
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'sm' }),
-                'w-full border-primary/40 text-primary hover:bg-primary/10 hover:border-primary font-mono text-[10px] font-bold tracking-widest uppercase justify-between disabled:opacity-30 disabled:cursor-not-allowed',
-              )}
-            >
-              {isLastStep ? (isSubmitting ? 'SUBMITTING...' : 'SUBMIT') : 'Next'}
-              <HugeiconsIcon icon={isLastStep ? Tick01Icon : ArrowRight01Icon} size={13} />
-            </MagneticFooterButton>
-          </div>
-        </div>
-      </div>
+            </div>
+          </>
+        }
+      >
+        <WizardFormContext.Provider value={form}>
+          {renderStep()}
+        </WizardFormContext.Provider>
+      </NotchedCard>
     </div>
   )
 }

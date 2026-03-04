@@ -26,7 +26,7 @@ function NavCard({ item }: { item: NavItem }) {
       data-cursor-padding-y="24"
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
-      className="relative z-10 w-full sm:w-auto"
+      className="relative z-10 w-full sm:w-auto pointer-events-auto"
     >
       <Link
         to={item.to}
@@ -63,7 +63,7 @@ export function HeroSection() {
       </div>
 
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(3rem,8vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
           <CyclingWord />
           <br />
           <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
