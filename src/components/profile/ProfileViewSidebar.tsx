@@ -53,6 +53,15 @@ interface ProfileData {
   isOwner: boolean;
   urlStub: string | null;
   pendingSkillRequests?: Array<{ name: string }>;
+  linkedAccounts?: Array<{
+    id: number;
+    provider: string;
+    providerUserId: string;
+    providerUsername: string | null;
+    providerAvatarUrl: string | null;
+    providerProfileUrl: string | null;
+    linkedAt: Date;
+  }>;
 }
 
 interface ProfileViewSidebarProps {
@@ -202,6 +211,7 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
                 projects={projects}
                 jams={jams}
                 pendingSkillRequests={profileData.pendingSkillRequests}
+                linkedAccounts={profileData.linkedAccounts}
                 urlStub={profileData.urlStub}
                 profileQueryKey={profileQueryKey}
                 onCompletenessChange={onCompletenessChange}

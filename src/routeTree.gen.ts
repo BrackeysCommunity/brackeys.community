@@ -28,6 +28,7 @@ import { Route as DemoBetterAuthRouteImport } from './routes/demo/better-auth'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
+import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
 import { Route as DemoStrapiArticleIdRouteImport } from './routes/demo/strapi_.$articleId'
 import { Route as DemoSentryTestingRouteImport } from './routes/demo/sentry.testing'
 import { Route as DemoFormSimpleRouteImport } from './routes/demo/form.simple'
@@ -130,6 +131,11 @@ const ApiSplatRoute = ApiSplatRouteImport.update({
   path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthItchioCallbackRoute = OauthItchioCallbackRouteImport.update({
+  id: '/oauth/itchio/callback',
+  path: '/oauth/itchio/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DemoStrapiArticleIdRoute = DemoStrapiArticleIdRouteImport.update({
   id: '/demo/strapi_/$articleId',
   path: '/demo/strapi/$articleId',
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/demo/form/simple': typeof DemoFormSimpleRoute
   '/demo/sentry/testing': typeof DemoSentryTestingRoute
   '/demo/strapi/$articleId': typeof DemoStrapiArticleIdRoute
+  '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/demo/form/simple': typeof DemoFormSimpleRoute
   '/demo/sentry/testing': typeof DemoSentryTestingRoute
   '/demo/strapi/$articleId': typeof DemoStrapiArticleIdRoute
+  '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/demo/form/simple': typeof DemoFormSimpleRoute
   '/demo/sentry/testing': typeof DemoSentryTestingRoute
   '/demo/strapi_/$articleId': typeof DemoStrapiArticleIdRoute
+  '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/demo/form/simple'
     | '/demo/sentry/testing'
     | '/demo/strapi/$articleId'
+    | '/oauth/itchio/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/demo/form/simple'
     | '/demo/sentry/testing'
     | '/demo/strapi/$articleId'
+    | '/oauth/itchio/callback'
   id:
     | '__root__'
     | '/'
@@ -321,6 +332,7 @@ export interface FileRouteTypes {
     | '/demo/form/simple'
     | '/demo/sentry/testing'
     | '/demo/strapi_/$articleId'
+    | '/oauth/itchio/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -344,6 +356,7 @@ export interface RootRouteChildren {
   DemoFormSimpleRoute: typeof DemoFormSimpleRoute
   DemoSentryTestingRoute: typeof DemoSentryTestingRoute
   DemoStrapiArticleIdRoute: typeof DemoStrapiArticleIdRoute
+  OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -481,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/itchio/callback': {
+      id: '/oauth/itchio/callback'
+      path: '/oauth/itchio/callback'
+      fullPath: '/oauth/itchio/callback'
+      preLoaderRoute: typeof OauthItchioCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/demo/strapi_/$articleId': {
       id: '/demo/strapi_/$articleId'
       path: '/demo/strapi/$articleId'
@@ -575,6 +595,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoFormSimpleRoute: DemoFormSimpleRoute,
   DemoSentryTestingRoute: DemoSentryTestingRoute,
   DemoStrapiArticleIdRoute: DemoStrapiArticleIdRoute,
+  OauthItchioCallbackRoute: OauthItchioCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

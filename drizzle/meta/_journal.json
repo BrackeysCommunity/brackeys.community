@@ -50,6 +50,13 @@
       "when": 1772091131359,
       "tag": "0006_lumpy_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772666057649,
+      "tag": "0007_itchio-linked-accounts",
+      "breakpoints": true
     }
   ]
 }

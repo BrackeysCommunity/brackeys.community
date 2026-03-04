@@ -124,6 +124,8 @@ export const profileProjects = userSchema.table('profile_projects', {
   pinned: boolean('pinned').default(false),
   sortOrder: integer('sort_order').default(0),
   status: text('status').notNull().default('pending'),
+  source: text('source'),
+  sourceId: text('source_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -139,6 +141,22 @@ export const jamParticipations = userSchema.table('jam_participations', {
   participatedAt: timestamp('participated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+export const linkedAccounts = userSchema.table('linked_accounts', {
+  id: serial('id').primaryKey(),
+  profileId: text('profile_id').notNull().references(() => developerProfiles.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  providerUserId: text('provider_user_id').notNull(),
+  providerUsername: text('provider_username'),
+  providerAvatarUrl: text('provider_avatar_url'),
+  providerProfileUrl: text('provider_profile_url'),
+  accessToken: text('access_token'),
+  scopes: text('scopes'),
+  linkedAt: timestamp('linked_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  unique().on(table.profileId, table.provider),
+])
 
 // ── Moderation tables (hammer schema) ───────────────────────────────────────
 

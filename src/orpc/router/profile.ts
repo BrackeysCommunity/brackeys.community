@@ -16,6 +16,7 @@ import {
   profileProjects,
   profileUrlStubs,
   jamParticipations,
+  linkedAccounts,
 } from '@/db/schema'
 import { authMiddleware, requireAuth } from '@/orpc/middleware/auth'
 
@@ -73,7 +74,7 @@ export const getProfile = os
     const profileId = profile.id
     const isOwner = context.user?.id === profileId
 
-    const [skillList, projects, jams, urlStub, pendingSkillRequests] = await Promise.all([
+    const [skillList, projects, jams, urlStub, pendingSkillRequests, linkedAccountsList] = await Promise.all([
       queryUserSkills(profileId),
       isOwner
         ? db.select().from(profileProjects).where(eq(profileProjects.profileId, profileId))
@@ -83,9 +84,18 @@ export const getProfile = os
       isOwner
         ? db.select().from(skillRequests).where(and(eq(skillRequests.userId, profileId), eq(skillRequests.status, 'pending')))
         : Promise.resolve([]),
+      db.select({
+        id: linkedAccounts.id,
+        provider: linkedAccounts.provider,
+        providerUserId: linkedAccounts.providerUserId,
+        providerUsername: linkedAccounts.providerUsername,
+        providerAvatarUrl: linkedAccounts.providerAvatarUrl,
+        providerProfileUrl: linkedAccounts.providerProfileUrl,
+        linkedAt: linkedAccounts.linkedAt,
+      }).from(linkedAccounts).where(eq(linkedAccounts.profileId, profileId)),
     ])
 
-    return { profile, skills: skillList, projects, jams, isOwner, urlStub: urlStub[0]?.stub ?? null, pendingSkillRequests }
+    return { profile, skills: skillList, projects, jams, isOwner, urlStub: urlStub[0]?.stub ?? null, pendingSkillRequests, linkedAccounts: linkedAccountsList }
   })
 
 export const getMyProfile = os
@@ -102,15 +112,24 @@ export const getMyProfile = os
 
     if (!profile) return null
 
-    const [skillList, projects, jams, pendingSkillRequests, urlStub] = await Promise.all([
+    const [skillList, projects, jams, pendingSkillRequests, urlStub, linkedAccountsList] = await Promise.all([
       queryUserSkills(userId),
       db.select().from(profileProjects).where(eq(profileProjects.profileId, userId)),
       db.select().from(jamParticipations).where(eq(jamParticipations.profileId, userId)),
       db.select().from(skillRequests).where(and(eq(skillRequests.userId, userId), eq(skillRequests.status, 'pending'))),
       db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, userId)).limit(1),
+      db.select({
+        id: linkedAccounts.id,
+        provider: linkedAccounts.provider,
+        providerUserId: linkedAccounts.providerUserId,
+        providerUsername: linkedAccounts.providerUsername,
+        providerAvatarUrl: linkedAccounts.providerAvatarUrl,
+        providerProfileUrl: linkedAccounts.providerProfileUrl,
+        linkedAt: linkedAccounts.linkedAt,
+      }).from(linkedAccounts).where(eq(linkedAccounts.profileId, userId)),
     ])
 
-    return { profile, skills: skillList, projects, jams, pendingSkillRequests, urlStub: urlStub[0]?.stub ?? null, isOwner: true }
+    return { profile, skills: skillList, projects, jams, pendingSkillRequests, urlStub: urlStub[0]?.stub ?? null, isOwner: true, linkedAccounts: linkedAccountsList }
   })
 
 export const updateProfile = os

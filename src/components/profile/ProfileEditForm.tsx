@@ -1,10 +1,11 @@
-import { Github01Icon, Globe02Icon, NewTwitterIcon } from '@hugeicons/core-free-icons';
+import { Github01Icon, Globe02Icon, NewTwitterIcon, GameController01Icon, Link01Icon, Delete02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CharCount } from '@/components/ui/form-primitives';
+import { env } from '@/env';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { cn } from '@/lib/utils';
 import { client } from '@/orpc/client';
@@ -51,6 +52,15 @@ interface ProfileEditFormProps {
     participatedAt: Date | null;
   }>;
   pendingSkillRequests?: Array<{ name: string }>;
+  linkedAccounts?: Array<{
+    id: number;
+    provider: string;
+    providerUserId: string;
+    providerUsername: string | null;
+    providerAvatarUrl: string | null;
+    providerProfileUrl: string | null;
+    linkedAt: Date;
+  }>;
   urlStub: string | null;
   profileQueryKey: readonly unknown[];
   onCompletenessChange?: (items: CompletenessItem[]) => void;
@@ -145,6 +155,7 @@ export function ProfileEditForm({
   projects,
   jams,
   pendingSkillRequests,
+  linkedAccounts,
   urlStub: initialUrlStub,
   profileQueryKey,
   onCompletenessChange,
@@ -300,6 +311,50 @@ export function ProfileEditForm({
     },
   });
 
+  const unlinkItchIoMutation = useMutation({
+    mutationFn: () => client.unlinkItchIo({}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      toast.success('itch.io account unlinked');
+    },
+    onError: () => {
+      toast.error('Failed to unlink itch.io account');
+    },
+  });
+
+  const importItchIoGamesMutation = useMutation({
+    mutationFn: () => client.importItchIoGames({}),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      if (data.imported > 0) {
+        toast.success(`Imported ${data.imported} game${data.imported === 1 ? '' : 's'} from itch.io`);
+      } else {
+        toast.info('No new games to import');
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to import games from itch.io');
+    },
+  });
+
+  const itchIoAccount = linkedAccounts?.find((a) => a.provider === 'itchio');
+
+  const handleLinkItchIo = () => {
+    const clientId = env.VITE_ITCHIO_CLIENT_ID;
+    if (!clientId) {
+      toast.error('itch.io integration is not configured');
+      return;
+    }
+    const redirectUri = `${window.location.origin}/oauth/itchio/callback`;
+    const params = new URLSearchParams({
+      client_id: clientId,
+      scope: 'profile:me profile:games',
+      response_type: 'token',
+      redirect_uri: redirectUri,
+    });
+    window.location.href = `https://itch.io/user/oauth?${params.toString()}`;
+  };
+
   const visibleSkills = skills.filter((s) => !removedSkillIds.has(s.id));
   const visiblePendingRequests = pendingRequests.filter((n) => !removedPendingNames.has(n));
   const visibleProjects = projects.filter((p) => !removedProjectIds.has(p.id));
@@ -439,6 +494,69 @@ export function ProfileEditForm({
             </div>
             <CharCount current={urlStub.length} min={3} max={32} />
           </div>
+        </div>
+      </EditSection>
+
+      <EditSection label="Linked Accounts" complete={!!itchIoAccount}>
+        <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+          {itchIoAccount ? (
+            <MagneticField>
+              <div className="flex items-center justify-between gap-2 bg-muted/5 border border-muted/15 px-2.5 py-2 hover:border-muted/40 transition-all">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-primary/60 shrink-0">
+                    <HugeiconsIcon icon={GameController01Icon} size={14} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-foreground truncate">
+                      {itchIoAccount.providerUsername}
+                    </p>
+                    {itchIoAccount.providerProfileUrl && (
+                      <a
+                        href={itchIoAccount.providerProfileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/60 transition-colors truncate block"
+                      >
+                        {itchIoAccount.providerProfileUrl}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => importItchIoGamesMutation.mutate()}
+                    disabled={importItchIoGamesMutation.isPending}
+                    className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/80 transition-colors px-1.5 py-0.5 hover:bg-muted/10 disabled:opacity-50"
+                  >
+                    {importItchIoGamesMutation.isPending ? 'Importing...' : 'Import games'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unlinkItchIoMutation.mutate()}
+                    disabled={unlinkItchIoMutation.isPending}
+                    className="text-muted-foreground/30 hover:text-destructive transition-colors p-0.5 disabled:opacity-50"
+                    title="Unlink itch.io"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} size={12} />
+                  </button>
+                </div>
+              </div>
+            </MagneticField>
+          ) : (
+            <MagneticField>
+              <button
+                type="button"
+                onClick={handleLinkItchIo}
+                className="w-full flex items-center justify-center gap-2 bg-muted/5 border border-dashed border-muted/20 px-2.5 py-2.5 hover:border-primary/30 hover:bg-muted/10 transition-all group/link-btn"
+              >
+                <HugeiconsIcon icon={Link01Icon} size={13} className="text-muted-foreground/30 group-hover/link-btn:text-primary/50 transition-colors" />
+                <span className="font-mono text-[10px] text-muted-foreground/40 group-hover/link-btn:text-foreground/60 transition-colors tracking-wider">
+                  Link itch.io account
+                </span>
+              </button>
+            </MagneticField>
+          )}
         </div>
       </EditSection>
 

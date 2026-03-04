@@ -18,6 +18,12 @@ import {
   setUrlStub,
 } from './profile'
 import {
+  linkItchIo,
+  unlinkItchIo,
+  getLinkedAccounts,
+  importItchIoGames,
+} from './itchio'
+import {
   createPost,
   updatePost,
   deletePost,
@@ -58,6 +64,10 @@ export default {
   addJamParticipation,
   removeJamParticipation,
   setUrlStub,
+  linkItchIo,
+  unlinkItchIo,
+  getLinkedAccounts,
+  importItchIoGames,
   createPost,
   updatePost,
   deletePost,
