@@ -23,8 +23,8 @@ import {
   type CollabSortBy,
 } from '@/lib/collab-store'
 import { usePageSidebar } from '@/lib/hooks/use-page-layout'
+import { NotchedCard } from '@/components/ui/notched-card'
 import { CollabBrowseSidebar } from './CollabBrowseSidebar'
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react'
 
 const TYPE_OPTIONS: { value: CollabPostType; label: string; icon: string }[] = [
   { value: 'paid', label: 'PAID', icon: '$' },
@@ -308,37 +308,14 @@ export function CollabBrowsePage() {
   usePageSidebar(<CollabBrowseSidebar />)
 
   return (
-    <OverlayScrollbarsComponent
-      element="div"
-      className="flex-1 min-h-0"
-      options={{
-        scrollbars: {
-          theme: 'os-theme-dark',
-          autoHide: 'scroll',
-          autoHideDelay: 800,
-        },
-      }}
-    >
-      <div className="flex w-full max-w-xl flex-col gap-6 p-6 lg:p-8 xl:p-10 selection:bg-primary selection:text-white">
-        {/* Header */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
-            <span className="text-primary">{'>'}</span>
-            COLLAB HUB
-            <span className="text-primary">{'//'}</span>
-            BROWSE
-          </div>
-          <h2 className="font-mono text-2xl font-bold tracking-tight text-foreground">
-            FIND YOUR <span className="text-primary">TEAM</span>
-          </h2>
-        </div>
-
-        {/* Create post / sign in CTA */}
-        {!isPending && (
-          session?.user ? (
+    <div className="flex flex-col h-full gap-4 selection:bg-primary selection:text-white">
+      {/* Create post / sign in CTA */}
+      {!isPending && (
+        <div className="shrink-0">
+          {session?.user ? (
             <Link
               to="/collab/new"
-              className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none"
+              className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none pointer-events-auto"
             >
               <HugeiconsIcon icon={Add01Icon} size={18} />
               CREATE POST
@@ -347,16 +324,27 @@ export function CollabBrowsePage() {
             <button
               type="button"
               onClick={() => authClient.signIn.social({ provider: 'discord' })}
-              className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none"
+              className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none pointer-events-auto"
             >
               <HugeiconsIcon icon={Login01Icon} size={18} />
               SIGN IN TO POST
             </button>
-          )
-        )}
+          )}
+        </div>
+      )}
 
-        <FilterContent />
-      </div>
-    </OverlayScrollbarsComponent>
+      <NotchedCard
+        className="flex-1 min-h-0"
+        header={
+          <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
+            {'COLLAB // FILTERS'}
+          </span>
+        }
+      >
+        <div className="p-4">
+          <FilterContent />
+        </div>
+      </NotchedCard>
+    </div>
   )
 }

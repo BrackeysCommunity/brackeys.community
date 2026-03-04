@@ -8,13 +8,13 @@ import { useEffect } from 'react';
 import { buttonVariants } from '@/components/ui/button';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { jamStore, setJamData, setJamError, setJamLoading, setJamView } from '@/lib/jam-store';
+import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch';
 import { cn } from '@/lib/utils';
 import { orpc } from '@/orpc/client';
 import { SubmissionsList } from './SubmissionsList';
 
 // Feb 22, 2026 at 5:00 AM CST = 11:00 AM UTC
 const JAM_DEADLINE = new Date('2026-02-22T11:00:00Z');
-const NOTCH_SIZE = 22;
 
 const deadlineLocalStr = JAM_DEADLINE.toLocaleString(undefined, {
   month: 'short',
@@ -25,8 +25,6 @@ const deadlineLocalStr = JAM_DEADLINE.toLocaleString(undefined, {
   timeZoneName: 'short',
 });
 
-const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`;
-const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`;
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 function MagneticFooterLink({
@@ -129,7 +127,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div
-        className="w-full h-full max-h-[800px] bg-muted/60 pointer-events-auto"
+        className="w-full h-full max-h-[min(800px,calc(100vh-120px))] bg-muted/60 pointer-events-auto"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
@@ -137,9 +135,9 @@ export function Sidebar() {
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
           <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
-          {/* Notch corner accent line */}
+          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none" />
+          {/* Top-right notch accent */}
           <svg
             aria-hidden="true"
             className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40"
@@ -149,6 +147,17 @@ export function Sidebar() {
             fill="none"
           >
             <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+          </svg>
+          {/* Bottom-left notch accent */}
+          <svg
+            aria-hidden="true"
+            className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40"
+            width={NOTCH_SIZE + 2}
+            height={NOTCH_SIZE + 2}
+            viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
+            fill="none"
+          >
+            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
           </svg>
 
           {/* Card header */}

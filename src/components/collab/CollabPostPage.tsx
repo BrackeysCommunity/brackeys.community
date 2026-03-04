@@ -71,29 +71,36 @@ export function CollabPostPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-          <h1 className="font-mono font-bold text-[clamp(2.5rem,12vw,9rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[7rem] xl:text-[9rem]">
+          <h1 className="font-mono font-bold text-[clamp(2.5rem,7vw,9rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[7rem] xl:text-[9rem]">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : post ? (
-            <>
-              {post.title.split(' ').slice(0, 2).join(' ').toUpperCase()}
-              {post.title.split(' ').length > 2 && (
+            (() => {
+              const words = post.title.toUpperCase().split(' ')
+              if (words.length <= 1) {
+                return (
+                  <>
+                    {words[0]}
+                    <br />
+                    <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+                      POST.
+                    </span>
+                  </>
+                )
+              }
+              const mid = Math.ceil(words.length / 2)
+              const line1 = words.slice(0, mid).join(' ')
+              const line2 = words.slice(mid).join(' ')
+              return (
                 <>
+                  {line1}
                   <br />
                   <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
-                    {post.title.split(' ').slice(2).join(' ').toUpperCase()}
+                    {line2 || 'POST.'}
                   </span>
                 </>
-              )}
-              {post.title.split(' ').length <= 2 && (
-                <>
-                  <br />
-                  <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
-                    POST.
-                  </span>
-                </>
-              )}
-            </>
+              )
+            })()
           ) : (
             <>
               NOT

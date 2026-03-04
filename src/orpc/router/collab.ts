@@ -273,41 +273,58 @@ export const getPost = os
         .where(eq(collabResponses.postId, input.postId)),
     ])
 
-    // For individual posts, fetch author profile + skills
+    const [authorProfile] = await db
+      .select({
+        avatarUrl: developerProfiles.avatarUrl,
+        discordUsername: developerProfiles.discordUsername,
+        tagline: developerProfiles.tagline,
+        bio: developerProfiles.bio,
+        githubUrl: developerProfiles.githubUrl,
+        twitterUrl: developerProfiles.twitterUrl,
+        websiteUrl: developerProfiles.websiteUrl,
+      })
+      .from(developerProfiles)
+      .where(eq(developerProfiles.id, post.authorId))
+      .limit(1)
+
     let author = null
-    if (post.isIndividual) {
-      const [profile] = await db
-        .select({
-          avatarUrl: developerProfiles.avatarUrl,
-          discordUsername: developerProfiles.discordUsername,
-          tagline: developerProfiles.tagline,
-          bio: developerProfiles.bio,
-          githubUrl: developerProfiles.githubUrl,
-          twitterUrl: developerProfiles.twitterUrl,
-          websiteUrl: developerProfiles.websiteUrl,
-        })
-        .from(developerProfiles)
-        .where(eq(developerProfiles.id, post.authorId))
-        .limit(1)
-
-      if (profile) {
-        const authorSkills = await db
-          .select({ id: skills.id, name: skills.name })
-          .from(userSkills)
-          .innerJoin(skills, eq(userSkills.skillId, skills.id))
-          .where(eq(userSkills.userId, post.authorId))
-
-        author = { ...profile, skills: authorSkills }
-      }
+    if (authorProfile) {
+      const authorSkills = post.isIndividual
+        ? await db
+            .select({ id: skills.id, name: skills.name })
+            .from(userSkills)
+            .innerJoin(skills, eq(userSkills.skillId, skills.id))
+            .where(eq(userSkills.userId, post.authorId))
+        : []
+      author = { ...authorProfile, skills: authorSkills }
     }
 
     const isOwner = context.user?.id === post.authorId
-    let responses = null
+    let responses: {
+      id: number
+      responderId: string
+      message: string
+      portfolioUrl: string | null
+      status: string
+      createdAt: Date | null
+      responderUsername: string | null
+      responderAvatar: string | null
+    }[] | null = null
 
     if (isOwner || (context.user && await userIsStaff(context.user.id))) {
       responses = await db
-        .select()
+        .select({
+          id: collabResponses.id,
+          responderId: collabResponses.responderId,
+          message: collabResponses.message,
+          portfolioUrl: collabResponses.portfolioUrl,
+          status: collabResponses.status,
+          createdAt: collabResponses.createdAt,
+          responderUsername: developerProfiles.discordUsername,
+          responderAvatar: developerProfiles.avatarUrl,
+        })
         .from(collabResponses)
+        .leftJoin(developerProfiles, eq(collabResponses.responderId, developerProfiles.id))
         .where(eq(collabResponses.postId, input.postId))
         .orderBy(desc(collabResponses.createdAt))
     }

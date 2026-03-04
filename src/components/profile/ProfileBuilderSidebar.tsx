@@ -14,12 +14,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buttonVariants } from '@/components/ui/button';
 import { authStore } from '@/lib/auth-store';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch';
 import { cn } from '@/lib/utils';
 import { client, orpc } from '@/orpc/client';
 
-const NOTCH_SIZE = 22;
-const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`;
-const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`;
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 function MagneticFooterButton({
@@ -90,24 +88,20 @@ function UnauthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
           className="flex flex-col h-full bg-background/90 backdrop-blur-md relative items-center justify-center p-8"
           style={{ clipPath: notchClipInner }}
         >
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
-          <svg
-            aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40"
-            width={NOTCH_SIZE + 2}
-            height={NOTCH_SIZE + 2}
-            viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-            fill="none"
-          >
+          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
+          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
             <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+          </svg>
+          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
+            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
           </svg>
 
           <div className="text-center space-y-4">
@@ -655,7 +649,7 @@ function AuthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
@@ -663,17 +657,13 @@ function AuthenticatedSidebar() {
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none z-10" />
           <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <svg
-            aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
-            width={NOTCH_SIZE + 2}
-            height={NOTCH_SIZE + 2}
-            viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-            fill="none"
-          >
+          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
             <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+          </svg>
+          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
+            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
           </svg>
 
           {/* Header bar */}

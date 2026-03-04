@@ -115,6 +115,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           }}
         />
         <div className="relative z-1 flex flex-col flex-1 min-h-0 overflow-hidden pointer-events-none">
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:font-mono focus:text-xs focus:tracking-widest focus:uppercase focus:pointer-events-auto"
+          >
+            Skip to content
+          </a>
           <TanStackQueryProvider>
             <TooltipProvider>
               <CommandPaletteProvider>
@@ -149,10 +155,10 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   const showContentOnMobile = mobileMode === 'content'
 
   return (
-    <div className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none max-w-[1920px] w-full mx-auto">
+    <div id="main-content" className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none max-w-[1920px] w-full mx-auto">
       {/* Left column — main page content */}
-      <div className={`flex-1 min-w-0 overflow-hidden flex flex-col ${showContentOnMobile ? '' : 'hidden lg:flex'}`}>
-        <div className="flex w-full h-full flex-col justify-center p-4 sm:p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+      <div className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? '' : 'hidden lg:flex'}`}>
+        <div className="flex w-full min-h-full flex-col justify-center p-4 sm:p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
           {children}
         </div>
       </div>

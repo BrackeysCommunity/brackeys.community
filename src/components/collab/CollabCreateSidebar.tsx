@@ -31,6 +31,7 @@ import {
   type UploadedImage,
 } from '@/lib/collab-store'
 import { useMagnetic } from '@/lib/hooks/use-cursor'
+import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
 import { cn } from '@/lib/utils'
 import { client, orpc } from '@/orpc/client'
 
@@ -50,9 +51,6 @@ function profanityCheck(value: string, fieldName: string): string | undefined {
 
 // ── Layout helpers ───────────────────────────────────────────────────────────
 
-const NOTCH_SIZE = 22
-const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`
-const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -1663,7 +1661,7 @@ function UnauthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
@@ -1956,7 +1954,7 @@ function AuthenticatedSidebar() {
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60"
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div

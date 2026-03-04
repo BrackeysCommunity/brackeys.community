@@ -5,11 +5,9 @@ import { motion } from 'framer-motion';
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
 import { buttonVariants } from '@/components/ui/button';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch';
 import { cn } from '@/lib/utils';
 
-const NOTCH_SIZE = 22;
-const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`;
-const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`;
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 interface ProfileData {
@@ -136,7 +134,7 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="w-full h-full max-h-[800px] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
+        <div className="w-full h-full max-h-[min(800px,calc(100vh-120px))] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
           <div className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative" style={{ clipPath: notchClipInner }}>
             <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
               <SkeletonBlock className="h-3 w-24" />
@@ -165,19 +163,15 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
   if (!profileData) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="w-full h-full max-h-[800px] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
+        <div className="w-full h-full max-h-[min(800px,calc(100vh-120px))] bg-muted/60" style={{ clipPath: notchClip, padding: '2px' }}>
           <div className="flex flex-col w-full h-full bg-background/90 backdrop-blur-md relative items-center justify-center" style={{ clipPath: notchClipInner }}>
-            <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
-            <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
-            <svg
-              aria-hidden="true"
-              className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40"
-              width={NOTCH_SIZE + 2}
-              height={NOTCH_SIZE + 2}
-              viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-              fill="none"
-            >
+            <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
+            <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+            <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
               <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+            </svg>
+            <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
+              <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
             </svg>
             <p className="font-mono text-sm font-bold tracking-widest text-destructive uppercase">PROFILE NOT FOUND</p>
             <p className="font-mono text-xs text-muted-foreground mt-2">ERR_404 // NO DATA</p>
@@ -215,17 +209,13 @@ export function ProfileViewSidebar({ profileData, isLoading }: ProfileViewSideba
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none" />
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none" />
-          <svg
-            aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40"
-            width={NOTCH_SIZE + 2}
-            height={NOTCH_SIZE + 2}
-            viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-            fill="none"
-          >
+          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
+          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
             <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+          </svg>
+          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
+            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
           </svg>
 
           {/* Card header */}

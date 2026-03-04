@@ -1,27 +1,25 @@
 import {
-  FilterIcon,
-  Cancel01Icon,
   Add01Icon,
+  Cancel01Icon,
+  FilterIcon,
   Login01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { authClient } from '@/lib/auth-client'
 import { authStore } from '@/lib/auth-store'
 import { collabStore } from '@/lib/collab-store'
+import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
 import { client } from '@/orpc/client'
-import { CollabPostCard } from './CollabPostCard'
 import { FilterContent } from './CollabBrowsePage'
+import { CollabPostCard } from './CollabPostCard'
 
 const PAGE_SIZE = 20
-const NOTCH_SIZE = 22
-const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`
-const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`
 
 export function CollabBrowseSidebar() {
   const { filters } = useStore(collabStore)
@@ -224,17 +222,13 @@ export function CollabBrowseSidebar() {
                 className="flex flex-col h-full bg-background backdrop-blur-md relative overflow-hidden"
                 style={{ clipPath: notchClipInner }}
               >
-                <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none z-10" />
                 <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-                <svg
-                  aria-hidden="true"
-                  className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
-                  width={NOTCH_SIZE + 2}
-                  height={NOTCH_SIZE + 2}
-                  viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-                  fill="none"
-                >
+                <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+                <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
                   <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+                </svg>
+                <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
+                  <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
                 </svg>
 
                 <div className="flex items-center justify-between border-b border-muted bg-card/60 px-4 py-2.5 shrink-0">

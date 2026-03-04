@@ -75,7 +75,7 @@ export function ProfileViewPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(3rem,15vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
+        <h1 className="font-mono font-bold text-[clamp(3rem,8vw,11rem)] leading-[0.85] tracking-tighter text-foreground lg:text-[9rem] xl:text-[11rem]">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : profileData ? (

@@ -17,12 +17,10 @@ import { useState } from 'react'
 import { buttonVariants } from '@/components/ui/button'
 import { authStore } from '@/lib/auth-store'
 import { useMagnetic } from '@/lib/hooks/use-cursor'
+import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
 import { cn } from '@/lib/utils'
 import { client, orpc } from '@/orpc/client'
 
-const NOTCH_SIZE = 22
-const notchClip = `polygon(0 0, calc(100% - ${NOTCH_SIZE}px) 0, 100% ${NOTCH_SIZE}px, 100% 100%, 0 100%)`
-const notchClipInner = `polygon(0 0, calc(100% - ${NOTCH_SIZE - 2}px) 0, 100% ${NOTCH_SIZE - 2}px, 100% 100%, 0 100%)`
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
@@ -98,6 +96,8 @@ type PostData = {
     portfolioUrl: string | null
     status: string
     createdAt: string | Date | null
+    responderUsername: string | null
+    responderAvatar: string | null
   }[] | null
   isOwner?: boolean
   author?: {
@@ -192,9 +192,16 @@ function ResponseList({ responses, postId }: { responses: NonNullable<PostData['
       {responses.map((resp) => (
         <div key={resp.id} className="border border-muted/30 bg-muted/10 p-3 space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <span className="font-mono text-[10px] text-muted-foreground/50">
-              {resp.responderId.slice(0, 8)}...
-            </span>
+            <div className="flex items-center gap-2 min-w-0">
+              {resp.responderAvatar ? (
+                <img src={resp.responderAvatar} alt="" className="w-5 h-5 rounded-full border border-muted/30 shrink-0" />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-muted/30 border border-muted/30 shrink-0" />
+              )}
+              <span className="font-mono text-[10px] text-foreground truncate">
+                {resp.responderUsername ? `@${resp.responderUsername}` : resp.responderId.slice(0, 8)}
+              </span>
+            </div>
             <span className={cn(
               'font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 border',
               resp.status === 'accepted' ? 'bg-green-500/10 border-green-500/30 text-green-500' :
@@ -246,6 +253,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
   const queryClient = useQueryClient()
   const [showReport, setShowReport] = useState(false)
   const [reportReason, setReportReason] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [reportSuccess, setReportSuccess] = useState(false)
 
   const isOwner = post?.isOwner ?? false
@@ -283,7 +291,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
   return (
     <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 max-h-[800px] my-auto bg-muted/60 pointer-events-auto"
+        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60 pointer-events-auto"
         style={{ clipPath: notchClip, padding: '2px' }}
       >
         <div
@@ -291,17 +299,13 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-brackeys-yellow/50 pointer-events-none z-10" />
           <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <svg
-            aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
-            width={NOTCH_SIZE + 2}
-            height={NOTCH_SIZE + 2}
-            viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
-            fill="none"
-          >
+          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+          <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
             <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+          </svg>
+          <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
+            <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
           </svg>
 
           {/* Header bar */}
@@ -367,11 +371,11 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                       </span>
                     )}
                   </div>
-                  <p className="font-mono text-[10px] text-muted-foreground/50">
-                    Author: {post.authorId.slice(0, 12)}...
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    By: {post.author?.discordUsername ? `@${post.author.discordUsername}` : 'Unknown'}
                   </p>
                   {post.createdAt && (
-                    <p className="font-mono text-[10px] text-muted-foreground/50">
+                    <p className="font-mono text-[10px] text-muted-foreground">
                       Posted: {new Date(post.createdAt).toLocaleDateString()}
                     </p>
                   )}
@@ -513,19 +517,38 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                           Reopen Post
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this post?')) {
-                            deleteMutation.mutate()
-                          }
-                        }}
-                        disabled={deleteMutation.isPending}
-                        className="w-full bg-destructive/10 border border-destructive/30 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/20 transition-colors disabled:opacity-30"
-                      >
-                        <HugeiconsIcon icon={Delete02Icon} size={10} className="inline mr-1" />
-                        Delete Post
-                      </button>
+                      {confirmDelete ? (
+                        <div className="space-y-1.5">
+                          <p className="font-mono text-[10px] text-destructive text-center tracking-widest uppercase">Delete this post?</p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => deleteMutation.mutate()}
+                              disabled={deleteMutation.isPending}
+                              className="flex-1 bg-destructive/20 border border-destructive/40 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/30 transition-colors disabled:opacity-30"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDelete(false)}
+                              className="flex-1 border border-muted/40 py-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-widest hover:border-muted transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(true)}
+                          disabled={deleteMutation.isPending}
+                          className="w-full bg-destructive/10 border border-destructive/30 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/20 transition-colors disabled:opacity-30"
+                        >
+                          <HugeiconsIcon icon={Delete02Icon} size={10} className="inline mr-1" />
+                          Delete Post
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -544,19 +567,38 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                         <HugeiconsIcon icon={StarIcon} size={10} className="inline mr-1" />
                         {post.featuredAt ? 'Unfeature' : 'Feature'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this post?')) {
-                            deleteMutation.mutate()
-                          }
-                        }}
-                        disabled={deleteMutation.isPending}
-                        className="w-full bg-destructive/10 border border-destructive/30 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/20 transition-colors disabled:opacity-30"
-                      >
-                        <HugeiconsIcon icon={Delete02Icon} size={10} className="inline mr-1" />
-                        Delete Post
-                      </button>
+                      {confirmDelete ? (
+                        <div className="space-y-1.5">
+                          <p className="font-mono text-[10px] text-destructive text-center tracking-widest uppercase">Delete this post?</p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => deleteMutation.mutate()}
+                              disabled={deleteMutation.isPending}
+                              className="flex-1 bg-destructive/20 border border-destructive/40 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/30 transition-colors disabled:opacity-30"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDelete(false)}
+                              className="flex-1 border border-muted/40 py-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-widest hover:border-muted transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(true)}
+                          disabled={deleteMutation.isPending}
+                          className="w-full bg-destructive/10 border border-destructive/30 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/20 transition-colors disabled:opacity-30"
+                        >
+                          <HugeiconsIcon icon={Delete02Icon} size={10} className="inline mr-1" />
+                          Delete Post
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
