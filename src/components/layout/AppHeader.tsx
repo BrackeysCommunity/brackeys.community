@@ -1,12 +1,12 @@
-import { Clock01Icon, ComputerTerminal01Icon, Menu01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
+import { Cancel01Icon, Clock01Icon, ComputerTerminal01Icon, Menu01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useInterval } from 'ahooks';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { UserMenu } from '@/components/layout/UserMenu';
 import { Button } from '@/components/ui/button';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
-import { UserMenu } from '@/components/layout/UserMenu';
 import { authClient } from '@/lib/auth-client';
 import { setAuthSession } from '@/lib/auth-store';
 import { useCommandPalette } from '@/lib/hooks/use-command-palette';
@@ -94,13 +94,13 @@ export function AppHeader() {
         <div className="hidden lg:flex items-center gap-6 pointer-events-auto">
           <nav className="flex items-center gap-6 font-mono text-sm font-bold tracking-widest">
             <MagneticLink>
-              <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/command-center">COMMANDS</Link>
+              <Link data-cursor-no-drift className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/command-center">COMMANDS</Link>
             </MagneticLink>
             <MagneticLink>
-              <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/collab">COLLAB</Link>
+              <Link data-cursor-no-drift className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/collab">COLLAB</Link>
             </MagneticLink>
             <MagneticLink>
-              <Link className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/profile">PROFILE</Link>
+              <Link data-cursor-no-drift className="px-2 py-1 text-foreground hover:text-primary transition-colors" to="/profile">PROFILE</Link>
             </MagneticLink>
           </nav>
 
@@ -113,6 +113,7 @@ export function AppHeader() {
             variant="outline"
             size="sm"
             isMagnetic
+            data-cursor-no-drift
             onClick={() => openPalette(true)}
             className="border-muted hover:border-primary hover:text-primary shadow-[2px_2px_0px_var(--color-primary)] font-mono text-xs gap-2 text-muted-foreground"
           >
@@ -130,6 +131,7 @@ export function AppHeader() {
               variant="default"
               isMagnetic
               className="font-mono text-xs font-bold tracking-widest px-5"
+              data-cursor-no-drift
               onClick={() => authClient.signIn.social({ provider: 'discord' })}
             >
               LOGIN

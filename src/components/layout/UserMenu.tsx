@@ -2,8 +2,6 @@ import { Logout03Icon, Share01Icon, UserIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { authClient } from '@/lib/auth-client';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { authClient } from '@/lib/auth-client';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
 
 const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
@@ -30,6 +30,7 @@ export function UserMenu({ user }: UserMenuProps) {
       <motion.div
         ref={ref as React.RefObject<HTMLDivElement>}
         data-magnetic
+        data-cursor-no-drift
         animate={{ x: position.x, y: position.y }}
         transition={springTransition}
         className="relative z-10 inline-flex"
