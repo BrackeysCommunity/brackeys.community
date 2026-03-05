@@ -18,6 +18,11 @@ import {
   setUrlStub,
 } from './profile'
 import {
+  syncGitHubLink,
+  unlinkGitHub,
+  getContributions,
+} from './github'
+import {
   linkItchIo,
   unlinkItchIo,
   getLinkedAccounts,
@@ -64,6 +69,9 @@ export default {
   addJamParticipation,
   removeJamParticipation,
   setUrlStub,
+  syncGitHubLink,
+  unlinkGitHub,
+  getContributions,
   linkItchIo,
   unlinkItchIo,
   getLinkedAccounts,

@@ -18,6 +18,15 @@ export const auth = betterAuth({
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
       scopes: ['identify', 'guilds', 'guilds.members.read'],
     },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      scopes: ['read:user'],
+    },
+  },
+  accountLinking: {
+    enabled: true,
+    trustedProviders: ['discord', 'github'],
   },
   plugins: [tanstackStartCookies()],
   databaseHooks: {

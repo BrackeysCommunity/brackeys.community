@@ -1,4 +1,4 @@
-import { Github01Icon, Globe02Icon, NewTwitterIcon, GameController01Icon, Link01Icon, Delete02Icon } from '@hugeicons/core-free-icons';
+import { Github01Icon, Globe02Icon, GameController01Icon, Link01Icon, Delete02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CharCount } from '@/components/ui/form-primitives';
 import { env } from '@/env';
+import { authClient } from '@/lib/auth-client';
 import { useMagnetic } from '@/lib/hooks/use-cursor';
 import { cn } from '@/lib/utils';
 import { client } from '@/orpc/client';
@@ -149,6 +150,82 @@ function LinkInput({
   );
 }
 
+type LinkedAccount = NonNullable<ProfileEditFormProps['linkedAccounts']>[number];
+
+function LinkedAccountRow({
+  icon,
+  account,
+  providerLabel,
+  onLink,
+  onUnlink,
+  unlinking,
+  extra,
+}: {
+  icon: Parameters<typeof HugeiconsIcon>[0]['icon'];
+  account: LinkedAccount | undefined;
+  providerLabel: string;
+  onLink: () => void;
+  onUnlink: () => void;
+  unlinking: boolean;
+  extra?: React.ReactNode;
+}) {
+  if (account) {
+    return (
+      <MagneticField>
+        <div className="flex items-center justify-between gap-2 bg-muted/5 border border-muted/15 px-2.5 py-2 hover:border-muted/40 transition-all">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-primary/60 shrink-0">
+              <HugeiconsIcon icon={icon} size={14} />
+            </span>
+            <div className="min-w-0">
+              <p className="font-mono text-xs text-foreground truncate">
+                {account.providerUsername}
+              </p>
+              {account.providerProfileUrl && (
+                <a
+                  href={account.providerProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/60 transition-colors truncate block"
+                >
+                  {account.providerProfileUrl}
+                </a>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {extra}
+            <button
+              type="button"
+              onClick={onUnlink}
+              disabled={unlinking}
+              className="text-muted-foreground/30 hover:text-destructive transition-colors p-0.5 disabled:opacity-50"
+              title={`Unlink ${providerLabel}`}
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={12} />
+            </button>
+          </div>
+        </div>
+      </MagneticField>
+    );
+  }
+
+  return (
+    <MagneticField>
+      <button
+        type="button"
+        onClick={onLink}
+        className="w-full flex items-center justify-center gap-2 bg-muted/5 border border-dashed border-muted/20 px-2.5 py-2.5 hover:border-primary/30 hover:bg-muted/10 transition-all group/link-btn"
+      >
+        <HugeiconsIcon icon={Link01Icon} size={13} className="text-muted-foreground/30 group-hover/link-btn:text-primary/50 transition-colors" />
+        <span className="font-mono text-[10px] text-muted-foreground/40 group-hover/link-btn:text-foreground/60 transition-colors tracking-wider">
+          Link {providerLabel} account
+        </span>
+      </button>
+    </MagneticField>
+  );
+}
+
 export function ProfileEditForm({
   profile,
   skills,
@@ -174,17 +251,18 @@ export function ProfileEditForm({
 
   const [tagline, setTagline] = useState(profile.tagline ?? '');
   const [bio, setBio] = useState(profile.bio ?? '');
-  const [githubUrl, setGithubUrl] = useState(profile.githubUrl ?? '');
-  const [twitterUrl, setTwitterUrl] = useState(profile.twitterUrl ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '');
+
+  const githubAccount = linkedAccounts?.find((a) => a.provider === 'github');
+  const githubUrl = githubAccount?.providerProfileUrl ?? profile.githubUrl ?? '';
 
   useEffect(() => {
     onCompletenessChange?.(buildCompletenessItems({
       tagline, bio, skills,
       pendingSkillCount: pendingRequests.length,
-      githubUrl, twitterUrl, websiteUrl, projects, jams,
+      githubUrl, twitterUrl: null, websiteUrl, projects, jams,
     }));
-  }, [tagline, bio, skills, pendingRequests.length, githubUrl, twitterUrl, websiteUrl, projects, jams, onCompletenessChange]);
+  }, [tagline, bio, skills, pendingRequests.length, githubUrl, websiteUrl, projects, jams, onCompletenessChange]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const updateMutation = useMutation({
@@ -336,6 +414,24 @@ export function ProfileEditForm({
       toast.error(err.message || 'Failed to import games from itch.io');
     },
   });
+
+  const unlinkGitHubMutation = useMutation({
+    mutationFn: () => client.unlinkGitHub({}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      toast.success('GitHub account unlinked');
+    },
+    onError: () => {
+      toast.error('Failed to unlink GitHub account');
+    },
+  });
+
+  const handleLinkGitHub = () => {
+    authClient.signIn.social({
+      provider: 'github',
+      callbackURL: '/oauth/github/callback',
+    });
+  };
 
   const itchIoAccount = linkedAccounts?.find((a) => a.provider === 'itchio');
 
@@ -497,83 +593,39 @@ export function ProfileEditForm({
         </div>
       </EditSection>
 
-      <EditSection label="Linked Accounts" complete={!!itchIoAccount}>
+      <EditSection label="Linked Accounts" complete={!!(githubAccount || itchIoAccount)}>
         <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-          {itchIoAccount ? (
-            <MagneticField>
-              <div className="flex items-center justify-between gap-2 bg-muted/5 border border-muted/15 px-2.5 py-2 hover:border-muted/40 transition-all">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-primary/60 shrink-0">
-                    <HugeiconsIcon icon={GameController01Icon} size={14} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-mono text-xs text-foreground truncate">
-                      {itchIoAccount.providerUsername}
-                    </p>
-                    {itchIoAccount.providerProfileUrl && (
-                      <a
-                        href={itchIoAccount.providerProfileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/60 transition-colors truncate block"
-                      >
-                        {itchIoAccount.providerProfileUrl}
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => importItchIoGamesMutation.mutate()}
-                    disabled={importItchIoGamesMutation.isPending}
-                    className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/80 transition-colors px-1.5 py-0.5 hover:bg-muted/10 disabled:opacity-50"
-                  >
-                    {importItchIoGamesMutation.isPending ? 'Importing...' : 'Import games'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => unlinkItchIoMutation.mutate()}
-                    disabled={unlinkItchIoMutation.isPending}
-                    className="text-muted-foreground/30 hover:text-destructive transition-colors p-0.5 disabled:opacity-50"
-                    title="Unlink itch.io"
-                  >
-                    <HugeiconsIcon icon={Delete02Icon} size={12} />
-                  </button>
-                </div>
-              </div>
-            </MagneticField>
-          ) : (
-            <MagneticField>
+          <LinkedAccountRow
+            icon={Github01Icon}
+            account={githubAccount}
+            providerLabel="GitHub"
+            onLink={handleLinkGitHub}
+            onUnlink={() => unlinkGitHubMutation.mutate()}
+            unlinking={unlinkGitHubMutation.isPending}
+          />
+          <LinkedAccountRow
+            icon={GameController01Icon}
+            account={itchIoAccount}
+            providerLabel="itch.io"
+            onLink={handleLinkItchIo}
+            onUnlink={() => unlinkItchIoMutation.mutate()}
+            unlinking={unlinkItchIoMutation.isPending}
+            extra={itchIoAccount ? (
               <button
                 type="button"
-                onClick={handleLinkItchIo}
-                className="w-full flex items-center justify-center gap-2 bg-muted/5 border border-dashed border-muted/20 px-2.5 py-2.5 hover:border-primary/30 hover:bg-muted/10 transition-all group/link-btn"
+                onClick={() => importItchIoGamesMutation.mutate()}
+                disabled={importItchIoGamesMutation.isPending}
+                className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/80 transition-colors px-1.5 py-0.5 hover:bg-muted/10 disabled:opacity-50"
               >
-                <HugeiconsIcon icon={Link01Icon} size={13} className="text-muted-foreground/30 group-hover/link-btn:text-primary/50 transition-colors" />
-                <span className="font-mono text-[10px] text-muted-foreground/40 group-hover/link-btn:text-foreground/60 transition-colors tracking-wider">
-                  Link itch.io account
-                </span>
+                {importItchIoGamesMutation.isPending ? 'Importing...' : 'Import games'}
               </button>
-            </MagneticField>
-          )}
+            ) : undefined}
+          />
         </div>
       </EditSection>
 
-      <EditSection label="Links" complete={!!(githubUrl || twitterUrl || websiteUrl)}>
+      <EditSection label="Links" complete={!!websiteUrl}>
         <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-          <LinkInput
-            icon={<HugeiconsIcon icon={Github01Icon} size={13} />}
-            value={githubUrl}
-            onChange={(v) => handleFieldChange('githubUrl', v, setGithubUrl)}
-            placeholder="github.com/username"
-          />
-          <LinkInput
-            icon={<HugeiconsIcon icon={NewTwitterIcon} size={13} />}
-            value={twitterUrl}
-            onChange={(v) => handleFieldChange('twitterUrl', v, setTwitterUrl)}
-            placeholder="twitter.com/username"
-          />
           <LinkInput
             icon={<HugeiconsIcon icon={Globe02Icon} size={13} />}
             value={websiteUrl}

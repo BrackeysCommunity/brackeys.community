@@ -29,6 +29,7 @@ import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
+import { Route as OauthGithubCallbackRouteImport } from './routes/oauth.github.callback'
 import { Route as DemoStrapiArticleIdRouteImport } from './routes/demo/strapi_.$articleId'
 import { Route as DemoSentryTestingRouteImport } from './routes/demo/sentry.testing'
 import { Route as DemoFormSimpleRouteImport } from './routes/demo/form.simple'
@@ -136,6 +137,11 @@ const OauthItchioCallbackRoute = OauthItchioCallbackRouteImport.update({
   path: '/oauth/itchio/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthGithubCallbackRoute = OauthGithubCallbackRouteImport.update({
+  id: '/oauth/github/callback',
+  path: '/oauth/github/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DemoStrapiArticleIdRoute = DemoStrapiArticleIdRouteImport.update({
   id: '/demo/strapi_/$articleId',
   path: '/demo/strapi/$articleId',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/demo/form/simple': typeof DemoFormSimpleRoute
   '/demo/sentry/testing': typeof DemoSentryTestingRoute
   '/demo/strapi/$articleId': typeof DemoStrapiArticleIdRoute
+  '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/demo/form/simple': typeof DemoFormSimpleRoute
   '/demo/sentry/testing': typeof DemoSentryTestingRoute
   '/demo/strapi/$articleId': typeof DemoStrapiArticleIdRoute
+  '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRoutesById {
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   '/demo/form/simple': typeof DemoFormSimpleRoute
   '/demo/sentry/testing': typeof DemoSentryTestingRoute
   '/demo/strapi_/$articleId': typeof DemoStrapiArticleIdRoute
+  '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRouteTypes {
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/demo/form/simple'
     | '/demo/sentry/testing'
     | '/demo/strapi/$articleId'
+    | '/oauth/github/callback'
     | '/oauth/itchio/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
     | '/demo/form/simple'
     | '/demo/sentry/testing'
     | '/demo/strapi/$articleId'
+    | '/oauth/github/callback'
     | '/oauth/itchio/callback'
   id:
     | '__root__'
@@ -332,6 +343,7 @@ export interface FileRouteTypes {
     | '/demo/form/simple'
     | '/demo/sentry/testing'
     | '/demo/strapi_/$articleId'
+    | '/oauth/github/callback'
     | '/oauth/itchio/callback'
   fileRoutesById: FileRoutesById
 }
@@ -356,6 +368,7 @@ export interface RootRouteChildren {
   DemoFormSimpleRoute: typeof DemoFormSimpleRoute
   DemoSentryTestingRoute: typeof DemoSentryTestingRoute
   DemoStrapiArticleIdRoute: typeof DemoStrapiArticleIdRoute
+  OauthGithubCallbackRoute: typeof OauthGithubCallbackRoute
   OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
 }
 
@@ -501,6 +514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthItchioCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/github/callback': {
+      id: '/oauth/github/callback'
+      path: '/oauth/github/callback'
+      fullPath: '/oauth/github/callback'
+      preLoaderRoute: typeof OauthGithubCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/demo/strapi_/$articleId': {
       id: '/demo/strapi_/$articleId'
       path: '/demo/strapi/$articleId'
@@ -595,6 +615,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoFormSimpleRoute: DemoFormSimpleRoute,
   DemoSentryTestingRoute: DemoSentryTestingRoute,
   DemoStrapiArticleIdRoute: DemoStrapiArticleIdRoute,
+  OauthGithubCallbackRoute: OauthGithubCallbackRoute,
   OauthItchioCallbackRoute: OauthItchioCallbackRoute,
 }
 export const routeTree = rootRouteImport

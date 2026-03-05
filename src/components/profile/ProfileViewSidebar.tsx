@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NotchedCard } from '@/components/ui/notched-card';
 import { cn } from '@/lib/utils';
+import { ContributionCalendar } from './ContributionCalendar';
 import { ProfileAvatar } from './ProfileAvatar';
 import { ProfileBio } from './ProfileBio';
 import { type CompletenessItem, ProfileCompletenessMini } from './ProfileCompleteness';
@@ -249,6 +250,9 @@ export function ProfileViewSidebar({ profileData, isLoading, profileQueryKey, is
                   <ProfileBio bio={profile.bio} />
                 </SidebarSection>
               )}
+
+              {/* GitHub Contribution Calendar */}
+              <ContributionCalendar userId={profile.id} />
 
               {/* Skills */}
               {skills.length > 0 && (

@@ -16,8 +16,8 @@ export function buildCompletenessItems(data: {
   bio: string | null;
   skills: unknown[];
   pendingSkillCount?: number;
-  githubUrl: string | null;
-  twitterUrl: string | null;
+  githubUrl?: string | null;
+  twitterUrl?: string | null;
   websiteUrl: string | null;
   projects: Array<{ status?: string }>;
   jams: unknown[];
