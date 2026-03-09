@@ -73,7 +73,8 @@ Optional but relevant depending on what you are working on:
 
 - GitHub OAuth app credentials
 - itch.io client ID
-- Strapi instance for upload-backed flows
+- Strapi instance for collab image uploads
+- MinIO credentials for profile image uploads
 - Sentry DSN
 
 ## Setup
@@ -102,6 +103,10 @@ Minimum required for most local work:
 - `DISCORD_GUILD_ID`
 
 4. Apply database schema.
+
+Only the user should ever run `bun run db:generate`, `bun run db:migrate`, or
+`bun run db:push`. Agents should update schema and migration files, but the
+user remains the only operator for those commands.
 
 For an existing migration flow:
 
@@ -142,6 +147,11 @@ The app runs on `http://localhost:3000`.
 - `GITHUB_CLIENT_SECRET`: GitHub account linking
 - `VITE_ITCHIO_CLIENT_ID`: itch.io linking flow
 - `VITE_STRAPI_URL`: Strapi-backed uploads / demo content
+- `MINIO_ENDPOINT`: MinIO server URL, for example `https://your-minio-host.up.railway.app`
+- `MINIO_PUBLIC_BASE_URL`: public base URL used to render stored objects
+- `MINIO_BUCKET`: bucket name for uploaded profile project images
+- `MINIO_ACCESS_KEY`: MinIO access key
+- `MINIO_SECRET_KEY`: MinIO secret key
 
 ### Optional
 
@@ -171,6 +181,9 @@ bun run test
 bun run storybook
 bun run build-storybook
 ```
+
+`bun run db:generate`, `bun run db:migrate`, and `bun run db:push` are
+user-only commands. Do not have agents execute them.
 
 ## Development Notes
 

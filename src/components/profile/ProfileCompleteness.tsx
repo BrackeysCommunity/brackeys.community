@@ -2,6 +2,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "framer-motion";
 import { NotchedCard } from "@/components/ui/notched-card";
+import type { ProfileProjectType } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
 
 export type CompletenessStatus = "done" | "pending" | "empty";
@@ -20,11 +21,15 @@ export function buildCompletenessItems(data: {
 	twitterUrl?: string | null;
 	websiteUrl: string | null;
 	itchIoUrl?: string | null;
-	projects: Array<{ status?: string }>;
-	jams: unknown[];
+	projects: Array<{ status?: string; type?: ProfileProjectType }>;
 }): CompletenessItem[] {
-	const approvedProjects = data.projects.filter((p) => p.status !== "pending");
-	const pendingProjects = data.projects.filter((p) => p.status === "pending");
+	const approvedProjects = data.projects.filter(
+		(p) => p.type !== "jam" && p.status !== "pending",
+	);
+	const pendingProjects = data.projects.filter(
+		(p) => p.type !== "jam" && p.status === "pending",
+	);
+	const jamProjects = data.projects.filter((p) => p.type === "jam");
 
 	return [
 		{ label: "Tagline", status: data.tagline?.trim() ? "done" : "empty" },
@@ -54,7 +59,7 @@ export function buildCompletenessItems(data: {
 						? "pending"
 						: "empty",
 		},
-		{ label: "Jams", status: data.jams.length > 0 ? "done" : "empty" },
+		{ label: "Jams", status: jamProjects.length > 0 ? "done" : "empty" },
 	];
 }
 

@@ -17,7 +17,7 @@ export function NotchedCard({ children, className, header, footer, scrollable = 
       style={{ clipPath: notchClip, padding: '2px' }}
     >
       <div
-        className="flex flex-col h-full bg-background/90 backdrop-blur-md relative"
+        className="flex flex-col h-full bg-background/70 relative"
         style={{ clipPath: notchClipInner }}
       >
         <NotchedCardDecorators />

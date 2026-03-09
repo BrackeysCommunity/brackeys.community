@@ -14,14 +14,23 @@ import { CharCount } from "@/components/ui/form-primitives";
 import { env } from "@/env";
 import { authClient } from "@/lib/auth-client";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+import type { UploadedProfileProjectImage } from "@/lib/profile-project-images";
+import type {
+	ProfileProjectSubType,
+	ProfileProjectType,
+} from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 import {
 	buildCompletenessItems,
 	type CompletenessItem,
 } from "./ProfileCompleteness";
-import { AddJamForm, EditableJamEntry } from "./ProfileJamEditor";
-import { AddProjectForm, EditableProjectCard } from "./ProfileProjectEditor";
+import { AddJamForm } from "./ProfileJamEditor";
+import {
+	AddProjectForm,
+	EditableProjectCard,
+	type ProjectUpdateData,
+} from "./ProfileProjectEditor";
 import {
 	PendingSkillTag,
 	SkillAutocomplete,
@@ -47,7 +56,9 @@ interface ProfileEditFormProps {
 	};
 	skills: Array<{ id: number; name: string; category: string | null }>;
 	projects: Array<{
-		id: number;
+		id: string;
+		type: ProfileProjectType;
+		subTypes: string[];
 		title: string;
 		description: string | null;
 		url: string | null;
@@ -55,10 +66,7 @@ interface ProfileEditFormProps {
 		tags: string[] | null;
 		pinned: boolean | null;
 		status: string;
-	}>;
-	jams: Array<{
-		id: number;
-		jamName: string;
+		jamName: string | null;
 		jamUrl: string | null;
 		submissionTitle: string | null;
 		submissionUrl: string | null;
@@ -262,7 +270,6 @@ export function ProfileEditForm({
 	profile,
 	skills,
 	projects,
-	jams,
 	pendingSkillRequests,
 	linkedAccounts,
 	urlStub: initialUrlStub,
@@ -305,7 +312,6 @@ export function ProfileEditForm({
 				websiteUrl,
 				itchIoUrl,
 				projects,
-				jams,
 			}),
 		);
 	}, [
@@ -317,7 +323,6 @@ export function ProfileEditForm({
 		websiteUrl,
 		itchIoUrl,
 		projects,
-		jams,
 		onCompletenessChange,
 	]);
 
@@ -425,7 +430,9 @@ export function ProfileEditForm({
 			title: string;
 			description?: string;
 			url?: string;
-			imageUrl?: string;
+			image?: UploadedProfileProjectImage;
+			type: Exclude<ProfileProjectType, "jam">;
+			subTypes?: ProfileProjectSubType[];
 		}) => client.addProject(data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: profileQueryKey });
@@ -433,11 +440,22 @@ export function ProfileEditForm({
 		},
 	});
 
-	const [removedProjectIds, setRemovedProjectIds] = useState<Set<number>>(
+	const updateProjectMutation = useMutation({
+		mutationFn: (data: ProjectUpdateData) => client.updateProject(data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: profileQueryKey });
+			toast.success("Project updated");
+		},
+		onError: () => {
+			toast.error("Failed to update project");
+		},
+	});
+
+	const [removedProjectIds, setRemovedProjectIds] = useState<Set<string>>(
 		new Set(),
 	);
 	const removeProjectMutation = useMutation({
-		mutationFn: (projectId: number) => client.removeProject({ projectId }),
+		mutationFn: (projectId: string) => client.removeProject({ projectId }),
 		onMutate: (projectId) => {
 			setRemovedProjectIds((prev) => new Set(prev).add(projectId));
 		},
@@ -473,15 +491,14 @@ export function ProfileEditForm({
 		},
 	});
 
-	const [removedJamIds, setRemovedJamIds] = useState<Set<number>>(new Set());
 	const removeJamMutation = useMutation({
-		mutationFn: (jamId: number) => client.removeJamParticipation({ jamId }),
+		mutationFn: (jamId: string) => client.removeJamParticipation({ jamId }),
 		onMutate: (jamId) => {
-			setRemovedJamIds((prev) => new Set(prev).add(jamId));
+			setRemovedProjectIds((prev) => new Set(prev).add(jamId));
 		},
 		onSuccess: async (_data, jamId) => {
 			await queryClient.invalidateQueries({ queryKey: profileQueryKey });
-			setRemovedJamIds((prev) => {
+			setRemovedProjectIds((prev) => {
 				const next = new Set(prev);
 				next.delete(jamId);
 				return next;
@@ -489,7 +506,7 @@ export function ProfileEditForm({
 			toast.success("Jam entry removed");
 		},
 		onError: (_err, jamId) => {
-			setRemovedJamIds((prev) => {
+			setRemovedProjectIds((prev) => {
 				const next = new Set(prev);
 				next.delete(jamId);
 				return next;
@@ -565,7 +582,6 @@ export function ProfileEditForm({
 		(n) => !removedPendingNames.has(n),
 	);
 	const visibleProjects = projects.filter((p) => !removedProjectIds.has(p.id));
-	const visibleJams = jams.filter((j) => !removedJamIds.has(j.id));
 
 	const [urlStub, setUrlStub] = useState(initialUrlStub ?? "");
 	const [urlStubError, setUrlStubError] = useState("");
@@ -766,11 +782,14 @@ export function ProfileEditForm({
 					{visibleProjects.length === 0 ? (
 						<div className="text-center py-2">
 							<p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
-								Showcase your work
+								Showcase your work and jam history
 							</p>
-							<AddProjectForm
-								onAdd={(data) => addProjectMutation.mutate(data)}
-							/>
+							<div className="space-y-2">
+								<AddProjectForm
+									onAdd={(data) => addProjectMutation.mutate(data)}
+								/>
+								<AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
+							</div>
 						</div>
 					) : (
 						<>
@@ -778,36 +797,20 @@ export function ProfileEditForm({
 								<EditableProjectCard
 									key={project.id}
 									project={project}
-									onRemove={() => removeProjectMutation.mutate(project.id)}
+									onRemove={() =>
+										project.type === "jam"
+											? removeJamMutation.mutate(project.id)
+											: removeProjectMutation.mutate(project.id)
+									}
+									onEdit={(data) => updateProjectMutation.mutate(data)}
 								/>
 							))}
-							<AddProjectForm
-								onAdd={(data) => addProjectMutation.mutate(data)}
-							/>
-						</>
-					)}
-				</div>
-			</EditSection>
-
-			<EditSection label="Jam History" complete={visibleJams.length > 0}>
-				<div className="px-4 py-3 space-y-2">
-					{visibleJams.length === 0 ? (
-						<div className="text-center py-2">
-							<p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
-								Track your competition history
-							</p>
-							<AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
-						</div>
-					) : (
-						<>
-							{visibleJams.map((jam) => (
-								<EditableJamEntry
-									key={jam.id}
-									jam={jam}
-									onRemove={() => removeJamMutation.mutate(jam.id)}
+							<div className="space-y-2 pt-1">
+								<AddProjectForm
+									onAdd={(data) => addProjectMutation.mutate(data)}
 								/>
-							))}
-							<AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
+								<AddJamForm onAdd={(data) => addJamMutation.mutate(data)} />
+							</div>
 						</>
 					)}
 				</div>

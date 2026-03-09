@@ -70,9 +70,15 @@ export function ProfileViewPage() {
 				websiteUrl: profile?.websiteUrl ?? null,
 				itchIoUrl: linkedItchIoUrl,
 				projects: profileData.projects,
-				jams: profileData.jams,
 			})
 		: [];
+
+	const nonJamProjectCount =
+		profileData?.projects?.filter((project) => project.type !== "jam").length ??
+		0;
+	const jamProjectCount =
+		profileData?.projects?.filter((project) => project.type === "jam").length ??
+		0;
 
 	const completenessItems =
 		isEditing && localCompleteness ? localCompleteness : serverCompleteness;
@@ -202,13 +208,13 @@ export function ProfileViewPage() {
 							<ProfileStatCard
 								index="01"
 								label="PROJECTS"
-								value={profileData?.projects?.length ?? 0}
+								value={nonJamProjectCount}
 								icon={ComputerTerminal01Icon}
 							/>
 							<ProfileStatCard
 								index="02"
 								label="JAMS"
-								value={profileData?.jams?.length ?? 0}
+								value={jamProjectCount}
 								icon={UserGroupIcon}
 							/>
 							<ProfileStatCard

@@ -2,6 +2,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NotchedCard } from "@/components/ui/notched-card";
+import type { ProfileProjectType } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
 import { ContributionCalendar } from "./ContributionCalendar";
 import { ProfileAvatar } from "./ProfileAvatar";
@@ -11,7 +12,6 @@ import {
 	ProfileCompletenessMini,
 } from "./ProfileCompleteness";
 import { ProfileEditForm } from "./ProfileEditForm";
-import { ProfileJams } from "./ProfileJams";
 import { buildSocialLinks, ProfileLinks } from "./ProfileLinks";
 import { ProfileProjects } from "./ProfileProjects";
 import { ProfileRoles } from "./ProfileRoles";
@@ -36,7 +36,9 @@ interface ProfileData {
 	};
 	skills: Array<{ id: number; name: string; category: string | null }>;
 	projects: Array<{
-		id: number;
+		id: string;
+		type: ProfileProjectType;
+		subTypes: string[];
 		title: string;
 		description: string | null;
 		url: string | null;
@@ -44,10 +46,7 @@ interface ProfileData {
 		tags: string[] | null;
 		pinned: boolean | null;
 		status: string;
-	}>;
-	jams: Array<{
-		id: number;
-		jamName: string;
+		jamName: string | null;
 		jamUrl: string | null;
 		submissionTitle: string | null;
 		submissionUrl: string | null;
@@ -132,7 +131,7 @@ export function ProfileViewSidebar({
 		return <NotFoundState />;
 	}
 
-	const { profile, skills, projects, jams, isOwner } = profileData;
+	const { profile, skills, projects, isOwner } = profileData;
 	const username = profile.discordUsername ?? "Unknown";
 	const memberSince = profile.createdAt
 		? new Date(profile.createdAt).toLocaleDateString(undefined, {
@@ -226,7 +225,6 @@ export function ProfileViewSidebar({
 								profile={profile}
 								skills={skills}
 								projects={projects}
-								jams={jams}
 								pendingSkillRequests={profileData.pendingSkillRequests}
 								linkedAccounts={profileData.linkedAccounts}
 								urlStub={profileData.urlStub}
@@ -281,17 +279,6 @@ export function ProfileViewSidebar({
 							{projects.length > 0 && (
 								<SidebarSection label="Projects" count={projects.length}>
 									<ProfileProjects projects={projects} />
-								</SidebarSection>
-							)}
-
-							{/* Jams */}
-							{jams.length > 0 && (
-								<SidebarSection
-									label="Jam History"
-									count={jams.length}
-									className="border-b-0"
-								>
-									<ProfileJams jams={jams} />
 								</SidebarSection>
 							)}
 						</motion.div>

@@ -11,7 +11,7 @@ export function EditableJamEntry({
   jam,
   onRemove,
 }: {
-  jam: { id: number; jamName: string; submissionTitle?: string | null; result?: string | null };
+  jam: { id: string; jamName: string; submissionTitle?: string | null; result?: string | null };
   onRemove: () => void;
 }) {
   return (
