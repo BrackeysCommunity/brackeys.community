@@ -52,7 +52,6 @@ export const createPost = os
   .input(
     z.object({
       type: z.enum(['paid', 'hobby', 'playtest', 'mentor']),
-      subtype: z.enum(['hiring', 'offering']).optional(),
       title: z.string().min(1).max(200),
       description: z.string().min(1).max(5000),
       projectName: z.string().max(200).optional(),
@@ -106,7 +105,6 @@ export const updatePost = os
       postId: z.number(),
       title: z.string().min(1).max(200).optional(),
       description: z.string().min(1).max(5000).optional(),
-      subtype: z.enum(['hiring', 'offering']).optional(),
       projectName: z.string().max(200).optional(),
       compensation: z.string().max(500).optional(),
       compensationType: compensationTypeSchema.optional(),
@@ -354,7 +352,6 @@ export const listPosts = os
   .input(
     z.object({
       type: z.enum(['paid', 'hobby', 'playtest', 'mentor']).optional(),
-      subtype: z.enum(['hiring', 'offering']).optional(),
       roleIds: z.array(z.number()).optional(),
       status: z.enum(['recruiting', 'party_full']).optional(),
       search: z.string().optional(),
@@ -371,7 +368,6 @@ export const listPosts = os
     const conditions = []
 
     if (input.type) conditions.push(eq(collabPosts.type, input.type))
-    if (input.subtype) conditions.push(eq(collabPosts.subtype, input.subtype))
     if (input.status) conditions.push(eq(collabPosts.status, input.status))
     if (input.experienceLevel) conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel))
     if (input.compensationType) conditions.push(eq(collabPosts.compensationType, input.compensationType))

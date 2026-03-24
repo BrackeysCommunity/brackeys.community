@@ -1,7 +1,7 @@
 import { Store } from '@tanstack/store'
 
 export type CollabPostType = 'paid' | 'hobby' | 'playtest' | 'mentor'
-export type CollabSubtype = 'hiring' | 'offering'
+export type CollabListingType = 'posts' | 'people'
 export type CollabStatus = 'recruiting' | 'party_full'
 export type CollabSortBy = 'createdAt' | 'updatedAt'
 export type CollabSortOrder = 'asc' | 'desc'
@@ -19,7 +19,7 @@ export type UploadedImage = {
 
 type CollabFilters = {
   type: CollabPostType | undefined
-  subtype: CollabSubtype | undefined
+  listingType: CollabListingType | undefined
   roleIds: number[]
   status: CollabStatus | undefined
   search: string
@@ -37,7 +37,6 @@ type CollabPagination = {
 
 export type WizardDraft = {
   type: CollabPostType | undefined
-  subtype: CollabSubtype | undefined
   title: string
   description: string
   projectName: string
@@ -60,15 +59,7 @@ export type WizardDraft = {
 
 export type WizardStepDef = { id: string; num: string; label: string }
 
-export function getWizardSteps(draft: Pick<WizardDraft, 'type' | 'subtype' | 'isIndividual'>): WizardStepDef[] {
-  const isOfferingIndividual = draft.subtype === 'offering' && draft.isIndividual
-  if (isOfferingIndividual) {
-    return [
-      { id: 'basics', num: '01', label: 'TYPE & BASICS' },
-      { id: 'profile', num: '02', label: 'YOUR PROFILE' },
-      { id: 'review', num: '03', label: 'REVIEW' },
-    ]
-  }
+export function getWizardSteps(draft: Pick<WizardDraft, 'type'>): WizardStepDef[] {
   if (draft.type === 'playtest') {
     return [
       { id: 'basics', num: '01', label: 'TYPE & BASICS' },
@@ -83,7 +74,7 @@ export function getWizardSteps(draft: Pick<WizardDraft, 'type' | 'subtype' | 'is
       { id: 'review', num: '03', label: 'REVIEW' },
     ]
   }
-  // Default: paid/hobby hiring or team offering
+  // Default: paid/hobby
   return [
     { id: 'basics', num: '01', label: 'TYPE & BASICS' },
     { id: 'details', num: '02', label: 'PROJECT DETAILS' },
@@ -103,7 +94,7 @@ type CollabState = {
 
 const defaultFilters: CollabFilters = {
   type: undefined,
-  subtype: undefined,
+  listingType: undefined,
   roleIds: [],
   status: undefined,
   search: '',
@@ -116,7 +107,6 @@ const defaultFilters: CollabFilters = {
 
 const defaultDraft: WizardDraft = {
   type: undefined,
-  subtype: undefined,
   title: '',
   description: '',
   projectName: '',
@@ -177,7 +167,7 @@ export function updateWizardDraft(partial: Partial<WizardDraft>) {
   collabStore.setState((s) => {
     const newDraft = { ...s.wizard.draft, ...partial }
     const newSteps = getWizardSteps(newDraft)
-    // Clamp step when type/subtype/isIndividual changes affect step count
+    // Clamp step when type changes affect step count
     const clampedStep = Math.min(s.wizard.step, newSteps.length - 1)
     return {
       ...s,

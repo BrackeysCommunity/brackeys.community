@@ -105,6 +105,11 @@ export const developerProfiles = userSchema.table("developer_profiles", {
 	githubUrl: text("github_url"),
 	twitterUrl: text("twitter_url"),
 	websiteUrl: text("website_url"),
+	availableForWork: boolean("available_for_work").default(false),
+	availability: text("availability"),
+	rateType: text("rate_type"),
+	rateMin: integer("rate_min"),
+	rateMax: integer("rate_max"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

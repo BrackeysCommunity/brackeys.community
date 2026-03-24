@@ -18,7 +18,7 @@ import {
   type CollabPostType,
   type CollabSortBy,
   type CollabStatus,
-  type CollabSubtype,
+  type CollabListingType,
   collabStore,
   resetCollabFilters,
   setCollabFilters,
@@ -33,9 +33,9 @@ const TYPE_OPTIONS: { value: CollabPostType; label: string; icon: string }[] = [
   { value: 'mentor', label: 'MENTOR', icon: '*' },
 ]
 
-const SUBTYPE_OPTIONS: { value: CollabSubtype; label: string }[] = [
-  { value: 'hiring', label: 'HIRING' },
-  { value: 'offering', label: 'OFFERING' },
+const LISTING_TYPE_OPTIONS: { value: CollabListingType; label: string }[] = [
+  { value: 'posts', label: 'PROJECTS' },
+  { value: 'people', label: 'PEOPLE' },
 ]
 
 const STATUS_OPTIONS: { value: CollabStatus; label: string }[] = [
@@ -113,7 +113,7 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
 
   const activeFilterCount = [
     filters.type,
-    filters.subtype,
+    filters.listingType,
     filters.status,
     filters.experienceLevel,
     filters.compensationType,
@@ -182,22 +182,20 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
         </div>
       </div>
 
-      {/* Direction (paid/hobby only) */}
-      {(filters.type === 'paid' || filters.type === 'hobby') && (
-        <div className="space-y-2">
-          <SectionLabel>Direction</SectionLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {SUBTYPE_OPTIONS.map((s) => (
-              <FilterChip
-                key={s.value}
-                label={s.label}
-                active={filters.subtype === s.value}
-                onClick={() => setCollabFilters({ subtype: filters.subtype === s.value ? undefined : s.value })}
-              />
-            ))}
-          </div>
+      {/* Listing type */}
+      <div className="space-y-2">
+        <SectionLabel>Show</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {LISTING_TYPE_OPTIONS.map((lt) => (
+            <FilterChip
+              key={lt.value}
+              label={lt.label}
+              active={filters.listingType === lt.value}
+              onClick={() => setCollabFilters({ listingType: filters.listingType === lt.value ? undefined : lt.value })}
+            />
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Status */}
       <div className="space-y-2">
@@ -251,23 +249,6 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
           </div>
         </div>
       )}
-
-      {/* Individual filter */}
-      <div className="space-y-2">
-        <SectionLabel>Poster</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          <FilterChip
-            label="INDIVIDUAL"
-            active={filters.isIndividual === true}
-            onClick={() => setCollabFilters({ isIndividual: filters.isIndividual === true ? undefined : true })}
-          />
-          <FilterChip
-            label="TEAM / ORG"
-            active={filters.isIndividual === false}
-            onClick={() => setCollabFilters({ isIndividual: filters.isIndividual === false ? undefined : false })}
-          />
-        </div>
-      </div>
 
       {/* Sort */}
       <div className="space-y-2">

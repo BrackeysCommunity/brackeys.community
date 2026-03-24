@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, eq, ilike } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import {
 	englishDataset,
 	englishRecommendedTransformers,
@@ -265,6 +265,9 @@ export const getMyProfile = os
 		};
 	});
 
+const rateTypeSchema = z.enum(["hourly", "fixed", "negotiable"]);
+const availabilitySchema = z.enum(["full_time", "part_time", "limited"]);
+
 export const updateProfile = os
 	.use(requireAuth)
 	.input(
@@ -274,6 +277,11 @@ export const updateProfile = os
 			githubUrl: z.string().optional(),
 			twitterUrl: z.string().optional(),
 			websiteUrl: z.string().optional(),
+			availableForWork: z.boolean().optional(),
+			availability: availabilitySchema.optional().nullable(),
+			rateType: rateTypeSchema.optional().nullable(),
+			rateMin: z.number().int().min(0).optional().nullable(),
+			rateMax: z.number().int().min(0).optional().nullable(),
 		}),
 	)
 	.handler(async ({ input, context }) => {
@@ -684,4 +692,82 @@ export const setUrlStub = os
 			.returning();
 
 		return upserted;
+	});
+
+export const listAvailableUsers = os
+	.use(authMiddleware)
+	.input(
+		z.object({
+			search: z.string().optional(),
+			sortBy: z.enum(["updatedAt", "createdAt"]).default("updatedAt"),
+			sortOrder: z.enum(["asc", "desc"]).default("desc"),
+			limit: z.number().min(1).max(100).default(20),
+			offset: z.number().min(0).default(0),
+		}),
+	)
+	.handler(async ({ input }) => {
+		const conditions = [eq(developerProfiles.availableForWork, true)];
+
+		if (input.search) {
+			const escaped = escapeLike(input.search);
+			const searchCondition = or(
+				ilike(developerProfiles.discordUsername, `%${escaped}%`),
+				ilike(developerProfiles.tagline, `%${escaped}%`),
+			);
+			if (searchCondition) conditions.push(searchCondition);
+		}
+
+		const where = and(...conditions);
+		const sortColumn =
+			input.sortBy === "createdAt"
+				? developerProfiles.createdAt
+				: developerProfiles.updatedAt;
+		const sortFn = input.sortOrder === "asc" ? asc : desc;
+
+		const users = await db
+			.select()
+			.from(developerProfiles)
+			.where(where)
+			.orderBy(sortFn(sortColumn))
+			.limit(input.limit)
+			.offset(input.offset);
+
+		const [totalResult] = await db
+			.select({ count: count() })
+			.from(developerProfiles)
+			.where(where);
+
+		// Fetch skills for all returned users
+		const userIds = users.map((u) => u.id);
+		const allSkills =
+			userIds.length > 0
+				? await db
+						.select({
+							userId: userSkills.userId,
+							skillId: skills.id,
+							name: skills.name,
+							category: skills.category,
+						})
+						.from(userSkills)
+						.innerJoin(skills, eq(userSkills.skillId, skills.id))
+						.where(sql`${userSkills.userId} IN ${userIds}`)
+				: [];
+
+		const skillsByUser = new Map<
+			string,
+			{ skillId: number; name: string; category: string | null }[]
+		>();
+		for (const s of allSkills) {
+			const list = skillsByUser.get(s.userId) ?? [];
+			list.push({ skillId: s.skillId, name: s.name, category: s.category });
+			skillsByUser.set(s.userId, list);
+		}
+
+		return {
+			users: users.map((u) => ({
+				...u,
+				skills: skillsByUser.get(u.id) ?? [],
+			})),
+			total: totalResult?.count ?? 0,
+		};
 	});

@@ -71,7 +71,6 @@ type PostData = {
   id: number
   authorId: string
   type: string
-  subtype: string | null
   title: string
   description: string
   status: string
@@ -355,11 +354,6 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                     <span className={cn('border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider', TYPE_BADGE_COLORS[post.type] ?? 'bg-muted/20 border-muted/40 text-muted-foreground')}>
                       {post.type}
                     </span>
-                    {post.subtype && (
-                      <span className="bg-muted/20 border border-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {post.subtype}
-                      </span>
-                    )}
                     {post.isIndividual && (
                       <span className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
                         INDIVIDUAL
@@ -382,19 +376,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 </div>
 
                 {/* Contact */}
-                {post.isIndividual && post.author ? (
-                  <>
-                    <SectionHeader>Contact</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 space-y-1">
-                      <p className="font-mono text-[10px] text-muted-foreground">
-                        <span className="text-primary uppercase">Discord DM</span>
-                      </p>
-                      <p className="font-mono text-[10px] text-foreground">
-                        @{post.author.discordUsername}
-                      </p>
-                    </div>
-                  </>
-                ) : (post.contactType || post.contactMethod) ? (
+                {(post.contactType || post.contactMethod) ? (
                   <>
                     <SectionHeader>Contact</SectionHeader>
                     <div className="px-4 py-3 border-b border-muted/30 space-y-1">
@@ -429,36 +411,6 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                   </div>
                 )}
 
-                {/* Individual offering: author profile preview */}
-                {post.isIndividual && post.author && (
-                  <>
-                    <SectionHeader>Author Profile</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-                      <div className="flex items-center gap-3">
-                        {post.author.avatarUrl ? (
-                          <img src={post.author.avatarUrl} alt="" className="w-8 h-8 rounded-full border border-muted/30" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-muted/30 border border-muted/30" />
-                        )}
-                        <div>
-                          <p className="font-mono text-xs font-bold text-foreground">{post.author.discordUsername ?? 'Unknown'}</p>
-                          {post.author.tagline && (
-                            <p className="font-mono text-[10px] text-muted-foreground">{post.author.tagline}</p>
-                          )}
-                        </div>
-                      </div>
-                      {post.author.skills && post.author.skills.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {post.author.skills.slice(0, 6).map((skill) => (
-                            <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
-                              {skill.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
 
                 {/* Roles */}
                 {post.roles && post.roles.length > 0 && (

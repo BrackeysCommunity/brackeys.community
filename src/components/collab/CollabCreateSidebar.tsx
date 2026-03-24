@@ -23,7 +23,6 @@ import {
   type CollabExperienceLevel,
   type CollabPostType,
   type CollabProjectLength,
-  type CollabSubtype,
   type CollabTeamSize,
   collabStore,
   getWizardSteps,
@@ -60,16 +59,6 @@ const POST_TYPES: { value: CollabPostType; label: string; desc: string; icon: Ic
   { value: 'hobby', label: 'HOBBY PROJECT', desc: 'Passion projects & jams', icon: GameController01Icon },
   { value: 'playtest', label: 'PLAYTEST', desc: 'Get feedback on your game', icon: MultiplicationSignIcon },
   { value: 'mentor', label: 'MENTORSHIP', desc: 'Teach or learn from others', icon: UserGroupIcon },
-]
-
-const SUBTYPES: { value: CollabSubtype; label: string }[] = [
-  { value: 'hiring', label: 'HIRING' },
-  { value: 'offering', label: 'OFFERING' },
-]
-
-const MENTOR_SUBTYPES: { value: CollabSubtype; label: string }[] = [
-  { value: 'offering', label: 'I WANT TO MENTOR' },
-  { value: 'hiring', label: 'I WANT A MENTOR' },
 ]
 
 const PLATFORM_OPTIONS = ['PC', 'Mac', 'Linux', 'Web', 'iOS', 'Android', 'PS5', 'Xbox', 'Switch', 'VR']
@@ -173,7 +162,6 @@ async function uploadToStrapi(file: File): Promise<UploadedImage> {
 
 type WizardFormValues = {
   type: CollabPostType | undefined
-  subtype: CollabSubtype | undefined
   title: string
   description: string
   isIndividual: boolean
@@ -459,46 +447,6 @@ function StepTypeAndBasics() {
 
       <form.Field name="type">
         {(typeField) => {
-          const typeVal = typeField.state.value
-          if (typeVal !== 'paid' && typeVal !== 'hobby' && typeVal !== 'mentor') return null
-
-          return (
-            <>
-              <SectionHeader>Direction</SectionHeader>
-              <div className="px-4 py-3 border-b border-muted/30">
-                <form.Field name="subtype">
-                  {(field) => {
-                    const opts = typeVal === 'mentor' ? MENTOR_SUBTYPES : SUBTYPES
-                    return (
-                      <>
-                        <div className="flex gap-1.5">
-                          {opts.map((s) => (
-                            <button
-                              key={s.value}
-                              type="button"
-                              onClick={() => {
-                                field.handleChange(s.value)
-                                updateWizardDraft({ subtype: s.value })
-                              }}
-                              className={`flex-1 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-widest border transition-all ${field.state.value === s.value ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.12)]' : 'bg-muted/5 border-muted/20 text-muted-foreground hover:border-primary/25 hover:text-foreground'}`}
-                            >
-                              {s.label}
-                            </button>
-                          ))}
-                        </div>
-                        <FieldError errors={field.state.meta.errors.map(String)} />
-                      </>
-                    )
-                  }}
-                </form.Field>
-              </div>
-            </>
-          )
-        }}
-      </form.Field>
-
-      <form.Field name="type">
-        {(typeField) => {
           if (!typeField.state.value) return null
           return (
             <>
@@ -574,7 +522,7 @@ function StepTypeAndBasics() {
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
-                placeholder="Describe what you're looking for or offering..."
+                placeholder="Describe what you're looking for..."
                 maxLength={5000}
                 rows={6}
                 className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
@@ -769,222 +717,6 @@ function StepProjectDetails() {
           </div>
         </>
       )}
-
-      {isIndividual ? (
-        <ContactViaDiscordNotice />
-      ) : (
-        <>
-          <SectionHeader>Contact</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-3">
-            <form.Field name="contactType">
-              {(field) => (
-                <>
-                  <SegmentedControl
-                    label="Contact Type *"
-                    value={field.state.value}
-                    onChange={(v) => field.handleChange(v)}
-                    options={CONTACT_TYPE_OPTIONS}
-                  />
-                  <FieldError errors={field.state.meta.errors.map(String)} />
-                </>
-              )}
-            </form.Field>
-
-            <form.Field name="contactType">
-              {(ctField) => {
-                const ct = ctField.state.value
-                if (!ct) return null
-                return (
-                  <form.Field
-                    name="contactMethod"
-                    validators={{
-                      onChange: ({ value }: { value: string }) => profanityCheck(value, 'Contact method'),
-                    }}
-                  >
-                    {(field) => (
-                      <div className="flex flex-col gap-1">
-                        <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
-                          Contact Info *
-                        </label>
-                        <input
-                          type="text"
-                          value={field.state.value}
-                          onBlur={field.handleBlur}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          placeholder={CONTACT_PLACEHOLDERS[ct as CollabContactType]}
-                          maxLength={500}
-                          className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
-                        />
-                        <FieldError errors={field.state.meta.errors.map(String)} />
-                      </div>
-                    )}
-                  </form.Field>
-                )
-              }}
-            </form.Field>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function StepYourProfile() {
-  const form = useWizardForm()
-  const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type)
-  const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType)
-  const isIndividual = useStore(form.store, (s: AnyFormStore) => s.values.isIndividual)
-
-  const { data: profile, isLoading } = useQuery({
-    ...orpc.getMyProfile.queryOptions({ input: {} }),
-  })
-
-  const p = profile?.profile
-  const completenessItems = [
-    { label: 'Avatar', ok: !!p?.avatarUrl },
-    { label: 'Bio', ok: !!p?.bio },
-    { label: 'Tagline', ok: !!p?.tagline },
-    { label: 'Skills', ok: (profile?.skills?.length ?? 0) > 0 },
-    { label: 'Projects', ok: (profile?.projects?.length ?? 0) > 0 },
-    { label: 'GitHub', ok: !!p?.githubUrl },
-    { label: 'Twitter', ok: !!p?.twitterUrl },
-    { label: 'Website', ok: !!p?.websiteUrl },
-  ]
-  const completenessScore = completenessItems.filter((i) => i.ok).length
-
-  return (
-    <div className="space-y-0">
-      <SectionHeader>Your Profile</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-3">
-        {isLoading ? (
-          <div className="py-4 text-center">
-            <span className="font-mono text-[10px] text-muted-foreground animate-pulse tracking-widest uppercase">
-              Loading profile...
-            </span>
-          </div>
-        ) : profile ? (
-          <>
-            <div className="border border-muted/30 bg-muted/10 p-3 space-y-2">
-              <div className="flex items-center gap-3">
-                {p?.avatarUrl ? (
-                  <img src={p.avatarUrl} alt="" className="w-10 h-10 rounded-full border border-muted/30" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-muted/30 border border-muted/30" />
-                )}
-                <div>
-                  <p className="font-mono text-xs font-bold text-foreground">{p?.discordUsername ?? 'Unknown'}</p>
-                  {p?.tagline && (
-                    <p className="font-mono text-[10px] text-muted-foreground">{p.tagline}</p>
-                  )}
-                </div>
-              </div>
-              {profile.skills && profile.skills.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {profile.skills.slice(0, 6).map((skill: { id: number; name: string }) => (
-                    <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
-                      {skill.name}
-                    </span>
-                  ))}
-                  {profile.skills.length > 6 && (
-                    <span className="font-mono text-[10px] text-muted-foreground">+{profile.skills.length - 6}</span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
-                  Profile Completeness
-                </span>
-                <span className="font-mono text-[10px] text-primary">{completenessScore}/8</span>
-              </div>
-              <div className="flex gap-0.5">
-                {completenessItems.map((item, i) => (
-                  <div key={i} className={`h-1.5 flex-1 ${item.ok ? 'bg-primary' : 'bg-muted/30'}`} title={item.label} />
-                ))}
-              </div>
-            </div>
-
-            {completenessScore < 5 && (
-              <div className="border border-brackeys-yellow/30 bg-brackeys-yellow/5 p-3 space-y-2">
-                <p className="font-mono text-[10px] text-brackeys-yellow">
-                  Your profile is your pitch — a complete profile gets more responses.
-                </p>
-                <a
-                  href="/profile"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block font-mono text-[10px] text-primary hover:underline tracking-wider uppercase"
-                >
-                  Edit Profile &rarr;
-                </a>
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="font-mono text-[10px] text-muted-foreground/50">No profile found. Create one first.</p>
-        )}
-      </div>
-
-      {typeVal === 'paid' && (
-        <>
-          <SectionHeader>Compensation</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-3">
-            <form.Field name="compensationType">
-              {(field) => (
-                <>
-                  <SegmentedControl
-                    label="Compensation Type *"
-                    value={field.state.value}
-                    onChange={(v) => field.handleChange(v)}
-                    options={COMPENSATION_TYPE_OPTIONS}
-                  />
-                  <FieldError errors={field.state.meta.errors.map(String)} />
-                </>
-              )}
-            </form.Field>
-
-            {compensationType && compensationType !== 'negotiable' && (
-              <form.Field name="compensationMin">
-                {(minField) => (
-                  <form.Field name="compensationMax">
-                    {(maxField) => (
-                      <>
-                        <CompensationRangeSelector
-                          compensationType={compensationType}
-                          min={minField.state.value}
-                          max={maxField.state.value}
-                          onMinChange={(v) => minField.handleChange(v)}
-                          onMaxChange={(v) => maxField.handleChange(v)}
-                        />
-                        <FieldError errors={minField.state.meta.errors.map(String)} />
-                      </>
-                    )}
-                  </form.Field>
-                )}
-              </form.Field>
-            )}
-          </div>
-        </>
-      )}
-
-      <SectionHeader>Availability</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-3">
-        <form.Field name="projectLength">
-          {(field) => (
-            <>
-              <SegmentedControl
-                label="How long are you available? *"
-                value={field.state.value}
-                onChange={(v) => field.handleChange(v)}
-                options={PROJECT_LENGTH_OPTIONS}
-              />
-              <FieldError errors={field.state.meta.errors.map(String)} />
-            </>
-          )}
-        </form.Field>
-      </div>
 
       {isIndividual ? (
         <ContactViaDiscordNotice />
@@ -1441,7 +1173,6 @@ function StepReview() {
               </p>
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {v.type && <ReviewBadge value={v.type} />}
-                {v.subtype && <ReviewBadge value={v.subtype} />}
                 {v.isIndividual && <ReviewBadge value="Individual" />}
               </div>
             </div>
@@ -1561,7 +1292,6 @@ function getStepValidationError(stepId: string, v: WizardFormValues): string | n
   switch (stepId) {
     case 'basics': {
       if (!v.type) return 'Please select a post type.'
-      if ((v.type === 'paid' || v.type === 'hobby' || v.type === 'mentor') && !v.subtype) return 'Please select a direction.'
       if (!v.title.trim()) return 'Please enter a title.'
       if (v.title.trim().length < 10) return 'Title must be at least 10 characters.'
       if (!v.description.trim()) return 'Please enter a description.'
@@ -1589,22 +1319,6 @@ function getStepValidationError(stepId: string, v: WizardFormValues): string | n
       }
       const nameCheck = profanityCheck(v.projectName, 'Project name')
       if (nameCheck) return nameCheck
-      if (v.contactMethod) {
-        const contactCheck = profanityCheck(v.contactMethod, 'Contact method')
-        if (contactCheck) return contactCheck
-      }
-      break
-    }
-    case 'profile': {
-      if (v.type === 'paid') {
-        if (!v.compensationType) return 'Please select a compensation type.'
-        if (v.compensationType !== 'negotiable' && v.compensationMin === undefined) return 'Please select a compensation range.'
-      }
-      if (!v.projectLength) return 'Please select your availability.'
-      if (!v.isIndividual) {
-        if (!v.contactType) return 'Please select a contact type.'
-        if (!v.contactMethod.trim()) return 'Please enter contact info.'
-      }
       if (v.contactMethod) {
         const contactCheck = profanityCheck(v.contactMethod, 'Contact method')
         if (contactCheck) return contactCheck
@@ -1684,7 +1398,6 @@ function AuthenticatedSidebar() {
   const form = useForm({
     defaultValues: {
       type: wizard.draft.type,
-      subtype: wizard.draft.subtype,
       title: wizard.draft.title,
       description: wizard.draft.description,
       isIndividual: wizard.draft.isIndividual,
@@ -1716,7 +1429,6 @@ function AuthenticatedSidebar() {
 
       const post = await client.createPost({
         type: v.type!,
-        subtype: v.subtype,
         title: v.title,
         description: v.description,
         projectName: v.projectName || undefined,
@@ -1756,14 +1468,13 @@ function AuthenticatedSidebar() {
 
   // Sync key fields to store so CollabCreatePage can compute steps
   const formType = useStore(form.store, (s) => s.values.type)
-  const formSubtype = useStore(form.store, (s) => s.values.subtype)
   const formIsIndividual = useStore(form.store, (s) => s.values.isIndividual)
 
   useEffect(() => {
-    updateWizardDraft({ type: formType, subtype: formSubtype, isIndividual: formIsIndividual })
-  }, [formType, formSubtype, formIsIndividual])
+    updateWizardDraft({ type: formType, isIndividual: formIsIndividual })
+  }, [formType, formIsIndividual])
 
-  const steps = getWizardSteps({ type: formType, subtype: formSubtype, isIndividual: formIsIndividual })
+  const steps = getWizardSteps({ type: formType })
   const currentStepDef = steps[wizard.step]
   const isLastStep = wizard.step === steps.length - 1
 
@@ -1797,8 +1508,6 @@ function AuthenticatedSidebar() {
         return <StepTypeAndBasics />
       case 'details':
         return <StepProjectDetails />
-      case 'profile':
-        return <StepYourProfile />
       case 'playtest':
         return <StepPlaytestDetails />
       case 'mentor':

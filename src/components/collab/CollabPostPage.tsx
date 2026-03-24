@@ -216,36 +216,6 @@ export function CollabPostPage() {
             </div>
           )}
 
-          {/* Individual offering: about the author */}
-          {post.isIndividual && post.author && (
-            <div className="space-y-2">
-              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">// About the Author</span>
-              <div className="border border-muted/30 bg-muted/10 p-3 space-y-2">
-                <div className="flex items-center gap-3">
-                  {post.author.avatarUrl ? (
-                    <img src={post.author.avatarUrl} alt="" className="w-10 h-10 rounded-full border border-muted/30" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-muted/30 border border-muted/30" />
-                  )}
-                  <div>
-                    <p className="font-mono text-sm font-bold text-foreground">{post.author.discordUsername ?? 'Unknown'}</p>
-                    {post.author.tagline && (
-                      <p className="font-mono text-xs text-muted-foreground">{post.author.tagline}</p>
-                    )}
-                  </div>
-                </div>
-                {post.author.skills && post.author.skills.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {post.author.skills.map((skill: { id: number; name: string }) => (
-                      <span key={skill.id} className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
-                        {skill.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </>

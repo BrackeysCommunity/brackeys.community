@@ -5,7 +5,6 @@ interface CollabPostCardProps {
   post: {
     id: number
     type: string
-    subtype: string | null
     title: string
     status: string
     featuredAt: string | Date | null
@@ -81,11 +80,6 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
         <span className={cn('inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider', TYPE_COLORS[post.type] ?? 'bg-muted/30 border-muted/50 text-muted-foreground')}>
           {post.type}
         </span>
-        {post.subtype && (
-          <span className="inline-block bg-muted/30 border border-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-            {post.subtype}
-          </span>
-        )}
         {post.isIndividual && (
           <span className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
             INDIVIDUAL
@@ -126,6 +120,113 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
             {responseCount} {responseCount === 1 ? 'response' : 'responses'}
           </span>
         )}
+      </div>
+    </Link>
+  )
+}
+
+interface CollabUserCardProps {
+  user: {
+    id: string
+    discordUsername: string | null
+    avatarUrl: string | null
+    tagline: string | null
+    availability: string | null
+    rateType: string | null
+    rateMin: number | null
+    rateMax: number | null
+    updatedAt: Date | string
+  }
+  skills?: { skillId: number; name: string }[]
+}
+
+const AVAILABILITY_LABELS: Record<string, string> = {
+  full_time: 'FULL-TIME',
+  part_time: 'PART-TIME',
+  limited: 'LIMITED',
+}
+
+const RATE_TYPE_LABELS: Record<string, string> = {
+  hourly: 'HOURLY',
+  fixed: 'FIXED',
+  negotiable: 'NEGOTIABLE',
+}
+
+function formatUserRate(rateType: string | null, rateMin: number | null, rateMax: number | null): string {
+  if (!rateType || rateType === 'negotiable') return rateType === 'negotiable' ? 'Negotiable' : ''
+  const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`
+  if (rateMin != null && rateMax != null) {
+    const suffix = rateType === 'hourly' ? ' /hr' : ''
+    return `${fmt(rateMin)} - ${fmt(rateMax)}${suffix}`
+  }
+  if (rateMin != null) {
+    const suffix = rateType === 'hourly' ? ' /hr' : ''
+    return `${fmt(rateMin)}+${suffix}`
+  }
+  return ''
+}
+
+export function CollabUserCard({ user, skills }: CollabUserCardProps) {
+  return (
+    <Link
+      to="/profile/$userId"
+      params={{ userId: user.id }}
+      className="block border bg-muted/30 p-3 space-y-2 transition-all hover:bg-muted/40 border-muted"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-muted/30 shrink-0" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-muted/30 border border-muted/30 shrink-0" />
+          )}
+          <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider line-clamp-1">
+            {user.tagline || user.discordUsername || 'Unknown'}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        <span className="inline-block bg-cyan-500/15 border border-cyan-500/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-500 uppercase tracking-wider">
+          AVAILABLE
+        </span>
+        {user.availability && (
+          <span className="inline-block bg-muted/30 border border-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+            {AVAILABILITY_LABELS[user.availability] ?? user.availability}
+          </span>
+        )}
+        {user.rateType && (
+          <span className={cn(
+            'inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider',
+            user.rateType === 'negotiable'
+              ? 'bg-brackeys-yellow/15 border-brackeys-yellow/40 text-brackeys-yellow'
+              : 'bg-green-500/15 border-green-500/40 text-green-500'
+          )}>
+            {RATE_TYPE_LABELS[user.rateType] ?? user.rateType}
+          </span>
+        )}
+      </div>
+
+      {skills && skills.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {skills.slice(0, 3).map((skill) => (
+            <span key={skill.skillId} className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+              {skill.name}
+            </span>
+          ))}
+          {skills.length > 3 && (
+            <span className="font-mono text-[10px] text-muted-foreground">+{skills.length - 3}</span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {formatUserRate(user.rateType, user.rateMin, user.rateMax)}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {timeAgo(user.updatedAt)}
+        </span>
       </div>
     </Link>
   )

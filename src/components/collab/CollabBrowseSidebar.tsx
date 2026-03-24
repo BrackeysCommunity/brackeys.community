@@ -17,7 +17,7 @@ import { collabStore } from '@/lib/collab-store'
 import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
 import { client } from '@/orpc/client'
 import { FilterContent } from './CollabBrowsePage'
-import { CollabPostCard } from './CollabPostCard'
+import { CollabPostCard, CollabUserCard } from './CollabPostCard'
 
 const PAGE_SIZE = 20
 
@@ -38,7 +38,6 @@ export function CollabBrowseSidebar() {
     queryFn: ({ pageParam = 0 }) =>
       client.listPosts({
         type: filters.type,
-        subtype: filters.subtype,
         status: filters.status,
         search: filters.search || undefined,
         experienceLevel: filters.experienceLevel,
@@ -56,6 +55,33 @@ export function CollabBrowseSidebar() {
       return fetched
     },
     staleTime: 15 * 1000,
+    enabled: filters.listingType !== 'people',
+  })
+
+  const {
+    data: userData,
+    isLoading: isLoadingUsers,
+    fetchNextPage: fetchNextUserPage,
+    hasNextPage: hasNextUserPage,
+    isFetchingNextPage: isFetchingNextUserPage,
+  } = useInfiniteQuery({
+    queryKey: ['listAvailableUsers', filters],
+    queryFn: ({ pageParam = 0 }) =>
+      client.listAvailableUsers({
+        search: filters.search || undefined,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
+        limit: PAGE_SIZE,
+        offset: pageParam as number,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.length * PAGE_SIZE
+      if (fetched >= (lastPage.total ?? 0)) return undefined
+      return fetched
+    },
+    staleTime: 15 * 1000,
+    enabled: filters.listingType !== 'posts',
   })
 
   const allPosts = useMemo(
@@ -64,9 +90,38 @@ export function CollabBrowseSidebar() {
   )
   const total = data?.pages[0]?.total ?? 0
 
+  const allUsers = useMemo(
+    () => userData?.pages.flatMap((p) => p.users) ?? [],
+    [userData],
+  )
+  const userTotal = userData?.pages[0]?.total ?? 0
+
+  type BrowseItem =
+    | { kind: 'post'; post: (typeof allPosts)[number] }
+    | { kind: 'user'; user: (typeof allUsers)[number] }
+
+  const items: BrowseItem[] = useMemo(() => {
+    const postItems: BrowseItem[] = allPosts.map((post) => ({ kind: 'post' as const, post }))
+    const userItems: BrowseItem[] = allUsers.map((user) => ({ kind: 'user' as const, user }))
+
+    if (filters.listingType === 'posts') return postItems
+    if (filters.listingType === 'people') return userItems
+
+    // Interleave by date (most recent first)
+    const all = [...postItems, ...userItems]
+    all.sort((a, b) => {
+      const dateA = a.kind === 'post' ? new Date(a.post.createdAt ?? 0) : new Date(a.user.updatedAt)
+      const dateB = b.kind === 'post' ? new Date(b.post.createdAt ?? 0) : new Date(b.user.updatedAt)
+      return dateB.getTime() - dateA.getTime()
+    })
+    return all
+  }, [allPosts, allUsers, filters.listingType])
+
+  const combinedTotal = (filters.listingType !== 'people' ? total : 0) + (filters.listingType !== 'posts' ? userTotal : 0)
+
   const activeFilterCount = [
     filters.type,
-    filters.subtype,
+    filters.listingType,
     filters.status,
     filters.experienceLevel,
     filters.compensationType,
@@ -74,8 +129,12 @@ export function CollabBrowseSidebar() {
     filters.search,
   ].filter(Boolean).length
 
+  const combinedIsLoading = (filters.listingType !== 'people' && isLoading) || (filters.listingType !== 'posts' && isLoadingUsers)
+  const combinedHasNextPage = (hasNextPage && filters.listingType !== 'people') || (hasNextUserPage && filters.listingType !== 'posts')
+  const combinedIsFetchingNextPage = isFetchingNextPage || isFetchingNextUserPage
+
   const virtualizer = useVirtualizer({
-    count: hasNextPage ? allPosts.length + 1 : allPosts.length,
+    count: combinedHasNextPage ? items.length + 1 : items.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 110,
     overscan: 5,
@@ -87,17 +146,18 @@ export function CollabBrowseSidebar() {
   useEffect(() => {
     const lastItem = virtualItems[virtualItems.length - 1]
     if (!lastItem) return
-    if (lastItem.index >= allPosts.length - 1 && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage()
+    if (lastItem.index >= items.length - 1 && !combinedIsFetchingNextPage) {
+      if (hasNextPage && filters.listingType !== 'people') fetchNextPage()
+      if (hasNextUserPage && filters.listingType !== 'posts') fetchNextUserPage()
     }
-  }, [virtualItems, allPosts.length, hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [virtualItems, items.length, hasNextPage, hasNextUserPage, combinedIsFetchingNextPage, fetchNextPage, fetchNextUserPage, filters.listingType])
 
   return (
     <div className="flex h-full flex-col p-4 sm:p-6 selection:bg-primary selection:text-white pointer-events-auto relative">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 shrink-0">
         <span className="font-mono text-[11px] tracking-widest text-foreground uppercase">
-          {!isLoading && total > 0 && `${total} POST${total !== 1 ? 'S' : ''}`}
+          {!combinedIsLoading && combinedTotal > 0 && `${combinedTotal} RESULT${combinedTotal !== 1 ? 'S' : ''}`}
         </span>
         <button
           type="button"
@@ -143,7 +203,7 @@ export function CollabBrowseSidebar() {
         ref={parentRef}
         className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
-        {isLoading ? (
+        {combinedIsLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -153,11 +213,11 @@ export function CollabBrowseSidebar() {
               />
             ))}
           </div>
-        ) : allPosts.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <span className="font-mono text-4xl text-muted-foreground/40">[ ]</span>
             <p className="font-mono text-xs text-muted-foreground tracking-widest uppercase">
-              No posts match your filters
+              No results match your filters
             </p>
           </div>
         ) : (
@@ -166,7 +226,7 @@ export function CollabBrowseSidebar() {
             style={{ height: `${virtualizer.getTotalSize()}px` }}
           >
             {virtualItems.map((virtualItem) => {
-              const isLoader = virtualItem.index >= allPosts.length
+              const isLoader = virtualItem.index >= items.length
               if (isLoader) {
                 return (
                   <div
@@ -180,17 +240,22 @@ export function CollabBrowseSidebar() {
                   </div>
                 )
               }
-              const post = allPosts[virtualItem.index]
+              const item = items[virtualItem.index]
+              const itemKey = item.kind === 'post' ? `post-${item.post.id}` : `user-${item.user.id}`
               return (
                 <div
-                  key={post.id}
+                  key={itemKey}
                   className="absolute top-0 left-0 w-full"
                   style={{
                     height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <CollabPostCard post={post} />
+                  {item.kind === 'post' ? (
+                    <CollabPostCard post={item.post} />
+                  ) : (
+                    <CollabUserCard user={item.user} skills={item.user.skills} />
+                  )}
                 </div>
               )
             })}

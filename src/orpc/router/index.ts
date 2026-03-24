@@ -16,6 +16,7 @@ import {
   addJamParticipation,
   removeJamParticipation,
   setUrlStub,
+  listAvailableUsers,
 } from './profile'
 import {
   syncGitHubLink,
@@ -69,6 +70,7 @@ export default {
   addJamParticipation,
   removeJamParticipation,
   setUrlStub,
+  listAvailableUsers,
   syncGitHubLink,
   unlinkGitHub,
   getContributions,

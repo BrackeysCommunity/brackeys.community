@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CharCount } from "@/components/ui/form-primitives";
+import { Spinner } from "@/components/ui/spinner";
 import { env } from "@/env";
 import { authClient } from "@/lib/auth-client";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
@@ -51,6 +52,11 @@ interface ProfileEditFormProps {
 		githubUrl: string | null;
 		twitterUrl: string | null;
 		websiteUrl: string | null;
+		availableForWork: boolean | null;
+		availability: string | null;
+		rateType: string | null;
+		rateMin: number | null;
+		rateMax: number | null;
 		createdAt: Date;
 		updatedAt: Date;
 	};
@@ -187,6 +193,7 @@ function LinkInput({
 type LinkedAccount = NonNullable<
 	ProfileEditFormProps["linkedAccounts"]
 >[number];
+type LinkProvider = "github" | "itchio";
 
 function LinkedAccountRow({
 	icon,
@@ -194,6 +201,8 @@ function LinkedAccountRow({
 	providerLabel,
 	onLink,
 	onUnlink,
+	linking,
+	linkDisabled,
 	unlinking,
 	extra,
 }: {
@@ -202,6 +211,8 @@ function LinkedAccountRow({
 	providerLabel: string;
 	onLink: () => void;
 	onUnlink: () => void;
+	linking: boolean;
+	linkDisabled: boolean;
 	unlinking: boolean;
 	extra?: React.ReactNode;
 }) {
@@ -251,15 +262,23 @@ function LinkedAccountRow({
 			<button
 				type="button"
 				onClick={onLink}
-				className="w-full flex items-center justify-center gap-2 bg-muted/5 border border-dashed border-muted/20 px-2.5 py-2.5 hover:border-primary/30 hover:bg-muted/10 transition-all group/link-btn"
+				disabled={linkDisabled}
+				aria-busy={linking}
+				className="w-full flex items-center justify-center gap-2 bg-muted/5 border border-dashed border-muted/20 px-2.5 py-2.5 hover:border-primary/30 hover:bg-muted/10 transition-all group/link-btn disabled:cursor-wait disabled:opacity-70"
 			>
-				<HugeiconsIcon
-					icon={Link01Icon}
-					size={13}
-					className="text-muted-foreground/30 group-hover/link-btn:text-primary/50 transition-colors"
-				/>
+				{linking ? (
+					<Spinner className="size-3.5 text-primary/70" />
+				) : (
+					<HugeiconsIcon
+						icon={Link01Icon}
+						size={13}
+						className="text-muted-foreground/30 group-hover/link-btn:text-primary/50 transition-colors"
+					/>
+				)}
 				<span className="font-mono text-[10px] text-muted-foreground/40 group-hover/link-btn:text-foreground/60 transition-colors tracking-wider">
-					Link {providerLabel} account
+					{linking
+						? `Redirecting to ${providerLabel}...`
+						: `Link ${providerLabel} account`}
 				</span>
 			</button>
 		</MagneticField>
@@ -285,6 +304,9 @@ export function ProfileEditForm({
 	const [localPendingRequests, setLocalPendingRequests] = useState<string[]>(
 		[],
 	);
+	const [linkingProvider, setLinkingProvider] = useState<LinkProvider | null>(
+		null,
+	);
 	const pendingRequests = useMemo(() => {
 		const all = new Set([...serverPendingNames, ...localPendingRequests]);
 		return Array.from(all);
@@ -293,12 +315,33 @@ export function ProfileEditForm({
 	const [tagline, setTagline] = useState(profile.tagline ?? "");
 	const [bio, setBio] = useState(profile.bio ?? "");
 	const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? "");
+	const [availableForWork, setAvailableForWork] = useState(
+		profile.availableForWork ?? false,
+	);
+	const [availability, setAvailability] = useState(
+		profile.availability ?? "",
+	);
+	const [rateType, setRateType] = useState(profile.rateType ?? "");
+	const [rateMin, setRateMin] = useState(profile.rateMin ?? 0);
+	const [rateMax, setRateMax] = useState(profile.rateMax ?? 0);
 
 	const githubAccount = linkedAccounts?.find((a) => a.provider === "github");
 	const itchIoAccount = linkedAccounts?.find((a) => a.provider === "itchio");
 	const githubUrl =
 		githubAccount?.providerProfileUrl ?? profile.githubUrl ?? "";
 	const itchIoUrl = itchIoAccount?.providerProfileUrl ?? "";
+	const hasPendingLink = linkingProvider !== null;
+
+	useEffect(() => {
+		const handlePageShow = (event: PageTransitionEvent) => {
+			if (event.persisted) {
+				setLinkingProvider(null);
+			}
+		};
+
+		window.addEventListener("pageshow", handlePageShow);
+		return () => window.removeEventListener("pageshow", handlePageShow);
+	}, []);
 
 	useEffect(() => {
 		onCompletenessChange?.(
@@ -554,11 +597,37 @@ export function ProfileEditForm({
 		},
 	});
 
-	const handleLinkGitHub = () => {
-		authClient.signIn.social({
-			provider: "github",
-			callbackURL: "/oauth/github/callback",
-		});
+	const handleLinkGitHub = async () => {
+		if (hasPendingLink) return;
+
+		setLinkingProvider("github");
+
+		try {
+			const result = await authClient.signIn.social({
+				provider: "github",
+				callbackURL: "/oauth/github/callback",
+			});
+
+			if (
+				result &&
+				typeof result === "object" &&
+				"error" in result &&
+				result.error
+			) {
+				const message =
+					typeof result.error === "string"
+						? result.error
+						: result.error.message || "Failed to start GitHub OAuth";
+				throw new Error(message);
+			}
+		} catch (error) {
+			setLinkingProvider(null);
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to start GitHub OAuth",
+			);
+		}
 	};
 
 	const handleLinkItchIo = () => {
@@ -567,6 +636,11 @@ export function ProfileEditForm({
 			toast.error("itch.io integration is not configured");
 			return;
 		}
+
+		if (hasPendingLink) return;
+
+		setLinkingProvider("itchio");
+
 		const redirectUri = `${window.location.origin}/oauth/itchio/callback`;
 		const params = new URLSearchParams({
 			client_id: clientId,
@@ -693,6 +767,188 @@ export function ProfileEditForm({
 				</div>
 			</EditSection>
 
+			<EditSection label="Available for Work">
+				<div className="px-4 py-3 border-b border-muted/30 space-y-3">
+					{/* Toggle */}
+					<MagneticField>
+						<button
+							type="button"
+							onClick={() => {
+								const next = !availableForWork;
+								setAvailableForWork(next);
+								if (!next) {
+									setAvailability("");
+									setRateType("");
+									setRateMin(0);
+									setRateMax(0);
+								}
+								updateMutation.mutate({
+									availableForWork: next,
+									...(!next && {
+										availability: null,
+										rateType: null,
+										rateMin: null,
+										rateMax: null,
+									}),
+								});
+							}}
+							className={cn(
+								"w-full flex items-center justify-between px-2.5 py-2 border transition-all",
+								availableForWork
+									? "bg-cyan-500/5 border-cyan-500/30"
+									: "bg-muted/5 border-muted/15 hover:border-muted/40",
+							)}
+						>
+							<span className="font-mono text-[10px] font-bold tracking-widest uppercase text-muted-foreground/60">
+								Available for hire
+							</span>
+							<div
+								className={cn(
+									"w-8 h-4 rounded-full relative transition-colors",
+									availableForWork ? "bg-cyan-500" : "bg-muted/30",
+								)}
+							>
+								<div
+									className={cn(
+										"absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all",
+										availableForWork ? "left-4" : "left-0.5",
+									)}
+								/>
+							</div>
+						</button>
+					</MagneticField>
+
+					{availableForWork && (
+						<div className="space-y-3">
+							{/* Availability type */}
+							<div className="space-y-1.5">
+								<span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+									Availability
+								</span>
+								<div className="grid grid-cols-3 gap-1.5">
+									{(
+										[
+											["full_time", "Full-Time"],
+											["part_time", "Part-Time"],
+											["limited", "Limited"],
+										] as const
+									).map(([value, label]) => (
+										<button
+											key={value}
+											type="button"
+											onClick={() => {
+												setAvailability(value);
+												updateMutation.mutate({ availability: value });
+											}}
+											className={cn(
+												"px-2 py-1.5 font-mono text-[10px] font-bold tracking-widest uppercase border transition-all text-center",
+												availability === value
+													? "bg-cyan-500/10 border-cyan-500/40 text-cyan-500"
+													: "bg-muted/5 border-muted/15 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
+											)}
+										>
+											{label}
+										</button>
+									))}
+								</div>
+							</div>
+
+							{/* Rate type */}
+							<div className="space-y-1.5">
+								<span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+									Rate Type
+								</span>
+								<div className="grid grid-cols-3 gap-1.5">
+									{(
+										[
+											["hourly", "Hourly"],
+											["fixed", "Fixed"],
+											["negotiable", "Negotiable"],
+										] as const
+									).map(([value, label]) => (
+										<button
+											key={value}
+											type="button"
+											onClick={() => {
+												setRateType(value);
+												if (value === "negotiable") {
+													setRateMin(0);
+													setRateMax(0);
+													updateMutation.mutate({
+														rateType: value,
+														rateMin: null,
+														rateMax: null,
+													});
+												} else {
+													updateMutation.mutate({ rateType: value });
+												}
+											}}
+											className={cn(
+												"px-2 py-1.5 font-mono text-[10px] font-bold tracking-widest uppercase border transition-all text-center",
+												rateType === value
+													? "bg-cyan-500/10 border-cyan-500/40 text-cyan-500"
+													: "bg-muted/5 border-muted/15 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
+											)}
+										>
+											{label}
+										</button>
+									))}
+								</div>
+							</div>
+
+							{/* Rate range (only for hourly/fixed) */}
+							{rateType && rateType !== "negotiable" && (
+								<div className="space-y-1.5">
+									<span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+										Rate Range ($)
+									</span>
+									<div className="grid grid-cols-2 gap-2">
+										<MagneticField>
+											<div className="flex items-center gap-1.5 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 transition-all">
+												<span className="font-mono text-[10px] text-muted-foreground/30">
+													MIN
+												</span>
+												<input
+													type="number"
+													min={0}
+													value={rateMin || ""}
+													onChange={(e) => {
+														const v = Number.parseInt(e.target.value) || 0;
+														setRateMin(v);
+														debouncedSave({ rateMin: v } as never);
+													}}
+													placeholder="0"
+													className="w-full bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+												/>
+											</div>
+										</MagneticField>
+										<MagneticField>
+											<div className="flex items-center gap-1.5 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 transition-all">
+												<span className="font-mono text-[10px] text-muted-foreground/30">
+													MAX
+												</span>
+												<input
+													type="number"
+													min={0}
+													value={rateMax || ""}
+													onChange={(e) => {
+														const v = Number.parseInt(e.target.value) || 0;
+														setRateMax(v);
+														debouncedSave({ rateMax: v } as never);
+													}}
+													placeholder="0"
+													className="w-full bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+												/>
+											</div>
+										</MagneticField>
+									</div>
+								</div>
+							)}
+						</div>
+					)}
+				</div>
+			</EditSection>
+
 			<EditSection label="Profile URL">
 				<div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
 					<MagneticField>
@@ -739,6 +995,8 @@ export function ProfileEditForm({
 						providerLabel="GitHub"
 						onLink={handleLinkGitHub}
 						onUnlink={() => unlinkGitHubMutation.mutate()}
+						linking={linkingProvider === "github"}
+						linkDisabled={hasPendingLink}
 						unlinking={unlinkGitHubMutation.isPending}
 					/>
 					<LinkedAccountRow
@@ -747,6 +1005,8 @@ export function ProfileEditForm({
 						providerLabel="itch.io"
 						onLink={handleLinkItchIo}
 						onUnlink={() => unlinkItchIoMutation.mutate()}
+						linking={linkingProvider === "itchio"}
+						linkDisabled={hasPendingLink}
 						unlinking={unlinkItchIoMutation.isPending}
 						extra={
 							itchIoAccount ? (

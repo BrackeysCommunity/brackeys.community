@@ -31,6 +31,11 @@ interface ProfileData {
 		githubUrl: string | null;
 		twitterUrl: string | null;
 		websiteUrl: string | null;
+		availableForWork: boolean | null;
+		availability: string | null;
+		rateType: string | null;
+		rateMin: number | null;
+		rateMax: number | null;
 		createdAt: Date;
 		updatedAt: Date;
 	};
@@ -250,6 +255,36 @@ export function ProfileViewSidebar({
 									size={96}
 								/>
 							</div>
+
+							{/* Available for Work */}
+							{profile.availableForWork && (
+								<div className="px-5 py-3 border-b border-muted/40">
+									<div className="flex flex-wrap items-center gap-2">
+										<span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-500 font-mono text-[10px] font-bold tracking-widest uppercase">
+											<span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+											Available
+										</span>
+										{profile.availability && (
+											<span className="font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase">
+												{profile.availability === "full_time"
+													? "Full-Time"
+													: profile.availability === "part_time"
+														? "Part-Time"
+														: "Limited"}
+											</span>
+										)}
+										{profile.rateType && (
+											<span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+												{profile.rateType === "negotiable"
+													? "Negotiable"
+													: profile.rateMin || profile.rateMax
+														? `$${profile.rateMin ?? 0}–$${profile.rateMax ?? 0} ${profile.rateType}`
+														: profile.rateType}
+											</span>
+										)}
+									</div>
+								</div>
+							)}
 
 							{/* Roles */}
 							{profile.guildRoles && profile.guildRoles.length > 0 && (
