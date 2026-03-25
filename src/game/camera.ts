@@ -27,15 +27,24 @@ export function createCamera(
 		// Lerp toward target (dt-independent via fixed timestep — lerpSpeed is per-tick)
 		position = lerpVec2(position, targetPos, config.lerpSpeed)
 
-		// Clamp to world bounds, keeping the camera viewport inside
+		// Clamp to world bounds, keeping the camera viewport inside.
+		// If viewport is larger than world on an axis, center on that axis instead.
 		const halfW = (width / zoom) / 2
 		const halfH = (height / zoom) / 2
 
-		position = clampVec2(
-			position,
-			{ x: bounds.min.x + halfW, y: bounds.min.y + halfH },
-			{ x: bounds.max.x - halfW, y: bounds.max.y - halfH },
-		)
+		const worldW = bounds.max.x - bounds.min.x
+		const worldH = bounds.max.y - bounds.min.y
+
+		const clampMin = {
+			x: worldW <= width / zoom ? (bounds.min.x + bounds.max.x) / 2 : bounds.min.x + halfW,
+			y: worldH <= height / zoom ? (bounds.min.y + bounds.max.y) / 2 : bounds.min.y + halfH,
+		}
+		const clampMax = {
+			x: worldW <= width / zoom ? (bounds.min.x + bounds.max.x) / 2 : bounds.max.x - halfW,
+			y: worldH <= height / zoom ? (bounds.min.y + bounds.max.y) / 2 : bounds.max.y - halfH,
+		}
+
+		position = clampVec2(position, clampMin, clampMax)
 
 		// Apply to world container — camera position is inverted (camera moves right → world moves left)
 		worldContainer.position.set(

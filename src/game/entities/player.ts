@@ -7,8 +7,8 @@ const MOVE_SPEED = 300 // px/sec
 const JUMP_VELOCITY = -500 // px/sec (negative = up)
 const GRAVITY = 1200 // px/sec²
 const FLOOR_Y = 500 // hardcoded floor for now
-const PLAYER_WIDTH = 40
-const PLAYER_HEIGHT = 40
+const PLAYER_WIDTH = 60
+const PLAYER_HEIGHT = 60
 
 export type PlayerEntity = {
 	update: (dt: number, actions: InputAction[]) => void

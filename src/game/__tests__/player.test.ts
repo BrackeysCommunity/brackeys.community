@@ -28,20 +28,20 @@ describe("applyPlayerPhysics", () => {
 
 	it("stops at the floor", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 459 }, // just above floor (floor=500, height=40, so 500-40=460)
+			{ x: 400, y: 439 }, // just above floor (floor=500, height=60, so 500-60=440)
 			{ x: 0, y: 100 },
 			[],
 			dt,
 		)
 
 		// Should clamp to floor
-		expect(result.position.y).toBe(460)
+		expect(result.position.y).toBe(440)
 		expect(result.velocity.y).toBe(0)
 	})
 
 	it("moves left when move_left action is active", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 460 },
+			{ x: 400, y: 440 },
 			{ x: 0, y: 0 },
 			[makeAction("move_left")],
 			dt,
@@ -52,7 +52,7 @@ describe("applyPlayerPhysics", () => {
 
 	it("moves right when move_right action is active", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 460 },
+			{ x: 400, y: 440 },
 			{ x: 0, y: 0 },
 			[makeAction("move_right")],
 			dt,
@@ -63,7 +63,7 @@ describe("applyPlayerPhysics", () => {
 
 	it("jumps when on the ground and jump action is active", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 460 }, // on the floor (floor=500, height=40)
+			{ x: 400, y: 440 }, // on the floor (floor=500, height=40)
 			{ x: 0, y: 0 },
 			[makeAction("jump")],
 			dt,
@@ -72,7 +72,7 @@ describe("applyPlayerPhysics", () => {
 		// Should have upward velocity
 		expect(result.velocity.y).toBeLessThan(0)
 		// Should move up
-		expect(result.position.y).toBeLessThan(460)
+		expect(result.position.y).toBeLessThan(440)
 	})
 
 	it("does not jump when in the air", () => {
@@ -91,7 +91,7 @@ describe("applyPlayerPhysics", () => {
 	it("cancels movement on release", () => {
 		// Release move_right
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 460 },
+			{ x: 400, y: 440 },
 			{ x: 300, y: 0 },
 			[makeAction("move_right", false)],
 			dt,
@@ -103,7 +103,7 @@ describe("applyPlayerPhysics", () => {
 
 	it("allows simultaneous left and right (cancel out)", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 460 },
+			{ x: 400, y: 440 },
 			{ x: 0, y: 0 },
 			[makeAction("move_left"), makeAction("move_right")],
 			dt,

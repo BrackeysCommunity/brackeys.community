@@ -62,7 +62,7 @@ export function GameCanvas({ roomId }: GameCanvasProps) {
 	}, [roomId])
 
 	return (
-		<div className="fixed inset-0 z-40">
+		<div className="fixed inset-0 z-[100] bg-[#1a1a2e]">
 			<canvas
 				ref={canvasRef}
 				className="block w-full h-full"

@@ -23,8 +23,8 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 	camera: {
 		lerpSpeed: 0.1,
 		bounds: {
-			min: { x: 0, y: 0 },
-			max: { x: 1600, y: 800 },
+			min: { x: -2000, y: -2000 },
+			max: { x: 4000, y: 2000 },
 		},
 	},
 }

@@ -41,7 +41,9 @@ export async function createRenderer(
 	}
 
 	function destroy(): void {
-		app.destroy(true, { children: true })
+		// Pass false for removeView — React owns the canvas DOM element, not PixiJS.
+		// Passing true causes Strict Mode double-mount to fail (canvas removed on first cleanup).
+		app.destroy(false, { children: true })
 	}
 
 	return { app, worldContainer, uiContainer, resize, destroy }
