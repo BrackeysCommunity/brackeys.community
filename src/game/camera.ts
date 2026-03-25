@@ -1,57 +1,68 @@
 import type { Container } from "pixi.js"
 import { clampVec2, lerpVec2 } from "./math"
 import type { CameraConfig, Vec2 } from "./types"
+import { VIRTUAL_HEIGHT } from "./types"
 
 export type Camera = {
 	update: (dt: number, targetPos: Vec2) => void
 	getPosition: () => Vec2
 	getViewport: () => { x: number; y: number; width: number; height: number }
+	getDisplayScale: () => number
 	setBounds: (min: Vec2, max: Vec2) => void
 	setZoom: (zoom: number) => void
+	resize: (displayWidth: number, displayHeight: number) => void
 	destroy: () => void
 }
 
 export function createCamera(
 	worldContainer: Container,
-	screenWidth: number,
-	screenHeight: number,
+	displayWidth: number,
+	displayHeight: number,
 	config: CameraConfig,
 ): Camera {
 	let position: Vec2 = { x: 0, y: 0 }
 	let zoom = 1
 	let bounds = { min: { ...config.bounds.min }, max: { ...config.bounds.max } }
-	let width = screenWidth
-	let height = screenHeight
+
+	// Expand-viewport scaling: height is anchored to VIRTUAL_HEIGHT,
+	// width expands based on display aspect ratio.
+	let displayScale = displayHeight / VIRTUAL_HEIGHT
+	let viewW = displayWidth / displayScale
+	let viewH = VIRTUAL_HEIGHT
+
+	function recomputeScale(dw: number, dh: number): void {
+		displayScale = dh / VIRTUAL_HEIGHT
+		viewW = dw / displayScale
+		viewH = VIRTUAL_HEIGHT
+	}
 
 	function update(_dt: number, targetPos: Vec2): void {
-		// Lerp toward target (dt-independent via fixed timestep — lerpSpeed is per-tick)
 		position = lerpVec2(position, targetPos, config.lerpSpeed)
 
-		// Clamp to world bounds, keeping the camera viewport inside.
-		// If viewport is larger than world on an axis, center on that axis instead.
-		const halfW = (width / zoom) / 2
-		const halfH = (height / zoom) / 2
+		const effectiveScale = displayScale * zoom
+		const halfW = viewW / (2 * zoom)
+		const halfH = viewH / (2 * zoom)
 
 		const worldW = bounds.max.x - bounds.min.x
 		const worldH = bounds.max.y - bounds.min.y
 
 		const clampMin = {
-			x: worldW <= width / zoom ? (bounds.min.x + bounds.max.x) / 2 : bounds.min.x + halfW,
-			y: worldH <= height / zoom ? (bounds.min.y + bounds.max.y) / 2 : bounds.min.y + halfH,
+			x: worldW <= viewW / zoom ? (bounds.min.x + bounds.max.x) / 2 : bounds.min.x + halfW,
+			y: worldH <= viewH / zoom ? (bounds.min.y + bounds.max.y) / 2 : bounds.min.y + halfH,
 		}
 		const clampMax = {
-			x: worldW <= width / zoom ? (bounds.min.x + bounds.max.x) / 2 : bounds.max.x - halfW,
-			y: worldH <= height / zoom ? (bounds.min.y + bounds.max.y) / 2 : bounds.max.y - halfH,
+			x: worldW <= viewW / zoom ? (bounds.min.x + bounds.max.x) / 2 : bounds.max.x - halfW,
+			y: worldH <= viewH / zoom ? (bounds.min.y + bounds.max.y) / 2 : bounds.max.y - halfH,
 		}
 
 		position = clampVec2(position, clampMin, clampMax)
 
-		// Apply to world container — camera position is inverted (camera moves right → world moves left)
+		// Apply to world container — scale maps game units to display pixels
 		worldContainer.position.set(
-			-position.x * zoom + width / 2,
-			-position.y * zoom + height / 2,
+			-position.x * effectiveScale + (displayScale * viewW) / 2,
+			-position.y * effectiveScale + (displayScale * viewH) / 2,
 		)
-		worldContainer.scale.set(zoom)
+		worldContainer.scale.set(effectiveScale)
 	}
 
 	function getPosition(): Vec2 {
@@ -59,14 +70,18 @@ export function createCamera(
 	}
 
 	function getViewport() {
-		const halfW = (width / zoom) / 2
-		const halfH = (height / zoom) / 2
+		const halfW = viewW / (2 * zoom)
+		const halfH = viewH / (2 * zoom)
 		return {
 			x: position.x - halfW,
 			y: position.y - halfH,
-			width: width / zoom,
-			height: height / zoom,
+			width: viewW / zoom,
+			height: viewH / zoom,
 		}
+	}
+
+	function getDisplayScale(): number {
+		return displayScale
 	}
 
 	function setBounds(min: Vec2, max: Vec2): void {
@@ -77,9 +92,13 @@ export function createCamera(
 		zoom = Math.max(0.1, Math.min(5, z))
 	}
 
-	function destroy(): void {
-		// No resources to release — camera is pure math + container reference
+	function resize(dw: number, dh: number): void {
+		recomputeScale(dw, dh)
 	}
 
-	return { update, getPosition, getViewport, setBounds, setZoom, destroy }
+	function destroy(): void {
+		// No resources to release
+	}
+
+	return { update, getPosition, getViewport, getDisplayScale, setBounds, setZoom, resize, destroy }
 }

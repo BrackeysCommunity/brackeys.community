@@ -1,34 +1,24 @@
-import { Assets, type AssetsManifest } from "pixi.js"
-
-/**
- * Asset manifest for the game. Organized into bundles that can be
- * loaded independently. For now this is mostly empty — placeholder
- * art uses programmatic Graphics. Real sprites get added here.
- */
-const gameManifest: AssetsManifest = {
-	bundles: [
-		{
-			name: "game-core",
-			assets: [
-				// Future: player spritesheet, ground tiles, etc.
-				// { alias: "player-idle", src: "/assets/game/player-idle.json" },
-			],
-		},
-		{
-			name: "ui",
-			assets: [
-				// Future: UI icons, fonts, etc.
-			],
-		},
-	],
-}
+import { Assets } from "pixi.js"
 
 let initialized = false
 
+/**
+ * Register asset bundles. Must be called AFTER Application.init()
+ * since that internally calls Assets.init(). We use addBundle()
+ * to avoid double-init warnings.
+ */
 export async function initAssets(): Promise<void> {
 	if (initialized) return
-	await Assets.init({ manifest: gameManifest })
 	initialized = true
+
+	Assets.addBundle("game-core", [
+		// Future: player spritesheet, ground tiles, etc.
+		// { alias: "player-idle", src: "/assets/game/player-idle.json" },
+	])
+
+	Assets.addBundle("ui", [
+		// Future: UI icons, fonts, etc.
+	])
 }
 
 export async function loadBundle(

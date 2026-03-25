@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react"
 import { useStore } from "@tanstack/react-store"
 import type { Store } from "@tanstack/store"
+import { useEffect, useRef, useState } from "react"
 import type { GameInstance, GameStoreState } from "@/game"
-import { createGame, selectFPS, selectPhase } from "@/game"
+import { createGame, selectDebugMode, selectFPS, selectPhase } from "@/game"
 
 type GameCanvasProps = {
 	roomId: string
@@ -23,9 +23,11 @@ export function GameCanvas({ roomId }: GameCanvasProps) {
 		async function init() {
 			if (!canvas || !mounted) return
 
+			// Display resolution = window size (Native mode).
+			// A future settings UI can override with a fixed resolution.
 			instance = await createGame(canvas, {
-				width: window.innerWidth,
-				height: window.innerHeight,
+				displayWidth: window.innerWidth,
+				displayHeight: window.innerHeight,
 			})
 
 			if (!mounted) {
@@ -40,11 +42,9 @@ export function GameCanvas({ roomId }: GameCanvasProps) {
 
 		init()
 
-		// Handle window resize
 		function handleResize() {
-			if (!canvas) return
-			canvas.width = window.innerWidth
-			canvas.height = window.innerHeight
+			if (!instance) return
+			instance.resize(window.innerWidth, window.innerHeight)
 		}
 
 		window.addEventListener("resize", handleResize)
@@ -59,7 +59,7 @@ export function GameCanvas({ roomId }: GameCanvasProps) {
 			gameRef.current = null
 			setStore(null)
 		}
-	}, [roomId])
+	}, [])
 
 	return (
 		<div className="fixed inset-0 z-[100] bg-[#1a1a2e]">
@@ -81,6 +81,7 @@ function GameHUD({
 }: { store: Store<GameStoreState>; roomId: string }) {
 	const phase = useStore(store, selectPhase)
 	const fps = useStore(store, selectFPS)
+	const debugMode = useStore(store, selectDebugMode)
 
 	return (
 		<div className="fixed top-4 left-4 z-50 pointer-events-none font-mono text-xs space-y-1">
@@ -90,8 +91,14 @@ function GameHUD({
 			<div className="text-muted-foreground/60">
 				{phase === "running" ? `${Math.round(fps)} FPS` : phase}
 			</div>
+			{import.meta.env.DEV && debugMode !== "off" && (
+				<div className="text-cyan-400/70 uppercase tracking-wider">
+					Debug: {debugMode}
+				</div>
+			)}
 			<div className="text-muted-foreground/40 text-[10px] mt-2">
 				WASD / Arrow keys to move · Space to jump
+				{import.meta.env.DEV && " · F3 debug overlay"}
 			</div>
 		</div>
 	)

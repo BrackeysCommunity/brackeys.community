@@ -18,8 +18,8 @@ export async function createRenderer(
 	await app.init({
 		canvas,
 		preference: "webgpu",
-		width: config.width,
-		height: config.height,
+		width: config.displayWidth,
+		height: config.displayHeight,
 		backgroundColor: config.backgroundColor,
 		resolution: window.devicePixelRatio || 1,
 		autoDensity: true,

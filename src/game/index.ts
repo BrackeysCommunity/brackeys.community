@@ -10,7 +10,10 @@ export type {
 	Vec2,
 	InputAction,
 	InputBinding,
+	DebugMode,
+	DisplayResolution,
 } from "./types"
+export { DEBUG_MODES, VIRTUAL_HEIGHT, DISPLAY_RESOLUTIONS } from "./types"
 export {
 	selectPhase,
 	selectPlayers,
@@ -19,4 +22,5 @@ export {
 	selectCamera,
 	selectTick,
 	selectFPS,
+	selectDebugMode,
 } from "./store"

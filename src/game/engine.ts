@@ -16,6 +16,7 @@ import { createInputSystem } from "./input"
 import { createCamera } from "./camera"
 import { createPlayerEntity } from "./entities/player"
 import { initAssets } from "./assets"
+import { createDebugOverlay, type DebugOverlay } from "./debug"
 import type { Store } from "@tanstack/store"
 
 export async function createGame(
@@ -31,17 +32,17 @@ export async function createGame(
 
 	setPhase(store, "loading")
 
-	// Init asset system (manifest registration, no actual loading yet)
-	await initAssets()
-
-	// Renderer
+	// Renderer (must be created first — Application.init() initializes Assets internally)
 	const renderer = await createRenderer(canvas, cfg)
 
-	// Camera
+	// Register asset bundles (after renderer so Assets is already initialized)
+	await initAssets()
+
+	// Camera (display dimensions drive the expand-viewport scaling)
 	const camera = createCamera(
 		renderer.worldContainer,
-		cfg.width,
-		cfg.height,
+		cfg.displayWidth,
+		cfg.displayHeight,
 		cfg.camera,
 	)
 
@@ -57,6 +58,18 @@ export async function createGame(
 		position: player.getPosition(),
 		velocity: { x: 0, y: 0 },
 	})
+
+	// Debug overlay (dev-only, tree-shaken in production)
+	let debugOverlay: DebugOverlay | null = null
+	if (import.meta.env.DEV) {
+		debugOverlay = createDebugOverlay({
+			worldContainer: renderer.worldContainer,
+			uiContainer: renderer.uiContainer,
+			camera,
+			store,
+			inputTarget: window,
+		})
+	}
 
 	// ─── Game loop ────────────────────────────────────────────
 
@@ -85,7 +98,20 @@ export async function createGame(
 				position: camera.getPosition(),
 			})
 
-			// 5. Emit tick event
+			// 5. Update debug overlay
+			if (debugOverlay) {
+				const mousePos = input.getMousePosition()
+				// Convert screen mouse to world coordinates (screen px → game units)
+				const scale = camera.getDisplayScale()
+				const vp = camera.getViewport()
+				const mouseWorld = {
+					x: vp.x + mousePos.x / scale,
+					y: vp.y + mousePos.y / scale,
+				}
+				debugOverlay.update(dt, player.getPosition(), mouseWorld)
+			}
+
+			// 6. Emit tick event
 			events.emit("game:tick", { tick: store.state.tick })
 		},
 
@@ -110,11 +136,18 @@ export async function createGame(
 		events.emit("game:start")
 	}
 
+	function resize(width: number, height: number): void {
+		if (destroyed) return
+		renderer.resize(width, height)
+		camera.resize(width, height)
+	}
+
 	function destroy(): void {
 		if (destroyed) return
 		destroyed = true
 
 		loop.stop()
+		debugOverlay?.destroy()
 		input.destroy()
 		camera.destroy()
 		player.destroy()
@@ -147,5 +180,5 @@ export async function createGame(
 
 	setPhase(store, "idle")
 
-	return { start, destroy, on, off, getStore }
+	return { start, destroy, resize, on, off, getStore }
 }

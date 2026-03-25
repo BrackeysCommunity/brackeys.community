@@ -1,6 +1,7 @@
 import { Store } from "@tanstack/store"
 import type {
 	CameraState,
+	DebugMode,
 	GamePhase,
 	GameStoreState,
 	PlayerInfo,
@@ -25,6 +26,7 @@ function createInitialState(): GameStoreState {
 		camera: { ...INITIAL_CAMERA },
 		tick: 0,
 		fps: 0,
+		debugMode: "off",
 	}
 }
 
@@ -83,6 +85,13 @@ export function setFPS(store: Store<GameStoreState>, fps: number): void {
 	store.setState((s) => ({ ...s, fps }))
 }
 
+export function setDebugMode(
+	store: Store<GameStoreState>,
+	debugMode: DebugMode,
+): void {
+	store.setState((s) => ({ ...s, debugMode }))
+}
+
 export function resetGameStore(store: Store<GameStoreState>): void {
 	store.setState(() => createInitialState())
 }
@@ -123,4 +132,8 @@ export function selectPlayerPosition(
 	id: string,
 ): Vec2 | undefined {
 	return state.players[id]?.position
+}
+
+export function selectDebugMode(state: GameStoreState): DebugMode {
+	return state.debugMode
 }

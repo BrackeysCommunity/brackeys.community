@@ -2,11 +2,31 @@
 
 export type Vec2 = { x: number; y: number }
 
+// ─── Virtual Resolution ──────────────────────────────────
+// The game world is designed around a fixed virtual height.
+// Width is derived from the display aspect ratio (expand-viewport).
+// Players with wider screens see more horizontally — no letterboxing.
+
+export const VIRTUAL_HEIGHT = 1080
+
+export type DisplayResolution = {
+	width: number
+	height: number
+	label: string
+}
+
+export const DISPLAY_RESOLUTIONS: DisplayResolution[] = [
+	{ width: 1280, height: 720, label: "720p" },
+	{ width: 1920, height: 1080, label: "1080p" },
+	{ width: 2560, height: 1440, label: "1440p" },
+	{ width: 0, height: 0, label: "Native" }, // 0x0 = use window size
+]
+
 // ─── Config ──────────────────────────────────────────────
 
 export type GameConfig = {
-	width: number
-	height: number
+	displayWidth: number
+	displayHeight: number
 	backgroundColor: number
 	targetFPS: number
 	maxDeltaTime: number
@@ -15,8 +35,8 @@ export type GameConfig = {
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
-	width: 800,
-	height: 600,
+	displayWidth: 1920,
+	displayHeight: 1080,
 	backgroundColor: 0x1a1a2e,
 	targetFPS: 60,
 	maxDeltaTime: 250,
@@ -63,6 +83,23 @@ export const DEFAULT_BINDINGS: InputBinding[] = [
 	{ action: "move_down", keys: ["ArrowDown", "s"] },
 ]
 
+// ─── Debug ───────────────────────────────────────────────
+
+export type DebugMode =
+	| "off"
+	| "grid"
+	| "grid+physics"
+	| "grid+physics+arcs"
+	| "all"
+
+export const DEBUG_MODES: DebugMode[] = [
+	"off",
+	"grid",
+	"grid+physics",
+	"grid+physics+arcs",
+	"all",
+]
+
 // ─── Events ──────────────────────────────────────────────
 
 export type GameEventMap = {
@@ -90,6 +127,7 @@ export type GameStoreState = {
 	camera: CameraState
 	tick: number
 	fps: number
+	debugMode: DebugMode
 }
 
 // ─── Game Instance ───────────────────────────────────────
@@ -97,6 +135,7 @@ export type GameStoreState = {
 export type GameInstance = {
 	start: () => void
 	destroy: () => void
+	resize: (width: number, height: number) => void
 	on: <K extends keyof GameEventMap>(
 		event: K,
 		handler: (payload: GameEventMap[K]) => void,

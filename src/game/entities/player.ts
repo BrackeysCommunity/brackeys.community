@@ -3,10 +3,10 @@ import type { InputAction, Vec2 } from "../types"
 
 // ─── Physics constants (placeholder — will be replaced by Rapier) ────
 
-const MOVE_SPEED = 300 // px/sec
-const JUMP_VELOCITY = -500 // px/sec (negative = up)
-const GRAVITY = 1200 // px/sec²
-const FLOOR_Y = 500 // hardcoded floor for now
+const MOVE_SPEED = 300 // game units/sec
+const JUMP_VELOCITY = -500 // game units/sec (negative = up)
+const GRAVITY = 1200 // game units/sec²
+const FLOOR_Y = 1020 // near bottom of 1080-unit virtual height (1080 - 60)
 const PLAYER_WIDTH = 60
 const PLAYER_HEIGHT = 60
 
@@ -81,7 +81,7 @@ export function createPlayerEntity(worldContainer: Container): PlayerEntity {
 
 	worldContainer.addChild(graphics)
 
-	let position: Vec2 = { x: 400, y: FLOOR_Y - PLAYER_HEIGHT }
+	let position: Vec2 = { x: 960, y: FLOOR_Y - PLAYER_HEIGHT }
 	let velocity: Vec2 = { x: 0, y: 0 }
 
 	// Track held keys across ticks (since actions are press/release events)

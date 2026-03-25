@@ -28,20 +28,20 @@ describe("applyPlayerPhysics", () => {
 
 	it("stops at the floor", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 439 }, // just above floor (floor=500, height=60, so 500-60=440)
+			{ x: 400, y: 959 }, // just above floor (FLOOR_Y=1020, height=60, so 1020-60=960)
 			{ x: 0, y: 100 },
 			[],
 			dt,
 		)
 
 		// Should clamp to floor
-		expect(result.position.y).toBe(440)
+		expect(result.position.y).toBe(960)
 		expect(result.velocity.y).toBe(0)
 	})
 
 	it("moves left when move_left action is active", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 440 },
+			{ x: 400, y: 960 },
 			{ x: 0, y: 0 },
 			[makeAction("move_left")],
 			dt,
@@ -52,7 +52,7 @@ describe("applyPlayerPhysics", () => {
 
 	it("moves right when move_right action is active", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 440 },
+			{ x: 400, y: 960 },
 			{ x: 0, y: 0 },
 			[makeAction("move_right")],
 			dt,
@@ -63,7 +63,7 @@ describe("applyPlayerPhysics", () => {
 
 	it("jumps when on the ground and jump action is active", () => {
 		const result = applyPlayerPhysics(
-			{ x: 400, y: 440 }, // on the floor (floor=500, height=40)
+			{ x: 400, y: 960 }, // on the floor (FLOOR_Y=1020, height=60, 1020-60=960)
 			{ x: 0, y: 0 },
 			[makeAction("jump")],
 			dt,
@@ -72,7 +72,7 @@ describe("applyPlayerPhysics", () => {
 		// Should have upward velocity
 		expect(result.velocity.y).toBeLessThan(0)
 		// Should move up
-		expect(result.position.y).toBeLessThan(440)
+		expect(result.position.y).toBeLessThan(960)
 	})
 
 	it("does not jump when in the air", () => {
