@@ -10,12 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as GameRouteImport } from './routes/game'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
+import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
+import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
 import { Route as DemoTanstackQueryRouteImport } from './routes/demo/tanstack-query'
 import { Route as DemoTableRouteImport } from './routes/demo/table'
 import { Route as DemoStrapiRouteImport } from './routes/demo/strapi'
@@ -42,6 +45,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GameRoute = GameRouteImport.update({
+  id: '/game',
+  path: '/game',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CommandCenterRoute = CommandCenterRouteImport.update({
   id: '/command-center',
   path: '/command-center',
@@ -62,6 +70,11 @@ const ProfileIndexRoute = ProfileIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProfileRoute,
 } as any)
+const GameIndexRoute = GameIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GameRoute,
+} as any)
 const CollabIndexRoute = CollabIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -71,6 +84,11 @@ const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
   getParentRoute: () => ProfileRoute,
+} as any)
+const GameRoomIdRoute = GameRoomIdRouteImport.update({
+  id: '/$roomId',
+  path: '/$roomId',
+  getParentRoute: () => GameRoute,
 } as any)
 const DemoTanstackQueryRoute = DemoTanstackQueryRouteImport.update({
   id: '/demo/tanstack-query',
@@ -177,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
+  '/game': typeof GameRouteWithChildren
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -190,8 +209,10 @@ export interface FileRoutesByFullPath {
   '/demo/strapi': typeof DemoStrapiRoute
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/collab/': typeof CollabIndexRoute
+  '/game/': typeof GameIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -217,8 +238,10 @@ export interface FileRoutesByTo {
   '/demo/strapi': typeof DemoStrapiRoute
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/collab': typeof CollabIndexRoute
+  '/game': typeof GameIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -234,6 +257,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
+  '/game': typeof GameRouteWithChildren
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -247,8 +271,10 @@ export interface FileRoutesById {
   '/demo/strapi': typeof DemoStrapiRoute
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/collab/': typeof CollabIndexRoute
+  '/game/': typeof GameIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -265,6 +291,7 @@ export interface FileRouteTypes {
     | '/'
     | '/collab'
     | '/command-center'
+    | '/game'
     | '/profile'
     | '/api/$'
     | '/collab/$postId'
@@ -278,8 +305,10 @@ export interface FileRouteTypes {
     | '/demo/strapi'
     | '/demo/table'
     | '/demo/tanstack-query'
+    | '/game/$roomId'
     | '/profile/$userId'
     | '/collab/'
+    | '/game/'
     | '/profile/'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -305,8 +334,10 @@ export interface FileRouteTypes {
     | '/demo/strapi'
     | '/demo/table'
     | '/demo/tanstack-query'
+    | '/game/$roomId'
     | '/profile/$userId'
     | '/collab'
+    | '/game'
     | '/profile'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -321,6 +352,7 @@ export interface FileRouteTypes {
     | '/'
     | '/collab'
     | '/command-center'
+    | '/game'
     | '/profile'
     | '/api/$'
     | '/collab/$postId'
@@ -334,8 +366,10 @@ export interface FileRouteTypes {
     | '/demo/strapi'
     | '/demo/table'
     | '/demo/tanstack-query'
+    | '/game/$roomId'
     | '/profile/$userId'
     | '/collab/'
+    | '/game/'
     | '/profile/'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -351,6 +385,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
+  GameRoute: typeof GameRouteWithChildren
   ProfileRoute: typeof ProfileRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
   DemoBetterAuthRoute: typeof DemoBetterAuthRoute
@@ -381,6 +416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/game': {
+      id: '/game'
+      path: '/game'
+      fullPath: '/game'
+      preLoaderRoute: typeof GameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/command-center': {
       id: '/command-center'
       path: '/command-center'
@@ -409,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileIndexRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/game/': {
+      id: '/game/'
+      path: '/'
+      fullPath: '/game/'
+      preLoaderRoute: typeof GameIndexRouteImport
+      parentRoute: typeof GameRoute
+    }
     '/collab/': {
       id: '/collab/'
       path: '/'
@@ -422,6 +471,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/$userId'
       preLoaderRoute: typeof ProfileUserIdRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/game/$roomId': {
+      id: '/game/$roomId'
+      path: '/$roomId'
+      fullPath: '/game/$roomId'
+      preLoaderRoute: typeof GameRoomIdRouteImport
+      parentRoute: typeof GameRoute
     }
     '/demo/tanstack-query': {
       id: '/demo/tanstack-query'
@@ -581,6 +637,18 @@ const CollabRouteChildren: CollabRouteChildren = {
 const CollabRouteWithChildren =
   CollabRoute._addFileChildren(CollabRouteChildren)
 
+interface GameRouteChildren {
+  GameRoomIdRoute: typeof GameRoomIdRoute
+  GameIndexRoute: typeof GameIndexRoute
+}
+
+const GameRouteChildren: GameRouteChildren = {
+  GameRoomIdRoute: GameRoomIdRoute,
+  GameIndexRoute: GameIndexRoute,
+}
+
+const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
+
 interface ProfileRouteChildren {
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
@@ -598,6 +666,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
+  GameRoute: GameRouteWithChildren,
   ProfileRoute: ProfileRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,
   DemoBetterAuthRoute: DemoBetterAuthRoute,
