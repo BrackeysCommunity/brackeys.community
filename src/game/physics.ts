@@ -79,6 +79,15 @@ export function createPhysicsWorld(
 	const groundColliderDesc = RAPIER.ColliderDesc.cuboid(3000, 20)
 	world.createCollider(groundColliderDesc, groundBody)
 
+	// ─── Test wall (static) ──────────────────────────────
+	// Tall vertical wall for wall-slide / wall-jump testing.
+	// Positioned to the right of the player spawn (960).
+	// Half-extents: 10 wide, 200 tall → 20×400 wall at x=1200
+	const wallBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(1200, 820)
+	const wallBody = world.createRigidBody(wallBodyDesc)
+	const wallColliderDesc = RAPIER.ColliderDesc.cuboid(10, 200)
+	world.createCollider(wallColliderDesc, wallBody)
+
 	// ─── API ─────────────────────────────────────────────
 
 	function step(): void {

@@ -4,8 +4,7 @@ import type { PlayerDebugState } from "./index"
 import {
 	JUMP_VELOCITY,
 	GRAVITY,
-	GROUND_DECEL,
-	JUMP_CUT_MULTIPLIER,
+	MAX_FALL_SPEED,
 } from "../entities/player"
 
 const ARC_SAMPLES = 120
@@ -52,6 +51,7 @@ export function computeJumpArc(
 		points.push({ x, y })
 
 		vy += GRAVITY * dt
+		if (vy > MAX_FALL_SPEED) vy = MAX_FALL_SPEED
 		x += horizontalSpeed * dt
 		y += vy * dt
 
@@ -65,12 +65,8 @@ export function computeJumpArc(
 }
 
 /**
- * Simulate a predicted arc from current state, using the player's actual
- * input state to be optimistic:
- * - holdingMove: maintain constant vx (no decel)
- * - !holdingMove: apply deceleration
- * - holdingJump: no jump cut (full arc height)
- * - !holdingJump: vy already has the cut applied, just simulate forward
+ * Simulate a predicted arc from current state.
+ * In air: preserve horizontal momentum (no decel), apply gravity + fall cap.
  */
 function computeOptimisticArc(
 	startX: number,
@@ -78,29 +74,19 @@ function computeOptimisticArc(
 	startVx: number,
 	startVy: number,
 	floorY: number,
-	holdingMove: boolean,
 ): Vec2[] {
 	const points: Vec2[] = []
 	let x = startX
 	let y = startY
-	let vx = startVx
+	const vx = startVx
 	let vy = startVy
 	const dt = 1 / 60
 
 	for (let i = 0; i < ARC_SAMPLES; i++) {
 		points.push({ x, y })
 
-		// Horizontal: if holding move, keep constant speed (optimistic).
-		// If not holding, apply deceleration.
-		if (!holdingMove) {
-			if (Math.abs(vx) < GROUND_DECEL * dt) {
-				vx = 0
-			} else {
-				vx -= Math.sign(vx) * GROUND_DECEL * dt
-			}
-		}
-
 		vy += GRAVITY * dt
+		if (vy > MAX_FALL_SPEED) vy = MAX_FALL_SPEED
 		x += vx * dt
 		y += vy * dt
 
@@ -153,7 +139,7 @@ export function createJumpArcOverlay(): JumpArcOverlay {
 	}
 
 	function update(player: PlayerDebugState): void {
-		const { position: playerPos, velocity: playerVel, grounded, holdingJump, holdingMove, preUpdate } = player
+		const { position: playerPos, velocity: playerVel, grounded, holdingJump, preUpdate } = player
 
 		// ── Freeze/unfreeze logic ────────────────────────
 		if (preUpdate.grounded && !grounded) {
@@ -200,7 +186,6 @@ export function createJumpArcOverlay(): JumpArcOverlay {
 				playerVel.x,
 				playerVel.y,
 				frozenLaunchPos.y,
-				holdingMove,
 			)
 			if (predicted.length >= 2) {
 				drawArc(frozenGraphics, predicted, ARC_COLOR_FROZEN, ARC_ALPHA_FROZEN * 0.7)

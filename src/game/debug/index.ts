@@ -22,6 +22,8 @@ export type PlayerDebugState = {
 	grounded: boolean
 	holdingJump: boolean
 	holdingMove: boolean
+	wallSliding: boolean
+	wallDirection: -1 | 0 | 1
 	/** State before this tick's update — used for arc freeze origin */
 	preUpdate: {
 		position: Vec2

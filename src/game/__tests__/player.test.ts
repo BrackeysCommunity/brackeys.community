@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { computeDesiredMovement, JUMP_VELOCITY, JUMP_CUT_MULTIPLIER } from "../entities/player"
+import {
+	computeDesiredMovement,
+	JUMP_VELOCITY,
+	JUMP_CUT_MULTIPLIER,
+	MOVE_SPEED,
+	MAX_FALL_SPEED,
+	GRAVITY,
+} from "../entities/player"
 import type { InputAction } from "../types"
 
 function makeAction(
@@ -9,145 +16,299 @@ function makeAction(
 	return { action, pressed, tick: 0, timestamp: 0 }
 }
 
-// Default: jump held, not released this frame
-const JUMP_HELD = true
-const NO_JUMP_RELEASE = false
-const JUMP_NOT_HELD = false
-const JUMP_RELEASED = true
+/** Helper: call computeDesiredMovement with sensible defaults for grounded tests */
+function grounded(
+	velocity: { x: number; y: number },
+	actions: InputAction[] = [],
+	opts: { jumpPressedThisFrame?: boolean; jumpReleasedThisFrame?: boolean } = {},
+) {
+	const dt = 1 / 60
+	return computeDesiredMovement(
+		velocity, actions,
+		true, // grounded
+		true, // canJump
+		dt,
+		opts.jumpPressedThisFrame ?? false,
+		opts.jumpReleasedThisFrame ?? false,
+	)
+}
+
+/** Helper: call computeDesiredMovement for airborne tests */
+function airborne(
+	velocity: { x: number; y: number },
+	actions: InputAction[] = [],
+	opts: { canJump?: boolean; jumpPressedThisFrame?: boolean; jumpReleasedThisFrame?: boolean } = {},
+) {
+	const dt = 1 / 60
+	return computeDesiredMovement(
+		velocity, actions,
+		false, // not grounded
+		opts.canJump ?? false,
+		dt,
+		opts.jumpPressedThisFrame ?? false,
+		opts.jumpReleasedThisFrame ?? false,
+	)
+}
+
+// ─── Basic movement ──────────────────────────────────────
 
 describe("computeDesiredMovement", () => {
-	const dt = 1 / 60
-
 	it("applies gravity when in the air", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 0 }, [], false, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
+		const result = airborne({ x: 0, y: 0 })
 		expect(result.newVelocity.y).toBeGreaterThan(0)
 		expect(result.desiredDelta.y).toBeGreaterThan(0)
 	})
 
 	it("produces leftward delta when move_left is active", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 0 }, [makeAction("move_left")], true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
+		const result = grounded({ x: 0, y: 0 }, [makeAction("move_left")])
 		expect(result.desiredDelta.x).toBeLessThan(0)
 	})
 
 	it("produces rightward delta when move_right is active", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 0 }, [makeAction("move_right")], true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
+		const result = grounded({ x: 0, y: 0 }, [makeAction("move_right")])
 		expect(result.desiredDelta.x).toBeGreaterThan(0)
 	})
 
-	it("jumps when grounded and jump action is active", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 0 }, [makeAction("jump")], true, dt, JUMP_HELD, NO_JUMP_RELEASE,
-		)
+	it("jumps when grounded and jump freshly pressed", () => {
+		const result = grounded({ x: 0, y: 0 }, [], { jumpPressedThisFrame: true })
 		expect(result.newVelocity.y).toBeLessThan(0)
 		expect(result.desiredDelta.y).toBeLessThan(0)
+		expect(result.jumped).toBe(true)
 	})
 
-	it("does not jump when in the air", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: -100 }, [makeAction("jump")], false, dt, JUMP_HELD, NO_JUMP_RELEASE,
-		)
-		expect(result.newVelocity.y).toBeGreaterThan(-200)
+	it("does NOT jump when jump is held (not fresh press)", () => {
+		// Jump held from previous frame — should not re-trigger
+		const result = grounded({ x: 0, y: 0 }, [], { jumpPressedThisFrame: false })
+		expect(result.jumped).toBe(false)
 	})
 
-	it("decelerates when no horizontal input", () => {
-		const result = computeDesiredMovement(
-			{ x: 300, y: 0 }, [], true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
+	it("does not jump when in the air (no coyote)", () => {
+		const result = airborne({ x: 0, y: -100 }, [], { canJump: false, jumpPressedThisFrame: true })
+		// canJump is false, so even a fresh press shouldn't work
+		expect(result.jumped).toBe(false)
+	})
+
+	it("decelerates when no horizontal input on ground", () => {
+		const result = grounded({ x: 300, y: 0 })
 		expect(result.newVelocity.x).toBeLessThan(300)
 		expect(result.newVelocity.x).toBeGreaterThanOrEqual(0)
 	})
 
-	it("snaps to zero when velocity is small and no input", () => {
-		const result = computeDesiredMovement(
-			{ x: 5, y: 0 }, [], true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
+	it("snaps to zero when velocity is small and no input on ground", () => {
+		const result = grounded({ x: 5, y: 0 })
 		expect(result.newVelocity.x).toBe(0)
 		expect(result.desiredDelta.x).toBe(0)
 	})
 
-	it("left and right cancel out and decelerate", () => {
-		const result = computeDesiredMovement(
+	it("left and right cancel out and decelerate on ground", () => {
+		const result = grounded(
 			{ x: 200, y: 0 },
 			[makeAction("move_left"), makeAction("move_right")],
-			true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
 		)
+		// On ground, both pressed = instant snap to MOVE_SPEED of inputDir=0, decel applies
 		expect(result.newVelocity.x).toBeLessThan(200)
 	})
 
 	it("gravity still applies when grounded", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 0 }, [], true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
+		const result = grounded({ x: 0, y: 0 })
 		expect(result.newVelocity.y).toBeGreaterThan(0)
 	})
 
-	it("overrides velocity to full speed on fresh input", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 0 }, [makeAction("move_right")], true, dt, JUMP_NOT_HELD, NO_JUMP_RELEASE,
-		)
-		expect(result.newVelocity.x).toBe(300)
+	it("overrides velocity to full speed on fresh input (grounded)", () => {
+		const result = grounded({ x: 0, y: 0 }, [makeAction("move_right")])
+		expect(result.newVelocity.x).toBe(MOVE_SPEED)
 	})
 })
 
 // ─── Variable jump height ────────────────────────────────
 
 describe("variable jump height", () => {
-	const dt = 1 / 60
-
 	it("cuts upward velocity on jump release while rising", () => {
-		// Simulate: player jumped, now rising at JUMP_VELOCITY, releases jump mid-rise
-		const result = computeDesiredMovement(
-			{ x: 0, y: JUMP_VELOCITY }, // rising at full jump speed
-			[], // no actions
-			false, // airborne
-			dt,
-			JUMP_NOT_HELD,
-			JUMP_RELEASED, // released this frame
+		const result = airborne(
+			{ x: 0, y: JUMP_VELOCITY },
+			[],
+			{ jumpReleasedThisFrame: true },
 		)
 
-		// vy should be cut: JUMP_VELOCITY * CUT_MULTIPLIER + gravity*dt
 		const expectedCutVy = JUMP_VELOCITY * JUMP_CUT_MULTIPLIER
-		const expectedFinal = expectedCutVy + 1200 * dt
+		const expectedFinal = expectedCutVy + GRAVITY / 60
 
 		expect(result.newVelocity.y).toBeCloseTo(expectedFinal, 1)
-		// Cut velocity should be much less negative than full jump
 		expect(result.newVelocity.y).toBeGreaterThan(JUMP_VELOCITY)
 	})
 
-	it("does not cut velocity when jump is still held", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: JUMP_VELOCITY }, // rising at full jump speed
-			[makeAction("jump")],
-			false,
-			dt,
-			JUMP_HELD,
-			NO_JUMP_RELEASE, // NOT released
+	it("does not cut velocity when jump is still held (no release)", () => {
+		const result = airborne(
+			{ x: 0, y: JUMP_VELOCITY },
+			[],
+			{ jumpReleasedThisFrame: false },
 		)
 
-		// No cut applied, just gravity: JUMP_VELOCITY + GRAVITY * dt
-		const expected = JUMP_VELOCITY + 1200 * dt
+		const expected = JUMP_VELOCITY + GRAVITY / 60
 		expect(result.newVelocity.y).toBeCloseTo(expected, 1)
-		expect(result.newVelocity.y).toBeLessThan(0) // still rising
+		expect(result.newVelocity.y).toBeLessThan(0)
 	})
 
 	it("does not cut velocity when falling (vy > 0)", () => {
-		const result = computeDesiredMovement(
-			{ x: 0, y: 100 }, // falling
+		const result = airborne(
+			{ x: 0, y: 100 },
 			[],
-			false,
-			dt,
-			JUMP_NOT_HELD,
-			JUMP_RELEASED, // released, but already falling
+			{ jumpReleasedThisFrame: true },
 		)
 
-		// vy was positive (falling), cut should not apply (only cuts when vy < 0)
-		// Result should just be: 100 + gravity*dt
-		expect(result.newVelocity.y).toBeCloseTo(100 + 1200 * dt, 1)
+		expect(result.newVelocity.y).toBeCloseTo(100 + GRAVITY / 60, 1)
+	})
+})
+
+// ─── Coyote time ─────────────────────────────────────────
+
+describe("coyote time", () => {
+	it("allows jump when canJump is true even if not grounded", () => {
+		const result = airborne(
+			{ x: 0, y: 50 }, // falling slowly
+			[],
+			{ canJump: true, jumpPressedThisFrame: true },
+		)
+
+		expect(result.jumped).toBe(true)
+		// vy should be set to JUMP_VELOCITY + gravity*dt
+		expect(result.newVelocity.y).toBeCloseTo(JUMP_VELOCITY + GRAVITY / 60, 1)
+	})
+
+	it("does not allow jump when canJump is false and not grounded", () => {
+		const result = airborne(
+			{ x: 0, y: 50 },
+			[],
+			{ canJump: false, jumpPressedThisFrame: true },
+		)
+
+		expect(result.jumped).toBe(false)
+		// vy should just be gravity applied: 50 + gravity*dt
+		expect(result.newVelocity.y).toBeCloseTo(50 + GRAVITY / 60, 1)
+	})
+})
+
+// ─── Air control ─────────────────────────────────────────
+
+describe("air control", () => {
+	it("does not instantly snap to MOVE_SPEED when airborne", () => {
+		const result = airborne(
+			{ x: 0, y: -200 }, // rising
+			[makeAction("move_right")],
+		)
+
+		// Should accelerate toward MOVE_SPEED but NOT reach it in one frame
+		expect(result.newVelocity.x).toBeGreaterThan(0)
+		expect(result.newVelocity.x).toBeLessThan(MOVE_SPEED)
+	})
+
+	it("accelerates toward MOVE_SPEED in the input direction", () => {
+		const result = airborne(
+			{ x: 100, y: -200 },
+			[makeAction("move_right")],
+		)
+
+		// Should be closer to MOVE_SPEED than before
+		expect(result.newVelocity.x).toBeGreaterThan(100)
+	})
+
+	it("can accelerate leftward while moving right in air", () => {
+		const result = airborne(
+			{ x: 200, y: -100 },
+			[makeAction("move_left")],
+		)
+
+		// Air control should push vx toward -MOVE_SPEED
+		expect(result.newVelocity.x).toBeLessThan(200)
+	})
+
+	it("preserves horizontal momentum in air with no input", () => {
+		const result = airborne(
+			{ x: 250, y: -100 },
+			[], // no input
+		)
+
+		// No deceleration in air — momentum preserved
+		expect(result.newVelocity.x).toBe(250)
+	})
+
+	it("applies instant snap on ground even after being airborne", () => {
+		const result = grounded(
+			{ x: 0, y: 0 },
+			[makeAction("move_right")],
+		)
+
+		expect(result.newVelocity.x).toBe(MOVE_SPEED)
+	})
+})
+
+// ─── Max fall speed ──────────────────────────────────────
+
+describe("max fall speed", () => {
+	it("caps downward velocity at MAX_FALL_SPEED", () => {
+		const result = airborne({ x: 0, y: MAX_FALL_SPEED + 100 })
+
+		expect(result.newVelocity.y).toBeLessThanOrEqual(MAX_FALL_SPEED)
+	})
+
+	it("does not cap upward velocity", () => {
+		// Very fast upward (negative) velocity should not be capped
+		const result = airborne({ x: 0, y: -2000 })
+
+		// Should be -2000 + gravity*dt, still negative
+		expect(result.newVelocity.y).toBeCloseTo(-2000 + GRAVITY / 60, 1)
+		expect(result.newVelocity.y).toBeLessThan(0)
+	})
+
+	it("allows falling at MAX_FALL_SPEED exactly", () => {
+		const result = airborne({ x: 0, y: MAX_FALL_SPEED - GRAVITY / 60 })
+
+		// After gravity: should be ~MAX_FALL_SPEED
+		expect(result.newVelocity.y).toBeCloseTo(MAX_FALL_SPEED, 0)
+	})
+})
+
+// ─── Wall-slide / wall-jump (pure function aspects) ──────
+
+describe("wall mechanics (pure function)", () => {
+	it("allows jump when canJump is true (wall-sliding grants canJump)", () => {
+		const result = airborne(
+			{ x: 0, y: 100 }, // falling
+			[],
+			{ canJump: true, jumpPressedThisFrame: true },
+		)
+
+		expect(result.jumped).toBe(true)
+		expect(result.newVelocity.y).toBeLessThan(0) // launched upward
+	})
+
+	it("reports jumped=true so entity can apply wall-jump override", () => {
+		const result = airborne(
+			{ x: 0, y: 50 },
+			[],
+			{ canJump: true, jumpPressedThisFrame: true },
+		)
+
+		expect(result.jumped).toBe(true)
+	})
+
+	it("does not jump when canJump=false even with fresh press", () => {
+		const result = airborne(
+			{ x: 0, y: 50 },
+			[],
+			{ canJump: false, jumpPressedThisFrame: true },
+		)
+
+		expect(result.jumped).toBe(false)
+	})
+
+	it("does not jump on held key even with canJump=true", () => {
+		const result = airborne(
+			{ x: 0, y: 50 },
+			[],
+			{ canJump: true, jumpPressedThisFrame: false },
+		)
+
+		expect(result.jumped).toBe(false)
 	})
 })

@@ -123,6 +123,8 @@ export async function createGame(
 					grounded: player.isGrounded(),
 					holdingJump: player.isHoldingJump(),
 					holdingMove: player.isHoldingMove(),
+					wallSliding: player.isWallSliding(),
+					wallDirection: player.getWallDirection(),
 					preUpdate: player.getPreUpdateState(),
 				}, mouseWorld)
 			}
