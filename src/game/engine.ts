@@ -16,6 +16,7 @@ import { createInputSystem } from "./input"
 import { createCamera } from "./camera"
 import { createPlayerEntity } from "./entities/player"
 import { initAssets } from "./assets"
+import { initRapier, createPhysicsWorld } from "./physics"
 import { createDebugOverlay, type DebugOverlay } from "./debug"
 import type { Store } from "@tanstack/store"
 
@@ -46,6 +47,10 @@ export async function createGame(
 		cfg.camera,
 	)
 
+	// Physics (Rapier WASM)
+	await initRapier()
+	const physics = createPhysicsWorld()
+
 	// Input
 	const input = createInputSystem(cfg.bindings)
 
@@ -67,6 +72,7 @@ export async function createGame(
 			uiContainer: renderer.uiContainer,
 			camera,
 			store,
+			physics,
 			inputTarget: window,
 		})
 	}
@@ -85,10 +91,13 @@ export async function createGame(
 			// 2. Update player
 			player.update(dt, actions)
 
-			// 3. Update camera to follow player
+			// 3. Step physics world
+			physics.step()
+
+			// 4. Update camera to follow player
 			camera.update(dt, player.getPosition())
 
-			// 4. Sync state to store
+			// 5. Sync state to store
 			incrementTick(store)
 			updatePlayer(store, "local", {
 				position: player.getPosition(),
@@ -98,7 +107,7 @@ export async function createGame(
 				position: camera.getPosition(),
 			})
 
-			// 5. Update debug overlay
+			// 6. Update debug overlay
 			if (debugOverlay) {
 				const mousePos = input.getMousePosition()
 				// Convert screen mouse to world coordinates (screen px → game units)
@@ -111,7 +120,7 @@ export async function createGame(
 				debugOverlay.update(dt, player.getPosition(), mouseWorld)
 			}
 
-			// 6. Emit tick event
+			// 7. Emit tick event
 			events.emit("game:tick", { tick: store.state.tick })
 		},
 
@@ -151,6 +160,7 @@ export async function createGame(
 		input.destroy()
 		camera.destroy()
 		player.destroy()
+		physics.destroy()
 		renderer.destroy()
 
 		events.emit("game:destroy")

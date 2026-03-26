@@ -3,6 +3,7 @@ import type { Store } from "@tanstack/store"
 import type { DebugMode, GameStoreState, Vec2 } from "../types"
 import { setDebugMode } from "../store"
 import type { Camera } from "../camera"
+import type { PhysicsWorld } from "../physics"
 import { createGridOverlay, type GridOverlay } from "./grid-overlay"
 import {
 	createPlayerScaleRef,
@@ -25,6 +26,7 @@ type DebugDeps = {
 	uiContainer: Container
 	camera: Camera
 	store: Store<GameStoreState>
+	physics: PhysicsWorld
 	inputTarget: HTMLElement | Window
 }
 
@@ -35,7 +37,7 @@ type DebugDeps = {
 export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
 	if (!import.meta.env.DEV) return null
 
-	const { worldContainer, uiContainer, camera, store, inputTarget } = deps
+	const { worldContainer, uiContainer, camera, store, physics: physicsWorld, inputTarget } = deps
 
 	// ── Sub-systems ──────────────────────────────────
 	let grid: GridOverlay | null = null
@@ -100,7 +102,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
 
 	function ensurePhysics(): PhysicsWireframes {
 		if (!physics) {
-			physics = createPhysicsWireframes()
+			physics = createPhysicsWireframes(physicsWorld)
 			worldContainer.addChild(physics.container)
 		}
 		return physics

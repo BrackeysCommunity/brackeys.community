@@ -1,15 +1,5 @@
 import { Container, Graphics } from "pixi.js"
-
-// Color coding by collision group (matches future Rapier groups)
-const COLORS = {
-	GROUND: 0x44ff44, // Green
-	PLAYER: 0x4444ff, // Blue
-	SHAMAN_OBJ: 0xff8800, // Orange
-	SENSOR: 0xff44ff, // Magenta
-}
-
-// Hardcoded floor — matches player.ts FLOOR_Y
-const FLOOR_Y = 1020
+import type { PhysicsWorld } from "../physics"
 
 export type PhysicsWireframes = {
 	update: () => void
@@ -18,44 +8,51 @@ export type PhysicsWireframes = {
 	container: Container
 }
 
-export function createPhysicsWireframes(): PhysicsWireframes {
+export function createPhysicsWireframes(
+	physicsWorld: PhysicsWorld,
+): PhysicsWireframes {
 	const container = new Container()
 	container.label = "debug-physics"
 
 	const graphics = new Graphics()
 	container.addChild(graphics)
 
-	let drawn = false
-
 	function update(): void {
-		// TODO: When Rapier is integrated, replace this with world.debugRender()
-		// Rapier's debugRender() returns vertex arrays that can be converted
-		// to PixiJS Graphics paths. Color by collision group membership.
-
-		// For now, draw the hardcoded floor collider
-		if (drawn) return
-		drawn = true
-
 		graphics.clear()
 
-		// Floor line (ground collider)
-		graphics.setStrokeStyle({ width: 2, color: COLORS.GROUND, alpha: 0.7 })
-		graphics.moveTo(-2000, FLOOR_Y)
-		graphics.lineTo(4000, FLOOR_Y)
-		graphics.stroke()
+		const { vertices, colors } = physicsWorld.debugRender()
 
-		// Hash marks along the floor (batched)
-		graphics.setStrokeStyle({ width: 1, color: COLORS.GROUND, alpha: 0.4 })
-		for (let x = -2000; x <= 4000; x += 64) {
-			graphics.moveTo(x, FLOOR_Y)
-			graphics.lineTo(x, FLOOR_Y + 8)
+		// Rapier returns line segments: every 4 floats in vertices = one segment
+		// [x1, y1, x2, y2, ...] and colors has [r, g, b, a] per vertex
+		for (let i = 0; i < vertices.length; i += 4) {
+			const x1 = vertices[i]
+			const y1 = vertices[i + 1]
+			const x2 = vertices[i + 2]
+			const y2 = vertices[i + 3]
+
+			// Each segment has 2 vertices, 4 color components each → 8 color values per segment
+			const ci = (i / 4) * 8
+			const r = colors[ci]
+			const g = colors[ci + 1]
+			const b = colors[ci + 2]
+			const a = colors[ci + 3]
+
+			// Convert [0..1] floats to hex color
+			const color =
+				((Math.round(r * 255) & 0xff) << 16) |
+				((Math.round(g * 255) & 0xff) << 8) |
+				(Math.round(b * 255) & 0xff)
+
+			graphics.setStrokeStyle({ width: 1.5, color, alpha: a * 0.8 })
+			graphics.moveTo(x1, y1)
+			graphics.lineTo(x2, y2)
+			graphics.stroke()
 		}
-		graphics.stroke()
 	}
 
 	function setVisible(visible: boolean): void {
 		container.visible = visible
-		if (visible && !drawn) {
+		if (visible) {
 			update()
 		}
 	}

@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
+    "@dimforge/rapier2d": "^0.19.3",
     "@faker-js/faker": "^10.0.0",
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.5",
@@ -110,6 +111,8 @@
     "tsx": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^7.1.7",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0",
     "vitest": "^3.0.5"
   }
 }
