@@ -16,8 +16,22 @@ import {
 } from "./physics-wireframes"
 import { createDebugPanel, type DebugPanel } from "./debug-panel"
 
+export type PlayerDebugState = {
+	position: Vec2
+	velocity: Vec2
+	grounded: boolean
+	holdingJump: boolean
+	holdingMove: boolean
+	/** State before this tick's update — used for arc freeze origin */
+	preUpdate: {
+		position: Vec2
+		velocity: Vec2
+		grounded: boolean
+	}
+}
+
 export type DebugOverlay = {
-	update: (dt: number, playerPos: Vec2, mouseWorldPos: Vec2) => void
+	update: (dt: number, player: PlayerDebugState, mouseWorldPos: Vec2) => void
 	destroy: () => void
 }
 
@@ -145,7 +159,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
 
 	function update(
 		_dt: number,
-		playerPos: Vec2,
+		player: PlayerDebugState,
 		mouseWorldPos: Vec2,
 	): void {
 		if (currentMode === "off") return
@@ -161,7 +175,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
 		}
 
 		if (showArcs() && jumpArc) {
-			jumpArc.update(playerPos)
+			jumpArc.update(player)
 		}
 
 		if (showPlayerScale() && playerScale) {

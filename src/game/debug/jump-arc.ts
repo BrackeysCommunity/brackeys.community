@@ -1,22 +1,20 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js"
 import type { Vec2 } from "../types"
+import type { PlayerDebugState } from "./index"
+import {
+	JUMP_VELOCITY,
+	GRAVITY,
+	GROUND_DECEL,
+	JUMP_CUT_MULTIPLIER,
+} from "../entities/player"
 
-// Physics constants — must match player.ts
-const JUMP_VELOCITY = -500 // game units/sec (negative = up)
-const GRAVITY = 1200 // game units/sec²
-const MOVE_SPEED = 300 // game units/sec
-const FLOOR_Y = 1020
-const PLAYER_HEIGHT = 60
+const ARC_SAMPLES = 120
 
-const ARC_SAMPLES = 40
-const POSITION_THRESHOLD = 10 // px — skip redraw if player hasn't moved much
-
-const ARC_COLORS = {
-	standing: 0xffff00, // yellow — standing jump
-	right: 0x00ff88, // green — full speed right
-	left: 0xff8800, // orange — full speed left
-}
+const ARC_COLOR_LIVE = 0x00ff88 // green — live directional arc
+const ARC_COLOR_STANDING = 0xffff00 // yellow — standing jump (vertical only)
+const ARC_COLOR_FROZEN = 0xff4444 // red — frozen arc during airborne
 const ARC_ALPHA = 0.5
+const ARC_ALPHA_FROZEN = 0.35
 const ARC_WIDTH = 2
 
 const LABEL_STYLE = new TextStyle({
@@ -26,34 +24,88 @@ const LABEL_STYLE = new TextStyle({
 })
 
 export type JumpArcOverlay = {
-	update: (playerPos: Vec2) => void
+	update: (player: PlayerDebugState) => void
 	setVisible: (visible: boolean) => void
 	destroy: () => void
 	container: Container
 }
 
-/** Simulate a jump arc and return sample points */
+/**
+ * Simulate a jump arc with constant horizontal speed.
+ * Used for live (grounded) preview arcs — optimistic, assumes input held.
+ */
 export function computeJumpArc(
 	startX: number,
 	startY: number,
 	horizontalSpeed: number,
+	startVy: number = JUMP_VELOCITY,
+	floorY?: number,
 ): Vec2[] {
+	const floor = floorY ?? startY
 	const points: Vec2[] = []
 	let x = startX
 	let y = startY
-	let vy = JUMP_VELOCITY
-	const dt = 1 / 60 // simulate at 60fps
+	let vy = startVy
+	const dt = 1 / 60
 
-	for (let i = 0; i < ARC_SAMPLES * 3; i++) {
+	for (let i = 0; i < ARC_SAMPLES; i++) {
 		points.push({ x, y })
 
 		vy += GRAVITY * dt
 		x += horizontalSpeed * dt
 		y += vy * dt
 
-		// Stop when we hit the floor or go below start height + margin
-		if (y >= FLOOR_Y - PLAYER_HEIGHT) {
-			points.push({ x, y: FLOOR_Y - PLAYER_HEIGHT })
+		if (y >= floor) {
+			points.push({ x, y: floor })
+			break
+		}
+	}
+
+	return points
+}
+
+/**
+ * Simulate a predicted arc from current state, using the player's actual
+ * input state to be optimistic:
+ * - holdingMove: maintain constant vx (no decel)
+ * - !holdingMove: apply deceleration
+ * - holdingJump: no jump cut (full arc height)
+ * - !holdingJump: vy already has the cut applied, just simulate forward
+ */
+function computeOptimisticArc(
+	startX: number,
+	startY: number,
+	startVx: number,
+	startVy: number,
+	floorY: number,
+	holdingMove: boolean,
+): Vec2[] {
+	const points: Vec2[] = []
+	let x = startX
+	let y = startY
+	let vx = startVx
+	let vy = startVy
+	const dt = 1 / 60
+
+	for (let i = 0; i < ARC_SAMPLES; i++) {
+		points.push({ x, y })
+
+		// Horizontal: if holding move, keep constant speed (optimistic).
+		// If not holding, apply deceleration.
+		if (!holdingMove) {
+			if (Math.abs(vx) < GROUND_DECEL * dt) {
+				vx = 0
+			} else {
+				vx -= Math.sign(vx) * GROUND_DECEL * dt
+			}
+		}
+
+		vy += GRAVITY * dt
+		x += vx * dt
+		y += vy * dt
+
+		if (y >= floorY) {
+			points.push({ x, y: floorY })
 			break
 		}
 	}
@@ -65,91 +117,164 @@ export function createJumpArcOverlay(): JumpArcOverlay {
 	const container = new Container()
 	container.label = "debug-jump-arcs"
 
-	const graphics = new Graphics()
-	container.addChild(graphics)
+	const frozenGraphics = new Graphics()
+	const liveGraphics = new Graphics()
+	container.addChild(frozenGraphics)
+	container.addChild(liveGraphics)
 
-	const maxHeightLabel = new Text({ text: "", style: LABEL_STYLE })
-	maxHeightLabel.alpha = 0.6
-	container.addChild(maxHeightLabel)
+	const heightLabel = new Text({ text: "", style: LABEL_STYLE })
+	heightLabel.alpha = 0.6
+	container.addChild(heightLabel)
 
-	const maxDistLabel = new Text({ text: "", style: LABEL_STYLE })
-	maxDistLabel.alpha = 0.6
-	container.addChild(maxDistLabel)
+	const distLabel = new Text({ text: "", style: LABEL_STYLE })
+	distLabel.alpha = 0.6
+	container.addChild(distLabel)
 
-	let lastPos: Vec2 = { x: -99999, y: -99999 }
+	// Frozen arc state
+	let frozenLaunchPos: Vec2 | null = null
+	let frozenIsStandingJump = false
+	let actualTrail: Vec2[] = []
 
-	function drawArc(points: Vec2[], color: number): void {
+	function drawArc(
+		gfx: Graphics,
+		points: Vec2[],
+		color: number,
+		alpha: number,
+	): void {
 		if (points.length < 2) return
 
-		graphics.setStrokeStyle({ width: ARC_WIDTH, color, alpha: ARC_ALPHA })
-		graphics.moveTo(points[0].x, points[0].y)
+		gfx.setStrokeStyle({ width: ARC_WIDTH, color, alpha })
+		gfx.moveTo(points[0].x, points[0].y)
 
 		for (let i = 1; i < points.length; i++) {
-			graphics.lineTo(points[i].x, points[i].y)
+			gfx.lineTo(points[i].x, points[i].y)
 		}
-		graphics.stroke()
+		gfx.stroke()
 	}
 
-	function update(playerPos: Vec2): void {
-		const dx = playerPos.x - lastPos.x
-		const dy = playerPos.y - lastPos.y
-		if (dx * dx + dy * dy < POSITION_THRESHOLD * POSITION_THRESHOLD) return
+	function update(player: PlayerDebugState): void {
+		const { position: playerPos, velocity: playerVel, grounded, holdingJump, holdingMove, preUpdate } = player
 
-		lastPos = { ...playerPos }
-		graphics.clear()
+		// ── Freeze/unfreeze logic ────────────────────────
+		if (preUpdate.grounded && !grounded) {
+			frozenLaunchPos = { ...preUpdate.position }
+			frozenIsStandingJump = Math.abs(preUpdate.velocity.x) < 1
+			actualTrail = [{ ...preUpdate.position }]
+		}
 
-		// Only draw arcs when player is on the ground
-		const onGround = playerPos.y >= FLOOR_Y - PLAYER_HEIGHT - 1
+		// Record actual trail while airborne
+		if (!grounded && frozenLaunchPos) {
+			actualTrail.push({ ...playerPos })
+		}
 
-		if (!onGround) return
+		if (!preUpdate.grounded && grounded) {
+			frozenLaunchPos = null
+			actualTrail = []
+			frozenGraphics.clear()
+		}
 
-		// Standing jump
+		// ── Frozen arc ──────────────────────────────────
+		frozenGraphics.clear()
+		if (frozenLaunchPos && !grounded) {
+			// Standing jump only: frozen vertical jump line
+			if (frozenIsStandingJump) {
+				const vy = holdingJump ? JUMP_VELOCITY : playerVel.y
+				const standArc = computeJumpArc(
+					frozenLaunchPos.x,
+					frozenLaunchPos.y,
+					0,
+					vy,
+					frozenLaunchPos.y,
+				)
+				drawArc(frozenGraphics, standArc, ARC_COLOR_FROZEN, ARC_ALPHA_FROZEN)
+			}
+
+			// Always: actual trail + optimistic predicted parabola
+			if (actualTrail.length >= 2) {
+				drawArc(frozenGraphics, actualTrail, ARC_COLOR_FROZEN, ARC_ALPHA_FROZEN)
+			}
+
+			const predicted = computeOptimisticArc(
+				playerPos.x,
+				playerPos.y,
+				playerVel.x,
+				playerVel.y,
+				frozenLaunchPos.y,
+				holdingMove,
+			)
+			if (predicted.length >= 2) {
+				drawArc(frozenGraphics, predicted, ARC_COLOR_FROZEN, ARC_ALPHA_FROZEN * 0.7)
+			}
+		}
+
+		// ── Live arcs (only when grounded) ───────────────
+		liveGraphics.clear()
+		heightLabel.text = ""
+		distLabel.text = ""
+
+		if (!grounded) return
+
+		const vx = playerVel.x
+		const absVx = Math.abs(vx)
+
+		// Always draw the vertical jump line (max jump height) when grounded
 		const standingArc = computeJumpArc(playerPos.x, playerPos.y, 0)
-		drawArc(standingArc, ARC_COLORS.standing)
+		drawArc(liveGraphics, standingArc, ARC_COLOR_STANDING, ARC_ALPHA)
 
-		// Full speed right
-		const rightArc = computeJumpArc(playerPos.x, playerPos.y, MOVE_SPEED)
-		drawArc(rightArc, ARC_COLORS.right)
-
-		// Full speed left
-		const leftArc = computeJumpArc(playerPos.x, playerPos.y, -MOVE_SPEED)
-		drawArc(leftArc, ARC_COLORS.left)
-
-		// Compute max height from standing jump
+		// Height label from standing arc
 		let minY = playerPos.y
 		for (const p of standingArc) {
 			if (p.y < minY) minY = p.y
 		}
 		const maxHeight = Math.round(playerPos.y - minY)
 
-		// Compute max horizontal distance from right jump
-		const lastRight = rightArc[rightArc.length - 1]
-		const maxDist = lastRight
-			? Math.round(Math.abs(lastRight.x - playerPos.x))
-			: 0
+		if (absVx < 1) {
+			// Standing still — just the vertical line + height label
+			heightLabel.text = `↑ ${maxHeight}`
+			heightLabel.position.set(playerPos.x + 8, minY - 4)
+		} else {
+			// Moving — add directional arc using actual velocity (optimistic: constant vx)
+			const arc = computeJumpArc(playerPos.x, playerPos.y, vx)
+			drawArc(liveGraphics, arc, ARC_COLOR_LIVE, ARC_ALPHA)
 
-		maxHeightLabel.text = `↑ ${maxHeight}px`
-		maxHeightLabel.position.set(playerPos.x + 8, minY - 4)
+			const lastPt = arc[arc.length - 1]
+			const maxDist = lastPt
+				? Math.round(Math.abs(lastPt.x - playerPos.x))
+				: 0
 
-		maxDistLabel.text = `→ ${maxDist}px`
-		maxDistLabel.position.set(
-			lastRight ? lastRight.x + 4 : playerPos.x,
-			playerPos.y + 4,
-		)
+			const movingRight = vx > 0
+			const labelOffsetX = movingRight ? 8 : -50
+
+			heightLabel.text = `↑ ${maxHeight}`
+			heightLabel.position.set(playerPos.x + labelOffsetX, minY - 4)
+
+			const arrow = movingRight ? "→" : "←"
+			distLabel.text = `${arrow} ${maxDist}`
+			distLabel.position.set(
+				lastPt ? lastPt.x + (movingRight ? 4 : -50) : playerPos.x,
+				playerPos.y + 4,
+			)
+		}
 	}
 
 	function setVisible(visible: boolean): void {
 		container.visible = visible
 		if (!visible) {
-			graphics.clear()
-			lastPos = { x: -99999, y: -99999 }
+			liveGraphics.clear()
+			frozenGraphics.clear()
+			heightLabel.text = ""
+			distLabel.text = ""
+			frozenLaunchPos = null
+			frozenIsStandingJump = false
+			actualTrail = []
 		}
 	}
 
 	function destroy(): void {
-		graphics.destroy()
-		maxHeightLabel.destroy()
-		maxDistLabel.destroy()
+		liveGraphics.destroy()
+		frozenGraphics.destroy()
+		heightLabel.destroy()
+		distLabel.destroy()
 		container.destroy()
 	}
 

@@ -117,7 +117,14 @@ export async function createGame(
 					x: vp.x + mousePos.x / scale,
 					y: vp.y + mousePos.y / scale,
 				}
-				debugOverlay.update(dt, player.getPosition(), mouseWorld)
+				debugOverlay.update(dt, {
+					position: player.getPosition(),
+					velocity: player.getVelocity(),
+					grounded: player.isGrounded(),
+					holdingJump: player.isHoldingJump(),
+					holdingMove: player.isHoldingMove(),
+					preUpdate: player.getPreUpdateState(),
+				}, mouseWorld)
 			}
 
 			// 7. Emit tick event
