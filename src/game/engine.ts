@@ -54,8 +54,8 @@ export async function createGame(
 	// Input
 	const input = createInputSystem(cfg.bindings)
 
-	// Player entity
-	const player = createPlayerEntity(renderer.worldContainer)
+	// Player entity (needs physics for Rapier character controller)
+	const player = createPlayerEntity(renderer.worldContainer, physics)
 
 	// Initialize player in store
 	updatePlayer(store, "local", {

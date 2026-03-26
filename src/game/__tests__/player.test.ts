@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { applyPlayerPhysics } from "../entities/player"
+import { computeDesiredMovement } from "../entities/player"
 import type { InputAction } from "../types"
 
 function makeAction(
@@ -9,107 +9,106 @@ function makeAction(
 	return { action, pressed, tick: 0, timestamp: 0 }
 }
 
-describe("applyPlayerPhysics", () => {
+describe("computeDesiredMovement", () => {
 	const dt = 1 / 60 // 1 frame at 60fps
 
 	it("applies gravity when in the air", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 100 },
+		const result = computeDesiredMovement(
 			{ x: 0, y: 0 },
 			[],
+			false, // not grounded
 			dt,
 		)
 
 		// y velocity should increase (gravity pulls down)
-		expect(result.velocity.y).toBeGreaterThan(0)
-		// position should move down
-		expect(result.position.y).toBeGreaterThan(100)
+		expect(result.newVelocity.y).toBeGreaterThan(0)
+		// desired delta should move down
+		expect(result.desiredDelta.y).toBeGreaterThan(0)
 	})
 
-	it("stops at the floor", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 959 }, // just above floor (FLOOR_Y=1020, height=60, so 1020-60=960)
-			{ x: 0, y: 100 },
-			[],
-			dt,
-		)
-
-		// Should clamp to floor
-		expect(result.position.y).toBe(960)
-		expect(result.velocity.y).toBe(0)
-	})
-
-	it("moves left when move_left action is active", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 960 },
+	it("produces leftward delta when move_left is active", () => {
+		const result = computeDesiredMovement(
 			{ x: 0, y: 0 },
 			[makeAction("move_left")],
+			true, // grounded
 			dt,
 		)
 
-		expect(result.position.x).toBeLessThan(400)
+		expect(result.desiredDelta.x).toBeLessThan(0)
 	})
 
-	it("moves right when move_right action is active", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 960 },
+	it("produces rightward delta when move_right is active", () => {
+		const result = computeDesiredMovement(
 			{ x: 0, y: 0 },
 			[makeAction("move_right")],
+			true,
 			dt,
 		)
 
-		expect(result.position.x).toBeGreaterThan(400)
+		expect(result.desiredDelta.x).toBeGreaterThan(0)
 	})
 
-	it("jumps when on the ground and jump action is active", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 960 }, // on the floor (FLOOR_Y=1020, height=60, 1020-60=960)
+	it("jumps when grounded and jump action is active", () => {
+		const result = computeDesiredMovement(
 			{ x: 0, y: 0 },
 			[makeAction("jump")],
+			true, // grounded
 			dt,
 		)
 
 		// Should have upward velocity
-		expect(result.velocity.y).toBeLessThan(0)
-		// Should move up
-		expect(result.position.y).toBeLessThan(960)
+		expect(result.newVelocity.y).toBeLessThan(0)
+		// Desired delta should be upward
+		expect(result.desiredDelta.y).toBeLessThan(0)
 	})
 
 	it("does not jump when in the air", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 200 }, // well above floor
+		const result = computeDesiredMovement(
 			{ x: 0, y: -100 },
 			[makeAction("jump")],
+			false, // not grounded
 			dt,
 		)
 
-		// Velocity should continue as before (gravity applied, but no jump boost)
-		// The jump should NOT have set velocity to JUMP_VELOCITY
-		expect(result.velocity.y).toBeGreaterThan(-200) // gravity pulls it back
+		// Velocity should continue with gravity, but no jump boost applied
+		// Starting at -100, gravity adds ~20/frame, so should be around -80
+		expect(result.newVelocity.y).toBeGreaterThan(-200)
 	})
 
 	it("cancels movement on release", () => {
-		// Release move_right
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 440 },
+		const result = computeDesiredMovement(
 			{ x: 300, y: 0 },
 			[makeAction("move_right", false)],
+			true,
 			dt,
 		)
 
-		// Horizontal velocity should be 0 (no active movement)
-		expect(result.velocity.x).toBe(0)
+		// No horizontal movement
+		expect(result.desiredDelta.x).toBe(0)
 	})
 
-	it("allows simultaneous left and right (cancel out)", () => {
-		const result = applyPlayerPhysics(
-			{ x: 400, y: 440 },
+	it("left and right cancel out", () => {
+		const result = computeDesiredMovement(
 			{ x: 0, y: 0 },
 			[makeAction("move_left"), makeAction("move_right")],
+			true,
 			dt,
 		)
 
 		// Left and right cancel out
-		expect(result.position.x).toBe(400)
+		expect(result.desiredDelta.x).toBe(0)
+	})
+
+	it("gravity still applies when grounded (controller handles floor)", () => {
+		const result = computeDesiredMovement(
+			{ x: 0, y: 0 },
+			[],
+			true,
+			dt,
+		)
+
+		// Gravity is always applied — the character controller
+		// prevents actual downward movement when on the ground
+		expect(result.newVelocity.y).toBeGreaterThan(0)
 	})
 })

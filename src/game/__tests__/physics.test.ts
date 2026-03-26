@@ -141,6 +141,67 @@ describe("ground collider", () => {
 	})
 })
 
+// ─── Character controller ───────────────────────────────
+
+describe("character controller", () => {
+	it("creates a character controller", () => {
+		const pw = createPhysicsWorld()
+		const controller = pw.createCharacterController()
+		expect(controller).toBeDefined()
+		pw.destroy()
+	})
+
+	it("resolves collider movement against the ground", () => {
+		const pw = createPhysicsWorld()
+		const RAPIER = getRapier()
+		const controller = pw.createCharacterController(0.01)
+
+		// Create a kinematic body above the floor
+		const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 900)
+		const body = pw.addRigidBody(bodyDesc)
+		const colliderDesc = RAPIER.ColliderDesc.cuboid(30, 30)
+		const collider = pw.addCollider(colliderDesc, body)
+
+		// Step once so the world builds its internal collision structures
+		pw.step()
+
+		// Try to move 200 units down (should be blocked by floor at y=1020)
+		// Body center at 900, half-height 30, so bottom at 930.
+		// Floor top at ~1020. Gap is ~90. Moving 200 down should be clamped.
+		controller.computeColliderMovement(collider, new RAPIER.Vector2(0, 200))
+		const corrected = controller.computedMovement()
+
+		// Movement should be clamped — can't go through the floor
+		expect(corrected.y).toBeLessThan(200)
+
+		pw.destroy()
+	})
+
+	it("reports grounded after landing", () => {
+		const pw = createPhysicsWorld()
+		const RAPIER = getRapier()
+		const controller = pw.createCharacterController(0.01)
+
+		// Place body just above the floor (floor top = 1020, cuboid half-height = 30)
+		// Body center at y=989 means bottom at y=1019 — just above floor
+		const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 989)
+		const body = pw.addRigidBody(bodyDesc)
+		const colliderDesc = RAPIER.ColliderDesc.cuboid(30, 30)
+		const collider = pw.addCollider(colliderDesc, body)
+
+		// Step so collision structures are built
+		pw.step()
+
+		// Move slightly downward to touch the floor
+		controller.computeColliderMovement(collider, new RAPIER.Vector2(0, 5))
+		const grounded = controller.computedGrounded()
+
+		expect(grounded).toBe(true)
+
+		pw.destroy()
+	})
+})
+
 // ─── Debug render ────────────────────────────────────────
 
 describe("debugRender", () => {

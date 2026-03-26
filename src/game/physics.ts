@@ -35,6 +35,8 @@ export type PhysicsWorld = {
 		desc: RAPIER.ColliderDesc,
 		body?: RAPIER.RigidBody,
 	) => RAPIER.Collider
+	/** Create a KinematicCharacterController for player movement */
+	createCharacterController: (offset?: number) => RAPIER.KinematicCharacterController
 	/** Remove a rigid body (and its attached colliders) */
 	removeRigidBody: (body: RAPIER.RigidBody) => void
 	/** Remove a standalone collider */
@@ -94,6 +96,22 @@ export function createPhysicsWorld(
 		return world.createCollider(desc, body)
 	}
 
+	function createCharacterController(offset = 0.01): RAPIER.KinematicCharacterController {
+		const controller = world.createCharacterController(offset)
+		// Our coordinate system: +Y is down (screen space), so "up" is -Y
+		controller.setUp(new RAPIER.Vector2(0, -1))
+		// Slopes: climb up to 50°, slide on slopes > 30°
+		controller.setMaxSlopeClimbAngle((50 * Math.PI) / 180)
+		controller.setMinSlopeSlideAngle((30 * Math.PI) / 180)
+		// Auto-step: max 4 game units high, min 2 wide, include dynamic bodies
+		controller.enableAutostep(4, 2, true)
+		// Snap to ground when walking down slopes (up to 4 units)
+		controller.enableSnapToGround(4)
+		// Push dynamic bodies when walking into them
+		controller.setApplyImpulsesToDynamicBodies(true)
+		return controller
+	}
+
 	function removeRigidBody(body: RAPIER.RigidBody): void {
 		world.removeRigidBody(body)
 	}
@@ -120,6 +138,7 @@ export function createPhysicsWorld(
 		step,
 		addRigidBody,
 		addCollider,
+		createCharacterController,
 		removeRigidBody,
 		removeCollider,
 		debugRender,
