@@ -1,4 +1,5 @@
 import { type Container, Graphics } from "pixi.js"
+import { PLAYER_COLLISION_GROUP, registerPlayerCollider, unregisterPlayerCollider } from "../collisions"
 import type { PhysicsWorld } from "../physics"
 import { getRapier } from "../physics"
 import type { InputAction, Vec2 } from "../types"
@@ -20,6 +21,7 @@ export type MovementConfig = {
 	wallSlideSpeed: number
 	wallJumpForce: { x: number; y: number }
 	wallJumpLockoutMs: number
+	wallSlideCoyoteMs: number
 	cheeseWeightMultiplier: number
 }
 
@@ -37,6 +39,7 @@ export const MOVEMENT_CONFIG: MovementConfig = {
 	wallSlideSpeed: 120,           // game units/sec — capped fall speed when wall-sliding
 	wallJumpForce: { x: 350, y: -500 }, // launch velocity away from wall (1.5× normal jump)
 	wallJumpLockoutMs: 180,        // ms — input lockout toward wall after wall-jump
+	wallSlideCoyoteMs: 300,        // ms — wall-slide state maintained after releasing dir input
 	cheeseWeightMultiplier: 0.85,  // jump velocity multiplier when carrying cheese
 }
 
@@ -54,6 +57,7 @@ export const COYOTE_TIME_MS = MOVEMENT_CONFIG.coyoteTimeMs
 export const WALL_SLIDE_SPEED = MOVEMENT_CONFIG.wallSlideSpeed
 export const WALL_JUMP_FORCE = MOVEMENT_CONFIG.wallJumpForce
 export const WALL_JUMP_LOCKOUT_MS = MOVEMENT_CONFIG.wallJumpLockoutMs
+export const WALL_SLIDE_COYOTE_MS = MOVEMENT_CONFIG.wallSlideCoyoteMs
 
 const WALL_NORMAL_THRESHOLD = 0.7 // |normal.x| must exceed this to count as a wall
 const PLAYER_WIDTH = 60
@@ -213,8 +217,9 @@ export function createPlayerEntity(
 	const colliderDesc = RAPIER.ColliderDesc.cuboid(
 		PLAYER_WIDTH / 2,
 		PLAYER_HEIGHT / 2,
-	)
+	).setCollisionGroups(PLAYER_COLLISION_GROUP)
 	const collider = physics.addCollider(colliderDesc, body)
+	registerPlayerCollider(collider.handle)
 
 	const controller = physics.createCharacterController()
 
@@ -230,6 +235,8 @@ export function createPlayerEntity(
 	// Wall-slide / wall-jump state
 	let wallDir: -1 | 0 | 1 = 0 // -1 = wall on left, 1 = wall on right, 0 = none
 	let wallSliding = false
+	let lastWallSlideTimeMs = -Infinity // timestamp of last frame we were actively wall-sliding
+	let lastWallSlideDir: -1 | 0 | 1 = 0 // which wall we were sliding on (for coyote wall-jump)
 	let wallJumpLockoutUntilMs = 0 // timestamp — ignore input toward wall until this time
 	let wallJumpLockoutDir: -1 | 0 | 1 = 0 // which direction is locked out
 	let lastJumpWasWallJump = false // skip variable jump height for wall-jumps
@@ -289,9 +296,10 @@ export function createPlayerEntity(
 		if (inputDir < 0) activeActions.push({ action: "move_left", pressed: true, tick: 0, timestamp: 0 })
 		if (inputDir > 0) activeActions.push({ action: "move_right", pressed: true, tick: 0, timestamp: 0 })
 
-		// Coyote time: allow jump if grounded OR recently grounded
+		// Coyote time: allow jump if grounded OR recently grounded OR recently wall-sliding
 		const withinCoyoteWindow = (elapsedMs - lastGroundedTimeMs) < COYOTE_TIME_MS
-		const canJump = grounded || withinCoyoteWindow || wallSliding
+		const withinWallSlideCoyote = (elapsedMs - lastWallSlideTimeMs) < WALL_SLIDE_COYOTE_MS
+		const canJump = grounded || withinCoyoteWindow || wallSliding || withinWallSlideCoyote
 
 		// Wall-jumps have fixed height — suppress variable jump cut
 		const effectiveJumpRelease = lastJumpWasWallJump ? false : jumpReleasedThisFrame
@@ -361,29 +369,45 @@ export function createPlayerEntity(
 			}
 		}
 
-		// 8. Wall-slide: airborne + touching wall + pressing into wall + falling
+		// 8. Ceiling bonk: if we wanted to move up but were blocked, kill upward velocity
+		if (desiredDelta.y < 0 && corrected.y > desiredDelta.y * 0.5) {
+			// We wanted to go up but barely moved — hit a ceiling
+			newVelocity.y = 0
+		}
+
+		// 9. Wall-slide: airborne + touching wall + pressing into wall + falling
 		const pressingIntoWall = (wallDir === -1 && inputDir < 0) || (wallDir === 1 && inputDir > 0)
 		wallSliding = !grounded && wallDir !== 0 && pressingIntoWall && newVelocity.y > 0
 
-		// 9. Update velocity
+		// Track wall-slide coyote time
+		if (wallSliding) {
+			lastWallSlideTimeMs = elapsedMs
+			lastWallSlideDir = wallDir
+		}
+
+		// 10. Update velocity
 		let finalVx = newVelocity.x
 		let finalVy = grounded && newVelocity.y > 0 ? 0 : newVelocity.y
 
-		// 10. Wall-slide: cap fall speed
+		// 11. Wall-slide: cap fall speed
 		if (wallSliding && finalVy > WALL_SLIDE_SPEED) {
 			finalVy = WALL_SLIDE_SPEED
 		}
 
-		// 11. Wall-jump: if jump was triggered while wall-sliding, apply wall-jump force
-		if (jumped && wallDir !== 0 && !wasGrounded) {
-			// Launch away from wall
-			finalVx = -wallDir * WALL_JUMP_FORCE.x
+		// 12. Wall-jump: triggered while wall-sliding OR within wall-slide coyote window
+		// Use wallDir if currently touching, otherwise use lastWallSlideDir from coyote
+		const effectiveWallDir = wallDir !== 0 ? wallDir : (withinWallSlideCoyote ? lastWallSlideDir : 0)
+		if (jumped && effectiveWallDir !== 0 && !wasGrounded) {
+			// Launch away from wall (use effectiveWallDir, not wallDir — may be coyote)
+			finalVx = -effectiveWallDir * WALL_JUMP_FORCE.x
 			finalVy = WALL_JUMP_FORCE.y
 			// Lock out movement toward the wall for a short period
 			wallJumpLockoutUntilMs = elapsedMs + WALL_JUMP_LOCKOUT_MS
-			wallJumpLockoutDir = wallDir as -1 | 1
+			wallJumpLockoutDir = effectiveWallDir as -1 | 1
 			wallSliding = false
 			lastJumpWasWallJump = true
+			// Consume wall-slide coyote so we can't double wall-jump
+			lastWallSlideTimeMs = -Infinity
 		} else if (jumped) {
 			// Normal or coyote jump — allow variable height
 			lastJumpWasWallJump = false
@@ -391,7 +415,7 @@ export function createPlayerEntity(
 
 		velocity = { x: finalVx, y: finalVy }
 
-		// 12. Reset wall state when grounded
+		// 13. Reset wall state when grounded
 		if (grounded) {
 			wallSliding = false
 			wallDir = 0
@@ -448,6 +472,7 @@ export function createPlayerEntity(
 	}
 
 	function destroy(): void {
+		unregisterPlayerCollider(collider.handle)
 		worldContainer.removeChild(graphics)
 		graphics.destroy()
 		try {

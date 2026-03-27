@@ -91,8 +91,16 @@ export async function createGame(
 			// 2. Update player
 			player.update(dt, actions)
 
-			// 3. Step physics world
+			// 3. Step physics world + drain collision events
 			physics.step()
+			const collisionEvents = physics.drainEvents()
+
+			// Log collision events for testing (will be wired into game state later)
+			for (const evt of collisionEvents) {
+				if (import.meta.env.DEV) {
+					console.log(`[collision] ${evt.type}`, evt)
+				}
+			}
 
 			// 4. Update camera to follow player
 			camera.update(dt, player.getPosition())

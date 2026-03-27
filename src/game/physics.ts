@@ -1,4 +1,5 @@
 import type RAPIER from "@dimforge/rapier2d"
+import { GROUND_COLLISION_GROUP, SHAMAN_OBJ_COLLISION_GROUP, createEventQueue, drainCollisionEvents, clearSensors, createSensorCollider, type CollisionEvent } from "./collisions"
 
 // ─── Rapier WASM singleton ──────────────────────────────
 
@@ -26,8 +27,10 @@ export function getRapier(): typeof RAPIER {
 export type PhysicsWorld = {
 	/** The raw Rapier world — escape hatch for advanced usage */
 	world: RAPIER.World
-	/** Advance simulation by one fixed timestep */
+	/** Advance simulation by one fixed timestep, collecting collision events */
 	step: () => void
+	/** Drain collision events from the last step. Call after step(). */
+	drainEvents: () => CollisionEvent[]
 	/** Create a rigid body from a descriptor */
 	addRigidBody: (desc: RAPIER.RigidBodyDesc) => RAPIER.RigidBody
 	/** Create a collider, optionally attached to a rigid body */
@@ -71,27 +74,133 @@ export function createPhysicsWorld(
 	const world = new RAPIER.World(gravity)
 	world.timestep = cfg.timestep
 
+	// ─── Event queue for collision events ────────────────
+	const eventQueue = createEventQueue()
+
 	// ─── Ground collider (static floor) ──────────────────
 	// Wide cuboid at FLOOR_Y (1020) — matches player.ts hardcoded floor.
 	// Half-extents: 3000 wide (covers default camera bounds), 20 tall.
 	const groundBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(1000, 1040)
 	const groundBody = world.createRigidBody(groundBodyDesc)
 	const groundColliderDesc = RAPIER.ColliderDesc.cuboid(3000, 20)
+		.setCollisionGroups(GROUND_COLLISION_GROUP)
 	world.createCollider(groundColliderDesc, groundBody)
 
-	// ─── Test wall (static) ──────────────────────────────
-	// Tall vertical wall for wall-slide / wall-jump testing.
-	// Positioned to the right of the player spawn (960).
-	// Half-extents: 10 wide, 200 tall → 20×400 wall at x=1200
-	const wallBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(1200, 820)
-	const wallBody = world.createRigidBody(wallBodyDesc)
-	const wallColliderDesc = RAPIER.ColliderDesc.cuboid(10, 200)
-	world.createCollider(wallColliderDesc, wallBody)
+	// ─── Test scene geometry ─────────────────────────────
+	// Player spawns at x=960, floor at y=1020.
+	// All static bodies use GROUND_COLLISION_GROUP.
+	const addStaticBox = (x: number, y: number, hw: number, hh: number) => {
+		const bd = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y)
+		const rb = world.createRigidBody(bd)
+		const cd = RAPIER.ColliderDesc.cuboid(hw, hh)
+			.setCollisionGroups(GROUND_COLLISION_GROUP)
+		world.createCollider(cd, rb)
+	}
+
+	// -- Wall-jump corridor (two tall walls with a gap) --
+	// Left wall at x=1200, right wall at x=1400, both 500 tall
+	addStaticBox(1200, 770, 10, 250) // left wall
+	addStaticBox(1400, 770, 10, 250) // right wall
+
+	// -- Floating platforms at various heights --
+	// Low platform (small hop from ground)
+	addStaticBox(700, 940, 80, 8)
+	// Mid platform (reachable from low platform)
+	addStaticBox(500, 840, 80, 8)
+	// High platform (needs wall-jump or chain from mid)
+	addStaticBox(350, 720, 80, 8)
+	// Ceiling platform way up (wall-jump chain target)
+	addStaticBox(1300, 520, 60, 8)
+
+	// -- Staircase to the left of spawn --
+	addStaticBox(820, 970, 40, 8)
+	addStaticBox(740, 920, 40, 8)
+	addStaticBox(660, 870, 40, 8)
+
+	// -- Pit with walls (below ground level) --
+	// Gap in the ground from x=1500 to x=1700
+	// Left ledge
+	addStaticBox(1480, 1040, 20, 20)
+	// Right ledge
+	addStaticBox(1720, 1040, 20, 20)
+	// Pit floor (deeper)
+	addStaticBox(1600, 1140, 120, 10)
+	// Pit left wall
+	addStaticBox(1490, 1090, 10, 60)
+	// Pit right wall
+	addStaticBox(1710, 1090, 10, 60)
+
+	// -- Small wall to the left (short wall-slide) --
+	addStaticBox(200, 920, 10, 100)
+
+	// ─── Shaman objects (dynamic, different collision group) ─
+	// These collide with player + ground + each other but NOT sensors.
+	const addDynamicBox = (x: number, y: number, hw: number, hh: number) => {
+		const bd = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y)
+		const rb = world.createRigidBody(bd)
+		const cd = RAPIER.ColliderDesc.cuboid(hw, hh)
+			.setCollisionGroups(SHAMAN_OBJ_COLLISION_GROUP)
+			.setRestitution(0.2)
+			.setDensity(2.0)
+		world.createCollider(cd, rb)
+	}
+
+	// Plank sitting on the high platform
+	addDynamicBox(350, 700, 50, 6)
+	// Ball near the staircase
+	const ballBody = world.createRigidBody(
+		RAPIER.RigidBodyDesc.dynamic().setTranslation(780, 900),
+	)
+	world.createCollider(
+		RAPIER.ColliderDesc.ball(15)
+			.setCollisionGroups(SHAMAN_OBJ_COLLISION_GROUP)
+			.setRestitution(0.6)
+			.setDensity(1.5),
+		ballBody,
+	)
+
+	// ─── Sensors (cheese, hole, lava) ───────────────────
+	// Cheese sensor — floating above the mid platform
+	const cheeseBody = world.createRigidBody(
+		RAPIER.RigidBodyDesc.fixed().setTranslation(500, 800),
+	)
+	createSensorCollider(
+		world,
+		cheeseBody,
+		RAPIER.ColliderDesc.ball(12),
+		"cheese",
+	)
+
+	// Hole sensor — at the right end of the ground
+	const holeBody = world.createRigidBody(
+		RAPIER.RigidBodyDesc.fixed().setTranslation(1850, 1010),
+	)
+	createSensorCollider(
+		world,
+		holeBody,
+		RAPIER.ColliderDesc.ball(20),
+		"hole",
+	)
+
+	// Lava sensor — at the bottom of the pit
+	const lavaBody = world.createRigidBody(
+		RAPIER.RigidBodyDesc.fixed().setTranslation(1600, 1160),
+	)
+	createSensorCollider(
+		world,
+		lavaBody,
+		RAPIER.ColliderDesc.cuboid(100, 8),
+		"lava",
+	)
 
 	// ─── API ─────────────────────────────────────────────
 
 	function step(): void {
-		world.step()
+		world.step(eventQueue)
+	}
+
+	function drainEvents(): CollisionEvent[] {
+		return drainCollisionEvents(eventQueue)
 	}
 
 	function addRigidBody(desc: RAPIER.RigidBodyDesc): RAPIER.RigidBody {
@@ -135,6 +244,12 @@ export function createPhysicsWorld(
 	}
 
 	function destroy(): void {
+		clearSensors()
+		try {
+			eventQueue.free()
+		} catch {
+			// WASM pointer cleanup — safe to ignore
+		}
 		try {
 			world.free()
 		} catch {
@@ -145,6 +260,7 @@ export function createPhysicsWorld(
 	return {
 		world,
 		step,
+		drainEvents,
 		addRigidBody,
 		addCollider,
 		createCharacterController,
