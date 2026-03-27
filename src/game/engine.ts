@@ -16,6 +16,7 @@ import { createInputSystem } from "./input"
 import { createCamera } from "./camera"
 import { createPlayerEntity } from "./entities/player"
 import { createCloudPlatformSystem } from "./entities/cloud-platform"
+import { createMovingPlatformSystem } from "./entities/moving-platform"
 import { initAssets } from "./assets"
 import { initRapier, createPhysicsWorld } from "./physics"
 import { createDebugOverlay, type DebugOverlay } from "./debug"
@@ -55,7 +56,43 @@ export async function createGame(
 	// Input
 	const input = createInputSystem(cfg.bindings)
 
-	// Player entity (needs physics for Rapier character controller)
+	// Moving platform system (must be created before player so player can reference it)
+	const movingPlatforms = createMovingPlatformSystem(physics, renderer.worldContainer)
+
+	// ─── Test scene: moving platforms ─────────────────
+	// Horizontal platform over the pit
+	movingPlatforms.add({
+		waypoints: [{ x: 1500, y: 950 }, { x: 1700, y: 950 }],
+		speed: 80,
+		pauseMs: 500,
+		width: 100,
+		height: 12,
+		mode: "ping_pong",
+	})
+	// Vertical elevator near the wall-jump corridor
+	movingPlatforms.add({
+		waypoints: [{ x: 1300, y: 1000 }, { x: 1300, y: 700 }],
+		speed: 100,
+		pauseMs: 800,
+		width: 80,
+		height: 12,
+		mode: "ping_pong",
+	})
+	// Diagonal path platform
+	movingPlatforms.add({
+		waypoints: [
+			{ x: 200, y: 800 },
+			{ x: 400, y: 700 },
+			{ x: 600, y: 750 },
+		],
+		speed: 120,
+		pauseMs: 300,
+		width: 70,
+		height: 12,
+		mode: "loop",
+	})
+
+	// Player entity (character controller handles platform riding via collision resolution)
 	const player = createPlayerEntity(renderer.worldContainer, physics)
 
 	// Cloud platform system — handles one-way pass-through independently
@@ -92,7 +129,10 @@ export async function createGame(
 			// 1. Poll input
 			const actions = input.poll(tick)
 
-			// 2. Update cloud platforms (sets collision groups before player's
+			// 2a. Update moving platforms (before player, so rider delta is ready)
+			movingPlatforms.update(dt)
+
+			// 2b. Update cloud platforms (sets collision groups before player's
 			//    character controller runs, so each cloud is independently
 			//    solid or pass-through based on the player's position)
 			cloudPlatforms.update(
@@ -101,8 +141,20 @@ export async function createGame(
 				player.isHoldingDown(),
 			)
 
+			// 2c. Compute ground platform delta hint for player stick velocity.
+			//     If the player is standing on a moving platform, pass its Y delta
+			//     so the player can adjust ground stick velocity to track it.
+			let groundDeltaY = 0
+			if (player.isGrounded()) {
+				const groundHandle = player.getGroundColliderHandle()
+				if (groundHandle !== null) {
+					const pd = movingPlatforms.getFrameDeltaForCollider(groundHandle)
+					if (pd) groundDeltaY = pd.y
+				}
+			}
+
 			// 3. Update player
-			player.update(dt, actions)
+			player.update(dt, actions, groundDeltaY)
 
 			// 3. Step physics world + drain collision events
 			physics.step()
@@ -190,6 +242,7 @@ export async function createGame(
 		input.destroy()
 		camera.destroy()
 		cloudPlatforms.destroy()
+		movingPlatforms.destroy()
 		player.destroy()
 		physics.destroy()
 		renderer.destroy()

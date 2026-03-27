@@ -122,8 +122,7 @@ export function createPhysicsWorld(
 	addStaticBox(500, 840, 80, 8)
 	// High platform (needs wall-jump or chain from mid)
 	addStaticBox(350, 720, 80, 8)
-	// Ceiling platform way up (wall-jump chain target)
-	addStaticBox(1300, 520, 60, 8)
+	// (removed ceiling platform — open space for elevator testing)
 
 	// -- Staircase to the left of spawn --
 	addStaticBox(820, 970, 40, 8)

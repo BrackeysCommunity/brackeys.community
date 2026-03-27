@@ -2,8 +2,8 @@ import { type Container, Graphics } from "pixi.js"
 import { PLAYER_COLLISION_GROUP, registerPlayerCollider, unregisterPlayerCollider } from "../collisions"
 import type { PhysicsWorld } from "../physics"
 import { getRapier } from "../physics"
-import type { InputAction, Vec2 } from "../types"
 import { getSurfaceMaterial, type SurfaceMaterial } from "../surfaces"
+import type { InputAction, Vec2 } from "../types"
 
 // ─── Movement config ─────────────────────────────────────
 // All tunable constants in one place. Importable for tests, debug overlays, etc.
@@ -83,7 +83,8 @@ export function deriveMovementState(
 }
 
 export type PlayerEntity = {
-	update: (dt: number, actions: InputAction[]) => void
+	/** @param groundDeltaY — optional Y delta of the platform we're standing on (positive = down). Used to adjust ground stick velocity for moving platforms. */
+	update: (dt: number, actions: InputAction[], groundDeltaY?: number) => void
 	getPosition: () => Vec2
 	getVelocity: () => Vec2
 	isGrounded: () => boolean
@@ -92,6 +93,8 @@ export type PlayerEntity = {
 	isHoldingDown: () => boolean
 	/** Half the player collider height — used by cloud platform system */
 	getHalfHeight: () => number
+	/** Collider handle of the ground we're standing on (from last frame's collisions), or null */
+	getGroundColliderHandle: () => number | null
 	/** -1 = wall on left, 0 = no wall, 1 = wall on right */
 	getWallDirection: () => -1 | 0 | 1
 	isWallSliding: () => boolean
@@ -244,7 +247,12 @@ export function createPlayerEntity(
 	let wallJumpLockoutUntilMs = 0 // timestamp — ignore input toward wall until this time
 	let wallJumpLockoutDir: -1 | 0 | 1 = 0 // which direction is locked out
 	let currentSurface: SurfaceMaterial | null = null // surface we're standing on this tick
+	let groundColliderHandle: number | null = null // collider handle of ground (for moving platform query)
 	let lastJumpWasWallJump = false // skip variable jump height for wall-jumps
+
+	// Double-jump state (ability — may not be assigned)
+	let hasDoubleJump = true // TODO: set from ability distribution system
+	let doubleJumpAvailable = false // reset on ground/wall-slide, consumed on use
 
 	// Snapshot of state BEFORE each tick's update — for debug arc origin
 	let preUpdateState = {
@@ -255,7 +263,7 @@ export function createPlayerEntity(
 
 	const heldActions = new Set<string>()
 
-	function update(dt: number, actions: InputAction[]): void {
+	function update(dt: number, actions: InputAction[], groundDeltaY = 0): void {
 		elapsedMs += dt
 
 		// Capture pre-update state BEFORE anything changes
@@ -320,19 +328,30 @@ export function createPlayerEntity(
 			effectiveJumpRelease,
 		)
 
-		// 2. Let Rapier's character controller resolve collisions.
-		//    Cloud platform pass-through is handled by the CloudPlatformSystem
-		//    entity, which runs before player.update() and sets each cloud's
-		//    collision groups independently.
+		// 1b. Double-jump: if computeDesiredMovement didn't jump (canJump was false)
+		//     but player pressed jump and has double-jump available, apply it.
+		let didDoubleJump = false
+		if (!jumped && jumpPressedThisFrame && !grounded && hasDoubleJump && doubleJumpAvailable) {
+			newVelocity.y = JUMP_VELOCITY
+			desiredDelta.y = newVelocity.y * dtSec
+			doubleJumpAvailable = false
+			didDoubleJump = true
+		}
+
+		// 2. Character controller resolves the player's own input.
+		//    Moving platforms: the character controller naturally handles platform
+		//    riding through collision resolution — gravity pulls the player down,
+		//    the controller detects the platform at its new position, and
+		//    snap-to-ground keeps the player on it. No explicit platform delta needed.
 		controller.computeColliderMovement(
 			collider,
 			new RAPIER.Vector2(desiredDelta.x, desiredDelta.y),
 		)
 
-		// 5. Get the corrected movement (after collision resolution)
+		// Get the corrected movement (after collision resolution)
 		const corrected = controller.computedMovement()
 
-		// 4. Apply corrected movement to kinematic body
+		// Apply corrected movement to kinematic body
 		const currentPos = body.translation()
 		body.setNextKinematicTranslation(
 			new RAPIER.Vector2(
@@ -357,6 +376,7 @@ export function createPlayerEntity(
 
 		// 6. Detect wall contact + ground/wall surface from character controller collisions
 		wallDir = 0
+		groundColliderHandle = null
 		let groundSurface: SurfaceMaterial | null = null
 		let wallSurface: SurfaceMaterial | null = null
 		const numCollisions = controller.numComputedCollisions()
@@ -375,6 +395,7 @@ export function createPlayerEntity(
 			// Ground: mostly-upward normal (ny < -0.7 in our +Y-down coords)
 			if (ny < -WALL_NORMAL_THRESHOLD && collision.collider) {
 				groundSurface = getSurfaceMaterial(collision.collider.handle)
+				groundColliderHandle = collision.collider.handle
 			}
 		}
 		currentSurface = groundSurface
@@ -436,8 +457,30 @@ export function createPlayerEntity(
 		}
 
 		// 11. Update velocity
+		//     When grounded, apply a downward "stick" velocity to keep the character
+		//     controller's desired delta large enough to maintain ground contact.
+		//     For moving platforms: scale relative to the platform's Y delta so
+		//     downward platforms are tracked. Skip entirely when the platform moves
+		//     up — collision resolution handles upward push naturally.
+		const BASE_STICK_VELOCITY = 100 // game units/sec — baseline for static ground
 		let finalVx = newVelocity.x
-		let finalVy = grounded && newVelocity.y > 0 && (!currentSurface || currentSurface.bounceVelocity === 0) ? 0 : newVelocity.y
+		let finalVy: number
+		if (grounded && newVelocity.y > 0 && (!currentSurface || currentSurface.bounceVelocity === 0)) {
+			if (groundDeltaY < -0.01) {
+				// Platform moving UP — don't apply stick velocity, collision handles it
+				finalVy = 0
+			} else if (groundDeltaY > 0.01) {
+				// Platform moving DOWN — stick velocity must exceed platform speed
+				// Convert delta (units/frame) to velocity (units/sec) and add margin
+				const platformVyPerSec = groundDeltaY * 60 // approximate at 60fps
+				finalVy = platformVyPerSec + BASE_STICK_VELOCITY
+			} else {
+				// Static ground — small constant keeps us grounded
+				finalVy = BASE_STICK_VELOCITY
+			}
+		} else {
+			finalVy = newVelocity.y
+		}
 
 		// 11. Wall-slide: cap fall speed (chocolate walls = extra sticky)
 		if (wallSliding) {
@@ -462,8 +505,8 @@ export function createPlayerEntity(
 			lastJumpWasWallJump = true
 			// Consume wall-slide coyote so we can't double wall-jump
 			lastWallSlideTimeMs = -Infinity
-		} else if (jumped) {
-			// Normal or coyote jump — allow variable height
+		} else if (jumped || didDoubleJump) {
+			// Normal, coyote, or double jump — allow variable height
 			lastJumpWasWallJump = false
 		}
 
@@ -474,6 +517,12 @@ export function createPlayerEntity(
 			wallSliding = false
 			wallDir = 0
 			lastJumpWasWallJump = false
+			if (hasDoubleJump) doubleJumpAvailable = true
+		}
+
+		// Reset double-jump on wall-slide (wall gives you another chance)
+		if (wallSliding && hasDoubleJump) {
+			doubleJumpAvailable = true
 		}
 
 		// 13. Derive movement state
@@ -513,6 +562,10 @@ export function createPlayerEntity(
 		return PLAYER_HEIGHT / 2
 	}
 
+	function getGroundColliderHandle(): number | null {
+		return groundColliderHandle
+	}
+
 	function getWallDirection(): -1 | 0 | 1 {
 		return wallDir
 	}
@@ -547,7 +600,7 @@ export function createPlayerEntity(
 
 	return {
 		update, getPosition, getVelocity, isGrounded,
-		isHoldingJump, isHoldingMove, isHoldingDown, getHalfHeight,
+		isHoldingJump, isHoldingMove, isHoldingDown, getHalfHeight, getGroundColliderHandle,
 		getWallDirection, isWallSliding,
 		getMovementState, getPreUpdateState, destroy,
 	}
