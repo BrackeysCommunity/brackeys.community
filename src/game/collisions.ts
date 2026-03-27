@@ -19,13 +19,15 @@ export const GROUP_PLAYER     = 0x0001 // Players (mice)
 export const GROUP_GROUND     = 0x0002 // Static ground, walls, map geometry
 export const GROUP_SHAMAN_OBJ = 0x0004 // Shaman-placed objects (planks, balls, etc.)
 export const GROUP_SENSOR     = 0x0008 // Sensors (cheese, hole, lava) — no physics response
+export const GROUP_CLOUD      = 0x0010 // Cloud platforms — one-way pass-through
 
 // ─── Interaction rules ───────────────────────────────────
 // Defines what each group's filter mask allows.
 
-/** Player collides with: ground + shaman objects + sensors (NOT other players).
- *  Sensor collisions generate events but no physics response (sensors use setSensor(true)). */
-const PLAYER_FILTER = GROUP_GROUND | GROUP_SHAMAN_OBJ | GROUP_SENSOR
+/** Player collides with: ground + shaman objects + sensors + cloud (NOT other players).
+ *  Sensor collisions generate events but no physics response (sensors use setSensor(true)).
+ *  Cloud platforms are toggled via filterGroups on computeColliderMovement. */
+const PLAYER_FILTER = GROUP_GROUND | GROUP_SHAMAN_OBJ | GROUP_SENSOR | GROUP_CLOUD
 
 /** Ground collides with: players + shaman objects */
 const GROUND_FILTER = GROUP_PLAYER | GROUP_SHAMAN_OBJ
@@ -55,6 +57,14 @@ export const SHAMAN_OBJ_COLLISION_GROUP = packGroups(GROUP_SHAMAN_OBJ, SHAMAN_OB
 
 /** Sensor collision group — intersects with players only */
 export const SENSOR_COLLISION_GROUP = packGroups(GROUP_SENSOR, SENSOR_FILTER)
+
+/** Cloud platform collision group (solid state) — collides with players and shaman objects.
+ *  Each cloud toggles its own groups per-frame based on player position. */
+export const CLOUD_COLLISION_GROUP = packGroups(GROUP_CLOUD, GROUP_PLAYER | GROUP_SHAMAN_OBJ)
+
+/** Cloud platform collision group (pass-through state) — no player interaction.
+ *  Filter is 0 so nothing interacts while in pass-through state. */
+export const CLOUD_PASSTHROUGH_GROUP = packGroups(GROUP_CLOUD, 0)
 
 // ─── Sensor types ────────────────────────────────────────
 

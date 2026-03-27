@@ -1,5 +1,16 @@
 import { Container, Graphics } from "pixi.js"
 import type { PhysicsWorld } from "../physics"
+import { getSurfaceType, type SurfaceType } from "../surfaces"
+
+// Colors for each surface type in debug wireframes
+const SURFACE_COLORS: Record<SurfaceType, number> = {
+	normal: 0xff8800,     // orange (default Rapier color)
+	ice: 0x88ddff,        // light blue
+	trampoline: 0xff00ff, // magenta
+	lava: 0xff2222,       // red
+	chocolate: 0x8b4513,  // brown
+	cloud: 0xffffff,      // white
+}
 
 export type PhysicsWireframes = {
 	update: () => void
@@ -15,10 +26,13 @@ export function createPhysicsWireframes(
 	container.label = "debug-physics"
 
 	const graphics = new Graphics()
+	const surfaceGraphics = new Graphics()
 	container.addChild(graphics)
+	container.addChild(surfaceGraphics)
 
 	function update(): void {
 		graphics.clear()
+		surfaceGraphics.clear()
 
 		const { vertices, colors } = physicsWorld.debugRender()
 
@@ -48,6 +62,32 @@ export function createPhysicsWireframes(
 			graphics.lineTo(x2, y2)
 			graphics.stroke()
 		}
+
+		// Draw surface-colored overlays on registered colliders
+		const world = physicsWorld.world
+		world.forEachCollider((collider) => {
+			const surfaceType = getSurfaceType(collider.handle)
+			if (surfaceType === "normal") return // skip normal — already drawn by Rapier
+
+			const color = SURFACE_COLORS[surfaceType]
+			const pos = collider.translation()
+			const halfExtents = collider.halfExtents()
+			if (!halfExtents) return // ball/capsule — skip for now
+
+			const x = pos.x - halfExtents.x
+			const y = pos.y - halfExtents.y
+			const w = halfExtents.x * 2
+			const h = halfExtents.y * 2
+
+			// Filled semi-transparent overlay
+			surfaceGraphics.rect(x, y, w, h)
+			surfaceGraphics.fill({ color, alpha: 0.15 })
+
+			// Colored border
+			surfaceGraphics.setStrokeStyle({ width: 2, color, alpha: 0.8 })
+			surfaceGraphics.rect(x, y, w, h)
+			surfaceGraphics.stroke()
+		})
 	}
 
 	function setVisible(visible: boolean): void {
@@ -59,6 +99,7 @@ export function createPhysicsWireframes(
 
 	function destroy(): void {
 		graphics.destroy()
+		surfaceGraphics.destroy()
 		container.destroy()
 	}
 

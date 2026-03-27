@@ -3,6 +3,7 @@ import { PLAYER_COLLISION_GROUP, registerPlayerCollider, unregisterPlayerCollide
 import type { PhysicsWorld } from "../physics"
 import { getRapier } from "../physics"
 import type { InputAction, Vec2 } from "../types"
+import { getSurfaceMaterial, type SurfaceMaterial } from "../surfaces"
 
 // ─── Movement config ─────────────────────────────────────
 // All tunable constants in one place. Importable for tests, debug overlays, etc.
@@ -88,6 +89,9 @@ export type PlayerEntity = {
 	isGrounded: () => boolean
 	isHoldingJump: () => boolean
 	isHoldingMove: () => boolean
+	isHoldingDown: () => boolean
+	/** Half the player collider height — used by cloud platform system */
+	getHalfHeight: () => number
 	/** -1 = wall on left, 0 = no wall, 1 = wall on right */
 	getWallDirection: () => -1 | 0 | 1
 	isWallSliding: () => boolean
@@ -239,6 +243,7 @@ export function createPlayerEntity(
 	let lastWallSlideDir: -1 | 0 | 1 = 0 // which wall we were sliding on (for coyote wall-jump)
 	let wallJumpLockoutUntilMs = 0 // timestamp — ignore input toward wall until this time
 	let wallJumpLockoutDir: -1 | 0 | 1 = 0 // which direction is locked out
+	let currentSurface: SurfaceMaterial | null = null // surface we're standing on this tick
 	let lastJumpWasWallJump = false // skip variable jump height for wall-jumps
 
 	// Snapshot of state BEFORE each tick's update — for debug arc origin
@@ -315,10 +320,16 @@ export function createPlayerEntity(
 			effectiveJumpRelease,
 		)
 
-		// 2. Let Rapier's character controller resolve collisions
-		controller.computeColliderMovement(collider, new RAPIER.Vector2(desiredDelta.x, desiredDelta.y))
+		// 2. Let Rapier's character controller resolve collisions.
+		//    Cloud platform pass-through is handled by the CloudPlatformSystem
+		//    entity, which runs before player.update() and sets each cloud's
+		//    collision groups independently.
+		controller.computeColliderMovement(
+			collider,
+			new RAPIER.Vector2(desiredDelta.x, desiredDelta.y),
+		)
 
-		// 3. Get the corrected movement (after collision resolution)
+		// 5. Get the corrected movement (after collision resolution)
 		const corrected = controller.computedMovement()
 
 		// 4. Apply corrected movement to kinematic body
@@ -344,21 +355,29 @@ export function createPlayerEntity(
 			lastGroundedTimeMs = -Infinity
 		}
 
-		// 6. Detect wall contact from character controller collisions
+		// 6. Detect wall contact + ground/wall surface from character controller collisions
 		wallDir = 0
+		let groundSurface: SurfaceMaterial | null = null
+		let wallSurface: SurfaceMaterial | null = null
 		const numCollisions = controller.numComputedCollisions()
 		for (let i = 0; i < numCollisions; i++) {
 			const collision = controller.computedCollision(i)
 			if (!collision) continue
 			const nx = collision.normal1.x
-			// A wall normal points away from the wall surface.
-			// If normal points right (nx > threshold), the wall is on the LEFT.
-			// If normal points left (nx < -threshold), the wall is on the RIGHT.
-			if (Math.abs(nx) > WALL_NORMAL_THRESHOLD) {
+			const ny = collision.normal1.y
+			// Wall: mostly-horizontal normal
+			if (Math.abs(nx) > WALL_NORMAL_THRESHOLD && wallDir === 0) {
 				wallDir = nx > 0 ? -1 : 1
-				break
+				if (collision.collider) {
+					wallSurface = getSurfaceMaterial(collision.collider.handle)
+				}
+			}
+			// Ground: mostly-upward normal (ny < -0.7 in our +Y-down coords)
+			if (ny < -WALL_NORMAL_THRESHOLD && collision.collider) {
+				groundSurface = getSurfaceMaterial(collision.collider.handle)
 			}
 		}
+		currentSurface = groundSurface
 
 		// 7. Wall contact: zero out horizontal velocity so direction changes are instant
 		if (!grounded && wallDir !== 0) {
@@ -376,8 +395,11 @@ export function createPlayerEntity(
 		}
 
 		// 9. Wall-slide: airborne + touching wall + pressing into wall + falling
+		//    Ice walls: no grip — can't wall-slide at all
+		//    Chocolate walls: very sticky — much slower slide speed
 		const pressingIntoWall = (wallDir === -1 && inputDir < 0) || (wallDir === 1 && inputDir > 0)
-		wallSliding = !grounded && wallDir !== 0 && pressingIntoWall && newVelocity.y > 0
+		const wallIsIce = wallSurface !== null && wallSurface.decelMultiplier < 0.1
+		wallSliding = !grounded && wallDir !== 0 && pressingIntoWall && newVelocity.y > 0 && !wallIsIce
 
 		// Track wall-slide coyote time
 		if (wallSliding) {
@@ -385,13 +407,45 @@ export function createPlayerEntity(
 			lastWallSlideDir = wallDir
 		}
 
-		// 10. Update velocity
-		let finalVx = newVelocity.x
-		let finalVy = grounded && newVelocity.y > 0 ? 0 : newVelocity.y
+		// 10. Apply surface modifiers
+		if (grounded && currentSurface) {
+			// Speed modifier (chocolate = 0.5×)
+			if (currentSurface.speedMultiplier !== 1.0) {
+				const maxSpd = MOVE_SPEED * currentSurface.speedMultiplier
+				if (Math.abs(newVelocity.x) > maxSpd) {
+					newVelocity.x = Math.sign(newVelocity.x) * maxSpd
+				}
+			}
 
-		// 11. Wall-slide: cap fall speed
-		if (wallSliding && finalVy > WALL_SLIDE_SPEED) {
-			finalVy = WALL_SLIDE_SPEED
+			// Decel modifier applied retroactively: if we decelerated this frame,
+			// scale the decel amount. computeDesiredMovement used full GROUND_DECEL,
+			// but on ice we want much less. Re-lerp toward the pre-decel velocity.
+			if (currentSurface.decelMultiplier !== 1.0 && inputDir === 0) {
+				const preVx = velocity.x // velocity from previous frame
+				const postVx = newVelocity.x // after standard decel
+				// Blend: less decel = closer to preVx
+				newVelocity.x = preVx + (postVx - preVx) * currentSurface.decelMultiplier
+				// Snap to zero to prevent floating-point oscillation
+				if (Math.abs(newVelocity.x) < 0.5) newVelocity.x = 0
+			}
+
+			// Trampoline bounce
+			if (currentSurface.bounceVelocity !== 0) {
+				newVelocity.y = currentSurface.bounceVelocity
+			}
+		}
+
+		// 11. Update velocity
+		let finalVx = newVelocity.x
+		let finalVy = grounded && newVelocity.y > 0 && (!currentSurface || currentSurface.bounceVelocity === 0) ? 0 : newVelocity.y
+
+		// 11. Wall-slide: cap fall speed (chocolate walls = extra sticky)
+		if (wallSliding) {
+			const wallIsChocolate = wallSurface !== null && wallSurface.speedMultiplier < 1.0
+			const slideSpeed = wallIsChocolate ? WALL_SLIDE_SPEED * 0.3 : WALL_SLIDE_SPEED
+			if (finalVy > slideSpeed) {
+				finalVy = slideSpeed
+			}
 		}
 
 		// 12. Wall-jump: triggered while wall-sliding OR within wall-slide coyote window
@@ -451,6 +505,14 @@ export function createPlayerEntity(
 		return holdingMove
 	}
 
+	function isHoldingDown(): boolean {
+		return heldActions.has("move_down")
+	}
+
+	function getHalfHeight(): number {
+		return PLAYER_HEIGHT / 2
+	}
+
 	function getWallDirection(): -1 | 0 | 1 {
 		return wallDir
 	}
@@ -485,7 +547,8 @@ export function createPlayerEntity(
 
 	return {
 		update, getPosition, getVelocity, isGrounded,
-		isHoldingJump, isHoldingMove, getWallDirection, isWallSliding,
+		isHoldingJump, isHoldingMove, isHoldingDown, getHalfHeight,
+		getWallDirection, isWallSliding,
 		getMovementState, getPreUpdateState, destroy,
 	}
 }

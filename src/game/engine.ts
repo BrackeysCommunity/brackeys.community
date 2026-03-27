@@ -15,6 +15,7 @@ import { createGameLoop } from "./loop"
 import { createInputSystem } from "./input"
 import { createCamera } from "./camera"
 import { createPlayerEntity } from "./entities/player"
+import { createCloudPlatformSystem } from "./entities/cloud-platform"
 import { initAssets } from "./assets"
 import { initRapier, createPhysicsWorld } from "./physics"
 import { createDebugOverlay, type DebugOverlay } from "./debug"
@@ -57,6 +58,9 @@ export async function createGame(
 	// Player entity (needs physics for Rapier character controller)
 	const player = createPlayerEntity(renderer.worldContainer, physics)
 
+	// Cloud platform system — handles one-way pass-through independently
+	const cloudPlatforms = createCloudPlatformSystem(physics, renderer.worldContainer)
+
 	// Initialize player in store
 	updatePlayer(store, "local", {
 		id: "local",
@@ -88,7 +92,16 @@ export async function createGame(
 			// 1. Poll input
 			const actions = input.poll(tick)
 
-			// 2. Update player
+			// 2. Update cloud platforms (sets collision groups before player's
+			//    character controller runs, so each cloud is independently
+			//    solid or pass-through based on the player's position)
+			cloudPlatforms.update(
+				player.getPosition(),
+				player.getHalfHeight(),
+				player.isHoldingDown(),
+			)
+
+			// 3. Update player
 			player.update(dt, actions)
 
 			// 3. Step physics world + drain collision events
@@ -176,6 +189,7 @@ export async function createGame(
 		debugOverlay?.destroy()
 		input.destroy()
 		camera.destroy()
+		cloudPlatforms.destroy()
 		player.destroy()
 		physics.destroy()
 		renderer.destroy()

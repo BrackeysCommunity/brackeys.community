@@ -1,5 +1,6 @@
 import type RAPIER from "@dimforge/rapier2d"
-import { GROUND_COLLISION_GROUP, SHAMAN_OBJ_COLLISION_GROUP, createEventQueue, drainCollisionEvents, clearSensors, createSensorCollider, type CollisionEvent } from "./collisions"
+import { GROUND_COLLISION_GROUP, CLOUD_COLLISION_GROUP, SHAMAN_OBJ_COLLISION_GROUP, createEventQueue, drainCollisionEvents, clearSensors, createSensorCollider, type CollisionEvent } from "./collisions"
+import { clearSurfaces, clearCloudPlatforms, registerSurface, registerCloudPlatform, SURFACE_MATERIALS } from "./surfaces"
 
 // ─── Rapier WASM singleton ──────────────────────────────
 
@@ -77,14 +78,26 @@ export function createPhysicsWorld(
 	// ─── Event queue for collision events ────────────────
 	const eventQueue = createEventQueue()
 
-	// ─── Ground collider (static floor) ──────────────────
-	// Wide cuboid at FLOOR_Y (1020) — matches player.ts hardcoded floor.
-	// Half-extents: 3000 wide (covers default camera bounds), 20 tall.
-	const groundBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(1000, 1040)
-	const groundBody = world.createRigidBody(groundBodyDesc)
-	const groundColliderDesc = RAPIER.ColliderDesc.cuboid(3000, 20)
-		.setCollisionGroups(GROUND_COLLISION_GROUP)
-	world.createCollider(groundColliderDesc, groundBody)
+	// Cloud platform one-way pass-through is handled in the player entity's
+	// computeColliderMovement filterPredicate, not via PhysicsHooks (which
+	// don't apply to kinematic character controllers).
+
+	// ─── Ground colliders (static floor with pit gap) ────
+	// Floor at y=1020 (top edge), split into two segments with a gap at x=1490–1710.
+	// Left segment: x=-2000 to x=1490 → center at x=-255, half-width=1745
+	const groundLeftDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(-255, 1040)
+	const groundLeftBody = world.createRigidBody(groundLeftDesc)
+	world.createCollider(
+		RAPIER.ColliderDesc.cuboid(1745, 20).setCollisionGroups(GROUND_COLLISION_GROUP),
+		groundLeftBody,
+	)
+	// Right segment: x=1710 to x=4000 → center at x=2855, half-width=1145
+	const groundRightDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(2855, 1040)
+	const groundRightBody = world.createRigidBody(groundRightDesc)
+	world.createCollider(
+		RAPIER.ColliderDesc.cuboid(1145, 20).setCollisionGroups(GROUND_COLLISION_GROUP),
+		groundRightBody,
+	)
 
 	// ─── Test scene geometry ─────────────────────────────
 	// Player spawns at x=960, floor at y=1020.
@@ -117,18 +130,13 @@ export function createPhysicsWorld(
 	addStaticBox(740, 920, 40, 8)
 	addStaticBox(660, 870, 40, 8)
 
-	// -- Pit with walls (below ground level) --
-	// Gap in the ground from x=1500 to x=1700
-	// Left ledge
-	addStaticBox(1480, 1040, 20, 20)
-	// Right ledge
-	addStaticBox(1720, 1040, 20, 20)
+	// -- Pit (below ground level, gap at x=1490–1710) --
 	// Pit floor (deeper)
-	addStaticBox(1600, 1140, 120, 10)
+	addStaticBox(1600, 1160, 120, 10)
 	// Pit left wall
-	addStaticBox(1490, 1090, 10, 60)
+	addStaticBox(1490, 1100, 10, 80)
 	// Pit right wall
-	addStaticBox(1710, 1090, 10, 60)
+	addStaticBox(1710, 1100, 10, 80)
 
 	// -- Small wall to the left (short wall-slide) --
 	addStaticBox(200, 920, 10, 100)
@@ -193,6 +201,42 @@ export function createPhysicsWorld(
 		"lava",
 	)
 
+	// ─── Surface-typed platforms ─────────────────────────
+	const addSurfacePlatform = (
+		x: number, y: number, hw: number, hh: number,
+		surfaceType: keyof typeof SURFACE_MATERIALS,
+	) => {
+		const mat = SURFACE_MATERIALS[surfaceType]
+		const bd = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y)
+		const rb = world.createRigidBody(bd)
+		const group = surfaceType === "cloud" ? CLOUD_COLLISION_GROUP : GROUND_COLLISION_GROUP
+		const cd = RAPIER.ColliderDesc.cuboid(hw, hh)
+			.setCollisionGroups(group)
+			.setFriction(mat.friction)
+			.setRestitution(mat.restitution)
+		const collider = world.createCollider(cd, rb)
+		registerSurface(collider.handle, surfaceType)
+		if (surfaceType === "cloud") {
+			registerCloudPlatform(collider.handle)
+		}
+	}
+
+	// Ice platform — to the left, slide across it
+	addSurfacePlatform(100, 1000, 100, 8, "ice")
+
+	// Chocolate platform — slow movement, right of staircase
+	addSurfacePlatform(550, 970, 60, 8, "chocolate")
+
+	// Trampoline — at bottom of pit, bounces player out
+	addSurfacePlatform(1600, 1120, 40, 8, "trampoline")
+
+	// Cloud platform — above spawn, can jump through from below
+	addSurfacePlatform(960, 900, 60, 6, "cloud")
+	// Second cloud higher up
+	addSurfacePlatform(960, 780, 60, 6, "cloud")
+	// Third cloud — over by the staircase area
+	addSurfacePlatform(680, 850, 50, 6, "cloud")
+
 	// ─── API ─────────────────────────────────────────────
 
 	function step(): void {
@@ -245,6 +289,8 @@ export function createPhysicsWorld(
 
 	function destroy(): void {
 		clearSensors()
+		clearSurfaces()
+		clearCloudPlatforms()
 		try {
 			eventQueue.free()
 		} catch {

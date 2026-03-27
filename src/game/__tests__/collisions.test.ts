@@ -4,10 +4,13 @@ import {
 	GROUP_GROUND,
 	GROUP_SHAMAN_OBJ,
 	GROUP_SENSOR,
+	GROUP_CLOUD,
 	PLAYER_COLLISION_GROUP,
 	GROUND_COLLISION_GROUP,
 	SHAMAN_OBJ_COLLISION_GROUP,
 	SENSOR_COLLISION_GROUP,
+	CLOUD_COLLISION_GROUP,
+	CLOUD_PASSTHROUGH_GROUP,
 	packGroups,
 	registerSensor,
 	unregisterSensor,
@@ -36,7 +39,7 @@ describe("packGroups", () => {
 	})
 
 	it("produces correct values for GROUP_PLAYER", () => {
-		const packed = packGroups(GROUP_PLAYER, GROUP_GROUND | GROUP_SHAMAN_OBJ | GROUP_SENSOR)
+		const packed = packGroups(GROUP_PLAYER, GROUP_GROUND | GROUP_SHAMAN_OBJ | GROUP_SENSOR | GROUP_CLOUD)
 		expect(packed).toBe(PLAYER_COLLISION_GROUP)
 	})
 })
@@ -82,6 +85,24 @@ describe("collision group interactions", () => {
 
 	it("ground ↔ ground: NO (no self-collision for static bodies)", () => {
 		expect(interacts(GROUND_COLLISION_GROUP, GROUND_COLLISION_GROUP)).toBe(false)
+	})
+
+	it("cloud (solid) ↔ player: YES", () => {
+		expect(interacts(CLOUD_COLLISION_GROUP, PLAYER_COLLISION_GROUP)).toBe(true)
+	})
+
+	it("cloud (passthrough) ↔ player: NO", () => {
+		expect(interacts(CLOUD_PASSTHROUGH_GROUP, PLAYER_COLLISION_GROUP)).toBe(false)
+	})
+
+	it("cloud (passthrough) ↔ shaman obj: NO", () => {
+		// Shaman objects don't interact with cloud group (they use GROUND filter)
+		expect(interacts(CLOUD_PASSTHROUGH_GROUP, SHAMAN_OBJ_COLLISION_GROUP)).toBe(false)
+	})
+
+	it("cloud (solid) ↔ shaman obj: NO", () => {
+		// Even solid clouds are in GROUP_CLOUD, not GROUP_GROUND
+		expect(interacts(CLOUD_COLLISION_GROUP, SHAMAN_OBJ_COLLISION_GROUP)).toBe(false)
 	})
 })
 
