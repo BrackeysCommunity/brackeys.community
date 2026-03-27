@@ -3,24 +3,79 @@ import type { PhysicsWorld } from "../physics"
 import { getRapier } from "../physics"
 import type { InputAction, Vec2 } from "../types"
 
-// ─── Player constants ────────────────────────────────────
+// ─── Movement config ─────────────────────────────────────
+// All tunable constants in one place. Importable for tests, debug overlays, etc.
 
-export const MOVE_SPEED = 300 // game units/sec
-export const JUMP_VELOCITY = -500 // game units/sec (negative = up)
-export const GRAVITY = 1200 // game units/sec²
-export const GROUND_DECEL = 2400 // game units/sec² — rapid deceleration when no input
-export const JUMP_CUT_MULTIPLIER = 0.4 // multiply vy by this on jump release (variable height)
-export const AIR_CONTROL = 0.6 // horizontal influence multiplier while airborne (0–1)
-export const AIR_REVERSAL_MULTIPLIER = 8.0 // extra accel multiplier when input opposes current velocity in air
-export const AIR_ACCEL = MOVE_SPEED * 8 // game units/sec² — acceleration rate in air
-export const MAX_FALL_SPEED = 900 // game units/sec — terminal velocity cap
-export const COYOTE_TIME_MS = 100 // ms — grace period to jump after leaving ground
-export const WALL_SLIDE_SPEED = 120 // game units/sec — capped fall speed when wall-sliding
-export const WALL_JUMP_FORCE = { x: 350, y: -500 } // launch velocity away from wall (1.5× normal jump height)
-export const WALL_JUMP_LOCKOUT_MS = 180 // ms — time before player can move toward the wall again after wall-jump
+export type MovementConfig = {
+	moveSpeed: number
+	jumpVelocity: number
+	gravity: number
+	groundDecel: number
+	jumpCutMultiplier: number
+	airControl: number
+	airReversalMultiplier: number
+	airAccel: number
+	maxFallSpeed: number
+	coyoteTimeMs: number
+	wallSlideSpeed: number
+	wallJumpForce: { x: number; y: number }
+	wallJumpLockoutMs: number
+	cheeseWeightMultiplier: number
+}
+
+export const MOVEMENT_CONFIG: MovementConfig = {
+	moveSpeed: 300,                // game units/sec
+	jumpVelocity: -500,            // game units/sec (negative = up)
+	gravity: 1200,                 // game units/sec²
+	groundDecel: 2400,             // game units/sec² — rapid decel when no input
+	jumpCutMultiplier: 0.4,        // multiply vy on jump release (variable height)
+	airControl: 0.6,               // horizontal influence multiplier while airborne (0–1)
+	airReversalMultiplier: 8.0,    // extra accel multiplier when input opposes velocity in air
+	airAccel: 300 * 8,             // game units/sec² — acceleration rate in air
+	maxFallSpeed: 900,             // game units/sec — terminal velocity cap
+	coyoteTimeMs: 100,             // ms — grace period to jump after leaving ground
+	wallSlideSpeed: 120,           // game units/sec — capped fall speed when wall-sliding
+	wallJumpForce: { x: 350, y: -500 }, // launch velocity away from wall (1.5× normal jump)
+	wallJumpLockoutMs: 180,        // ms — input lockout toward wall after wall-jump
+	cheeseWeightMultiplier: 0.85,  // jump velocity multiplier when carrying cheese
+}
+
+// Re-export individual constants for backward compat (tests, debug overlays)
+export const MOVE_SPEED = MOVEMENT_CONFIG.moveSpeed
+export const JUMP_VELOCITY = MOVEMENT_CONFIG.jumpVelocity
+export const GRAVITY = MOVEMENT_CONFIG.gravity
+export const GROUND_DECEL = MOVEMENT_CONFIG.groundDecel
+export const JUMP_CUT_MULTIPLIER = MOVEMENT_CONFIG.jumpCutMultiplier
+export const AIR_CONTROL = MOVEMENT_CONFIG.airControl
+export const AIR_REVERSAL_MULTIPLIER = MOVEMENT_CONFIG.airReversalMultiplier
+export const AIR_ACCEL = MOVEMENT_CONFIG.airAccel
+export const MAX_FALL_SPEED = MOVEMENT_CONFIG.maxFallSpeed
+export const COYOTE_TIME_MS = MOVEMENT_CONFIG.coyoteTimeMs
+export const WALL_SLIDE_SPEED = MOVEMENT_CONFIG.wallSlideSpeed
+export const WALL_JUMP_FORCE = MOVEMENT_CONFIG.wallJumpForce
+export const WALL_JUMP_LOCKOUT_MS = MOVEMENT_CONFIG.wallJumpLockoutMs
+
 const WALL_NORMAL_THRESHOLD = 0.7 // |normal.x| must exceed this to count as a wall
 const PLAYER_WIDTH = 60
 const PLAYER_HEIGHT = 60
+
+// ─── Movement state machine ─────────────────────────────
+
+export type MovementState = "idle" | "walking" | "jumping" | "falling" | "wall_sliding"
+
+/** Derive the movement state from physical state. Pure function for testability. */
+export function deriveMovementState(
+	grounded: boolean,
+	wallSliding: boolean,
+	vy: number,
+	vx: number,
+): MovementState {
+	if (wallSliding) return "wall_sliding"
+	if (grounded) {
+		return Math.abs(vx) > 1 ? "walking" : "idle"
+	}
+	return vy < 0 ? "jumping" : "falling"
+}
 
 export type PlayerEntity = {
 	update: (dt: number, actions: InputAction[]) => void
@@ -32,6 +87,7 @@ export type PlayerEntity = {
 	/** -1 = wall on left, 0 = no wall, 1 = wall on right */
 	getWallDirection: () => -1 | 0 | 1
 	isWallSliding: () => boolean
+	getMovementState: () => MovementState
 	/** Position/velocity/grounded BEFORE this tick's update (for debug arc origin) */
 	getPreUpdateState: () => { position: Vec2; velocity: Vec2; grounded: boolean }
 	destroy: () => void
@@ -50,6 +106,7 @@ export function computeDesiredMovement(
 	dtSec: number,
 	jumpPressedThisFrame: boolean,
 	jumpReleasedThisFrame: boolean,
+	carryingCheese = false,
 ): { desiredDelta: Vec2; newVelocity: Vec2; jumped: boolean } {
 	let vx = velocity.x
 	let vy = velocity.y
@@ -104,7 +161,10 @@ export function computeDesiredMovement(
 
 	// Jump — only on fresh press, allowed if grounded / coyote / wall-sliding
 	if (jumpPressedThisFrame && canJump) {
-		vy = JUMP_VELOCITY
+		const jumpVel = carryingCheese
+			? JUMP_VELOCITY * MOVEMENT_CONFIG.cheeseWeightMultiplier
+			: JUMP_VELOCITY
+		vy = jumpVel
 		jumped = true
 	}
 
@@ -163,6 +223,7 @@ export function createPlayerEntity(
 	let grounded = true
 	let holdingJump = false
 	let holdingMove = false
+	let movementState: MovementState = "idle"
 	let lastGroundedTimeMs = 0 // timestamp (ms) of last frame we were grounded
 	let elapsedMs = 0 // running game clock for coyote time tracking
 
@@ -337,7 +398,10 @@ export function createPlayerEntity(
 			lastJumpWasWallJump = false
 		}
 
-		// 13. Sync visual to physics body position
+		// 13. Derive movement state
+		movementState = deriveMovementState(grounded, wallSliding, velocity.y, velocity.x)
+
+		// 14. Sync visual to physics body position
 		const newPos = body.translation()
 		graphics.position.set(newPos.x, newPos.y)
 	}
@@ -371,6 +435,10 @@ export function createPlayerEntity(
 		return wallSliding
 	}
 
+	function getMovementState(): MovementState {
+		return movementState
+	}
+
 	function getPreUpdateState() {
 		return {
 			position: { ...preUpdateState.position },
@@ -393,6 +461,6 @@ export function createPlayerEntity(
 	return {
 		update, getPosition, getVelocity, isGrounded,
 		isHoldingJump, isHoldingMove, getWallDirection, isWallSliding,
-		getPreUpdateState, destroy,
+		getMovementState, getPreUpdateState, destroy,
 	}
 }

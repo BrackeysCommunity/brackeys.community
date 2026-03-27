@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
 	computeDesiredMovement,
+	deriveMovementState,
 	JUMP_VELOCITY,
 	JUMP_CUT_MULTIPLIER,
 	MOVE_SPEED,
 	MAX_FALL_SPEED,
 	GRAVITY,
+	MOVEMENT_CONFIG,
 } from "../entities/player"
 import type { InputAction } from "../types"
 
@@ -310,5 +312,68 @@ describe("wall mechanics (pure function)", () => {
 		)
 
 		expect(result.jumped).toBe(false)
+	})
+})
+
+// ─── Movement state machine ─────────────────────────────
+
+describe("deriveMovementState", () => {
+	it("returns 'idle' when grounded and not moving", () => {
+		expect(deriveMovementState(true, false, 0, 0)).toBe("idle")
+	})
+
+	it("returns 'idle' when grounded with negligible velocity", () => {
+		expect(deriveMovementState(true, false, 0, 0.5)).toBe("idle")
+	})
+
+	it("returns 'walking' when grounded and moving", () => {
+		expect(deriveMovementState(true, false, 0, 300)).toBe("walking")
+		expect(deriveMovementState(true, false, 0, -300)).toBe("walking")
+	})
+
+	it("returns 'jumping' when airborne and rising", () => {
+		expect(deriveMovementState(false, false, -200, 100)).toBe("jumping")
+	})
+
+	it("returns 'falling' when airborne and descending", () => {
+		expect(deriveMovementState(false, false, 100, 50)).toBe("falling")
+	})
+
+	it("returns 'falling' when vy is exactly 0 (apex)", () => {
+		expect(deriveMovementState(false, false, 0, 100)).toBe("falling")
+	})
+
+	it("returns 'wall_sliding' when wall-sliding regardless of other state", () => {
+		expect(deriveMovementState(false, true, 100, 0)).toBe("wall_sliding")
+		expect(deriveMovementState(false, true, -50, 300)).toBe("wall_sliding")
+	})
+})
+
+// ─── Cheese weight ───────────────────────────────────────
+
+describe("cheese weight multiplier", () => {
+	const dt = 1 / 60
+
+	it("reduces jump velocity when carrying cheese", () => {
+		const result = computeDesiredMovement(
+			{ x: 0, y: 0 }, [], true, true, dt, true, false, true,
+		)
+
+		const expectedJumpVy = JUMP_VELOCITY * MOVEMENT_CONFIG.cheeseWeightMultiplier
+		// After gravity: expectedJumpVy + GRAVITY * dt
+		expect(result.newVelocity.y).toBeCloseTo(expectedJumpVy + GRAVITY * dt, 1)
+		expect(result.jumped).toBe(true)
+	})
+
+	it("has weaker jump than normal (less negative vy)", () => {
+		const normal = computeDesiredMovement(
+			{ x: 0, y: 0 }, [], true, true, dt, true, false, false,
+		)
+		const cheese = computeDesiredMovement(
+			{ x: 0, y: 0 }, [], true, true, dt, true, false, true,
+		)
+
+		// Cheese jump should be less negative (weaker) than normal
+		expect(cheese.newVelocity.y).toBeGreaterThan(normal.newVelocity.y)
 	})
 })
