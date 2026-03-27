@@ -319,33 +319,39 @@ describe("wall mechanics (pure function)", () => {
 
 describe("deriveMovementState", () => {
 	it("returns 'idle' when grounded and not moving", () => {
-		expect(deriveMovementState(true, false, 0, 0)).toBe("idle")
+		expect(deriveMovementState(true, false, false, 0, 0)).toBe("idle")
 	})
 
 	it("returns 'idle' when grounded with negligible velocity", () => {
-		expect(deriveMovementState(true, false, 0, 0.5)).toBe("idle")
+		expect(deriveMovementState(true, false, false, 0, 0.5)).toBe("idle")
 	})
 
 	it("returns 'walking' when grounded and moving", () => {
-		expect(deriveMovementState(true, false, 0, 300)).toBe("walking")
-		expect(deriveMovementState(true, false, 0, -300)).toBe("walking")
+		expect(deriveMovementState(true, false, false, 0, 300)).toBe("walking")
+		expect(deriveMovementState(true, false, false, 0, -300)).toBe("walking")
 	})
 
 	it("returns 'jumping' when airborne and rising", () => {
-		expect(deriveMovementState(false, false, -200, 100)).toBe("jumping")
+		expect(deriveMovementState(false, false, false, -200, 100)).toBe("jumping")
 	})
 
 	it("returns 'falling' when airborne and descending", () => {
-		expect(deriveMovementState(false, false, 100, 50)).toBe("falling")
+		expect(deriveMovementState(false, false, false, 100, 50)).toBe("falling")
 	})
 
 	it("returns 'falling' when vy is exactly 0 (apex)", () => {
-		expect(deriveMovementState(false, false, 0, 100)).toBe("falling")
+		expect(deriveMovementState(false, false, false, 0, 100)).toBe("falling")
 	})
 
 	it("returns 'wall_sliding' when wall-sliding regardless of other state", () => {
-		expect(deriveMovementState(false, true, 100, 0)).toBe("wall_sliding")
-		expect(deriveMovementState(false, true, -50, 300)).toBe("wall_sliding")
+		expect(deriveMovementState(false, true, false, 100, 0)).toBe("wall_sliding")
+		expect(deriveMovementState(false, true, false, -50, 300)).toBe("wall_sliding")
+	})
+
+	it("returns 'dashing' when dashing regardless of other state", () => {
+		expect(deriveMovementState(true, false, true, 0, 600)).toBe("dashing")
+		expect(deriveMovementState(false, false, true, -200, 600)).toBe("dashing")
+		expect(deriveMovementState(false, true, true, 100, 600)).toBe("dashing")
 	})
 })
 

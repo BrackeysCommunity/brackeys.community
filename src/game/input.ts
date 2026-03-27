@@ -29,11 +29,20 @@ export function createInputSystem(
 
 	let cleanupFns: (() => void)[] = []
 
+	/** Normalize key to handle modifier-induced case changes.
+	 *  e.g. pressing 'd' then Shift gives keyup 'D' — normalize to 'd'.
+	 *  Special keys (Arrow*, Shift, Control, etc.) are left as-is. */
+	function normalizeKey(key: string): string {
+		// Single character = letter key, normalize to lowercase
+		if (key.length === 1) return key.toLowerCase()
+		return key
+	}
+
 	function handleKeyDown(e: KeyboardEvent): void {
 		// Ignore repeats — we only care about the initial press
 		if (e.repeat) return
 
-		const key = e.key
+		const key = normalizeKey(e.key)
 		keysDown.add(key)
 
 		const actions = keyToActions.get(key)
@@ -52,7 +61,7 @@ export function createInputSystem(
 	}
 
 	function handleKeyUp(e: KeyboardEvent): void {
-		const key = e.key
+		const key = normalizeKey(e.key)
 		keysDown.delete(key)
 
 		const actions = keyToActions.get(key)

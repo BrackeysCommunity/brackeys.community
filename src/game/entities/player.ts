@@ -24,6 +24,9 @@ export type MovementConfig = {
 	wallJumpLockoutMs: number
 	wallSlideCoyoteMs: number
 	cheeseWeightMultiplier: number
+	dashSpeed: number
+	dashDurationMs: number
+	dashCooldownMs: number
 }
 
 export const MOVEMENT_CONFIG: MovementConfig = {
@@ -42,6 +45,9 @@ export const MOVEMENT_CONFIG: MovementConfig = {
 	wallJumpLockoutMs: 180,        // ms — input lockout toward wall after wall-jump
 	wallSlideCoyoteMs: 300,        // ms — wall-slide state maintained after releasing dir input
 	cheeseWeightMultiplier: 0.85,  // jump velocity multiplier when carrying cheese
+	dashSpeed: 600,                // game units/sec — 2× move speed
+	dashDurationMs: 180,           // ms — dash burst duration
+	dashCooldownMs: 800,           // ms — time before next dash
 }
 
 // Re-export individual constants for backward compat (tests, debug overlays)
@@ -66,15 +72,17 @@ const PLAYER_HEIGHT = 60
 
 // ─── Movement state machine ─────────────────────────────
 
-export type MovementState = "idle" | "walking" | "jumping" | "falling" | "wall_sliding"
+export type MovementState = "idle" | "walking" | "jumping" | "falling" | "wall_sliding" | "dashing"
 
 /** Derive the movement state from physical state. Pure function for testability. */
 export function deriveMovementState(
 	grounded: boolean,
 	wallSliding: boolean,
+	isDashing: boolean,
 	vy: number,
 	vx: number,
 ): MovementState {
+	if (isDashing) return "dashing"
 	if (wallSliding) return "wall_sliding"
 	if (grounded) {
 		return Math.abs(vx) > 1 ? "walking" : "idle"
@@ -98,6 +106,7 @@ export type PlayerEntity = {
 	/** -1 = wall on left, 0 = no wall, 1 = wall on right */
 	getWallDirection: () => -1 | 0 | 1
 	isWallSliding: () => boolean
+	isDashing: () => boolean
 	getMovementState: () => MovementState
 	/** Position/velocity/grounded BEFORE this tick's update (for debug arc origin) */
 	getPreUpdateState: () => { position: Vec2; velocity: Vec2; grounded: boolean }
@@ -254,6 +263,15 @@ export function createPlayerEntity(
 	let hasDoubleJump = true // TODO: set from ability distribution system
 	let doubleJumpAvailable = false // reset on ground/wall-slide, consumed on use
 
+	// Dash state
+	let hasDash = true // TODO: set from ability distribution system
+	let dashing = false
+	let dashTimeRemainingMs = 0
+	let dashCooldownUntilMs = 0
+	let dashDirection = 1 // +1 = right, -1 = left
+	let dashHeldLastFrame = false // for fresh-press detection
+	let lastFacingDir = 1 // track facing for directionless dash
+
 	// Snapshot of state BEFORE each tick's update — for debug arc origin
 	let preUpdateState = {
 		position: { x: 960, y: 1020 - PLAYER_HEIGHT },
@@ -314,6 +332,29 @@ export function createPlayerEntity(
 		const withinWallSlideCoyote = (elapsedMs - lastWallSlideTimeMs) < WALL_SLIDE_COYOTE_MS
 		const canJump = grounded || withinCoyoteWindow || wallSliding || withinWallSlideCoyote
 
+		// Track facing direction for dash
+		if (inputDir !== 0) lastFacingDir = inputDir as 1 | -1
+
+		// Dash trigger: fresh press only (same pattern as jump)
+		const wasHoldingDash = dashHeldLastFrame
+		const dashNowHeld = heldActions.has("dash")
+		dashHeldLastFrame = dashNowHeld
+		const dashPressedThisFrame = !wasHoldingDash && dashNowHeld
+		if (dashPressedThisFrame && hasDash && elapsedMs >= dashCooldownUntilMs && !dashing) {
+			dashing = true
+			dashTimeRemainingMs = MOVEMENT_CONFIG.dashDurationMs
+			dashDirection = inputDir !== 0 ? inputDir : lastFacingDir
+		}
+
+		// Dash tick: count down duration
+		if (dashing) {
+			dashTimeRemainingMs -= dt
+			if (dashTimeRemainingMs <= 0) {
+				dashing = false
+				dashCooldownUntilMs = elapsedMs + MOVEMENT_CONFIG.dashCooldownMs
+			}
+		}
+
 		// Wall-jumps have fixed height — suppress variable jump cut
 		const effectiveJumpRelease = lastJumpWasWallJump ? false : jumpReleasedThisFrame
 
@@ -336,6 +377,15 @@ export function createPlayerEntity(
 			desiredDelta.y = newVelocity.y * dtSec
 			doubleJumpAvailable = false
 			didDoubleJump = true
+		}
+
+		// 1c. Dash override: replace horizontal velocity with dash speed,
+		//     zero out gravity/vertical movement to make dash feel flat and punchy.
+		if (dashing) {
+			newVelocity.x = dashDirection * MOVEMENT_CONFIG.dashSpeed
+			newVelocity.y = 0 // flat dash — no gravity during dash
+			desiredDelta.x = newVelocity.x * dtSec
+			desiredDelta.y = 0
 		}
 
 		// 2. Character controller resolves the player's own input.
@@ -526,7 +576,7 @@ export function createPlayerEntity(
 		}
 
 		// 13. Derive movement state
-		movementState = deriveMovementState(grounded, wallSliding, velocity.y, velocity.x)
+		movementState = deriveMovementState(grounded, wallSliding, dashing, velocity.y, velocity.x)
 
 		// 14. Sync visual to physics body position
 		const newPos = body.translation()
@@ -574,6 +624,10 @@ export function createPlayerEntity(
 		return wallSliding
 	}
 
+	function getIsDashing(): boolean {
+		return dashing
+	}
+
 	function getMovementState(): MovementState {
 		return movementState
 	}
@@ -601,7 +655,7 @@ export function createPlayerEntity(
 	return {
 		update, getPosition, getVelocity, isGrounded,
 		isHoldingJump, isHoldingMove, isHoldingDown, getHalfHeight, getGroundColliderHandle,
-		getWallDirection, isWallSliding,
+		getWallDirection, isWallSliding, isDashing: getIsDashing,
 		getMovementState, getPreUpdateState, destroy,
 	}
 }
