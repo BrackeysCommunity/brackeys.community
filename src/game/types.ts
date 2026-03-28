@@ -82,6 +82,7 @@ export const DEFAULT_BINDINGS: InputBinding[] = [
 	{ action: "jump", keys: ["ArrowUp", "w", " "] },
 	{ action: "move_down", keys: ["ArrowDown", "s"] },
 	{ action: "dash", keys: ["Shift"] },
+	{ action: "grapple", keys: ["e"] },
 ]
 
 // ─── Debug ───────────────────────────────────────────────

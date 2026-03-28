@@ -4,6 +4,8 @@ import type { PhysicsWorld } from "../physics"
 import { getRapier } from "../physics"
 import { getSurfaceMaterial, type SurfaceMaterial } from "../surfaces"
 import type { InputAction, Vec2 } from "../types"
+import type { GrappleAnchorSystem } from "./grapple-anchor"
+import { initSwingState, stepSwing, getSwingReleaseVelocity, type GrappleSwingState } from "./grapple-state"
 
 // ─── Movement config ─────────────────────────────────────
 // All tunable constants in one place. Importable for tests, debug overlays, etc.
@@ -72,16 +74,18 @@ const PLAYER_HEIGHT = 60
 
 // ─── Movement state machine ─────────────────────────────
 
-export type MovementState = "idle" | "walking" | "jumping" | "falling" | "wall_sliding" | "dashing"
+export type MovementState = "idle" | "walking" | "jumping" | "falling" | "wall_sliding" | "dashing" | "grappling"
 
 /** Derive the movement state from physical state. Pure function for testability. */
 export function deriveMovementState(
 	grounded: boolean,
 	wallSliding: boolean,
 	isDashing: boolean,
+	isGrappling: boolean,
 	vy: number,
 	vx: number,
 ): MovementState {
+	if (isGrappling) return "grappling"
 	if (isDashing) return "dashing"
 	if (wallSliding) return "wall_sliding"
 	if (grounded) {
@@ -107,6 +111,7 @@ export type PlayerEntity = {
 	getWallDirection: () => -1 | 0 | 1
 	isWallSliding: () => boolean
 	isDashing: () => boolean
+	isGrappling: () => boolean
 	getMovementState: () => MovementState
 	/** Position/velocity/grounded BEFORE this tick's update (for debug arc origin) */
 	getPreUpdateState: () => { position: Vec2; velocity: Vec2; grounded: boolean }
@@ -213,6 +218,7 @@ export function computeDesiredMovement(
 export function createPlayerEntity(
 	worldContainer: Container,
 	physics: PhysicsWorld,
+	grappleAnchors?: GrappleAnchorSystem,
 ): PlayerEntity {
 	const RAPIER = getRapier()
 
@@ -271,6 +277,12 @@ export function createPlayerEntity(
 	let dashDirection = 1 // +1 = right, -1 = left
 	let dashHeldLastFrame = false // for fresh-press detection
 	let lastFacingDir = 1 // track facing for directionless dash
+
+	// Grapple state
+	let hasGrapple = true // TODO: set from ability distribution
+	let grappling = false
+	let swingState: GrappleSwingState | null = null
+	let grappleHeldLastFrame = false
 
 	// Snapshot of state BEFORE each tick's update — for debug arc origin
 	let preUpdateState = {
@@ -386,6 +398,99 @@ export function createPlayerEntity(
 			newVelocity.y = 0 // flat dash — no gravity during dash
 			desiredDelta.x = newVelocity.x * dtSec
 			desiredDelta.y = 0
+		}
+
+		// 1d. Grapple: attach/release/swing
+		const wasGrappleHeld = grappleHeldLastFrame
+		const grappleNowHeld = heldActions.has("grapple")
+		grappleHeldLastFrame = grappleNowHeld
+		const grapplePressedThisFrame = !wasGrappleHeld && grappleNowHeld
+		const grappleReleasedThisFrame = wasGrappleHeld && !grappleNowHeld
+
+		if (grapplePressedThisFrame && hasGrapple && !grappling && !dashing && !grounded && grappleAnchors) {
+			const playerPos = body.translation()
+			const anchor = grappleAnchors.findClosest({ x: playerPos.x, y: playerPos.y })
+			if (anchor) {
+				grappling = true
+				swingState = initSwingState(
+					{ x: playerPos.x, y: playerPos.y },
+					anchor.position,
+					velocity,
+				)
+				// Reset double-jump on grapple attach — grapple gives you another chance
+				if (hasDoubleJump) doubleJumpAvailable = true
+			}
+		}
+
+		if (grappleReleasedThisFrame && grappling && swingState) {
+			const releaseVel = getSwingReleaseVelocity(swingState)
+			velocity = releaseVel
+			grappling = false
+			grappleAnchors?.clearTether()
+			swingState = null
+		}
+
+		if (grappling && swingState) {
+			// Step pendulum physics
+			const result = stepSwing(swingState, dtSec)
+			swingState = result.state
+
+			// Collision check: use character controller to resolve the pendulum movement
+			// against static geometry. If blocked, detach from grapple.
+			const curPos = body.translation()
+			const pendulumDelta = {
+				x: result.position.x - curPos.x,
+				y: result.position.y - curPos.y,
+			}
+			controller.computeColliderMovement(
+				collider,
+				new RAPIER.Vector2(pendulumDelta.x, pendulumDelta.y),
+			)
+			const corrected = controller.computedMovement()
+
+			// Check if movement was significantly blocked
+			const desiredDist = Math.sqrt(pendulumDelta.x ** 2 + pendulumDelta.y ** 2)
+			const actualDist = Math.sqrt(corrected.x ** 2 + corrected.y ** 2)
+			const blocked = desiredDist > 1 && actualDist < desiredDist * 0.5
+
+			if (blocked) {
+				// Hit something — detach, kill velocity
+				velocity = { x: 0, y: 0 }
+				grappling = false
+				grappleAnchors?.clearTether()
+				swingState = null
+				// Apply the corrected (partial) movement
+				body.setNextKinematicTranslation(
+					new RAPIER.Vector2(curPos.x + corrected.x, curPos.y + corrected.y),
+				)
+			} else {
+				// Movement is clear — apply corrected pendulum position
+				body.setNextKinematicTranslation(
+					new RAPIER.Vector2(curPos.x + corrected.x, curPos.y + corrected.y),
+				)
+				grappleAnchors?.drawTether(
+					{ x: curPos.x + corrected.x, y: curPos.y + corrected.y },
+					swingState.anchorPos,
+				)
+				velocity = result.velocity
+			}
+
+			// Update visual
+			const newPos = body.translation()
+			graphics.position.set(newPos.x, newPos.y)
+
+			// Update state
+			grounded = false
+			wallSliding = false
+			wallDir = 0
+			movementState = deriveMovementState(false, false, false, grappling, velocity.y, velocity.x)
+
+			preUpdateState = {
+				position: { x: newPos.x, y: newPos.y },
+				velocity: { ...velocity },
+				grounded: false,
+			}
+			return // <── early return, skip everything below
 		}
 
 		// 2. Character controller resolves the player's own input.
@@ -576,7 +681,7 @@ export function createPlayerEntity(
 		}
 
 		// 13. Derive movement state
-		movementState = deriveMovementState(grounded, wallSliding, dashing, velocity.y, velocity.x)
+		movementState = deriveMovementState(grounded, wallSliding, dashing, grappling, velocity.y, velocity.x)
 
 		// 14. Sync visual to physics body position
 		const newPos = body.translation()
@@ -628,6 +733,10 @@ export function createPlayerEntity(
 		return dashing
 	}
 
+	function getIsGrappling(): boolean {
+		return grappling
+	}
+
 	function getMovementState(): MovementState {
 		return movementState
 	}
@@ -655,7 +764,7 @@ export function createPlayerEntity(
 	return {
 		update, getPosition, getVelocity, isGrounded,
 		isHoldingJump, isHoldingMove, isHoldingDown, getHalfHeight, getGroundColliderHandle,
-		getWallDirection, isWallSliding, isDashing: getIsDashing,
+		getWallDirection, isWallSliding, isDashing: getIsDashing, isGrappling: getIsGrappling,
 		getMovementState, getPreUpdateState, destroy,
 	}
 }

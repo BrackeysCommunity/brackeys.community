@@ -17,6 +17,7 @@ import { createCamera } from "./camera"
 import { createPlayerEntity } from "./entities/player"
 import { createCloudPlatformSystem } from "./entities/cloud-platform"
 import { createMovingPlatformSystem } from "./entities/moving-platform"
+import { createGrappleAnchorSystem } from "./entities/grapple-anchor"
 import { initAssets } from "./assets"
 import { initRapier, createPhysicsWorld } from "./physics"
 import { createDebugOverlay, type DebugOverlay } from "./debug"
@@ -92,8 +93,16 @@ export async function createGame(
 		mode: "loop",
 	})
 
+	// Grapple anchor system (Shaper places these, Runners swing from them)
+	const grappleAnchors = createGrappleAnchorSystem(renderer.worldContainer)
+	// Test anchors
+	grappleAnchors.add({ x: 600, y: 600 })
+	grappleAnchors.add({ x: 900, y: 500 })
+	grappleAnchors.add({ x: 1100, y: 550 })
+	grappleAnchors.add({ x: 400, y: 500 })
+
 	// Player entity (character controller handles platform riding via collision resolution)
-	const player = createPlayerEntity(renderer.worldContainer, physics)
+	const player = createPlayerEntity(renderer.worldContainer, physics, grappleAnchors)
 
 	// Cloud platform system — handles one-way pass-through independently
 	const cloudPlatforms = createCloudPlatformSystem(physics, renderer.worldContainer)
@@ -241,6 +250,7 @@ export async function createGame(
 		debugOverlay?.destroy()
 		input.destroy()
 		camera.destroy()
+		grappleAnchors.destroy()
 		cloudPlatforms.destroy()
 		movingPlatforms.destroy()
 		player.destroy()
