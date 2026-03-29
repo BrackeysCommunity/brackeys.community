@@ -8,6 +8,7 @@ import { user, session, account, verification, developerProfiles } from '@/db/sc
 import { fetchGuildMember, resolveRoleNames } from '@/lib/discord'
 
 export const auth = betterAuth({
+ 
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema: { user, session, account, verification },
