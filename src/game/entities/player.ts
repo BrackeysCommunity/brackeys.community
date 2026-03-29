@@ -6,6 +6,7 @@ import { getSurfaceMaterial, type SurfaceMaterial } from "../surfaces"
 import type { InputAction, Vec2 } from "../types"
 import type { GrappleAnchorSystem } from "./grapple-anchor"
 import { initSwingState, stepSwing, getSwingReleaseVelocity, type GrappleSwingState } from "./grapple-state"
+import { getActiveWindZones, getBouncePad } from "./shaper-constructs"
 
 // ─── Movement config ─────────────────────────────────────
 // All tunable constants in one place. Importable for tests, debug overlays, etc.
@@ -608,6 +609,29 @@ export function createPlayerEntity(
 			// Trampoline bounce
 			if (currentSurface.bounceVelocity !== 0) {
 				newVelocity.y = currentSurface.bounceVelocity
+			}
+		}
+
+		// 10b. Bounce pad detection — check ground collisions for bounce pads
+		for (let i = 0; i < numCollisions; i++) {
+			const collision = controller.computedCollision(i)
+			if (!collision || !collision.collider) continue
+			const pad = getBouncePad(collision.collider.handle)
+			if (pad) {
+				newVelocity.y = pad.bounceVelocity
+				break
+			}
+		}
+
+		// 10c. Wind zone — apply force if player is inside any wind zone
+		const playerCenter = body.translation()
+		for (const wz of getActiveWindZones()) {
+			// Simple AABB check (ignoring rotation for now — TODO: rotated rect check)
+			const dx = playerCenter.x - wz.position.x
+			const dy = playerCenter.y - wz.position.y
+			if (Math.abs(dx) < wz.hw && Math.abs(dy) < wz.hh) {
+				newVelocity.x += wz.force.x * dtSec
+				newVelocity.y += wz.force.y * dtSec
 			}
 		}
 

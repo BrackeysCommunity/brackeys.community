@@ -18,6 +18,8 @@ import { createPlayerEntity } from "./entities/player"
 import { createCloudPlatformSystem } from "./entities/cloud-platform"
 import { createMovingPlatformSystem } from "./entities/moving-platform"
 import { createGrappleAnchorSystem } from "./entities/grapple-anchor"
+import { createShaperSystem } from "./systems/shaper"
+import { type ConstructType, CONSTRUCT_CONFIGS } from "./entities/shaper-constructs"
 import { initAssets } from "./assets"
 import { initRapier, createPhysicsWorld } from "./physics"
 import { createDebugOverlay, type DebugOverlay } from "./debug"
@@ -107,6 +109,63 @@ export async function createGame(
 	// Cloud platform system — handles one-way pass-through independently
 	const cloudPlatforms = createCloudPlatformSystem(physics, renderer.worldContainer)
 
+	// Shaper system — object placement (Tab toggles mode, number keys select, click places)
+	const shaperSystem = createShaperSystem(renderer.worldContainer, physics, grappleAnchors)
+
+	// ─── Shaper input handling ────────────────────────
+	let shaperMode = false
+	function setupShaperInput(): void {
+		window.addEventListener("keydown", onShaperKeyDown)
+		window.addEventListener("mousedown", onShaperMouseDown)
+		window.addEventListener("wheel", onShaperWheel, { passive: true })
+	}
+
+	function onShaperKeyDown(e: KeyboardEvent): void {
+		if (e.key === "Tab") {
+			e.preventDefault()
+			shaperMode = !shaperMode
+			shaperSystem.setActive(shaperMode)
+			if (!shaperMode) shaperSystem.clearSelection()
+			return
+		}
+
+		if (!shaperMode) return
+
+		// Number keys select construct type
+		const hotkeyNum = parseInt(e.key)
+		if (hotkeyNum >= 1 && hotkeyNum <= 6) {
+			const entry = Object.entries(CONSTRUCT_CONFIGS).find(
+				([, cfg]) => cfg.hotkey === hotkeyNum,
+			)
+			if (entry) {
+				shaperSystem.selectType(entry[0] as ConstructType)
+			}
+		}
+
+		if (e.key === "Escape") {
+			shaperSystem.clearSelection()
+		}
+	}
+
+	function onShaperMouseDown(e: MouseEvent): void {
+		if (!shaperMode || !shaperSystem.getSelectedType()) return
+		if (e.button === 0) {
+			// Left click = place
+			const result = shaperSystem.place()
+			if (!result.valid && import.meta.env.DEV) {
+				console.log(`[shaper] placement rejected: ${result.reason}`)
+			}
+		} else if (e.button === 2) {
+			// Right click = cancel selection
+			shaperSystem.clearSelection()
+		}
+	}
+
+	function onShaperWheel(e: WheelEvent): void {
+		if (!shaperMode) return
+		shaperSystem.rotatePreview(e.deltaY > 0 ? 1 : -1)
+	}
+
 	// Initialize player in store
 	updatePlayer(store, "local", {
 		id: "local",
@@ -141,7 +200,18 @@ export async function createGame(
 			// 2a. Update moving platforms (before player, so rider delta is ready)
 			movingPlatforms.update(dt)
 
-			// 2b. Update cloud platforms (sets collision groups before player's
+			// 2b. Update shaper preview (cursor tracking in world space)
+			if (shaperMode) {
+				const mousePos = input.getMousePosition()
+				const scale = camera.getDisplayScale()
+				const vp = camera.getViewport()
+				shaperSystem.updatePreview({
+					x: vp.x + mousePos.x / scale,
+					y: vp.y + mousePos.y / scale,
+				})
+			}
+
+			// 2c. Update cloud platforms (sets collision groups before player's
 			//    character controller runs, so each cloud is independently
 			//    solid or pass-through based on the player's position)
 			cloudPlatforms.update(
@@ -232,6 +302,7 @@ export async function createGame(
 		if (destroyed) return
 		setPhase(store, "running")
 		input.attach(window)
+		setupShaperInput()
 		loop.start()
 		events.emit("game:start")
 	}
@@ -247,7 +318,11 @@ export async function createGame(
 		destroyed = true
 
 		loop.stop()
+		window.removeEventListener("keydown", onShaperKeyDown)
+		window.removeEventListener("mousedown", onShaperMouseDown)
+		window.removeEventListener("wheel", onShaperWheel)
 		debugOverlay?.destroy()
+		shaperSystem.destroy()
 		input.destroy()
 		camera.destroy()
 		grappleAnchors.destroy()

@@ -19,24 +19,11 @@ import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
-import { Route as DemoTanstackQueryRouteImport } from './routes/demo/tanstack-query'
-import { Route as DemoTableRouteImport } from './routes/demo/table'
-import { Route as DemoStrapiRouteImport } from './routes/demo/strapi'
-import { Route as DemoStorybookRouteImport } from './routes/demo/storybook'
-import { Route as DemoStoreRouteImport } from './routes/demo/store'
-import { Route as DemoOrpcTodoRouteImport } from './routes/demo/orpc-todo'
-import { Route as DemoI18nRouteImport } from './routes/demo.i18n'
-import { Route as DemoDrizzleRouteImport } from './routes/demo/drizzle'
-import { Route as DemoBetterAuthRouteImport } from './routes/demo/better-auth'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
 import { Route as OauthGithubCallbackRouteImport } from './routes/oauth.github.callback'
-import { Route as DemoStrapiArticleIdRouteImport } from './routes/demo/strapi_.$articleId'
-import { Route as DemoSentryTestingRouteImport } from './routes/demo/sentry.testing'
-import { Route as DemoFormSimpleRouteImport } from './routes/demo/form.simple'
-import { Route as DemoFormAddressRouteImport } from './routes/demo/form.address'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -90,51 +77,6 @@ const GameRoomIdRoute = GameRoomIdRouteImport.update({
   path: '/$roomId',
   getParentRoute: () => GameRoute,
 } as any)
-const DemoTanstackQueryRoute = DemoTanstackQueryRouteImport.update({
-  id: '/demo/tanstack-query',
-  path: '/demo/tanstack-query',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoTableRoute = DemoTableRouteImport.update({
-  id: '/demo/table',
-  path: '/demo/table',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoStrapiRoute = DemoStrapiRouteImport.update({
-  id: '/demo/strapi',
-  path: '/demo/strapi',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoStorybookRoute = DemoStorybookRouteImport.update({
-  id: '/demo/storybook',
-  path: '/demo/storybook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoStoreRoute = DemoStoreRouteImport.update({
-  id: '/demo/store',
-  path: '/demo/store',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoOrpcTodoRoute = DemoOrpcTodoRouteImport.update({
-  id: '/demo/orpc-todo',
-  path: '/demo/orpc-todo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoI18nRoute = DemoI18nRouteImport.update({
-  id: '/demo/i18n',
-  path: '/demo/i18n',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoDrizzleRoute = DemoDrizzleRouteImport.update({
-  id: '/demo/drizzle',
-  path: '/demo/drizzle',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoBetterAuthRoute = DemoBetterAuthRouteImport.update({
-  id: '/demo/better-auth',
-  path: '/demo/better-auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CollabNewRoute = CollabNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -160,26 +102,6 @@ const OauthGithubCallbackRoute = OauthGithubCallbackRouteImport.update({
   path: '/oauth/github/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStrapiArticleIdRoute = DemoStrapiArticleIdRouteImport.update({
-  id: '/demo/strapi_/$articleId',
-  path: '/demo/strapi/$articleId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoSentryTestingRoute = DemoSentryTestingRouteImport.update({
-  id: '/demo/sentry/testing',
-  path: '/demo/sentry/testing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoFormSimpleRoute = DemoFormSimpleRouteImport.update({
-  id: '/demo/form/simple',
-  path: '/demo/form/simple',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoFormAddressRoute = DemoFormAddressRouteImport.update({
-  id: '/demo/form/address',
-  path: '/demo/form/address',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   id: '/api/rpc/$',
   path: '/api/rpc/$',
@@ -200,15 +122,6 @@ export interface FileRoutesByFullPath {
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
-  '/demo/better-auth': typeof DemoBetterAuthRoute
-  '/demo/drizzle': typeof DemoDrizzleRoute
-  '/demo/i18n': typeof DemoI18nRoute
-  '/demo/orpc-todo': typeof DemoOrpcTodoRoute
-  '/demo/store': typeof DemoStoreRoute
-  '/demo/storybook': typeof DemoStorybookRoute
-  '/demo/strapi': typeof DemoStrapiRoute
-  '/demo/table': typeof DemoTableRoute
-  '/demo/tanstack-query': typeof DemoTanstackQueryRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/collab/': typeof CollabIndexRoute
@@ -216,10 +129,6 @@ export interface FileRoutesByFullPath {
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
-  '/demo/form/address': typeof DemoFormAddressRoute
-  '/demo/form/simple': typeof DemoFormSimpleRoute
-  '/demo/sentry/testing': typeof DemoSentryTestingRoute
-  '/demo/strapi/$articleId': typeof DemoStrapiArticleIdRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
@@ -229,15 +138,6 @@ export interface FileRoutesByTo {
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
-  '/demo/better-auth': typeof DemoBetterAuthRoute
-  '/demo/drizzle': typeof DemoDrizzleRoute
-  '/demo/i18n': typeof DemoI18nRoute
-  '/demo/orpc-todo': typeof DemoOrpcTodoRoute
-  '/demo/store': typeof DemoStoreRoute
-  '/demo/storybook': typeof DemoStorybookRoute
-  '/demo/strapi': typeof DemoStrapiRoute
-  '/demo/table': typeof DemoTableRoute
-  '/demo/tanstack-query': typeof DemoTanstackQueryRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/collab': typeof CollabIndexRoute
@@ -245,10 +145,6 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
-  '/demo/form/address': typeof DemoFormAddressRoute
-  '/demo/form/simple': typeof DemoFormSimpleRoute
-  '/demo/sentry/testing': typeof DemoSentryTestingRoute
-  '/demo/strapi/$articleId': typeof DemoStrapiArticleIdRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
@@ -262,15 +158,6 @@ export interface FileRoutesById {
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
-  '/demo/better-auth': typeof DemoBetterAuthRoute
-  '/demo/drizzle': typeof DemoDrizzleRoute
-  '/demo/i18n': typeof DemoI18nRoute
-  '/demo/orpc-todo': typeof DemoOrpcTodoRoute
-  '/demo/store': typeof DemoStoreRoute
-  '/demo/storybook': typeof DemoStorybookRoute
-  '/demo/strapi': typeof DemoStrapiRoute
-  '/demo/table': typeof DemoTableRoute
-  '/demo/tanstack-query': typeof DemoTanstackQueryRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/collab/': typeof CollabIndexRoute
@@ -278,10 +165,6 @@ export interface FileRoutesById {
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
-  '/demo/form/address': typeof DemoFormAddressRoute
-  '/demo/form/simple': typeof DemoFormSimpleRoute
-  '/demo/sentry/testing': typeof DemoSentryTestingRoute
-  '/demo/strapi_/$articleId': typeof DemoStrapiArticleIdRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
@@ -296,15 +179,6 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
-    | '/demo/better-auth'
-    | '/demo/drizzle'
-    | '/demo/i18n'
-    | '/demo/orpc-todo'
-    | '/demo/store'
-    | '/demo/storybook'
-    | '/demo/strapi'
-    | '/demo/table'
-    | '/demo/tanstack-query'
     | '/game/$roomId'
     | '/profile/$userId'
     | '/collab/'
@@ -312,10 +186,6 @@ export interface FileRouteTypes {
     | '/profile/'
     | '/api/auth/$'
     | '/api/rpc/$'
-    | '/demo/form/address'
-    | '/demo/form/simple'
-    | '/demo/sentry/testing'
-    | '/demo/strapi/$articleId'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -325,15 +195,6 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
-    | '/demo/better-auth'
-    | '/demo/drizzle'
-    | '/demo/i18n'
-    | '/demo/orpc-todo'
-    | '/demo/store'
-    | '/demo/storybook'
-    | '/demo/strapi'
-    | '/demo/table'
-    | '/demo/tanstack-query'
     | '/game/$roomId'
     | '/profile/$userId'
     | '/collab'
@@ -341,10 +202,6 @@ export interface FileRouteTypes {
     | '/profile'
     | '/api/auth/$'
     | '/api/rpc/$'
-    | '/demo/form/address'
-    | '/demo/form/simple'
-    | '/demo/sentry/testing'
-    | '/demo/strapi/$articleId'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
   id:
@@ -357,15 +214,6 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
-    | '/demo/better-auth'
-    | '/demo/drizzle'
-    | '/demo/i18n'
-    | '/demo/orpc-todo'
-    | '/demo/store'
-    | '/demo/storybook'
-    | '/demo/strapi'
-    | '/demo/table'
-    | '/demo/tanstack-query'
     | '/game/$roomId'
     | '/profile/$userId'
     | '/collab/'
@@ -373,10 +221,6 @@ export interface FileRouteTypes {
     | '/profile/'
     | '/api/auth/$'
     | '/api/rpc/$'
-    | '/demo/form/address'
-    | '/demo/form/simple'
-    | '/demo/sentry/testing'
-    | '/demo/strapi_/$articleId'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
   fileRoutesById: FileRoutesById
@@ -388,21 +232,8 @@ export interface RootRouteChildren {
   GameRoute: typeof GameRouteWithChildren
   ProfileRoute: typeof ProfileRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
-  DemoBetterAuthRoute: typeof DemoBetterAuthRoute
-  DemoDrizzleRoute: typeof DemoDrizzleRoute
-  DemoI18nRoute: typeof DemoI18nRoute
-  DemoOrpcTodoRoute: typeof DemoOrpcTodoRoute
-  DemoStoreRoute: typeof DemoStoreRoute
-  DemoStorybookRoute: typeof DemoStorybookRoute
-  DemoStrapiRoute: typeof DemoStrapiRoute
-  DemoTableRoute: typeof DemoTableRoute
-  DemoTanstackQueryRoute: typeof DemoTanstackQueryRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
-  DemoFormAddressRoute: typeof DemoFormAddressRoute
-  DemoFormSimpleRoute: typeof DemoFormSimpleRoute
-  DemoSentryTestingRoute: typeof DemoSentryTestingRoute
-  DemoStrapiArticleIdRoute: typeof DemoStrapiArticleIdRoute
   OauthGithubCallbackRoute: typeof OauthGithubCallbackRoute
   OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
 }
@@ -479,69 +310,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameRoomIdRouteImport
       parentRoute: typeof GameRoute
     }
-    '/demo/tanstack-query': {
-      id: '/demo/tanstack-query'
-      path: '/demo/tanstack-query'
-      fullPath: '/demo/tanstack-query'
-      preLoaderRoute: typeof DemoTanstackQueryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/table': {
-      id: '/demo/table'
-      path: '/demo/table'
-      fullPath: '/demo/table'
-      preLoaderRoute: typeof DemoTableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/strapi': {
-      id: '/demo/strapi'
-      path: '/demo/strapi'
-      fullPath: '/demo/strapi'
-      preLoaderRoute: typeof DemoStrapiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/storybook': {
-      id: '/demo/storybook'
-      path: '/demo/storybook'
-      fullPath: '/demo/storybook'
-      preLoaderRoute: typeof DemoStorybookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/store': {
-      id: '/demo/store'
-      path: '/demo/store'
-      fullPath: '/demo/store'
-      preLoaderRoute: typeof DemoStoreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/orpc-todo': {
-      id: '/demo/orpc-todo'
-      path: '/demo/orpc-todo'
-      fullPath: '/demo/orpc-todo'
-      preLoaderRoute: typeof DemoOrpcTodoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/i18n': {
-      id: '/demo/i18n'
-      path: '/demo/i18n'
-      fullPath: '/demo/i18n'
-      preLoaderRoute: typeof DemoI18nRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/drizzle': {
-      id: '/demo/drizzle'
-      path: '/demo/drizzle'
-      fullPath: '/demo/drizzle'
-      preLoaderRoute: typeof DemoDrizzleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/better-auth': {
-      id: '/demo/better-auth'
-      path: '/demo/better-auth'
-      fullPath: '/demo/better-auth'
-      preLoaderRoute: typeof DemoBetterAuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/collab/new': {
       id: '/collab/new'
       path: '/new'
@@ -575,34 +343,6 @@ declare module '@tanstack/react-router' {
       path: '/oauth/github/callback'
       fullPath: '/oauth/github/callback'
       preLoaderRoute: typeof OauthGithubCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/strapi_/$articleId': {
-      id: '/demo/strapi_/$articleId'
-      path: '/demo/strapi/$articleId'
-      fullPath: '/demo/strapi/$articleId'
-      preLoaderRoute: typeof DemoStrapiArticleIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/sentry/testing': {
-      id: '/demo/sentry/testing'
-      path: '/demo/sentry/testing'
-      fullPath: '/demo/sentry/testing'
-      preLoaderRoute: typeof DemoSentryTestingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/form/simple': {
-      id: '/demo/form/simple'
-      path: '/demo/form/simple'
-      fullPath: '/demo/form/simple'
-      preLoaderRoute: typeof DemoFormSimpleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/form/address': {
-      id: '/demo/form/address'
-      path: '/demo/form/address'
-      fullPath: '/demo/form/address'
-      preLoaderRoute: typeof DemoFormAddressRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/rpc/$': {
@@ -669,21 +409,8 @@ const rootRouteChildren: RootRouteChildren = {
   GameRoute: GameRouteWithChildren,
   ProfileRoute: ProfileRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,
-  DemoBetterAuthRoute: DemoBetterAuthRoute,
-  DemoDrizzleRoute: DemoDrizzleRoute,
-  DemoI18nRoute: DemoI18nRoute,
-  DemoOrpcTodoRoute: DemoOrpcTodoRoute,
-  DemoStoreRoute: DemoStoreRoute,
-  DemoStorybookRoute: DemoStorybookRoute,
-  DemoStrapiRoute: DemoStrapiRoute,
-  DemoTableRoute: DemoTableRoute,
-  DemoTanstackQueryRoute: DemoTanstackQueryRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
-  DemoFormAddressRoute: DemoFormAddressRoute,
-  DemoFormSimpleRoute: DemoFormSimpleRoute,
-  DemoSentryTestingRoute: DemoSentryTestingRoute,
-  DemoStrapiArticleIdRoute: DemoStrapiArticleIdRoute,
   OauthGithubCallbackRoute: OauthGithubCallbackRoute,
   OauthItchioCallbackRoute: OauthItchioCallbackRoute,
 }

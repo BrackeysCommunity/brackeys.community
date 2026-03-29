@@ -28,6 +28,8 @@ export type GrappleAnchorSystem = {
 	drawTether: (from: Vec2, to: Vec2) => void
 	/** Clear the tether line */
 	clearTether: () => void
+	/** Remove all anchors (round reset) */
+	clearAll: () => void
 	destroy: () => void
 }
 
@@ -105,14 +107,19 @@ export function createGrappleAnchorSystem(
 		tetherGraphics.clear()
 	}
 
-	function destroy(): void {
+	function clearAll(): void {
 		for (const { graphics: gfx } of anchors.values()) {
 			gfx.destroy()
 		}
 		anchors.clear()
+		clearTether()
+	}
+
+	function destroy(): void {
+		clearAll()
 		tetherGraphics.destroy()
 		container.destroy()
 	}
 
-	return { add, remove, getAnchors, findClosest, drawTether, clearTether, destroy }
+	return { add, remove, getAnchors, findClosest, drawTether, clearTether, clearAll, destroy }
 }

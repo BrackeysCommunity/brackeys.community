@@ -68,7 +68,7 @@ export const CLOUD_PASSTHROUGH_GROUP = packGroups(GROUP_CLOUD, 0)
 
 // ─── Sensor types ────────────────────────────────────────
 
-export type SensorType = "cheese" | "hole" | "lava"
+export type SensorType = "cheese" | "hole" | "lava" | "wind_zone"
 
 // ─── Collision event types ───────────────────────────────
 
