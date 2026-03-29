@@ -2,7 +2,7 @@ import { ORPCError } from '@orpc/client'
 import { os } from '@orpc/server'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
-import { isStaffMember as checkIsStaff, isAdmin as checkIsAdmin } from '@/lib/discord'
+import { isStaffMember as checkIsStaff, isAdmin as checkIsAdmin, isGuildMember } from '@/lib/discord'
 import { db } from '@/db'
 import { developerProfiles } from '@/db/schema'
 
@@ -36,6 +36,41 @@ export const requireAuth = os.middleware(async ({ context, next }) => {
 
   if (!session) {
     throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required.' })
+  }
+
+  return next({
+    context: {
+      session,
+      user: session.user,
+    },
+  })
+})
+
+/** Requires auth + verifies the user is a member of the Brackeys Discord server. */
+export const requireGuildMember = os.middleware(async ({ context, next }) => {
+  let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null
+  try {
+    session = await auth.api.getSession({
+      headers: (context as { headers: Headers }).headers,
+    })
+  } catch {
+    // getSession may throw when no cookies are present
+  }
+
+  if (!session) {
+    throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required.' })
+  }
+
+  const [profile] = await db
+    .select({ discordId: developerProfiles.discordId })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, session.user.id))
+    .limit(1)
+
+  if (!profile?.discordId || !(await isGuildMember(profile.discordId))) {
+    throw new ORPCError('FORBIDDEN', {
+      message: 'You must be a member of the Brackeys Discord server to perform this action.',
+    })
   }
 
   return next({

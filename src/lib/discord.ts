@@ -59,3 +59,23 @@ export async function fetchGuildMember(
 
   return response.json() as Promise<DiscordGuildMember>
 }
+
+/**
+ * Check if a Discord user is a member of the guild using the bot token.
+ * Uses GET /guilds/{guild_id}/members/{user_id} (Discord API v10).
+ * Returns true if the user is in the guild, false otherwise.
+ */
+export async function isGuildMember(discordUserId: string): Promise<boolean> {
+  const guildId = process.env.DISCORD_GUILD_ID!
+  const botToken = process.env.DISCORD_BOT_TOKEN!
+  const response = await fetch(
+    `https://discord.com/api/v10/guilds/${guildId}/members/${discordUserId}`,
+    {
+      headers: {
+        Authorization: `Bot ${botToken}`,
+      },
+    },
+  )
+
+  return response.ok
+}

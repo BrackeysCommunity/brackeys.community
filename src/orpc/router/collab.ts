@@ -20,7 +20,7 @@ import {
   skills,
 } from '@/db/schema'
 import { isStaffMember } from '@/lib/discord'
-import { authMiddleware, requireAuth, requireAuthWithPermissions, requireStaff, requireAdmin } from '@/orpc/middleware/auth'
+import { authMiddleware, requireAuth, requireGuildMember, requireAuthWithPermissions, requireStaff, requireAdmin } from '@/orpc/middleware/auth'
 
 function escapeLike(str: string): string {
   return str.replace(/%/g, '\\%').replace(/_/g, '\\_')
@@ -48,7 +48,7 @@ const contactTypeSchema = z.enum(['discord_dm', 'discord_server', 'email', 'othe
 // ── Post CRUD ────────────────────────────────────────────────────────────────
 
 export const createPost = os
-  .use(requireAuth)
+  .use(requireGuildMember)
   .input(
     z.object({
       type: z.enum(['paid', 'hobby', 'playtest', 'mentor']),
@@ -437,7 +437,7 @@ export const featurePost = os
 // ── Responses ────────────────────────────────────────────────────────────────
 
 export const respondToPost = os
-  .use(requireAuth)
+  .use(requireGuildMember)
   .input(
     z.object({
       postId: z.number(),
