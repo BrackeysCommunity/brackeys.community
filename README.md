@@ -183,6 +183,26 @@ bun run build-storybook
 `bun run db:generate`, `bun run db:migrate`, and `bun run db:push` are
 user-only commands. Do not have agents execute them.
 
+## Versioning
+
+The app version displayed in the hero is driven by `package.json`'s `version` field via Vite's `define` (`__APP_VERSION__`).
+
+A GitHub Actions workflow (`.github/workflows/version-bump.yml`) auto-bumps the prerelease number on every push to `main`:
+
+```
+0.0.0-alpha.127 → 0.0.0-alpha.128 → 0.0.0-alpha.129 …
+```
+
+For bigger jumps, update manually:
+
+```bash
+npm version preminor --preid=beta --no-git-tag-version  # → 0.1.0-beta.0
+npm version minor --no-git-tag-version                   # → 0.1.0
+npm version premajor --preid=alpha --no-git-tag-version  # → 1.0.0-alpha.0
+```
+
+CI will continue auto-incrementing from wherever you set it.
+
 ## Development Notes
 
 - Discord is the primary sign-in path.

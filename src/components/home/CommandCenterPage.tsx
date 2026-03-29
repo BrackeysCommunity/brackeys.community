@@ -163,7 +163,7 @@ export function CommandCenterPage() {
         <span className="text-primary">{'>'}</span>
         {'SYSTEM READY'}
         <span className="mx-2 text-primary">{'//'}</span>
-        {'v0.0.0-alpha.127'}
+        {`v${__APP_VERSION__}`}
         <span className="mx-2 text-primary">{'//'}</span>
         {'WELCOME USER'}
       </div>
