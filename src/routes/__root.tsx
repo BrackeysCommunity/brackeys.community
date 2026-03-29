@@ -20,7 +20,6 @@ import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from '@/lib/hook
 import fontsCss from '../fonts.css?url'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
-import StoreDevtools from '../lib/demo-store-devtools'
 import appCss from '../styles.css?url'
 
 interface MyRouterContext {
@@ -129,7 +128,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                     plugins={[
                       { name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> },
                       TanStackQueryDevtools,
-                      StoreDevtools,
                     ]}
                   />
                 </PageLayoutProvider>
