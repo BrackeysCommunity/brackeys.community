@@ -1,10 +1,9 @@
 import { defineConfig } from "vitest/config"
 import { fileURLToPath, URL } from "node:url"
 import wasm from "vite-plugin-wasm"
-import topLevelAwait from "vite-plugin-top-level-await"
 
 export default defineConfig({
-	plugins: [wasm(), topLevelAwait()],
+	plugins: [wasm()],
 	resolve: {
 		alias: {
 			"@": fileURLToPath(new URL("./src", import.meta.url)),
