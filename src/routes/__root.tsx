@@ -3,7 +3,6 @@ import type { QueryClient } from '@tanstack/react-query'
 import {
   createRootRouteWithContext,
   HeadContent,
-  redirect,
   Scripts,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
@@ -18,7 +17,6 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPaletteProvider } from '@/lib/hooks/use-command-palette'
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from '@/lib/hooks/use-page-layout'
-import { getLocale, shouldRedirect } from '@/paraglide/runtime'
 import fontsCss from '../fonts.css?url'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
@@ -30,14 +28,9 @@ interface MyRouterContext {
 }
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
-  beforeLoad: async ({ location }) => {
-    const decision = await shouldRedirect({ url: location.href })
-    if (decision.shouldRedirect) {
-      throw redirect({ href: decision.redirectUrl?.href })
-    }
-
+  beforeLoad: async () => {
     if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('lang', getLocale())
+      document.documentElement.setAttribute('lang', 'en')
     }
   },
 
@@ -89,7 +82,7 @@ function RoutePendingFallback() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={getLocale()} className="dark">
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>
