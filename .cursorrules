@@ -20,3 +20,10 @@ Sentry.startSpan({ name: 'Requesting all the pokemon' }, async () => {
   await fetch('https://api.pokemon.com/data/')
 })
 ```
+# shadcn instructions
+
+Use the latest version of Shadcn to install new components, like this command to add a button component:
+
+```bash
+pnpm dlx shadcn@latest add button
+```

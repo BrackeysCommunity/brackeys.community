@@ -1,0 +1,12 @@
+.dither-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+.dither-container canvas {
+  pointer-events: auto;
+}

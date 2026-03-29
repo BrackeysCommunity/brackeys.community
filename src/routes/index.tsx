@@ -1,9 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { Home } from '@/pages/Home';
+import { createFileRoute } from '@tanstack/react-router'
+import { HomePage } from '@/components/home/HomePage'
 
-export const Route = createFileRoute('/')({
-  component: Home,
-  head: () => ({
-    meta: [{ title: 'Home - Brackeys Community' }],
-  }),
-});
+export const Route = createFileRoute('/')({ component: HomePage })

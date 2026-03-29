@@ -1,150 +1,86 @@
-import { ExternalLink } from 'lucide-react';
-import { motion } from 'motion/react';
-import { Suspense, useState } from 'react';
-import { cn } from '../../lib/utils';
-import { useActiveUser } from '../../store';
-import { LoginButton } from '../auth/LoginButton';
-import { Button } from '../ui/Button';
-import { AnnouncementCard } from './AnnouncementCard';
-import { CommandsList } from './CommandsList';
+import { ComputerTerminal01Icon, IdentityCardIcon, UserGroupIcon } from '@hugeicons/core-free-icons';
+import type { IconSvgElement } from '@hugeicons/react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Link } from '@tanstack/react-router';
+import { motion } from 'framer-motion';
+import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { CyclingWord } from './CyclingWord';
 
-const HERO_CONTENT = {
-  mainHeading: 'Learn, Play, Create',
-  subHeading: 'Level Up in Brackeys Community',
-  description:
-    "A community for developers of all skill levels to learn, share, and collaborate. Join us today and let's make coding fun!",
-};
+const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
-const BUTTON_CONTENT = {
-  github: 'View on GitHub',
-  joinNow: 'Join now!',
-  visitServer: 'Visit server',
-};
+interface NavItem {
+  id: string;
+  label: string;
+  icon: IconSvgElement;
+  to: string;
+}
 
-type TabType = 'announcements' | 'commands';
-
-const _DISCORD_SERVER_URL = 'https://discord.gg/brackeys';
-
-const ContentFallback = () => (
-  <div className="bg-gray-900/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-800 shadow-xl h-full flex items-center justify-center">
-    <div className="animate-pulse flex flex-col items-center gap-3">
-      <div className="h-5 w-5 bg-gray-700 rounded" />
-      <div className="h-4 w-48 bg-gray-700 rounded" />
-      <div className="h-3 w-full bg-gray-700 rounded" />
-      <div className="h-3 w-3/4 bg-gray-700 rounded" />
-    </div>
-  </div>
-);
-
-const TabButton = ({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={cn(
-      'px-6 py-2 rounded-full backdrop-blur-sm shadow-2xl font-medium transition-all pointer-events-auto',
-      active
-        ? 'bg-brackeys-purple-600 text-white shadow-lg'
-        : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-300',
-    )}
-  >
-    {children}
-  </button>
-);
-
-export const HeroSection = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('announcements');
-  const { user } = useActiveUser();
-  const _isInGuild = user?.discord?.guildMember?.inGuild ?? false;
-
+function NavCard({ item }: { item: NavItem }) {
+  const { ref, position } = useMagnetic(0.2);
   return (
-    <section
-      className="container mx-auto w-full px-4 sm:px-6 lg:px-8 relative"
-      aria-labelledby="hero-heading"
-      data-testid="hero-section"
+    <motion.div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      data-magnetic
+      data-cursor-corner-size="lg"
+      data-cursor-padding-x="24"
+      data-cursor-padding-y="24"
+      animate={{ x: position.x, y: position.y }}
+      transition={springTransition}
+      className="relative z-10 w-full sm:w-auto pointer-events-auto"
     >
-      <div className="max-w-7xl w-full mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
-          {/* Left Column - Sticky CTA */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="lg:sticky lg:top-54 2xl:top-64 space-y-8"
-          >
-            <div className="drop-shadow-[0_0_30px_rgba(0,0,0,0.9)]">
-              <h1
-                title={HERO_CONTENT.mainHeading}
-                className="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl"
-              >
-                <span className="block drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                  {HERO_CONTENT.mainHeading}
-                </span>
-                <span className="block drop-shadow-[0_0_10px_var(--color-brackeys-purple-light)] text-brackeys-purple-600 mt-2">
-                  {HERO_CONTENT.subHeading}
-                </span>
-              </h1>
-              <p className="mt-6 text-xl text-gray-300 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                {HERO_CONTENT.description}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <LoginButton className="w-full sm:w-auto pointer-events-auto" />
-              <Button
-                href="https://github.com/josh-complex/brackeys-web"
-                target="_blank"
-                variant="secondary"
-                size="lg"
-                className="w-full sm:w-auto flex items-center gap-2 pointer-events-auto"
-                aria-label="View source code on GitHub"
-              >
-                {BUTTON_CONTENT.github}
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-          </motion.div>
-
-          {/* Right Column - Content with Sticky Tabs */}
-          <div>
-            {/* Sticky Tab Buttons */}
-            <div className="sticky top-5 z-30 pb-4 mb-4">
-              <div className="flex gap-2">
-                <TabButton
-                  active={activeTab === 'announcements'}
-                  onClick={() => setActiveTab('announcements')}
-                >
-                  Announcements
-                </TabButton>
-                <TabButton
-                  active={activeTab === 'commands'}
-                  onClick={() => setActiveTab('commands')}
-                >
-                  Commands
-                </TabButton>
-              </div>
-            </div>
-
-            {/* Tab Content */}
-            <div className="bg-gray-900/50 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-xl">
-              {activeTab === 'announcements' ? (
-                <Suspense fallback={<ContentFallback />}>
-                  <AnnouncementCard />
-                </Suspense>
-              ) : (
-                <CommandsList />
-              )}
-            </div>
-          </div>
+      <Link
+        to={item.to}
+        className="group flex h-24 w-full min-w-[200px] flex-col justify-between border-2 border-muted bg-card p-4 transition-all duration-100 hover:-translate-y-1 hover:border-primary hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none"
+      >
+        <div className="flex justify-between">
+          <span className="font-mono text-xs text-muted-foreground group-hover:text-primary">{item.id}</span>
+          <HugeiconsIcon icon={item.icon} size={20} className="text-muted-foreground group-hover:text-primary" />
         </div>
-      </div>
-    </section>
+        <div className="font-mono font-bold text-2xl leading-none tracking-tight text-foreground group-hover:text-primary whitespace-pre-line">
+          {item.label}
+        </div>
+      </Link>
+    </motion.div>
   );
-};
+}
+
+const NAV_ITEMS = [
+  { id: '01', label: 'COLLAB\nBOARD', icon: UserGroupIcon, to: '/collab' },
+  { id: '02', label: 'COMMAND\nCENTER', icon: ComputerTerminal01Icon, to: '/command-center' },
+  { id: '03', label: 'DEV\nPROFILE', icon: IdentityCardIcon, to: '/profile' },
+];
+
+export function HeroSection() {
+  return (
+    <div className="flex w-full h-full flex-col justify-between">
+      <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
+        <span className="text-primary">{'>'}</span>
+        {'SYSTEM READY'}
+        <span className="mx-2 text-primary">{'//'}</span>
+        {'v0.0.0-alpha.127'}
+        <span className="mx-2 text-primary">{'//'}</span>
+        {'WELCOME USER'}
+      </div>
+
+      <div className="flex flex-col justify-center">
+        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
+          <CyclingWord />
+          <br />
+          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+            GAMES.
+          </span>
+        </h1>
+        <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
+          The central neural network for the Brackeys Game Dev community.
+          Find your squad, access the knowledge base, and deploy your build.
+        </p>
+      </div>
+
+      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+        {NAV_ITEMS.map((item) => (
+          <NavCard key={item.id} item={item} />
+        ))}
+      </nav>
+    </div>
+  );
+}

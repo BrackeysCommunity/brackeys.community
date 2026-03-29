@@ -1,47 +1,17 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
 node_modules
+.DS_Store
 dist
 dist-ssr
 *.local
-.env.local
-
-# Editor directories and files
-.vscode/*
-.cursor/**/*
-.spacetime/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+count.txt
 .env
-.vercel
-.vinxi
-.tanstack
 .nitro
+.tanstack
+.wrangler
 .output
-
-*storybook.log
-storybook-static
-
-codegen.ts
-
-# ESLint cache
-.eslintcache
-
-# Hasura metadata
-hasura-ddn/engine/build
-
-target/rust-analyzer/
-.env*.local
+.vinxi
+__unconfig*
+todos.json
+.claude
+.codex
+.codex-schemas

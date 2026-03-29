@@ -1,2 +1,0 @@
-FROM ghcr.io/hasura/ndc-storage:v0.1.0
-COPY ./ /etc/connector

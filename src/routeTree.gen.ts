@@ -9,43 +9,42 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SandboxRouteImport } from './routes/sandbox'
-import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as CollaborationHubRouteImport } from './routes/collaboration-hub'
+import { Route as GameRouteImport } from './routes/game'
+import { Route as CommandCenterRouteImport } from './routes/command-center'
+import { Route as CollabRouteImport } from './routes/collab'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CollaborationsIndexRouteImport } from './routes/collaborations/index'
-import { Route as ToolsToolIdRouteImport } from './routes/tools/$toolId'
-import { Route as GamesSnakeRouteImport } from './routes/games/snake'
-import { Route as CollaborationsPostIdRouteImport } from './routes/collaborations/$postId'
-import { Route as AuthEntryRouteImport } from './routes/auth/entry'
-import { Route as ApiWebhooksClerkRouteImport } from './routes/api/webhooks/clerk'
-import { Route as ApiAuthSyncDiscordRouteImport } from './routes/api/auth/sync-discord'
+import { Route as ProfileIndexRouteImport } from './routes/profile.index'
+import { Route as GameIndexRouteImport } from './routes/game/index'
+import { Route as CollabIndexRouteImport } from './routes/collab.index'
+import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
+import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
+import { Route as CollabNewRouteImport } from './routes/collab.new'
+import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
+import { Route as ApiSplatRouteImport } from './routes/api.$'
+import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
+import { Route as OauthGithubCallbackRouteImport } from './routes/oauth.github.callback'
+import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
-const SandboxRoute = SandboxRouteImport.update({
-  id: '/sandbox',
-  path: '/sandbox',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResourcesRoute = ResourcesRouteImport.update({
-  id: '/resources',
-  path: '/resources',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const GameRoute = GameRouteImport.update({
+  id: '/game',
+  path: '/game',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CollaborationHubRoute = CollaborationHubRouteImport.update({
-  id: '/collaboration-hub',
-  path: '/collaboration-hub',
+const CommandCenterRoute = CommandCenterRouteImport.update({
+  id: '/command-center',
+  path: '/command-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollabRoute = CollabRouteImport.update({
+  id: '/collab',
+  path: '/collab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -53,168 +52,194 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CollaborationsIndexRoute = CollaborationsIndexRouteImport.update({
-  id: '/collaborations/',
-  path: '/collaborations/',
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const GameIndexRoute = GameIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GameRoute,
+} as any)
+const CollabIndexRoute = CollabIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CollabRoute,
+} as any)
+const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const GameRoomIdRoute = GameRoomIdRouteImport.update({
+  id: '/$roomId',
+  path: '/$roomId',
+  getParentRoute: () => GameRoute,
+} as any)
+const CollabNewRoute = CollabNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => CollabRoute,
+} as any)
+const CollabPostIdRoute = CollabPostIdRouteImport.update({
+  id: '/$postId',
+  path: '/$postId',
+  getParentRoute: () => CollabRoute,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ToolsToolIdRoute = ToolsToolIdRouteImport.update({
-  id: '/tools/$toolId',
-  path: '/tools/$toolId',
+const OauthItchioCallbackRoute = OauthItchioCallbackRouteImport.update({
+  id: '/oauth/itchio/callback',
+  path: '/oauth/itchio/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GamesSnakeRoute = GamesSnakeRouteImport.update({
-  id: '/games/snake',
-  path: '/games/snake',
+const OauthGithubCallbackRoute = OauthGithubCallbackRouteImport.update({
+  id: '/oauth/github/callback',
+  path: '/oauth/github/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CollaborationsPostIdRoute = CollaborationsPostIdRouteImport.update({
-  id: '/collaborations/$postId',
-  path: '/collaborations/$postId',
+const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
+  id: '/api/rpc/$',
+  path: '/api/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthEntryRoute = AuthEntryRouteImport.update({
-  id: '/auth/entry',
-  path: '/auth/entry',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWebhooksClerkRoute = ApiWebhooksClerkRouteImport.update({
-  id: '/api/webhooks/clerk',
-  path: '/api/webhooks/clerk',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthSyncDiscordRoute = ApiAuthSyncDiscordRouteImport.update({
-  id: '/api/auth/sync-discord',
-  path: '/api/auth/sync-discord',
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/collaboration-hub': typeof CollaborationHubRoute
-  '/login': typeof LoginRoute
-  '/profile': typeof ProfileRoute
-  '/resources': typeof ResourcesRoute
-  '/sandbox': typeof SandboxRoute
-  '/auth/entry': typeof AuthEntryRoute
-  '/collaborations/$postId': typeof CollaborationsPostIdRoute
-  '/games/snake': typeof GamesSnakeRoute
-  '/tools/$toolId': typeof ToolsToolIdRoute
-  '/collaborations': typeof CollaborationsIndexRoute
-  '/api/auth/sync-discord': typeof ApiAuthSyncDiscordRoute
-  '/api/webhooks/clerk': typeof ApiWebhooksClerkRoute
+  '/collab': typeof CollabRouteWithChildren
+  '/command-center': typeof CommandCenterRoute
+  '/game': typeof GameRouteWithChildren
+  '/profile': typeof ProfileRouteWithChildren
+  '/api/$': typeof ApiSplatRoute
+  '/collab/$postId': typeof CollabPostIdRoute
+  '/collab/new': typeof CollabNewRoute
+  '/game/$roomId': typeof GameRoomIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
+  '/collab/': typeof CollabIndexRoute
+  '/game/': typeof GameIndexRoute
+  '/profile/': typeof ProfileIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/oauth/github/callback': typeof OauthGithubCallbackRoute
+  '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/collaboration-hub': typeof CollaborationHubRoute
-  '/login': typeof LoginRoute
-  '/profile': typeof ProfileRoute
-  '/resources': typeof ResourcesRoute
-  '/sandbox': typeof SandboxRoute
-  '/auth/entry': typeof AuthEntryRoute
-  '/collaborations/$postId': typeof CollaborationsPostIdRoute
-  '/games/snake': typeof GamesSnakeRoute
-  '/tools/$toolId': typeof ToolsToolIdRoute
-  '/collaborations': typeof CollaborationsIndexRoute
-  '/api/auth/sync-discord': typeof ApiAuthSyncDiscordRoute
-  '/api/webhooks/clerk': typeof ApiWebhooksClerkRoute
+  '/command-center': typeof CommandCenterRoute
+  '/api/$': typeof ApiSplatRoute
+  '/collab/$postId': typeof CollabPostIdRoute
+  '/collab/new': typeof CollabNewRoute
+  '/game/$roomId': typeof GameRoomIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
+  '/collab': typeof CollabIndexRoute
+  '/game': typeof GameIndexRoute
+  '/profile': typeof ProfileIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/oauth/github/callback': typeof OauthGithubCallbackRoute
+  '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/collaboration-hub': typeof CollaborationHubRoute
-  '/login': typeof LoginRoute
-  '/profile': typeof ProfileRoute
-  '/resources': typeof ResourcesRoute
-  '/sandbox': typeof SandboxRoute
-  '/auth/entry': typeof AuthEntryRoute
-  '/collaborations/$postId': typeof CollaborationsPostIdRoute
-  '/games/snake': typeof GamesSnakeRoute
-  '/tools/$toolId': typeof ToolsToolIdRoute
-  '/collaborations/': typeof CollaborationsIndexRoute
-  '/api/auth/sync-discord': typeof ApiAuthSyncDiscordRoute
-  '/api/webhooks/clerk': typeof ApiWebhooksClerkRoute
+  '/collab': typeof CollabRouteWithChildren
+  '/command-center': typeof CommandCenterRoute
+  '/game': typeof GameRouteWithChildren
+  '/profile': typeof ProfileRouteWithChildren
+  '/api/$': typeof ApiSplatRoute
+  '/collab/$postId': typeof CollabPostIdRoute
+  '/collab/new': typeof CollabNewRoute
+  '/game/$roomId': typeof GameRoomIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
+  '/collab/': typeof CollabIndexRoute
+  '/game/': typeof GameIndexRoute
+  '/profile/': typeof ProfileIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/oauth/github/callback': typeof OauthGithubCallbackRoute
+  '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/collaboration-hub'
-    | '/login'
+    | '/collab'
+    | '/command-center'
+    | '/game'
     | '/profile'
-    | '/resources'
-    | '/sandbox'
-    | '/auth/entry'
-    | '/collaborations/$postId'
-    | '/games/snake'
-    | '/tools/$toolId'
-    | '/collaborations'
-    | '/api/auth/sync-discord'
-    | '/api/webhooks/clerk'
+    | '/api/$'
+    | '/collab/$postId'
+    | '/collab/new'
+    | '/game/$roomId'
+    | '/profile/$userId'
+    | '/collab/'
+    | '/game/'
+    | '/profile/'
+    | '/api/auth/$'
+    | '/api/rpc/$'
+    | '/oauth/github/callback'
+    | '/oauth/itchio/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/collaboration-hub'
-    | '/login'
+    | '/command-center'
+    | '/api/$'
+    | '/collab/$postId'
+    | '/collab/new'
+    | '/game/$roomId'
+    | '/profile/$userId'
+    | '/collab'
+    | '/game'
     | '/profile'
-    | '/resources'
-    | '/sandbox'
-    | '/auth/entry'
-    | '/collaborations/$postId'
-    | '/games/snake'
-    | '/tools/$toolId'
-    | '/collaborations'
-    | '/api/auth/sync-discord'
-    | '/api/webhooks/clerk'
+    | '/api/auth/$'
+    | '/api/rpc/$'
+    | '/oauth/github/callback'
+    | '/oauth/itchio/callback'
   id:
     | '__root__'
     | '/'
-    | '/collaboration-hub'
-    | '/login'
+    | '/collab'
+    | '/command-center'
+    | '/game'
     | '/profile'
-    | '/resources'
-    | '/sandbox'
-    | '/auth/entry'
-    | '/collaborations/$postId'
-    | '/games/snake'
-    | '/tools/$toolId'
-    | '/collaborations/'
-    | '/api/auth/sync-discord'
-    | '/api/webhooks/clerk'
+    | '/api/$'
+    | '/collab/$postId'
+    | '/collab/new'
+    | '/game/$roomId'
+    | '/profile/$userId'
+    | '/collab/'
+    | '/game/'
+    | '/profile/'
+    | '/api/auth/$'
+    | '/api/rpc/$'
+    | '/oauth/github/callback'
+    | '/oauth/itchio/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CollaborationHubRoute: typeof CollaborationHubRoute
-  LoginRoute: typeof LoginRoute
-  ProfileRoute: typeof ProfileRoute
-  ResourcesRoute: typeof ResourcesRoute
-  SandboxRoute: typeof SandboxRoute
-  AuthEntryRoute: typeof AuthEntryRoute
-  CollaborationsPostIdRoute: typeof CollaborationsPostIdRoute
-  GamesSnakeRoute: typeof GamesSnakeRoute
-  ToolsToolIdRoute: typeof ToolsToolIdRoute
-  CollaborationsIndexRoute: typeof CollaborationsIndexRoute
-  ApiAuthSyncDiscordRoute: typeof ApiAuthSyncDiscordRoute
-  ApiWebhooksClerkRoute: typeof ApiWebhooksClerkRoute
+  CollabRoute: typeof CollabRouteWithChildren
+  CommandCenterRoute: typeof CommandCenterRoute
+  GameRoute: typeof GameRouteWithChildren
+  ProfileRoute: typeof ProfileRouteWithChildren
+  ApiSplatRoute: typeof ApiSplatRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiRpcSplatRoute: typeof ApiRpcSplatRoute
+  OauthGithubCallbackRoute: typeof OauthGithubCallbackRoute
+  OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sandbox': {
-      id: '/sandbox'
-      path: '/sandbox'
-      fullPath: '/sandbox'
-      preLoaderRoute: typeof SandboxRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/resources': {
-      id: '/resources'
-      path: '/resources'
-      fullPath: '/resources'
-      preLoaderRoute: typeof ResourcesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -222,18 +247,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/game': {
+      id: '/game'
+      path: '/game'
+      fullPath: '/game'
+      preLoaderRoute: typeof GameRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/collaboration-hub': {
-      id: '/collaboration-hub'
-      path: '/collaboration-hub'
-      fullPath: '/collaboration-hub'
-      preLoaderRoute: typeof CollaborationHubRouteImport
+    '/command-center': {
+      id: '/command-center'
+      path: '/command-center'
+      fullPath: '/command-center'
+      preLoaderRoute: typeof CommandCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collab': {
+      id: '/collab'
+      path: '/collab'
+      fullPath: '/collab'
+      preLoaderRoute: typeof CollabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -243,72 +275,144 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/collaborations/': {
-      id: '/collaborations/'
-      path: '/collaborations'
-      fullPath: '/collaborations'
-      preLoaderRoute: typeof CollaborationsIndexRouteImport
+    '/profile/': {
+      id: '/profile/'
+      path: '/'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/game/': {
+      id: '/game/'
+      path: '/'
+      fullPath: '/game/'
+      preLoaderRoute: typeof GameIndexRouteImport
+      parentRoute: typeof GameRoute
+    }
+    '/collab/': {
+      id: '/collab/'
+      path: '/'
+      fullPath: '/collab/'
+      preLoaderRoute: typeof CollabIndexRouteImport
+      parentRoute: typeof CollabRoute
+    }
+    '/profile/$userId': {
+      id: '/profile/$userId'
+      path: '/$userId'
+      fullPath: '/profile/$userId'
+      preLoaderRoute: typeof ProfileUserIdRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/game/$roomId': {
+      id: '/game/$roomId'
+      path: '/$roomId'
+      fullPath: '/game/$roomId'
+      preLoaderRoute: typeof GameRoomIdRouteImport
+      parentRoute: typeof GameRoute
+    }
+    '/collab/new': {
+      id: '/collab/new'
+      path: '/new'
+      fullPath: '/collab/new'
+      preLoaderRoute: typeof CollabNewRouteImport
+      parentRoute: typeof CollabRoute
+    }
+    '/collab/$postId': {
+      id: '/collab/$postId'
+      path: '/$postId'
+      fullPath: '/collab/$postId'
+      preLoaderRoute: typeof CollabPostIdRouteImport
+      parentRoute: typeof CollabRoute
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tools/$toolId': {
-      id: '/tools/$toolId'
-      path: '/tools/$toolId'
-      fullPath: '/tools/$toolId'
-      preLoaderRoute: typeof ToolsToolIdRouteImport
+    '/oauth/itchio/callback': {
+      id: '/oauth/itchio/callback'
+      path: '/oauth/itchio/callback'
+      fullPath: '/oauth/itchio/callback'
+      preLoaderRoute: typeof OauthItchioCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/games/snake': {
-      id: '/games/snake'
-      path: '/games/snake'
-      fullPath: '/games/snake'
-      preLoaderRoute: typeof GamesSnakeRouteImport
+    '/oauth/github/callback': {
+      id: '/oauth/github/callback'
+      path: '/oauth/github/callback'
+      fullPath: '/oauth/github/callback'
+      preLoaderRoute: typeof OauthGithubCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/collaborations/$postId': {
-      id: '/collaborations/$postId'
-      path: '/collaborations/$postId'
-      fullPath: '/collaborations/$postId'
-      preLoaderRoute: typeof CollaborationsPostIdRouteImport
+    '/api/rpc/$': {
+      id: '/api/rpc/$'
+      path: '/api/rpc/$'
+      fullPath: '/api/rpc/$'
+      preLoaderRoute: typeof ApiRpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/entry': {
-      id: '/auth/entry'
-      path: '/auth/entry'
-      fullPath: '/auth/entry'
-      preLoaderRoute: typeof AuthEntryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/webhooks/clerk': {
-      id: '/api/webhooks/clerk'
-      path: '/api/webhooks/clerk'
-      fullPath: '/api/webhooks/clerk'
-      preLoaderRoute: typeof ApiWebhooksClerkRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/sync-discord': {
-      id: '/api/auth/sync-discord'
-      path: '/api/auth/sync-discord'
-      fullPath: '/api/auth/sync-discord'
-      preLoaderRoute: typeof ApiAuthSyncDiscordRouteImport
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
+interface CollabRouteChildren {
+  CollabPostIdRoute: typeof CollabPostIdRoute
+  CollabNewRoute: typeof CollabNewRoute
+  CollabIndexRoute: typeof CollabIndexRoute
+}
+
+const CollabRouteChildren: CollabRouteChildren = {
+  CollabPostIdRoute: CollabPostIdRoute,
+  CollabNewRoute: CollabNewRoute,
+  CollabIndexRoute: CollabIndexRoute,
+}
+
+const CollabRouteWithChildren =
+  CollabRoute._addFileChildren(CollabRouteChildren)
+
+interface GameRouteChildren {
+  GameRoomIdRoute: typeof GameRoomIdRoute
+  GameIndexRoute: typeof GameIndexRoute
+}
+
+const GameRouteChildren: GameRouteChildren = {
+  GameRoomIdRoute: GameRoomIdRoute,
+  GameIndexRoute: GameIndexRoute,
+}
+
+const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
+
+interface ProfileRouteChildren {
+  ProfileUserIdRoute: typeof ProfileUserIdRoute
+  ProfileIndexRoute: typeof ProfileIndexRoute
+}
+
+const ProfileRouteChildren: ProfileRouteChildren = {
+  ProfileUserIdRoute: ProfileUserIdRoute,
+  ProfileIndexRoute: ProfileIndexRoute,
+}
+
+const ProfileRouteWithChildren =
+  ProfileRoute._addFileChildren(ProfileRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CollaborationHubRoute: CollaborationHubRoute,
-  LoginRoute: LoginRoute,
-  ProfileRoute: ProfileRoute,
-  ResourcesRoute: ResourcesRoute,
-  SandboxRoute: SandboxRoute,
-  AuthEntryRoute: AuthEntryRoute,
-  CollaborationsPostIdRoute: CollaborationsPostIdRoute,
-  GamesSnakeRoute: GamesSnakeRoute,
-  ToolsToolIdRoute: ToolsToolIdRoute,
-  CollaborationsIndexRoute: CollaborationsIndexRoute,
-  ApiAuthSyncDiscordRoute: ApiAuthSyncDiscordRoute,
-  ApiWebhooksClerkRoute: ApiWebhooksClerkRoute,
+  CollabRoute: CollabRouteWithChildren,
+  CommandCenterRoute: CommandCenterRoute,
+  GameRoute: GameRouteWithChildren,
+  ProfileRoute: ProfileRouteWithChildren,
+  ApiSplatRoute: ApiSplatRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiRpcSplatRoute: ApiRpcSplatRoute,
+  OauthGithubCallbackRoute: OauthGithubCallbackRoute,
+  OauthItchioCallbackRoute: OauthItchioCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

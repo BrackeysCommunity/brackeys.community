@@ -1,340 +1,224 @@
-# Brackeys Community Web
+# Brackeys
 
-A modern full-stack web application for the Brackeys Discord community, built with TanStack Start, React 19, and a self-hosted backend stack.
+Brackeys is the community web app for the Brackeys Discord. This repo is a single TanStack Start application that powers:
 
-## 🏗️ Stack
+- the home / jam landing page
+- the command center
+- developer profiles
+- the collab board
 
-- **Frontend**: React 19 + TypeScript + TanStack Start + Tailwind CSS v4
-- **Routing**: TanStack Router (file-based with SSR support)
-- **State**: TanStack Query + TanStack Store
-- **Authentication**: Clerk (Discord OAuth only)
-- **API**: Hasura GraphQL Engine v3 (DDN)
-- **Database**: PostgreSQL
-- **Cache**: Redis
-- **Storage**: MinIO (S3-compatible)
-- **Real-time**: SpacetimeDB (Rust/WASM)
+This README is the repo-level source of truth for local setup and day-to-day development. The old starter README is intentionally replaced because it no longer matched the codebase.
 
-## 🚀 Quick Start
+## Stack
+
+- TanStack Start + Vite
+- React 19
+- TanStack Router, Query, Store, and Devtools
+- Tailwind CSS v4
+- Biome
+- Drizzle ORM + PostgreSQL
+- Better Auth
+- ORPC
+- Storybook
+
+## Main App Surfaces
+
+- `/` home / jam landing page
+- `/command-center` command and macro docs
+- `/profile` sign-in gate and profile entry
+- `/profile/:userId` public profile view and owner edit flow
+- `/collab` collab browse flow
+- `/collab/new` collab post creation
+- `/collab/:postId` collab post detail
+- `/oauth/github/callback` GitHub account-link callback
+- `/oauth/itchio/callback` itch.io link callback
+- `/api/auth/*` Better Auth endpoints
+- `/api/rpc/*` ORPC endpoints
+
+## Repo Structure
+
+```text
+src/
+  components/
+    collab/
+    home/
+    layout/
+    profile/
+    ui/
+  db/
+  lib/
+  orpc/
+  routes/
+drizzle/
+.storybook/
+```
+
+Important files:
+
+- `src/routes/__root.tsx`: shell, background, command palette, layout
+- `src/db/schema.ts`: app schema
+- `src/lib/auth.ts`: Better Auth provider config
+- `src/orpc/router/*`: typed server procedures
+- `drizzle.config.ts`: Drizzle config
+
+## Prerequisites
+
+- Bun
+- PostgreSQL
+- Discord OAuth app credentials
+
+Optional but relevant depending on what you are working on:
+
+- GitHub OAuth app credentials
+- itch.io client ID
+- Strapi instance for collab image uploads
+- MinIO credentials for profile image uploads
+- Sentry DSN
+
+## Setup
+
+1. Install dependencies.
 
 ```bash
-# 1. Install dependencies
 bun install
+```
 
-# 2. Build SpacetimeDB module (first time only)
-cd spacetime-db
-cargo build --release --target wasm32-unknown-unknown
-cd ..
+2. Create local env vars.
 
-# 3. Configure environment
-cp .env.example .env
-# Edit .env with your Clerk keys
+```powershell
+Copy-Item .env.example .env.local
+```
 
-# 4. Start backend services (requires Docker)
-docker-compose up -d
+3. Fill in the required secrets in `.env.local`.
 
-# 5. Start development server
+Minimum required for most local work:
+
+- `DATABASE_URL`
+- `BETTER_AUTH_URL`
+- `BETTER_AUTH_SECRET`
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `DISCORD_GUILD_ID`
+
+4. Apply database schema.
+
+Only the user should ever run `bun run db:generate`, `bun run db:migrate`, or
+`bun run db:push`. Agents should update schema and migration files, but the
+user remains the only operator for those commands.
+
+For an existing migration flow:
+
+```bash
+bun run db:migrate
+```
+
+For fast local iteration against an empty local database:
+
+```bash
+bun run db:push
+```
+
+5. Start the dev server.
+
+```bash
 bun run dev
 ```
 
-Visit http://localhost:3000 to see your app!
+The app runs on `http://localhost:3000`.
 
-## 📁 Project Structure
+## Environment Variables
 
-```
-brackeys/
-├── hasura/                  # Hasura GraphQL metadata & migrations
-├── spacetime-db/            # SpacetimeDB Rust module (WASM)
-├── src/
-│   ├── routes/              # File-based routes (TanStack Router)
-│   │   ├── index.tsx        # Home page
-│   │   ├── login.tsx        # Login page
-│   │   ├── profile.tsx      # User profile
-│   │   ├── sandbox.tsx      # Real-time canvas
-│   │   ├── resources.tsx    # Games & tools
-│   │   ├── collaborations/  # Collaboration marketplace
-│   │   ├── auth/            # Auth flow pages
-│   │   └── api/             # API routes (webhooks, etc.)
-│   ├── components/          # React components
-│   │   ├── auth/            # Auth guards, login button
-│   │   ├── collaborations/  # Collab cards, filters
-│   │   ├── games/           # Games (Snake, etc.)
-│   │   ├── home/            # Hero, features, CTA
-│   │   ├── layout/          # Header, footer, main layout
-│   │   ├── resources/       # Resource cards, filters
-│   │   ├── sandbox/         # Canvas, cursors, messages
-│   │   └── ui/              # Reusable UI (Button, Input, Modal)
-│   ├── context/             # React Context providers
-│   ├── hooks/               # Custom React hooks
-│   ├── lib/                 # Utilities & configurations
-│   ├── server/              # Server functions
-│   │   ├── auth/            # Discord sync
-│   │   ├── webhooks/        # Clerk webhooks
-│   │   └── graphql/         # GraphQL wrappers
-│   └── styles.css           # Global styles
-├── docs/                    # Comprehensive documentation
-├── .storybook/              # Storybook configuration
-└── mise.toml                # Development tooling
-```
+`README` only documents variables that are actually referenced in the repo today.
 
-## 🎨 Key Features
+### Required
 
-### 1. Real-Time Multiplayer Sandbox
-- Collaborative canvas powered by SpacetimeDB (Rust)
-- Live cursor tracking (~140fps)
-- Real-time typing indicators
-- Ephemeral messages with configurable TTL
-- Room system with password protection
+- `DATABASE_URL`: Postgres connection string
+- `BETTER_AUTH_URL`: local app URL, usually `http://localhost:3000`
+- `BETTER_AUTH_SECRET`: Better Auth secret
+- `DISCORD_CLIENT_ID`: Discord OAuth client ID
+- `DISCORD_CLIENT_SECRET`: Discord OAuth client secret
+- `DISCORD_GUILD_ID`: guild used for member role/profile enrichment
 
-### 2. Collaboration Marketplace
-- Post collaboration opportunities
-- Advanced filtering (type, hiring status, tags)
-- Response system (public/private)
-- Bookmarks and view tracking
-- Dynamic form fields based on post type
+### Required for specific features
 
-### 3. Discord-Native Authentication
-- OAuth via Clerk
-- Automatic role syncing (Discord → Hasura)
-- Guild membership validation
-- Custom profile page with Discord data
+- `GITHUB_CLIENT_ID`: GitHub account linking
+- `GITHUB_CLIENT_SECRET`: GitHub account linking
+- `VITE_ITCHIO_CLIENT_ID`: itch.io linking flow
+- `VITE_STRAPI_URL`: Strapi-backed uploads / demo content
+- `MINIO_ENDPOINT`: MinIO server URL, for example `https://your-minio-host.up.railway.app`
+- `MINIO_PUBLIC_BASE_URL`: public base URL used to render stored objects
+- `MINIO_BUCKET`: bucket name for uploaded profile project images
+- `MINIO_ACCESS_KEY`: MinIO access key
+- `MINIO_SECRET_KEY`: MinIO secret key
 
-### 4. Games & Tools Directory
-- Curated resources for developers
-- Filter by type, category, tags
-- Embedded games (Snake, etc.)
+### Optional
 
-## ⚙️ SSR Configuration
+- `VITE_APP_TITLE`: client title override
+- `SERVER_URL`: server-side absolute URL override
+- `VITE_SENTRY_DSN`: Sentry client/server instrumentation
 
-TanStack Start supports flexible server-side rendering. Routes use **Full SSR by default**.
-
-### Full SSR (Default)
-Everything rendered server-side for best SEO and initial load:
-
-```typescript
-export const Route = createFileRoute('/my-route')({
-  component: MyComponent,
-});
-```
-
-### Data-Only SSR
-Server fetches data, client renders UI (hybrid approach):
-
-```typescript
-export const Route = createFileRoute('/my-route')({
-  ssr: 'data-only',
-  component: MyComponent,
-  loader: async () => {
-    return await fetchDataServerSide();
-  },
-});
-```
-
-### SPA Mode
-Fully client-side rendering (like traditional React):
-
-```typescript
-export const Route = createFileRoute('/my-route')({
-  ssr: false,
-  component: MyComponent,
-});
-```
-
-## 🔐 Authentication Flow
-
-1. User clicks "Sign in with Discord"
-2. Clerk handles OAuth with Discord
-3. Webhook fires on `user.created` or `session.created`
-4. Server fetches Discord guild member data
-5. Maps Discord roles → Hasura roles (admin, staff, moderator, brackeys, user)
-6. Updates Clerk metadata with Hasura claims
-7. User redirected to `/auth/entry` for guild validation
-8. If in guild → redirect to app; if not → show error
-
-See [docs/AUTH_FLOW.md](./docs/AUTH_FLOW.md) for details.
-
-## 🛠️ Development Commands
-
-All development tasks are managed through mise or bun scripts:
+## Useful Commands
 
 ```bash
-# Core Development
-mise run dev              # Start all services (Hasura + Frontend)
-mise run dev-frontend     # Frontend only
-mise run dev-hasura       # Hasura only
+bun run dev
+bun run build
+bun run preview
+bun run start
 
-# Code Quality
-bun run lint              # Run linting
-bun run lint:fix          # Fix linting issues
-bun run format            # Format code
-bun run format:check      # Check formatting
-bun run check             # Run all checks
+bun run db:generate
+bun run db:migrate
+bun run db:push
+bun run db:pull
+bun run db:studio
 
-# Building & Generation
-bun run build             # Production build
-bun run graphql-codegen   # Generate GraphQL types
-bun run storybook         # Component documentation
-
-# Versioning & Commits
-bun run commit            # Commitizen (conventional commits)
-bun run release           # Create version release
-mise run pre-commit       # Run all pre-commit checks
-
-# Utilities
-mise run check            # Verify tool installation
-mise run doctor           # Health check
-mise run clean            # Clean generated files
-mise tasks                # List all available tasks
-```
-
-## 📚 Documentation
-
-- **[MIGRATION_STATUS.md](./MIGRATION_STATUS.md)** - Current migration status from brackeys-web
-- **[docs/AUTH_FLOW.md](./docs/AUTH_FLOW.md)** - Authentication architecture
-- **[docs/DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md)** - Setup guide
-- **[docs/HASURA_SETUP.md](./docs/HASURA_SETUP.md)** - Hasura configuration
-- **[docs/STORYBOOK_CHROMATIC.md](./docs/STORYBOOK_CHROMATIC.md)** - Storybook deployment
-- **[Storybook Live](https://brackeyscommunity.github.io/brackeys.community/)** - Component documentation
-
-## 🌍 Environment Variables
-
-Create a `.env` file based on `.env.example`:
-
-```env
-# Clerk Authentication
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-CLERK_WEBHOOK_SECRET=whsec_...
-
-# Hasura GraphQL
-VITE_HASURA_GRAPHQL_URL=http://localhost:3280/graphql
-HASURA_GRAPHQL_ADMIN_SECRET=your_secret
-HASURA_GRAPHQL_JWT_SECRET=your_jwt_secret
-
-# SpacetimeDB
-VITE_SPACETIME_HOST=wss://localhost:3000
-VITE_SPACETIME_MODULE=brackeys-sandbox
-
-# Discord
-VITE_BRACKEYS_GUILD_ID=240491168985399296
-DISCORD_GUILD_ID=240491168985399296
-```
-
-## 🧪 Testing
-
-```bash
-# Run tests
+bun run lint
+bun run format
+bun run check
 bun run test
 
-# Type check
-bunx tsc --noEmit
-
-# Storybook (visual testing)
 bun run storybook
-
-# E2E tests (Playwright)
-bunx playwright test
-```
-
-## 🔧 Troubleshooting
-
-### "Docker is not running"
-- Start Docker Desktop
-- Ensure Docker is set to use WSL2 (Windows)
-
-### "mise: command not found"
-```bash
-curl https://mise.run | sh
-echo 'eval "$(mise activate bash)"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### "Port already in use"
-```bash
-# Find and kill process using port 3000
-lsof -i :3000        # macOS/Linux
-netstat -ano | findstr :3000  # Windows
-```
-
-### SpacetimeDB connection fails
-```bash
-# Rebuild the Rust module
-cd spacetime-db
-cargo clean
-cargo build --release --target wasm32-unknown-unknown
-cd ..
-```
-
-See [docs/DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md) for more troubleshooting.
-
-## 📦 Backend Services
-
-All managed via Docker Compose:
-
-- **PostgreSQL** - Main database (port 5432)
-- **Hasura** - GraphQL API (port 8080) - [Console](http://localhost:8080)
-- **Redis** - Caching (port 6379)
-- **MinIO** - Object storage (ports 9000/9001) - [Console](http://localhost:9001)
-
-## 🎨 Design System
-
-### Color Palette
-- **Brackeys Yellow**: `#ffa949`
-- **Brackeys Fuscia**: `#d2356b`
-- **Brackeys Purple**: `#5865f2` (with variants 100-900)
-- **Discord Blue**: `#5865f2`
-
-### Custom Utilities
-- **Pattern backgrounds**: `.bg-dot-pattern`, `.bg-line-pattern`
-- **Pattern masks**: `.pattern-mask-radial`, `.pattern-mask-fade-in/out`
-- **Custom scrollbars**: `.custom-scrollbar`
-
-## 🚢 Deployment
-
-### Frontend (Vercel)
-```bash
-bun run build
-# Deploy to Vercel
-```
-
-### Backend (Hasura Cloud)
-```bash
-cd hasura
-ddn supergraph build create
-```
-
-### Storybook (GitHub Pages)
-```bash
 bun run build-storybook
-# Auto-deployed via GitHub Actions
 ```
 
-## 🤝 Contributing
+`bun run db:generate`, `bun run db:migrate`, and `bun run db:push` are
+user-only commands. Do not have agents execute them.
 
-```bash
-# 1. Create a feature branch
-git checkout -b feature/my-feature
+## Development Notes
 
-# 2. Make changes
-# ...
+- Discord is the primary sign-in path.
+- GitHub linking and GitHub contribution calendar rendering are implemented.
+- itch.io linking exists and is token/client-ID based in the current implementation.
+- Public profile links prefer linked provider URLs over manual URLs when available.
+- OAuth-backed GitHub and itch.io links now render verified badges in the public profile UI.
+- `src/routes/demo/*` still contains scaffold/demo routes and should not be treated as product truth.
 
-# 3. Commit with Commitizen
-bun run commit
+## Database Notes
 
-# 4. Push and create PR
-git push origin feature/my-feature
-```
+The schema currently spans:
 
-## 📄 License
+- `auth`
+- `user`
+- `hammer`
+- `collab`
+- public `todos`
 
-MIT License - see LICENSE file for details.
+Profile data still uses separate `profile_projects` and `jam_participations` tables. The unified typed-projects migration has not landed yet.
 
-## 🔗 Links
+## Validation Notes
 
-- **Live App**: https://brackeys.dev
-- **Storybook**: https://brackeyscommunity.github.io/brackeys.community/
-- **Discord**: Join the Brackeys Discord community
-- **GitHub**: https://github.com/brackeyscommunity/brackeys-web
+- `bun run check` runs Biome across the repo.
+- `bun run test` uses Vitest.
+- First-party automated coverage appears limited at the moment, so UI and route changes still need manual verification.
 
----
+## Working Conventions
 
-Built with ❤️ by the Brackeys Community
+- Prefer reading the code over assuming the starter framework defaults still apply.
+- Treat Notion as the longer-lived cross-session source of truth for architecture, drift, and planning context.
+- Keep Linear issue status aligned with what actually shipped in the repo.
+
+## Known Gaps
+
+- The repo still needs a fuller setup/runbook for external services and credential provisioning.
+- Demo routes remain in-tree.
+- The route tree currently has at least one existing TypeScript issue outside normal profile work (`src/routes/profile.$userId.tsx`), so isolated validation is sometimes more useful than full repo typechecking.
+

@@ -1,0 +1,233 @@
+import { Link } from '@tanstack/react-router'
+import { cn } from '@/lib/utils'
+
+interface CollabPostCardProps {
+  post: {
+    id: number
+    type: string
+    title: string
+    status: string
+    featuredAt: string | Date | null
+    createdAt: string | Date | null
+    authorId: string
+    isIndividual?: boolean | null
+    compensationType?: string | null
+    teamSize?: string | null
+  }
+  responseCount?: number
+  roles?: { id: number; name: string }[]
+}
+
+function timeAgo(date: string | Date | null): string {
+  if (!date) return ''
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  paid: 'bg-green-500/15 border-green-500/40 text-green-500',
+  hobby: 'bg-blue-500/15 border-blue-500/40 text-blue-500',
+  playtest: 'bg-purple-500/15 border-purple-500/40 text-purple-500',
+  mentor: 'bg-brackeys-yellow/15 border-brackeys-yellow/40 text-brackeys-yellow',
+}
+
+const COMP_TYPE_COLORS: Record<string, string> = {
+  hourly: 'bg-green-500/15 border-green-500/40 text-green-500',
+  fixed: 'bg-green-500/15 border-green-500/40 text-green-500',
+  rev_share: 'bg-green-500/15 border-green-500/40 text-green-500',
+  negotiable: 'bg-brackeys-yellow/15 border-brackeys-yellow/40 text-brackeys-yellow',
+}
+
+const COMP_TYPE_LABELS: Record<string, string> = {
+  hourly: 'HOURLY',
+  fixed: 'FIXED',
+  rev_share: 'REV SHARE',
+  negotiable: 'NEGOTIABLE',
+}
+
+export function CollabPostCard({ post, responseCount, roles }: CollabPostCardProps) {
+  const isFeatured = !!post.featuredAt
+  const isClosed = post.status === 'party_full'
+
+  return (
+    <Link
+      to="/collab/$postId"
+      params={{ postId: String(post.id) }}
+      className={cn(
+        'block border bg-muted/30 p-3 space-y-2 transition-all hover:bg-muted/40',
+        isFeatured ? 'border-brackeys-yellow/60' : 'border-muted',
+        isClosed && 'opacity-60',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider line-clamp-1">
+          {post.title}
+        </span>
+        {isFeatured && (
+          <span className="shrink-0 font-mono text-[10px] text-brackeys-yellow tracking-widest uppercase">
+            FEATURED
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        <span className={cn('inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider', TYPE_COLORS[post.type] ?? 'bg-muted/30 border-muted/50 text-muted-foreground')}>
+          {post.type}
+        </span>
+        {post.isIndividual && (
+          <span className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+            INDIVIDUAL
+          </span>
+        )}
+        {post.compensationType && (
+          <span className={cn('inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider', COMP_TYPE_COLORS[post.compensationType] ?? 'bg-muted/30 border-muted/50 text-muted-foreground')}>
+            {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
+          </span>
+        )}
+        {isClosed && (
+          <span className="inline-block bg-destructive/15 border border-destructive/40 px-1.5 py-0.5 font-mono text-[10px] text-destructive uppercase tracking-wider">
+            CLOSED
+          </span>
+        )}
+      </div>
+
+      {roles && roles.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {roles.slice(0, 3).map((role) => (
+            <span key={role.id} className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+              {role.name}
+            </span>
+          ))}
+          {roles.length > 3 && (
+            <span className="font-mono text-[10px] text-muted-foreground">+{roles.length - 3}</span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {post.teamSize && <>{post.teamSize.toUpperCase()} DEVS &middot; </>}
+          {timeAgo(post.createdAt)}
+        </span>
+        {responseCount !== undefined && (
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {responseCount} {responseCount === 1 ? 'response' : 'responses'}
+          </span>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+interface CollabUserCardProps {
+  user: {
+    id: string
+    discordUsername: string | null
+    avatarUrl: string | null
+    tagline: string | null
+    availability: string | null
+    rateType: string | null
+    rateMin: number | null
+    rateMax: number | null
+    updatedAt: Date | string
+  }
+  skills?: { skillId: number; name: string }[]
+}
+
+const AVAILABILITY_LABELS: Record<string, string> = {
+  full_time: 'FULL-TIME',
+  part_time: 'PART-TIME',
+  limited: 'LIMITED',
+}
+
+const RATE_TYPE_LABELS: Record<string, string> = {
+  hourly: 'HOURLY',
+  fixed: 'FIXED',
+  negotiable: 'NEGOTIABLE',
+}
+
+function formatUserRate(rateType: string | null, rateMin: number | null, rateMax: number | null): string {
+  if (!rateType || rateType === 'negotiable') return rateType === 'negotiable' ? 'Negotiable' : ''
+  const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`
+  if (rateMin != null && rateMax != null) {
+    const suffix = rateType === 'hourly' ? ' /hr' : ''
+    return `${fmt(rateMin)} - ${fmt(rateMax)}${suffix}`
+  }
+  if (rateMin != null) {
+    const suffix = rateType === 'hourly' ? ' /hr' : ''
+    return `${fmt(rateMin)}+${suffix}`
+  }
+  return ''
+}
+
+export function CollabUserCard({ user, skills }: CollabUserCardProps) {
+  return (
+    <Link
+      to="/profile/$userId"
+      params={{ userId: user.id }}
+      className="block border bg-muted/30 p-3 space-y-2 transition-all hover:bg-muted/40 border-muted"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-muted/30 shrink-0" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-muted/30 border border-muted/30 shrink-0" />
+          )}
+          <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider line-clamp-1">
+            {user.tagline || user.discordUsername || 'Unknown'}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        <span className="inline-block bg-cyan-500/15 border border-cyan-500/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-500 uppercase tracking-wider">
+          AVAILABLE
+        </span>
+        {user.availability && (
+          <span className="inline-block bg-muted/30 border border-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+            {AVAILABILITY_LABELS[user.availability] ?? user.availability}
+          </span>
+        )}
+        {user.rateType && (
+          <span className={cn(
+            'inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider',
+            user.rateType === 'negotiable'
+              ? 'bg-brackeys-yellow/15 border-brackeys-yellow/40 text-brackeys-yellow'
+              : 'bg-green-500/15 border-green-500/40 text-green-500'
+          )}>
+            {RATE_TYPE_LABELS[user.rateType] ?? user.rateType}
+          </span>
+        )}
+      </div>
+
+      {skills && skills.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {skills.slice(0, 3).map((skill) => (
+            <span key={skill.skillId} className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+              {skill.name}
+            </span>
+          ))}
+          {skills.length > 3 && (
+            <span className="font-mono text-[10px] text-muted-foreground">+{skills.length - 3}</span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {formatUserRate(user.rateType, user.rateMin, user.rateMax)}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {timeAgo(user.updatedAt)}
+        </span>
+      </div>
+    </Link>
+  )
+}

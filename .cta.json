@@ -4,21 +4,31 @@
   "typescript": true,
   "tailwind": true,
   "packageManager": "bun",
-  "addOnOptions": {},
   "git": true,
+  "install": true,
+  "addOnOptions": {
+    "drizzle": {
+      "database": "postgresql"
+    }
+  },
   "version": 1,
   "framework": "react-cra",
   "chosenAddOns": [
-    "biome",
-    "nitro",
-    "start",
-    "clerk",
-    "form",
+    "strapi",
     "tanstack-query",
     "sentry",
-    "store",
-    "storybook",
+    "nitro",
+    "drizzle",
+    "better-auth",
     "t3env",
-    "table"
+    "compiler",
+    "oRPC",
+    "paraglide",
+    "biome",
+    "storybook",
+    "table",
+    "form",
+    "store",
+    "shadcn"
   ]
 }
