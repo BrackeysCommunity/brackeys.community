@@ -7,6 +7,8 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
+import wasm from 'vite-plugin-wasm'
+import topLevelAwait from 'vite-plugin-top-level-await'
 
 const config = defineConfig({
   resolve: {
@@ -15,6 +17,8 @@ const config = defineConfig({
     },
   },
   plugins: [
+    wasm(),
+    topLevelAwait(),
     devtools(),
     paraglideVitePlugin({
       project: './project.inlang',

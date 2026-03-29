@@ -20,8 +20,6 @@ This README is the repo-level source of truth for local setup and day-to-day dev
 - Better Auth
 - ORPC
 - Storybook
-- Paraglide i18n
-- Optional Sentry instrumentation
 
 ## Main App Surfaces
 
