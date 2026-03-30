@@ -36,11 +36,12 @@ function MagneticFooterLink({
   children: React.ReactNode;
   className?: string;
 }) {
-  const { ref, position } = useMagnetic(0.25);
+  const { ref, position } = useMagnetic(0.1);
   return (
     <motion.div
       ref={ref as React.RefObject<HTMLDivElement>}
       data-magnetic
+      data-cursor-no-drift
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
       className="flex-1"

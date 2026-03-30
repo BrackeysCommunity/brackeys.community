@@ -63,9 +63,10 @@ export function HomeHeader() {
         </div>
       </div>
 
-      <Button 
-        variant="default" 
+      <Button
+        variant="default"
         isMagnetic
+        data-cursor-no-drift
         className="bg-primary hover:bg-foreground hover:text-background transition-all px-6 font-display font-bold"
       >
         LOGIN

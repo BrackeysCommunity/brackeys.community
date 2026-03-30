@@ -16,11 +16,12 @@ interface NavItem {
 }
 
 function NavCard({ item }: { item: NavItem }) {
-  const { ref, position } = useMagnetic(0.2);
+  const { ref, position } = useMagnetic(0.1);
   return (
     <motion.div
       ref={ref as React.RefObject<HTMLDivElement>}
       data-magnetic
+      data-cursor-no-drift
       data-cursor-corner-size="lg"
       data-cursor-padding-x="24"
       data-cursor-padding-y="24"
