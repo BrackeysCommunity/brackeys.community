@@ -19,8 +19,8 @@ export function HomePage() {
   usePageSidebar(<Sidebar />, 'content');
 
   return (
-    <div className="flex-1 h-full overflow-hidden relative flex flex-col">
-      <div className="relative z-10 flex flex-1 overflow-hidden">
+    <div className="flex-1 h-full overflow-visible relative flex flex-col">
+      <div className="relative z-10 flex flex-1 overflow-visible">
         <HeroSection />
       </div>
 
