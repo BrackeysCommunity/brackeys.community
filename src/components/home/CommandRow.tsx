@@ -13,11 +13,20 @@ const botBadgeStyles: Record<string, string> = {
   pencil: 'text-violet-400 border-violet-400/40 bg-violet-950/20',
 };
 
+/** Build the Discord slash-command string: `/cmd opt1: opt2:` */
+function buildCopyText(command: BotCommand, useMention?: boolean): string {
+  if (!command.options?.length) return command.cmd;
+  const opts = command.options
+    .filter(o => useMention || o.name !== "mention")
+    .map((o) => `${o.name}:${o.default}`).join(' ');
+  return `${command.cmd} ${opts}`;
+}
+
 export function CommandRow({ command }: CommandRowProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(command.usage ?? command.cmd);
+    await navigator.clipboard.writeText(buildCopyText(command));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -40,17 +49,24 @@ export function CommandRow({ command }: CommandRowProps) {
           {command.description}
         </p>
 
-        {command.params && (
-          <div className="text-xs font-mono text-muted-foreground">
-            <span className="text-primary">PARAMS:</span> {command.params}
+        {command.options && command.options.length > 0 && (
+          <div className="space-y-1">
+            {command.options.map((opt) => (
+              <div key={opt.name} className="text-xs font-mono text-muted-foreground flex items-center gap-2">
+                <span className="text-primary">{opt.name}:</span>
+                <span>{opt.description}</span>
+                {opt.required && (
+                  <span className="text-destructive/70 text-[10px] uppercase tracking-wider">required</span>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {command.usage && (
-          <div className="text-xs font-mono text-muted-foreground">
-            <span className="text-primary">USAGE:</span> {command.usage}
-          </div>
-        )}
+        <div className="text-xs font-mono text-muted-foreground">
+          <span className="text-primary">EXAMPLE:</span>{' '}
+          <span className="text-brackeys-yellow/80">{buildCopyText(command, true)}</span>
+        </div>
       </div>
 
       <Button

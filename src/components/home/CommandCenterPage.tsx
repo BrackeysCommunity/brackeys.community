@@ -119,7 +119,7 @@ export function CommandCenterPage() {
       (c) =>
         c.cmd.toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q) ||
-        c.params?.toLowerCase().includes(q),
+        c.options?.some((o) => o.name.toLowerCase().includes(q) || o.description.toLowerCase().includes(q)),
     );
   }, [search, activeBot]);
 

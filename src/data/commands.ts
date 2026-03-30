@@ -1,13 +1,21 @@
 export type BotId = 'hammer' | 'pencil' | 'marco';
 export type CommandBotId = Exclude<BotId, 'marco'>;
 
+export type CommandOptionName = "rule" | "user" | "mention" | "color" | "spoiler" | "expression";
+
+export interface CommandOption {
+  name: CommandOptionName;
+  default?: string;
+  description: string;
+  required?: boolean;
+}
+
 export interface BotCommand {
   id: string;
   bot: CommandBotId;
   cmd: string;
   description: string;
-  usage?: string;
-  params?: string;
+  options?: CommandOption[];
 }
 
 export interface Macro {
@@ -22,23 +30,24 @@ export const hammerCommands: BotCommand[] = [
     bot: 'hammer',
     cmd: '/rule',
     description: 'Returns information about a specific server rule.',
-    params: '1–11',
-    usage: '/rule [1-11]',
+    options: [
+      { name: 'rule', description: 'Rule number (1–11)', required: true, default: "1" },
+    ],
   },
   {
     id: 'hammer-selfhistory',
     bot: 'hammer',
     cmd: '/selfhistory',
     description: 'Returns your own infraction history on the server.',
-    usage: '/selfhistory',
   },
   {
     id: 'hammer-userinfo',
     bot: 'hammer',
     cmd: '/userinfo',
     description: 'Returns base level information about a Discord member.',
-    params: '@user',
-    usage: '/userinfo [@user]',
+    options: [
+      { name: 'user', description: 'The user to look up', required: true, default:"@yasahiro" },
+    ],
   },
 ];
 
@@ -49,16 +58,21 @@ export const pencilCommands: BotCommand[] = [
     cmd: '/color',
     description:
       'Displays detailed information about a color. Accepts any color format such as hex, hsl, cmyk, and more.',
-    params: 'any color format (hex, hsl, cmyk, ...)',
-    usage: '/color [#hex | hsl() | cmyk() | ...]',
+    options: [
+      { name: 'color', description: 'The color to display (hex, rgb, hsl, cmyk)', required: true, default: "#fff" },
+      { name: 'mention', description: 'User to mention with the result', default:"@joshcomplex" },
+    ],
   },
   {
     id: 'pencil-tex',
     bot: 'pencil',
     cmd: '/tex',
     description: 'Nicely renders TeX formatted content inline in Discord.',
-    params: 'any TeX formula',
-    usage: '/tex [formula]',
+    options: [
+      { name: 'expression', description: 'The TeX expression to render', required: true, default: "\\sqrt{b^2 - 4ac}" },
+      { name: 'spoiler', description: 'Hide the result as a spoiler', default: "True" },
+      { name: 'mention', description: 'User to mention with the result', default:"@mellobacon" },
+    ],
   },
 ];
 

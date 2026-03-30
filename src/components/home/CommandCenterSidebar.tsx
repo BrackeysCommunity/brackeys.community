@@ -287,7 +287,7 @@ export function CommandCenterSidebar({
                       <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
                         <HugeiconsIcon icon={Robot01Icon} size={14} className="text-muted-foreground" />
                         <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                          Marco Macro Protocols work with either / or [] prefixes
+                          Marco Macros: use /macro name:macroname or []macroname
                         </span>
                       </div>
                     )}
