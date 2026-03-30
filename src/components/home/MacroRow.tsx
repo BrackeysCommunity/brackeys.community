@@ -25,7 +25,7 @@ export function MacroRow({ macro }: MacroRowProps) {
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(`/${macro.name}`);
+    await navigator.clipboard.writeText(`/macro name:${macro.name}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -50,7 +50,7 @@ export function MacroRow({ macro }: MacroRowProps) {
                 : 'text-brackeys-yellow bg-brackeys-yellow-muted/20 border-brackeys-yellow/30'
             }`}
           >
-            /{macro.name}
+            []{macro.name}
           </code>
 
           {macro.aliases.length > 0 && (
@@ -60,7 +60,7 @@ export function MacroRow({ macro }: MacroRowProps) {
                   key={alias}
                   className="text-[10px] font-mono text-muted-foreground border border-muted/40 px-1.5 py-0.5 bg-card/30"
                 >
-                  /{alias}
+                  []{alias}
                 </span>
               ))}
             </div>

@@ -89,7 +89,9 @@ export function CommandPalette() {
               >
                 <HugeiconsIcon icon={LegalHammerIcon} className="text-muted-foreground" />
                 <span>{cmd.cmd}</span>
-                <CommandShortcut>{cmd.usage}</CommandShortcut>
+                {cmd.options && (
+                  <CommandShortcut>{cmd.options.map((o) => `${o.name}:`).join(' ')}</CommandShortcut>
+                )}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -106,7 +108,9 @@ export function CommandPalette() {
               >
                 <HugeiconsIcon icon={PencilIcon} className="text-muted-foreground" />
                 <span>{cmd.cmd}</span>
-                <CommandShortcut>{cmd.usage}</CommandShortcut>
+                {cmd.options && (
+                  <CommandShortcut>{cmd.options.map((o) => `${o.name}:`).join(' ')}</CommandShortcut>
+                )}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -122,7 +126,7 @@ export function CommandPalette() {
                 onSelect={() => run(() => navigate({ to: '/command-center' }))}
               >
                 <HugeiconsIcon icon={Robot01Icon} className="text-muted-foreground" />
-                <span>{macro.name}</span>
+                <span>[]{macro.name}</span>
                 {macro.aliases.length > 0 && (
                   <CommandShortcut>{macro.aliases.slice(0, 2).join(', ')}</CommandShortcut>
                 )}
