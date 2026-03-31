@@ -115,5 +115,9 @@
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^3.0.5"
+  },
+  "overrides": {
+
+    "undici": "^7.24.6" 
   }
 }
