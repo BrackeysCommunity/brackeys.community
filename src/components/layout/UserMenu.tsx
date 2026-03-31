@@ -1,6 +1,6 @@
 import { Logout03Icon, Share01Icon, UserIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import {
   DropdownMenu,
@@ -24,6 +24,8 @@ interface UserMenuProps {
 
 export function UserMenu({ user }: UserMenuProps) {
   const { ref, position } = useMagnetic(0.2);
+
+  const navigate = useNavigate();
 
   return (
     <DropdownMenu>
@@ -73,8 +75,13 @@ export function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="font-mono text-xs font-bold tracking-widest uppercase text-destructive"
-          onClick={() => authClient.signOut()}
-          render={<Link to="/" />}
+          onClick={async () => {
+            await authClient.signOut({
+              fetchOptions: {
+                onSuccess: () => navigate({reloadDocument: true})
+              }
+            })
+          }}
         >
           <HugeiconsIcon icon={Logout03Icon} size={14} />
           SIGN OUT
