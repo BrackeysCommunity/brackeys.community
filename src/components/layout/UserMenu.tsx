@@ -74,6 +74,7 @@ export function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuItem
           className="font-mono text-xs font-bold tracking-widest uppercase text-destructive"
           onClick={() => authClient.signOut()}
+          render={<Link to="/" />}
         >
           <HugeiconsIcon icon={Logout03Icon} size={14} />
           SIGN OUT
