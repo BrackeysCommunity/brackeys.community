@@ -8,30 +8,31 @@ Railway only supports a single volume mount per service. GitLab expects three pa
 
 | Path | Purpose | Strategy |
 |---|---|---|
-| `/etc/gitlab` | Configuration | Baked into Docker image via `COPY` |
+| `/etc/gitlab` | Configuration | Generated at runtime via entrypoint |
 | `/var/opt/gitlab` | Data (repos, DB, uploads) | Railway volume mount |
 | `/var/log/gitlab` | Logs | Ephemeral (not persisted) |
 
+Configuration is built dynamically in `docker-entrypoint.sh` using Railway's injected
+environment variables (`PORT`, `RAILWAY_PUBLIC_DOMAIN`, etc.) and exported as
+`GITLAB_OMNIBUS_CONFIG`.
+
 ## Railway Setup
 
-1. **Point Railway at this Dockerfile** — set the service root to `services/gitlab`
+1. **Create service** — point at this repo, set root directory to `services/gitlab`
 2. **Add a volume mount** — mount to `/var/opt/gitlab`
 3. **Set environment variables**:
-   - `EXTERNAL_URL` — your GitLab URL (e.g., `https://gitlab.yourdomain.com`)
    - `GITLAB_ROOT_PASSWORD` — initial root password (first deploy only)
-4. **Deploy**
+4. **Generate a domain** — Railway injects `RAILWAY_PUBLIC_DOMAIN` automatically
+5. **Deploy** — GitLab takes several minutes to boot; healthcheck timeout is set to 7200s
 
-## Configuration Changes
+## How It Works
 
-Edit `gitlab.rb` in this directory, commit, and redeploy. The config is baked into the image at build time.
+- `railway.toml` configures the build (Dockerfile) and deploy (healthcheck, restart policy)
+- `docker-entrypoint.sh` reads Railway env vars and builds `GITLAB_OMNIBUS_CONFIG` dynamically
+- nginx listens on `$PORT` (Railway-assigned), HTTPS is off (Railway handles TLS)
+- Puma and Workhorse are configured on internal ports (8081/8181)
 
-For runtime overrides without rebuilding, set the `GITLAB_OMNIBUS_CONFIG` environment variable in Railway:
+## References
 
-```
-GITLAB_OMNIBUS_CONFIG=external_url 'https://new-url.example.com'; gitlab_rails['lfs_enabled'] = true
-```
-
-## Resources
-
+- Based on [vergissberlin/railwayapp-gitlab](https://github.com/vergissberlin/railwayapp-gitlab)
 - [GitLab Docker Installation](https://docs.gitlab.com/install/docker/installation/)
-- [GitLab Docker Configuration](https://docs.gitlab.com/install/docker/configuration/)

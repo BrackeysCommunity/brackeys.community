@@ -1,9 +1,5 @@
 FROM gitlab/gitlab-ce:latest
 
-# Copy config into the image so it persists without a volume mount
-COPY gitlab.rb /etc/gitlab/gitlab.rb
+COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/railway-gitlab-entrypoint
 
-# Expose HTTP port (Railway will route to this)
-EXPOSE 80
-
-# The base image already defines the entrypoint and CMD
+CMD ["/usr/local/bin/railway-gitlab-entrypoint"]
