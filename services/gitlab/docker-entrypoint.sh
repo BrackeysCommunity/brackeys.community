@@ -11,6 +11,7 @@ omnibus+=" nginx['listen_port']=${PORT};"
 omnibus+=" nginx['listen_https']=false;"
 omnibus+=" nginx['listen_addresses']=['0.0.0.0','[::]'];"
 omnibus+=" gitlab_rails['allowed_hosts']=['${HOST}','healthcheck.railway.app','localhost','localhost:8080','127.0.0.1','127.0.0.1:8081'];"
+omnibus+=" gitlab_rails['gitlab_default_theme']=2"
 omnibus+=" gitlab_workhorse['listen_network']='tcp';"
 omnibus+=" gitlab_workhorse['listen_addr']='0.0.0.0:8181';"
 
