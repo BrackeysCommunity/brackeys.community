@@ -20,7 +20,14 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "prepare": "vp config",
-    "commit": "cz"
+    "commit": "cz",
+    "railway:dev": "railway run -- sh -c \"NODE_OPTIONS='--import ./instrument.server.mjs' vp dev --port 3000\"",
+    "railway:build": "railway run -- vp build && cp instrument.server.mjs .output/server",
+    "railway:start": "railway run -- node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
+    "railway:db:generate": "railway run -- drizzle-kit generate",
+    "railway:db:migrate": "railway run -- drizzle-kit migrate",
+    "railway:db:push": "railway run -- drizzle-kit push",
+    "railway:db:studio": "railway run -- drizzle-kit studio"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
