@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "dotenv -e .env.local -- sh -c \"NODE_OPTIONS='--import ./instrument.server.mjs' vite dev --port 3000\"",
-    "build": "vite build && cp instrument.server.mjs .output/server",
-    "preview": "vite preview",
-    "test": "vitest run",
+    "dev": "dotenv -e .env.local -- sh -c \"NODE_OPTIONS='--import ./instrument.server.mjs' vp dev --port 3000\"",
+    "build": "vp build && cp instrument.server.mjs .output/server",
+    "preview": "vp preview",
+    "test": "vp test run",
     "start": "node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -18,7 +18,9 @@
     "lint": "biome lint",
     "check": "biome check",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "prepare": "vp config",
+    "commit": "cz"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -91,11 +93,12 @@
     "three": "^0.167.1",
     "tw-animate-css": "^1.3.6",
     "vaul": "^1.1.2",
-    "vite-tsconfig-paths": "^5.1.4",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@inlang/paraglide-js": "^2.8.0",
     "@tanstack/devtools-event-client": "^0.4.0",
     "@tanstack/devtools-vite": "^0.3.11",
@@ -107,17 +110,28 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
     "babel-plugin-react-compiler": "^1.0.0",
+    "commitizen": "^4.3.1",
+    "commitlint-config-gitmoji": "^2.3.1",
+    "cz-emoji-conventional": "^1.2.1",
     "dotenv": "^16.0.0",
     "jsdom": "^27.0.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.7.2",
-    "vite": "^7.1.7",
+    "typescript": "^6.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^3.0.5"
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
   "overrides": {
-
-    "undici": "^7.24.6" 
-  }
+    "undici": "^7.24.6",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./cz-config.cjs"
+    }
+  },
+  "packageManager": "bun@1.3.11"
 }
