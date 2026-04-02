@@ -1,21 +1,26 @@
-import { defineConfig } from 'vite'
-import { devtools } from '@tanstack/devtools-vite'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import viteReact from '@vitejs/plugin-react'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
-import { fileURLToPath, URL } from 'node:url'
-import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
-import wasm from 'vite-plugin-wasm'
-import pkg from './package.json' with { type: 'json' }
+import { defineConfig } from "vite-plus";
+import { devtools } from "@tanstack/devtools-vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import viteReact from "@vitejs/plugin-react";
+import { fileURLToPath, URL } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
+import { nitro } from "nitro/vite";
+import wasm from "vite-plugin-wasm";
+import pkg from "./package.json" with { type: "json" };
 
 const config = defineConfig({
+  staged: {
+    "*": "vp check --fix",
+  },
+  fmt: {},
+  lint: { options: { typeAware: true, typeCheck: true } },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   resolve: {
+    tsconfigPaths: true,
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
   plugins: [
@@ -24,18 +29,14 @@ const config = defineConfig({
     nitro({
       rollupConfig: { external: [/^@sentry\//, /^@dimforge\/rapier2d/] },
     }),
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
     tailwindcss(),
     tanstackStart(),
     viteReact({
       babel: {
-        plugins: ['babel-plugin-react-compiler'],
+        plugins: ["babel-plugin-react-compiler"],
       },
     }),
   ],
-})
+});
 
-export default config
+export default config;
