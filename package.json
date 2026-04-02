@@ -130,7 +130,7 @@
   },
   "config": {
     "commitizen": {
-      "path": "cz-emoji-conventional"
+      "path": "./cz-config.cjs"
     }
   },
   "packageManager": "bun@1.3.11"
