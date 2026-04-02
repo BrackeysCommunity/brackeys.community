@@ -157,6 +157,57 @@ The app runs on `http://localhost:3000`.
 - `SERVER_URL`: server-side absolute URL override
 - `VITE_SENTRY_DSN`: Sentry client/server instrumentation
 
+## Railway CLI (optional)
+
+If you have access to the Railway project, you can pull environment variables directly from Railway instead of maintaining `.env.local` manually.
+
+### Install
+
+https://docs.railway.com/cli#installing-the-cli
+
+```bash
+npm i -g @railway/cli
+# or MacOS
+brew install railway
+# or Linux/WSL
+bash <(curl -fsSL cli.new)
+```
+
+### Link your local repo
+
+```bash
+railway login
+railway link
+```
+
+The interactive prompt will ask you to select the workspace, project, environment, and service.
+
+### Switch environments
+
+```bash
+railway environment       # list available environments
+railway environment dev   # switch to dev
+```
+
+### Run with Railway env vars
+
+Use the `railway:*` scripts to run any command with Railway-injected environment variables:
+
+```bash
+vp run railway:dev          # dev server with Railway env vars
+vp run railway:build        # production build
+vp run railway:db:migrate   # run migrations against Railway database
+vp run railway:db:studio    # open Drizzle Studio against Railway database
+```
+
+You can also pass `-s <service>` and `-e <environment>` flags inline:
+
+```bash
+railway run -e staging -- vp dev --port 3000
+```
+
+The standard `bun run dev` / `vp run dev` workflow with `.env.local` continues to work for developers who do not need Railway CLI.
+
 ## Useful Commands
 
 ```bash
@@ -241,4 +292,3 @@ Profile data still uses separate `profile_projects` and `jam_participations` tab
 - The repo still needs a fuller setup/runbook for external services and credential provisioning.
 - Demo routes remain in-tree.
 - The route tree currently has at least one existing TypeScript issue outside normal profile work (`src/routes/profile.$userId.tsx`), so isolated validation is sometimes more useful than full repo typechecking.
-
