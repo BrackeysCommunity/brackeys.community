@@ -171,12 +171,6 @@ CREATE TABLE "temporary_bans" (
 	CONSTRAINT "temporary_bans_user_id_guild_id_pk" PRIMARY KEY("user_id","guild_id")
 );
 --> statement-breakpoint
-CREATE TABLE "todos" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"title" text NOT NULL,
-	"created_at" timestamp DEFAULT now()
-);
---> statement-breakpoint
 CREATE TABLE "tracked_messages" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"attachments" text NOT NULL,
