@@ -1,5 +1,4 @@
-import { addTodo, listTodos } from './todos'
-import { getJamData } from './jam'
+import { getJamData } from "./jam";
 import {
   getProfile,
   getMyProfile,
@@ -17,18 +16,9 @@ import {
   removeJamParticipation,
   setUrlStub,
   listAvailableUsers,
-} from './profile'
-import {
-  syncGitHubLink,
-  unlinkGitHub,
-  getContributions,
-} from './github'
-import {
-  linkItchIo,
-  unlinkItchIo,
-  getLinkedAccounts,
-  importItchIoGames,
-} from './itchio'
+} from "./profile";
+import { syncGitHubLink, unlinkGitHub, getContributions } from "./github";
+import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
 import {
   createPost,
   updatePost,
@@ -49,11 +39,9 @@ import {
   reportPost,
   listReports,
   deleteReport,
-} from './collab'
+} from "./collab";
 
 export default {
-  listTodos,
-  addTodo,
   getJamData,
   getProfile,
   getMyProfile,
@@ -97,4 +85,4 @@ export default {
   reportPost,
   listReports,
   deleteReport,
-}
+};
