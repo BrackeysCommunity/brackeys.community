@@ -1,4 +1,4 @@
-import { useKeyPress } from 'ahooks';
+import { useKeyPress } from "ahooks";
 import {
   ComputerTerminal01Icon,
   LegalHammerIcon,
@@ -6,10 +6,10 @@ import {
   PencilIcon,
   Robot01Icon,
   Share01Icon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { useNavigate } from '@tanstack/react-router';
-import { authClient } from '@/lib/auth-client';
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useNavigate } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
 import {
   Command,
   CommandDialog,
@@ -20,16 +20,16 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from '@/components/ui/command';
-import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from '@/data/commands';
-import { useCommandPalette } from '@/lib/hooks/use-command-palette';
+} from "@/components/ui/command";
+import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
+import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const navigate = useNavigate();
 
   useKeyPress(
-    ['ctrl.k', 'meta.k'],
+    ["ctrl.k", "meta.k"],
     (e) => {
       e.preventDefault();
       setOpen((prev) => !prev);
@@ -53,27 +53,33 @@ export function CommandPalette() {
         <CommandInput placeholder="Search commands, bots, macros..." />
         <CommandList>
           <CommandEmpty>
-            <span className="text-destructive font-mono text-xs">{'// PROTOCOL NOT FOUND'}</span>
+            <span className="text-destructive font-mono text-xs">{"// PROTOCOL NOT FOUND"}</span>
           </CommandEmpty>
 
           {/* Quick Actions */}
           <CommandGroup heading="ACTIONS">
-            <CommandItem onSelect={() => run(() => authClient.signIn.social({ provider: 'discord' }))}>
+            <CommandItem
+              onSelect={() => run(() => authClient.signIn.social({ provider: "discord" }))}
+            >
               <HugeiconsIcon icon={Login01Icon} className="text-primary" />
               <span>Login</span>
             </CommandItem>
             <CommandItem
               onSelect={() =>
-                run(() => window.open('https://discord.gg/brackeys', '_blank', 'noopener,noreferrer'))
+                run(() =>
+                  window.open("https://discord.gg/brackeys", "_blank", "noopener,noreferrer"),
+                )
               }
             >
               <HugeiconsIcon icon={Share01Icon} className="text-cyan-400" />
               <span>Join Discord</span>
             </CommandItem>
-            <CommandItem onSelect={() => run(() => navigate({ to: '/command-center' }))}>
+            <CommandItem onSelect={() => run(() => navigate({ to: "/command-center" }))}>
               <HugeiconsIcon icon={ComputerTerminal01Icon} className="text-muted-foreground" />
               <span>Open Command Center</span>
-              <CommandShortcut>{allBotCommands.length + marcoMacros.length} protocols</CommandShortcut>
+              <CommandShortcut>
+                {allBotCommands.length + marcoMacros.length} protocols
+              </CommandShortcut>
             </CommandItem>
           </CommandGroup>
 
@@ -85,12 +91,14 @@ export function CommandPalette() {
               <CommandItem
                 key={cmd.id}
                 value={`hammer ${cmd.cmd} ${cmd.description}`}
-                onSelect={() => run(() => navigate({ to: '/command-center' }))}
+                onSelect={() => run(() => navigate({ to: "/command-center" }))}
               >
                 <HugeiconsIcon icon={LegalHammerIcon} className="text-muted-foreground" />
                 <span>{cmd.cmd}</span>
                 {cmd.options && (
-                  <CommandShortcut>{cmd.options.map((o) => `${o.name}:`).join(' ')}</CommandShortcut>
+                  <CommandShortcut>
+                    {cmd.options.map((o) => `${o.name}:`).join(" ")}
+                  </CommandShortcut>
                 )}
               </CommandItem>
             ))}
@@ -104,12 +112,14 @@ export function CommandPalette() {
               <CommandItem
                 key={cmd.id}
                 value={`pencil ${cmd.cmd} ${cmd.description}`}
-                onSelect={() => run(() => navigate({ to: '/command-center' }))}
+                onSelect={() => run(() => navigate({ to: "/command-center" }))}
               >
                 <HugeiconsIcon icon={PencilIcon} className="text-muted-foreground" />
                 <span>{cmd.cmd}</span>
                 {cmd.options && (
-                  <CommandShortcut>{cmd.options.map((o) => `${o.name}:`).join(' ')}</CommandShortcut>
+                  <CommandShortcut>
+                    {cmd.options.map((o) => `${o.name}:`).join(" ")}
+                  </CommandShortcut>
                 )}
               </CommandItem>
             ))}
@@ -122,13 +132,13 @@ export function CommandPalette() {
             {marcoMacros.map((macro) => (
               <CommandItem
                 key={macro.name}
-                value={`macro ${macro.name} ${macro.aliases.join(' ')}`}
-                onSelect={() => run(() => navigate({ to: '/command-center' }))}
+                value={`macro ${macro.name} ${macro.aliases.join(" ")}`}
+                onSelect={() => run(() => navigate({ to: "/command-center" }))}
               >
                 <HugeiconsIcon icon={Robot01Icon} className="text-muted-foreground" />
                 <span>[]{macro.name}</span>
                 {macro.aliases.length > 0 && (
-                  <CommandShortcut>{macro.aliases.slice(0, 2).join(', ')}</CommandShortcut>
+                  <CommandShortcut>{macro.aliases.slice(0, 2).join(", ")}</CommandShortcut>
                 )}
               </CommandItem>
             ))}

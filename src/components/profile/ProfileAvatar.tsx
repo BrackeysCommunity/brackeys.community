@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface ProfileAvatarProps {
   avatarUrl: string | null;
@@ -19,11 +19,8 @@ export function ProfileAvatar({
   const initial = username.charAt(0).toUpperCase();
 
   return (
-    <div className={cn('flex flex-col items-center gap-4', className)}>
-      <motion.div
-        layoutId="profile-avatar"
-        className="relative group"
-      >
+    <div className={cn("flex flex-col items-center gap-4", className)}>
+      <motion.div layoutId="profile-avatar" className="relative group">
         <div className="absolute -inset-1.5 rounded-full bg-linear-to-br from-brackeys-yellow/30 via-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-md" />
         {avatarUrl ? (
           <img

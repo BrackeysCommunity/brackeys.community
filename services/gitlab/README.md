@@ -6,11 +6,11 @@ Self-hosted GitLab CE instance deployed on Railway.
 
 Railway only supports a single volume mount per service. GitLab expects three paths:
 
-| Path | Purpose | Strategy |
-|---|---|---|
-| `/etc/gitlab` | Configuration | Generated at runtime via entrypoint |
-| `/var/opt/gitlab` | Data (repos, DB, uploads) | Railway volume mount |
-| `/var/log/gitlab` | Logs | Ephemeral (not persisted) |
+| Path              | Purpose                   | Strategy                            |
+| ----------------- | ------------------------- | ----------------------------------- |
+| `/etc/gitlab`     | Configuration             | Generated at runtime via entrypoint |
+| `/var/opt/gitlab` | Data (repos, DB, uploads) | Railway volume mount                |
+| `/var/log/gitlab` | Logs                      | Ephemeral (not persisted)           |
 
 Configuration is built dynamically in `docker-entrypoint.sh` using Railway's injected
 environment variables (`PORT`, `RAILWAY_PUBLIC_DOMAIN`, etc.) and exported as

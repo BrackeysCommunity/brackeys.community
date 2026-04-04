@@ -93,12 +93,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -143,10 +139,7 @@
       "compositePrimaryKeys": {
         "alt_accounts_user_id_alt_id_pk": {
           "name": "alt_accounts_user_id_alt_id_pk",
-          "columns": [
-            "user_id",
-            "alt_id"
-          ]
+          "columns": ["user_id", "alt_id"]
         }
       },
       "uniqueConstraints": {},
@@ -188,10 +181,7 @@
       "compositePrimaryKeys": {
         "blocked_reporters_user_id_guild_id_pk": {
           "name": "blocked_reporters_user_id_guild_id_pk",
-          "columns": [
-            "user_id",
-            "guild_id"
-          ]
+          "columns": ["user_id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -370,9 +360,7 @@
         "developer_profiles_discord_id_unique": {
           "name": "developer_profiles_discord_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "discord_id"
-          ]
+          "columns": ["discord_id"]
         }
       },
       "policies": {},
@@ -524,12 +512,8 @@
           "name": "jam_participations_profile_id_developer_profiles_id_fk",
           "tableFrom": "jam_participations",
           "tableTo": "developer_profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -623,10 +607,7 @@
       "compositePrimaryKeys": {
         "mutes_user_id_guild_id_pk": {
           "name": "mutes_user_id_guild_id_pk",
-          "columns": [
-            "user_id",
-            "guild_id"
-          ]
+          "columns": ["user_id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -708,12 +689,8 @@
           "name": "profile_projects_profile_id_developer_profiles_id_fk",
           "tableFrom": "profile_projects",
           "tableTo": "developer_profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -759,12 +736,8 @@
           "name": "profile_skills_profile_id_developer_profiles_id_fk",
           "tableFrom": "profile_skills",
           "tableTo": "developer_profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -870,10 +843,7 @@
       "compositePrimaryKeys": {
         "rules_id_guild_id_pk": {
           "name": "rules_id_guild_id_pk",
-          "columns": [
-            "id",
-            "guild_id"
-          ]
+          "columns": ["id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -940,12 +910,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -955,9 +921,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1041,10 +1005,7 @@
       "compositePrimaryKeys": {
         "temporary_bans_user_id_guild_id_pk": {
           "name": "temporary_bans_user_id_guild_id_pk",
-          "columns": [
-            "user_id",
-            "guild_id"
-          ]
+          "columns": ["user_id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1205,9 +1166,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},

@@ -1,14 +1,14 @@
-import { Login01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { useStore } from '@tanstack/react-store';
-import { useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { authClient } from '@/lib/auth-client';
-import { authStore } from '@/lib/auth-store';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
+import { Login01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useStore } from "@tanstack/react-store";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { authClient } from "@/lib/auth-client";
+import { authStore } from "@/lib/auth-store";
+import { useMagnetic } from "@/lib/hooks/use-cursor";
 
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 function DiscordSignInCTA() {
   const { ref, position } = useMagnetic(0.2);
@@ -26,7 +26,7 @@ function DiscordSignInCTA() {
       >
         <button
           type="button"
-          onClick={() => authClient.signIn.social({ provider: 'discord' })}
+          onClick={() => authClient.signIn.social({ provider: "discord" })}
           className="group flex h-24 min-w-[280px] flex-col justify-between border-2 border-primary bg-card p-4 text-left transition-all duration-100 hover:-translate-y-1 hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none"
         >
           <div className="flex justify-between">
@@ -34,12 +34,12 @@ function DiscordSignInCTA() {
             <HugeiconsIcon icon={Login01Icon} size={20} className="text-primary" />
           </div>
           <div className="font-mono font-bold text-2xl leading-none tracking-tight text-primary whitespace-pre-line">
-            {'SIGN IN\nW/ DISCORD'}
+            {"SIGN IN\nW/ DISCORD"}
           </div>
         </button>
       </motion.div>
       <p className="mt-4 font-mono text-xs text-muted-foreground tracking-wider">
-        {'> SIGN IN TO VIEW AND EDIT YOUR PROFILE'}
+        {"> SIGN IN TO VIEW AND EDIT YOUR PROFILE"}
       </p>
     </div>
   );
@@ -51,7 +51,7 @@ export function ProfileBuilderPage() {
 
   useEffect(() => {
     if (!isPending && session?.user?.id) {
-      navigate({ to: '/profile/$userId', params: { userId: session.user.id }, replace: true });
+      navigate({ to: "/profile/$userId", params: { userId: session.user.id }, replace: true });
     }
   }, [isPending, session?.user?.id, navigate]);
 
@@ -78,7 +78,7 @@ export function ProfileBuilderPage() {
   return (
     <>
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
-        <span className="text-primary">{'>'}</span>
+        <span className="text-primary">{">"}</span>
         AUTHENTICATION REQUIRED
       </div>
 
@@ -91,8 +91,8 @@ export function ProfileBuilderPage() {
           </span>
         </h1>
         <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
-          Your developer identity in the Brackeys network.
-          Sign in with Discord to view and edit your profile.
+          Your developer identity in the Brackeys network. Sign in with Discord to view and edit
+          your profile.
         </p>
       </div>
 

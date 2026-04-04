@@ -1,20 +1,14 @@
-import { Cancel01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { orpc } from '@/orpc/client';
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { orpc } from "@/orpc/client";
 
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
-export function SkillTag({
-  name,
-  onRemove,
-}: {
-  name: string;
-  onRemove: () => void;
-}) {
+export function SkillTag({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
     <span className="group inline-flex items-center gap-1 bg-primary/10 border border-primary/25 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:border-primary/50 transition-colors overflow-hidden">
       {name}
@@ -63,8 +57,8 @@ export function SkillAutocomplete({
   onAddSkill: (skillId: number) => void;
   onRequestSkill: (name: string) => void;
 }) {
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,8 +84,8 @@ export function SkillAutocomplete({
         setShowDropdown(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const hasExactMatch = skillResults?.some(
@@ -110,58 +104,58 @@ export function SkillAutocomplete({
       className="relative"
     >
       <div ref={containerRef}>
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setShowDropdown(true);
-        }}
-        onFocus={() => {
-          if (search.trim()) setShowDropdown(true);
-        }}
-        placeholder="+ Add skill..."
-        className="bg-transparent border border-dashed border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 w-28 transition-colors"
-      />
-      {showDropdown && search.trim() && (
-        <div className="absolute top-full left-0 mt-1 w-48 max-h-40 overflow-y-auto bg-card border border-muted/60 shadow-lg z-50">
-          {skillResults?.map((skill) => (
-            <button
-              key={skill.id}
-              type="button"
-              onClick={() => {
-                onAddSkill(skill.id);
-                setSearch('');
-                setShowDropdown(false);
-              }}
-              className="w-full text-left px-2 py-1.5 font-mono text-[10px] text-foreground hover:bg-primary/10 hover:text-primary transition-colors uppercase tracking-wider"
-            >
-              {skill.name}
-              {skill.category && (
-                <span className="text-muted-foreground/50 ml-1">({skill.category})</span>
-              )}
-            </button>
-          ))}
-          {!hasExactMatch && search.trim() && (
-            <button
-              type="button"
-              onClick={() => {
-                onRequestSkill(search.trim());
-                setSearch('');
-                setShowDropdown(false);
-              }}
-              className="w-full text-left px-2 py-1.5 font-mono text-[10px] text-brackeys-yellow hover:bg-brackeys-yellow/10 transition-colors uppercase tracking-wider border-t border-muted/30"
-            >
-              Request &apos;{search.trim()}&apos;
-            </button>
-          )}
-          {skillResults?.length === 0 && hasExactMatch && (
-            <div className="px-2 py-1.5 font-mono text-[10px] text-muted-foreground/50">
-              No skills found
-            </div>
-          )}
-        </div>
-      )}
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={() => {
+            if (search.trim()) setShowDropdown(true);
+          }}
+          placeholder="+ Add skill..."
+          className="bg-transparent border border-dashed border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 w-28 transition-colors"
+        />
+        {showDropdown && search.trim() && (
+          <div className="absolute top-full left-0 mt-1 w-48 max-h-40 overflow-y-auto bg-card border border-muted/60 shadow-lg z-50">
+            {skillResults?.map((skill) => (
+              <button
+                key={skill.id}
+                type="button"
+                onClick={() => {
+                  onAddSkill(skill.id);
+                  setSearch("");
+                  setShowDropdown(false);
+                }}
+                className="w-full text-left px-2 py-1.5 font-mono text-[10px] text-foreground hover:bg-primary/10 hover:text-primary transition-colors uppercase tracking-wider"
+              >
+                {skill.name}
+                {skill.category && (
+                  <span className="text-muted-foreground/50 ml-1">({skill.category})</span>
+                )}
+              </button>
+            ))}
+            {!hasExactMatch && search.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  onRequestSkill(search.trim());
+                  setSearch("");
+                  setShowDropdown(false);
+                }}
+                className="w-full text-left px-2 py-1.5 font-mono text-[10px] text-brackeys-yellow hover:bg-brackeys-yellow/10 transition-colors uppercase tracking-wider border-t border-muted/30"
+              >
+                Request &apos;{search.trim()}&apos;
+              </button>
+            )}
+            {skillResults?.length === 0 && hasExactMatch && (
+              <div className="px-2 py-1.5 font-mono text-[10px] text-muted-foreground/50">
+                No skills found
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );

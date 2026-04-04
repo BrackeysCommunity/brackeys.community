@@ -1,10 +1,10 @@
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { EffectComposer, wrapEffect } from '@react-three/postprocessing';
-import { Effect } from 'postprocessing';
-import { forwardRef, useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { EffectComposer, wrapEffect } from "@react-three/postprocessing";
+import { Effect } from "postprocessing";
+import { forwardRef, useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 
-import './Dither.css';
+import "./Dither.css";
 
 const waveVertexShader = `
 precision highp float;
@@ -77,7 +77,7 @@ float fbm(vec2 p) {
 
 float pattern(vec2 p) {
   vec2 p2 = p - time * waveSpeed;
-  return fbm(p + fbm(p2)); 
+  return fbm(p + fbm(p2));
 }
 
 void main() {
@@ -136,33 +136,46 @@ void mainImage(in vec4 inputColor, in vec2 uv, out vec4 outputColor) {
 class RetroEffectImpl extends Effect {
   constructor() {
     const uniforms = new Map([
-      ['colorNum', new THREE.Uniform(4.0)],
-      ['pixelSize', new THREE.Uniform(2.0)]
+      ["colorNum", new THREE.Uniform(4.0)],
+      ["pixelSize", new THREE.Uniform(2.0)],
     ]);
-    super('RetroEffect', ditherFragmentShader, { uniforms });
+    super("RetroEffect", ditherFragmentShader, { uniforms });
+    // @ts-ignore
     this.uniforms = uniforms;
   }
   set colorNum(v) {
-    this.uniforms.get('colorNum').value = v;
+    this.uniforms.get("colorNum")!.value = v;
   }
   get colorNum() {
-    return this.uniforms.get('colorNum').value;
+    return this.uniforms.get("colorNum")!.value;
   }
   set pixelSize(v) {
-    this.uniforms.get('pixelSize').value = v;
+    this.uniforms.get("pixelSize")!.value = v;
   }
   get pixelSize() {
-    return this.uniforms.get('pixelSize').value;
+    return this.uniforms.get("pixelSize")!.value;
   }
 }
 
 const WrappedRetro = wrapEffect(RetroEffectImpl);
 
-const RetroEffect = forwardRef((props, ref) => {
+const RetroEffect = forwardRef((props: { colorNum?: number; pixelSize?: number }, ref) => {
   const { colorNum, pixelSize } = props;
   return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} />;
 });
-RetroEffect.displayName = 'RetroEffect';
+RetroEffect.displayName = "RetroEffect";
+
+interface DitheredWavesProps {
+  waveSpeed: number;
+  waveFrequency: number;
+  waveAmplitude: number;
+  waveColor: [r: number, g: number, b: number];
+  colorNum?: number;
+  pixelSize?: number;
+  disableAnimation?: boolean;
+  enableMouseInteraction?: boolean;
+  mouseRadius?: number;
+}
 
 function DitheredWaves({
   waveSpeed,
@@ -173,8 +186,8 @@ function DitheredWaves({
   pixelSize,
   disableAnimation,
   enableMouseInteraction,
-  mouseRadius
-}) {
+  mouseRadius,
+}: DitheredWavesProps) {
   const mesh = useRef(null);
   const mouseRef = useRef(new THREE.Vector2());
   const { viewport, size, gl } = useThree();
@@ -188,7 +201,7 @@ function DitheredWaves({
     waveColor: new THREE.Uniform(new THREE.Color(...waveColor)),
     mousePos: new THREE.Uniform(new THREE.Vector2(0, 0)),
     enableMouseInteraction: new THREE.Uniform(enableMouseInteraction ? 1 : 0),
-    mouseRadius: new THREE.Uniform(mouseRadius)
+    mouseRadius: new THREE.Uniform(mouseRadius),
   });
 
   useEffect(() => {
@@ -226,7 +239,7 @@ function DitheredWaves({
     }
   });
 
-  const handlePointerMove = e => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!enableMouseInteraction) return;
     const rect = gl.domElement.getBoundingClientRect();
     const dpr = gl.getPixelRatio();
@@ -265,7 +278,7 @@ const MAX_DITHER_RES = 1920;
 
 function useCappedDpr() {
   const [dpr, setDpr] = useState(() => {
-    if (typeof window === 'undefined') return 1;
+    if (typeof window === "undefined") return 1;
     const maxDim = Math.max(window.innerWidth, window.innerHeight);
     return maxDim > MAX_DITHER_RES ? MAX_DITHER_RES / maxDim : 1;
   });
@@ -275,11 +288,23 @@ function useCappedDpr() {
       const maxDim = Math.max(window.innerWidth, window.innerHeight);
       setDpr(maxDim > MAX_DITHER_RES ? MAX_DITHER_RES / maxDim : 1);
     };
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
   return dpr;
+}
+
+interface DitherProps {
+  waveSpeed?: number;
+  waveFrequency?: number;
+  waveAmplitude?: number;
+  waveColor?: [r: number, g: number, b: number];
+  colorNum?: number;
+  pixelSize?: number;
+  disableAnimation?: boolean;
+  enableMouseInteraction?: boolean;
+  mouseRadius?: number;
 }
 
 export default function Dither({
@@ -291,8 +316,8 @@ export default function Dither({
   pixelSize = 2,
   disableAnimation = false,
   enableMouseInteraction = true,
-  mouseRadius = 1
-}) {
+  mouseRadius = 1,
+}: DitherProps) {
   const dpr = useCappedDpr();
 
   return (
@@ -301,7 +326,7 @@ export default function Dither({
         camera={{ position: [0, 0, 6] }}
         dpr={dpr}
         gl={{ antialias: false }}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       >
         <DitheredWaves
           waveSpeed={waveSpeed}

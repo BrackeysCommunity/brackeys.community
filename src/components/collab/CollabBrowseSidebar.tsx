@@ -1,40 +1,29 @@
-import {
-  Add01Icon,
-  Cancel01Icon,
-  FilterIcon,
-  Login01Icon,
-} from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { useInfiniteQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { useStore } from '@tanstack/react-store'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { authClient } from '@/lib/auth-client'
-import { authStore } from '@/lib/auth-store'
-import { collabStore } from '@/lib/collab-store'
-import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
-import { client } from '@/orpc/client'
-import { FilterContent } from './CollabBrowsePage'
-import { CollabPostCard, CollabUserCard } from './CollabPostCard'
+import { Add01Icon, Cancel01Icon, FilterIcon, Login01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import { authStore } from "@/lib/auth-store";
+import { collabStore } from "@/lib/collab-store";
+import { NOTCH_SIZE, notchClip, notchClipInner } from "@/lib/notch";
+import { client } from "@/orpc/client";
+import { FilterContent } from "./CollabBrowsePage";
+import { CollabPostCard, CollabUserCard } from "./CollabPostCard";
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 20;
 
 export function CollabBrowseSidebar() {
-  const { filters } = useStore(collabStore)
-  const { session, isPending } = useStore(authStore)
-  const parentRef = useRef<HTMLDivElement>(null)
-  const [showFilters, setShowFilters] = useState(false)
+  const { filters } = useStore(collabStore);
+  const { session, isPending } = useStore(authStore);
+  const parentRef = useRef<HTMLDivElement>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: ['listPosts', filters],
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["listPosts", filters],
     queryFn: ({ pageParam = 0 }) =>
       client.listPosts({
         type: filters.type,
@@ -50,13 +39,13 @@ export function CollabBrowseSidebar() {
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      const fetched = allPages.length * PAGE_SIZE
-      if (fetched >= (lastPage.total ?? 0)) return undefined
-      return fetched
+      const fetched = allPages.length * PAGE_SIZE;
+      if (fetched >= (lastPage.total ?? 0)) return undefined;
+      return fetched;
     },
     staleTime: 15 * 1000,
-    enabled: filters.listingType !== 'people',
-  })
+    enabled: filters.listingType !== "people",
+  });
 
   const {
     data: userData,
@@ -65,7 +54,7 @@ export function CollabBrowseSidebar() {
     hasNextPage: hasNextUserPage,
     isFetchingNextPage: isFetchingNextUserPage,
   } = useInfiniteQuery({
-    queryKey: ['listAvailableUsers', filters],
+    queryKey: ["listAvailableUsers", filters],
     queryFn: ({ pageParam = 0 }) =>
       client.listAvailableUsers({
         search: filters.search || undefined,
@@ -76,48 +65,46 @@ export function CollabBrowseSidebar() {
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      const fetched = allPages.length * PAGE_SIZE
-      if (fetched >= (lastPage.total ?? 0)) return undefined
-      return fetched
+      const fetched = allPages.length * PAGE_SIZE;
+      if (fetched >= (lastPage.total ?? 0)) return undefined;
+      return fetched;
     },
     staleTime: 15 * 1000,
-    enabled: filters.listingType !== 'posts',
-  })
+    enabled: filters.listingType !== "posts",
+  });
 
-  const allPosts = useMemo(
-    () => data?.pages.flatMap((p) => p.posts) ?? [],
-    [data],
-  )
-  const total = data?.pages[0]?.total ?? 0
+  const allPosts = useMemo(() => data?.pages.flatMap((p) => p.posts) ?? [], [data]);
+  const total = data?.pages[0]?.total ?? 0;
 
-  const allUsers = useMemo(
-    () => userData?.pages.flatMap((p) => p.users) ?? [],
-    [userData],
-  )
-  const userTotal = userData?.pages[0]?.total ?? 0
+  const allUsers = useMemo(() => userData?.pages.flatMap((p) => p.users) ?? [], [userData]);
+  const userTotal = userData?.pages[0]?.total ?? 0;
 
   type BrowseItem =
-    | { kind: 'post'; post: (typeof allPosts)[number] }
-    | { kind: 'user'; user: (typeof allUsers)[number] }
+    | { kind: "post"; post: (typeof allPosts)[number] }
+    | { kind: "user"; user: (typeof allUsers)[number] };
 
   const items: BrowseItem[] = useMemo(() => {
-    const postItems: BrowseItem[] = allPosts.map((post) => ({ kind: 'post' as const, post }))
-    const userItems: BrowseItem[] = allUsers.map((user) => ({ kind: 'user' as const, user }))
+    const postItems: BrowseItem[] = allPosts.map((post) => ({ kind: "post" as const, post }));
+    const userItems: BrowseItem[] = allUsers.map((user) => ({ kind: "user" as const, user }));
 
-    if (filters.listingType === 'posts') return postItems
-    if (filters.listingType === 'people') return userItems
+    if (filters.listingType === "posts") return postItems;
+    if (filters.listingType === "people") return userItems;
 
     // Interleave by date (most recent first)
-    const all = [...postItems, ...userItems]
+    const all = [...postItems, ...userItems];
     all.sort((a, b) => {
-      const dateA = a.kind === 'post' ? new Date(a.post.createdAt ?? 0) : new Date(a.user.updatedAt)
-      const dateB = b.kind === 'post' ? new Date(b.post.createdAt ?? 0) : new Date(b.user.updatedAt)
-      return dateB.getTime() - dateA.getTime()
-    })
-    return all
-  }, [allPosts, allUsers, filters.listingType])
+      const dateA =
+        a.kind === "post" ? new Date(a.post.createdAt ?? 0) : new Date(a.user.updatedAt);
+      const dateB =
+        b.kind === "post" ? new Date(b.post.createdAt ?? 0) : new Date(b.user.updatedAt);
+      return dateB.getTime() - dateA.getTime();
+    });
+    return all;
+  }, [allPosts, allUsers, filters.listingType]);
 
-  const combinedTotal = (filters.listingType !== 'people' ? total : 0) + (filters.listingType !== 'posts' ? userTotal : 0)
+  const combinedTotal =
+    (filters.listingType !== "people" ? total : 0) +
+    (filters.listingType !== "posts" ? userTotal : 0);
 
   const activeFilterCount = [
     filters.type,
@@ -127,11 +114,15 @@ export function CollabBrowseSidebar() {
     filters.compensationType,
     filters.isIndividual !== undefined ? true : undefined,
     filters.search,
-  ].filter(Boolean).length
+  ].filter(Boolean).length;
 
-  const combinedIsLoading = (filters.listingType !== 'people' && isLoading) || (filters.listingType !== 'posts' && isLoadingUsers)
-  const combinedHasNextPage = (hasNextPage && filters.listingType !== 'people') || (hasNextUserPage && filters.listingType !== 'posts')
-  const combinedIsFetchingNextPage = isFetchingNextPage || isFetchingNextUserPage
+  const combinedIsLoading =
+    (filters.listingType !== "people" && isLoading) ||
+    (filters.listingType !== "posts" && isLoadingUsers);
+  const combinedHasNextPage =
+    (hasNextPage && filters.listingType !== "people") ||
+    (hasNextUserPage && filters.listingType !== "posts");
+  const combinedIsFetchingNextPage = isFetchingNextPage || isFetchingNextUserPage;
 
   const virtualizer = useVirtualizer({
     count: combinedHasNextPage ? items.length + 1 : items.length,
@@ -139,25 +130,36 @@ export function CollabBrowseSidebar() {
     estimateSize: () => 110,
     overscan: 5,
     gap: 12,
-  })
+  });
 
-  const virtualItems = virtualizer.getVirtualItems()
+  const virtualItems = virtualizer.getVirtualItems();
 
   useEffect(() => {
-    const lastItem = virtualItems[virtualItems.length - 1]
-    if (!lastItem) return
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (!lastItem) return;
     if (lastItem.index >= items.length - 1 && !combinedIsFetchingNextPage) {
-      if (hasNextPage && filters.listingType !== 'people') fetchNextPage()
-      if (hasNextUserPage && filters.listingType !== 'posts') fetchNextUserPage()
+      if (hasNextPage && filters.listingType !== "people") fetchNextPage();
+      if (hasNextUserPage && filters.listingType !== "posts") fetchNextUserPage();
     }
-  }, [virtualItems, items.length, hasNextPage, hasNextUserPage, combinedIsFetchingNextPage, fetchNextPage, fetchNextUserPage, filters.listingType])
+  }, [
+    virtualItems,
+    items.length,
+    hasNextPage,
+    hasNextUserPage,
+    combinedIsFetchingNextPage,
+    fetchNextPage,
+    fetchNextUserPage,
+    filters.listingType,
+  ]);
 
   return (
     <div className="flex h-full flex-col p-4 sm:p-6 selection:bg-primary selection:text-white pointer-events-auto relative">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 shrink-0">
         <span className="font-mono text-[11px] tracking-widest text-foreground uppercase">
-          {!combinedIsLoading && combinedTotal > 0 && `${combinedTotal} RESULT${combinedTotal !== 1 ? 'S' : ''}`}
+          {!combinedIsLoading &&
+            combinedTotal > 0 &&
+            `${combinedTotal} RESULT${combinedTotal !== 1 ? "S" : ""}`}
         </span>
         <button
           type="button"
@@ -176,8 +178,8 @@ export function CollabBrowseSidebar() {
 
       {/* Create post CTA (mobile only) */}
       <div className="lg:hidden pb-3 shrink-0">
-        {!isPending && (
-          session?.user ? (
+        {!isPending &&
+          (session?.user ? (
             <Link
               to="/collab/new"
               className="flex items-center justify-center gap-2 border border-primary/50 bg-primary/10 px-3 py-2 font-mono text-[11px] font-bold text-primary uppercase tracking-widest hover:bg-primary/20 transition-colors"
@@ -188,14 +190,13 @@ export function CollabBrowseSidebar() {
           ) : (
             <button
               type="button"
-              onClick={() => authClient.signIn.social({ provider: 'discord' })}
+              onClick={() => authClient.signIn.social({ provider: "discord" })}
               className="w-full flex items-center justify-center gap-2 border border-primary/50 bg-primary/10 px-3 py-2 font-mono text-[11px] font-bold text-primary uppercase tracking-widest hover:bg-primary/20 transition-colors"
             >
               <HugeiconsIcon icon={Login01Icon} size={14} />
               SIGN IN TO POST
             </button>
-          )
-        )}
+          ))}
       </div>
 
       {/* Virtualized infinite-scroll post list */}
@@ -221,12 +222,9 @@ export function CollabBrowseSidebar() {
             </p>
           </div>
         ) : (
-          <div
-            className="relative w-full"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
+          <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualItems.map((virtualItem) => {
-              const isLoader = virtualItem.index >= items.length
+              const isLoader = virtualItem.index >= items.length;
               if (isLoader) {
                 return (
                   <div
@@ -238,10 +236,11 @@ export function CollabBrowseSidebar() {
                       Loading more...
                     </span>
                   </div>
-                )
+                );
               }
-              const item = items[virtualItem.index]
-              const itemKey = item.kind === 'post' ? `post-${item.post.id}` : `user-${item.user.id}`
+              const item = items[virtualItem.index];
+              const itemKey =
+                item.kind === "post" ? `post-${item.post.id}` : `user-${item.user.id}`;
               return (
                 <div
                   key={itemKey}
@@ -251,13 +250,13 @@ export function CollabBrowseSidebar() {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  {item.kind === 'post' ? (
+                  {item.kind === "post" ? (
                     <CollabPostCard post={item.post} />
                   ) : (
                     <CollabUserCard user={item.user} skills={item.user.skills} />
                   )}
                 </div>
-              )
+              );
             })}
           </div>
         )}
@@ -280,7 +279,7 @@ export function CollabBrowseSidebar() {
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.15 }}
               className="w-full max-w-md max-h-[80vh] bg-muted"
-              style={{ clipPath: notchClip, padding: '2px' }}
+              style={{ clipPath: notchClip, padding: "2px" }}
               onClick={(e) => e.stopPropagation()}
             >
               <div
@@ -289,16 +288,44 @@ export function CollabBrowseSidebar() {
               >
                 <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
                 <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
-                <svg aria-hidden="true" className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-                  <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+                <svg
+                  aria-hidden="true"
+                  className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
+                  width={NOTCH_SIZE + 2}
+                  height={NOTCH_SIZE + 2}
+                  viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
+                  fill="none"
+                >
+                  <line
+                    x1="0"
+                    y1="1"
+                    x2={NOTCH_SIZE + 1}
+                    y2={NOTCH_SIZE + 2}
+                    stroke="currentColor"
+                    strokeWidth="1"
+                  />
                 </svg>
-                <svg aria-hidden="true" className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10" width={NOTCH_SIZE + 2} height={NOTCH_SIZE + 2} viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`} fill="none">
-                  <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
+                <svg
+                  aria-hidden="true"
+                  className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10"
+                  width={NOTCH_SIZE + 2}
+                  height={NOTCH_SIZE + 2}
+                  viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
+                  fill="none"
+                >
+                  <line
+                    x1={NOTCH_SIZE + 1}
+                    y1={NOTCH_SIZE + 1}
+                    x2="0"
+                    y2="0"
+                    stroke="currentColor"
+                    strokeWidth="1"
+                  />
                 </svg>
 
                 <div className="flex items-center justify-between border-b border-muted bg-card/60 px-4 py-2.5 shrink-0">
                   <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                    {'COLLAB // FILTERS'}
+                    {"COLLAB // FILTERS"}
                   </span>
                   <button
                     type="button"
@@ -318,5 +345,5 @@ export function CollabBrowseSidebar() {
         )}
       </AnimatePresence>
     </div>
-  )
+  );
 }

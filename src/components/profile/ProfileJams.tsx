@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 interface Jam {
   id: number;
@@ -19,7 +19,7 @@ export function ProfileJams({ jams, className }: ProfileJamsProps) {
   if (jams.length === 0) return null;
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn("relative", className)}>
       <div className="absolute left-[5.5px] top-2 bottom-2 w-px bg-muted/30" />
 
       <div className="flex flex-col gap-3">
@@ -71,8 +71,8 @@ export function ProfileJams({ jams, className }: ProfileJamsProps) {
                 {jam.participatedAt && (
                   <span className="font-mono text-[10px] text-muted-foreground/40">
                     {new Date(jam.participatedAt).toLocaleDateString(undefined, {
-                      month: 'short',
-                      year: 'numeric',
+                      month: "short",
+                      year: "numeric",
                     })}
                   </span>
                 )}

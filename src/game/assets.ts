@@ -1,6 +1,6 @@
-import { Assets } from "pixi.js"
+import { Assets } from "pixi.js";
 
-let initialized = false
+let initialized = false;
 
 /**
  * Register asset bundles. Must be called AFTER Application.init()
@@ -8,26 +8,26 @@ let initialized = false
  * to avoid double-init warnings.
  */
 export async function initAssets(): Promise<void> {
-	if (initialized) return
-	initialized = true
+  if (initialized) return;
+  initialized = true;
 
-	Assets.addBundle("game-core", [
-		// Future: player spritesheet, ground tiles, etc.
-		// { alias: "player-idle", src: "/assets/game/player-idle.json" },
-	])
+  Assets.addBundle("game-core", [
+    // Future: player spritesheet, ground tiles, etc.
+    // { alias: "player-idle", src: "/assets/game/player-idle.json" },
+  ]);
 
-	Assets.addBundle("ui", [
-		// Future: UI icons, fonts, etc.
-	])
+  Assets.addBundle("ui", [
+    // Future: UI icons, fonts, etc.
+  ]);
 }
 
 export async function loadBundle(
-	name: string,
-	onProgress?: (progress: number) => void,
+  name: string,
+  onProgress?: (progress: number) => void,
 ): Promise<void> {
-	await Assets.loadBundle(name, onProgress)
+  await Assets.loadBundle(name, onProgress);
 }
 
 export function resetAssets(): void {
-	initialized = false
+  initialized = false;
 }

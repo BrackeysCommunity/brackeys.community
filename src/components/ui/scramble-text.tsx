@@ -1,11 +1,11 @@
-import * as React from 'react';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_CHARS = "■□▲△◆◇●◼●○◎◉◌●•⋱⋰⋮⋯⋆⋇⋈∘☉☀☼▪▫●‣⁃◦▣▦▧▨▩▭▰▱▬▭◢◣◤◥!@#%^*[]-_=+\\|/";
 
 interface StaggerOptions {
   startDelay?: number;
-  from?: 'first' | 'last' | 'center';
+  from?: "first" | "last" | "center";
 }
 
 type StaggerFn = (index: number, count: number) => number;
@@ -14,12 +14,13 @@ type StaggerFn = (index: number, count: number) => number;
  * Creates a per-character stagger function compatible with ScrambleText's
  * `delay` and `duration` props. Mirrors the Motion+ `stagger()` API.
  */
-export const stagger = (increment: number, options?: StaggerOptions): StaggerFn =>
+export const stagger =
+  (increment: number, options?: StaggerOptions): StaggerFn =>
   (index, count) => {
-    const { startDelay = 0, from = 'first' } = options ?? {};
+    const { startDelay = 0, from = "first" } = options ?? {};
     let i = index;
-    if (from === 'last') i = count - 1 - index;
-    else if (from === 'center') i = Math.abs(index - (count - 1) / 2);
+    if (from === "last") i = count - 1 - index;
+    else if (from === "center") i = Math.abs(index - (count - 1) / 2);
     return startDelay + i * increment;
   };
 
@@ -73,13 +74,19 @@ export function ScrambleText({
     };
 
     const resolveValue = (val: number | StaggerFn, index: number, count: number) =>
-      typeof val === 'function' ? val(index, count) : val;
+      typeof val === "function" ? val(index, count) : val;
 
     const tick = (timestamp: number) => {
       const container = containerRef.current;
       if (!container) return;
 
-      const { children: text, active: isActive, chars: charSet, duration: dur, delay: del } = paramsRef.current;
+      const {
+        children: text,
+        active: isActive,
+        chars: charSet,
+        duration: dur,
+        delay: del,
+      } = paramsRef.current;
       const snapshot = `${isActive}::${text}`;
 
       // Reset animation clock when active toggles on or text changes
@@ -88,7 +95,7 @@ export function ScrambleText({
         prevSnapshotRef.current = snapshot;
       }
 
-      const spans = container.querySelectorAll<HTMLSpanElement>('[data-scramble-char]');
+      const spans = container.querySelectorAll<HTMLSpanElement>("[data-scramble-char]");
 
       if (!isActive) {
         Array.from(text).forEach((char, i) => {
@@ -117,7 +124,7 @@ export function ScrambleText({
           const span = spans[index];
           if (!span) return;
 
-          if (char === ' ' || char === '\n') {
+          if (char === " " || char === "\n") {
             span.textContent = char;
             return;
           }

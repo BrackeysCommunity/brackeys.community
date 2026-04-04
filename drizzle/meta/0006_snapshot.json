@@ -94,12 +94,8 @@
           "tableFrom": "account",
           "tableTo": "user",
           "schemaTo": "auth",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -144,10 +140,7 @@
       "compositePrimaryKeys": {
         "alt_accounts_user_id_alt_id_pk": {
           "name": "alt_accounts_user_id_alt_id_pk",
-          "columns": [
-            "user_id",
-            "alt_id"
-          ]
+          "columns": ["user_id", "alt_id"]
         }
       },
       "uniqueConstraints": {},
@@ -189,10 +182,7 @@
       "compositePrimaryKeys": {
         "blocked_reporters_user_id_guild_id_pk": {
           "name": "blocked_reporters_user_id_guild_id_pk",
-          "columns": [
-            "user_id",
-            "guild_id"
-          ]
+          "columns": ["user_id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -256,12 +246,8 @@
           "tableFrom": "collab_post_images",
           "tableTo": "collab_posts",
           "schemaTo": "collab",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["post_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -315,12 +301,8 @@
           "tableFrom": "collab_post_reports",
           "tableTo": "collab_posts",
           "schemaTo": "collab",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["post_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -329,12 +311,8 @@
           "tableFrom": "collab_post_reports",
           "tableTo": "user",
           "schemaTo": "auth",
-          "columnsFrom": [
-            "reporter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reporter_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -375,12 +353,8 @@
           "tableFrom": "collab_post_roles",
           "tableTo": "collab_posts",
           "schemaTo": "collab",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["post_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -389,12 +363,8 @@
           "tableFrom": "collab_post_roles",
           "tableTo": "collab_roles",
           "schemaTo": "collab",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["role_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -553,12 +523,8 @@
           "tableFrom": "collab_posts",
           "tableTo": "user",
           "schemaTo": "auth",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -625,12 +591,8 @@
           "tableFrom": "collab_responses",
           "tableTo": "collab_posts",
           "schemaTo": "collab",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["post_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -639,12 +601,8 @@
           "tableFrom": "collab_responses",
           "tableTo": "user",
           "schemaTo": "auth",
-          "columnsFrom": [
-            "responder_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["responder_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -654,10 +612,7 @@
         "collab_responses_post_id_responder_id_unique": {
           "name": "collab_responses_post_id_responder_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "post_id",
-            "responder_id"
-          ]
+          "columns": ["post_id", "responder_id"]
         }
       },
       "policies": {},
@@ -694,9 +649,7 @@
         "collab_roles_name_unique": {
           "name": "collab_roles_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         }
       },
       "policies": {},
@@ -868,9 +821,7 @@
         "developer_profiles_discord_id_unique": {
           "name": "developer_profiles_discord_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "discord_id"
-          ]
+          "columns": ["discord_id"]
         }
       },
       "policies": {},
@@ -1023,12 +974,8 @@
           "tableFrom": "jam_participations",
           "tableTo": "developer_profiles",
           "schemaTo": "user",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1122,10 +1069,7 @@
       "compositePrimaryKeys": {
         "mutes_user_id_guild_id_pk": {
           "name": "mutes_user_id_guild_id_pk",
-          "columns": [
-            "user_id",
-            "guild_id"
-          ]
+          "columns": ["user_id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1221,12 +1165,8 @@
           "tableFrom": "profile_projects",
           "tableTo": "developer_profiles",
           "schemaTo": "user",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1281,12 +1221,8 @@
           "tableFrom": "profile_url_stubs",
           "tableTo": "developer_profiles",
           "schemaTo": "user",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1296,16 +1232,12 @@
         "profile_url_stubs_profile_id_unique": {
           "name": "profile_url_stubs_profile_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "profile_id"
-          ]
+          "columns": ["profile_id"]
         },
         "profile_url_stubs_stub_unique": {
           "name": "profile_url_stubs_stub_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "stub"
-          ]
+          "columns": ["stub"]
         }
       },
       "policies": {},
@@ -1407,10 +1339,7 @@
       "compositePrimaryKeys": {
         "rules_id_guild_id_pk": {
           "name": "rules_id_guild_id_pk",
-          "columns": [
-            "id",
-            "guild_id"
-          ]
+          "columns": ["id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1478,12 +1407,8 @@
           "tableFrom": "session",
           "tableTo": "user",
           "schemaTo": "auth",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1493,9 +1418,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1552,12 +1475,8 @@
           "tableFrom": "skill_requests",
           "tableTo": "developer_profiles",
           "schemaTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1598,9 +1517,7 @@
         "skills_name_unique": {
           "name": "skills_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         }
       },
       "policies": {},
@@ -1684,10 +1601,7 @@
       "compositePrimaryKeys": {
         "temporary_bans_user_id_guild_id_pk": {
           "name": "temporary_bans_user_id_guild_id_pk",
-          "columns": [
-            "user_id",
-            "guild_id"
-          ]
+          "columns": ["user_id", "guild_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1848,9 +1762,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1887,12 +1799,8 @@
           "tableFrom": "user_skills",
           "tableTo": "developer_profiles",
           "schemaTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1901,12 +1809,8 @@
           "tableFrom": "user_skills",
           "tableTo": "skills",
           "schemaTo": "user",
-          "columnsFrom": [
-            "skill_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["skill_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
