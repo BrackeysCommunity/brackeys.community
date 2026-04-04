@@ -5,7 +5,7 @@ check:
     - apt-get update -qq && apt-get install -y -qq git
     - bun install --frozen-lockfile
   script:
-    - bun run check --no-fmt
+    - bun run check
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
     - if: $CI_COMMIT_BRANCH == 'main'
