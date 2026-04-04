@@ -9,7 +9,7 @@ variables:
   POSTGRES_PASSWORD: pass
 
 include:
-  - component: $CI_SERVER_FQDN/arigaio/atlas/migrate-lint@~latest
+  - component: gitlab.com/arigaio/atlas/migrate-lint@~latest
     inputs:
       stage: atlas-lint
       dir: "file://drizzle"
@@ -18,7 +18,7 @@ include:
       dev-url: "postgres://user:pass@postgres/dev?sslmode=disable"
       gitlab-token: $GITLAB_TOKEN
 
-  - component: $CI_SERVER_FQDN/arigaio/atlas/migrate-push@~latest
+  - component: gitlab.com/arigaio/atlas/migrate-push@~latest
     inputs:
       stage: atlas-push
       branches:
@@ -28,7 +28,7 @@ include:
       dev-url: "postgres://user:pass@postgres/dev?sslmode=disable"
       atlas-cloud-token: $ATLAS_CLOUD_TOKEN
 
-  - component: $CI_SERVER_FQDN/arigaio/atlas/migrate-apply@~latest
+  - component: gitlab.com/arigaio/atlas/migrate-apply@~latest
     inputs:
       stage: atlas-apply
       branches:
