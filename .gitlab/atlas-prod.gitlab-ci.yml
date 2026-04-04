@@ -8,7 +8,8 @@ atlas-lint-prod:
     POSTGRES_USER: user
     POSTGRES_PASSWORD: pass
   before_script:
-    - wget -qO- https://atlasgo.sh | sh
+    - apt-get update -qq && apt-get install -y -qq curl
+    - curl -sSf https://atlasgo.sh | sh
   script:
     - atlas migrate lint --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle" --git-base $CI_MERGE_REQUEST_DIFF_BASE_SHA
   rules:
@@ -24,7 +25,8 @@ atlas-push-prod:
     POSTGRES_USER: user
     POSTGRES_PASSWORD: pass
   before_script:
-    - wget -qO- https://atlasgo.sh | sh
+    - apt-get update -qq && apt-get install -y -qq curl
+    - curl -sSf https://atlasgo.sh | sh
   script:
     - atlas migrate push brackeys --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
   rules:
@@ -34,7 +36,8 @@ atlas-apply-prod:
   stage: atlas-apply
   image: ubuntu:latest
   before_script:
-    - wget -qO- https://atlasgo.sh | sh
+    - apt-get update -qq && apt-get install -y -qq curl
+    - curl -sSf https://atlasgo.sh | sh
   script:
     - atlas migrate apply --dir "file://drizzle" --url "$PROD_DATABASE_URL" --revisions-schema public
   rules:
