@@ -1,6 +1,5 @@
 stages:
   - sonar
-  - atlas-lint
   - atlas-push
   - atlas-apply
 

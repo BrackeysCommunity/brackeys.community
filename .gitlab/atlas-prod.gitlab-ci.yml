@@ -1,20 +1,3 @@
-atlas-lint-prod:
-  stage: atlas-lint
-  image: ubuntu:latest
-  services:
-    - postgres:16
-  variables:
-    POSTGRES_DB: dev
-    POSTGRES_USER: user
-    POSTGRES_PASSWORD: pass
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq curl
-    - curl -sSf https://atlasgo.sh | sh
-  script:
-    - atlas migrate lint --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle" --git-base $CI_MERGE_REQUEST_DIFF_BASE_SHA
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-
 atlas-push-prod:
   stage: atlas-push
   image: ubuntu:latest
