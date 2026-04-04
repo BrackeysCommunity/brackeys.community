@@ -13,12 +13,12 @@ check:
 
 test:
   stage: test
-  image: oven/bun:latest
+  image: node:22
   before_script:
-    - apt-get update -qq && apt-get install -y -qq git
+    - npm i -g bun
     - bun install --frozen-lockfile
   script:
-    - bun run test -- --coverage
+    - npx vitest run --coverage
   artifacts:
     paths:
       - coverage/
