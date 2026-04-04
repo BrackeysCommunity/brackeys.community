@@ -1,0 +1,39 @@
+image: ubuntu:latest
+
+services:
+  - postgres:latest
+
+variables:
+  POSTGRES_DB: dev
+  POSTGRES_USER: user
+  POSTGRES_PASSWORD: pass
+
+include:
+  - component: $CI_SERVER_FQDN/arigaio/atlas/migrate-lint@~latest
+    inputs:
+      stage: atlas-lint
+      dir: "file://drizzle"
+      atlas-cloud-token: $ATLAS_CLOUD_TOKEN
+      dir-name: "brackeys"
+      dev-url: "postgres://user:pass@postgres/dev?sslmode=disable"
+      gitlab-token: $GITLAB_TOKEN
+
+  - component: $CI_SERVER_FQDN/arigaio/atlas/migrate-push@~latest
+    inputs:
+      stage: atlas-push
+      branches:
+        - main
+      dir: "file://drizzle"
+      dir-name: "brackeys"
+      dev-url: "postgres://user:pass@postgres/dev?sslmode=disable"
+      atlas-cloud-token: $ATLAS_CLOUD_TOKEN
+
+  - component: $CI_SERVER_FQDN/arigaio/atlas/migrate-apply@~latest
+    inputs:
+      stage: atlas-apply
+      branches:
+        - main
+      dir: "file://drizzle"
+      url: $STAGING_DATABASE_URL
+      revisions-schema: public
+      atlas-cloud-token: $ATLAS_CLOUD_TOKEN
