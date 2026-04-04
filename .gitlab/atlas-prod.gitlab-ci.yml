@@ -12,6 +12,7 @@ atlas-push-prod:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN
   script:
+    - atlas migrate hash --dir "file://drizzle"
     - atlas migrate push brackeys --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
   rules:
     - if: $CI_COMMIT_BRANCH == 'prod'
@@ -24,6 +25,7 @@ atlas-apply-prod:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN
   script:
+    - atlas migrate hash --dir "file://drizzle"
     - atlas migrate apply --dir "file://drizzle" --url "$PROD_DATABASE_URL" --revisions-schema public
   rules:
     - if: $CI_COMMIT_BRANCH == 'prod'
