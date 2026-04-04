@@ -1,41 +1,41 @@
 atlas-lint-staging:
   stage: atlas-lint
-  image:
-    name: arigaio/atlas:latest
-    entrypoint: [""]
+  image: ubuntu:latest
   services:
     - postgres:16
   variables:
     POSTGRES_DB: dev
     POSTGRES_USER: user
     POSTGRES_PASSWORD: pass
+  before_script:
+    - curl -sSf https://atlasgo.sh | sh
   script:
-    - atlas migrate lint --env local --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle" --git-base $CI_MERGE_REQUEST_DIFF_BASE_SHA
+    - atlas migrate lint --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle" --git-base $CI_MERGE_REQUEST_DIFF_BASE_SHA
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
 
 atlas-push-staging:
   stage: atlas-push
-  image:
-    name: arigaio/atlas:latest
-    entrypoint: [""]
+  image: ubuntu:latest
   services:
     - postgres:16
   variables:
     POSTGRES_DB: dev
     POSTGRES_USER: user
     POSTGRES_PASSWORD: pass
+  before_script:
+    - curl -sSf https://atlasgo.sh | sh
   script:
-    - atlas migrate push brackeys --env local --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
+    - atlas migrate push brackeys --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
 
 atlas-apply-staging:
   stage: atlas-apply
-  image:
-    name: arigaio/atlas:latest
-    entrypoint: [""]
+  image: ubuntu:latest
+  before_script:
+    - curl -sSf https://atlasgo.sh | sh
   script:
-    - atlas migrate apply --env local --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public
+    - atlas migrate apply --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
