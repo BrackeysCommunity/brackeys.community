@@ -1,0 +1,29 @@
+atlas-push-staging:
+  stage: atlas-push
+  image: ubuntu:latest
+  services:
+    - postgres:16
+  variables:
+    POSTGRES_DB: dev
+    POSTGRES_USER: user
+    POSTGRES_PASSWORD: pass
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl
+    - curl -sSf https://atlasgo.sh | sh
+    - atlas login brackeys --token $ATLAS_CLOUD_TOKEN
+  script:
+    - atlas migrate push brackeys --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+
+atlas-apply-staging:
+  stage: atlas-apply
+  image: ubuntu:latest
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl
+    - curl -sSf https://atlasgo.sh | sh
+    - atlas login brackeys --token $ATLAS_CLOUD_TOKEN
+  script:
+    - atlas migrate apply --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
