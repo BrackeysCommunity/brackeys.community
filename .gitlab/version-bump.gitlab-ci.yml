@@ -7,7 +7,7 @@ version-bump:
   before_script:
     - git config user.name "gitlab-ci[bot]"
     - git config user.email "gitlab-ci[bot]@noreply.gitlab.com"
-    - git remote set-url origin "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git remote set-url origin "https://oauth2:${GITLAB_PAT}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
   script:
     - npm version prerelease --preid=alpha --no-git-tag-version
     - VERSION=$(node -p "require('./package.json').version")
