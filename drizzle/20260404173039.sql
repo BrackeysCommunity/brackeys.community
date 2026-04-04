@@ -20,8 +20,8 @@ ALTER TABLE "hammer"."staff_messages" ALTER COLUMN "guild_id" TYPE text, ALTER C
 ALTER TABLE "hammer"."temporary_bans" ALTER COLUMN "guild_id" TYPE text, ALTER COLUMN "user_id" TYPE text, ADD CONSTRAINT "temporary_bans_user_id_developer_profiles_discord_id_fk" FOREIGN KEY ("user_id") REFERENCES "user"."developer_profiles" ("discord_id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "tracked_messages" table
 ALTER TABLE "hammer"."tracked_messages" ALTER COLUMN "author_id" TYPE text, ALTER COLUMN "channel_id" TYPE text, ALTER COLUMN "guild_id" TYPE text, ADD CONSTRAINT "tracked_messages_author_id_developer_profiles_discord_id_fk" FOREIGN KEY ("author_id") REFERENCES "user"."developer_profiles" ("discord_id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Drop sequence "profile_projects_id_seq"
-DROP SEQUENCE "user"."profile_projects_id_seq";
+-- Drop orphaned sequence from 0008 migration (id changed to text but sequence was never dropped)
+DROP SEQUENCE IF EXISTS "user"."profile_projects_id_seq" CASCADE;
 -- Create function to ensure a developer profile exists for a Discord ID
 CREATE OR REPLACE FUNCTION hammer.ensure_developer_profile()
 RETURNS TRIGGER AS $$
