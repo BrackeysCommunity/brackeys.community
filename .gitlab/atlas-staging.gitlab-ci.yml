@@ -1,6 +1,8 @@
 atlas-lint-staging:
   stage: atlas-lint
-  image: arigaio/atlas:latest
+  image:
+    name: arigaio/atlas:latest
+    entrypoint: [""]
   services:
     - postgres:16
   variables:
@@ -14,7 +16,9 @@ atlas-lint-staging:
 
 atlas-push-staging:
   stage: atlas-push
-  image: arigaio/atlas:latest
+  image:
+    name: arigaio/atlas:latest
+    entrypoint: [""]
   services:
     - postgres:16
   variables:
@@ -28,7 +32,9 @@ atlas-push-staging:
 
 atlas-apply-staging:
   stage: atlas-apply
-  image: arigaio/atlas:latest
+  image:
+    name: arigaio/atlas:latest
+    entrypoint: [""]
   script:
     - atlas migrate apply --env local --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public
   rules:
