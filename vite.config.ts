@@ -9,34 +9,38 @@ import wasm from "vite-plugin-wasm";
 import pkg from "./package.json" with { type: "json" };
 
 const config = defineConfig({
-  staged: {
-    "*": "vp check --fix",
-  },
-  fmt: {},
-  lint: { options: { typeAware: true, typeCheck: true } },
-  define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
-  },
-  resolve: {
-    tsconfigPaths: true,
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
-  plugins: [
-    wasm(),
-    devtools(),
-    nitro({
-      rollupConfig: { external: [/^@sentry\//, /^@dimforge\/rapier2d/] },
-    }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact({
-      babel: {
-        plugins: ["babel-plugin-react-compiler"],
-      },
-    }),
-  ],
+	staged: {
+		"*": "vp check --fix",
+	},
+	fmt: {
+		useTabs: true,
+		singleQuote: false,
+		ignorePatterns: ["src/routeTree.gen.ts", "src/styles.css"],
+	},
+	lint: { options: { typeAware: true, typeCheck: true } },
+	define: {
+		__APP_VERSION__: JSON.stringify(pkg.version),
+	},
+	resolve: {
+		tsconfigPaths: true,
+		alias: {
+			"@": fileURLToPath(new URL("./src", import.meta.url)),
+		},
+	},
+	plugins: [
+		wasm(),
+		devtools(),
+		nitro({
+			rollupConfig: { external: [/^@sentry\//, /^@dimforge\/rapier2d/] },
+		}),
+		tailwindcss(),
+		tanstackStart(),
+		viteReact({
+			babel: {
+				plugins: ["babel-plugin-react-compiler"],
+			},
+		}),
+	],
 });
 
 export default config;
