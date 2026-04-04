@@ -1,6 +1,6 @@
 version-bump:
   stage: version
-  image: node:22-slim
+  image: node:22
   variables:
     GIT_STRATEGY: clone
     GIT_DEPTH: "1"

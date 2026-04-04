@@ -7,25 +7,69 @@ atlas-push-staging:
     POSTGRES_DB: dev
     POSTGRES_USER: user
     POSTGRES_PASSWORD: pass
+    ATLAS_TOKEN: $ATLAS_CLOUD_TOKEN
+    ATLAS_INPUT_DIR: "file://drizzle"
+    ATLAS_INPUT_DIR_NAME: "brackeys"
+    ATLAS_INPUT_DEV_URL: "postgres://user:pass@postgres/dev?sslmode=disable"
+  cache:
+    key: atlas-grant-cache
+    paths:
+      - .atlas/
+    policy: pull-push
   before_script:
     - apt-get update -qq && apt-get install -y -qq curl
+    - mkdir -p ~/.atlas
+    - cp -a $CI_PROJECT_DIR/.atlas/. ~/.atlas/ 2>/dev/null || true
     - curl -sSf https://atlasgo.sh | sh
-    - atlas login --token $ATLAS_CLOUD_TOKEN
+    - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
     - atlas migrate hash --dir "file://drizzle"
-    - atlas migrate push brackeys --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
+    - |
+      ( curl -sSf https://raw.githubusercontent.com/ariga/atlas-action/v1.15.1/scripts/shim.sh || \
+        curl -sSf https://atlasbinaries.com/atlas-action/scripts-v1.15.1/shim.sh || \
+        curl -sSf https://release.ariga.io/atlas-action/scripts-v1.15.1/shim.sh ) | \
+      CI=true sh -s -- migrate/push
+  after_script:
+    - mkdir -p $CI_PROJECT_DIR/.atlas
+    - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
 
 atlas-apply-staging:
   stage: atlas-apply
   image: ubuntu:latest
+  variables:
+    ATLAS_TOKEN: $ATLAS_CLOUD_TOKEN
+    ATLAS_INPUT_DIR: "file://drizzle"
+    ATLAS_INPUT_URL: $STAGING_DATABASE_URL
+    ATLAS_INPUT_REVISIONS_SCHEMA: "public"
+    ATLAS_INPUT_ALLOW_DIRTY: "true"
+  cache:
+    key: atlas-grant-cache
+    paths:
+      - .atlas/
+    policy: pull-push
+  artifacts:
+    reports:
+      dotenv: .env
+    paths:
+      - .atlas/
+    expire_in: 1 day
   before_script:
     - apt-get update -qq && apt-get install -y -qq curl
+    - mkdir -p ~/.atlas
+    - cp -a $CI_PROJECT_DIR/.atlas/. ~/.atlas/ 2>/dev/null || true
     - curl -sSf https://atlasgo.sh | sh
-    - atlas login --token $ATLAS_CLOUD_TOKEN
+    - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
     - atlas migrate hash --dir "file://drizzle"
-    - atlas migrate apply --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public --baseline 0010
+    - |
+      ( curl -sSf https://raw.githubusercontent.com/ariga/atlas-action/v1.15.1/scripts/shim.sh || \
+        curl -sSf https://atlasbinaries.com/atlas-action/scripts-v1.15.1/shim.sh || \
+        curl -sSf https://release.ariga.io/atlas-action/scripts-v1.15.1/shim.sh ) | \
+      CI=true sh -s -- migrate/apply
+  after_script:
+    - mkdir -p $CI_PROJECT_DIR/.atlas
+    - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
