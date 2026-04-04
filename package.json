@@ -27,6 +27,7 @@
 		"railway:db:migrate": "railway run -- drizzle-kit migrate",
 		"railway:db:push": "railway run -- drizzle-kit push",
 		"railway:db:studio": "railway run -- drizzle-kit studio",
+		"railway:atlas:diff": "railway run -- atlas migrate diff --env local",
 		"railway:atlas:push": "railway run -- atlas migrate push brackeys --env local",
 		"railway:atlas:apply": "railway run -- atlas migrate apply --env prod",
 		"atlas:diff": "atlas migrate diff --env local",
