@@ -1,18 +1,18 @@
-import { Logout03Icon, Share01Icon, UserIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
+import { Logout03Icon, Share01Icon, UserIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { authClient } from '@/lib/auth-client';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
+} from "@/components/ui/dropdown-menu";
+import { authClient } from "@/lib/auth-client";
+import { useMagnetic } from "@/lib/hooks/use-cursor";
 
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 interface UserMenuProps {
   user: {
@@ -39,17 +39,13 @@ export function UserMenu({ user }: UserMenuProps) {
       >
         <DropdownMenuTrigger className="flex items-center gap-2 border border-muted bg-card/40 px-3 py-1.5 font-mono text-xs font-bold tracking-widest text-foreground hover:border-primary hover:text-primary transition-colors outline-none">
           {user.image ? (
-            <img
-              src={user.image}
-              alt=""
-              className="h-6 w-6 rounded-full"
-            />
+            <img src={user.image} alt="" className="h-6 w-6 rounded-full" />
           ) : (
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
               <HugeiconsIcon icon={UserIcon} size={14} />
             </div>
           )}
-          <span className="max-w-[100px] truncate uppercase">{user.name ?? 'USER'}</span>
+          <span className="max-w-[100px] truncate uppercase">{user.name ?? "USER"}</span>
         </DropdownMenuTrigger>
       </motion.div>
 
@@ -78,9 +74,9 @@ export function UserMenu({ user }: UserMenuProps) {
           onClick={async () => {
             await authClient.signOut({
               fetchOptions: {
-                onSuccess: () => navigate({reloadDocument: true})
-              }
-            })
+                onSuccess: () => navigate({ reloadDocument: true }),
+              },
+            });
           }}
         >
           <HugeiconsIcon icon={Logout03Icon} size={14} />

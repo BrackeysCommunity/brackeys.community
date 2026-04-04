@@ -1,13 +1,9 @@
-import { ORPCError } from '@orpc/client'
-import { os } from '@orpc/server'
-import {
-  RegExpMatcher,
-  englishDataset,
-  englishRecommendedTransformers,
-} from 'obscenity'
-import * as z from 'zod'
-import { and, eq, ilike, inArray, or, desc, asc, count, sql } from 'drizzle-orm'
-import { db } from '@/db'
+import { ORPCError } from "@orpc/client";
+import { os } from "@orpc/server";
+import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
+import * as z from "zod";
+import { and, eq, ilike, inArray, or, desc, asc, count, sql } from "drizzle-orm";
+import { db } from "@/db";
 import {
   collabPosts,
   collabRoles,
@@ -18,32 +14,46 @@ import {
   developerProfiles,
   userSkills,
   skills,
-} from '@/db/schema'
-import { isStaffMember } from '@/lib/discord'
-import { authMiddleware, requireAuth, requireGuildMember, requireAuthWithPermissions, requireStaff, requireAdmin } from '@/orpc/middleware/auth'
+} from "@/db/schema";
+import { isStaffMember } from "@/lib/discord";
+import {
+  authMiddleware,
+  requireAuth,
+  requireGuildMember,
+  requireAuthWithPermissions,
+  requireStaff,
+  requireAdmin,
+} from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
-  return str.replace(/%/g, '\\%').replace(/_/g, '\\_')
+  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 const profanityMatcher = new RegExpMatcher({
   ...englishDataset.build(),
   ...englishRecommendedTransformers,
-})
+});
 
 function checkProfanity(text: string, fieldName: string) {
   if (profanityMatcher.hasMatch(text)) {
-    throw new ORPCError('BAD_REQUEST', {
+    throw new ORPCError("BAD_REQUEST", {
       message: `${fieldName} contains inappropriate language.`,
-    })
+    });
   }
 }
 
-const compensationTypeSchema = z.enum(['hourly', 'fixed', 'rev_share', 'negotiable'])
-const teamSizeSchema = z.enum(['solo', '2-3', '4-6', '7+'])
-const projectLengthSchema = z.enum(['<1 week', '1-4 weeks', '1-3 months', '3-6 months', '6+ months', 'ongoing'])
-const experienceLevelSchema = z.enum(['any', 'beginner', 'intermediate', 'experienced'])
-const contactTypeSchema = z.enum(['discord_dm', 'discord_server', 'email', 'other'])
+const compensationTypeSchema = z.enum(["hourly", "fixed", "rev_share", "negotiable"]);
+const teamSizeSchema = z.enum(["solo", "2-3", "4-6", "7+"]);
+const projectLengthSchema = z.enum([
+  "<1 week",
+  "1-4 weeks",
+  "1-3 months",
+  "3-6 months",
+  "6+ months",
+  "ongoing",
+]);
+const experienceLevelSchema = z.enum(["any", "beginner", "intermediate", "experienced"]);
+const contactTypeSchema = z.enum(["discord_dm", "discord_server", "email", "other"]);
 
 // ── Post CRUD ────────────────────────────────────────────────────────────────
 
@@ -51,7 +61,7 @@ export const createPost = os
   .use(requireGuildMember)
   .input(
     z.object({
-      type: z.enum(['paid', 'hobby', 'playtest', 'mentor']),
+      type: z.enum(["paid", "hobby", "playtest", "mentor"]),
       title: z.string().min(1).max(200),
       description: z.string().min(1).max(5000),
       projectName: z.string().max(200).optional(),
@@ -62,7 +72,7 @@ export const createPost = os
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
       experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.string().url().max(500).optional().or(z.literal('')),
+      portfolioUrl: z.string().url().max(500).optional().or(z.literal("")),
       contactMethod: z.string().max(500).optional(),
       contactType: contactTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
@@ -70,14 +80,14 @@ export const createPost = os
     }),
   )
   .handler(async ({ input, context }) => {
-    checkProfanity(input.title, 'Title')
-    checkProfanity(input.description, 'Description')
-    if (input.projectName) checkProfanity(input.projectName, 'Project name')
-    if (input.compensation) checkProfanity(input.compensation, 'Compensation')
-    if (input.experience) checkProfanity(input.experience, 'Experience')
-    if (input.contactMethod) checkProfanity(input.contactMethod, 'Contact method')
+    checkProfanity(input.title, "Title");
+    checkProfanity(input.description, "Description");
+    if (input.projectName) checkProfanity(input.projectName, "Project name");
+    if (input.compensation) checkProfanity(input.compensation, "Compensation");
+    if (input.experience) checkProfanity(input.experience, "Experience");
+    if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
 
-    const { roleIds, ...postData } = input
+    const { roleIds, ...postData } = input;
 
     const [post] = await db
       .insert(collabPosts)
@@ -87,16 +97,16 @@ export const createPost = os
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .returning()
+      .returning();
 
     if (roleIds && roleIds.length > 0) {
-      await db.insert(collabPostRoles).values(
-        roleIds.map((roleId) => ({ postId: post.id, roleId })),
-      )
+      await db
+        .insert(collabPostRoles)
+        .values(roleIds.map((roleId) => ({ postId: post.id, roleId })));
     }
 
-    return post
-  })
+    return post;
+  });
 
 export const updatePost = os
   .use(requireAuthWithPermissions)
@@ -113,7 +123,7 @@ export const updatePost = os
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
       experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.string().url().max(500).optional().or(z.literal('')),
+      portfolioUrl: z.string().url().max(500).optional().or(z.literal("")),
       contactMethod: z.string().max(500).optional(),
       contactType: contactTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
@@ -125,43 +135,41 @@ export const updatePost = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    const isOwner = post.authorId === context.user.id
+    const isOwner = post.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'You can only edit your own posts.' })
+      throw new ORPCError("FORBIDDEN", { message: "You can only edit your own posts." });
     }
 
-    if (input.title) checkProfanity(input.title, 'Title')
-    if (input.description) checkProfanity(input.description, 'Description')
-    if (input.projectName) checkProfanity(input.projectName, 'Project name')
-    if (input.compensation) checkProfanity(input.compensation, 'Compensation')
-    if (input.experience) checkProfanity(input.experience, 'Experience')
-    if (input.contactMethod) checkProfanity(input.contactMethod, 'Contact method')
+    if (input.title) checkProfanity(input.title, "Title");
+    if (input.description) checkProfanity(input.description, "Description");
+    if (input.projectName) checkProfanity(input.projectName, "Project name");
+    if (input.compensation) checkProfanity(input.compensation, "Compensation");
+    if (input.experience) checkProfanity(input.experience, "Experience");
+    if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
 
-    const { postId, roleIds, ...data } = input
+    const { postId, roleIds, ...data } = input;
 
     const [updated] = await db
       .update(collabPosts)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(collabPosts.id, postId))
-      .returning()
+      .returning();
 
     if (roleIds !== undefined) {
-      await db.delete(collabPostRoles).where(eq(collabPostRoles.postId, postId))
+      await db.delete(collabPostRoles).where(eq(collabPostRoles.postId, postId));
       if (roleIds.length > 0) {
-        await db.insert(collabPostRoles).values(
-          roleIds.map((roleId) => ({ postId, roleId })),
-        )
+        await db.insert(collabPostRoles).values(roleIds.map((roleId) => ({ postId, roleId })));
       }
     }
 
-    return updated
-  })
+    return updated;
+  });
 
 export const deletePost = os
   .use(requireAuthWithPermissions)
@@ -171,20 +179,20 @@ export const deletePost = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    const isOwner = post.authorId === context.user.id
+    const isOwner = post.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'You can only delete your own posts.' })
+      throw new ORPCError("FORBIDDEN", { message: "You can only delete your own posts." });
     }
 
-    await db.delete(collabPosts).where(eq(collabPosts.id, input.postId))
-    return { success: true }
-  })
+    await db.delete(collabPosts).where(eq(collabPosts.id, input.postId));
+    return { success: true };
+  });
 
 export const closePost = os
   .use(requireAuthWithPermissions)
@@ -194,25 +202,25 @@ export const closePost = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    const isOwner = post.authorId === context.user.id
+    const isOwner = post.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'You can only close your own posts.' })
+      throw new ORPCError("FORBIDDEN", { message: "You can only close your own posts." });
     }
 
     const [updated] = await db
       .update(collabPosts)
-      .set({ status: 'party_full', updatedAt: new Date() })
+      .set({ status: "party_full", updatedAt: new Date() })
       .where(eq(collabPosts.id, input.postId))
-      .returning()
+      .returning();
 
-    return updated
-  })
+    return updated;
+  });
 
 export const reopenPost = os
   .use(requireAuthWithPermissions)
@@ -222,25 +230,25 @@ export const reopenPost = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    const isOwner = post.authorId === context.user.id
+    const isOwner = post.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'You can only reopen your own posts.' })
+      throw new ORPCError("FORBIDDEN", { message: "You can only reopen your own posts." });
     }
 
     const [updated] = await db
       .update(collabPosts)
-      .set({ status: 'recruiting', updatedAt: new Date() })
+      .set({ status: "recruiting", updatedAt: new Date() })
       .where(eq(collabPosts.id, input.postId))
-      .returning()
+      .returning();
 
-    return updated
-  })
+    return updated;
+  });
 
 export const getPost = os
   .use(authMiddleware)
@@ -250,9 +258,9 @@ export const getPost = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
-    if (!post) return null
+    if (!post) return null;
 
     const [roles, images, [responseCount]] = await Promise.all([
       db
@@ -269,7 +277,7 @@ export const getPost = os
         .select({ count: count() })
         .from(collabResponses)
         .where(eq(collabResponses.postId, input.postId)),
-    ])
+    ]);
 
     const [authorProfile] = await db
       .select({
@@ -283,9 +291,9 @@ export const getPost = os
       })
       .from(developerProfiles)
       .where(eq(developerProfiles.id, post.authorId))
-      .limit(1)
+      .limit(1);
 
-    let author = null
+    let author = null;
     if (authorProfile) {
       const authorSkills = post.isIndividual
         ? await db
@@ -293,23 +301,25 @@ export const getPost = os
             .from(userSkills)
             .innerJoin(skills, eq(userSkills.skillId, skills.id))
             .where(eq(userSkills.userId, post.authorId))
-        : []
-      author = { ...authorProfile, skills: authorSkills }
+        : [];
+      author = { ...authorProfile, skills: authorSkills };
     }
 
-    const isOwner = context.user?.id === post.authorId
-    let responses: {
-      id: number
-      responderId: string
-      message: string
-      portfolioUrl: string | null
-      status: string
-      createdAt: Date | null
-      responderUsername: string | null
-      responderAvatar: string | null
-    }[] | null = null
+    const isOwner = context.user?.id === post.authorId;
+    let responses:
+      | {
+          id: number;
+          responderId: string;
+          message: string;
+          portfolioUrl: string | null;
+          status: string;
+          createdAt: Date | null;
+          responderUsername: string | null;
+          responderAvatar: string | null;
+        }[]
+      | null = null;
 
-    if (isOwner || (context.user && await userIsStaff(context.user.id))) {
+    if (isOwner || (context.user && (await userIsStaff(context.user.id)))) {
       responses = await db
         .select({
           id: collabResponses.id,
@@ -324,7 +334,7 @@ export const getPost = os
         .from(collabResponses)
         .leftJoin(developerProfiles, eq(collabResponses.responderId, developerProfiles.id))
         .where(eq(collabResponses.postId, input.postId))
-        .orderBy(desc(collabResponses.createdAt))
+        .orderBy(desc(collabResponses.createdAt));
     }
 
     return {
@@ -335,87 +345,88 @@ export const getPost = os
       responses,
       isOwner,
       author,
-    }
-  })
+    };
+  });
 
 async function userIsStaff(userId: string): Promise<boolean> {
   const [profile] = await db
     .select({ guildRoles: developerProfiles.guildRoles })
     .from(developerProfiles)
     .where(eq(developerProfiles.id, userId))
-    .limit(1)
-  return isStaffMember(profile?.guildRoles ?? null)
+    .limit(1);
+  return isStaffMember(profile?.guildRoles ?? null);
 }
 
 export const listPosts = os
   .use(authMiddleware)
   .input(
     z.object({
-      type: z.enum(['paid', 'hobby', 'playtest', 'mentor']).optional(),
+      type: z.enum(["paid", "hobby", "playtest", "mentor"]).optional(),
       roleIds: z.array(z.number()).optional(),
-      status: z.enum(['recruiting', 'party_full']).optional(),
+      status: z.enum(["recruiting", "party_full"]).optional(),
       search: z.string().optional(),
       experienceLevel: experienceLevelSchema.optional(),
       compensationType: compensationTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
-      sortBy: z.enum(['createdAt', 'updatedAt']).default('createdAt'),
-      sortOrder: z.enum(['asc', 'desc']).default('desc'),
+      sortBy: z.enum(["createdAt", "updatedAt"]).default("createdAt"),
+      sortOrder: z.enum(["asc", "desc"]).default("desc"),
       limit: z.number().min(1).max(100).default(20),
       offset: z.number().min(0).default(0),
     }),
   )
   .handler(async ({ input }) => {
-    const conditions = []
+    const conditions = [];
 
-    if (input.type) conditions.push(eq(collabPosts.type, input.type))
-    if (input.status) conditions.push(eq(collabPosts.status, input.status))
-    if (input.experienceLevel) conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel))
-    if (input.compensationType) conditions.push(eq(collabPosts.compensationType, input.compensationType))
+    if (input.type) conditions.push(eq(collabPosts.type, input.type));
+    if (input.status) conditions.push(eq(collabPosts.status, input.status));
+    if (input.experienceLevel)
+      conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel));
+    if (input.compensationType)
+      conditions.push(eq(collabPosts.compensationType, input.compensationType));
     if (input.isIndividual === true) {
-      conditions.push(eq(collabPosts.isIndividual, true))
+      conditions.push(eq(collabPosts.isIndividual, true));
     } else if (input.isIndividual === false) {
-      conditions.push(or(eq(collabPosts.isIndividual, false), sql`${collabPosts.isIndividual} IS NULL`))
+      conditions.push(
+        or(eq(collabPosts.isIndividual, false), sql`${collabPosts.isIndividual} IS NULL`),
+      );
     }
     if (input.search) {
-      const escaped = escapeLike(input.search)
+      const escaped = escapeLike(input.search);
       const searchCondition = or(
         ilike(collabPosts.title, `%${escaped}%`),
         ilike(collabPosts.description, `%${escaped}%`),
-      )
-      if (searchCondition) conditions.push(searchCondition)
+      );
+      if (searchCondition) conditions.push(searchCondition);
     }
 
-    let query = db.select().from(collabPosts)
+    let query = db.select().from(collabPosts);
 
     if (input.roleIds && input.roleIds.length > 0) {
       const postIdsWithRoles = db
         .select({ postId: collabPostRoles.postId })
         .from(collabPostRoles)
-        .where(inArray(collabPostRoles.roleId, input.roleIds))
-      conditions.push(inArray(collabPosts.id, postIdsWithRoles))
+        .where(inArray(collabPostRoles.roleId, input.roleIds));
+      conditions.push(inArray(collabPosts.id, postIdsWithRoles));
     }
 
-    const where = conditions.length > 0 ? and(...conditions) : undefined
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const sortColumn = input.sortBy === 'updatedAt' ? collabPosts.updatedAt : collabPosts.createdAt
-    const sortFn = input.sortOrder === 'asc' ? asc : desc
+    const sortColumn = input.sortBy === "updatedAt" ? collabPosts.updatedAt : collabPosts.createdAt;
+    const sortFn = input.sortOrder === "asc" ? asc : desc;
 
     const posts = await query
       .where(where)
       .orderBy(sortFn(sortColumn))
       .limit(input.limit)
-      .offset(input.offset)
+      .offset(input.offset);
 
-    const [totalResult] = await db
-      .select({ count: count() })
-      .from(collabPosts)
-      .where(where)
+    const [totalResult] = await db.select({ count: count() }).from(collabPosts).where(where);
 
     return {
       posts,
       total: totalResult?.count ?? 0,
-    }
-  })
+    };
+  });
 
 export const featurePost = os
   .use(requireStaff)
@@ -425,14 +436,14 @@ export const featurePost = os
       .update(collabPosts)
       .set({ featuredAt: input.featured ? new Date() : null, updatedAt: new Date() })
       .where(eq(collabPosts.id, input.postId))
-      .returning()
+      .returning();
 
     if (!updated) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    return updated
-  })
+    return updated;
+  });
 
 // ── Responses ────────────────────────────────────────────────────────────────
 
@@ -442,28 +453,30 @@ export const respondToPost = os
     z.object({
       postId: z.number(),
       message: z.string().min(1).max(2000),
-      portfolioUrl: z.string().url().max(500).optional().or(z.literal('')),
+      portfolioUrl: z.string().url().max(500).optional().or(z.literal("")),
     }),
   )
   .handler(async ({ input, context }) => {
-    checkProfanity(input.message, 'Message')
+    checkProfanity(input.message, "Message");
 
     const [post] = await db
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    if (post.status === 'party_full') {
-      throw new ORPCError('BAD_REQUEST', { message: 'This post is no longer accepting responses.' })
+    if (post.status === "party_full") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "This post is no longer accepting responses.",
+      });
     }
 
     if (post.authorId === context.user.id) {
-      throw new ORPCError('BAD_REQUEST', { message: 'You cannot respond to your own post.' })
+      throw new ORPCError("BAD_REQUEST", { message: "You cannot respond to your own post." });
     }
 
     const [response] = await db
@@ -474,10 +487,10 @@ export const respondToPost = os
         message: input.message,
         portfolioUrl: input.portfolioUrl,
       })
-      .returning()
+      .returning();
 
-    return response
-  })
+    return response;
+  });
 
 export const listResponses = os
   .use(requireAuthWithPermissions)
@@ -487,30 +500,32 @@ export const listResponses = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    const isOwner = post.authorId === context.user.id
+    const isOwner = post.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the post owner or staff can view responses.' })
+      throw new ORPCError("FORBIDDEN", {
+        message: "Only the post owner or staff can view responses.",
+      });
     }
 
     return db
       .select()
       .from(collabResponses)
       .where(eq(collabResponses.postId, input.postId))
-      .orderBy(desc(collabResponses.createdAt))
-  })
+      .orderBy(desc(collabResponses.createdAt));
+  });
 
 export const updateResponseStatus = os
   .use(requireAuthWithPermissions)
   .input(
     z.object({
       responseId: z.number(),
-      status: z.enum(['accepted', 'declined']),
+      status: z.enum(["accepted", "declined"]),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -518,31 +533,33 @@ export const updateResponseStatus = os
       .select()
       .from(collabResponses)
       .where(eq(collabResponses.id, input.responseId))
-      .limit(1)
+      .limit(1);
 
     if (!response) {
-      throw new ORPCError('NOT_FOUND', { message: 'Response not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Response not found." });
     }
 
     const [post] = await db
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, response.postId))
-      .limit(1)
+      .limit(1);
 
-    const isOwner = post?.authorId === context.user.id
+    const isOwner = post?.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the post owner or staff can manage responses.' })
+      throw new ORPCError("FORBIDDEN", {
+        message: "Only the post owner or staff can manage responses.",
+      });
     }
 
     const [updated] = await db
       .update(collabResponses)
       .set({ status: input.status })
       .where(eq(collabResponses.id, input.responseId))
-      .returning()
+      .returning();
 
-    return updated
-  })
+    return updated;
+  });
 
 // ── Roles ────────────────────────────────────────────────────────────────────
 
@@ -553,10 +570,10 @@ export const listCollabRoles = os
       return db
         .select()
         .from(collabRoles)
-        .where(ilike(collabRoles.name, `%${escapeLike(input.search)}%`))
+        .where(ilike(collabRoles.name, `%${escapeLike(input.search)}%`));
     }
-    return db.select().from(collabRoles)
-  })
+    return db.select().from(collabRoles);
+  });
 
 export const addCollabRole = os
   .use(requireStaff)
@@ -565,18 +582,18 @@ export const addCollabRole = os
     const [role] = await db
       .insert(collabRoles)
       .values({ name: input.name, category: input.category })
-      .returning()
+      .returning();
 
-    return role
-  })
+    return role;
+  });
 
 export const removeCollabRole = os
   .use(requireAdmin)
   .input(z.object({ roleId: z.number() }))
   .handler(async ({ input }) => {
-    await db.delete(collabRoles).where(eq(collabRoles.id, input.roleId))
-    return { success: true }
-  })
+    await db.delete(collabRoles).where(eq(collabRoles.id, input.roleId));
+    return { success: true };
+  });
 
 // ── Images ───────────────────────────────────────────────────────────────────
 
@@ -596,14 +613,14 @@ export const addPostImage = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
     if (post.authorId !== context.user.id) {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the post owner can add images.' })
+      throw new ORPCError("FORBIDDEN", { message: "Only the post owner can add images." });
     }
 
     const [image] = await db
@@ -615,10 +632,10 @@ export const addPostImage = os
         alt: input.alt,
         sortOrder: input.sortOrder,
       })
-      .returning()
+      .returning();
 
-    return image
-  })
+    return image;
+  });
 
 export const removePostImage = os
   .use(requireAuthWithPermissions)
@@ -628,26 +645,28 @@ export const removePostImage = os
       .select()
       .from(collabPostImages)
       .where(eq(collabPostImages.id, input.imageId))
-      .limit(1)
+      .limit(1);
 
     if (!image) {
-      throw new ORPCError('NOT_FOUND', { message: 'Image not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Image not found." });
     }
 
     const [post] = await db
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, image.postId))
-      .limit(1)
+      .limit(1);
 
-    const isOwner = post?.authorId === context.user.id
+    const isOwner = post?.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the post owner or staff can remove images.' })
+      throw new ORPCError("FORBIDDEN", {
+        message: "Only the post owner or staff can remove images.",
+      });
     }
 
-    await db.delete(collabPostImages).where(eq(collabPostImages.id, input.imageId))
-    return { success: true }
-  })
+    await db.delete(collabPostImages).where(eq(collabPostImages.id, input.imageId));
+    return { success: true };
+  });
 
 // ── Reports ──────────────────────────────────────────────────────────────────
 
@@ -664,13 +683,13 @@ export const reportPost = os
       .select()
       .from(collabPosts)
       .where(eq(collabPosts.id, input.postId))
-      .limit(1)
+      .limit(1);
 
     if (!post) {
-      throw new ORPCError('NOT_FOUND', { message: 'Post not found.' })
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    checkProfanity(input.reason, 'Report reason')
+    checkProfanity(input.reason, "Report reason");
 
     const [report] = await db
       .insert(collabPostReports)
@@ -679,10 +698,10 @@ export const reportPost = os
         reporterId: context.user.id,
         reason: input.reason,
       })
-      .returning()
+      .returning();
 
-    return report
-  })
+    return report;
+  });
 
 export const listReports = os
   .use(requireStaff)
@@ -693,18 +712,15 @@ export const listReports = os
         .select()
         .from(collabPostReports)
         .where(eq(collabPostReports.postId, input.postId))
-        .orderBy(desc(collabPostReports.createdAt))
+        .orderBy(desc(collabPostReports.createdAt));
     }
-    return db
-      .select()
-      .from(collabPostReports)
-      .orderBy(desc(collabPostReports.createdAt))
-  })
+    return db.select().from(collabPostReports).orderBy(desc(collabPostReports.createdAt));
+  });
 
 export const deleteReport = os
   .use(requireAdmin)
   .input(z.object({ reportId: z.number() }))
   .handler(async ({ input }) => {
-    await db.delete(collabPostReports).where(eq(collabPostReports.id, input.reportId))
-    return { success: true }
-  })
+    await db.delete(collabPostReports).where(eq(collabPostReports.id, input.reportId));
+    return { success: true };
+  });

@@ -1,8 +1,13 @@
-import { motion } from 'framer-motion';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { cn } from '@/lib/utils';
+import { motion } from "framer-motion";
+import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { cn } from "@/lib/utils";
 
-export const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+export const springTransition = {
+  type: "spring",
+  stiffness: 1000,
+  damping: 30,
+  mass: 0.1,
+} as const;
 
 export function MagneticFooterButton({
   onClick,
@@ -54,11 +59,14 @@ export function CharCount({ current, min, max }: { current: number; min?: number
   return (
     <span
       className={cn(
-        'font-mono text-[10px]',
-        atLimit ? 'text-destructive' :
-        nearLimit ? 'text-brackeys-yellow' :
-        belowMin ? 'text-brackeys-yellow' :
-        'text-muted-foreground/40',
+        "font-mono text-[10px]",
+        atLimit
+          ? "text-destructive"
+          : nearLimit
+            ? "text-brackeys-yellow"
+            : belowMin
+              ? "text-brackeys-yellow"
+              : "text-muted-foreground/40",
       )}
     >
       {current} / {max}

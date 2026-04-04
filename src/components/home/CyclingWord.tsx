@@ -1,7 +1,7 @@
-import * as React from 'react';
-import { ScrambleText, stagger } from '@/components/ui/scramble-text';
+import * as React from "react";
+import { ScrambleText, stagger } from "@/components/ui/scramble-text";
 
-const WORDS = ['MAKE', 'DESIGN', 'PRODUCE', 'DEVELOP', 'TEST', 'CREATE', 'PLAY', 'BUILD'];
+const WORDS = ["MAKE", "DESIGN", "PRODUCE", "DEVELOP", "TEST", "CREATE", "PLAY", "BUILD"];
 
 const STAGGER_INCREMENT = 0.15;
 const START_DELAY = 0.3;
@@ -28,7 +28,7 @@ export function CyclingWord({ className }: CyclingWordProps) {
   return (
     <ScrambleText
       duration={stagger(STAGGER_INCREMENT, { startDelay: START_DELAY })}
-      className={`whitespace-nowrap${className ? ` ${className}` : ''}`}
+      className={`whitespace-nowrap${className ? ` ${className}` : ""}`}
     >
       {WORDS[index]}
     </ScrambleText>

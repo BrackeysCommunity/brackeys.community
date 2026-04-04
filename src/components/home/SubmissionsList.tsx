@@ -1,27 +1,26 @@
-import { LinkSquare02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useDebounceFn } from 'ahooks';
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
-import { useMemo, useState } from 'react';
-import type { JamEntry } from '@/lib/jam-store';
+import { LinkSquare02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useDebounceFn } from "ahooks";
+import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
+import { useMemo, useState } from "react";
+import type { JamEntry } from "@/lib/jam-store";
 
 const PLATFORM_LABELS: Record<string, string> = {
-  windows: 'WIN',
-  osx: 'MAC',
-  linux: 'LNX',
-  web: 'WEB',
-  android: 'AND',
-  ios: 'iOS',
+  windows: "WIN",
+  osx: "MAC",
+  linux: "LNX",
+  web: "WEB",
+  android: "AND",
+  ios: "iOS",
 };
 
 function SubmissionCard({ entry }: { entry: JamEntry }) {
   const [expanded, setExpanded] = useState(false);
 
-  const { run: scheduleExpand, cancel: cancelExpand } = useDebounceFn(
-    () => setExpanded(true),
-    { wait: 140 },
-  );
+  const { run: scheduleExpand, cancel: cancelExpand } = useDebounceFn(() => setExpanded(true), {
+    wait: 140,
+  });
 
   const handleMouseEnter = () => scheduleExpand();
   const handleMouseLeave = () => {
@@ -35,8 +34,8 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
       onMouseLeave={handleMouseLeave}
       className={`relative flex flex-col px-3 py-2.5 transition-all duration-200 ${
         expanded
-          ? 'bg-card/80 border-x border-primary/40 shadow-[0_6px_24px_rgba(0,0,0,0.6)] -translate-y-px z-20'
-          : 'z-0'
+          ? "bg-card/80 border-x border-primary/40 shadow-[0_6px_24px_rgba(0,0,0,0.6)] -translate-y-px z-20"
+          : "z-0"
       }`}
     >
       {/* Main row: cover + title/meta + link button */}
@@ -48,13 +47,13 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
               src={entry.game.cover}
               alt={entry.game.title}
               className={`w-full h-full object-cover transition-all duration-300 ${
-                expanded ? 'grayscale-0' : 'grayscale'
+                expanded ? "grayscale-0" : "grayscale"
               }`}
             />
           ) : (
             <div
               className="w-full h-full"
-              style={{ backgroundColor: entry.game.cover_color ?? '#111' }}
+              style={{ backgroundColor: entry.game.cover_color ?? "#111" }}
             />
           )}
         </div>
@@ -64,8 +63,8 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           <code
             className={`font-mono text-xs font-bold px-1.5 py-0.5 border self-start truncate max-w-full transition-colors duration-150 ${
               expanded
-                ? 'text-primary border-primary/60 bg-primary/10'
-                : 'text-brackeys-yellow bg-brackeys-yellow/10 border-brackeys-yellow/30'
+                ? "text-primary border-primary/60 bg-primary/10"
+                : "text-brackeys-yellow bg-brackeys-yellow/10 border-brackeys-yellow/30"
             }`}
           >
             {entry.game.title}
@@ -94,8 +93,8 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           onClick={(e) => e.stopPropagation()}
           className={`flex items-center gap-1 px-2 py-1 bg-black border text-muted-foreground hover:text-white transition-all duration-150 shrink-0 font-mono text-[10px] font-bold uppercase ${
             expanded
-              ? 'opacity-100 border-primary/40 hover:border-primary'
-              : 'opacity-0 border-muted pointer-events-none'
+              ? "opacity-100 border-primary/40 hover:border-primary"
+              : "opacity-0 border-muted pointer-events-none"
           }`}
         >
           <HugeiconsIcon icon={LinkSquare02Icon} size={11} />
@@ -106,7 +105,7 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
       {/* Expandable description */}
       <div
         className={`overflow-hidden transition-all duration-250 ease-out ${
-          expanded ? 'max-h-24 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
+          expanded ? "max-h-24 opacity-100 mt-2" : "max-h-0 opacity-0 mt-0"
         }`}
       >
         <p className="text-xs font-mono text-muted-foreground leading-relaxed whitespace-pre-wrap overflow-y-auto max-h-20 pr-1">
@@ -152,18 +151,15 @@ export function SubmissionsList({ entries }: { entries: JamEntry[] }) {
       className="h-full"
       options={{
         scrollbars: {
-          theme: 'os-theme-dark',
-          autoHide: 'scroll',
+          theme: "os-theme-dark",
+          autoHide: "scroll",
           autoHideDelay: 800,
         },
       }}
       events={osEvents}
       defer
     >
-      <ul
-        className="relative"
-        style={{ height: virtualizer.getTotalSize(), width: '100%' }}
-      >
+      <ul className="relative" style={{ height: virtualizer.getTotalSize(), width: "100%" }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const entry = entries[vItem.index];
           return (
