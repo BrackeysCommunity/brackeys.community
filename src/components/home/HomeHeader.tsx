@@ -1,14 +1,14 @@
-import { Link } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Wifi01Icon, Clock01Icon } from '@hugeicons/core-free-icons';
-import { useInterval } from 'ahooks';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Link } from "@tanstack/react-router";
+import { motion } from "framer-motion";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Wifi01Icon, Clock01Icon } from "@hugeicons/core-free-icons";
+import { useInterval } from "ahooks";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 const getUtcTime = () => {
   const now = new Date();
-  return `UTC ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+  return `UTC ${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
 };
 
 export function HomeHeader() {
@@ -22,32 +22,36 @@ export function HomeHeader() {
           <motion.div
             className="h-8 w-8"
             style={{
-              maskImage: 'url(/brackeys-logo.svg)',
-              maskSize: 'contain',
-              maskRepeat: 'no-repeat',
-              maskPosition: 'center',
-              WebkitMaskImage: 'url(/brackeys-logo.svg)',
-              WebkitMaskSize: 'contain',
-              WebkitMaskRepeat: 'no-repeat',
-              WebkitMaskPosition: 'center',
+              maskImage: "url(/brackeys-logo.svg)",
+              maskSize: "contain",
+              maskRepeat: "no-repeat",
+              maskPosition: "center",
+              WebkitMaskImage: "url(/brackeys-logo.svg)",
+              WebkitMaskSize: "contain",
+              WebkitMaskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
             }}
             initial={{
-              backgroundImage: "linear-gradient(to bottom, #FFC107, #E91E63, #9C27B0, #E91E63, #FFC107)",
+              backgroundImage:
+                "linear-gradient(to bottom, #FFC107, #E91E63, #9C27B0, #E91E63, #FFC107)",
               backgroundPosition: "0 0%",
-              backgroundSize: "100% 500%"
+              backgroundSize: "100% 500%",
             }}
             animate={{
-              backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"]
+              backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"],
             }}
             transition={{
               duration: 6,
-              times: [0, .2, .4, .6, .8, 1],
+              times: [0, 0.2, 0.4, 0.6, 0.8, 1],
               repeat: Infinity,
-              ease: "linear"
+              ease: "linear",
             }}
           />
           <span className="font-bold text-foreground text-lg">
-            Brackeys<span className="bg-linear-to-r from-[#FFC107] via-[#E91E63] to-[#9C27B0] bg-clip-text text-transparent">Community</span>
+            Brackeys
+            <span className="bg-linear-to-r from-[#FFC107] via-[#E91E63] to-[#9C27B0] bg-clip-text text-transparent">
+              Community
+            </span>
           </span>
         </Link>
       </div>

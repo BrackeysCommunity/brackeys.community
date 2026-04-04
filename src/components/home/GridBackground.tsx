@@ -1,6 +1,6 @@
-import { PatternLines } from '@visx/pattern';
-import { useId } from 'react';
-import { cn } from '@/lib/utils';
+import { PatternLines } from "@visx/pattern";
+import { useId } from "react";
+import { cn } from "@/lib/utils";
 
 const CELL = 40;
 
@@ -13,7 +13,10 @@ export function GridBackground({ className, opacity = 0.1 }: GridBackgroundProps
   const patternId = useId();
 
   return (
-    <div className={cn('fixed inset-0 z-0 pointer-events-none overflow-hidden', className)} style={{ opacity }}>
+    <div
+      className={cn("fixed inset-0 z-0 pointer-events-none overflow-hidden", className)}
+      style={{ opacity }}
+    >
       <svg
         role="presentation"
         aria-hidden="true"
@@ -29,7 +32,7 @@ export function GridBackground({ className, opacity = 0.1 }: GridBackgroundProps
             width={CELL}
             stroke="#6B6B6B"
             strokeWidth={1}
-            orientation={['vertical', 'horizontal']}
+            orientation={["vertical", "horizontal"]}
           />
         </defs>
         <rect width="100%" height="100%" fill={`url(#${patternId})`} />

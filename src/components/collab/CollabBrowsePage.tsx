@@ -4,14 +4,14 @@ import {
   Search01Icon,
   FilterIcon,
   Cancel01Icon,
-} from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Link } from '@tanstack/react-router'
-import { useStore } from '@tanstack/react-store'
-import { useEffect, useRef, useState } from 'react'
-import { NotchedCard } from '@/components/ui/notched-card'
-import { authClient } from '@/lib/auth-client'
-import { authStore } from '@/lib/auth-store'
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
+import { useEffect, useRef, useState } from "react";
+import { NotchedCard } from "@/components/ui/notched-card";
+import { authClient } from "@/lib/auth-client";
+import { authStore } from "@/lib/auth-store";
 import {
   type CollabCompensationType,
   type CollabExperienceLevel,
@@ -22,52 +22,52 @@ import {
   collabStore,
   resetCollabFilters,
   setCollabFilters,
-} from '@/lib/collab-store'
-import { usePageSidebar } from '@/lib/hooks/use-page-layout'
-import { CollabBrowseSidebar } from './CollabBrowseSidebar'
+} from "@/lib/collab-store";
+import { usePageSidebar } from "@/lib/hooks/use-page-layout";
+import { CollabBrowseSidebar } from "./CollabBrowseSidebar";
 
 const TYPE_OPTIONS: { value: CollabPostType; label: string; icon: string }[] = [
-  { value: 'paid', label: 'PAID', icon: '$' },
-  { value: 'hobby', label: 'HOBBY', icon: '~' },
-  { value: 'playtest', label: 'PLAYTEST', icon: '>' },
-  { value: 'mentor', label: 'MENTOR', icon: '*' },
-]
+  { value: "paid", label: "PAID", icon: "$" },
+  { value: "hobby", label: "HOBBY", icon: "~" },
+  { value: "playtest", label: "PLAYTEST", icon: ">" },
+  { value: "mentor", label: "MENTOR", icon: "*" },
+];
 
 const LISTING_TYPE_OPTIONS: { value: CollabListingType; label: string }[] = [
-  { value: 'posts', label: 'PROJECTS' },
-  { value: 'people', label: 'PEOPLE' },
-]
+  { value: "posts", label: "PROJECTS" },
+  { value: "people", label: "PEOPLE" },
+];
 
 const STATUS_OPTIONS: { value: CollabStatus; label: string }[] = [
-  { value: 'recruiting', label: 'OPEN' },
-  { value: 'party_full', label: 'CLOSED' },
-]
+  { value: "recruiting", label: "OPEN" },
+  { value: "party_full", label: "CLOSED" },
+];
 
 const EXPERIENCE_OPTIONS: { value: CollabExperienceLevel; label: string }[] = [
-  { value: 'any', label: 'ANY' },
-  { value: 'beginner', label: 'BEGINNER' },
-  { value: 'intermediate', label: 'INTERMEDIATE' },
-  { value: 'experienced', label: 'EXPERIENCED' },
-]
+  { value: "any", label: "ANY" },
+  { value: "beginner", label: "BEGINNER" },
+  { value: "intermediate", label: "INTERMEDIATE" },
+  { value: "experienced", label: "EXPERIENCED" },
+];
 
 const COMP_OPTIONS: { value: CollabCompensationType; label: string }[] = [
-  { value: 'hourly', label: 'HOURLY' },
-  { value: 'fixed', label: 'FIXED' },
-  { value: 'rev_share', label: 'REV SHARE' },
-  { value: 'negotiable', label: 'NEGOTIABLE' },
-]
+  { value: "hourly", label: "HOURLY" },
+  { value: "fixed", label: "FIXED" },
+  { value: "rev_share", label: "REV SHARE" },
+  { value: "negotiable", label: "NEGOTIABLE" },
+];
 
 const SORT_OPTIONS: { value: CollabSortBy; label: string }[] = [
-  { value: 'createdAt', label: 'NEWEST' },
-  { value: 'updatedAt', label: 'UPDATED' },
-]
+  { value: "createdAt", label: "NEWEST" },
+  { value: "updatedAt", label: "UPDATED" },
+];
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className="font-mono text-[11px] font-bold tracking-widest text-foreground/80 uppercase">
       {children}
     </span>
-  )
+  );
 }
 
 function FilterChip({
@@ -76,10 +76,10 @@ function FilterChip({
   onClick,
   accent,
 }: {
-  label: string
-  active: boolean
-  onClick: () => void
-  accent?: string
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  accent?: string;
 }) {
   return (
     <button
@@ -87,29 +87,29 @@ function FilterChip({
       onClick={onClick}
       className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${
         active
-          ? `${accent ?? 'bg-primary/25 border-primary/60 text-primary'}`
-          : 'bg-muted/30 border-muted/60 text-foreground/70 hover:border-muted hover:text-foreground'
+          ? `${accent ?? "bg-primary/25 border-primary/60 text-primary"}`
+          : "bg-muted/30 border-muted/60 text-foreground/70 hover:border-muted hover:text-foreground"
       }`}
     >
       {label}
     </button>
-  )
+  );
 }
 
 export function FilterContent({ onDone }: { onDone?: () => void }) {
-  const { filters } = useStore(collabStore)
-  const [searchInput, setSearchInput] = useState(filters.search)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const { filters } = useStore(collabStore);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setCollabFilters({ search: searchInput })
-    }, 300)
+      setCollabFilters({ search: searchInput });
+    }, 300);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [searchInput])
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
 
   const activeFilterCount = [
     filters.type,
@@ -119,7 +119,7 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
     filters.compensationType,
     filters.isIndividual !== undefined ? true : undefined,
     filters.search,
-  ].filter(Boolean).length
+  ].filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -134,7 +134,11 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
           className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground outline-none"
         />
         {searchInput && (
-          <button type="button" onClick={() => setSearchInput('')} className="text-muted-foreground hover:text-foreground">
+          <button
+            type="button"
+            onClick={() => setSearchInput("")}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />
           </button>
         )}
@@ -157,8 +161,8 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
           <button
             type="button"
             onClick={() => {
-              resetCollabFilters()
-              setSearchInput('')
+              resetCollabFilters();
+              setSearchInput("");
             }}
             className="font-mono text-[10px] text-foreground/80 hover:text-primary tracking-wider uppercase transition-colors"
           >
@@ -176,7 +180,9 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
               key={t.value}
               label={`${t.icon} ${t.label}`}
               active={filters.type === t.value}
-              onClick={() => setCollabFilters({ type: filters.type === t.value ? undefined : t.value })}
+              onClick={() =>
+                setCollabFilters({ type: filters.type === t.value ? undefined : t.value })
+              }
             />
           ))}
         </div>
@@ -191,7 +197,11 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
               key={lt.value}
               label={lt.label}
               active={filters.listingType === lt.value}
-              onClick={() => setCollabFilters({ listingType: filters.listingType === lt.value ? undefined : lt.value })}
+              onClick={() =>
+                setCollabFilters({
+                  listingType: filters.listingType === lt.value ? undefined : lt.value,
+                })
+              }
             />
           ))}
         </div>
@@ -206,11 +216,13 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
               key={s.value}
               label={s.label}
               active={filters.status === s.value}
-              onClick={() => setCollabFilters({ status: filters.status === s.value ? undefined : s.value })}
+              onClick={() =>
+                setCollabFilters({ status: filters.status === s.value ? undefined : s.value })
+              }
               accent={
-                s.value === 'recruiting'
-                  ? 'bg-green-500/25 border-green-500/60 text-green-500'
-                  : 'bg-destructive/25 border-destructive/60 text-destructive'
+                s.value === "recruiting"
+                  ? "bg-green-500/25 border-green-500/60 text-green-500"
+                  : "bg-destructive/25 border-destructive/60 text-destructive"
               }
             />
           ))}
@@ -226,14 +238,18 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
               key={e.value}
               label={e.label}
               active={filters.experienceLevel === e.value}
-              onClick={() => setCollabFilters({ experienceLevel: filters.experienceLevel === e.value ? undefined : e.value })}
+              onClick={() =>
+                setCollabFilters({
+                  experienceLevel: filters.experienceLevel === e.value ? undefined : e.value,
+                })
+              }
             />
           ))}
         </div>
       </div>
 
       {/* Compensation type (paid only) */}
-      {filters.type === 'paid' && (
+      {filters.type === "paid" && (
         <div className="space-y-2">
           <SectionLabel>Compensation</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
@@ -242,7 +258,11 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
                 key={c.value}
                 label={c.label}
                 active={filters.compensationType === c.value}
-                onClick={() => setCollabFilters({ compensationType: filters.compensationType === c.value ? undefined : c.value })}
+                onClick={() =>
+                  setCollabFilters({
+                    compensationType: filters.compensationType === c.value ? undefined : c.value,
+                  })
+                }
                 accent="bg-green-500/25 border-green-500/60 text-green-500"
               />
             ))}
@@ -263,9 +283,11 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
             />
           ))}
           <FilterChip
-            label={filters.sortOrder === 'desc' ? 'DESC' : 'ASC'}
+            label={filters.sortOrder === "desc" ? "DESC" : "ASC"}
             active={false}
-            onClick={() => setCollabFilters({ sortOrder: filters.sortOrder === 'desc' ? 'asc' : 'desc' })}
+            onClick={() =>
+              setCollabFilters({ sortOrder: filters.sortOrder === "desc" ? "asc" : "desc" })
+            }
           />
         </div>
       </div>
@@ -280,13 +302,13 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
         </button>
       )}
     </div>
-  )
+  );
 }
 
 export function CollabBrowsePage() {
-  const { session, isPending } = useStore(authStore)
+  const { session, isPending } = useStore(authStore);
 
-  usePageSidebar(<CollabBrowseSidebar />)
+  usePageSidebar(<CollabBrowseSidebar />);
 
   return (
     <div className="flex flex-col h-full gap-4 selection:bg-primary selection:text-white">
@@ -304,7 +326,7 @@ export function CollabBrowsePage() {
           ) : (
             <button
               type="button"
-              onClick={() => authClient.signIn.social({ provider: 'discord' })}
+              onClick={() => authClient.signIn.social({ provider: "discord" })}
               className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none pointer-events-auto"
             >
               <HugeiconsIcon icon={Login01Icon} size={18} />
@@ -318,7 +340,7 @@ export function CollabBrowsePage() {
         className="flex-1 min-h-0"
         header={
           <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-            {'COLLAB // FILTERS'}
+            {"COLLAB // FILTERS"}
           </span>
         }
       >
@@ -327,5 +349,5 @@ export function CollabBrowsePage() {
         </div>
       </NotchedCard>
     </div>
-  )
+  );
 }

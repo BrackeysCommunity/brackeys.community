@@ -1,34 +1,37 @@
-import { useStore } from '@tanstack/react-store'
-import { useEffect } from 'react'
-import { authStore } from '@/lib/auth-store'
-import { collabStore, getWizardSteps, resetWizard } from '@/lib/collab-store'
-import { usePageSidebar } from '@/lib/hooks/use-page-layout'
-import { CollabCreateSidebar } from './CollabCreateSidebar'
+import { useStore } from "@tanstack/react-store";
+import { useEffect } from "react";
+import { authStore } from "@/lib/auth-store";
+import { collabStore, getWizardSteps, resetWizard } from "@/lib/collab-store";
+import { usePageSidebar } from "@/lib/hooks/use-page-layout";
+import { CollabCreateSidebar } from "./CollabCreateSidebar";
 
 export function CollabCreatePage() {
-  const { session } = useStore(authStore)
-  const { wizard } = useStore(collabStore)
+  const { session } = useStore(authStore);
+  const { wizard } = useStore(collabStore);
 
-  usePageSidebar(<CollabCreateSidebar />)
+  usePageSidebar(<CollabCreateSidebar />);
 
   useEffect(() => {
-    return () => resetWizard()
-  }, [])
+    return () => resetWizard();
+  }, []);
 
-  const steps = getWizardSteps(wizard.draft)
+  const steps = getWizardSteps(wizard.draft);
 
   return (
     <>
       {/* Status bar */}
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
-        <span className="text-primary">{'>'}</span>
-        {'NEW POST'}
-        <span className="mx-2 text-primary">{'//'}</span>
-        {'STEP '}{wizard.step + 1}{' OF '}{steps.length}
-        <span className="mx-2 text-primary">{'//'}</span>
-        {'AGENT: '}
-        <span className={session?.user ? 'text-primary' : 'text-destructive'}>
-          {session?.user?.name?.toUpperCase() ?? 'UNAUTHORIZED'}
+        <span className="text-primary">{">"}</span>
+        {"NEW POST"}
+        <span className="mx-2 text-primary">{"//"}</span>
+        {"STEP "}
+        {wizard.step + 1}
+        {" OF "}
+        {steps.length}
+        <span className="mx-2 text-primary">{"//"}</span>
+        {"AGENT: "}
+        <span className={session?.user ? "text-primary" : "text-destructive"}>
+          {session?.user?.name?.toUpperCase() ?? "UNAUTHORIZED"}
         </span>
       </div>
 
@@ -53,10 +56,10 @@ export function CollabCreatePage() {
             key={step.id}
             className={`flex items-center gap-3 border-2 px-4 py-3 font-mono transition-all ${
               i === wizard.step
-                ? 'border-primary bg-primary/5 text-primary'
+                ? "border-primary bg-primary/5 text-primary"
                 : i < wizard.step
-                  ? 'border-green-500/40 bg-green-500/5 text-green-500'
-                  : 'border-muted bg-card text-muted-foreground'
+                  ? "border-green-500/40 bg-green-500/5 text-green-500"
+                  : "border-muted bg-card text-muted-foreground"
             }`}
           >
             <span className="text-xs">{step.num}</span>
@@ -65,5 +68,5 @@ export function CollabCreatePage() {
         ))}
       </nav>
     </>
-  )
+  );
 }

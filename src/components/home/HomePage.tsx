@@ -1,22 +1,22 @@
-import { useCountDown } from 'ahooks';
-import { HeroSection } from '@/components/home/HeroSection';
-import { Sidebar } from '@/components/home/Sidebar';
-import { usePageSidebar } from '@/lib/hooks/use-page-layout';
+import { useCountDown } from "ahooks";
+import { HeroSection } from "@/components/home/HeroSection";
+import { Sidebar } from "@/components/home/Sidebar";
+import { usePageSidebar } from "@/lib/hooks/use-page-layout";
 
-const JAM_DEADLINE = new Date('2026-02-22T11:00:00Z');
+const JAM_DEADLINE = new Date("2026-02-22T11:00:00Z");
 
 export function HomePage() {
   const [, { days, hours, minutes, seconds }] = useCountDown({ targetDate: JAM_DEADLINE });
 
   const timeStr =
     days > 0
-      ? `${days}D ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-      : `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      ? `${days}D ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+      : `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
   const isJamOver = Date.now() >= JAM_DEADLINE.getTime();
   const ticker = `LIVE JAM IN PROGRESS: THEME IS STRANGE PLACES  ///  ${timeStr} REMAINING  ///  CHECK DISCORD FOR UPDATES  ///  `;
 
-  usePageSidebar(<Sidebar />, 'content');
+  usePageSidebar(<Sidebar />, "content");
 
   return (
     <div className="flex-1 h-full overflow-visible relative flex flex-col">
@@ -30,7 +30,10 @@ export function HomePage() {
             <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap">
               {ticker}
             </span>
-            <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap" aria-hidden>
+            <span
+              className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap"
+              aria-hidden
+            >
               {ticker}
             </span>
           </div>

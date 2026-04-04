@@ -1,7 +1,7 @@
-import { createContext, useContext, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { createContext, useContext, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 type Listener = () => void;
-type MobileMode = 'sidebar' | 'content';
+type MobileMode = "sidebar" | "content";
 
 interface LayoutState {
   sidebar: React.ReactNode;
@@ -9,19 +9,32 @@ interface LayoutState {
 }
 
 function createLayoutStore() {
-  let state: LayoutState = { sidebar: null, mobileMode: 'sidebar' };
+  let state: LayoutState = { sidebar: null, mobileMode: "sidebar" };
   const listeners = new Set<Listener>();
-  const notify = () => { for (const l of listeners) l(); };
+  const notify = () => {
+    for (const l of listeners) l();
+  };
 
   return {
     getSidebar: () => state.sidebar,
     getMobileMode: () => state.mobileMode,
-    setSidebar: (node: React.ReactNode) => { state = { ...state, sidebar: node }; notify(); },
-    setMobileMode: (mode: MobileMode) => { state = { ...state, mobileMode: mode }; notify(); },
-    reset: () => { state = { sidebar: null, mobileMode: 'sidebar' }; notify(); },
+    setSidebar: (node: React.ReactNode) => {
+      state = { ...state, sidebar: node };
+      notify();
+    },
+    setMobileMode: (mode: MobileMode) => {
+      state = { ...state, mobileMode: mode };
+      notify();
+    },
+    reset: () => {
+      state = { sidebar: null, mobileMode: "sidebar" };
+      notify();
+    },
     subscribe: (listener: Listener) => {
       listeners.add(listener);
-      return () => { listeners.delete(listener); };
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }
@@ -33,7 +46,7 @@ export function PageLayoutProvider({ children }: { children: React.ReactNode }) 
   return <PageLayoutContext.Provider value={store}>{children}</PageLayoutContext.Provider>;
 }
 
-export function usePageSidebar(sidebar: React.ReactNode, mobileMode: MobileMode = 'sidebar') {
+export function usePageSidebar(sidebar: React.ReactNode, mobileMode: MobileMode = "sidebar") {
   const ctx = useContext(PageLayoutContext);
   const sidebarRef = useRef(sidebar);
   sidebarRef.current = sidebar;

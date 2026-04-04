@@ -1,12 +1,16 @@
-import { ComputerTerminal01Icon, IdentityCardIcon, UserGroupIcon } from '@hugeicons/core-free-icons';
-import type { IconSvgElement } from '@hugeicons/react';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Link } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
-import { useMagnetic } from '@/lib/hooks/use-cursor';
-import { CyclingWord } from './CyclingWord';
+import {
+  ComputerTerminal01Icon,
+  IdentityCardIcon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
+import { motion } from "framer-motion";
+import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { CyclingWord } from "./CyclingWord";
 
-const springTransition = { type: 'spring', stiffness: 1000, damping: 30, mass: 0.1 } as const;
+const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
 interface NavItem {
   id: string;
@@ -34,8 +38,14 @@ function NavCard({ item }: { item: NavItem }) {
         className="group flex h-24 w-full min-w-[200px] flex-col justify-between border-2 border-muted bg-card p-4 transition-all duration-100 hover:-translate-y-1 hover:border-primary hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none"
       >
         <div className="flex justify-between">
-          <span className="font-mono text-xs text-muted-foreground group-hover:text-primary">{item.id}</span>
-          <HugeiconsIcon icon={item.icon} size={20} className="text-muted-foreground group-hover:text-primary" />
+          <span className="font-mono text-xs text-muted-foreground group-hover:text-primary">
+            {item.id}
+          </span>
+          <HugeiconsIcon
+            icon={item.icon}
+            size={20}
+            className="text-muted-foreground group-hover:text-primary"
+          />
         </div>
         <div className="font-mono font-bold text-2xl leading-none tracking-tight text-foreground group-hover:text-primary whitespace-pre-line">
           {item.label}
@@ -46,21 +56,21 @@ function NavCard({ item }: { item: NavItem }) {
 }
 
 const NAV_ITEMS = [
-  { id: '01', label: 'COLLAB\nBOARD', icon: UserGroupIcon, to: '/collab' },
-  { id: '02', label: 'COMMAND\nCENTER', icon: ComputerTerminal01Icon, to: '/command-center' },
-  { id: '03', label: 'DEV\nPROFILE', icon: IdentityCardIcon, to: '/profile' },
+  { id: "01", label: "COLLAB\nBOARD", icon: UserGroupIcon, to: "/collab" },
+  { id: "02", label: "COMMAND\nCENTER", icon: ComputerTerminal01Icon, to: "/command-center" },
+  { id: "03", label: "DEV\nPROFILE", icon: IdentityCardIcon, to: "/profile" },
 ];
 
 export function HeroSection() {
   return (
     <div className="flex w-full h-full flex-col justify-center">
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
-        <span className="text-primary">{'>'}</span>
-        {'SYSTEM READY'}
-        <span className="mx-2 text-primary">{'//'}</span>
+        <span className="text-primary">{">"}</span>
+        {"SYSTEM READY"}
+        <span className="mx-2 text-primary">{"//"}</span>
         {`v${__APP_VERSION__}`}
-        <span className="mx-2 text-primary">{'//'}</span>
-        {'WELCOME USER'}
+        <span className="mx-2 text-primary">{"//"}</span>
+        {"WELCOME USER"}
       </div>
 
       <div className="flex flex-col justify-center">
@@ -72,8 +82,8 @@ export function HeroSection() {
           </span>
         </h1>
         <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
-          The central neural network for the Brackeys Game Dev community.
-          Find your squad, access the knowledge base, and deploy your build.
+          The central neural network for the Brackeys Game Dev community. Find your squad, access
+          the knowledge base, and deploy your build.
         </p>
       </div>
 

@@ -1,24 +1,25 @@
-import { useState } from 'react';
-import { Copy01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Button } from '@/components/ui/button';
-import type { BotCommand } from '@/data/commands';
+import { useState } from "react";
+import { Copy01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@/components/ui/button";
+import type { BotCommand } from "@/data/commands";
 
 interface CommandRowProps {
   command: BotCommand;
 }
 
 const botBadgeStyles: Record<string, string> = {
-  hammer: 'text-cyan-400 border-cyan-400/40 bg-cyan-950/20',
-  pencil: 'text-violet-400 border-violet-400/40 bg-violet-950/20',
+  hammer: "text-cyan-400 border-cyan-400/40 bg-cyan-950/20",
+  pencil: "text-violet-400 border-violet-400/40 bg-violet-950/20",
 };
 
 /** Build the Discord slash-command string: `/cmd opt1: opt2:` */
 function buildCopyText(command: BotCommand, useMention?: boolean): string {
   if (!command.options?.length) return command.cmd;
   const opts = command.options
-    .filter(o => useMention || o.name !== "mention")
-    .map((o) => `${o.name}:${o.default}`).join(' ');
+    .filter((o) => useMention || o.name !== "mention")
+    .map((o) => `${o.name}:${o.default}`)
+    .join(" ");
   return `${command.cmd} ${opts}`;
 }
 
@@ -52,11 +53,16 @@ export function CommandRow({ command }: CommandRowProps) {
         {command.options && command.options.length > 0 && (
           <div className="space-y-1">
             {command.options.map((opt) => (
-              <div key={opt.name} className="text-xs font-mono text-muted-foreground flex items-center gap-2">
+              <div
+                key={opt.name}
+                className="text-xs font-mono text-muted-foreground flex items-center gap-2"
+              >
                 <span className="text-primary">{opt.name}:</span>
                 <span>{opt.description}</span>
                 {opt.required && (
-                  <span className="text-destructive/70 text-[10px] uppercase tracking-wider">required</span>
+                  <span className="text-destructive/70 text-[10px] uppercase tracking-wider">
+                    required
+                  </span>
                 )}
               </div>
             ))}
@@ -64,7 +70,7 @@ export function CommandRow({ command }: CommandRowProps) {
         )}
 
         <div className="text-xs font-mono text-muted-foreground">
-          <span className="text-primary">EXAMPLE:</span>{' '}
+          <span className="text-primary">EXAMPLE:</span>{" "}
           <span className="text-brackeys-yellow/80">{buildCopyText(command, true)}</span>
         </div>
       </div>
@@ -76,9 +82,7 @@ export function CommandRow({ command }: CommandRowProps) {
         className="flex items-center gap-2 px-3 py-2 bg-black border border-muted hover:border-primary text-muted-foreground hover:text-white transition-all group-hover:-translate-x-0.5 group-hover:-translate-y-0.5 group-hover:shadow-[2px_2px_0px_var(--color-primary)] active:translate-x-0 active:translate-y-0 active:shadow-none self-start md:self-center shrink-0 relative z-10"
       >
         <HugeiconsIcon icon={Copy01Icon} size={16} />
-        <span className="font-mono text-xs font-bold uppercase">
-          {copied ? 'Copied!' : 'Copy'}
-        </span>
+        <span className="font-mono text-xs font-bold uppercase">{copied ? "Copied!" : "Copy"}</span>
       </Button>
     </div>
   );

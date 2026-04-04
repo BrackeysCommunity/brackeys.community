@@ -1,7 +1,7 @@
-import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from 'framer-motion';
-import * as React from 'react';
-import { useCursorState } from '@/lib/hooks/use-cursor';
-import { cn } from '@/lib/utils';
+import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from "framer-motion";
+import * as React from "react";
+import { useCursorState } from "@/lib/hooks/use-cursor";
+import { cn } from "@/lib/utils";
 
 const BORDER = 3;
 const CORNER = 12;
@@ -12,21 +12,21 @@ const ARC_SWEEP = 90 - ARC_GAP;
 
 const IDLE_POS = [
   { x: -CORNER * 1.5, y: -CORNER * 1.5 },
-  { x: CORNER * 0.5,  y: -CORNER * 1.5 },
-  { x: CORNER * 0.5,  y: CORNER * 0.5  },
-  { x: -CORNER * 1.5, y: CORNER * 0.5  },
+  { x: CORNER * 0.5, y: -CORNER * 1.5 },
+  { x: CORNER * 0.5, y: CORNER * 0.5 },
+  { x: -CORNER * 1.5, y: CORNER * 0.5 },
 ] as const;
 
 const CURSOR_SPRING = { damping: 20, stiffness: 1500, mass: 0.05 };
 const CORNER_SPRING = { stiffness: 400, damping: 30, mass: 0.08 };
-const FADE_TRANSITION = { duration: 0.15, ease: 'easeInOut' } as const;
-const ARC_SPRING = { type: 'spring', stiffness: 500, damping: 25, mass: 0.08 } as const;
+const FADE_TRANSITION = { duration: 0.15, ease: "easeInOut" } as const;
+const ARC_SPRING = { type: "spring", stiffness: 500, damping: 25, mass: 0.08 } as const;
 
 const CORNER_CLASSES = [
-  'border-t-[3px] border-l-[3px]',
-  'border-t-[3px] border-r-[3px]',
-  'border-b-[3px] border-r-[3px]',
-  'border-b-[3px] border-l-[3px]',
+  "border-t-[3px] border-l-[3px]",
+  "border-t-[3px] border-r-[3px]",
+  "border-b-[3px] border-r-[3px]",
+  "border-b-[3px] border-l-[3px]",
 ] as const;
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -78,7 +78,7 @@ function BounceWrapper({
   children: React.ReactNode;
 }) {
   const strength = bounce ?? 0.02;
-  const [origin, setOrigin] = React.useState('0px 0px');
+  const [origin, setOrigin] = React.useState("0px 0px");
 
   React.useEffect(() => {
     if (!isMagnetic || !targetElement) return;
@@ -102,9 +102,7 @@ function BounceWrapper({
       className="absolute top-0 left-0 w-0 h-0"
       animate={shouldBounce ? { scale: [1, 1 - strength, 1] } : { scale: 1 }}
       transition={
-        shouldBounce
-          ? { duration: 0.5, repeat: Infinity, ease: 'backInOut' }
-          : { duration: 0.3 }
+        shouldBounce ? { duration: 0.5, repeat: Infinity, ease: "backInOut" } : { duration: 0.3 }
       }
       style={{ transformOrigin: origin }}
     >
@@ -120,9 +118,9 @@ interface CursorProps {
 
 export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const cursorState = useCursorState();
-  const isMagnetic = cursorState.type === 'magnetic';
-  const isHidden = cursorState.type === 'hidden';
-  const isText = cursorState.type === 'text';
+  const isMagnetic = cursorState.type === "magnetic";
+  const isHidden = cursorState.type === "hidden";
+  const isText = cursorState.type === "text";
 
   const [isPressed, setIsPressed] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(false);
@@ -155,7 +153,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const sc3y = useSpring(c3y, CORNER_SPRING);
 
   React.useEffect(() => {
-    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
     setIsMobile(hasTouch && window.innerWidth <= 768);
   }, []);
 
@@ -167,13 +165,13 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     };
     const onDown = () => setIsPressed(true);
     const onUp = () => setIsPressed(false);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mousedown', onDown);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("mouseup", onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("mouseup", onUp);
     };
   }, [isMobile, mouseX, mouseY]);
 
@@ -182,7 +180,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     isSpinRef.current = true;
     void spinControls.start({
       rotate: [0, 360],
-      transition: { duration: spinDuration, ease: 'linear', repeat: Infinity },
+      transition: { duration: spinDuration, ease: "linear", repeat: Infinity },
     });
   }, [spinControls, spinDuration]);
 
@@ -196,7 +194,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       }
 
       spinControls.stop();
-      void spinControls.set({ rotate: 0 });
+      spinControls.set({ rotate: 0 });
       isSpinRef.current = false;
 
       const cs = cursorState.cornerSize ?? CORNER;
@@ -206,14 +204,22 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       const noDrift = cursorState.noDrift ?? false;
 
       const jumpToIdle = () => {
-        c0x.set(IDLE_POS[0].x); c0y.set(IDLE_POS[0].y);
-        c1x.set(IDLE_POS[1].x); c1y.set(IDLE_POS[1].y);
-        c2x.set(IDLE_POS[2].x); c2y.set(IDLE_POS[2].y);
-        c3x.set(IDLE_POS[3].x); c3y.set(IDLE_POS[3].y);
-        sc0x.jump(IDLE_POS[0].x); sc0y.jump(IDLE_POS[0].y);
-        sc1x.jump(IDLE_POS[1].x); sc1y.jump(IDLE_POS[1].y);
-        sc2x.jump(IDLE_POS[2].x); sc2y.jump(IDLE_POS[2].y);
-        sc3x.jump(IDLE_POS[3].x); sc3y.jump(IDLE_POS[3].y);
+        c0x.set(IDLE_POS[0].x);
+        c0y.set(IDLE_POS[0].y);
+        c1x.set(IDLE_POS[1].x);
+        c1y.set(IDLE_POS[1].y);
+        c2x.set(IDLE_POS[2].x);
+        c2y.set(IDLE_POS[2].y);
+        c3x.set(IDLE_POS[3].x);
+        c3y.set(IDLE_POS[3].y);
+        sc0x.jump(IDLE_POS[0].x);
+        sc0y.jump(IDLE_POS[0].y);
+        sc1x.jump(IDLE_POS[1].x);
+        sc1y.jump(IDLE_POS[1].y);
+        sc2x.jump(IDLE_POS[2].x);
+        sc2y.jump(IDLE_POS[2].y);
+        sc3x.jump(IDLE_POS[3].x);
+        sc3y.jump(IDLE_POS[3].y);
       };
 
       const updateCorners = () => {
@@ -226,25 +232,33 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
         const cx = springX.get();
         const cy = springY.get();
 
-        const v0x = r.left   - BORDER - hpx - cx;
-        const v0y = r.top    - BORDER - hpy - cy;
-        const v1x = r.right  + BORDER + hpx - cs - cx;
-        const v1y = r.top    - BORDER - hpy - cy;
-        const v2x = r.right  + BORDER + hpx - cs - cx;
+        const v0x = r.left - BORDER - hpx - cx;
+        const v0y = r.top - BORDER - hpy - cy;
+        const v1x = r.right + BORDER + hpx - cs - cx;
+        const v1y = r.top - BORDER - hpy - cy;
+        const v2x = r.right + BORDER + hpx - cs - cx;
         const v2y = r.bottom + BORDER + hpy - cs - cy;
-        const v3x = r.left   - BORDER - hpx - cx;
+        const v3x = r.left - BORDER - hpx - cx;
         const v3y = r.bottom + BORDER + hpy - cs - cy;
 
-        c0x.set(v0x); c0y.set(v0y);
-        c1x.set(v1x); c1y.set(v1y);
-        c2x.set(v2x); c2y.set(v2y);
-        c3x.set(v3x); c3y.set(v3y);
+        c0x.set(v0x);
+        c0y.set(v0y);
+        c1x.set(v1x);
+        c1y.set(v1y);
+        c2x.set(v2x);
+        c2y.set(v2y);
+        c3x.set(v3x);
+        c3y.set(v3y);
 
         if (noDrift) {
-          sc0x.jump(v0x); sc0y.jump(v0y);
-          sc1x.jump(v1x); sc1y.jump(v1y);
-          sc2x.jump(v2x); sc2y.jump(v2y);
-          sc3x.jump(v3x); sc3y.jump(v3y);
+          sc0x.jump(v0x);
+          sc0y.jump(v0y);
+          sc1x.jump(v1x);
+          sc1y.jump(v1y);
+          sc2x.jump(v2x);
+          sc2y.jump(v2y);
+          sc3x.jump(v3x);
+          sc3y.jump(v3y);
         }
       };
 
@@ -259,17 +273,21 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
         rafId = requestAnimationFrame(tick);
       }
 
-      const unsubX = springX.on('change', updateCorners);
-      const unsubY = springY.on('change', updateCorners);
+      const unsubX = springX.on("change", updateCorners);
+      const unsubY = springY.on("change", updateCorners);
 
       return () => {
         unsubX();
         unsubY();
         if (noDrift) cancelAnimationFrame(rafId);
-        c0x.set(IDLE_POS[0].x); c0y.set(IDLE_POS[0].y);
-        c1x.set(IDLE_POS[1].x); c1y.set(IDLE_POS[1].y);
-        c2x.set(IDLE_POS[2].x); c2y.set(IDLE_POS[2].y);
-        c3x.set(IDLE_POS[3].x); c3y.set(IDLE_POS[3].y);
+        c0x.set(IDLE_POS[0].x);
+        c0y.set(IDLE_POS[0].y);
+        c1x.set(IDLE_POS[1].x);
+        c1y.set(IDLE_POS[1].y);
+        c2x.set(IDLE_POS[2].x);
+        c2y.set(IDLE_POS[2].y);
+        c3x.set(IDLE_POS[3].x);
+        c3y.set(IDLE_POS[3].y);
         spinTimeoutRef.current = setTimeout(startSpin, 50);
       };
     }
@@ -286,8 +304,22 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     spinControls,
     springX,
     springY,
-    c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y,
-    sc0x, sc0y, sc1x, sc1y, sc2x, sc2y, sc3x, sc3y,
+    c0x,
+    c0y,
+    c1x,
+    c1y,
+    c2x,
+    c2y,
+    c3x,
+    c3y,
+    sc0x,
+    sc0y,
+    sc1x,
+    sc1y,
+    sc2x,
+    sc2y,
+    sc3x,
+    sc3y,
   ]);
 
   if (isMobile || isHidden) return null;
@@ -303,13 +335,13 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
 
   return (
     <motion.div
-      className={cn('fixed top-0 left-0 w-0 h-0 pointer-events-none z-9999', className)}
-      style={{ x: springX, y: springY, willChange: 'transform' }}
+      className={cn("fixed top-0 left-0 w-0 h-0 pointer-events-none z-9999", className)}
+      style={{ x: springX, y: springY, willChange: "transform" }}
     >
       {/* Center dot */}
       <motion.div
         className="absolute rounded-full bg-foreground"
-        style={{ width: 4, height: 4, top: 0, left: 0, x: -2, y: -2, willChange: 'transform' }}
+        style={{ width: 4, height: 4, top: 0, left: 0, x: -2, y: -2, willChange: "transform" }}
         animate={{ scale: isPressed ? 0.5 : 1 }}
         transition={{ duration: 0.2 }}
       />
@@ -318,7 +350,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       {isText && (
         <div
           className="absolute bg-foreground"
-          style={{ width: 2, height: 24, top: 0, left: 0, transform: 'translate(-50%, -50%)' }}
+          style={{ width: 2, height: 24, top: 0, left: 0, transform: "translate(-50%, -50%)" }}
         />
       )}
 
@@ -335,20 +367,29 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
           <motion.div
             className="absolute top-0 left-0 w-0 h-0"
             animate={spinControls}
-            style={{ willChange: 'transform' }}
+            style={{ willChange: "transform" }}
           >
             {/* Square corner brackets — visible when magnetic */}
             {corners.map((pos, i) => (
               <motion.div
                 key={CORNER_CLASSES[i]}
-                className={cn('absolute top-0 left-0 border-foreground rounded-[3px]', CORNER_CLASSES[i])}
+                className={cn(
+                  "absolute top-0 left-0 border-foreground rounded-[3px]",
+                  CORNER_CLASSES[i],
+                )}
                 animate={{
                   opacity: isMagnetic ? 1 : 0,
                   scaleX: isPressed ? -1 : 1,
                   scaleY: isPressed ? -1 : 1,
                 }}
                 transition={FADE_TRANSITION}
-                style={{ width: CORNER, height: CORNER, x: pos.x, y: pos.y, willChange: 'transform' }}
+                style={{
+                  width: CORNER,
+                  height: CORNER,
+                  x: pos.x,
+                  y: pos.y,
+                  willChange: "transform",
+                }}
               />
             ))}
 

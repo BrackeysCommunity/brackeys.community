@@ -1,20 +1,26 @@
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react'
-import { NOTCH_SIZE, notchClip, notchClipInner } from '@/lib/notch'
-import { cn } from '@/lib/utils'
+import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
+import { NOTCH_SIZE, notchClip, notchClipInner } from "@/lib/notch";
+import { cn } from "@/lib/utils";
 
 interface NotchedCardProps {
-  children: React.ReactNode
-  className?: string
-  header?: React.ReactNode
-  footer?: React.ReactNode
-  scrollable?: boolean
+  children: React.ReactNode;
+  className?: string;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+  scrollable?: boolean;
 }
 
-export function NotchedCard({ children, className, header, footer, scrollable = true }: NotchedCardProps) {
+export function NotchedCard({
+  children,
+  className,
+  header,
+  footer,
+  scrollable = true,
+}: NotchedCardProps) {
   return (
     <div
-      className={cn('bg-muted/60 pointer-events-auto', className)}
-      style={{ clipPath: notchClip, padding: '2px' }}
+      className={cn("bg-muted/60 pointer-events-auto", className)}
+      style={{ clipPath: notchClip, padding: "2px" }}
     >
       <div
         className="flex flex-col h-full bg-background/70 relative"
@@ -23,9 +29,7 @@ export function NotchedCard({ children, className, header, footer, scrollable = 
         <NotchedCardDecorators />
 
         {header && (
-          <div className="border-b border-muted/60 bg-card/40 px-4 py-2.5 shrink-0">
-            {header}
-          </div>
+          <div className="border-b border-muted/60 bg-card/40 px-4 py-2.5 shrink-0">{header}</div>
         )}
 
         {scrollable ? (
@@ -34,8 +38,8 @@ export function NotchedCard({ children, className, header, footer, scrollable = 
             className="flex-1 min-h-0"
             options={{
               scrollbars: {
-                theme: 'os-theme-dark',
-                autoHide: 'scroll',
+                theme: "os-theme-dark",
+                autoHide: "scroll",
                 autoHideDelay: 800,
               },
             }}
@@ -43,19 +47,13 @@ export function NotchedCard({ children, className, header, footer, scrollable = 
             {children}
           </OverlayScrollbarsComponent>
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {children}
-          </div>
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">{children}</div>
         )}
 
-        {footer && (
-          <div className="border-t border-muted/60 bg-card/30 shrink-0">
-            {footer}
-          </div>
-        )}
+        {footer && <div className="border-t border-muted/60 bg-card/30 shrink-0">{footer}</div>}
       </div>
     </div>
-  )
+  );
 }
 
 export function NotchedCardDecorators() {
@@ -71,7 +69,14 @@ export function NotchedCardDecorators() {
         viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
         fill="none"
       >
-        <line x1="0" y1="1" x2={NOTCH_SIZE + 1} y2={NOTCH_SIZE + 2} stroke="currentColor" strokeWidth="1" />
+        <line
+          x1="0"
+          y1="1"
+          x2={NOTCH_SIZE + 1}
+          y2={NOTCH_SIZE + 2}
+          stroke="currentColor"
+          strokeWidth="1"
+        />
       </svg>
       <svg
         aria-hidden="true"
@@ -81,8 +86,15 @@ export function NotchedCardDecorators() {
         viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
         fill="none"
       >
-        <line x1={NOTCH_SIZE + 1} y1={NOTCH_SIZE + 1} x2="0" y2="0" stroke="currentColor" strokeWidth="1" />
+        <line
+          x1={NOTCH_SIZE + 1}
+          y1={NOTCH_SIZE + 1}
+          x2="0"
+          y2="0"
+          stroke="currentColor"
+          strokeWidth="1"
+        />
       </svg>
     </>
-  )
+  );
 }

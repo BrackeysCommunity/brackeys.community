@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 interface Skill {
   id: number;
@@ -16,7 +16,7 @@ export function ProfileSkills({ skills, className }: ProfileSkillsProps) {
 
   const grouped = new Map<string, Skill[]>();
   for (const skill of skills) {
-    const cat = skill.category ?? 'Other';
+    const cat = skill.category ?? "Other";
     const existing = grouped.get(cat);
     if (existing) {
       existing.push(skill);
@@ -25,10 +25,10 @@ export function ProfileSkills({ skills, className }: ProfileSkillsProps) {
     }
   }
 
-  const hasCategories = grouped.size > 1 || !grouped.has('Other');
+  const hasCategories = grouped.size > 1 || !grouped.has("Other");
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn("space-y-3", className)}>
       {hasCategories ? (
         Array.from(grouped.entries()).map(([category, catSkills]) => (
           <div key={category}>

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 interface ProfileBioProps {
   bio: string;
@@ -8,10 +8,10 @@ interface ProfileBioProps {
 
 export function ProfileBio({ bio, maxLines, className }: ProfileBioProps) {
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn("relative", className)}>
       <p
         className={cn(
-          'font-sans text-[13px] text-muted-foreground/80 leading-[1.7] whitespace-pre-wrap',
+          "font-sans text-[13px] text-muted-foreground/80 leading-[1.7] whitespace-pre-wrap",
           maxLines && `line-clamp-${maxLines}`,
         )}
       >

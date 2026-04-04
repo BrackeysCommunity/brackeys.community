@@ -1,0 +1,18 @@
+version-bump:
+  stage: version
+  image: node:22-slim
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: "1"
+  before_script:
+    - git config user.name "gitlab-ci[bot]"
+    - git config user.email "gitlab-ci[bot]@noreply.gitlab.com"
+    - git remote set-url origin "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+  script:
+    - npm version prerelease --preid=alpha --no-git-tag-version
+    - VERSION=$(node -p "require('./package.json').version")
+    - git add package.json
+    - git commit -m "chore:\ bump version to ${VERSION}"
+    - git push origin HEAD:main
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main' && $CI_COMMIT_MESSAGE !~ /^chore:\ bump version to/
