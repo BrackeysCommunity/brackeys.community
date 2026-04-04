@@ -1,39 +1,35 @@
-image: ubuntu:latest
+atlas-lint-prod:
+  stage: atlas-lint
+  image: arigaio/atlas:latest
+  services:
+    - postgres:16
+  variables:
+    POSTGRES_DB: dev
+    POSTGRES_USER: user
+    POSTGRES_PASSWORD: pass
+  script:
+    - atlas migrate lint --env local --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle" --git-base $CI_MERGE_REQUEST_DIFF_BASE_SHA
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
 
-services:
-  - postgres:latest
+atlas-push-prod:
+  stage: atlas-push
+  image: arigaio/atlas:latest
+  services:
+    - postgres:16
+  variables:
+    POSTGRES_DB: dev
+    POSTGRES_USER: user
+    POSTGRES_PASSWORD: pass
+  script:
+    - atlas migrate push brackeys --env local --dev-url "postgres://user:pass@postgres/dev?sslmode=disable" --dir "file://drizzle"
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'prod'
 
-variables:
-  POSTGRES_DB: dev
-  POSTGRES_USER: user
-  POSTGRES_PASSWORD: pass
-
-include:
-  - component: gitlab.com/arigaio/atlas/migrate-lint@~latest
-    inputs:
-      stage: atlas-lint
-      dir: "file://drizzle"
-      atlas-cloud-token: $ATLAS_CLOUD_TOKEN
-      dir-name: "brackeys"
-      dev-url: "postgres://user:pass@postgres/dev?sslmode=disable"
-      gitlab-token: $GITLAB_TOKEN
-
-  - component: gitlab.com/arigaio/atlas/migrate-push@~latest
-    inputs:
-      stage: atlas-push
-      branches:
-        - prod
-      dir: "file://drizzle"
-      dir-name: "brackeys"
-      dev-url: "postgres://user:pass@postgres/dev?sslmode=disable"
-      atlas-cloud-token: $ATLAS_CLOUD_TOKEN
-
-  - component: gitlab.com/arigaio/atlas/migrate-apply@~latest
-    inputs:
-      stage: atlas-apply
-      branches:
-        - prod
-      dir: "file://drizzle"
-      url: $PROD_DATABASE_URL
-      revisions-schema: public
-      atlas-cloud-token: $ATLAS_CLOUD_TOKEN
+atlas-apply-prod:
+  stage: atlas-apply
+  image: arigaio/atlas:latest
+  script:
+    - atlas migrate apply --env local --dir "file://drizzle" --url "$PROD_DATABASE_URL" --revisions-schema public
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'prod'
