@@ -26,6 +26,6 @@ atlas-apply-staging:
     - atlas login --token $ATLAS_CLOUD_TOKEN
   script:
     - atlas migrate hash --dir "file://drizzle"
-    - atlas migrate apply --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public
+    - atlas migrate apply --dir "file://drizzle" --url "$STAGING_DATABASE_URL" --revisions-schema public --baseline 0010
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'

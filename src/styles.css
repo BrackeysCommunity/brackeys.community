@@ -155,7 +155,6 @@
   textarea,
   label,
   [tabindex]:not([tabindex="-1"]),
-  [data-radix-popper-content-wrapper],
   [cmdk-item] {
     cursor: none !important;
     pointer-events: auto;
