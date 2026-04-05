@@ -1,7 +1,12 @@
+workflow:
+  rules:
+    - if: "$CI_COMMIT_MESSAGE =~ /^chore: bump version to/"
+      when: never
+    - when: always
+
 stages:
   - check
   - test
-  - build
   - sonar
   - atlas-push
   - atlas-apply
