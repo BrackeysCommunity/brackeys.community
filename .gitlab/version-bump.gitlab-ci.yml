@@ -12,7 +12,7 @@ version-bump:
     - npm version prerelease --preid=alpha --no-git-tag-version
     - VERSION=$(node -p "require('./package.json').version")
     - git add package.json
-    - git commit -m "chore:\ bump version to ${VERSION}"
+    - 'git commit -m "chore: bump version to ${VERSION}"'
     - git push origin HEAD:main
   rules:
-    - if: $CI_COMMIT_BRANCH == 'main' && $CI_COMMIT_MESSAGE !~ /^chore:\ bump version to/
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE !~ /^chore: bump version to/'

@@ -8,8 +8,6 @@ check:
     - bun run check
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-    - if: $CI_COMMIT_BRANCH == 'main'
-    - if: $CI_COMMIT_BRANCH == 'prod'
 
 test:
   stage: test
@@ -26,17 +24,3 @@ test:
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
     - if: $CI_COMMIT_BRANCH == 'main'
-    - if: $CI_COMMIT_BRANCH == 'prod'
-
-build:
-  stage: build
-  image: oven/bun:latest
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq git
-    - bun install --frozen-lockfile
-  script:
-    - bun run build
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-    - if: $CI_COMMIT_BRANCH == 'main'
-    - if: $CI_COMMIT_BRANCH == 'prod'
