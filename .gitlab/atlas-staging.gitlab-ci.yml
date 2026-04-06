@@ -41,6 +41,7 @@ atlas-apply-staging:
   variables:
     ATLAS_TOKEN: $ATLAS_CLOUD_TOKEN
     ATLAS_INPUT_DIR: "file://drizzle"
+    ATLAS_INPUT_DIR_NAME: "brackeys"
     ATLAS_INPUT_URL: $STAGING_DATABASE_URL
     ATLAS_INPUT_REVISIONS_SCHEMA: "public"
     ATLAS_INPUT_ALLOW_DIRTY: "true"
