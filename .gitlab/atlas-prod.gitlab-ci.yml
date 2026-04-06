@@ -21,6 +21,7 @@ atlas-push-prod:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
+    - atlas migrate hash --dir "file://drizzle"
     - CI=true atlas migrate push brackeys --dir "file://drizzle" --dev-url "$ATLAS_INPUT_DEV_URL"
   after_script:
     - mkdir -p $CI_PROJECT_DIR/.atlas
