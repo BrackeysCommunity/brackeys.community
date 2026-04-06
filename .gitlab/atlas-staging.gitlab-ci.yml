@@ -21,7 +21,7 @@ atlas-push-staging:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
-    - CI=true atlas migrate push --dir "file://drizzle" --dir-name brackeys --dev-url "$ATLAS_INPUT_DEV_URL"
+    - CI=true atlas migrate push brackeys --dir "file://drizzle" --dev-url "$ATLAS_INPUT_DEV_URL"
   after_script:
     - mkdir -p $CI_PROJECT_DIR/.atlas
     - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true

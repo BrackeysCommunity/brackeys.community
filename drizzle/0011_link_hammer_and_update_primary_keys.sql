@@ -20,45 +20,5 @@ ALTER TABLE "hammer"."staff_messages" ALTER COLUMN "guild_id" TYPE text, ALTER C
 ALTER TABLE "hammer"."temporary_bans" ALTER COLUMN "guild_id" TYPE text, ALTER COLUMN "user_id" TYPE text, ADD CONSTRAINT "temporary_bans_user_id_developer_profiles_discord_id_fk" FOREIGN KEY ("user_id") REFERENCES "user"."developer_profiles" ("discord_id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "tracked_messages" table
 ALTER TABLE "hammer"."tracked_messages" ALTER COLUMN "author_id" TYPE text, ALTER COLUMN "channel_id" TYPE text, ALTER COLUMN "guild_id" TYPE text, ADD CONSTRAINT "tracked_messages_author_id_developer_profiles_discord_id_fk" FOREIGN KEY ("author_id") REFERENCES "user"."developer_profiles" ("discord_id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Drop orphaned sequence from 0008 migration (id changed to text but sequence was never dropped)
-DROP SEQUENCE IF EXISTS "user"."profile_projects_id_seq" CASCADE;
--- Create function to ensure a developer profile exists for a Discord ID
-CREATE OR REPLACE FUNCTION hammer.ensure_developer_profile()
-RETURNS TRIGGER AS $$
-DECLARE
-  col text;
-  discord_id text;
-BEGIN
-  FOREACH col IN ARRAY TG_ARGV
-  LOOP
-    EXECUTE format('SELECT ($1).%I', col) INTO discord_id USING NEW;
-    IF discord_id IS NOT NULL THEN
-      INSERT INTO "user".developer_profiles (id, discord_id, created_at, updated_at)
-      VALUES (gen_random_uuid()::text, discord_id, now(), now())
-      ON CONFLICT (discord_id) DO NOTHING;
-    END IF;
-  END LOOP;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
--- Add triggers to hammer tables
-CREATE TRIGGER ensure_profile_alt_accounts BEFORE INSERT ON hammer.alt_accounts
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('user_id', 'alt_id', 'staff_member_id');
-CREATE TRIGGER ensure_profile_blocked_reporters BEFORE INSERT ON hammer.blocked_reporters
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('user_id', 'staff_member_id');
-CREATE TRIGGER ensure_profile_deleted_messages BEFORE INSERT ON hammer.deleted_messages
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('author_id', 'staff_member_id');
-CREATE TRIGGER ensure_profile_infractions BEFORE INSERT ON hammer.infractions
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('user_id', 'staff_member_id');
-CREATE TRIGGER ensure_profile_member_notes BEFORE INSERT ON hammer.member_notes
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('author_id', 'user_id');
-CREATE TRIGGER ensure_profile_mutes BEFORE INSERT ON hammer.mutes
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('user_id');
-CREATE TRIGGER ensure_profile_reported_messages BEFORE INSERT ON hammer.reported_messages
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('author_id', 'reporter_id');
-CREATE TRIGGER ensure_profile_staff_messages BEFORE INSERT ON hammer.staff_messages
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('recipient_id', 'staff_member_id');
-CREATE TRIGGER ensure_profile_temporary_bans BEFORE INSERT ON hammer.temporary_bans
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('user_id');
-CREATE TRIGGER ensure_profile_tracked_messages BEFORE INSERT ON hammer.tracked_messages
-  FOR EACH ROW EXECUTE FUNCTION hammer.ensure_developer_profile('author_id');
+-- Drop sequence "profile_projects_id_seq"
+DROP SEQUENCE "user"."profile_projects_id_seq";
