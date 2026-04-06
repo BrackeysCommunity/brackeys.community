@@ -63,7 +63,6 @@ atlas-apply-staging:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
-    - atlas migrate hash --dir "file://drizzle"
     - |
       ( curl -sSf https://raw.githubusercontent.com/ariga/atlas-action/v1.15.1/scripts/shim.sh || \
         curl -sSf https://atlasbinaries.com/atlas-action/scripts-v1.15.1/shim.sh || \
