@@ -1,5 +1,6 @@
 import { defineConfig } from "vite-plus";
 import { devtools } from "@tanstack/devtools-vite";
+import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
@@ -40,7 +41,17 @@ const config = defineConfig({
 				plugins: ["babel-plugin-react-compiler"],
 			},
 		}),
-	],
+	].concat(
+		process.env.NODE_ENV !== "production"
+			? []
+			: [
+					sentryTanstackStart({
+						org: process.env.VITE_SENTRY_ORG,
+						project: process.env.VITE_SENTRY_PROJECT,
+						authToken: process.env.VITE_SENTRY_AUTH_TOKEN,
+					}),
+				],
+	),
 });
 
 export default config;

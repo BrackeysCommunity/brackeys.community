@@ -39,12 +39,6 @@ atlas-apply-prod:
     paths:
       - .atlas/
     policy: pull-push
-  artifacts:
-    reports:
-      dotenv: .env
-    paths:
-      - .atlas/
-    expire_in: 1 day
   before_script:
     - apt-get update -qq && apt-get install -y -qq curl
     - mkdir -p ~/.atlas
