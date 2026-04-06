@@ -8,8 +8,6 @@ atlas-push-staging:
     POSTGRES_USER: user
     POSTGRES_PASSWORD: pass
     ATLAS_TOKEN: $ATLAS_CLOUD_TOKEN
-    ATLAS_INPUT_DIR: "file://drizzle"
-    ATLAS_INPUT_DIR_NAME: "brackeys"
     ATLAS_INPUT_DEV_URL: "postgres://user:pass@postgres/dev?sslmode=disable"
   cache:
     key: atlas-grant-cache
@@ -23,12 +21,7 @@ atlas-push-staging:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
-    - atlas migrate hash --dir "file://drizzle"
-    - |
-      ( curl -sSf https://raw.githubusercontent.com/ariga/atlas-action/v1.15.1/scripts/shim.sh || \
-        curl -sSf https://atlasbinaries.com/atlas-action/scripts-v1.15.1/shim.sh || \
-        curl -sSf https://release.ariga.io/atlas-action/scripts-v1.15.1/shim.sh ) | \
-      CI=true sh -s -- migrate/push
+    - atlas migrate push --dir "file://drizzle" --dir-name brackeys --dev-url "$ATLAS_INPUT_DEV_URL"
   after_script:
     - mkdir -p $CI_PROJECT_DIR/.atlas
     - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true
@@ -40,11 +33,6 @@ atlas-apply-staging:
   image: ubuntu:latest
   variables:
     ATLAS_TOKEN: $ATLAS_CLOUD_TOKEN
-    ATLAS_INPUT_DIR: "file://drizzle"
-    ATLAS_INPUT_DIR_NAME: "brackeys"
-    ATLAS_INPUT_URL: $STAGING_DATABASE_URL
-    ATLAS_INPUT_REVISIONS_SCHEMA: "public"
-    ATLAS_INPUT_ALLOW_DIRTY: "true"
   cache:
     key: atlas-grant-cache
     paths:
@@ -63,11 +51,7 @@ atlas-apply-staging:
     - curl -sSf https://atlasgo.sh | sh
     - atlas login --token $ATLAS_CLOUD_TOKEN --grant-only
   script:
-    - |
-      ( curl -sSf https://raw.githubusercontent.com/ariga/atlas-action/v1.15.1/scripts/shim.sh || \
-        curl -sSf https://atlasbinaries.com/atlas-action/scripts-v1.15.1/shim.sh || \
-        curl -sSf https://release.ariga.io/atlas-action/scripts-v1.15.1/shim.sh ) | \
-      CI=true sh -s -- migrate/apply
+    - atlas migrate apply --dir "atlas://brackeys" --url "$STAGING_DATABASE_URL" --revisions-schema public --allow-dirty
   after_script:
     - mkdir -p $CI_PROJECT_DIR/.atlas
     - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true
