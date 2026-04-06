@@ -21,4 +21,4 @@ ALTER TABLE "hammer"."temporary_bans" ALTER COLUMN "guild_id" TYPE text, ALTER C
 -- Modify "tracked_messages" table
 ALTER TABLE "hammer"."tracked_messages" ALTER COLUMN "author_id" TYPE text, ALTER COLUMN "channel_id" TYPE text, ALTER COLUMN "guild_id" TYPE text, ADD CONSTRAINT "tracked_messages_author_id_developer_profiles_discord_id_fk" FOREIGN KEY ("author_id") REFERENCES "user"."developer_profiles" ("discord_id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Drop sequence "profile_projects_id_seq"
-DROP SEQUENCE "user"."profile_projects_id_seq";
+DROP SEQUENCE "user"."profile_projects_id_seq" CASCADE;
