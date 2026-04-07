@@ -32,7 +32,7 @@ const config = defineConfig({
 		wasm(),
 		devtools(),
 		nitro({
-			rollupConfig: { external: [/^@sentry\//, /^@dimforge\/rapier2d/, /^@radix-ui\//] },
+			rollupConfig: { external: [/^@sentry\//, /^@dimforge\/rapier2d/, /^@radix-ui\//, /^ahooks/] },
 		}),
 		tailwindcss(),
 		tanstackStart(),
