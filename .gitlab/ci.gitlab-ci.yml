@@ -8,6 +8,8 @@ check:
     - bun run check
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == 'main' && $CI_COMMIT_TITLE !~ /^Merge branch/
 
 test:
@@ -24,4 +26,6 @@ test:
     expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == 'main'

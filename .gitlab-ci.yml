@@ -11,6 +11,7 @@ stages:
   - atlas-push
   - atlas-apply
   - version
+  - renovate
 
 include:
   - local: .gitlab/ci.gitlab-ci.yml
@@ -18,3 +19,4 @@ include:
   - local: .gitlab/atlas-staging.gitlab-ci.yml
   - local: .gitlab/atlas-prod.gitlab-ci.yml
   - local: .gitlab/version-bump.gitlab-ci.yml
+  - local: .gitlab/renovate.gitlab-ci.yml

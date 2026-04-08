@@ -15,4 +15,6 @@ version-bump:
     - 'git commit -m "chore: bump version to ${VERSION}"'
     - git push origin HEAD:main
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE !~ /^chore: bump version to/'

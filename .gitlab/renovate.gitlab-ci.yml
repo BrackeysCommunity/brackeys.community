@@ -1,0 +1,9 @@
+renovate:
+  stage: renovate
+  image: renovate/renovate:latest
+  variables:
+    LOG_LEVEL: info
+  script:
+    - renovate
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RENOVATE == "true"
