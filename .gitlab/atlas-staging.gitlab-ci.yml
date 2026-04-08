@@ -27,6 +27,8 @@ atlas-push-staging:
     - mkdir -p $CI_PROJECT_DIR/.atlas
     - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == 'main'
 
 atlas-apply-staging:
@@ -51,4 +53,6 @@ atlas-apply-staging:
     - mkdir -p $CI_PROJECT_DIR/.atlas
     - cp -a ~/.atlas/. $CI_PROJECT_DIR/.atlas/ 2>/dev/null || true
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == 'main'
