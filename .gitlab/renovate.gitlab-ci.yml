@@ -4,8 +4,6 @@ renovate:
   variables:
     RENOVATE_PLATFORM: gitlab
     RENOVATE_ENDPOINT: ${CI_API_V4_URL}
-    RENOVATE_TOKEN: ${RENOVATE_TOKEN}
-    RENOVATE_REPOSITORIES: ${CI_PROJECT_PATH}
     LOG_LEVEL: info
   script:
     - renovate $CI_PROJECT_PATH
