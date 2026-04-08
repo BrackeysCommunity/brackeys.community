@@ -20,6 +20,26 @@ build-sonar:
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/**/*
+        - services/**/*
+        - scripts/**/*
+        - public/**/*
+        - package.json
+        - bun.lock
+        - tsconfig*.json
+        - vite.config.*
+        - "*.config.*"
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/**/*
+        - services/**/*
+        - scripts/**/*
+        - public/**/*
+        - package.json
+        - bun.lock
+        - tsconfig*.json
+        - vite.config.*
+        - "*.config.*"
