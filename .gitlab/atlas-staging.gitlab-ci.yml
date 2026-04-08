@@ -30,6 +30,8 @@ atlas-push-staging:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - drizzle/**/*
 
 atlas-apply-staging:
   stage: atlas-apply
@@ -56,3 +58,5 @@ atlas-apply-staging:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - drizzle/**/*

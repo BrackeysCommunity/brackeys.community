@@ -30,6 +30,8 @@ atlas-push-prod:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'prod'
+      changes:
+        - drizzle/**/*
 
 atlas-apply-prod:
   stage: atlas-apply
@@ -56,3 +58,5 @@ atlas-apply-prod:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'prod'
+      changes:
+        - drizzle/**/*
