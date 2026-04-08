@@ -51,10 +51,15 @@ test:
     - bun install --frozen-lockfile
   script:
     - npm run test -- --coverage
+  coverage: '/All files[^\|]*\|[^\|]*\s+([\d\.]+)/'
   artifacts:
     paths:
       - coverage/
     expire_in: 1 week
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
