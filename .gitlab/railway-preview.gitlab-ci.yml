@@ -13,7 +13,8 @@ deploy-preview:
   script:
     - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
 
-    # Debug — confirm token is valid
+    # Debug — confirm token is reaching the container
+    - echo "RAILWAY_TOKEN length:${#RAILWAY_TOKEN}"
     - railway whoami
 
     # Create preview environment from staging (no-op if it already exists)
