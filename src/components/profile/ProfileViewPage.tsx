@@ -1,4 +1,4 @@
-﻿import {
+import {
   Calendar03Icon,
   ComputerTerminal01Icon,
   IdentityCardIcon,
@@ -7,9 +7,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useState } from "react";
+
 import { usePageSidebar } from "@/lib/hooks/use-page-layout";
 import { orpc } from "@/orpc/client";
 import { Route } from "@/routes/profile.$userId";
+
 import {
   buildCompletenessItems,
   type CompletenessItem,
@@ -112,7 +114,7 @@ export function ProfileViewPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
+        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : profileData ? (
@@ -128,7 +130,7 @@ export function ProfileViewPage() {
                     ) : (
                       <>
                         <br />
-                        <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+                        <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
                           {word}
                         </span>
                       </>
@@ -138,7 +140,7 @@ export function ProfileViewPage() {
               {username.toUpperCase().split(" ").length <= 1 && (
                 <>
                   <br />
-                  <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+                  <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
                     DEV.
                   </span>
                 </>
@@ -164,7 +166,7 @@ export function ProfileViewPage() {
         </p>
 
         {bio && !isLoading && !isEditing && (
-          <p className="mt-4 max-w-xl font-sans text-sm text-muted-foreground/60 leading-relaxed line-clamp-2">
+          <p className="mt-4 line-clamp-2 max-w-xl font-sans text-sm leading-relaxed text-muted-foreground/60">
             {bio}
           </p>
         )}
@@ -193,7 +195,7 @@ export function ProfileViewPage() {
             exit="exit"
             transition={swapTransition}
           >
-            <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <nav className="my-6 flex flex-col gap-4 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-end">
               <ProfileStatCard
                 index="01"
                 label="PROJECTS"

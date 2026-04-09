@@ -1,9 +1,11 @@
-﻿import { PencilEdit01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
+import { PencilEdit01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "framer-motion";
+
 import { NotchedCard } from "@/components/ui/notched-card";
 import type { ProfileProjectType } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
+
 import { ContributionCalendar } from "./ContributionCalendar";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { ProfileBio } from "./ProfileBio";
@@ -80,7 +82,7 @@ interface ProfileViewSidebarProps {
 }
 
 function SkeletonBlock({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse bg-muted/40 rounded-sm", className)} />;
+  return <div className={cn("animate-pulse rounded-sm bg-muted/40", className)} />;
 }
 
 function SidebarSection({
@@ -95,10 +97,10 @@ function SidebarSection({
   className?: string;
 }) {
   return (
-    <div className={cn("px-5 py-4 border-b border-muted/40", className)}>
-      <h4 className="font-mono text-[10px] font-bold tracking-[0.15em] text-muted-foreground/50 uppercase mb-3">
+    <div className={cn("border-b border-muted/40 px-5 py-4", className)}>
+      <h4 className="mb-3 font-mono text-[10px] font-bold tracking-[0.15em] text-muted-foreground/50 uppercase">
         {label}
-        {count !== undefined && <span className="text-muted-foreground/25 ml-1.5">({count})</span>}
+        {count !== undefined && <span className="ml-1.5 text-muted-foreground/25">({count})</span>}
       </h4>
       {children}
     </div>
@@ -156,7 +158,7 @@ export function ProfileViewSidebar({
           <button
             type="button"
             onClick={() => onToggleEdit(true)}
-            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase hover:text-primary transition-colors"
+            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase transition-colors hover:text-primary"
           >
             <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
             EDIT
@@ -166,7 +168,7 @@ export function ProfileViewSidebar({
           <button
             type="button"
             onClick={() => onToggleEdit(false)}
-            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:text-primary/70 transition-colors"
+            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:text-primary/70"
           >
             <HugeiconsIcon icon={Tick01Icon} size={10} />
             DONE
@@ -182,7 +184,7 @@ export function ProfileViewSidebar({
   );
 
   const viewFooter = (
-    <div className="px-4 py-3.5 flex items-center justify-center">
+    <div className="flex items-center justify-center px-4 py-3.5">
       <ProfileLinks
         links={socialLinks}
         discordId={profile.discordId}
@@ -192,8 +194,8 @@ export function ProfileViewSidebar({
   );
 
   const editFooter = (
-    <div className="px-4 py-3 flex items-center justify-center">
-      <span className="font-mono text-[10px] text-muted-foreground/40 tracking-widest uppercase">
+    <div className="flex items-center justify-center px-4 py-3">
+      <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
         Auto-saving changes
       </span>
     </div>
@@ -202,7 +204,7 @@ export function ProfileViewSidebar({
   return (
     <div className="flex h-full items-center justify-center p-6">
       <NotchedCard
-        className="w-full h-full max-h-[800px]"
+        className="h-full max-h-[800px] w-full"
         header={header}
         footer={isEditing ? editFooter : viewFooter}
       >
@@ -240,7 +242,7 @@ export function ProfileViewSidebar({
               transition={fadeTransition}
             >
               {/* Avatar */}
-              <div className="flex flex-col items-center px-5 py-7 border-b border-muted/40">
+              <div className="flex flex-col items-center border-b border-muted/40 px-5 py-7">
                 <ProfileAvatar
                   avatarUrl={profile.avatarUrl}
                   username={username}
@@ -251,10 +253,10 @@ export function ProfileViewSidebar({
 
               {/* Available for Work */}
               {profile.availableForWork && (
-                <div className="px-5 py-3 border-b border-muted/40">
+                <div className="border-b border-muted/40 px-5 py-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-500 font-mono text-[10px] font-bold tracking-widest uppercase">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                    <span className="inline-flex items-center gap-1.5 border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-cyan-500 uppercase">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-500" />
                       Available
                     </span>
                     {profile.availability && (
@@ -321,7 +323,7 @@ function LoadingSkeleton() {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <NotchedCard
-        className="w-full h-full max-h-[800px]"
+        className="h-full max-h-[800px] w-full"
         header={
           <div className="flex items-center justify-between">
             <SkeletonBlock className="h-3 w-24" />
@@ -329,13 +331,13 @@ function LoadingSkeleton() {
           </div>
         }
       >
-        <div className="flex flex-col items-center gap-3 px-5 py-6 border-b border-muted/60">
+        <div className="flex flex-col items-center gap-3 border-b border-muted/60 px-5 py-6">
           <SkeletonBlock className="h-24 w-24 rounded-full" />
           <SkeletonBlock className="h-4 w-32" />
           <SkeletonBlock className="h-3 w-44" />
         </div>
 
-        <div className="px-5 py-4 border-b border-muted/60 space-y-2">
+        <div className="space-y-2 border-b border-muted/60 px-5 py-4">
           <SkeletonBlock className="h-2.5 w-12" />
           <div className="flex gap-1.5">
             <SkeletonBlock className="h-5 w-16" />
@@ -343,14 +345,14 @@ function LoadingSkeleton() {
           </div>
         </div>
 
-        <div className="px-5 py-4 border-b border-muted/60 space-y-2">
+        <div className="space-y-2 border-b border-muted/60 px-5 py-4">
           <SkeletonBlock className="h-2.5 w-8" />
           <SkeletonBlock className="h-3 w-full" />
           <SkeletonBlock className="h-3 w-3/4" />
           <SkeletonBlock className="h-3 w-1/2" />
         </div>
 
-        <div className="px-5 py-4 space-y-2">
+        <div className="space-y-2 px-5 py-4">
           <SkeletonBlock className="h-2.5 w-14" />
           <div className="flex flex-wrap gap-1.5">
             <SkeletonBlock className="h-5 w-16" />
@@ -367,16 +369,16 @@ function LoadingSkeleton() {
 function NotFoundState() {
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <NotchedCard className="w-full h-full max-h-[800px]" scrollable={false}>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
-          <div className="w-16 h-16 rounded-full border-2 border-muted/40 flex items-center justify-center">
+      <NotchedCard className="h-full max-h-[800px] w-full" scrollable={false}>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-muted/40">
             <span className="font-mono text-2xl text-muted-foreground/30">?</span>
           </div>
-          <div className="text-center space-y-1.5">
+          <div className="space-y-1.5 text-center">
             <p className="font-mono text-sm font-bold tracking-widest text-destructive/80 uppercase">
               Profile Not Found
             </p>
-            <p className="font-mono text-xs text-muted-foreground/50 max-w-[200px]">
+            <p className="max-w-[200px] font-mono text-xs text-muted-foreground/50">
               This user hasn&apos;t set up their profile yet, or the link may be incorrect.
             </p>
           </div>

@@ -15,9 +15,10 @@ import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import { AnimatePresence, motion } from "framer-motion";
+import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+
 import { buttonVariants } from "@/components/ui/button";
 import {
   CharCount,
@@ -259,7 +260,7 @@ function SegmentedControl<T extends string>({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${value === opt.value ? "bg-primary/20 border-primary/40 text-primary" : "bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30"}`}
+            className={`border px-2.5 py-1 font-mono text-[10px] tracking-wider uppercase transition-colors ${value === opt.value ? "border-primary/40 bg-primary/20 text-primary" : "border-muted/30 bg-muted/10 text-muted-foreground hover:border-primary/30"}`}
           >
             {opt.label}
           </button>
@@ -299,7 +300,7 @@ function MultiSelectChips({
             key={opt}
             type="button"
             onClick={() => toggle(opt)}
-            className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider border transition-colors ${value.includes(opt) ? "bg-primary/10 border-primary/30 text-primary" : "bg-muted/10 border-muted/30 text-muted-foreground hover:border-primary/30"}`}
+            className={`border px-2 py-0.5 font-mono text-[10px] tracking-wider uppercase transition-colors ${value.includes(opt) ? "border-primary/30 bg-primary/10 text-primary" : "border-muted/30 bg-muted/10 text-muted-foreground hover:border-primary/30"}`}
           >
             {opt}
           </button>
@@ -328,8 +329,10 @@ function CompensationRangeSelector({
 
   const onMinRef = useRef(onMinChange);
   const onMaxRef = useRef(onMaxChange);
-  onMinRef.current = onMinChange;
-  onMaxRef.current = onMaxChange;
+  useEffect(() => {
+    onMinRef.current = onMinChange;
+    onMaxRef.current = onMaxChange;
+  });
 
   useEffect(() => {
     if (!config) return;
@@ -361,7 +364,7 @@ function CompensationRangeSelector({
           }}
         />
       </div>
-      <p className="font-mono text-xs text-green-500 text-center tracking-wider">
+      <p className="text-center font-mono text-xs tracking-wider text-green-500">
         {formatCompensation(compensationType, currentMin, currentMax)}
       </p>
     </div>
@@ -413,16 +416,16 @@ function ImageUploader({
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {images.map((img, idx) => (
-            <div key={img.strapiMediaId} className="relative group w-16 h-16">
+            <div key={img.strapiMediaId} className="group relative h-16 w-16">
               <img
                 src={img.url}
                 alt={img.alt ?? ""}
-                className="w-full h-full object-cover border border-muted/30"
+                className="h-full w-full border border-muted/30 object-cover"
               />
               <button
                 type="button"
                 onClick={() => onRemove(idx)}
-                className="absolute -top-1 -right-1 bg-destructive text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-1 -right-1 bg-destructive p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
               >
                 <HugeiconsIcon icon={Delete02Icon} size={10} />
               </button>
@@ -435,7 +438,7 @@ function ImageUploader({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading || images.length >= 5}
-        className="flex items-center justify-center gap-2 border border-dashed border-muted/40 bg-muted/10 px-3 py-3 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-primary/40 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="flex items-center justify-center gap-2 border border-dashed border-muted/40 bg-muted/10 px-3 py-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
         <HugeiconsIcon icon={Image01Icon} size={14} />
         {uploading ? "UPLOADING..." : images.length >= 5 ? "MAX 5 IMAGES" : "ADD IMAGE"}
@@ -465,7 +468,7 @@ function StepTypeAndBasics() {
   return (
     <div className="space-y-0">
       <SectionHeader>Post Type</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30">
+      <div className="border-b border-muted/30 px-4 py-3">
         <form.Field name="type">
           {(field) => (
             <>
@@ -480,7 +483,7 @@ function StepTypeAndBasics() {
                         field.handleChange(t.value);
                         updateWizardDraft({ type: t.value });
                       }}
-                      className={`flex flex-col gap-2 p-3 border-2 text-left transition-all ${active ? "border-primary bg-primary/5 shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.08)]" : "border-muted/25 bg-muted/5 hover:border-primary/25 hover:bg-muted/10"}`}
+                      className={`flex flex-col gap-2 border-2 p-3 text-left transition-all ${active ? "border-primary bg-primary/5 shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.08)]" : "border-muted/25 bg-muted/5 hover:border-primary/25 hover:bg-muted/10"}`}
                     >
                       <HugeiconsIcon
                         icon={t.icon}
@@ -513,11 +516,15 @@ function StepTypeAndBasics() {
           return (
             <>
               <SectionHeader>Posting As</SectionHeader>
-              <div className="px-4 py-3 border-b border-muted/30">
+              <div className="border-b border-muted/30 px-4 py-3">
                 <form.Field name="isIndividual">
                   {(field) => (
-                    <label className="flex items-center gap-3 cursor-pointer">
+                    <label
+                      htmlFor="is-individual-switch"
+                      className="flex cursor-pointer items-center gap-3"
+                    >
                       <Switch
+                        id="is-individual-switch"
                         checked={field.state.value}
                         onCheckedChange={(checked) => {
                           field.handleChange(!!checked);
@@ -537,7 +544,7 @@ function StepTypeAndBasics() {
       </form.Field>
 
       <SectionHeader>Post Title</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30">
+      <div className="border-b border-muted/30 px-4 py-3">
         <form.Field
           name="title"
           validators={{
@@ -557,9 +564,9 @@ function StepTypeAndBasics() {
                 onChange={(e) => field.handleChange(e.target.value)}
                 placeholder="e.g. Looking for pixel artist for RPG"
                 maxLength={200}
-                className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+                className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
               />
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <FieldError errors={field.state.meta.errors.map(String)} />
                 <CharCount current={field.state.value.length} min={10} max={200} />
               </div>
@@ -569,7 +576,7 @@ function StepTypeAndBasics() {
       </div>
 
       <SectionHeader>Description</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30">
+      <div className="border-b border-muted/30 px-4 py-3">
         <form.Field
           name="description"
           validators={{
@@ -589,9 +596,9 @@ function StepTypeAndBasics() {
                 placeholder="Describe what you're looking for..."
                 maxLength={5000}
                 rows={6}
-                className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
+                className="w-full resize-none border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
               />
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <FieldError errors={field.state.meta.errors.map(String)} />
                 <CharCount current={field.state.value.length} min={30} max={5000} />
               </div>
@@ -612,9 +619,9 @@ function ContactViaDiscordNotice() {
   return (
     <>
       <SectionHeader>Contact</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-2">
-        <div className="border border-primary/20 bg-primary/5 p-3 space-y-1">
-          <p className="font-mono text-[10px] text-primary uppercase tracking-wider font-bold">
+      <div className="space-y-2 border-b border-muted/30 px-4 py-3">
+        <div className="space-y-1 border border-primary/20 bg-primary/5 p-3">
+          <p className="font-mono text-[10px] font-bold tracking-wider text-primary uppercase">
             Discord DM
           </p>
           <p className="font-mono text-xs text-foreground">
@@ -638,7 +645,7 @@ function StepProjectDetails() {
   return (
     <div className="space-y-0">
       <SectionHeader>Project Details</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+      <div className="space-y-3 border-b border-muted/30 px-4 py-3">
         <form.Field
           name="projectName"
           validators={{
@@ -651,19 +658,23 @@ function StepProjectDetails() {
         >
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <label
+                htmlFor="collab-project-name"
+                className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase"
+              >
                 Project Name *
               </label>
               <input
+                id="collab-project-name"
                 type="text"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 placeholder="My Awesome Game"
                 maxLength={200}
-                className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+                className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
               />
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <FieldError errors={field.state.meta.errors.map(String)} />
                 <CharCount current={field.state.value.length} min={3} max={200} />
               </div>
@@ -748,7 +759,7 @@ function StepProjectDetails() {
       {typeVal === "paid" && (
         <>
           <SectionHeader>Compensation</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+          <div className="space-y-3 border-b border-muted/30 px-4 py-3">
             <form.Field name="compensationType">
               {(field) => (
                 <>
@@ -792,7 +803,7 @@ function StepProjectDetails() {
       ) : (
         <>
           <SectionHeader>Contact</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+          <div className="space-y-3 border-b border-muted/30 px-4 py-3">
             <form.Field name="contactType">
               {(field) => (
                 <>
@@ -821,17 +832,21 @@ function StepProjectDetails() {
                   >
                     {(field) => (
                       <div className="flex flex-col gap-1">
-                        <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                        <label
+                          htmlFor="collab-contact-method"
+                          className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase"
+                        >
                           Contact Info *
                         </label>
                         <input
+                          id="collab-contact-method"
                           type="text"
                           value={field.state.value}
                           onBlur={field.handleBlur}
                           onChange={(e) => field.handleChange(e.target.value)}
                           placeholder={CONTACT_PLACEHOLDERS[ct as CollabContactType]}
                           maxLength={500}
-                          className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+                          className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
                         />
                         <FieldError errors={field.state.meta.errors.map(String)} />
                       </div>
@@ -866,7 +881,7 @@ function StepPlaytestDetails() {
   return (
     <div className="space-y-0">
       <SectionHeader>Playtest Details</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+      <div className="space-y-3 border-b border-muted/30 px-4 py-3">
         <form.Field name="platforms">
           {(field) => (
             <>
@@ -884,17 +899,21 @@ function StepPlaytestDetails() {
         <form.Field name="portfolioUrl">
           {(field) => (
             <div className="flex flex-col gap-1">
-              <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <label
+                htmlFor="collab-portfolio-url"
+                className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase"
+              >
                 Link to Game/Demo
               </label>
               <input
+                id="collab-portfolio-url"
                 type="text"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 placeholder="https://itch.io/your-game"
                 maxLength={500}
-                className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+                className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
               />
               <FieldError errors={field.state.meta.errors.map(String)} />
             </div>
@@ -971,13 +990,13 @@ function StepMentorDetails() {
   return (
     <div className="space-y-0">
       <SectionHeader>Topics / Areas *</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+      <div className="space-y-2 border-b border-muted/30 px-4 py-3">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search topics..."
-          className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+          className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
         />
         {roleIds.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -988,14 +1007,14 @@ function StepMentorDetails() {
                   key={role.id}
                   type="button"
                   onClick={() => toggleRole(role.id)}
-                  className="inline-flex items-center gap-1 bg-primary/10 border border-primary/30 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-colors"
+                  className="inline-flex items-center gap-1 border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                 >
                   {role.name} &times;
                 </button>
               ))}
           </div>
         )}
-        <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+        <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
           {roles
             ?.filter((r) => !roleIds.includes(r.id))
             .map((role) => (
@@ -1003,7 +1022,7 @@ function StepMentorDetails() {
                 key={role.id}
                 type="button"
                 onClick={() => toggleRole(role.id)}
-                className="bg-muted/10 border border-muted/30 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-primary/30 hover:text-primary transition-colors"
+                className="border border-muted/30 bg-muted/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase transition-colors hover:border-primary/30 hover:text-primary"
               >
                 {role.name}
               </button>
@@ -1012,7 +1031,7 @@ function StepMentorDetails() {
       </div>
 
       <SectionHeader>Details</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+      <div className="space-y-3 border-b border-muted/30 px-4 py-3">
         <form.Field name="projectLength">
           {(field) => (
             <>
@@ -1047,7 +1066,7 @@ function StepMentorDetails() {
       ) : (
         <>
           <SectionHeader>Contact</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+          <div className="space-y-3 border-b border-muted/30 px-4 py-3">
             <form.Field name="contactType">
               {(field) => (
                 <>
@@ -1076,17 +1095,21 @@ function StepMentorDetails() {
                   >
                     {(field) => (
                       <div className="flex flex-col gap-1">
-                        <label className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+                        <label
+                          htmlFor="collab-apply-contact-method"
+                          className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase"
+                        >
                           Contact Info *
                         </label>
                         <input
+                          id="collab-apply-contact-method"
                           type="text"
                           value={field.state.value}
                           onBlur={field.handleBlur}
                           onChange={(e) => field.handleChange(e.target.value)}
                           placeholder={CONTACT_PLACEHOLDERS[ct as CollabContactType]}
                           maxLength={500}
-                          className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+                          className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
                         />
                         <FieldError errors={field.state.meta.errors.map(String)} />
                       </div>
@@ -1132,20 +1155,20 @@ function StepRoles() {
   return (
     <div className="space-y-0">
       <SectionHeader>Select Roles Needed</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30">
+      <div className="border-b border-muted/30 px-4 py-3">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search roles..."
-          className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+          className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
         />
       </div>
 
       {roleIds.length > 0 && (
         <>
           <SectionHeader>Selected ({roleIds.length})</SectionHeader>
-          <div className="px-4 py-3 border-b border-muted/30 flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 border-b border-muted/30 px-4 py-3">
             {roles
               ?.filter((r) => roleIds.includes(r.id))
               .map((role) => (
@@ -1153,7 +1176,7 @@ function StepRoles() {
                   key={role.id}
                   type="button"
                   onClick={() => toggleRole(role.id)}
-                  className="inline-flex items-center gap-1 bg-primary/10 border border-primary/30 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-colors"
+                  className="inline-flex items-center gap-1 border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                 >
                   {role.name} &times;
                 </button>
@@ -1163,8 +1186,8 @@ function StepRoles() {
       )}
 
       <SectionHeader>Available Roles</SectionHeader>
-      <div className="px-4 py-3 border-b border-muted/30">
-        <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto">
+      <div className="border-b border-muted/30 px-4 py-3">
+        <div className="flex max-h-48 flex-wrap gap-1 overflow-y-auto">
           {roles
             ?.filter((r) => !roleIds.includes(r.id))
             .map((role) => (
@@ -1172,7 +1195,7 @@ function StepRoles() {
                 key={role.id}
                 type="button"
                 onClick={() => toggleRole(role.id)}
-                className="bg-muted/10 border border-muted/30 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-primary/30 hover:text-primary transition-colors"
+                className="border border-muted/30 bg-muted/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase transition-colors hover:border-primary/30 hover:text-primary"
               >
                 {role.name}
               </button>
@@ -1195,7 +1218,7 @@ function ReviewBadge({ value, color = "primary" }: { value: string; color?: stri
   };
   return (
     <span
-      className={`inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${colorClasses[color] ?? colorClasses.primary}`}
+      className={`inline-block border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase ${colorClasses[color] ?? colorClasses.primary}`}
     >
       {value}
     </span>
@@ -1237,43 +1260,43 @@ function StepReview() {
       <SectionHeader>Post Preview</SectionHeader>
       {/* Mock post card preview */}
       <div className="mx-4 my-3 border border-primary/20 bg-primary/3">
-        <div className="px-4 pt-4 pb-3 border-b border-muted/20">
+        <div className="border-b border-muted/20 px-4 pt-4 pb-3">
           <div className="flex items-start gap-3">
             {postTypeIcon && (
-              <div className="shrink-0 w-8 h-8 border border-primary/20 bg-primary/5 flex items-center justify-center mt-0.5">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-primary/20 bg-primary/5">
                 <HugeiconsIcon icon={postTypeIcon} size={14} className="text-primary/60" />
               </div>
             )}
             <div className="min-w-0">
-              <p className="font-mono text-xs font-bold text-foreground leading-tight">
+              <p className="font-mono text-xs leading-tight font-bold text-foreground">
                 {v.title || (
-                  <span className="text-muted-foreground/40 italic font-normal">Untitled post</span>
+                  <span className="font-normal text-muted-foreground/40 italic">Untitled post</span>
                 )}
               </p>
-              <div className="flex flex-wrap gap-1 mt-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 {v.type && <ReviewBadge value={v.type} />}
                 {v.isIndividual && <ReviewBadge value="Individual" />}
               </div>
             </div>
           </div>
           {v.description && (
-            <p className="font-mono text-[10px] text-muted-foreground/60 mt-2.5 leading-relaxed line-clamp-4 whitespace-pre-wrap">
+            <p className="mt-2.5 line-clamp-4 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-muted-foreground/60">
               {v.description}
             </p>
           )}
         </div>
         {v.images.length > 0 && (
-          <div className="flex gap-1.5 px-3 py-2 border-b border-muted/20">
+          <div className="flex gap-1.5 border-b border-muted/20 px-3 py-2">
             {v.images.slice(0, 3).map((img) => (
               <img
                 key={img.strapiMediaId}
                 src={img.url}
                 alt={img.alt ?? ""}
-                className="w-14 h-10 object-cover border border-muted/20"
+                className="h-10 w-14 border border-muted/20 object-cover"
               />
             ))}
             {v.images.length > 3 && (
-              <div className="w-14 h-10 bg-muted/20 border border-muted/20 flex items-center justify-center">
+              <div className="flex h-10 w-14 items-center justify-center border border-muted/20 bg-muted/20">
                 <span className="font-mono text-[10px] text-muted-foreground">
                   +{v.images.length - 3}
                 </span>
@@ -1281,7 +1304,7 @@ function StepReview() {
             )}
           </div>
         )}
-        <div className="px-4 py-2.5 text-[10px] font-mono text-muted-foreground/50 space-y-1">
+        <div className="space-y-1 px-4 py-2.5 font-mono text-[10px] text-muted-foreground/50">
           {v.projectName && <span className="block">{v.projectName}</span>}
           {compDisplay && <span className="block text-green-500/70">{compDisplay}</span>}
           {v.platforms.length > 0 && <span className="block">{v.platforms.join(" · ")}</span>}
@@ -1293,13 +1316,13 @@ function StepReview() {
           )}
         </div>
       </div>
-      <div className="px-4 py-3 border-b border-muted/30 space-y-2.5">
+      <div className="space-y-2.5 border-b border-muted/30 px-4 py-3">
         {selectedRoleNames.length > 0 && (
           <div>
             <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
               {v.type === "mentor" ? "Topics" : "Roles"}
             </span>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="mt-1 flex flex-wrap gap-1">
               {selectedRoleNames.map((name) => (
                 <ReviewBadge key={name} value={name} />
               ))}
@@ -1311,7 +1334,7 @@ function StepReview() {
             <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
               Feedback
             </span>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="mt-1 flex flex-wrap gap-1">
               {feedbackTypes.map((ft) => (
                 <ReviewBadge key={ft} value={ft} />
               ))}
@@ -1320,21 +1343,21 @@ function StepReview() {
         )}
         {v.portfolioUrl && (
           <div>
-            <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase block">
+            <span className="block font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
               Game Link
             </span>
             <a
               href={v.portfolioUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[10px] text-primary hover:underline break-all"
+              className="font-mono text-[10px] break-all text-primary hover:underline"
             >
               {v.portfolioUrl}
             </a>
           </div>
         )}
         <div>
-          <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase block">
+          <span className="block font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
             Contact
           </span>
           <span className="font-mono text-[10px] text-foreground">
@@ -1346,8 +1369,8 @@ function StepReview() {
           </span>
         </div>
       </div>
-      <div className="px-4 py-3 bg-primary/3 border-t border-primary/10">
-        <p className="font-mono text-[10px] text-muted-foreground/50 leading-relaxed">
+      <div className="border-t border-primary/10 bg-primary/3 px-4 py-3">
+        <p className="font-mono text-[10px] leading-relaxed text-muted-foreground/50">
           Review carefully — once submitted your post will be live. You can edit or delete it from
           your profile at any time.
         </p>
@@ -1361,13 +1384,13 @@ function StepReview() {
 function UnauthenticatedSidebar() {
   return (
     <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
-      <NotchedCard className="flex-1 min-h-0" scrollable={false}>
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center space-y-4">
+      <NotchedCard className="min-h-0 flex-1" scrollable={false}>
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="space-y-4 text-center">
             <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">
               {"// ACCESS DENIED"}
             </h3>
-            <p className="font-mono text-xs text-muted-foreground max-w-[240px]">
+            <p className="max-w-[240px] font-mono text-xs text-muted-foreground">
               Authenticate with Discord to create collab posts.
             </p>
             <button
@@ -1379,7 +1402,7 @@ function UnauthenticatedSidebar() {
               }}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "border-primary/60 text-primary hover:bg-primary/10 hover:border-primary font-mono text-[10px] font-bold tracking-widest uppercase gap-2",
+                "gap-2 border-primary/60 font-mono text-[10px] font-bold tracking-widest text-primary uppercase hover:border-primary hover:bg-primary/10",
               )}
             >
               <HugeiconsIcon icon={Login01Icon} size={13} />
@@ -1647,7 +1670,7 @@ function AuthenticatedSidebar() {
   return (
     <div className="flex h-full flex-col p-6 selection:bg-primary selection:text-white">
       <NotchedCard
-        className="flex-1 min-h-0"
+        className="min-h-0 flex-1"
         header={
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -1672,17 +1695,17 @@ function AuthenticatedSidebar() {
         footer={
           <>
             {error && (
-              <div className="px-4 py-2 border-b border-destructive/30 bg-destructive/5">
+              <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-2">
                 <p className="font-mono text-[10px] text-destructive">{error}</p>
               </div>
             )}
-            <div className="px-6 py-4 flex gap-4">
+            <div className="flex gap-4 px-6 py-4">
               {wizard.step > 0 && (
                 <MagneticFooterButton
                   onClick={handleBack}
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
-                    "w-full border-muted/40 text-muted-foreground hover:bg-muted/10 hover:border-muted font-mono text-[10px] font-bold tracking-widest uppercase justify-between",
+                    "w-full justify-between border-muted/40 font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase hover:border-muted hover:bg-muted/10",
                   )}
                 >
                   <HugeiconsIcon icon={ArrowLeft01Icon} size={13} />
@@ -1694,7 +1717,7 @@ function AuthenticatedSidebar() {
                 disabled={isSubmitting}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "w-full border-primary/40 text-primary hover:bg-primary/10 hover:border-primary font-mono text-[10px] font-bold tracking-widest uppercase justify-between disabled:opacity-30 disabled:cursor-not-allowed",
+                  "w-full justify-between border-primary/40 font-mono text-[10px] font-bold tracking-widest text-primary uppercase hover:border-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-30",
                 )}
               >
                 {isLastStep ? (isSubmitting ? "SUBMITTING..." : "SUBMIT") : "Next"}
@@ -1727,8 +1750,8 @@ export function CollabCreateSidebar() {
 
   if (isPending) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
           Authenticating...
         </span>
       </div>
