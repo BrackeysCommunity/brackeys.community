@@ -90,6 +90,6 @@ cleanup-preview:
     name: preview/${CI_MERGE_REQUEST_IID}
     action: stop
   script:
-    - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
-    - railway link --project "$RAILWAY_PROJECT_ID"
+    - export PREVIEW_ENV_NAME="${CI_MERGE_REQUEST_IID}-preview"
+    - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME" --service mr
     - railway environment delete "$PREVIEW_ENV_NAME" --yes
