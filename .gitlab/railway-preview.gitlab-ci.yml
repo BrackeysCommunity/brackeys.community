@@ -35,8 +35,23 @@ deploy-preview:
     - railway up --detach
     - export PREVIEW_DOMAIN=$(railway domain 2>&1 | grep -oE '[a-z0-9-]+\.up\.railway\.app' | head -1)
     - echo "PREVIEW_DOMAIN=${PREVIEW_DOMAIN}" >> deploy.env
-    - echo "Deployed to https://${PREVIEW_DOMAIN}"
 
+    # Wait for deployment to be reachable
+    - |
+      echo "Waiting for https://${PREVIEW_DOMAIN} to be healthy..."
+      for i in $(seq 1 60); do
+        STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://${PREVIEW_DOMAIN}" || true)
+        echo "  Attempt $i: HTTP $STATUS"
+        if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+          echo "Preview is live!"
+          break
+        fi
+        if [ "$i" = "60" ]; then
+          echo "Warning: preview did not become healthy within 5 minutes"
+        fi
+        sleep 5
+      done
+    - echo "Deployed to https://${PREVIEW_DOMAIN}"
     # Post or update MR comment
     - |
       MARKER="<!-- railway-preview -->"
