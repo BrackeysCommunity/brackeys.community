@@ -1,4 +1,4 @@
-﻿import {
+import {
 	Cancel01Icon,
 	Clock01Icon,
 	ComputerTerminal01Icon,
@@ -6,6 +6,7 @@
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
 import { useInterval } from "ahooks";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -13,7 +14,11 @@ import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { authClient } from "@/lib/auth-client";
-import { clearActiveUserProfile, fetchActiveUserProfile } from "@/lib/active-user-store";
+import {
+	activeUserStore,
+	clearActiveUserProfile,
+	fetchActiveUserProfile,
+} from "@/lib/active-user-store";
 import { setAuthSession } from "@/lib/auth-store";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
@@ -54,6 +59,8 @@ export function AppHeader() {
 	const { setOpen: openPalette } = useCommandPalette();
 	const { data: session } = authClient.useSession();
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
+	const activeProfile = useStore(activeUserStore, (s) => s.profile);
+	const profileSlug = activeProfile?.urlStub ?? session?.user?.id;
 
 	const PAGE_TITLES: Record<string, string> = {
 		"/command-center": "COMMANDS",
@@ -65,7 +72,8 @@ export function AppHeader() {
 	useEffect(() => {
 		setAuthSession(session ?? null);
 		if (session?.user) {
-			fetchActiveUserProfile();
+			// this is a promise but we don't care about awaiting the result here
+			void fetchActiveUserProfile();
 		} else {
 			clearActiveUserProfile();
 		}
@@ -142,9 +150,11 @@ export function AppHeader() {
 						</MagneticLink>
 						<MagneticLink>
 							<Link
+								data-testid="desktop-profile-link"
 								data-cursor-no-drift
 								className="px-2 py-1 text-foreground hover:text-primary transition-colors"
-								to="/profile"
+								to={profileSlug ? "/profile/$userId" : "/profile"}
+								{...(profileSlug ? { params: { userId: profileSlug } } : {})}
 							>
 								PROFILE
 							</Link>
@@ -203,6 +213,7 @@ export function AppHeader() {
 					</Button>
 					<button
 						type="button"
+						data-testid="mobile-menu-toggle"
 						onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
 						className="h-9 w-9 flex items-center justify-center border border-muted bg-card/40 text-foreground hover:border-primary hover:text-primary transition-colors"
 					>
@@ -237,7 +248,9 @@ export function AppHeader() {
 								COLLAB
 							</Link>
 							<Link
-								to="/profile"
+								data-testid="mobile-profile-link"
+								to={profileSlug ? "/profile/$userId" : "/profile"}
+								{...(profileSlug ? { params: { userId: profileSlug } } : {})}
 								onClick={() => setMobileMenuOpen(false)}
 								className="px-4 py-3 font-mono text-sm font-bold tracking-widest text-foreground hover:text-primary hover:bg-primary/5 transition-colors"
 							>
@@ -256,8 +269,10 @@ export function AppHeader() {
 										size="sm"
 										className="font-mono text-xs font-bold tracking-widest"
 										onClick={() => {
-											authClient.signIn.social({ provider: "discord" });
-											setMobileMenuOpen(false);
+											void authClient.signIn.social({
+												provider: "discord",
+												fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },
+											});
 										}}
 									>
 										LOGIN
