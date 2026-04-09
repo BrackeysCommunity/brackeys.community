@@ -15,18 +15,21 @@ deploy-preview:
 
     - railway whoami
 
-    # Link to staging, create preview as a copy, then re-link to the preview
-    - railway link --project "$RAILWAY_PROJECT_ID" --environment staging
-    - railway environment new "$PREVIEW_ENV_NAME" --duplicate staging || true
-    - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
+    # Link to staging, create preview as a copy, then re-link to the preview service
+    - railway link --project "$RAILWAY_PROJECT_ID" --environment preview --service preview
+    - railway environment new "$PREVIEW_ENV_NAME" --duplicate preview || true
+    - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME" --service preview
 
-    # Set environment variables
+    # Override variables for the preview environment
     - |
+      railway variable set \
+        RAILWAY_ENVIRONMENT="$PREVIEW_ENV_NAME" \
+        NODE_ENV=staging
       if [ -n "$PREVIEW_DATABASE_URL" ]; then
-        railway variables set DATABASE_URL="$PREVIEW_DATABASE_URL"
+        railway variable set DATABASE_URL="$PREVIEW_DATABASE_URL"
       fi
 
-    # Deploy and capture domain
+    # Deploy from the MR branch checkout
     - railway up --detach
     - export PREVIEW_DOMAIN=$(railway domain)
     - echo "PREVIEW_DOMAIN=${PREVIEW_DOMAIN}" >> deploy.env
