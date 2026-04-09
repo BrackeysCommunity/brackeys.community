@@ -13,12 +13,11 @@ deploy-preview:
   script:
     - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
 
-    # Debug — confirm token is reaching the container
-    - echo "RAILWAY_TOKEN length:${#RAILWAY_TOKEN}"
     - railway whoami
 
-    # Create preview environment from staging (no-op if it already exists)
-    - railway environment create "$PREVIEW_ENV_NAME" --from staging 2>/dev/null || true
+    # Link to project, create preview environment, then re-link to it
+    - railway link --project "$RAILWAY_PROJECT_ID"
+    - railway environment new "$PREVIEW_ENV_NAME" || true
     - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
 
     # Set environment variables
@@ -69,5 +68,5 @@ cleanup-preview:
     action: stop
   script:
     - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
-    - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
+    - railway link --project "$RAILWAY_PROJECT_ID"
     - railway environment delete "$PREVIEW_ENV_NAME" --yes
