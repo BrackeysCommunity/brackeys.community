@@ -8,6 +8,7 @@ stages:
   - check
   - test
   - sonar
+  - deploy
   - atlas-push
   - atlas-apply
   - version
@@ -18,5 +19,6 @@ include:
   - local: .gitlab/sonar.gitlab-ci.yml
   - local: .gitlab/atlas-staging.gitlab-ci.yml
   - local: .gitlab/atlas-prod.gitlab-ci.yml
+  - local: .gitlab/railway-preview.gitlab-ci.yml
   - local: .gitlab/version-bump.gitlab-ci.yml
   - local: .gitlab/renovate.gitlab-ci.yml

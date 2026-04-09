@@ -1,0 +1,68 @@
+deploy-preview:
+  stage: deploy
+  image: ghcr.io/railwayapp/cli:latest
+  resource_group: preview-${CI_MERGE_REQUEST_IID}
+  interruptible: true
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+  environment:
+    name: preview/${CI_MERGE_REQUEST_IID}
+    url: https://$PREVIEW_DOMAIN
+    on_stop: cleanup-preview
+    auto_stop_in: 1 week
+  script:
+    - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
+
+    # Create preview environment from staging (no-op if it already exists)
+    - railway environment create "$PREVIEW_ENV_NAME" --from staging 2>/dev/null || true
+    - railway link --environment "$PREVIEW_ENV_NAME"
+
+    # Set environment variables
+    - |
+      if [ -n "$PREVIEW_DATABASE_URL" ]; then
+        railway variables set DATABASE_URL="$PREVIEW_DATABASE_URL"
+      fi
+
+    # Deploy and capture domain
+    - railway up --detach
+    - export PREVIEW_DOMAIN=$(railway domain)
+    - echo "PREVIEW_DOMAIN=${PREVIEW_DOMAIN}" >> deploy.env
+    - echo "Deployed to https://${PREVIEW_DOMAIN}"
+
+    # Post or update MR comment
+    - |
+      MARKER="<!-- railway-preview -->"
+      BODY="${MARKER}\n:rocket: **Preview deployed!**\n\n- [\`${PREVIEW_DOMAIN}\`](https://${PREVIEW_DOMAIN})\n\n---\n*commit: ${CI_COMMIT_SHORT_SHA} by ${GITLAB_USER_NAME}*"
+
+      EXISTING=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_PAT}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes" \
+        | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
+
+      if [ -n "$EXISTING" ]; then
+        curl -s --request PUT \
+          --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes/${EXISTING}" \
+          --data-urlencode "body=$(echo -e "$BODY")"
+      else
+        curl -s --request POST \
+          --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes" \
+          --data-urlencode "body=$(echo -e "$BODY")"
+      fi
+  artifacts:
+    reports:
+      dotenv: deploy.env
+
+cleanup-preview:
+  stage: deploy
+  image: ghcr.io/railwayapp/cli:latest
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+      when: manual
+      allow_failure: true
+  environment:
+    name: preview/${CI_MERGE_REQUEST_IID}
+    action: stop
+  script:
+    - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
+    - railway environment delete "$PREVIEW_ENV_NAME" --yes
