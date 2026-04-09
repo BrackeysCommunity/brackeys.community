@@ -3,6 +3,8 @@ deploy-preview:
   image: ghcr.io/railwayapp/cli:latest
   resource_group: preview-${CI_MERGE_REQUEST_IID}
   interruptible: true
+  before_script:
+    - apk add --no-cache curl jq
   rules:
     - if: $CI_MERGE_REQUEST_IID
   environment:
@@ -31,7 +33,7 @@ deploy-preview:
 
     # Deploy from the MR branch checkout
     - railway up --detach
-    - export PREVIEW_DOMAIN=$(railway domain)
+    - export PREVIEW_DOMAIN=$(railway domain 2>&1 | grep -oE '[a-z0-9-]+\.up\.railway\.app' | head -1)
     - echo "PREVIEW_DOMAIN=${PREVIEW_DOMAIN}" >> deploy.env
     - echo "Deployed to https://${PREVIEW_DOMAIN}"
 
