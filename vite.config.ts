@@ -154,7 +154,10 @@ const config = defineConfig({
     nitro({
       // fixes SSR issues with Vite 8:
       // https://discord.com/channels/719702312431386674/1490005967067414608/1490634230458224751
-      traceDeps: ["react", "react-dom"],
+      traceDeps: ["react", "react-dom", "@base-ui/react", "@babel/runtime"],
+      rolldownConfig: {
+        external: ["tslib"],
+      },
     }),
     // https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#react-compiler
     babel({
