@@ -3,6 +3,7 @@ import { os } from "@orpc/server";
 import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import * as z from "zod";
+
 import { db } from "@/db";
 import {
   developerProfiles,
@@ -47,13 +48,13 @@ function queryUserSkills(userId: string) {
     .where(eq(userSkills.userId, userId));
 }
 
-const optionalUrlSchema = z.string().url().optional().or(z.literal(""));
+const optionalUrlSchema = z.url().optional().or(z.literal(""));
 const manualProjectTypeSchema = z.enum(MANUAL_PROFILE_PROJECT_TYPES);
 const projectSubTypeSchema = z.enum(PROFILE_PROJECT_SUBTYPES);
 const uploadedProjectImageSchema = z
   .object({
     key: z.string().min(1),
-    url: z.string().url(),
+    url: z.url(),
     filename: z.string().min(1),
     mimeType: z.string().min(1),
     sizeBytes: z.number().int().positive(),

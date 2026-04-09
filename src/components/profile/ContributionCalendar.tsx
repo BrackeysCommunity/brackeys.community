@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import type { ContributionDay } from "@/lib/github";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -190,7 +191,7 @@ function CalendarGrid({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [playing, game.handleKey, onToggleSnake]);
+  }, [playing, game, onToggleSnake]);
 
   return (
     <div className="space-y-1.5">
@@ -214,10 +215,10 @@ function CalendarGrid({
             type="button"
             onClick={onToggleSnake}
             className={cn(
-              "font-mono text-[9px] px-1.5 py-0.5 rounded-sm border transition-all",
+              "rounded-sm border px-1.5 py-0.5 font-mono text-[9px] transition-all",
               playing
-                ? "border-muted-foreground/20 text-muted-foreground/40 hover:text-muted-foreground/60 hover:border-muted-foreground/40"
-                : "border-green-500/20 text-green-500/40 hover:text-green-400 hover:border-green-400/40 hover:bg-green-400/5",
+                ? "border-muted-foreground/20 text-muted-foreground/40 hover:border-muted-foreground/40 hover:text-muted-foreground/60"
+                : "border-green-500/20 text-green-500/40 hover:border-green-400/40 hover:bg-green-400/5 hover:text-green-400",
             )}
             title={playing ? "Exit snake" : "Play Snake"}
           >
@@ -262,7 +263,7 @@ function CalendarGrid({
           <Fragment key={label || `day${row}`}>
             <span
               className={cn(
-                "font-mono text-[7px] text-right pr-0.5 self-center leading-none transition-colors",
+                "self-center pr-0.5 text-right font-mono text-[7px] leading-none transition-colors",
                 playing ? "text-muted-foreground/10" : "text-muted-foreground/25",
               )}
             >
@@ -307,15 +308,15 @@ function CalendarGrid({
 
       {/* Snake overlays (positioned over the grid area) */}
       {playing && !game.started && !game.gameOver && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="font-mono text-[10px] text-foreground/60 tracking-wider animate-pulse drop-shadow-md">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="animate-pulse font-mono text-[10px] tracking-wider text-foreground/60 drop-shadow-md">
             Arrow keys to start
           </span>
         </div>
       )}
       {playing && game.gameOver && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background/70 backdrop-blur-[2px] rounded-sm">
-          <span className="font-mono text-[10px] font-bold text-destructive/80 tracking-widest uppercase">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-sm bg-background/70 backdrop-blur-[2px]">
+          <span className="font-mono text-[10px] font-bold tracking-widest text-destructive/80 uppercase">
             Game Over
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/50">
@@ -324,7 +325,7 @@ function CalendarGrid({
           <button
             type="button"
             onClick={game.restart}
-            className="font-mono text-[9px] text-primary/60 hover:text-primary transition-colors tracking-wider uppercase mt-0.5"
+            className="mt-0.5 font-mono text-[9px] tracking-wider text-primary/60 uppercase transition-colors hover:text-primary"
           >
             Play again
           </button>
@@ -338,11 +339,11 @@ function CalendarGrid({
           playing && "opacity-0",
         )}
       >
-        <span className="font-mono text-[7px] text-muted-foreground/25 mr-0.5">Less</span>
+        <span className="mr-0.5 font-mono text-[7px] text-muted-foreground/25">Less</span>
         {intensityClasses.map((cls) => (
-          <div key={cls} className={cn("w-[8px] h-[8px] rounded-[2px]", cls)} />
+          <div key={cls} className={cn("h-[8px] w-[8px] rounded-[2px]", cls)} />
         ))}
-        <span className="font-mono text-[7px] text-muted-foreground/25 ml-0.5">More</span>
+        <span className="ml-0.5 font-mono text-[7px] text-muted-foreground/25">More</span>
       </div>
     </div>
   );
@@ -396,8 +397,8 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
     return (
       <div className={cn("px-5 py-4", className)}>
         <div className="animate-pulse space-y-2">
-          <div className="h-2.5 w-20 bg-muted/40 rounded-sm" />
-          <div className="h-[82px] bg-muted/20 rounded-sm" />
+          <div className="h-2.5 w-20 rounded-sm bg-muted/40" />
+          <div className="h-[82px] rounded-sm bg-muted/20" />
         </div>
       </div>
     );
@@ -406,7 +407,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
   if (!data) return null;
 
   return (
-    <div className={cn("px-5 py-4 border-b border-muted/40 relative", className)}>
+    <div className={cn("relative border-b border-muted/40 px-5 py-4", className)}>
       <CalendarGrid
         weeks={data.weeks}
         totalContributions={data.totalContributions}

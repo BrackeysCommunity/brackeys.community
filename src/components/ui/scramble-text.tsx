@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CHARS = "■□▲△◆◇●◼●○◎◉◌●•⋱⋰⋮⋯⋆⋇⋈∘☉☀☼▪▫●‣⁃◦▣▦▧▨▩▭▰▱▬▭◢◣◤◥!@#%^*[]-_=+\\|/";
@@ -62,7 +63,9 @@ export function ScrambleText({
 
   // Stable ref that always holds the latest props — read inside RAF without restarts
   const paramsRef = React.useRef({ children, active, duration, delay, chars });
-  paramsRef.current = { children, active, duration, delay, chars };
+  React.useEffect(() => {
+    paramsRef.current = { children, active, duration, delay, chars };
+  });
 
   // Track previous children+active to know when to reset the animation clock
   const prevSnapshotRef = React.useRef(`${active}::${children}`);

@@ -1,5 +1,6 @@
 import { os } from "@orpc/server";
 import * as z from "zod";
+
 import type { JamEntry } from "@/lib/jam-store";
 
 // Feb 22, 2026 at 5:00 AM CST = 11:00 AM UTC
@@ -54,26 +55,29 @@ export const getJamData = os.input(z.object({})).handler(async () => {
       .map((item) => {
         const game = (item.game ?? {}) as Record<string, unknown>;
         const user = (game.user ?? {}) as Record<string, unknown>;
+        const str = (v: unknown): string =>
+          typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
+
         return {
           id: Number(item.id ?? 0),
-          created_at: String(item.created_at ?? ""),
+          created_at: str(item.created_at),
           rating_count: Number(item.rating_count ?? 0),
-          url: String(item.url ?? ""),
+          url: str(item.url),
           coolness: Number(item.coolness ?? 0),
           game: {
             id: Number(game.id ?? 0),
-            title: String(game.title ?? ""),
-            url: String(game.url ?? ""),
-            cover: String(game.cover ?? ""),
-            cover_color: game.cover_color ? String(game.cover_color) : undefined,
-            short_text: game.short_text != null ? String(game.short_text) : null,
+            title: str(game.title),
+            url: str(game.url),
+            cover: str(game.cover),
+            cover_color: game.cover_color != null ? str(game.cover_color) : undefined,
+            short_text: game.short_text != null ? str(game.short_text) : null,
             platforms: Array.isArray(game.platforms)
-              ? (game.platforms as unknown[]).map(String)
+              ? (game.platforms as unknown[]).map((p) => str(p))
               : [],
             user: {
               id: Number(user.id ?? 0),
-              name: String(user.name ?? ""),
-              url: String(user.url ?? ""),
+              name: str(user.name),
+              url: str(user.url),
             },
           },
         } satisfies JamEntry;

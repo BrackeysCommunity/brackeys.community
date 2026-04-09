@@ -1,4 +1,4 @@
-﻿import {
+import {
   Delete02Icon,
   GameController01Icon,
   Github01Icon,
@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import { CharCount } from "@/components/ui/form-primitives";
 import { Spinner } from "@/components/ui/spinner";
 import { env } from "@/env";
@@ -19,6 +20,7 @@ import type { UploadedProfileProjectImage } from "@/lib/profile-project-images";
 import type { ProfileProjectSubType, ProfileProjectType } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
+
 import { buildCompletenessItems, type CompletenessItem } from "./ProfileCompleteness";
 import { AddJamForm } from "./ProfileJamEditor";
 import {
@@ -97,14 +99,14 @@ function EditSection({
 }) {
   return (
     <div className={cn("group/section", className)}>
-      <div className="px-4 py-2 border-b border-muted/30 flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-muted/30 px-4 py-2">
         <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
           {label}
         </span>
         {complete !== undefined && (
           <span
             className={cn(
-              "w-1.5 h-1.5 rounded-full transition-colors",
+              "h-1.5 w-1.5 rounded-full transition-colors",
               complete ? "bg-green-500" : "bg-muted/40",
             )}
             title={complete ? "Complete" : "Incomplete"}
@@ -161,8 +163,8 @@ function LinkInput({
 }) {
   return (
     <MagneticField>
-      <div className="flex items-center gap-2 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 focus-within:bg-muted/10 transition-all group/link">
-        <span className="text-muted-foreground/30 group-focus-within/link:text-primary/50 transition-colors shrink-0">
+      <div className="group/link flex items-center gap-2 border border-muted/15 bg-muted/5 px-2.5 py-1.5 transition-all focus-within:border-primary/40 focus-within:bg-muted/10 hover:border-muted/40">
+        <span className="shrink-0 text-muted-foreground/30 transition-colors group-focus-within/link:text-primary/50">
           {icon}
         </span>
         <input
@@ -172,7 +174,7 @@ function LinkInput({
           placeholder={placeholder}
           className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none"
         />
-        {value && <span className="w-1.5 h-1.5 rounded-full bg-green-500/60 shrink-0" />}
+        {value && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500/60" />}
       </div>
     </MagneticField>
   );
@@ -205,13 +207,13 @@ function LinkedAccountRow({
   if (account) {
     return (
       <MagneticField>
-        <div className="flex items-center justify-between gap-2 bg-muted/5 border border-muted/15 px-2.5 py-2 hover:border-muted/40 transition-all">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-primary/60 shrink-0">
+        <div className="flex items-center justify-between gap-2 border border-muted/15 bg-muted/5 px-2.5 py-2 transition-all hover:border-muted/40">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-primary/60">
               <HugeiconsIcon icon={icon} size={14} />
             </span>
             <div className="min-w-0">
-              <p className="font-mono text-xs text-foreground truncate">
+              <p className="truncate font-mono text-xs text-foreground">
                 {account.providerUsername}
               </p>
               {account.providerProfileUrl && (
@@ -219,20 +221,20 @@ function LinkedAccountRow({
                   href={account.providerProfileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/60 transition-colors truncate block"
+                  className="block truncate font-mono text-[10px] text-muted-foreground/50 transition-colors hover:text-primary/60"
                 >
                   {account.providerProfileUrl}
                 </a>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5">
             {extra}
             <button
               type="button"
               onClick={onUnlink}
               disabled={unlinking}
-              className="text-muted-foreground/30 hover:text-destructive transition-colors p-0.5 disabled:opacity-50"
+              className="p-0.5 text-muted-foreground/30 transition-colors hover:text-destructive disabled:opacity-50"
               title={`Unlink ${providerLabel}`}
             >
               <HugeiconsIcon icon={Delete02Icon} size={12} />
@@ -250,7 +252,7 @@ function LinkedAccountRow({
         onClick={onLink}
         disabled={linkDisabled}
         aria-busy={linking}
-        className="w-full flex items-center justify-center gap-2 bg-muted/5 border border-dashed border-muted/20 px-2.5 py-2.5 hover:border-primary/30 hover:bg-muted/10 transition-all group/link-btn disabled:cursor-wait disabled:opacity-70"
+        className="group/link-btn flex w-full items-center justify-center gap-2 border border-dashed border-muted/20 bg-muted/5 px-2.5 py-2.5 transition-all hover:border-primary/30 hover:bg-muted/10 disabled:cursor-wait disabled:opacity-70"
       >
         {linking ? (
           <Spinner className="size-3.5 text-primary/70" />
@@ -258,10 +260,10 @@ function LinkedAccountRow({
           <HugeiconsIcon
             icon={Link01Icon}
             size={13}
-            className="text-muted-foreground/30 group-hover/link-btn:text-primary/50 transition-colors"
+            className="text-muted-foreground/30 transition-colors group-hover/link-btn:text-primary/50"
           />
         )}
-        <span className="font-mono text-[10px] text-muted-foreground/40 group-hover/link-btn:text-foreground/60 transition-colors tracking-wider">
+        <span className="font-mono text-[10px] tracking-wider text-muted-foreground/40 transition-colors group-hover/link-btn:text-foreground/60">
           {linking ? `Redirecting to ${providerLabel}...` : `Link ${providerLabel} account`}
         </span>
       </button>
@@ -345,7 +347,7 @@ export function ProfileEditForm({
   ]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const updateMutation = useMutation({
+  const { mutate: updateProfile } = useMutation({
     mutationFn: (input: Parameters<typeof client.updateProfile>[0]) => client.updateProfile(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: profileQueryKey }),
   });
@@ -354,10 +356,10 @@ export function ProfileEditForm({
     (fields: Record<string, string | undefined>) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        updateMutation.mutate(fields);
+        updateProfile(fields);
       }, 800);
     },
-    [updateMutation],
+    [updateProfile],
   );
 
   const handleFieldChange = (field: string, value: string, setter: (v: string) => void) => {
@@ -648,7 +650,7 @@ export function ProfileEditForm({
   return (
     <>
       <EditSection label="Tagline" complete={!!tagline.trim()}>
-        <div className="px-4 py-3 border-b border-muted/30 space-y-1">
+        <div className="space-y-1 border-b border-muted/30 px-4 py-3">
           <MagneticField>
             <input
               type="text"
@@ -656,7 +658,7 @@ export function ProfileEditForm({
               onChange={(e) => handleFieldChange("tagline", e.target.value, setTagline)}
               placeholder="What do you do? e.g. 'Unity developer & pixel art enthusiast'"
               maxLength={120}
-              className="w-full bg-transparent border-b border-muted/15 pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 transition-colors"
+              className="w-full border-b border-muted/15 bg-transparent pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/20 transition-colors outline-none hover:border-muted/40 focus:border-primary/40"
             />
           </MagneticField>
           <div className="flex justify-end">
@@ -666,7 +668,7 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Bio" complete={!!bio.trim()}>
-        <div className="px-4 py-3 border-b border-muted/30 space-y-1">
+        <div className="space-y-1 border-b border-muted/30 px-4 py-3">
           <MagneticField bounce={0.01}>
             <textarea
               value={bio}
@@ -674,7 +676,7 @@ export function ProfileEditForm({
               placeholder="Tell the community about yourself, your experience, what you're working on..."
               rows={4}
               maxLength={500}
-              className="w-full bg-muted/5 border border-muted/15 p-2.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/40 hover:border-muted/40 hover:bg-muted/10 resize-none transition-all leading-relaxed"
+              className="w-full resize-none border border-muted/15 bg-muted/5 p-2.5 font-mono text-xs leading-relaxed text-foreground placeholder-muted-foreground/20 transition-all outline-none hover:border-muted/40 hover:bg-muted/10 focus:border-primary/40"
             />
           </MagneticField>
           <div className="flex justify-end">
@@ -684,10 +686,10 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Skills" complete={visibleSkills.length > 0}>
-        <div className="px-4 py-3 border-b border-muted/30">
+        <div className="border-b border-muted/30 px-4 py-3">
           {visibleSkills.length === 0 && visiblePendingRequests.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-2">
-              <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider">
+              <p className="font-mono text-[10px] tracking-wider text-muted-foreground/30">
                 No skills added yet
               </p>
               <SkillAutocomplete
@@ -721,7 +723,7 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Available for Work">
-        <div className="px-4 py-3 border-b border-muted/30 space-y-3">
+        <div className="space-y-3 border-b border-muted/30 px-4 py-3">
           {/* Toggle */}
           <MagneticField>
             <button
@@ -735,7 +737,7 @@ export function ProfileEditForm({
                   setRateMin(0);
                   setRateMax(0);
                 }
-                updateMutation.mutate({
+                updateProfile({
                   availableForWork: next,
                   ...(!next && {
                     availability: null,
@@ -746,24 +748,24 @@ export function ProfileEditForm({
                 });
               }}
               className={cn(
-                "w-full flex items-center justify-between px-2.5 py-2 border transition-all",
+                "flex w-full items-center justify-between border px-2.5 py-2 transition-all",
                 availableForWork
-                  ? "bg-cyan-500/5 border-cyan-500/30"
-                  : "bg-muted/5 border-muted/15 hover:border-muted/40",
+                  ? "border-cyan-500/30 bg-cyan-500/5"
+                  : "border-muted/15 bg-muted/5 hover:border-muted/40",
               )}
             >
-              <span className="font-mono text-[10px] font-bold tracking-widest uppercase text-muted-foreground/60">
+              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
                 Available for hire
               </span>
               <div
                 className={cn(
-                  "w-8 h-4 rounded-full relative transition-colors",
+                  "relative h-4 w-8 rounded-full transition-colors",
                   availableForWork ? "bg-cyan-500" : "bg-muted/30",
                 )}
               >
                 <div
                   className={cn(
-                    "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all",
+                    "absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all",
                     availableForWork ? "left-4" : "left-0.5",
                   )}
                 />
@@ -791,13 +793,13 @@ export function ProfileEditForm({
                       type="button"
                       onClick={() => {
                         setAvailability(value);
-                        updateMutation.mutate({ availability: value });
+                        updateProfile({ availability: value });
                       }}
                       className={cn(
-                        "px-2 py-1.5 font-mono text-[10px] font-bold tracking-widest uppercase border transition-all text-center",
+                        "border px-2 py-1.5 text-center font-mono text-[10px] font-bold tracking-widest uppercase transition-all",
                         availability === value
-                          ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-500"
-                          : "bg-muted/5 border-muted/15 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
+                          ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-500"
+                          : "border-muted/15 bg-muted/5 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
                       )}
                     >
                       {label}
@@ -827,20 +829,20 @@ export function ProfileEditForm({
                         if (value === "negotiable") {
                           setRateMin(0);
                           setRateMax(0);
-                          updateMutation.mutate({
+                          updateProfile({
                             rateType: value,
                             rateMin: null,
                             rateMax: null,
                           });
                         } else {
-                          updateMutation.mutate({ rateType: value });
+                          updateProfile({ rateType: value });
                         }
                       }}
                       className={cn(
-                        "px-2 py-1.5 font-mono text-[10px] font-bold tracking-widest uppercase border transition-all text-center",
+                        "border px-2 py-1.5 text-center font-mono text-[10px] font-bold tracking-widest uppercase transition-all",
                         rateType === value
-                          ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-500"
-                          : "bg-muted/5 border-muted/15 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
+                          ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-500"
+                          : "border-muted/15 bg-muted/5 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
                       )}
                     >
                       {label}
@@ -857,7 +859,7 @@ export function ProfileEditForm({
                   </span>
                   <div className="grid grid-cols-2 gap-2">
                     <MagneticField>
-                      <div className="flex items-center gap-1.5 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 transition-all">
+                      <div className="flex items-center gap-1.5 border border-muted/15 bg-muted/5 px-2.5 py-1.5 transition-all focus-within:border-primary/40 hover:border-muted/40">
                         <span className="font-mono text-[10px] text-muted-foreground/30">MIN</span>
                         <input
                           type="number"
@@ -869,12 +871,12 @@ export function ProfileEditForm({
                             debouncedSave({ rateMin: v } as never);
                           }}
                           placeholder="0"
-                          className="w-full bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-full [appearance:textfield] bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       </div>
                     </MagneticField>
                     <MagneticField>
-                      <div className="flex items-center gap-1.5 bg-muted/5 border border-muted/15 px-2.5 py-1.5 hover:border-muted/40 focus-within:border-primary/40 transition-all">
+                      <div className="flex items-center gap-1.5 border border-muted/15 bg-muted/5 px-2.5 py-1.5 transition-all focus-within:border-primary/40 hover:border-muted/40">
                         <span className="font-mono text-[10px] text-muted-foreground/30">MAX</span>
                         <input
                           type="number"
@@ -886,7 +888,7 @@ export function ProfileEditForm({
                             debouncedSave({ rateMax: v } as never);
                           }}
                           placeholder="0"
-                          className="w-full bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-full [appearance:textfield] bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       </div>
                     </MagneticField>
@@ -899,10 +901,10 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Profile URL">
-        <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
+        <div className="space-y-1.5 border-b border-muted/30 px-4 py-3">
           <MagneticField>
-            <div className="flex items-center gap-1 hover:bg-muted/5 -mx-1 px-1 py-0.5 rounded transition-colors">
-              <span className="font-mono text-[10px] text-muted-foreground/40 shrink-0">
+            <div className="-mx-1 flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-muted/5">
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground/40">
                 /profile/
               </span>
               <input
@@ -911,11 +913,11 @@ export function ProfileEditForm({
                 onChange={(e) => handleUrlStubChange(e.target.value)}
                 placeholder="your-name"
                 maxLength={32}
-                className="flex-1 bg-transparent border-b border-muted/15 pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 outline-none focus:border-primary/50 hover:border-muted/40 transition-colors"
+                className="flex-1 border-b border-muted/15 bg-transparent pb-0.5 font-mono text-xs text-foreground placeholder-muted-foreground/20 transition-colors outline-none hover:border-muted/40 focus:border-primary/50"
               />
             </div>
           </MagneticField>
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <div>
               {urlStubError && (
                 <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
@@ -930,7 +932,7 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Linked Accounts" complete={!!(githubAccount || itchIoAccount)}>
-        <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+        <div className="space-y-2 border-b border-muted/30 px-4 py-3">
           <LinkedAccountRow
             icon={Github01Icon}
             account={githubAccount}
@@ -956,7 +958,7 @@ export function ProfileEditForm({
                   type="button"
                   onClick={() => importItchIoGamesMutation.mutate()}
                   disabled={importItchIoGamesMutation.isPending}
-                  className="font-mono text-[10px] text-muted-foreground/50 hover:text-primary/80 transition-colors px-1.5 py-0.5 hover:bg-muted/10 disabled:opacity-50"
+                  className="px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/50 transition-colors hover:bg-muted/10 hover:text-primary/80 disabled:opacity-50"
                 >
                   {importItchIoGamesMutation.isPending ? "Importing..." : "Import games"}
                 </button>
@@ -967,7 +969,7 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Links" complete={!!websiteUrl}>
-        <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+        <div className="space-y-2 border-b border-muted/30 px-4 py-3">
           <LinkInput
             icon={<HugeiconsIcon icon={Globe02Icon} size={13} />}
             value={websiteUrl}
@@ -978,10 +980,10 @@ export function ProfileEditForm({
       </EditSection>
 
       <EditSection label="Projects" complete={visibleProjects.length > 0}>
-        <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+        <div className="space-y-2 border-b border-muted/30 px-4 py-3">
           {visibleProjects.length === 0 ? (
-            <div className="text-center py-2">
-              <p className="font-mono text-[10px] text-muted-foreground/30 tracking-wider mb-2">
+            <div className="py-2 text-center">
+              <p className="mb-2 font-mono text-[10px] tracking-wider text-muted-foreground/30">
                 Showcase your work and jam history
               </p>
               <div className="space-y-2">

@@ -1,6 +1,7 @@
-﻿import { Clock01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
+import { Clock01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "framer-motion";
+
 import { NotchedCard } from "@/components/ui/notched-card";
 import type { ProfileProjectType } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
@@ -95,12 +96,12 @@ export function ProfileCompletenessCard({ items }: { items: CompletenessItem[] }
   );
 
   return (
-    <div className="my-6 sm:mt-12 pointer-events-auto">
+    <div className="pointer-events-auto my-6 sm:mt-12">
       <NotchedCard header={header} scrollable={false}>
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           <div className="flex gap-1">
             {items.map((item) => (
-              <div key={item.label} className="flex-1 h-2 bg-muted/20 overflow-hidden">
+              <div key={item.label} className="h-2 flex-1 overflow-hidden bg-muted/20">
                 <motion.div
                   className={barColors[item.status]}
                   initial={false}
@@ -120,7 +121,7 @@ export function ProfileCompletenessCard({ items }: { items: CompletenessItem[] }
               <div key={item.label} className="flex items-center gap-2">
                 <div
                   className={cn(
-                    "w-3.5 h-3.5 flex items-center justify-center border shrink-0 transition-colors duration-300",
+                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center border transition-colors duration-300",
                     checkboxStyles[item.status],
                   )}
                 >
@@ -147,7 +148,7 @@ export function ProfileCompletenessCard({ items }: { items: CompletenessItem[] }
 export function ProfileCompletenessMini({ items }: { items: CompletenessItem[] }) {
   const doneCount = items.filter((i) => i.status === "done").length;
   return (
-    <div className="px-4 py-3 border-b border-muted/30 space-y-1.5">
+    <div className="space-y-1.5 border-b border-muted/30 px-4 py-3">
       <div className="flex items-center justify-between">
         <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
           Completeness
@@ -160,7 +161,7 @@ export function ProfileCompletenessMini({ items }: { items: CompletenessItem[] }
         {items.map((item) => (
           <motion.div
             key={item.label}
-            className="h-1 flex-1 bg-muted/20 overflow-hidden"
+            className="h-1 flex-1 overflow-hidden bg-muted/20"
             title={`${item.label}: ${item.status}`}
           >
             <motion.div

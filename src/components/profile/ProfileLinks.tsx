@@ -1,4 +1,4 @@
-﻿import {
+import {
   GameController01Icon,
   Github01Icon,
   GlobalIcon,
@@ -9,6 +9,7 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "framer-motion";
+
 import { buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
@@ -150,18 +151,18 @@ function MagneticIconLink({
         aria-label={verified ? `${label} (verified via OAuth)` : label}
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
-          "relative h-8 w-8 p-0 flex items-center justify-center",
+          "relative flex h-8 w-8 items-center justify-center p-0",
           accent === "discord" &&
-            "border-brackeys-purple/40 text-brackeys-purple hover:bg-brackeys-purple/10 hover:border-brackeys-purple",
+            "border-brackeys-purple/40 text-brackeys-purple hover:border-brackeys-purple hover:bg-brackeys-purple/10",
           accent === "yellow" &&
-            "border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow",
+            "border-brackeys-yellow/40 text-brackeys-yellow hover:border-brackeys-yellow hover:bg-brackeys-yellow/10",
           !accent &&
-            "border-muted/60 text-muted-foreground hover:text-primary hover:border-primary/40",
+            "border-muted/60 text-muted-foreground hover:border-primary/40 hover:text-primary",
         )}
       >
         <HugeiconsIcon icon={icon} size={14} />
         {verified && (
-          <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-primary/60 bg-background text-primary">
+          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-primary/60 bg-background text-primary">
             <HugeiconsIcon icon={Tick01Icon} size={8} />
           </span>
         )}
@@ -206,11 +207,11 @@ function MagneticIconButton({
         title={label}
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
-          "h-8 w-8 p-0 flex items-center justify-center",
+          "flex h-8 w-8 items-center justify-center p-0",
           accent === "yellow" &&
-            "border-brackeys-yellow/40 text-brackeys-yellow hover:bg-brackeys-yellow/10 hover:border-brackeys-yellow",
+            "border-brackeys-yellow/40 text-brackeys-yellow hover:border-brackeys-yellow hover:bg-brackeys-yellow/10",
           !accent &&
-            "border-muted/60 text-muted-foreground hover:text-primary hover:border-primary/40",
+            "border-muted/60 text-muted-foreground hover:border-primary/40 hover:text-primary",
         )}
       >
         <HugeiconsIcon icon={icon} size={14} />

@@ -1,8 +1,9 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
+import { and, eq, ilike, inArray, or, desc, asc, count, sql } from "drizzle-orm";
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 import * as z from "zod";
-import { and, eq, ilike, inArray, or, desc, asc, count, sql } from "drizzle-orm";
+
 import { db } from "@/db";
 import {
   collabPosts,
@@ -72,7 +73,7 @@ export const createPost = os
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
       experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.string().url().max(500).optional().or(z.literal("")),
+      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
       contactMethod: z.string().max(500).optional(),
       contactType: contactTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
@@ -123,7 +124,7 @@ export const updatePost = os
       platforms: z.array(z.string()).optional(),
       experience: z.string().max(1000).optional(),
       experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.string().url().max(500).optional().or(z.literal("")),
+      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
       contactMethod: z.string().max(500).optional(),
       contactType: contactTypeSchema.optional(),
       isIndividual: z.boolean().optional(),
@@ -453,7 +454,7 @@ export const respondToPost = os
     z.object({
       postId: z.number(),
       message: z.string().min(1).max(2000),
-      portfolioUrl: z.string().url().max(500).optional().or(z.literal("")),
+      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -603,7 +604,7 @@ export const addPostImage = os
     z.object({
       postId: z.number(),
       strapiMediaId: z.string(),
-      url: z.string().url(),
+      url: z.url(),
       alt: z.string().max(500).optional(),
       sortOrder: z.number().optional(),
     }),

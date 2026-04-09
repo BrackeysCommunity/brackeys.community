@@ -1,4 +1,6 @@
 import { useCountDown } from "ahooks";
+import { useState } from "react";
+
 import { HeroSection } from "@/components/home/HeroSection";
 import { Sidebar } from "@/components/home/Sidebar";
 import { usePageSidebar } from "@/lib/hooks/use-page-layout";
@@ -13,25 +15,25 @@ export function HomePage() {
       ? `${days}D ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
       : `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
-  const isJamOver = Date.now() >= JAM_DEADLINE.getTime();
+  const [isJamOver] = useState(() => Date.now() >= JAM_DEADLINE.getTime());
   const ticker = `LIVE JAM IN PROGRESS: THEME IS STRANGE PLACES  ///  ${timeStr} REMAINING  ///  CHECK DISCORD FOR UPDATES  ///  `;
 
   usePageSidebar(<Sidebar />, "content");
 
   return (
-    <div className="flex-1 h-full overflow-visible relative flex flex-col">
+    <div className="relative flex h-full flex-1 flex-col overflow-visible">
       <div className="relative z-10 flex flex-1 overflow-visible">
         <HeroSection />
       </div>
 
       {!isJamOver && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-primary z-50 overflow-hidden py-1 border-t-2 border-black">
+        <div className="fixed right-0 bottom-0 left-0 z-50 overflow-hidden border-t-2 border-black bg-primary py-1 lg:hidden">
           <div className="flex w-max animate-[marquee_20s_linear_infinite]">
-            <span className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap">
+            <span className="font-mono text-xs font-bold whitespace-nowrap text-black uppercase">
               {ticker}
             </span>
             <span
-              className="font-mono text-xs font-bold text-black uppercase whitespace-nowrap"
+              className="font-mono text-xs font-bold whitespace-nowrap text-black uppercase"
               aria-hidden
             >
               {ticker}

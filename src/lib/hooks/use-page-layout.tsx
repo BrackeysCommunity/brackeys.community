@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { createContext, useContext, useLayoutEffect, useSyncExternalStore } from "react";
 
 type Listener = () => void;
 type MobileMode = "sidebar" | "content";
@@ -48,11 +48,8 @@ export function PageLayoutProvider({ children }: { children: React.ReactNode }) 
 
 export function usePageSidebar(sidebar: React.ReactNode, mobileMode: MobileMode = "sidebar") {
   const ctx = useContext(PageLayoutContext);
-  const sidebarRef = useRef(sidebar);
-  sidebarRef.current = sidebar;
-
   useLayoutEffect(() => {
-    ctx.setSidebar(sidebarRef.current);
+    ctx.setSidebar(sidebar);
     ctx.setMobileMode(mobileMode);
     return () => ctx.reset();
   });
