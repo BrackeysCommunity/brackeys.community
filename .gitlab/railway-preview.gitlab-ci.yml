@@ -13,7 +13,7 @@ deploy-preview:
     on_stop: cleanup-preview
     auto_stop_in: 1 week
   script:
-    - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}-preview"
+    - export PREVIEW_ENV_NAME="${CI_MERGE_REQUEST_IID}-preview"
 
     - railway whoami
 
