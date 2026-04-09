@@ -3,6 +3,8 @@ deploy-preview:
   image: ghcr.io/railwayapp/cli:latest
   resource_group: preview-${CI_MERGE_REQUEST_IID}
   interruptible: true
+  variables:
+    RAILWAY_TOKEN: ${RAILWAY_API_TOKEN}
   rules:
     - if: $CI_MERGE_REQUEST_IID
   environment:
@@ -15,7 +17,7 @@ deploy-preview:
 
     # Create preview environment from staging (no-op if it already exists)
     - railway environment create "$PREVIEW_ENV_NAME" --from staging 2>/dev/null || true
-    - railway link --environment "$PREVIEW_ENV_NAME"
+    - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
 
     # Set environment variables
     - |
@@ -34,7 +36,7 @@ deploy-preview:
       MARKER="<!-- railway-preview -->"
       BODY="${MARKER}\n:rocket: **Preview deployed!**\n\n- [\`${PREVIEW_DOMAIN}\`](https://${PREVIEW_DOMAIN})\n\n---\n*commit: ${CI_COMMIT_SHORT_SHA} by ${GITLAB_USER_NAME}*"
 
-      EXISTING=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_PAT}" \
+      EXISTING=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes" \
         | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
 
@@ -56,6 +58,8 @@ deploy-preview:
 cleanup-preview:
   stage: deploy
   image: ghcr.io/railwayapp/cli:latest
+  variables:
+    RAILWAY_TOKEN: ${RAILWAY_API_TOKEN}
   rules:
     - if: $CI_MERGE_REQUEST_IID
       when: manual
@@ -65,4 +69,5 @@ cleanup-preview:
     action: stop
   script:
     - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
+    - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
     - railway environment delete "$PREVIEW_ENV_NAME" --yes
