@@ -15,9 +15,9 @@ deploy-preview:
 
     - railway whoami
 
-    # Link to project, create preview environment, then re-link to it
-    - railway link --project "$RAILWAY_PROJECT_ID"
-    - railway environment new "$PREVIEW_ENV_NAME" || true
+    # Link to staging, create preview as a copy, then re-link to the preview
+    - railway link --project "$RAILWAY_PROJECT_ID" --environment staging
+    - railway environment new "$PREVIEW_ENV_NAME" --duplicate staging || true
     - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
 
     # Set environment variables
