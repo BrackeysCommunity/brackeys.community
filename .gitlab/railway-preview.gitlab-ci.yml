@@ -13,6 +13,9 @@ deploy-preview:
   script:
     - export PREVIEW_ENV_NAME="mr-${CI_MERGE_REQUEST_IID}"
 
+    # Debug — confirm token is valid
+    - railway whoami
+
     # Create preview environment from staging (no-op if it already exists)
     - railway environment create "$PREVIEW_ENV_NAME" --from staging 2>/dev/null || true
     - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME"
