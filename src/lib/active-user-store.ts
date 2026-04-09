@@ -6,6 +6,7 @@ export type ActiveUserProfile = {
 	discordId: string | null;
 	avatarUrl: string | null;
 	guildNickname: string | null;
+	urlStub: string | null;
 };
 
 type ActiveUserState = {
@@ -30,6 +31,7 @@ export async function fetchActiveUserProfile() {
 						discordId: data.profile.discordId,
 						avatarUrl: data.profile.avatarUrl,
 						guildNickname: data.profile.guildNickname,
+						urlStub: data.urlStub,
 					}
 				: null,
 			isPending: false,

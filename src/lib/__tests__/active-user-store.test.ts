@@ -27,6 +27,7 @@ const mockProfile = {
 	discordId: "123456789",
 	avatarUrl: "https://cdn.discordapp.com/avatars/123/abc.png",
 	guildNickname: "Josh",
+	urlStub: null as string | null,
 };
 
 const fullProfileResponse = {
@@ -101,7 +102,7 @@ describe("fetchActiveUserProfile", () => {
 
 		const profile = activeUserStore.state.profile!;
 		expect(Object.keys(profile).sort()).toEqual(
-			["avatarUrl", "discordId", "discordUsername", "guildNickname"].sort(),
+			["avatarUrl", "discordId", "discordUsername", "guildNickname", "urlStub"].sort(),
 		);
 	});
 
@@ -167,6 +168,7 @@ describe("fetchActiveUserProfile", () => {
 			discordId: null,
 			avatarUrl: null,
 			guildNickname: null,
+			urlStub: null,
 		});
 	});
 });
