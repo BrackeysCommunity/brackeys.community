@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { oAuthProxy } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, eq } from "drizzle-orm";
 
@@ -28,7 +29,12 @@ export const auth = betterAuth({
     enabled: true,
     trustedProviders: ["discord", "github"],
   },
-  plugins: [tanstackStartCookies()],
+  plugins: [
+    tanstackStartCookies(),
+    oAuthProxy({
+      productionURL: "https://staging.brackeys.dev",
+    }),
+  ],
   databaseHooks: {
     session: {
       create: {
