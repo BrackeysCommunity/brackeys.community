@@ -20,6 +20,7 @@ deploy-preview:
     # Link to source env, create preview as a copy, then re-link to the preview service
     - railway link --project "$RAILWAY_PROJECT_ID" --environment preview --service mr
     - railway environment new "$PREVIEW_ENV_NAME" --duplicate preview || true
+    - sleep 5
     - railway link --project "$RAILWAY_PROJECT_ID" --environment "$PREVIEW_ENV_NAME" --service mr
 
     # Cancel any in-progress deployment before deploying fresh

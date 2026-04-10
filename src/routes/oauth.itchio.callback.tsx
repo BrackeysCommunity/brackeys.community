@@ -32,6 +32,13 @@ function ItchIoCallbackPage() {
     const hash = window.location.hash.slice(1);
     const params = new URLSearchParams(hash);
     const accessToken = params.get("access_token");
+    const state = params.get("state");
+
+    // If this is a proxied request from a preview env, bounce there with the token
+    if (state && accessToken) {
+      window.location.href = `${state}/oauth/itchio/callback#access_token=${accessToken}`;
+      return;
+    }
 
     if (!accessToken) {
       toast.error("No access token received from itch.io");

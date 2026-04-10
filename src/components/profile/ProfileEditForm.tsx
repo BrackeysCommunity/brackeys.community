@@ -600,12 +600,22 @@ export function ProfileEditForm({
 
     setLinkingProvider("itchio");
 
-    const redirectUri = `${window.location.origin}/oauth/itchio/callback`;
+    const productionOrigin = env.VITE_OAUTH_PROXY_ORIGIN;
+    const currentOrigin = window.location.origin;
+    const isPreview = productionOrigin && currentOrigin !== productionOrigin;
+
+    const redirectUri = isPreview
+      ? `${productionOrigin}/oauth/itchio/callback`
+      : `${currentOrigin}/oauth/itchio/callback`;
+
+    const state = isPreview ? currentOrigin : "";
+
     const params = new URLSearchParams({
       client_id: clientId,
       scope: "profile:me profile:games",
       response_type: "token",
       redirect_uri: redirectUri,
+      ...(state && { state }),
     });
     window.location.href = `https://itch.io/user/oauth?${params.toString()}`;
   };

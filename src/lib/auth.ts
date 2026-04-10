@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { oAuthProxy } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, eq } from "drizzle-orm";
 
@@ -8,6 +9,10 @@ import { user, session, account, verification, developerProfiles } from "@/db/sc
 import { fetchGuildMember, resolveRoleNames } from "@/lib/discord";
 
 export const auth = betterAuth({
+  trustedOrigins: [
+    ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
+    "https://mr-*-preview.up.railway.app",
+  ],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user, session, account, verification },
@@ -28,7 +33,12 @@ export const auth = betterAuth({
     enabled: true,
     trustedProviders: ["discord", "github"],
   },
-  plugins: [tanstackStartCookies()],
+  plugins: [
+    tanstackStartCookies(),
+    oAuthProxy({
+      productionURL: "https://staging.brackeys.dev",
+    }),
+  ],
   databaseHooks: {
     session: {
       create: {
