@@ -9,6 +9,10 @@ import { user, session, account, verification, developerProfiles } from "@/db/sc
 import { fetchGuildMember, resolveRoleNames } from "@/lib/discord";
 
 export const auth = betterAuth({
+  trustedOrigins: [
+    ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
+    "https://mr-*-preview.up.railway.app",
+  ],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user, session, account, verification },
