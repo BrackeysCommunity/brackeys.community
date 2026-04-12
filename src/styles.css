@@ -47,6 +47,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-emboss-surface: var(--emboss-surface);
+  --color-emboss-shadow: var(--emboss-shadow);
+  --color-deboss-surface: var(--deboss-surface);
+  --color-deboss-shadow: var(--deboss-shadow);
+  --color-deboss-highlight: var(--deboss-highlight);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -123,6 +128,11 @@
   --sidebar-accent-foreground: oklch(0.96 0.02 272);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+  --emboss-surface: oklch(0.26 0.006 285.9);
+  --emboss-shadow: oklch(0.08 0.005 285.8);
+  --deboss-surface: oklch(0.12 0.005 285.8);
+  --deboss-shadow: oklch(0.06 0.004 285.8);
+  --deboss-highlight: oklch(1 0 0 / 5%);
 }
 
 /* ── Theme overrides ────────────────────────────────────────────────
@@ -163,6 +173,11 @@
   --sidebar-accent-foreground: #282a36;
   --sidebar-border: rgba(98, 114, 164, 0.4);
   --sidebar-ring: #bd93f9;
+  --emboss-surface: #4a4d6a;
+  --emboss-shadow: #1a1c26;
+  --deboss-surface: #21232e;
+  --deboss-shadow: #15161e;
+  --deboss-highlight: rgba(248, 248, 242, 0.05);
 }
 
 /* Nord — https://nordtheme.com */
@@ -198,6 +213,11 @@
   --sidebar-accent-foreground: #2e3440;
   --sidebar-border: rgba(76, 86, 106, 0.6);
   --sidebar-ring: #88c0d0;
+  --emboss-surface: #434c5e;
+  --emboss-shadow: #1d2128;
+  --deboss-surface: #272c36;
+  --deboss-shadow: #1a1e25;
+  --deboss-highlight: rgba(236, 239, 244, 0.05);
 }
 
 /* Catppuccin Mocha — https://catppuccin.com */
@@ -233,6 +253,11 @@
   --sidebar-accent-foreground: #1e1e2e;
   --sidebar-border: rgba(88, 91, 112, 0.5);
   --sidebar-ring: #cba6f7;
+  --emboss-surface: #3b3c52;
+  --emboss-shadow: #11111b;
+  --deboss-surface: #181825;
+  --deboss-shadow: #0e0e16;
+  --deboss-highlight: rgba(205, 214, 244, 0.05);
 }
 
 /* One Dark — https://github.com/atom/one-dark-syntax */
@@ -268,6 +293,11 @@
   --sidebar-accent-foreground: #282c34;
   --sidebar-border: rgba(99, 109, 131, 0.4);
   --sidebar-ring: #61afef;
+  --emboss-surface: #353b45;
+  --emboss-shadow: #1a1d23;
+  --deboss-surface: #23272e;
+  --deboss-shadow: #16191e;
+  --deboss-highlight: rgba(171, 178, 191, 0.05);
 }
 
 /* Solarized Dark — https://ethanschoonover.com/solarized */
@@ -303,6 +333,11 @@
   --sidebar-accent-foreground: #fdf6e3;
   --sidebar-border: rgba(88, 110, 117, 0.4);
   --sidebar-ring: #268bd2;
+  --emboss-surface: #0a4050;
+  --emboss-shadow: #001520;
+  --deboss-surface: #001e28;
+  --deboss-shadow: #001018;
+  --deboss-highlight: rgba(131, 148, 150, 0.05);
 }
 
 @layer base {
@@ -338,6 +373,29 @@
   [cmdk-item] {
     cursor: none !important;
     pointer-events: auto;
+  }
+}
+
+@layer utilities {
+  .chonk-emboss {
+    --chonk-lift: 2px;
+    --chonk-lift-hover: 3px;
+    --tw-chonk-shadow: 0 var(--chonk-lift) 0 0 var(--emboss-shadow);
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-chonk-shadow);
+    transform: translateY(calc(-1 * var(--chonk-lift)));
+    transition: transform 75ms ease-out, box-shadow 75ms ease-out;
+  }
+  .chonk-emboss:hover:not(:disabled) {
+    --tw-chonk-shadow: 0 var(--chonk-lift-hover) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-lift-hover)));
+  }
+  .chonk-emboss:active:not(:disabled) {
+    --tw-chonk-shadow: 0 0 0 0 var(--emboss-shadow);
+    transform: translateY(0);
+    transition-duration: 50ms;
+  }
+  .chonk-deboss {
+    box-shadow: inset 0 1px 0 0 var(--deboss-shadow), inset 0 -1px 0 0 var(--deboss-highlight);
   }
 }
 
