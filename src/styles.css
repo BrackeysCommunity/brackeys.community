@@ -208,30 +208,32 @@
   }
 }
 
+@property --chonk-y {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 @layer utilities {
   .chonk-emboss {
     --chonk-lift: 2px;
     --chonk-lift-hover: 3px;
-    --tw-chonk-shadow: 0 var(--chonk-lift) 0 0 var(--emboss-shadow);
+    --chonk-y: var(--chonk-lift);
     box-shadow:
       var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
-      var(--tw-chonk-shadow);
-    transform: translateY(calc(-1 * var(--chonk-lift)));
-    transition:
-      transform 75ms ease-out,
-      box-shadow 75ms ease-out;
+      0 var(--chonk-y) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
     border-color: var(--emboss-shadow);
   }
   .chonk-emboss:focus-visible {
     border-color: var(--emboss-shadow);
   }
   .chonk-emboss:hover:not(:disabled) {
-    --tw-chonk-shadow: 0 var(--chonk-lift-hover) 0 0 var(--emboss-shadow);
-    transform: translateY(calc(-1 * var(--chonk-lift-hover)));
+    --chonk-y: var(--chonk-lift-hover);
   }
   .chonk-emboss:active:not(:disabled) {
-    --tw-chonk-shadow: 0 0 0 0 var(--emboss-shadow);
-    transform: translateY(0);
+    --chonk-y: 0px;
     transition-duration: 50ms;
   }
   .chonk-deboss {
@@ -245,25 +247,22 @@
   .chonk-emboss-notched {
     --chonk-lift: 2px;
     --chonk-lift-hover: 3px;
-    filter: drop-shadow(0 var(--chonk-lift) 0 var(--emboss-shadow));
-    transform: translateY(calc(-1 * var(--chonk-lift)));
-    transition:
-      filter 75ms ease-out,
-      transform 75ms ease-out;
+    --chonk-y: var(--chonk-lift);
+    filter: drop-shadow(0 var(--chonk-y) 0 var(--emboss-shadow));
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
   }
   .chonk-emboss-notched:hover {
-    filter: drop-shadow(0 var(--chonk-lift-hover) 0 var(--emboss-shadow));
-    transform: translateY(calc(-1 * var(--chonk-lift-hover)));
+    --chonk-y: var(--chonk-lift-hover);
   }
   .chonk-emboss-notched:active,
   .chonk-emboss-notched:has(:active) {
-    filter: drop-shadow(0 0 0 var(--emboss-shadow));
-    transform: translateY(0);
+    --chonk-y: 0px;
     transition-duration: 50ms;
   }
   .chonk-emboss-notched:has(:disabled) {
+    --chonk-y: 0px;
     filter: none;
-    transform: translateY(0);
   }
 }
 
