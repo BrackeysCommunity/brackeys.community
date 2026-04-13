@@ -43,9 +43,9 @@ const buttonVariants = cva(
   },
 );
 
-const notchEmbossColor: Record<string, string> = {
+const notchEmbossColor: Record<string, string | undefined> = {
   default: "color-mix(in srgb, var(--primary) 50%, black)",
-  outline: "var(--emboss-shadow)",
+  outline: undefined, // inherits --emboss-shadow from theme
   secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
   destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
 };
@@ -73,14 +73,15 @@ function Button({
     const resolved = resolveNotchOpts(notchOpts);
     const outerClip = buildNotchPath(resolved);
     const innerClip = buildNotchPath(resolved, 1);
-    const embossColor = notchEmbossColor[variant ?? "default"] ?? "var(--emboss-shadow)";
+    const embossColor = notchEmbossColor[variant ?? "default"];
+    const bgColor = embossColor ?? "var(--emboss-shadow)";
 
     const button = (
       <ButtonPrimitive
         data-slot="button"
         className={cn(
           buttonVariants({ variant, size, className }),
-          "!translate-y-0 !border-0 !shadow-none !transition-[background-color]",
+          "!translate-y-0 !transform-none !border-0 !shadow-none !transition-[background-color]",
         )}
         style={{ clipPath: innerClip }}
         {...props}
@@ -91,9 +92,14 @@ function Button({
       <div
         className="chonk-emboss-notched inline-flex"
         data-slot="button"
-        style={{ "--emboss-shadow": embossColor } as React.CSSProperties}
+        style={
+          {
+            "--outer-clip": outerClip,
+            ...(embossColor ? { "--emboss-shadow": embossColor } : {}),
+          } as React.CSSProperties
+        }
       >
-        <div className="flex" style={{ clipPath: outerClip, background: embossColor }}>
+        <div className="flex" style={{ clipPath: outerClip, background: bgColor }}>
           {button}
         </div>
       </div>

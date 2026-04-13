@@ -6,13 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const buttonGroupVariants = cva(
-  "flex w-fit items-stretch rounded-none *:focus-visible:relative *:focus-visible:z-10 has-[>[data-slot=button-group]]:gap-2 *:data-slot:[--chonk-lift-hover:2px] *:data-slot:[--chonk-lift:1px] has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-none [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1",
+  "flex w-fit items-stretch rounded-none *:focus-visible:relative *:focus-visible:z-10 has-[>[data-slot=button-group]]:gap-2 has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-none [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1",
   {
     variants: {
       orientation: {
         horizontal: "*:data-slot:rounded-r-none [&>[data-slot]~[data-slot]]:-ml-px",
         vertical:
-          "flex-col *:data-slot:rounded-b-none *:data-slot:[--chonk-lift-hover:2px] *:data-slot:[--chonk-lift:1px] [&>[data-slot]~[data-slot]]:-mt-px",
+          "flex-col *:data-slot:rounded-b-none [&>.chonk-emboss-notched]:w-full [&>.chonk-emboss-notched>*]:w-full [&>.chonk-emboss-notched>*>*]:w-full [&>[data-slot]~[data-slot]]:-mt-px",
       },
     },
     defaultVariants: {
