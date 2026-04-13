@@ -1,0 +1,69 @@
+/* One Dark — https://github.com/atom/one-dark-syntax
+   ─────────────────────────────────────────────────────────────────────
+   Base:    #282c34 (bg)  #21252b (gutter)  #2c313a (highlight)
+   Mono:    #abb2bf  #636d83  #5c6370
+   Hues:    #e06c75 (red)  #d19a66 (orange)  #e5c07b (yellow)
+            #98c379 (green)  #56b6c2 (cyan)
+            #61afef (blue)  #c678dd (purple)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="one-dark"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #282c34;
+  --foreground: #abb2bf;
+  --card: #2c313a;
+  --card-foreground: #abb2bf;
+  --popover: #2c313a;
+  --popover-foreground: #abb2bf;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #61afef;
+  --primary-foreground: #282c34;
+  --secondary: #3e4451;
+  --secondary-foreground: #abb2bf;
+  --accent: #c678dd;
+  --accent-foreground: #282c34;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #3e4451;
+  --muted-foreground: #636d83;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #e06c75;
+  --destructive-foreground: #282c34;
+  --success: #98c379;
+  --success-foreground: #282c34;
+  --warning: #e5c07b;
+  --warning-foreground: #282c34;
+  --info: #56b6c2;
+  --info-foreground: #282c34;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(99, 109, 131, 0.4);
+  --input: rgba(99, 109, 131, 0.5);
+  --ring: #61afef;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #61afef;
+  --chart-2: #c678dd;
+  --chart-3: #98c379;
+  --chart-4: #e5c07b;
+  --chart-5: #56b6c2;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #21252b;
+  --sidebar-foreground: #abb2bf;
+  --sidebar-primary: #61afef;
+  --sidebar-primary-foreground: #282c34;
+  --sidebar-accent: #c678dd;
+  --sidebar-accent-foreground: #282c34;
+  --sidebar-border: rgba(99, 109, 131, 0.4);
+  --sidebar-ring: #61afef;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #353b45;
+  --emboss-shadow: #1a1d23;
+  --deboss-surface: #23272e;
+  --deboss-shadow: #16191e;
+  --deboss-highlight: rgba(171, 178, 191, 0.05);
+}

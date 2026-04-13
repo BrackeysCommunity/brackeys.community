@@ -31,6 +31,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -77,6 +83,13 @@
   --accent: #5865f2;
   --accent-foreground: oklch(0.96 0.02 272);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.59 0.19 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.18 75);
+  --warning-foreground: oklch(0.141 0.005 285.823);
+  --info: oklch(0.65 0.17 245);
+  --info-foreground: oklch(0.985 0 0);
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.705 0.015 286.067);
@@ -85,7 +98,7 @@
   --chart-3: oklch(0.59 0.2 277);
   --chart-4: oklch(0.51 0.23 277);
   --chart-5: oklch(0.46 0.21 277);
-  --radius: 0.625rem;
+  --radius: 8px;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.51 0.23 277);
@@ -117,6 +130,13 @@
   --accent: #5865f2;
   --accent-foreground: oklch(0.96 0.02 272);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.141 0.005 285.823);
+  --success: oklch(0.72 0.19 150);
+  --success-foreground: oklch(0.141 0.005 285.823);
+  --warning: oklch(0.82 0.16 85);
+  --warning-foreground: oklch(0.141 0.005 285.823);
+  --info: oklch(0.72 0.15 235);
+  --info-foreground: oklch(0.141 0.005 285.823);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.938);
@@ -126,6 +146,7 @@
   --chart-4: oklch(0.51 0.23 277);
   --chart-5: oklch(0.46 0.21 277);
   --sidebar: oklch(0.21 0.006 285.885);
+  --radius: 8px;
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.68 0.16 277);
   --sidebar-primary-foreground: oklch(0.96 0.02 272);
@@ -142,208 +163,14 @@
 
 /* ── Theme overrides ────────────────────────────────────────────────
    "brackeys" is the default — no override needed, it uses the .dark values above.
-   Each [data-theme] block only overrides the .dark variables.
+   Each theme file overrides the .dark variables via [data-theme="..."].dark.
    ──────────────────────────────────────────────────────────────────── */
 
-/* Dracula — https://draculatheme.com */
-[data-theme="dracula"].dark {
-  --background: #282a36;
-  --foreground: #f8f8f2;
-  --card: #44475a;
-  --card-foreground: #f8f8f2;
-  --popover: #44475a;
-  --popover-foreground: #f8f8f2;
-  --primary: #bd93f9;
-  --primary-foreground: #282a36;
-  --secondary: #44475a;
-  --secondary-foreground: #f8f8f2;
-  --muted: #44475a;
-  --muted-foreground: #6272a4;
-  --accent: #ff79c6;
-  --accent-foreground: #282a36;
-  --destructive: #ff5555;
-  --border: rgba(98, 114, 164, 0.4);
-  --input: rgba(98, 114, 164, 0.5);
-  --ring: #bd93f9;
-  --chart-1: #bd93f9;
-  --chart-2: #ff79c6;
-  --chart-3: #8be9fd;
-  --chart-4: #50fa7b;
-  --chart-5: #ffb86c;
-  --sidebar: #21222c;
-  --sidebar-foreground: #f8f8f2;
-  --sidebar-primary: #bd93f9;
-  --sidebar-primary-foreground: #282a36;
-  --sidebar-accent: #ff79c6;
-  --sidebar-accent-foreground: #282a36;
-  --sidebar-border: rgba(98, 114, 164, 0.4);
-  --sidebar-ring: #bd93f9;
-  --emboss-surface: #4a4d6a;
-  --emboss-shadow: #1a1c26;
-  --deboss-surface: #21232e;
-  --deboss-shadow: #15161e;
-  --deboss-highlight: rgba(248, 248, 242, 0.05);
-}
-
-/* Nord — https://nordtheme.com */
-[data-theme="nord"].dark {
-  --background: #2e3440;
-  --foreground: #eceff4;
-  --card: #3b4252;
-  --card-foreground: #eceff4;
-  --popover: #3b4252;
-  --popover-foreground: #eceff4;
-  --primary: #88c0d0;
-  --primary-foreground: #2e3440;
-  --secondary: #434c5e;
-  --secondary-foreground: #eceff4;
-  --muted: #434c5e;
-  --muted-foreground: #d8dee9;
-  --accent: #81a1c1;
-  --accent-foreground: #2e3440;
-  --destructive: #bf616a;
-  --border: rgba(76, 86, 106, 0.6);
-  --input: rgba(76, 86, 106, 0.7);
-  --ring: #88c0d0;
-  --chart-1: #88c0d0;
-  --chart-2: #81a1c1;
-  --chart-3: #5e81ac;
-  --chart-4: #a3be8c;
-  --chart-5: #ebcb8b;
-  --sidebar: #292e39;
-  --sidebar-foreground: #eceff4;
-  --sidebar-primary: #88c0d0;
-  --sidebar-primary-foreground: #2e3440;
-  --sidebar-accent: #81a1c1;
-  --sidebar-accent-foreground: #2e3440;
-  --sidebar-border: rgba(76, 86, 106, 0.6);
-  --sidebar-ring: #88c0d0;
-  --emboss-surface: #434c5e;
-  --emboss-shadow: #1d2128;
-  --deboss-surface: #272c36;
-  --deboss-shadow: #1a1e25;
-  --deboss-highlight: rgba(236, 239, 244, 0.05);
-}
-
-/* Catppuccin Mocha — https://catppuccin.com */
-[data-theme="catppuccin"].dark {
-  --background: #1e1e2e;
-  --foreground: #cdd6f4;
-  --card: #313244;
-  --card-foreground: #cdd6f4;
-  --popover: #313244;
-  --popover-foreground: #cdd6f4;
-  --primary: #cba6f7;
-  --primary-foreground: #1e1e2e;
-  --secondary: #45475a;
-  --secondary-foreground: #cdd6f4;
-  --muted: #45475a;
-  --muted-foreground: #a6adc8;
-  --accent: #f5c2e7;
-  --accent-foreground: #1e1e2e;
-  --destructive: #f38ba8;
-  --border: rgba(88, 91, 112, 0.5);
-  --input: rgba(88, 91, 112, 0.6);
-  --ring: #cba6f7;
-  --chart-1: #cba6f7;
-  --chart-2: #f5c2e7;
-  --chart-3: #89b4fa;
-  --chart-4: #a6e3a1;
-  --chart-5: #fab387;
-  --sidebar: #181825;
-  --sidebar-foreground: #cdd6f4;
-  --sidebar-primary: #cba6f7;
-  --sidebar-primary-foreground: #1e1e2e;
-  --sidebar-accent: #f5c2e7;
-  --sidebar-accent-foreground: #1e1e2e;
-  --sidebar-border: rgba(88, 91, 112, 0.5);
-  --sidebar-ring: #cba6f7;
-  --emboss-surface: #3b3c52;
-  --emboss-shadow: #11111b;
-  --deboss-surface: #181825;
-  --deboss-shadow: #0e0e16;
-  --deboss-highlight: rgba(205, 214, 244, 0.05);
-}
-
-/* One Dark — https://github.com/atom/one-dark-syntax */
-[data-theme="one-dark"].dark {
-  --background: #282c34;
-  --foreground: #abb2bf;
-  --card: #2c313a;
-  --card-foreground: #abb2bf;
-  --popover: #2c313a;
-  --popover-foreground: #abb2bf;
-  --primary: #61afef;
-  --primary-foreground: #282c34;
-  --secondary: #3e4451;
-  --secondary-foreground: #abb2bf;
-  --muted: #3e4451;
-  --muted-foreground: #636d83;
-  --accent: #c678dd;
-  --accent-foreground: #282c34;
-  --destructive: #e06c75;
-  --border: rgba(99, 109, 131, 0.4);
-  --input: rgba(99, 109, 131, 0.5);
-  --ring: #61afef;
-  --chart-1: #61afef;
-  --chart-2: #c678dd;
-  --chart-3: #98c379;
-  --chart-4: #e5c07b;
-  --chart-5: #56b6c2;
-  --sidebar: #21252b;
-  --sidebar-foreground: #abb2bf;
-  --sidebar-primary: #61afef;
-  --sidebar-primary-foreground: #282c34;
-  --sidebar-accent: #c678dd;
-  --sidebar-accent-foreground: #282c34;
-  --sidebar-border: rgba(99, 109, 131, 0.4);
-  --sidebar-ring: #61afef;
-  --emboss-surface: #353b45;
-  --emboss-shadow: #1a1d23;
-  --deboss-surface: #23272e;
-  --deboss-shadow: #16191e;
-  --deboss-highlight: rgba(171, 178, 191, 0.05);
-}
-
-/* Solarized Dark — https://ethanschoonover.com/solarized */
-[data-theme="solarized"].dark {
-  --background: #002b36;
-  --foreground: #839496;
-  --card: #073642;
-  --card-foreground: #93a1a1;
-  --popover: #073642;
-  --popover-foreground: #93a1a1;
-  --primary: #268bd2;
-  --primary-foreground: #fdf6e3;
-  --secondary: #073642;
-  --secondary-foreground: #93a1a1;
-  --muted: #073642;
-  --muted-foreground: #586e75;
-  --accent: #2aa198;
-  --accent-foreground: #fdf6e3;
-  --destructive: #dc322f;
-  --border: rgba(88, 110, 117, 0.4);
-  --input: rgba(88, 110, 117, 0.5);
-  --ring: #268bd2;
-  --chart-1: #268bd2;
-  --chart-2: #2aa198;
-  --chart-3: #859900;
-  --chart-4: #b58900;
-  --chart-5: #6c71c4;
-  --sidebar: #001e26;
-  --sidebar-foreground: #839496;
-  --sidebar-primary: #268bd2;
-  --sidebar-primary-foreground: #fdf6e3;
-  --sidebar-accent: #2aa198;
-  --sidebar-accent-foreground: #fdf6e3;
-  --sidebar-border: rgba(88, 110, 117, 0.4);
-  --sidebar-ring: #268bd2;
-  --emboss-surface: #0a4050;
-  --emboss-shadow: #001520;
-  --deboss-surface: #001e28;
-  --deboss-shadow: #001018;
-  --deboss-highlight: rgba(131, 148, 150, 0.05);
-}
+@import "./styles/themes/dracula.css";
+@import "./styles/themes/nord.css";
+@import "./styles/themes/catppuccin.css";
+@import "./styles/themes/one-dark.css";
+@import "./styles/themes/solarized.css";
 
 @layer base {
   * {

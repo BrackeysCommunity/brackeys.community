@@ -1,0 +1,69 @@
+/* Nord — https://nordtheme.com
+   ─────────────────────────────────────────────────────────────────────
+   Polar Night:  #2e3440  #3b4252  #434c5e  #4c566a
+   Snow Storm:   #d8dee9  #e5e9f0  #eceff4
+   Frost:        #8fbcbb  #88c0d0  #81a1c1  #5e81ac
+   Aurora:       #bf616a (red)  #d08770 (orange)  #ebcb8b (yellow)
+                 #a3be8c (green)  #b48ead (purple)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="nord"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #2e3440;
+  --foreground: #eceff4;
+  --card: #3b4252;
+  --card-foreground: #eceff4;
+  --popover: #3b4252;
+  --popover-foreground: #eceff4;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #88c0d0;
+  --primary-foreground: #2e3440;
+  --secondary: #434c5e;
+  --secondary-foreground: #eceff4;
+  --accent: #81a1c1;
+  --accent-foreground: #2e3440;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #434c5e;
+  --muted-foreground: #d8dee9;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #bf616a;
+  --destructive-foreground: #eceff4;
+  --success: #a3be8c;
+  --success-foreground: #2e3440;
+  --warning: #ebcb8b;
+  --warning-foreground: #2e3440;
+  --info: #5e81ac;
+  --info-foreground: #eceff4;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(76, 86, 106, 0.6);
+  --input: rgba(76, 86, 106, 0.7);
+  --ring: #88c0d0;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #88c0d0;
+  --chart-2: #81a1c1;
+  --chart-3: #5e81ac;
+  --chart-4: #a3be8c;
+  --chart-5: #ebcb8b;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #292e39;
+  --sidebar-foreground: #eceff4;
+  --sidebar-primary: #88c0d0;
+  --sidebar-primary-foreground: #2e3440;
+  --sidebar-accent: #81a1c1;
+  --sidebar-accent-foreground: #2e3440;
+  --sidebar-border: rgba(76, 86, 106, 0.6);
+  --sidebar-ring: #88c0d0;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #434c5e;
+  --emboss-shadow: #1d2128;
+  --deboss-surface: #272c36;
+  --deboss-shadow: #1a1e25;
+  --deboss-highlight: rgba(236, 239, 244, 0.05);
+}
