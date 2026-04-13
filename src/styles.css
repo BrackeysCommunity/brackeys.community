@@ -208,8 +208,20 @@
   }
 }
 
+/*
+ * @property --chonk-y
+ *
+ * A single animatable CSS variable that drives BOTH the translateY lift and the
+ * box-shadow / drop-shadow offset for 3D emboss buttons. By registering it as a
+ * <length> via @property, the browser interpolates one value per frame and both
+ * transform and shadow read from it — eliminating the 1-frame desync glitch that
+ * occurs when transitioning transform and box-shadow as independent properties.
+ *
+ * Math guarantee: shadow_bottom = layout_bottom - chonk_y + chonk_y = layout_bottom,
+ * so the shadow's bottom edge is always pinned to the same baseline.
+ */
 @property --chonk-y {
-  syntax: '<length>';
+  syntax: "<length>";
   inherits: false;
   initial-value: 0px;
 }
@@ -220,7 +232,8 @@
     --chonk-lift-hover: 3px;
     --chonk-y: var(--chonk-lift);
     box-shadow:
-      var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+      var(--tw-ring-offset-shadow, 0 0 #0000),
+      var(--tw-ring-shadow, 0 0 #0000),
       0 var(--chonk-y) 0 0 var(--emboss-shadow);
     transform: translateY(calc(-1 * var(--chonk-y)));
     transition: --chonk-y 75ms ease-out;
