@@ -94,6 +94,11 @@
   --sidebar-accent-foreground: oklch(0.96 0.02 272);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
+  --emboss-surface: oklch(0.96 0.002 286);
+  --emboss-shadow: oklch(0.78 0.01 286);
+  --deboss-surface: oklch(0.97 0.002 286);
+  --deboss-shadow: oklch(0.82 0.008 286);
+  --deboss-highlight: oklch(1 0 0 / 60%);
 }
 
 .dark {
@@ -381,9 +386,17 @@
     --chonk-lift: 2px;
     --chonk-lift-hover: 3px;
     --tw-chonk-shadow: 0 var(--chonk-lift) 0 0 var(--emboss-shadow);
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-chonk-shadow);
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+      var(--tw-chonk-shadow);
     transform: translateY(calc(-1 * var(--chonk-lift)));
-    transition: transform 75ms ease-out, box-shadow 75ms ease-out;
+    transition:
+      transform 75ms ease-out,
+      box-shadow 75ms ease-out;
+    border-color: var(--emboss-shadow);
+  }
+  .chonk-emboss:focus-visible {
+    border-color: var(--emboss-shadow);
   }
   .chonk-emboss:hover:not(:disabled) {
     --tw-chonk-shadow: 0 var(--chonk-lift-hover) 0 0 var(--emboss-shadow);
@@ -395,7 +408,35 @@
     transition-duration: 50ms;
   }
   .chonk-deboss {
-    box-shadow: inset 0 1px 0 0 var(--deboss-shadow), inset 0 -1px 0 0 var(--deboss-highlight);
+    box-shadow: inset 0 2px 0 0 var(--deboss-shadow);
+    border-color: var(--deboss-shadow);
+  }
+  .chonk-deboss:focus-visible {
+    border-color: var(--deboss-shadow);
+  }
+
+  .chonk-emboss-notched {
+    --chonk-lift: 2px;
+    --chonk-lift-hover: 3px;
+    filter: drop-shadow(0 var(--chonk-lift) 0 var(--emboss-shadow));
+    transform: translateY(calc(-1 * var(--chonk-lift)));
+    transition:
+      filter 75ms ease-out,
+      transform 75ms ease-out;
+  }
+  .chonk-emboss-notched:hover {
+    filter: drop-shadow(0 var(--chonk-lift-hover) 0 var(--emboss-shadow));
+    transform: translateY(calc(-1 * var(--chonk-lift-hover)));
+  }
+  .chonk-emboss-notched:active,
+  .chonk-emboss-notched:has(:active) {
+    filter: drop-shadow(0 0 0 var(--emboss-shadow));
+    transform: translateY(0);
+    transition-duration: 50ms;
+  }
+  .chonk-emboss-notched:has(:disabled) {
+    filter: none;
+    transform: translateY(0);
   }
 }
 

@@ -1,18 +1,43 @@
 import * as React from "react";
 
+import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
-  return (
+function Textarea({
+  className,
+  notchOpts,
+  ...props
+}: React.ComponentProps<"textarea"> & { notchOpts?: NotchOpts | true }) {
+  const textareaEl = (
     <textarea
       data-slot="textarea"
       className={cn(
-        "border-input dark:bg-input/30 dark:bg-deboss-surface chonk-deboss focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 rounded-none border bg-transparent px-2.5 py-2 text-xs transition-colors focus-visible:ring-1 aria-invalid:ring-1 md:text-xs placeholder:text-muted-foreground flex field-sizing-content min-h-16 w-full outline-none disabled:cursor-not-allowed disabled:opacity-50",
+        "chonk-deboss flex field-sizing-content min-h-16 w-full rounded-none border border-input bg-transparent px-2.5 py-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-deboss-surface dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        notchOpts && "!border-0 !shadow-none",
         className,
       )}
+      style={notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) } : undefined}
       {...props}
     />
   );
+
+  if (notchOpts) {
+    const resolved = resolveNotchOpts(notchOpts);
+    return (
+      <div
+        data-slot="textarea"
+        className="inline-flex w-full"
+        style={{
+          clipPath: buildNotchPath(resolved),
+          background: "var(--deboss-shadow)",
+        }}
+      >
+        {textareaEl}
+      </div>
+    );
+  }
+
+  return textareaEl;
 }
 
 export { Textarea };

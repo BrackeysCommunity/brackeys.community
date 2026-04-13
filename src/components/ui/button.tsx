@@ -1,33 +1,37 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import { motion } from "framer-motion";
+
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-none border border-transparent bg-clip-padding text-xs font-medium focus-visible:ring-1 aria-invalid:ring-1 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none group/button select-none",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-none border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80 chonk-emboss",
+        default:
+          "chonk-emboss bg-primary text-primary-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)] [a]:hover:bg-primary/80",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-expanded:bg-muted aria-expanded:text-foreground chonk-emboss",
+          "chonk-emboss bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground chonk-emboss",
+          "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)] hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 aria-expanded:bg-muted aria-expanded:text-foreground",
+          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
-          "bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30 chonk-emboss",
+          "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-none px-2 text-xs has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3 [--chonk-lift:1px] [--chonk-lift-hover:2px]",
+        xs: "h-6 gap-1 rounded-none px-2 text-xs [--chonk-lift-hover:2px] [--chonk-lift:1px] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-none px-2.5 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         icon: "size-8",
-        "icon-xs": "size-6 rounded-none [&_svg:not([class*='size-'])]:size-3 [--chonk-lift:1px] [--chonk-lift-hover:2px]",
+        "icon-xs":
+          "size-6 rounded-none [--chonk-lift-hover:2px] [--chonk-lift:1px] [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-7 rounded-none",
         "icon-lg": "size-9",
       },
@@ -39,17 +43,80 @@ const buttonVariants = cva(
   },
 );
 
+const notchEmbossColor: Record<string, string> = {
+  default: "color-mix(in srgb, var(--primary) 50%, black)",
+  outline: "var(--emboss-shadow)",
+  secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
+  destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
+};
+
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
+
+type ButtonProps = ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    isMagnetic?: boolean;
+    notchOpts?: NotchOpts | true;
+  };
 
 function Button({
   className,
   variant = "default",
   size = "default",
   isMagnetic,
+  notchOpts,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { isMagnetic?: boolean }) {
+}: ButtonProps) {
   const { ref, position } = useMagnetic(0.2);
 
+  // ── Notched variant ──────────────────────────────────────────────
+  if (notchOpts) {
+    const resolved = resolveNotchOpts(notchOpts);
+    const outerClip = buildNotchPath(resolved);
+    const innerClip = buildNotchPath(resolved, 1);
+    const embossColor = notchEmbossColor[variant ?? "default"] ?? "var(--emboss-shadow)";
+
+    const button = (
+      <ButtonPrimitive
+        data-slot="button"
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          "!translate-y-0 !border-0 !shadow-none !transition-[background-color]",
+        )}
+        style={{ clipPath: innerClip }}
+        {...props}
+      />
+    );
+
+    const frame = (
+      <div
+        className="chonk-emboss-notched inline-flex"
+        data-slot="button"
+        style={{ "--emboss-shadow": embossColor } as React.CSSProperties}
+      >
+        <div className="flex" style={{ clipPath: outerClip, background: embossColor }}>
+          {button}
+        </div>
+      </div>
+    );
+
+    if (isMagnetic) {
+      return (
+        <motion.div
+          ref={ref as React.RefObject<HTMLDivElement>}
+          data-magnetic
+          animate={{ x: position.x, y: position.y }}
+          transition={springTransition}
+          className="relative z-10 inline-flex"
+        >
+          {frame}
+        </motion.div>
+      );
+    }
+
+    return frame;
+  }
+
+  // ── Standard variant ─────────────────────────────────────────────
   if (isMagnetic) {
     return (
       <motion.div
@@ -78,3 +145,4 @@ function Button({
 }
 
 export { Button, buttonVariants };
+export type { ButtonProps };

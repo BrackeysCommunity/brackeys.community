@@ -1,10 +1,13 @@
 import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from "framer-motion";
 import * as React from "react";
+
 import { useCursorState } from "@/lib/hooks/use-cursor";
 import { cn } from "@/lib/utils";
 
 const BORDER = 3;
 const CORNER = 12;
+const CORNER_HOVERED = 8;
+const BORDER_HOVERED = 2;
 const ARC_RADIUS = 14;
 const ARC_STROKE = 3;
 const ARC_GAP = 40;
@@ -22,12 +25,21 @@ const CORNER_SPRING = { stiffness: 400, damping: 30, mass: 0.08 };
 const FADE_TRANSITION = { duration: 0.15, ease: "easeInOut" } as const;
 const ARC_SPRING = { type: "spring", stiffness: 500, damping: 25, mass: 0.08 } as const;
 
-const CORNER_CLASSES = [
-  "border-t-[3px] border-l-[3px]",
-  "border-t-[3px] border-r-[3px]",
-  "border-b-[3px] border-r-[3px]",
-  "border-b-[3px] border-l-[3px]",
+const CORNER_BORDERS = [
+  { borderTopWidth: 1, borderLeftWidth: 1 },
+  { borderTopWidth: 1, borderRightWidth: 1 },
+  { borderBottomWidth: 1, borderRightWidth: 1 },
+  { borderBottomWidth: 1, borderLeftWidth: 1 },
 ] as const;
+
+const BOUNCE_PX = 0.5;
+const CORNER_BOUNCE = [
+  { dx: BOUNCE_PX, dy: BOUNCE_PX },
+  { dx: -BOUNCE_PX, dy: BOUNCE_PX },
+  { dx: -BOUNCE_PX, dy: -BOUNCE_PX },
+  { dx: BOUNCE_PX, dy: -BOUNCE_PX },
+] as const;
+const BOUNCE_TRANSITION = { duration: 0.5, repeat: Infinity, ease: "backInOut" } as const;
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -59,57 +71,6 @@ const ARC_PRESSED = arcAngles.map(([s, e]) => bezierArc(ARC_RADIUS, s, e, inward
 
 const svgSize = ARC_RADIUS * 2 + ARC_STROKE;
 const svgHalf = ARC_RADIUS + ARC_STROKE / 2;
-
-function BounceWrapper({
-  isMagnetic,
-  isPressed,
-  targetElement,
-  springX,
-  springY,
-  bounce,
-  children,
-}: {
-  isMagnetic: boolean;
-  isPressed: boolean;
-  targetElement?: HTMLElement;
-  springX: { get: () => number };
-  springY: { get: () => number };
-  bounce?: number;
-  children: React.ReactNode;
-}) {
-  const strength = bounce ?? 0.02;
-  const [origin, setOrigin] = React.useState("0px 0px");
-
-  React.useEffect(() => {
-    if (!isMagnetic || !targetElement) return;
-
-    let rafId: number;
-    const update = () => {
-      const r = targetElement.getBoundingClientRect();
-      const cx = r.left + r.width / 2 - springX.get();
-      const cy = r.top + r.height / 2 - springY.get();
-      setOrigin(`${cx}px ${cy}px`);
-      rafId = requestAnimationFrame(update);
-    };
-    rafId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(rafId);
-  }, [isMagnetic, targetElement, springX, springY]);
-
-  const shouldBounce = isMagnetic && !isPressed && strength > 0;
-
-  return (
-    <motion.div
-      className="absolute top-0 left-0 w-0 h-0"
-      animate={shouldBounce ? { scale: [1, 1 - strength, 1] } : { scale: 1 }}
-      transition={
-        shouldBounce ? { duration: 0.5, repeat: Infinity, ease: "backInOut" } : { duration: 0.3 }
-      }
-      style={{ transformOrigin: origin }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 interface CursorProps {
   className?: string;
@@ -335,14 +296,14 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
 
   return (
     <motion.div
-      className={cn("fixed top-0 left-0 w-0 h-0 pointer-events-none z-9999", className)}
+      className={cn("pointer-events-none fixed top-0 left-0 z-9999 h-0 w-0", className)}
       style={{ x: springX, y: springY, willChange: "transform" }}
     >
       {/* Center dot */}
       <motion.div
         className="absolute rounded-full bg-foreground"
         style={{ width: 4, height: 4, top: 0, left: 0, x: -2, y: -2, willChange: "transform" }}
-        animate={{ scale: isPressed ? 0.5 : 1 }}
+        animate={{ scale: idlePressed ? 0.5 : 1 }}
         transition={{ duration: 0.2 }}
       />
 
@@ -356,41 +317,53 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
 
       {/* Spinning shape wrapper */}
       {!isText && (
-        <BounceWrapper
-          isMagnetic={isMagnetic}
-          isPressed={isPressed}
-          targetElement={cursorState.targetElement}
-          springX={springX}
-          springY={springY}
-          bounce={cursorState.bounce}
+        <motion.div
+          className="absolute top-0 left-0 h-0 w-0"
+          animate={{ x: 0, y: 0 }}
+          transition={{ duration: 0.3 }}
         >
           <motion.div
-            className="absolute top-0 left-0 w-0 h-0"
+            className="absolute top-0 left-0 h-0 w-0"
             animate={spinControls}
             style={{ willChange: "transform" }}
           >
             {/* Square corner brackets — visible when magnetic */}
             {corners.map((pos, i) => (
               <motion.div
-                key={CORNER_CLASSES[i]}
-                className={cn(
-                  "absolute top-0 left-0 border-foreground rounded-[3px]",
-                  CORNER_CLASSES[i],
-                )}
-                animate={{
-                  opacity: isMagnetic ? 1 : 0,
-                  scaleX: isPressed ? -1 : 1,
-                  scaleY: isPressed ? -1 : 1,
-                }}
-                transition={FADE_TRANSITION}
-                style={{
-                  width: CORNER,
-                  height: CORNER,
-                  x: pos.x,
-                  y: pos.y,
-                  willChange: "transform",
-                }}
-              />
+                key={i}
+                className="absolute top-0 left-0"
+                animate={
+                  isMagnetic
+                    ? { x: [0, CORNER_BOUNCE[i].dx, 0], y: [0, CORNER_BOUNCE[i].dy, 0] }
+                    : { x: 0, y: 0 }
+                }
+                transition={isMagnetic ? BOUNCE_TRANSITION : { duration: 0.15 }}
+              >
+                <motion.div
+                  className="absolute top-0 left-0 border-foreground"
+                  animate={{
+                    opacity: isMagnetic ? 1 : 0,
+                    width: isMagnetic ? CORNER_HOVERED : CORNER,
+                    height: isMagnetic ? CORNER_HOVERED : CORNER,
+                    borderRadius: isMagnetic ? 1 : 3,
+                    ...Object.fromEntries(
+                      Object.entries(CORNER_BORDERS[i]).map(([k]) => [
+                        k,
+                        isMagnetic ? BORDER_HOVERED : BORDER,
+                      ]),
+                    ),
+                  }}
+                  transition={FADE_TRANSITION}
+                  style={{
+                    width: CORNER,
+                    height: CORNER,
+                    ...CORNER_BORDERS[i],
+                    x: pos.x,
+                    y: pos.y,
+                    willChange: "transform",
+                  }}
+                />
+              </motion.div>
             ))}
 
             {/* Broken circle arcs — bezier curves that bend inward on press */}
@@ -421,7 +394,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
               ))}
             </motion.svg>
           </motion.div>
-        </BounceWrapper>
+        </motion.div>
       )}
 
       {/* Label */}
@@ -431,7 +404,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            className="absolute whitespace-nowrap text-xs font-medium text-foreground"
+            className="absolute text-xs font-medium whitespace-nowrap text-foreground"
             style={{ left: 12, top: 12 }}
           >
             {cursorState.label}
