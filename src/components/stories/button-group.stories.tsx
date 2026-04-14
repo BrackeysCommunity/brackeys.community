@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText, ButtonGroupSeparator } from "@/components/ui/button-group";
+import { Heading, Text, InlineCode } from "@/components/ui/typography";
 
 const meta: Meta<typeof ButtonGroup> = {
   title: "Components/ButtonGroup",
@@ -36,7 +37,9 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Imports</h2>
+        <Heading as="h2" size="sm" monospace>
+          Imports
+        </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
           <code>
             <span className="text-primary">import</span>
@@ -45,14 +48,16 @@ export const Overview: Story = {
             {" '@/components/ui/button-group';"}
           </code>
         </pre>
-        <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
+        <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
           ButtonGroup is used to create merged button layouts where buttons are visually joined
           together with shared borders and no gaps between them, creating a cohesive control unit.
-        </p>
+        </Text>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Usage</h2>
+        <Heading as="h2" size="sm" monospace>
+          Usage
+        </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex justify-center">
             <ButtonGroup>
@@ -72,11 +77,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Orientation</h2>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="text-primary">orientation="vertical"</code> to stack buttons
-          vertically with joined borders.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Orientation
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use <InlineCode>orientation="vertical"</InlineCode> to stack buttons vertically with
+          joined borders.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex justify-center">
             <ButtonGroup orientation="vertical">
@@ -96,10 +103,12 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Icon Toolbar</h2>
-        <p className="text-xs text-muted-foreground">
+        <Heading as="h2" size="sm" monospace>
+          Icon Toolbar
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
           Combine icon-only buttons for compact toolbars like text formatting controls.
-        </p>
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-center justify-center gap-4">
             <ButtonGroup>
@@ -142,11 +151,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">With Text Label</h2>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="text-primary">ButtonGroupText</code> to add a non-interactive label
-          segment within the group.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          With Text Label
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use <InlineCode>ButtonGroupText</InlineCode> to add a non-interactive label segment within
+          the group.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex justify-center">
             <ButtonGroup>
@@ -174,11 +185,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">With Separator</h2>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="text-primary">ButtonGroupSeparator</code> to add a visual divider
-          between button segments.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          With Separator
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use <InlineCode>ButtonGroupSeparator</InlineCode> to add a visual divider between button
+          segments.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex justify-center">
             <ButtonGroup>
@@ -198,11 +211,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Notched Ends</h2>
-        <p className="text-xs text-muted-foreground">
-          Pass <code className="text-primary">notchOpts</code> to the first and last buttons to
-          notch only the outer edges of the group.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Notched Ends
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Pass <InlineCode>notchOpts</InlineCode> to the first and last buttons to notch only the
+          outer edges of the group.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex justify-center">
             <ButtonGroup>
@@ -248,18 +263,20 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Notes</h2>
-        <div className="max-w-xl space-y-2 text-xs leading-relaxed text-muted-foreground">
-          <p>
+        <Heading as="h2" size="sm" monospace>
+          Notes
+        </Heading>
+        <div className="max-w-xl space-y-2">
+          <Text as="p" size="xs" variant="muted" density="comfortable">
             ButtonGroup is a purely presentational component. It does not manage any internal state
             such as which button is active or selected. Handle selection state in your parent
             component and pass the appropriate props (like{" "}
-            <code className="text-primary">variant="default"</code>) to the active button.
-          </p>
-          <p>
+            <InlineCode>variant="default"</InlineCode>) to the active button.
+          </Text>
+          <Text as="p" size="xs" variant="muted" density="comfortable">
             Buttons within a group have reduced emboss lift to prevent shadow overlap between
             adjacent elements.
-          </p>
+          </Text>
         </div>
       </section>
     </>

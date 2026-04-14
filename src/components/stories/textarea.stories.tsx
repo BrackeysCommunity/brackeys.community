@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { Heading, Text, InlineCode } from "@/components/ui/typography";
 
 const meta: Meta<typeof Textarea> = {
   title: "Components/Textarea",
@@ -25,7 +26,9 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Imports</h2>
+        <Heading as="h2" size="sm" monospace>
+          Imports
+        </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
           <code>
             <span className="text-primary">import</span>
@@ -34,16 +37,17 @@ export const Overview: Story = {
             {" '@/components/ui/textarea';"}
           </code>
         </pre>
-        <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
-          The Textarea component wraps a native{" "}
-          <code className="text-primary">&lt;textarea&gt;</code> with design system styling. It uses{" "}
-          <code className="text-primary">field-sizing: content</code> to auto-grow with its content,
-          and features the same debossed treatment as Input in dark mode.
-        </p>
+        <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
+          The Textarea component wraps a native <InlineCode>&lt;textarea&gt;</InlineCode> with
+          design system styling. It uses <InlineCode>field-sizing: content</InlineCode> to auto-grow
+          with its content, and features the same debossed treatment as Input in dark mode.
+        </Text>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Basic Usage</h2>
+        <Heading as="h2" size="sm" monospace>
+          Basic Usage
+        </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto w-full max-w-sm">
             <Textarea placeholder="Write something..." />
@@ -55,11 +59,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">With Field Label</h2>
-        <p className="text-xs text-muted-foreground">
-          Combine with <code className="text-primary">Field</code> and{" "}
-          <code className="text-primary">FieldLabel</code> for a complete form field.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          With Field Label
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Combine with <InlineCode>Field</InlineCode> and <InlineCode>FieldLabel</InlineCode> for a
+          complete form field.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-5">
             <Field>
@@ -79,12 +85,14 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Auto-grow</h2>
-        <p className="text-xs text-muted-foreground">
-          Textarea uses <code className="text-primary">field-sizing: content</code> by default,
-          meaning it expands vertically as you type. The minimum height is{" "}
-          <code className="text-primary">4rem</code> (64px).
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Auto-grow
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Textarea uses <InlineCode>field-sizing: content</InlineCode> by default, meaning it
+          expands vertically as you type. The minimum height is <InlineCode>4rem</InlineCode>{" "}
+          (64px).
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto w-full max-w-sm">
             <Textarea
@@ -98,7 +106,9 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Disabled</h2>
+        <Heading as="h2" size="sm" monospace>
+          Disabled
+        </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Textarea disabled placeholder="Disabled textarea" />
@@ -112,11 +122,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Validation / Error State</h2>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="text-primary">aria-invalid="true"</code> to trigger the destructive
-          border styling.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Validation / Error State
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use <InlineCode>aria-invalid="true"</InlineCode> to trigger the destructive border
+          styling.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-5">
             <Field>
@@ -136,10 +148,12 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Notched Variant</h2>
-        <p className="text-xs text-muted-foreground">
-          Pass <code className="text-primary">notchOpts</code> to clip corners with a chamfer.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Notched Variant
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Pass <InlineCode>notchOpts</InlineCode> to clip corners with a chamfer.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Textarea notchOpts placeholder="Default notch (tr + bl)" />
@@ -153,10 +167,12 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">With Fixed Height</h2>
-        <p className="text-xs text-muted-foreground">
+        <Heading as="h2" size="sm" monospace>
+          With Fixed Height
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
           Override auto-grow with a fixed height using className.
-        </p>
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto w-full max-w-sm">
             <Textarea
@@ -174,18 +190,19 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Accessibility</h2>
-        <div className="max-w-xl space-y-2 text-xs leading-relaxed text-muted-foreground">
-          <p>
-            Always pair textareas with a visible <code className="text-primary">FieldLabel</code> or
-            an <code className="text-primary">aria-label</code> for screen readers.
-          </p>
-          <p>
-            Use <code className="text-primary">aria-invalid</code> and{" "}
-            <code className="text-primary">FieldError</code> for validation feedback. The
-            destructive ring color is applied automatically when{" "}
-            <code className="text-primary">aria-invalid="true"</code>.
-          </p>
+        <Heading as="h2" size="sm" monospace>
+          Accessibility
+        </Heading>
+        <div className="max-w-xl space-y-2">
+          <Text as="p" size="xs" variant="muted" density="comfortable">
+            Always pair textareas with a visible <InlineCode>FieldLabel</InlineCode> or an{" "}
+            <InlineCode>aria-label</InlineCode> for screen readers.
+          </Text>
+          <Text as="p" size="xs" variant="muted" density="comfortable">
+            Use <InlineCode>aria-invalid</InlineCode> and <InlineCode>FieldError</InlineCode> for
+            validation feedback. The destructive ring color is applied automatically when{" "}
+            <InlineCode>aria-invalid="true"</InlineCode>.
+          </Text>
         </div>
       </section>
     </>

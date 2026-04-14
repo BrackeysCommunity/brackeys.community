@@ -10,6 +10,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { Button } from "@/components/ui/button";
+import { Heading, Text, InlineCode } from "@/components/ui/typography";
 
 const meta: Meta<typeof Button> = {
   title: "Components/Button",
@@ -33,7 +34,9 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Imports</h2>
+        <Heading as="h2" size="sm" monospace>
+          Imports
+        </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
           <code>
             <span className="text-primary">import</span>
@@ -42,23 +45,23 @@ export const Overview: Story = {
             {" '@/components/ui/button';"}
           </code>
         </pre>
-        <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
+        <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
           The Button component is the primary interactive element. It supports multiple visual
           variants, sizes, icon placement, and an optional magnetic hover effect. All buttons use
           sharp 0-radius corners consistent with the Brackeys design system.
-        </p>
+        </Text>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Variants</h2>
-        <p className="text-xs text-muted-foreground">
-          Buttons come in several visual styles: <code className="text-primary">default</code>,{" "}
-          <code className="text-primary">outline</code>,{" "}
-          <code className="text-primary">secondary</code>,{" "}
-          <code className="text-primary">ghost</code>,{" "}
-          <code className="text-primary">destructive</code>, and{" "}
-          <code className="text-primary">link</code>.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Variants
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Buttons come in several visual styles: <InlineCode>default</InlineCode>,{" "}
+          <InlineCode>outline</InlineCode>, <InlineCode>secondary</InlineCode>,{" "}
+          <InlineCode>ghost</InlineCode>, <InlineCode>destructive</InlineCode>, and{" "}
+          <InlineCode>link</InlineCode>.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button variant="default">Default</Button>
@@ -80,12 +83,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Sizes</h2>
-        <p className="text-xs text-muted-foreground">
-          Available sizes: <code className="text-primary">xs</code>,{" "}
-          <code className="text-primary">sm</code>, <code className="text-primary">default</code>,
-          and <code className="text-primary">lg</code>.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Sizes
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Available sizes: <InlineCode>xs</InlineCode>, <InlineCode>sm</InlineCode>,{" "}
+          <InlineCode>default</InlineCode>, and <InlineCode>lg</InlineCode>.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-end justify-center gap-3">
             <Button size="xs">Extra Small</Button>
@@ -103,12 +107,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Icons</h2>
-        <p className="text-xs text-muted-foreground">
-          Buttons support leading and trailing icons via{" "}
-          <code className="text-primary">data-icon</code> attributes. Icon size adjusts
-          automatically based on button size.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Icons
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Buttons support leading and trailing icons via <InlineCode>data-icon</InlineCode>{" "}
+          attributes. Icon size adjusts automatically based on button size.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button>
@@ -138,10 +143,12 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Disabled Buttons</h2>
-        <p className="text-xs text-muted-foreground">
+        <Heading as="h2" size="sm" monospace>
+          Disabled Buttons
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
           Disabled buttons indicate that an action is not available.
-        </p>
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-center justify-center gap-3">
             <Button disabled variant="outline">
@@ -157,13 +164,14 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Icon-only Buttons</h2>
-        <p className="text-xs text-muted-foreground">
-          Use icon sizes (<code className="text-primary">icon</code>,{" "}
-          <code className="text-primary">icon-xs</code>,{" "}
-          <code className="text-primary">icon-sm</code>,{" "}
-          <code className="text-primary">icon-lg</code>) for square icon buttons.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Icon-only Buttons
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use icon sizes (<InlineCode>icon</InlineCode>, <InlineCode>icon-xs</InlineCode>,{" "}
+          <InlineCode>icon-sm</InlineCode>, <InlineCode>icon-lg</InlineCode>) for square icon
+          buttons.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-end justify-center gap-3">
             <Button size="icon-xs" variant="outline">
@@ -197,26 +205,52 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">All Variants x Sizes</h2>
-        <p className="text-xs text-muted-foreground">
+        <Heading as="h2" size="sm" monospace>
+          All Variants x Sizes
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
           Complete matrix of every variant at every size for visual QA.
-        </p>
+        </Text>
         <div className="overflow-x-auto border border-border bg-card p-8">
           <table className="w-full">
             <thead>
-              <tr className="text-left font-mono text-xs text-muted-foreground">
-                <th className="pr-6 pb-4">Variant</th>
-                <th className="pr-4 pb-4">xs</th>
-                <th className="pr-4 pb-4">sm</th>
-                <th className="pr-4 pb-4">default</th>
-                <th className="pr-4 pb-4">lg</th>
+              <tr>
+                <th className="pr-6 pb-4 text-left">
+                  <Text size="xs" variant="muted" monospace>
+                    Variant
+                  </Text>
+                </th>
+                <th className="pr-4 pb-4 text-left">
+                  <Text size="xs" variant="muted" monospace>
+                    xs
+                  </Text>
+                </th>
+                <th className="pr-4 pb-4 text-left">
+                  <Text size="xs" variant="muted" monospace>
+                    sm
+                  </Text>
+                </th>
+                <th className="pr-4 pb-4 text-left">
+                  <Text size="xs" variant="muted" monospace>
+                    default
+                  </Text>
+                </th>
+                <th className="pr-4 pb-4 text-left">
+                  <Text size="xs" variant="muted" monospace>
+                    lg
+                  </Text>
+                </th>
               </tr>
             </thead>
             <tbody>
               {(["default", "outline", "secondary", "ghost", "destructive", "link"] as const).map(
                 (variant) => (
                   <tr key={variant} className="align-middle">
-                    <td className="py-2 pr-6 font-mono text-xs text-muted-foreground">{variant}</td>
+                    <td className="py-2 pr-6">
+                      <Text size="xs" variant="muted" monospace>
+                        {variant}
+                      </Text>
+                    </td>
                     {(["xs", "sm", "default", "lg"] as const).map((size) => (
                       <td key={size} className="py-2 pr-4">
                         <Button variant={variant} size={size}>
@@ -233,11 +267,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Notched Variant</h2>
-        <p className="text-xs text-muted-foreground">
-          Pass <code className="text-primary">notchOpts</code> to clip corners with a chamfer.
-          Defaults to top-right and bottom-left.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Notched Variant
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Pass <InlineCode>notchOpts</InlineCode> to clip corners with a chamfer. Defaults to
+          top-right and bottom-left.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Button notchOpts>Default</Button>
@@ -279,17 +315,19 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Accessibility</h2>
-        <div className="max-w-xl space-y-2 text-xs leading-relaxed text-muted-foreground">
-          <p>
-            Buttons are built on <code className="text-primary">@base-ui/react/button</code> which
-            provides proper <code className="text-primary">role="button"</code> semantics, keyboard
-            support (Enter/Space), and focus management.
-          </p>
-          <p>
-            Icon-only buttons should include an <code className="text-primary">aria-label</code> for
-            screen readers since they have no visible text content.
-          </p>
+        <Heading as="h2" size="sm" monospace>
+          Accessibility
+        </Heading>
+        <div className="max-w-xl space-y-2">
+          <Text as="p" size="xs" variant="muted" density="comfortable">
+            Buttons are built on <InlineCode>@base-ui/react/button</InlineCode> which provides
+            proper <InlineCode>role="button"</InlineCode> semantics, keyboard support (Enter/Space),
+            and focus management.
+          </Text>
+          <Text as="p" size="xs" variant="muted" density="comfortable">
+            Icon-only buttons should include an <InlineCode>aria-label</InlineCode> for screen
+            readers since they have no visible text content.
+          </Text>
         </div>
       </section>
     </>

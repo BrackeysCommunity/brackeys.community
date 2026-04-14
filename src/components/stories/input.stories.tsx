@@ -11,6 +11,7 @@ import {
   InputGroupButton,
 } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
+import { Heading, Text, InlineCode } from "@/components/ui/typography";
 
 const meta: Meta<typeof Input> = {
   title: "Components/Input",
@@ -34,7 +35,9 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Imports</h2>
+        <Heading as="h2" size="sm" monospace>
+          Imports
+        </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
           <code>
             <span className="text-primary">import</span>
@@ -43,15 +46,17 @@ export const Overview: Story = {
             {" '@/components/ui/input';"}
           </code>
         </pre>
-        <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
-          The Input component wraps a native <code className="text-primary">&lt;input&gt;</code>{" "}
-          with the Brackeys design system styling. It features a debossed (sunken) appearance in
-          dark mode for visual depth, consistent with the sci-fi aesthetic.
-        </p>
+        <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
+          The Input component wraps a native <InlineCode>&lt;input&gt;</InlineCode> with the
+          Brackeys design system styling. It features a debossed (sunken) appearance in dark mode
+          for visual depth, consistent with the sci-fi aesthetic.
+        </Text>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Basic Usage</h2>
+        <Heading as="h2" size="sm" monospace>
+          Basic Usage
+        </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Input placeholder="Enter your name..." />
@@ -63,11 +68,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Input Types</h2>
-        <p className="text-xs text-muted-foreground">
+        <Heading as="h2" size="sm" monospace>
+          Input Types
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
           All native HTML input types are supported. The component passes through the{" "}
-          <code className="text-primary">type</code> prop directly.
-        </p>
+          <InlineCode>type</InlineCode> prop directly.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Input type="text" placeholder="Text input" />
@@ -89,12 +96,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">With Field Labels</h2>
-        <p className="text-xs text-muted-foreground">
-          Combine with <code className="text-primary">Field</code>,{" "}
-          <code className="text-primary">FieldLabel</code>, and{" "}
-          <code className="text-primary">FieldDescription</code> for complete form fields.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          With Field Labels
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Combine with <InlineCode>Field</InlineCode>, <InlineCode>FieldLabel</InlineCode>, and{" "}
+          <InlineCode>FieldDescription</InlineCode> for complete form fields.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-5">
             <Field>
@@ -118,7 +126,9 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Disabled</h2>
+        <Heading as="h2" size="sm" monospace>
+          Disabled
+        </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Input disabled placeholder="Disabled input" />
@@ -132,11 +142,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Validation / Error State</h2>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="text-primary">aria-invalid="true"</code> to show the error state
-          border. Pair with <code className="text-primary">FieldError</code> for the message.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Validation / Error State
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use <InlineCode>aria-invalid="true"</InlineCode> to show the error state border. Pair with{" "}
+          <InlineCode>FieldError</InlineCode> for the message.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-5">
             <Field>
@@ -156,11 +168,13 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">InputGroup</h2>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="text-primary">InputGroup</code> to add icons, text, buttons, or
-          keyboard shortcuts alongside the input.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          InputGroup
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Use <InlineCode>InputGroup</InlineCode> to add icons, text, buttons, or keyboard shortcuts
+          alongside the input.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <InputGroup>
@@ -207,10 +221,12 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Notched Variant</h2>
-        <p className="text-xs text-muted-foreground">
-          Pass <code className="text-primary">notchOpts</code> to clip corners with a chamfer.
-        </p>
+        <Heading as="h2" size="sm" monospace>
+          Notched Variant
+        </Heading>
+        <Text as="p" size="xs" variant="muted">
+          Pass <InlineCode>notchOpts</InlineCode> to clip corners with a chamfer.
+        </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Input notchOpts placeholder="Default notch (tr + bl)" />
@@ -226,7 +242,9 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">File Input</h2>
+        <Heading as="h2" size="sm" monospace>
+          File Input
+        </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
             <Input type="file" />
@@ -238,18 +256,20 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-bold text-foreground">Accessibility</h2>
-        <div className="max-w-xl space-y-2 text-xs leading-relaxed text-muted-foreground">
-          <p>
-            Input is built on <code className="text-primary">@base-ui/react/input</code> which
-            provides proper ARIA semantics and focus management.
-          </p>
-          <p>
-            Always pair inputs with a visible <code className="text-primary">FieldLabel</code> or an{" "}
-            <code className="text-primary">aria-label</code> for screen readers. Use{" "}
-            <code className="text-primary">aria-invalid</code> and{" "}
-            <code className="text-primary">FieldError</code> for validation feedback.
-          </p>
+        <Heading as="h2" size="sm" monospace>
+          Accessibility
+        </Heading>
+        <div className="max-w-xl space-y-2">
+          <Text as="p" size="xs" variant="muted" density="comfortable">
+            Input is built on <InlineCode>@base-ui/react/input</InlineCode> which provides proper
+            ARIA semantics and focus management.
+          </Text>
+          <Text as="p" size="xs" variant="muted" density="comfortable">
+            Always pair inputs with a visible <InlineCode>FieldLabel</InlineCode> or an{" "}
+            <InlineCode>aria-label</InlineCode> for screen readers. Use{" "}
+            <InlineCode>aria-invalid</InlineCode> and <InlineCode>FieldError</InlineCode> for
+            validation feedback.
+          </Text>
         </div>
       </section>
     </>
