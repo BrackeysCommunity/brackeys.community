@@ -1,0 +1,23 @@
+[22:48:44.754] [INFO] storybook v10.2.8
+[22:48:46.444] [DEBUG] Getting package.json info for /Users/joshua/Repos/brackeys/package.json...
+[22:48:46.992] [INFO] Storybook collects completely anonymous usage telemetry. We use it to shape Storybook's roadmap and prioritize features. You can learn more, including how to opt out, at https://storybook.js.org/telemetry
+[22:48:47.249] [INFO] Starting...
+[22:48:47.269] [WARN] unable to find package.json for @rolldown/plugin-babel
+[22:48:47.292] [WARN] unable to find package.json for @tanstack/eslint-plugin-query
+[22:48:47.293] [WARN] unable to find package.json for @tanstack/eslint-plugin-router
+[22:48:47.297] [WARN] unable to find package.json for eslint-plugin-react-hooks
+[22:48:47.449] [DEBUG] Starting preview..
+[22:48:47.472] [ERROR] Failed to build the preview
+[22:48:47.472] [ERROR] Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@rolldown/plugin-babel' imported from ./node_modules/.vite-temp/vite.config.ts.timestamp-1776138527470-a58b18ffa9c4d8.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:768:81)
+    at moduleResolve (node:internal/modules/esm/resolve:859:18)
+    at defaultResolve (node:internal/modules/esm/resolve:991:11)
+    at nextResolve (node:internal/modules/esm/hooks:785:28)
+    at AsyncLoaderHooksOnLoaderHookWorker.resolve (node:internal/modules/esm/hooks:269:30)
+    at MessagePort.handleMessage (node:internal/modules/esm/worker:251:24)
+    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:843:20)
+    at MessagePort.<anonymous> (node:internal/per_context/messageport:23:28)
+[22:48:47.473] [WARN] Broken build, fix the error above.
+You may need to refresh the browser.
+[22:48:56.462] [PROMPT] Would you like to send anonymous crash reports to improve Storybook and fix bugs faster? {"choice":false}

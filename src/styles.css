@@ -8,6 +8,7 @@
 
 @theme inline {
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
   /* Brackeys brand colors (from brackeys.community) */
