@@ -1,4 +1,11 @@
 import type { Preview } from "@storybook/react-vite";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import { Cursor } from "../src/components/ui/cursor";
 import { themes, DEFAULT_THEME_ID } from "../src/lib/themes";
@@ -7,6 +14,19 @@ import { themes, DEFAULT_THEME_ID } from "../src/lib/themes";
 import "../src/styles.css";
 // @ts-ignore
 import "../src/fonts.css";
+
+function StorybookRouter({ children }: { children: React.ReactNode }) {
+  const router = useMemo(() => {
+    const rootRoute = createRootRoute({ component: () => children });
+    return createRouter({
+      routeTree: rootRoute,
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+    });
+  }, [children]);
+
+  // @ts-expect-error -- minimal router for storybook, not the app's typed router
+  return <RouterProvider router={router} />;
+}
 
 const preview: Preview = {
   globalTypes: {
@@ -37,10 +57,10 @@ const preview: Preview = {
       document.documentElement.classList.add("dark");
       document.documentElement.setAttribute("data-theme", theme);
       return (
-        <>
+        <StorybookRouter>
           <Cursor />
           <Story />
-        </>
+        </StorybookRouter>
       );
     },
   ],

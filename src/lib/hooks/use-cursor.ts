@@ -1,3 +1,4 @@
+import { useLocation } from "@tanstack/react-router";
 import { useEventListener } from "ahooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -138,6 +139,12 @@ export function useCursorState() {
       document.removeEventListener("mousedown", onMouseDown);
     };
   }, [buildMagneticState]);
+
+  const { pathname } = useLocation();
+  useEffect(() => {
+    focusLockedRef.current = null;
+    setState({ type: "default" });
+  }, [pathname]);
 
   useEventListener("mouseover", onMouseEnter, { target: () => document.body });
   useEventListener("mouseout", onMouseLeave, { target: () => document.body });

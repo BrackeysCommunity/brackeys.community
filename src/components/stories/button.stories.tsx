@@ -64,19 +64,34 @@ export const Overview: Story = {
         </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button variant="default">Default</Button>
-            <Button variant="outline">Outline</Button>
-            <Button variant="secondary">Secondary</Button>
-            <Button variant="ghost">Ghost</Button>
-            <Button variant="destructive">Destructive</Button>
+            <Button variant="default" isMagnetic>
+              Default
+            </Button>
+            <Button variant="outline" isMagnetic data-cursor-label="Outline">
+              Outline
+            </Button>
+            <Button variant="secondary" isMagnetic data-cursor-corner-size="lg">
+              Secondary
+            </Button>
+            <Button variant="ghost" isMagnetic data-cursor-no-drift>
+              Ghost
+            </Button>
+            <Button
+              variant="destructive"
+              isMagnetic
+              data-cursor-label="Delete?"
+              data-cursor-corner-size="sm"
+            >
+              Destructive
+            </Button>
             <Button variant="link">Link</Button>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {`<Button variant="default">Default</Button>
-<Button variant="outline">Outline</Button>
-<Button variant="secondary">Secondary</Button>
-<Button variant="ghost">Ghost</Button>
-<Button variant="destructive">Destructive</Button>
+            {`<Button variant="default" isMagnetic>Default</Button>
+<Button variant="outline" isMagnetic data-cursor-label="Outline">Outline</Button>
+<Button variant="secondary" isMagnetic data-cursor-corner-size="lg">Secondary</Button>
+<Button variant="ghost" isMagnetic data-cursor-no-drift>Ghost</Button>
+<Button variant="destructive" isMagnetic data-cursor-label="Delete?">Destructive</Button>
 <Button variant="link">Link</Button>`}
           </pre>
         </div>
@@ -92,16 +107,25 @@ export const Overview: Story = {
         </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-end justify-center gap-3">
-            <Button size="xs">Extra Small</Button>
-            <Button size="sm">Small</Button>
-            <Button size="default">Default</Button>
-            <Button size="lg">Large</Button>
+            <Button size="xs" isMagnetic data-cursor-corner-size="xs">
+              Extra Small
+            </Button>
+            <Button size="sm" isMagnetic data-cursor-corner-size="sm">
+              Small
+            </Button>
+            <Button size="default" isMagnetic>
+              Default
+            </Button>
+            <Button size="lg" isMagnetic data-cursor-corner-size="lg" data-cursor-padding-x="8" data-cursor-padding-y="8">
+              Large
+            </Button>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {`<Button size="xs">Extra Small</Button>
-<Button size="sm">Small</Button>
-<Button size="default">Default</Button>
-<Button size="lg">Large</Button>`}
+            {`<Button size="xs" isMagnetic data-cursor-corner-size="xs">Extra Small</Button>
+<Button size="sm" isMagnetic data-cursor-corner-size="sm">Small</Button>
+<Button size="default" isMagnetic>Default</Button>
+<Button size="lg" isMagnetic data-cursor-corner-size="lg"
+  data-cursor-padding-x="8" data-cursor-padding-y="8">Large</Button>`}
           </pre>
         </div>
       </section>
@@ -116,27 +140,32 @@ export const Overview: Story = {
         </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button>
+            <Button isMagnetic data-cursor-label="Add">
               <HugeiconsIcon icon={Add01Icon} data-icon="inline-start" />
               Add Item
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" isMagnetic data-cursor-no-drift>
               Download
               <HugeiconsIcon icon={Download04Icon} data-icon="inline-end" />
             </Button>
-            <Button variant="destructive">
+            <Button variant="destructive" isMagnetic data-cursor-corner-size="sm" data-cursor-label="Remove">
               <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
               Delete
             </Button>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {`<Button>
+            {`<Button isMagnetic data-cursor-label="Add">
   <HugeiconsIcon icon={Add01Icon} data-icon="inline-start" />
   Add Item
 </Button>
-<Button variant="outline">
+<Button variant="outline" isMagnetic data-cursor-no-drift>
   Download
   <HugeiconsIcon icon={Download04Icon} data-icon="inline-end" />
+</Button>
+<Button variant="destructive" isMagnetic data-cursor-corner-size="sm"
+  data-cursor-label="Remove">
+  <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
+  Delete
 </Button>`}
           </pre>
         </div>
@@ -151,14 +180,16 @@ export const Overview: Story = {
         </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-center justify-center gap-3">
-            <Button disabled variant="outline">
+            <Button disabled variant="outline" data-cursor="hidden">
               Cancel
             </Button>
-            <Button disabled>Submit</Button>
+            <Button disabled data-cursor="hidden">
+              Submit
+            </Button>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {`<Button disabled variant="outline">Cancel</Button>
-<Button disabled>Submit</Button>`}
+            {`<Button disabled variant="outline" data-cursor="hidden">Cancel</Button>
+<Button disabled data-cursor="hidden">Submit</Button>`}
           </pre>
         </div>
       </section>
@@ -174,30 +205,33 @@ export const Overview: Story = {
         </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex items-end justify-center gap-3">
-            <Button size="icon-xs" variant="outline">
+            <Button size="icon-xs" variant="outline" isMagnetic data-cursor-corner-size="xs">
               <HugeiconsIcon icon={Search01Icon} />
             </Button>
-            <Button size="icon-sm" variant="outline">
+            <Button size="icon-sm" variant="outline" isMagnetic data-cursor-label="Settings">
               <HugeiconsIcon icon={Settings01Icon} />
             </Button>
-            <Button size="icon" variant="outline">
+            <Button size="icon" variant="outline" isMagnetic data-cursor-no-drift>
               <HugeiconsIcon icon={Add01Icon} />
             </Button>
-            <Button size="icon-lg" variant="outline">
+            <Button size="icon-lg" variant="outline" isMagnetic data-cursor-padding-x="12" data-cursor-padding-y="12">
               <HugeiconsIcon icon={ArrowRight01Icon} />
             </Button>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {`<Button size="icon-xs" variant="outline">
+            {`<Button size="icon-xs" variant="outline" isMagnetic
+  data-cursor-corner-size="xs">
   <HugeiconsIcon icon={Search01Icon} />
 </Button>
-<Button size="icon-sm" variant="outline">
+<Button size="icon-sm" variant="outline" isMagnetic
+  data-cursor-label="Settings">
   <HugeiconsIcon icon={Settings01Icon} />
 </Button>
-<Button size="icon" variant="outline">
+<Button size="icon" variant="outline" isMagnetic data-cursor-no-drift>
   <HugeiconsIcon icon={Add01Icon} />
 </Button>
-<Button size="icon-lg" variant="outline">
+<Button size="icon-lg" variant="outline" isMagnetic
+  data-cursor-padding-x="12" data-cursor-padding-y="12">
   <HugeiconsIcon icon={ArrowRight01Icon} />
 </Button>`}
           </pre>
@@ -276,34 +310,34 @@ export const Overview: Story = {
         </Text>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Button notchOpts>Default</Button>
-            <Button variant="outline" notchOpts>
+            <Button notchOpts isMagnetic>Default</Button>
+            <Button variant="outline" notchOpts isMagnetic data-cursor-label="Outline">
               Outline
             </Button>
-            <Button variant="secondary" notchOpts>
+            <Button variant="secondary" notchOpts isMagnetic data-cursor-no-drift>
               Secondary
             </Button>
-            <Button variant="destructive" notchOpts>
+            <Button variant="destructive" notchOpts isMagnetic data-cursor-corner-size="sm">
               Destructive
             </Button>
           </div>
           <div className="flex flex-wrap items-end justify-center gap-4">
-            <Button size="xs" notchOpts>
+            <Button size="xs" notchOpts isMagnetic data-cursor-corner-size="xs">
               XS
             </Button>
-            <Button size="sm" notchOpts>
+            <Button size="sm" notchOpts isMagnetic>
               SM
             </Button>
-            <Button notchOpts>Default</Button>
-            <Button size="lg" notchOpts>
+            <Button notchOpts isMagnetic data-cursor-corner-size="lg">Default</Button>
+            <Button size="lg" notchOpts isMagnetic data-cursor-padding-x="8" data-cursor-padding-y="8">
               LG
             </Button>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Button notchOpts={{ corners: ["tr"] }}>Top Right</Button>
-            <Button notchOpts={{ corners: ["bl"] }}>Bottom Left</Button>
-            <Button notchOpts={{ corners: ["tl", "br"] }}>TL + BR</Button>
-            <Button notchOpts={{ corners: ["tl", "tr", "bl", "br"], size: 10 }}>All Corners</Button>
+            <Button notchOpts={{ corners: ["tr"] }} isMagnetic>Top Right</Button>
+            <Button notchOpts={{ corners: ["bl"] }} isMagnetic data-cursor-label="Notch">Bottom Left</Button>
+            <Button notchOpts={{ corners: ["tl", "br"] }} isMagnetic data-cursor-no-drift>TL + BR</Button>
+            <Button notchOpts={{ corners: ["tl", "tr", "bl", "br"], size: 10 }} isMagnetic data-cursor-corner-size="lg">All Corners</Button>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
             {`<Button notchOpts>Default</Button>
