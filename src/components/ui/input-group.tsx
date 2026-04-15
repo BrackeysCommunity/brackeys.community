@@ -17,7 +17,7 @@ function InputGroup({ className, size = "default", ...props }: InputGroupProps) 
       data-size={size}
       role="group"
       className={cn(
-        "group/input-group relative flex w-full min-w-0 items-center rounded-xs border border-input transition-colors outline-none",
+        "group/input-group chonk-deboss relative flex w-full min-w-0 items-center rounded-xs border border-input transition-colors outline-none dark:bg-deboss-surface",
         size === "default" && "h-8",
         size === "sm" && "h-7",
         size === "xs" && "h-6",
@@ -127,7 +127,7 @@ function InputGroupInput({ className, ...props }: React.ComponentProps<"input">)
     <Input
       data-slot="input-group-control"
       className={cn(
-        "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
+        "flex-1 rounded-none border-0 bg-transparent !shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
         className,
       )}
       {...props}
@@ -140,7 +140,7 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<"texta
     <Textarea
       data-slot="input-group-control"
       className={cn(
-        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
+        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 !shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
         className,
       )}
       {...props}

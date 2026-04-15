@@ -254,6 +254,23 @@
     box-shadow: inset 0 2px 0 0 var(--deboss-shadow);
     border-color: var(--deboss-shadow);
   }
+
+  /* Switch thumb emboss — driven by the parent Root's hover/active state */
+  .switch-thumb-emboss {
+    --chonk-lift: 1px;
+    --chonk-lift-hover: 2px;
+    --chonk-y: var(--chonk-lift);
+    box-shadow: 0 var(--chonk-y) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
+  }
+  .group\/switch:hover:not(:disabled) .switch-thumb-emboss {
+    --chonk-y: var(--chonk-lift-hover);
+  }
+  .group\/switch:active:not(:disabled) .switch-thumb-emboss {
+    --chonk-y: 0px;
+    transition-duration: 50ms;
+  }
   .chonk-deboss:focus-visible {
     border-color: var(--deboss-shadow);
   }

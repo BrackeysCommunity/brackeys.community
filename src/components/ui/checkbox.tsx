@@ -29,7 +29,7 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "border-input dark:bg-deboss-surface chonk-deboss peer relative inline-flex shrink-0 items-center justify-center rounded-xs border transition-colors outline-none select-none",
+        "chonk-deboss peer relative inline-flex shrink-0 items-center justify-center rounded-xs border border-input transition-colors outline-none select-none dark:bg-deboss-surface",
         "data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary",
         "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50",
         "aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
@@ -37,11 +37,18 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
         "disabled:cursor-not-allowed disabled:opacity-50",
         "group-has-disabled/field:opacity-50",
         sizeClasses[size],
-        notchOpts && "!border-0 !shadow-none",
+        notchOpts && "!border-0 shadow-[inset_0_3px_0_0_var(--deboss-shadow)]",
         className,
       )}
       style={
-        notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts === true ? { size: 3 } : { size: 3, ...notchOpts }), 1) } : undefined
+        notchOpts
+          ? {
+              clipPath: buildNotchPath(
+                resolveNotchOpts(notchOpts === true ? { size: 3 } : { size: 3, ...notchOpts }),
+                1,
+              ),
+            }
+          : undefined
       }
       {...props}
     >
@@ -61,14 +68,16 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
   if (notchOpts) {
     const resolved = resolveNotchOpts(notchOpts === true ? { size: 3 } : { size: 3, ...notchOpts });
     return (
-      <div
-        className="inline-flex shrink-0"
-        style={{
-          clipPath: buildNotchPath(resolved),
-          background: "var(--deboss-shadow)",
-        }}
-      >
-        {checkbox}
+      <div className="inline-flex shrink-0 overflow-hidden rounded-xs">
+        <div
+          className="inline-flex shrink-0"
+          style={{
+            clipPath: buildNotchPath(resolved),
+            background: "var(--deboss-shadow)",
+          }}
+        >
+          {checkbox}
+        </div>
       </div>
     );
   }

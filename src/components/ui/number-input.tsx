@@ -26,7 +26,7 @@ function NumberInput({
   const isXs = size === "xs";
 
   const group = (
-    <NumberFieldPrimitive.Root disabled={disabled} {...props}>
+    <NumberFieldPrimitive.Root disabled={disabled} className="w-full" {...props}>
       <NumberFieldPrimitive.Group
         data-slot="number-input"
         data-size={size}
@@ -37,14 +37,11 @@ function NumberInput({
           "dark:bg-deboss-surface dark:bg-input/30",
           isXs ? "h-6" : "h-8",
           disabled && "pointer-events-none opacity-50",
-          notchOpts && "!border-0",
+          notchOpts &&
+            "!border-0 bg-background shadow-[inset_0_4px_0_0_var(--deboss-shadow)] dark:bg-[#38394C] dark:hover:bg-[#40415A]",
           className,
         )}
-        style={
-          notchOpts
-            ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) }
-            : undefined
-        }
+        style={notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) } : undefined}
       >
         <NumberFieldPrimitive.Input
           data-slot="number-input-field"
@@ -54,10 +51,17 @@ function NumberInput({
             monospace && "font-mono",
           )}
         />
-        <div className={cn("flex flex-col border-l border-input", isXs ? "h-6 w-5" : "h-8 w-6")}>
+        <div
+          className={cn(
+            "flex flex-col border-l",
+            notchOpts ? "border-border/30" : "border-input",
+            isXs ? "w-5 self-stretch" : "w-6 self-stretch",
+          )}
+        >
           <NumberFieldPrimitive.Increment
             className={cn(
-              "flex flex-1 items-center justify-center border-b border-input text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30",
+              "flex flex-1 items-center justify-center border-b text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30",
+              notchOpts ? "border-border/30" : "border-input",
             )}
           >
             <HugeiconsIcon
@@ -85,14 +89,16 @@ function NumberInput({
   if (notchOpts) {
     const resolved = resolveNotchOpts(notchOpts);
     return (
-      <div
-        className="inline-flex w-full"
-        style={{
-          clipPath: buildNotchPath(resolved),
-          background: "var(--deboss-shadow)",
-        }}
-      >
-        {group}
+      <div className="inline-flex w-full overflow-hidden rounded-xs">
+        <div
+          className="inline-flex w-full"
+          style={{
+            clipPath: buildNotchPath(resolved),
+            background: "var(--deboss-shadow)",
+          }}
+        >
+          {group}
+        </div>
       </div>
     );
   }
