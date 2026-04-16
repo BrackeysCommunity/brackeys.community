@@ -13,12 +13,6 @@ chromatic:
     GIT_DEPTH: 0
   interruptible: true
   rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-      changes:
-        - src/**/*
-        - .storybook/**/*
-        - package.json
-        - bun.lock
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
