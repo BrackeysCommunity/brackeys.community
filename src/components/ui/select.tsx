@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import {
   ArrowDown01Icon,
@@ -10,6 +9,7 @@ import {
   UnfoldMoreIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
@@ -56,23 +56,20 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "border-input data-placeholder:text-muted-foreground dark:bg-deboss-surface dark:bg-input/30 chonk-deboss dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50",
-        "flex w-fit items-center justify-between gap-1.5 whitespace-nowrap rounded-xs border bg-transparent py-2 pr-2 pl-2.5 text-xs transition-colors outline-none select-none",
-        "focus-visible:ring-1 aria-invalid:ring-1",
+        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-deboss-surface dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "flex w-fit items-center justify-between gap-1.5 rounded-xs border bg-transparent py-2 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none",
+        "aria-invalid:ring-1",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         size === "default" && "h-8",
         size === "sm" && "h-7",
         size === "xs" && "h-6 text-[10px]",
-        notchOpts && "!border-0 bg-background dark:bg-[#38394C] dark:hover:bg-[#40415A] shadow-[inset_0_4px_0_0_var(--deboss-shadow)]",
+        notchOpts &&
+          "!border-0 bg-background shadow-[inset_0_4px_0_0_var(--deboss-shadow)] dark:bg-[#38394C] dark:hover:bg-[#40415A]",
         className,
       )}
-      style={
-        notchOpts
-          ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) }
-          : undefined
-      }
+      style={notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) } : undefined}
       {...props}
     >
       {children}
@@ -136,8 +133,8 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2",
-            "ring-foreground/10 relative isolate z-50 min-w-36 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-xs shadow-md ring-1 duration-100",
+            "bg-popover text-popover-foreground data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-xs shadow-md ring-1 ring-foreground/10 duration-100",
             "data-[align-trigger=true]:animate-none",
             className,
           )}
@@ -194,7 +191,7 @@ function SelectSeparator({ className, ...props }: SelectPrimitive.Separator.Prop
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("-mx-1 h-px bg-border pointer-events-none", className)}
+      className={cn("pointer-events-none -mx-1 h-px bg-border", className)}
       {...props}
     />
   );
@@ -275,22 +272,19 @@ function SelectMultiTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "border-input dark:bg-deboss-surface dark:bg-input/30 chonk-deboss dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50",
+        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-deboss-surface dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         "flex w-full items-center gap-1.5 rounded-xs border bg-transparent pr-2 pl-2 text-xs transition-colors outline-none select-none",
-        "focus-visible:ring-1 aria-invalid:ring-1",
+        "aria-invalid:ring-1",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "[&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         size === "default" && "min-h-8 pt-[7px] pb-[5px]",
         size === "sm" && "min-h-7 pt-[5px] pb-[3px]",
         size === "xs" && "min-h-6 pt-1 pb-0.5 text-[10px]",
-        notchOpts && "!border-0 bg-background dark:bg-[#38394C] dark:hover:bg-[#40415A] shadow-[inset_0_4px_0_0_var(--deboss-shadow)]",
+        notchOpts &&
+          "!border-0 bg-background shadow-[inset_0_4px_0_0_var(--deboss-shadow)] dark:bg-[#38394C] dark:hover:bg-[#40415A]",
         className,
       )}
-      style={
-        notchOpts
-          ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) }
-          : undefined
-      }
+      style={notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) } : undefined}
       {...props}
     >
       <div className="flex flex-1 flex-wrap items-center gap-1">

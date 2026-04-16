@@ -29,7 +29,7 @@ function Switch({ className, size = "sm", notchOpts, ...props }: SwitchProps) {
         "data-checked:bg-primary/20 dark:data-checked:bg-primary/30",
         "data-unchecked:bg-input dark:data-unchecked:bg-input/50",
         // Focus / validation
-        "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50",
+        "focus-visible:outline-hidden",
         "aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20",
         // Expanded click area
         "after:absolute after:-inset-x-3 after:-inset-y-2",

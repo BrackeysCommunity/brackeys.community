@@ -31,8 +31,7 @@ function NumberInput({
         data-slot="number-input"
         data-size={size}
         className={cn(
-          "relative flex w-full items-center rounded-xs border border-input transition-colors outline-none",
-          "has-[[data-slot=number-input-field]:focus-visible]:border-ring has-[[data-slot=number-input-field]:focus-visible]:ring-1 has-[[data-slot=number-input-field]:focus-visible]:ring-ring/50",
+          "chonk-deboss relative flex w-full items-center rounded-xs border border-input transition-colors outline-none dark:bg-deboss-surface",
           "has-[[data-slot=number-input-field][aria-invalid=true]]:border-destructive has-[[data-slot=number-input-field][aria-invalid=true]]:ring-1 has-[[data-slot=number-input-field][aria-invalid=true]]:ring-destructive/20",
           "dark:bg-deboss-surface dark:bg-input/30",
           isXs ? "h-6" : "h-8",
