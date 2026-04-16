@@ -15,3 +15,5 @@ todos.json
 .claude
 .codex
 .codex-schemas
+/storybook-static
+build-storybook.log
