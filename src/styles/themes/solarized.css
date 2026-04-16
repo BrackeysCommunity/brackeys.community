@@ -1,0 +1,71 @@
+/* Solarized Dark — https://ethanschoonover.com/solarized
+   ─────────────────────────────────────────────────────────────────────
+   Base:      #002b36 (base03)  #073642 (base02)
+   Content:   #586e75 (base01)  #657b83 (base00)
+              #839496 (base0)   #93a1a1 (base1)
+   Emphasis:  #eee8d5 (base2)   #fdf6e3 (base3)
+   Accents:   #dc322f (red)     #cb4b16 (orange)  #b58900 (yellow)
+              #859900 (green)   #2aa198 (cyan)
+              #268bd2 (blue)    #6c71c4 (violet)   #d33682 (magenta)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="solarized"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #002b36;
+  --foreground: #839496;
+  --card: #073642;
+  --card-foreground: #93a1a1;
+  --popover: #073642;
+  --popover-foreground: #93a1a1;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #268bd2;
+  --primary-foreground: #fdf6e3;
+  --secondary: #073642;
+  --secondary-foreground: #93a1a1;
+  --accent: #2aa198;
+  --accent-foreground: #fdf6e3;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #073642;
+  --muted-foreground: #586e75;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #dc322f;
+  --destructive-foreground: #fdf6e3;
+  --success: #859900;
+  --success-foreground: #fdf6e3;
+  --warning: #b58900;
+  --warning-foreground: #fdf6e3;
+  --info: #2aa198;
+  --info-foreground: #fdf6e3;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(88, 110, 117, 0.4);
+  --input: rgba(88, 110, 117, 0.5);
+  --ring: #268bd2;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #268bd2;
+  --chart-2: #2aa198;
+  --chart-3: #859900;
+  --chart-4: #b58900;
+  --chart-5: #6c71c4;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #001e26;
+  --sidebar-foreground: #839496;
+  --sidebar-primary: #268bd2;
+  --sidebar-primary-foreground: #fdf6e3;
+  --sidebar-accent: #2aa198;
+  --sidebar-accent-foreground: #fdf6e3;
+  --sidebar-border: rgba(88, 110, 117, 0.4);
+  --sidebar-ring: #268bd2;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #0a4050;
+  --emboss-shadow: #001520;
+  --deboss-surface: #001e28;
+  --deboss-shadow: #001018;
+  --deboss-highlight: rgba(131, 148, 150, 0.05);
+}

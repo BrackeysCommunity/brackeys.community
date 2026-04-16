@@ -1,0 +1,71 @@
+/* Catppuccin Mocha — https://catppuccin.com
+   ─────────────────────────────────────────────────────────────────────
+   Base:      #1e1e2e (base)  #181825 (mantle)  #11111b (crust)
+   Surface:   #313244 (surface0)  #45475a (surface1)  #585b70 (surface2)
+   Overlay:   #6c7086  #7f849c  #9399b2
+   Text:      #cdd6f4 (text)  #bac2de (subtext1)  #a6adc8 (subtext0)
+   Accents:   #f38ba8 (red)  #fab387 (peach)  #f9e2af (yellow)
+              #a6e3a1 (green)  #94e2d5 (teal)  #89dceb (sky)
+              #89b4fa (blue)  #cba6f7 (mauve)  #f5c2e7 (pink)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="catppuccin"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #1e1e2e;
+  --foreground: #cdd6f4;
+  --card: #313244;
+  --card-foreground: #cdd6f4;
+  --popover: #313244;
+  --popover-foreground: #cdd6f4;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #cba6f7;
+  --primary-foreground: #1e1e2e;
+  --secondary: #45475a;
+  --secondary-foreground: #cdd6f4;
+  --accent: #f5c2e7;
+  --accent-foreground: #1e1e2e;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #45475a;
+  --muted-foreground: #a6adc8;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #f38ba8;
+  --destructive-foreground: #1e1e2e;
+  --success: #a6e3a1;
+  --success-foreground: #1e1e2e;
+  --warning: #fab387;
+  --warning-foreground: #1e1e2e;
+  --info: #89dceb;
+  --info-foreground: #1e1e2e;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(88, 91, 112, 0.5);
+  --input: rgba(88, 91, 112, 0.6);
+  --ring: #cba6f7;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #cba6f7;
+  --chart-2: #f5c2e7;
+  --chart-3: #89b4fa;
+  --chart-4: #a6e3a1;
+  --chart-5: #fab387;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #181825;
+  --sidebar-foreground: #cdd6f4;
+  --sidebar-primary: #cba6f7;
+  --sidebar-primary-foreground: #1e1e2e;
+  --sidebar-accent: #f5c2e7;
+  --sidebar-accent-foreground: #1e1e2e;
+  --sidebar-border: rgba(88, 91, 112, 0.5);
+  --sidebar-ring: #cba6f7;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #3b3c52;
+  --emboss-shadow: #11111b;
+  --deboss-surface: #181825;
+  --deboss-shadow: #0e0e16;
+  --deboss-highlight: rgba(205, 214, 244, 0.05);
+}

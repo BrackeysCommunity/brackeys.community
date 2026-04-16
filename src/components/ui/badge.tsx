@@ -1,19 +1,23 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 
+import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "h-5 gap-1 rounded-none border border-transparent px-2 py-0.5 text-xs font-medium transition-all has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&>svg]:size-3! inline-flex items-center justify-center w-fit whitespace-nowrap shrink-0 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive overflow-hidden group/badge",
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-xs border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        secondary: "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
+        default:
+          "chonk-emboss bg-primary text-primary-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)]",
+        secondary:
+          "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)]",
         destructive:
-          "bg-destructive/10 [a]:hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 text-destructive dark:bg-destructive/20",
-        outline: "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
+          "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40",
+        outline: "chonk-emboss border-border text-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -24,17 +28,43 @@ const badgeVariants = cva(
   },
 );
 
-function Badge({
-  className,
-  variant = "default",
-  render,
-  ...props
-}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return useRender({
+// Badge emboss is static — override the hover/active lift from chonk-emboss
+const staticEmbossOverride =
+  "[--chonk-lift:2px] [--chonk-lift-hover:2px] active:transition-none pointer-events-none";
+
+const notchEmbossColor: Record<string, string | undefined> = {
+  default: "color-mix(in srgb, var(--primary) 50%, black)",
+  secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
+  destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
+  outline: undefined,
+};
+
+type BadgeProps = useRender.ComponentProps<"span"> &
+  VariantProps<typeof badgeVariants> & {
+    notchOpts?: NotchOpts | true;
+  };
+
+function Badge({ className, variant = "default", notchOpts, render, ...props }: BadgeProps) {
+  const hasEmboss = variant !== "ghost" && variant !== "link";
+
+  const badge = useRender({
     defaultTagName: "span",
     props: mergeProps<"span">(
       {
-        className: cn(badgeVariants({ variant }), className),
+        className: cn(
+          badgeVariants({ variant }),
+          hasEmboss && staticEmbossOverride,
+          notchOpts && "!translate-y-0 !transform-none !border-0 !shadow-none",
+          className,
+        ),
+        style: notchOpts
+          ? {
+              clipPath: buildNotchPath(
+                resolveNotchOpts(notchOpts === true ? { size: 4 } : notchOpts),
+                1,
+              ),
+            }
+          : undefined,
       },
       props,
     ),
@@ -44,6 +74,45 @@ function Badge({
       variant,
     },
   });
+
+  if (notchOpts && hasEmboss) {
+    const resolved = resolveNotchOpts(notchOpts === true ? { size: 4 } : notchOpts);
+    const outerClip = buildNotchPath(resolved);
+    const embossColor = notchEmbossColor[variant ?? "default"];
+    const bgColor = embossColor ?? "var(--emboss-shadow)";
+
+    return (
+      <div className="inline-flex shrink-0 overflow-hidden rounded-xs">
+        <div
+          className="chonk-emboss-notched pointer-events-none inline-flex [--chonk-lift-hover:2px] [--chonk-lift:2px]"
+          style={
+            {
+              "--outer-clip": outerClip,
+              ...(embossColor ? { "--emboss-shadow": embossColor } : {}),
+            } as React.CSSProperties
+          }
+        >
+          <div className="flex" style={{ clipPath: outerClip, background: bgColor }}>
+            {badge}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (notchOpts) {
+    const resolved = resolveNotchOpts(notchOpts === true ? { size: 4 } : notchOpts);
+    return (
+      <div className="inline-flex shrink-0 overflow-hidden rounded-xs">
+        <div className="inline-flex shrink-0" style={{ clipPath: buildNotchPath(resolved) }}>
+          {badge}
+        </div>
+      </div>
+    );
+  }
+
+  return badge;
 }
 
 export { Badge, badgeVariants };
+export type { BadgeProps };
