@@ -1,15 +1,16 @@
-import { useKeyPress } from "ahooks";
 import {
   ComputerTerminal01Icon,
   LegalHammerIcon,
   Login01Icon,
+  PaintBrush04Icon,
   PencilIcon,
   Robot01Icon,
   Share01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth-client";
+import { useKeyPress } from "ahooks";
+
 import {
   Command,
   CommandDialog,
@@ -22,11 +23,14 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
+import { authClient } from "@/lib/auth-client";
+import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const navigate = useNavigate();
+  const { themeId, setTheme, themes } = useAppTheme();
 
   useKeyPress(
     ["ctrl.k", "meta.k"],
@@ -53,7 +57,7 @@ export function CommandPalette() {
         <CommandInput placeholder="Search commands, bots, macros..." />
         <CommandList>
           <CommandEmpty>
-            <span className="text-destructive font-mono text-xs">{"// PROTOCOL NOT FOUND"}</span>
+            <span className="font-mono text-xs text-destructive">{"// PROTOCOL NOT FOUND"}</span>
           </CommandEmpty>
 
           {/* Quick Actions */}
@@ -81,6 +85,26 @@ export function CommandPalette() {
                 {allBotCommands.length + marcoMacros.length} protocols
               </CommandShortcut>
             </CommandItem>
+          </CommandGroup>
+
+          <CommandSeparator />
+
+          {/* Theme Switcher */}
+          <CommandGroup heading="THEMES">
+            {themes.map((t) => (
+              <CommandItem
+                key={t.id}
+                value={`theme ${t.name} ${t.description}`}
+                onSelect={() => run(() => setTheme(t.id))}
+              >
+                <HugeiconsIcon
+                  icon={PaintBrush04Icon}
+                  className={t.id === themeId ? "text-primary" : "text-muted-foreground"}
+                />
+                <span>{t.name}</span>
+                {t.id === themeId && <CommandShortcut>active</CommandShortcut>}
+              </CommandItem>
+            ))}
           </CommandGroup>
 
           <CommandSeparator />
@@ -146,7 +170,7 @@ export function CommandPalette() {
         </CommandList>
 
         {/* Footer hint */}
-        <div className="border-t border-muted/40 px-3 py-2 flex items-center gap-3 text-[10px] font-mono text-muted-foreground/60">
+        <div className="flex items-center gap-3 border-t border-muted/40 px-3 py-2 font-mono text-[10px] text-muted-foreground/60">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>

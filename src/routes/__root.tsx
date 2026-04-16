@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { lazy, Suspense } from "react";
+
 import Dither from "@/components/Dither";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
@@ -13,11 +14,14 @@ const AppHeader = lazy(() =>
 import { Cursor } from "@/components/ui/cursor";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
-import fontsCss from "../fonts.css?url";
+
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
+
+import fontsCss from "../fonts.css?url";
 import appCss from "../styles.css?url";
 
 interface MyRouterContext {
@@ -61,8 +65,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RouteErrorBoundary({ error }: { error: Error }) {
   return (
-    <div className="flex flex-1 items-center justify-center p-12 pointer-events-auto">
-      <div className="text-center space-y-4 max-w-md">
+    <div className="pointer-events-auto flex flex-1 items-center justify-center p-12">
+      <div className="max-w-md space-y-4 text-center">
         <p className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">
           {"// SYSTEM ERROR"}
         </p>
@@ -72,7 +76,7 @@ function RouteErrorBoundary({ error }: { error: Error }) {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="font-mono text-xs text-primary border border-primary/40 px-4 py-2 hover:bg-primary/10 transition-colors uppercase tracking-widest"
+          className="border border-primary/40 px-4 py-2 font-mono text-xs tracking-widest text-primary uppercase transition-colors hover:bg-primary/10"
         >
           Reload
         </button>
@@ -84,7 +88,7 @@ function RouteErrorBoundary({ error }: { error: Error }) {
 function RoutePendingFallback() {
   return (
     <div className="flex flex-1 items-center justify-center p-12">
-      <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+      <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
         Loading...
       </span>
     </div>
@@ -93,11 +97,16 @@ function RoutePendingFallback() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-theme="brackeys">
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("brackeys-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}`,
+          }}
+        />
       </head>
-      <body className="h-screen flex flex-col overflow-hidden">
+      <body className="flex h-screen flex-col overflow-hidden">
         <Cursor />
         {/* <GridBackground /> */}
         <Dither
@@ -112,39 +121,41 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         />
         {/* CRT scanline overlay */}
         <div
-          className="fixed inset-0 z-55 pointer-events-none opacity-10 animate-scanlines"
+          className="animate-scanlines pointer-events-none fixed inset-0 z-55 opacity-10"
           style={{
             background:
               "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
             backgroundSize: "100% 4px",
           }}
         />
-        <div className="relative z-1 flex flex-col flex-1 min-h-0 overflow-hidden pointer-events-none">
+        <div className="pointer-events-none relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
           <a
             href="#main-content"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:font-mono focus:text-xs focus:tracking-widest focus:uppercase focus:pointer-events-auto"
+            className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
           >
             Skip to content
           </a>
           <TanStackQueryProvider>
-            <TooltipProvider>
-              <CommandPaletteProvider>
-                <PageLayoutProvider>
-                  <CommandPalette />
-                  <Suspense>
-                    <AppHeader />
-                  </Suspense>
-                  <TwoColumnShell>{children}</TwoColumnShell>
-                  <TanStackDevtools
-                    config={{ position: "bottom-right" }}
-                    plugins={[
-                      { name: "Tanstack Router", render: <TanStackRouterDevtoolsPanel /> },
-                      TanStackQueryDevtools,
-                    ]}
-                  />
-                </PageLayoutProvider>
-              </CommandPaletteProvider>
-            </TooltipProvider>
+            <AppThemeProvider>
+              <TooltipProvider>
+                <CommandPaletteProvider>
+                  <PageLayoutProvider>
+                    <CommandPalette />
+                    <Suspense>
+                      <AppHeader />
+                    </Suspense>
+                    <TwoColumnShell>{children}</TwoColumnShell>
+                    <TanStackDevtools
+                      config={{ position: "bottom-right" }}
+                      plugins={[
+                        { name: "Tanstack Router", render: <TanStackRouterDevtoolsPanel /> },
+                        TanStackQueryDevtools,
+                      ]}
+                    />
+                  </PageLayoutProvider>
+                </CommandPaletteProvider>
+              </TooltipProvider>
+            </AppThemeProvider>
           </TanStackQueryProvider>
         </div>
         <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
@@ -162,22 +173,22 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       id="main-content"
-      className="flex flex-1 overflow-hidden pt-[57px] pointer-events-none max-w-[1920px] w-full mx-auto"
+      className="pointer-events-none mx-auto flex w-full max-w-[1920px] flex-1 overflow-hidden pt-[57px]"
     >
       {/* Left column — main page content */}
       <div
-        className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
+        className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
-        <div className="flex w-full min-h-full flex-col justify-center p-4 sm:p-6 lg:p-12 xl:p-16 selection:bg-primary selection:text-white">
+        <div className="flex min-h-full w-full flex-col justify-center p-4 selection:bg-primary selection:text-white sm:p-6 lg:p-12 xl:p-16">
           {children}
         </div>
       </div>
 
       {/* Right column — page-specific sidebar */}
       <aside
-        className={`w-full flex-1 flex shrink-0 overflow-hidden justify-center ${showContentOnMobile ? "hidden lg:flex" : ""}`}
+        className={`flex w-full flex-1 shrink-0 justify-center overflow-hidden ${showContentOnMobile ? "hidden lg:flex" : ""}`}
       >
-        <div className="max-w-2xl min-w-0 xl:min-w-xl w-full h-full flex flex-col">{sidebar}</div>
+        <div className="flex h-full w-full max-w-2xl min-w-0 flex-col xl:min-w-xl">{sidebar}</div>
       </aside>
     </div>
   );

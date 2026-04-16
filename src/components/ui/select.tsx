@@ -1,16 +1,21 @@
 "use client";
 
-import * as React from "react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
-
-import { cn } from "@/lib/utils";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  UnfoldMoreIcon,
-  Tick02Icon,
-  ArrowUp01Icon,
   ArrowDown01Icon,
+  ArrowUp01Icon,
+  Cancel01Icon,
+  Tick02Icon,
+  UnfoldMoreIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import * as React from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
+import { cn } from "@/lib/utils";
+
+// ── Base Select (single or multi via Base UI's `multiple` prop) ────
 
 const Select = SelectPrimitive.Root;
 
@@ -34,22 +39,37 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   );
 }
 
+type SelectTriggerProps = SelectPrimitive.Trigger.Props & {
+  size?: "default" | "sm" | "xs";
+  notchOpts?: NotchOpts | true;
+};
+
 function SelectTrigger({
   className,
   size = "default",
+  notchOpts,
   children,
   ...props
-}: SelectPrimitive.Trigger.Props & {
-  size?: "sm" | "default";
-}) {
-  return (
+}: SelectTriggerProps) {
+  const trigger = (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "border-input data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 gap-1.5 rounded-none border bg-transparent py-2 pr-2 pl-2.5 text-xs transition-colors select-none focus-visible:ring-1 aria-invalid:ring-1 data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-none *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*='size-'])]:size-4 flex w-fit items-center justify-between whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-deboss-surface dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "flex w-fit items-center justify-between gap-1.5 rounded-xs border bg-transparent py-2 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none",
+        "aria-invalid:ring-1",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        size === "default" && "h-8",
+        size === "sm" && "h-7",
+        size === "xs" && "h-6 text-[10px]",
+        notchOpts &&
+          "!border-0 bg-background shadow-[inset_0_4px_0_0_var(--deboss-shadow)] dark:bg-[#38394C] dark:hover:bg-[#40415A]",
         className,
       )}
+      style={notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) } : undefined}
       {...props}
     >
       {children}
@@ -58,12 +78,31 @@ function SelectTrigger({
           <HugeiconsIcon
             icon={UnfoldMoreIcon}
             strokeWidth={2}
-            className="text-muted-foreground size-4 pointer-events-none"
+            className="pointer-events-none size-4 text-muted-foreground"
           />
         }
       />
     </SelectPrimitive.Trigger>
   );
+
+  if (notchOpts) {
+    const resolved = resolveNotchOpts(notchOpts);
+    return (
+      <div className="inline-flex w-fit overflow-hidden rounded-xs">
+        <div
+          className="inline-flex w-fit"
+          style={{
+            clipPath: buildNotchPath(resolved),
+            background: "var(--deboss-shadow)",
+          }}
+        >
+          {trigger}
+        </div>
+      </div>
+    );
+  }
+
+  return trigger;
 }
 
 function SelectContent({
@@ -94,7 +133,9 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 min-w-36 rounded-none shadow-md ring-1 duration-100 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto data-[align-trigger=true]:animate-none",
+            "bg-popover text-popover-foreground data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-xs shadow-md ring-1 ring-foreground/10 duration-100",
+            "data-[align-trigger=true]:animate-none",
             className,
           )}
           {...props}
@@ -112,7 +153,7 @@ function SelectLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) 
   return (
     <SelectPrimitive.GroupLabel
       data-slot="select-label"
-      className={cn("text-muted-foreground px-2 py-2 text-xs", className)}
+      className={cn("px-2 py-2 text-xs text-muted-foreground", className)}
       {...props}
     />
   );
@@ -123,12 +164,16 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground gap-2 rounded-none py-2 pr-8 pl-2 text-xs [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground",
+        "relative flex w-full cursor-default items-center gap-2 rounded-xs py-2 pr-8 pl-2 text-xs outline-hidden select-none",
+        "data-disabled:pointer-events-none data-disabled:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "*:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className,
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 gap-2 shrink-0 whitespace-nowrap">
+      <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">
         {children}
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator
@@ -146,7 +191,7 @@ function SelectSeparator({ className, ...props }: SelectPrimitive.Separator.Prop
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("bg-border -mx-1 h-px pointer-events-none", className)}
+      className={cn("pointer-events-none -mx-1 h-px bg-border", className)}
       {...props}
     />
   );
@@ -160,7 +205,7 @@ function SelectScrollUpButton({
     <SelectPrimitive.ScrollUpArrow
       data-slot="select-scroll-up-button"
       className={cn(
-        "bg-popover z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4 top-0 w-full",
+        "top-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
@@ -178,7 +223,7 @@ function SelectScrollDownButton({
     <SelectPrimitive.ScrollDownArrow
       data-slot="select-scroll-down-button"
       className={cn(
-        "bg-popover z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4 bottom-0 w-full",
+        "bottom-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
@@ -188,15 +233,151 @@ function SelectScrollDownButton({
   );
 }
 
+// ── Multi-Select Trigger with Badges ───────────────────────────────
+
+type SelectMultiTriggerProps = Omit<SelectTriggerProps, "children"> & {
+  selectedLabels: { value: string; label: string }[];
+  onRemove?: (value: string) => void;
+  onClear?: () => void;
+  placeholder?: string;
+  badgeVariant?: "default" | "secondary" | "outline";
+  badgeNotchOpts?: NotchOpts | true;
+};
+
+/**
+ * Intercept handler that stops a click/pointer event from reaching the
+ * Select trigger's open/close handler.
+ */
+function stopTriggerToggle(e: React.MouseEvent | React.PointerEvent) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function SelectMultiTrigger({
+  className,
+  size = "default",
+  notchOpts,
+  selectedLabels,
+  onRemove,
+  onClear,
+  placeholder,
+  badgeVariant = "secondary",
+  badgeNotchOpts,
+  ...props
+}: SelectMultiTriggerProps) {
+  const hasSelection = selectedLabels.length > 0;
+
+  const trigger = (
+    <SelectPrimitive.Trigger
+      data-slot="select-trigger"
+      data-size={size}
+      className={cn(
+        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-deboss-surface dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "flex w-full items-center gap-1.5 rounded-xs border bg-transparent pr-2 pl-2 text-xs transition-colors outline-none select-none",
+        "aria-invalid:ring-1",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "[&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        size === "default" && "min-h-8 pt-[7px] pb-[5px]",
+        size === "sm" && "min-h-7 pt-[5px] pb-[3px]",
+        size === "xs" && "min-h-6 pt-1 pb-0.5 text-[10px]",
+        notchOpts &&
+          "!border-0 bg-background shadow-[inset_0_4px_0_0_var(--deboss-shadow)] dark:bg-[#38394C] dark:hover:bg-[#40415A]",
+        className,
+      )}
+      style={notchOpts ? { clipPath: buildNotchPath(resolveNotchOpts(notchOpts), 1) } : undefined}
+      {...props}
+    >
+      <div className="flex flex-1 flex-wrap items-center gap-1">
+        {hasSelection ? (
+          selectedLabels.map((item) => (
+            <Badge
+              key={item.value}
+              variant={badgeVariant}
+              notchOpts={badgeNotchOpts}
+              className="pointer-events-auto gap-0.5 pr-0.5"
+            >
+              {item.label}
+              {onRemove && (
+                <button
+                  type="button"
+                  className="pointer-events-auto ml-0.5 rounded-xs p-0.5 hover:bg-foreground/10"
+                  onPointerDown={stopTriggerToggle}
+                  onClick={(e) => {
+                    stopTriggerToggle(e);
+                    onRemove(item.value);
+                  }}
+                  aria-label={`Remove ${item.label}`}
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-2.5" />
+                </button>
+              )}
+            </Badge>
+          ))
+        ) : (
+          <span className="text-muted-foreground">{placeholder ?? "Select..."}</span>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {onClear && hasSelection && (
+          <button
+            type="button"
+            className="pointer-events-auto rounded-xs p-0.5 text-muted-foreground hover:text-foreground"
+            onPointerDown={stopTriggerToggle}
+            onClick={(e) => {
+              stopTriggerToggle(e);
+              onClear();
+            }}
+            aria-label="Clear selection"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
+          </button>
+        )}
+        <SelectPrimitive.Icon
+          render={
+            <HugeiconsIcon
+              icon={UnfoldMoreIcon}
+              strokeWidth={2}
+              className="pointer-events-none size-4 text-muted-foreground"
+            />
+          }
+        />
+      </div>
+    </SelectPrimitive.Trigger>
+  );
+
+  if (notchOpts) {
+    const resolved = resolveNotchOpts(notchOpts);
+    const outerClip = buildNotchPath(resolved);
+
+    return (
+      <div className="inline-flex w-full overflow-hidden rounded-xs">
+        <div
+          className="inline-flex w-full"
+          style={{
+            clipPath: outerClip,
+            background: "var(--deboss-shadow)",
+          }}
+        >
+          {trigger}
+        </div>
+      </div>
+    );
+  }
+
+  return trigger;
+}
+
 export {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectMultiTrigger,
   SelectScrollDownButton,
   SelectScrollUpButton,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
 };
+export type { SelectTriggerProps, SelectMultiTriggerProps };

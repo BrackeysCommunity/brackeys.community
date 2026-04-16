@@ -8,6 +8,7 @@
 
 @theme inline {
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
   /* Brackeys brand colors (from brackeys.community) */
@@ -31,6 +32,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -47,6 +54,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-emboss-surface: var(--emboss-surface);
+  --color-emboss-shadow: var(--emboss-shadow);
+  --color-deboss-surface: var(--deboss-surface);
+  --color-deboss-shadow: var(--deboss-shadow);
+  --color-deboss-highlight: var(--deboss-highlight);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -72,6 +84,13 @@
   --accent: #5865f2;
   --accent-foreground: oklch(0.96 0.02 272);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.59 0.19 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.18 75);
+  --warning-foreground: oklch(0.141 0.005 285.823);
+  --info: oklch(0.65 0.17 245);
+  --info-foreground: oklch(0.985 0 0);
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.705 0.015 286.067);
@@ -80,7 +99,7 @@
   --chart-3: oklch(0.59 0.2 277);
   --chart-4: oklch(0.51 0.23 277);
   --chart-5: oklch(0.46 0.21 277);
-  --radius: 0.625rem;
+  --radius: 8px;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.51 0.23 277);
@@ -89,6 +108,11 @@
   --sidebar-accent-foreground: oklch(0.96 0.02 272);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
+  --emboss-surface: oklch(0.96 0.002 286);
+  --emboss-shadow: oklch(0.78 0.01 286);
+  --deboss-surface: oklch(0.97 0.002 286);
+  --deboss-shadow: oklch(0.82 0.008 286);
+  --deboss-highlight: oklch(1 0 0 / 60%);
 }
 
 .dark {
@@ -107,6 +131,13 @@
   --accent: #5865f2;
   --accent-foreground: oklch(0.96 0.02 272);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.141 0.005 285.823);
+  --success: oklch(0.72 0.19 150);
+  --success-foreground: oklch(0.141 0.005 285.823);
+  --warning: oklch(0.82 0.16 85);
+  --warning-foreground: oklch(0.141 0.005 285.823);
+  --info: oklch(0.72 0.15 235);
+  --info-foreground: oklch(0.141 0.005 285.823);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.938);
@@ -116,6 +147,7 @@
   --chart-4: oklch(0.51 0.23 277);
   --chart-5: oklch(0.46 0.21 277);
   --sidebar: oklch(0.21 0.006 285.885);
+  --radius: 8px;
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.68 0.16 277);
   --sidebar-primary-foreground: oklch(0.96 0.02 272);
@@ -123,7 +155,23 @@
   --sidebar-accent-foreground: oklch(0.96 0.02 272);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+  --emboss-surface: oklch(0.26 0.006 285.9);
+  --emboss-shadow: oklch(0.08 0.005 285.8);
+  --deboss-surface: oklch(0.12 0.005 285.8);
+  --deboss-shadow: oklch(0.06 0.004 285.8);
+  --deboss-highlight: oklch(1 0 0 / 5%);
 }
+
+/* ── Theme overrides ────────────────────────────────────────────────
+   "brackeys" is the default — no override needed, it uses the .dark values above.
+   Each theme file overrides the .dark variables via [data-theme="..."].dark.
+   ──────────────────────────────────────────────────────────────────── */
+
+@import "./styles/themes/dracula.css";
+@import "./styles/themes/nord.css";
+@import "./styles/themes/catppuccin.css";
+@import "./styles/themes/one-dark.css";
+@import "./styles/themes/solarized.css";
 
 @layer base {
   * {
@@ -158,6 +206,133 @@
   [cmdk-item] {
     cursor: none !important;
     pointer-events: auto;
+  }
+}
+
+/*
+ * @property --chonk-y
+ *
+ * A single animatable CSS variable that drives BOTH the translateY lift and the
+ * box-shadow / drop-shadow offset for 3D emboss buttons. By registering it as a
+ * <length> via @property, the browser interpolates one value per frame and both
+ * transform and shadow read from it — eliminating the 1-frame desync glitch that
+ * occurs when transitioning transform and box-shadow as independent properties.
+ *
+ * Math guarantee: shadow_bottom = layout_bottom - chonk_y + chonk_y = layout_bottom,
+ * so the shadow's bottom edge is always pinned to the same baseline.
+ */
+@property --chonk-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@layer utilities {
+  .chonk-emboss {
+    --chonk-lift: 2px;
+    --chonk-lift-hover: 3px;
+    --chonk-y: var(--chonk-lift);
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000),
+      var(--tw-ring-shadow, 0 0 #0000),
+      0 var(--chonk-y) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
+    border-color: var(--emboss-shadow);
+  }
+  .chonk-emboss:focus-visible {
+    border-color: var(--emboss-shadow);
+  }
+  .chonk-emboss:hover:not(:disabled) {
+    --chonk-y: var(--chonk-lift-hover);
+  }
+  .chonk-emboss:active:not(:disabled) {
+    --chonk-y: 0px;
+    transition-duration: 50ms;
+  }
+  .chonk-deboss {
+    box-shadow: inset 0 2px 0 0 var(--deboss-shadow);
+    border-color: var(--deboss-shadow);
+    transition:
+      box-shadow 150ms ease-out,
+      border-color 150ms ease-out;
+  }
+  /* Focus deepens the deboss — inset shadow and border turn to accent/ring color */
+  .chonk-deboss:focus-visible,
+  .chonk-deboss:focus-within,
+  .chonk-deboss:has(:focus-visible) {
+    box-shadow: inset 0 2px 0 0 var(--ring);
+    border-color: var(--ring);
+  }
+
+  /* Switch thumb emboss — driven by the parent Root's hover/active state */
+  .switch-thumb-emboss {
+    --chonk-lift: 1px;
+    --chonk-lift-hover: 2px;
+    --chonk-y: var(--chonk-lift);
+    box-shadow: 0 var(--chonk-y) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
+  }
+  .group\/switch:hover:not(:disabled) .switch-thumb-emboss {
+    --chonk-y: var(--chonk-lift-hover);
+  }
+  .group\/switch:active:not(:disabled) .switch-thumb-emboss {
+    --chonk-y: 0px;
+    transition-duration: 50ms;
+  }
+
+  /* Dropdown/menu trigger stays depressed while popup is open — overrides hover */
+  .chonk-emboss[data-popup-open],
+  .chonk-emboss[data-popup-open]:hover,
+  [data-popup-open] > .chonk-emboss,
+  [data-popup-open] > .chonk-emboss:hover,
+  [data-popup-open] .chonk-emboss,
+  [data-popup-open] .chonk-emboss:hover {
+    --chonk-y: 0px !important;
+    transition-duration: 50ms;
+  }
+
+  /* Emboss for floating panels (dropdown, popover) — independent hover, not affected by trigger */
+  .chonk-emboss-panel {
+    --chonk-lift: 2px;
+    --chonk-lift-hover: 3px;
+    --chonk-y: var(--chonk-lift);
+    border: 1px solid var(--emboss-shadow);
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000),
+      var(--tw-ring-shadow, 0 0 #0000),
+      0 var(--chonk-y) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
+  }
+  .chonk-emboss-panel:hover {
+    --chonk-y: var(--chonk-lift-hover);
+  }
+  .chonk-emboss-panel:active {
+    --chonk-y: 0px;
+    transition-duration: 50ms;
+  }
+
+  .chonk-emboss-notched {
+    --chonk-lift: 2px;
+    --chonk-lift-hover: 3px;
+    --chonk-y: var(--chonk-lift);
+    filter: drop-shadow(0 var(--chonk-y) 0 var(--emboss-shadow));
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
+  }
+  .chonk-emboss-notched:hover {
+    --chonk-y: var(--chonk-lift-hover);
+  }
+  .chonk-emboss-notched:active,
+  .chonk-emboss-notched:has(:active) {
+    --chonk-y: 0px;
+    transition-duration: 50ms;
+  }
+  .chonk-emboss-notched:has(:disabled) {
+    --chonk-y: 0px;
+    filter: none;
   }
 }
 

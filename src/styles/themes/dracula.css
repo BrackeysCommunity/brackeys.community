@@ -1,0 +1,73 @@
+/* Dracula — https://draculatheme.com
+   ─────────────────────────────────────────────────────────────────────
+   Palette:
+     BG        #282a36    FG        #f8f8f2
+     Selection  #44475a    Comment   #6272a4
+     Cyan      #8be9fd    Green     #50fa7b
+     Orange    #ffb86c    Pink      #ff79c6
+     Purple    #bd93f9    Red       #ff5555
+     Yellow    #f1fa8c
+   Darker shades:
+     BGLight   #343746    BGDark    #21222c    BGDarker  #191a21
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="dracula"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #282a36;
+  --foreground: #f8f8f2;
+  --card: #44475a;
+  --card-foreground: #f8f8f2;
+  --popover: #44475a;
+  --popover-foreground: #f8f8f2;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #bd93f9;
+  --primary-foreground: #282a36;
+  --secondary: #44475a;
+  --secondary-foreground: #f8f8f2;
+  --accent: #ff79c6;
+  --accent-foreground: #282a36;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #44475a;
+  --muted-foreground: #6272a4;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #ff5555;
+  --destructive-foreground: #282a36;
+  --success: #50fa7b;
+  --success-foreground: #282a36;
+  --warning: #ffb86c;
+  --warning-foreground: #282a36;
+  --info: #8be9fd;
+  --info-foreground: #282a36;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(98, 114, 164, 0.4);
+  --input: rgba(98, 114, 164, 0.5);
+  --ring: #bd93f9;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #bd93f9;
+  --chart-2: #ff79c6;
+  --chart-3: #8be9fd;
+  --chart-4: #50fa7b;
+  --chart-5: #ffb86c;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #21222c;
+  --sidebar-foreground: #f8f8f2;
+  --sidebar-primary: #bd93f9;
+  --sidebar-primary-foreground: #282a36;
+  --sidebar-accent: #ff79c6;
+  --sidebar-accent-foreground: #282a36;
+  --sidebar-border: rgba(98, 114, 164, 0.4);
+  --sidebar-ring: #bd93f9;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #4a4d6a;
+  --emboss-shadow: #1a1c26;
+  --deboss-surface: #21232e;
+  --deboss-shadow: #15161e;
+  --deboss-highlight: rgba(248, 248, 242, 0.05);
+}

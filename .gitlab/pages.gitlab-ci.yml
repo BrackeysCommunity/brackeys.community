@@ -1,0 +1,23 @@
+pages:
+  stage: deploy
+  image: oven/bun:latest
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - bun install --frozen-lockfile
+  script:
+    - bun run build-storybook
+    # GitLab Pages serves whatever is in `public/`.
+    - rm -rf public
+    - mv storybook-static public
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+  interruptible: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*
+        - .storybook/**/*
+        - package.json
+        - bun.lock
