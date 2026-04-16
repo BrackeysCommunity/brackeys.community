@@ -6,7 +6,9 @@ chromatic:
     - bun install --frozen-lockfile
   script:
     - bun run build-storybook:test
-    - ./node_modules/.bin/chromatic --storybook-build-dir storybook-static --exit-zero-on-changes --only-changed
+    # oven/bun:latest has no `node` binary, so the chromatic shim's
+    # `#!/usr/bin/env node` shebang fails. Run it with bun instead.
+    - bun ./node_modules/.bin/chromatic --storybook-build-dir storybook-static --exit-zero-on-changes --only-changed
   variables:
     GIT_DEPTH: 0
   interruptible: true

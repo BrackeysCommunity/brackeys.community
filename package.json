@@ -19,7 +19,7 @@
     "check:changed": "git diff --cached --name-only --diff-filter=d | xargs bun vp check --fix",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "build-storybook:test": "storybook build --test",
+    "build-storybook:test": "storybook build --test --stats-json",
     "chromatic": "bun run build-storybook:test && chromatic --storybook-build-dir storybook-static",
     "prepare": "vp config",
     "commit": "cz",
