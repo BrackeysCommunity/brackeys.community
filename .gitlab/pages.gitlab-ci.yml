@@ -1,4 +1,4 @@
-pages:
+deploy-pages:
   stage: deploy
   image: oven/bun:latest
   before_script:
@@ -6,13 +6,8 @@ pages:
     - bun install --frozen-lockfile
   script:
     - bun run build-storybook
-    # GitLab Pages serves whatever is in `public/`.
-    - rm -rf public
-    - mv storybook-static public
-  artifacts:
-    paths:
-      - public
-    expire_in: 1 week
+  pages:
+    publish: storybook-static
   interruptible: true
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
