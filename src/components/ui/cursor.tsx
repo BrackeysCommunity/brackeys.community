@@ -16,14 +16,14 @@ const IDLE_POS = [
   { x: IDLE_GAP, y: -CORNER - IDLE_GAP },
   { x: IDLE_GAP, y: IDLE_GAP },
   { x: -CORNER - IDLE_GAP, y: IDLE_GAP },
-] as const;
+] as Array<{ x: number; y: number }>;
 
-const PRESSED_POS = [
+const PRESSED_POS: Array<{ x: number; y: number }> = [
   { x: -CORNER, y: -CORNER },
   { x: 0, y: -CORNER },
   { x: 0, y: 0 },
   { x: -CORNER, y: 0 },
-] as const;
+];
 
 const CURSOR_SPRING = { damping: 20, stiffness: 1500, mass: 0.05 };
 const CORNER_SPRING = { stiffness: 400, damping: 30, mass: 0.08 };

@@ -24,7 +24,6 @@ function StorybookRouter({ children }: { children: React.ReactNode }) {
     });
   }, [children]);
 
-  // @ts-expect-error -- minimal router for storybook, not the app's typed router
   return <RouterProvider router={router} />;
 }
 

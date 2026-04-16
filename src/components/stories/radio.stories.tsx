@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Heading, Text, InlineCode } from "@/components/ui/typography";
@@ -85,24 +85,24 @@ export const Overview: Story = {
           <div className="flex flex-col gap-6 border border-border bg-card p-8">
             <div className="flex flex-wrap items-center gap-6">
               <RadioGroup defaultValue="checked" className="flex-row gap-6">
-                <label className="flex items-center gap-2 text-xs text-foreground">
-                  <RadioGroupItem value="checked" />
+                <span className="flex items-center gap-2 text-xs text-foreground">
+                  <RadioGroupItem value="checked" aria-label="Checked" />
                   Checked
-                </label>
-                <label className="flex items-center gap-2 text-xs text-foreground">
-                  <RadioGroupItem value="unchecked" />
+                </span>
+                <span className="flex items-center gap-2 text-xs text-foreground">
+                  <RadioGroupItem value="unchecked" aria-label="Unchecked" />
                   Unchecked
-                </label>
+                </span>
               </RadioGroup>
               <RadioGroup defaultValue="checked-disabled" className="flex-row gap-6">
-                <label className="flex items-center gap-2 text-xs text-foreground">
-                  <RadioGroupItem value="disabled" disabled />
+                <span className="flex items-center gap-2 text-xs text-foreground">
+                  <RadioGroupItem value="disabled" disabled aria-label="Disabled" />
                   Disabled
-                </label>
-                <label className="flex items-center gap-2 text-xs text-foreground">
-                  <RadioGroupItem value="checked-disabled" disabled />
+                </span>
+                <span className="flex items-center gap-2 text-xs text-foreground">
+                  <RadioGroupItem value="checked-disabled" disabled aria-label="Disabled Checked" />
                   Disabled Checked
-                </label>
+                </span>
               </RadioGroup>
             </div>
           </div>
