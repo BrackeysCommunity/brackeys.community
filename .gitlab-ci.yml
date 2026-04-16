@@ -22,3 +22,4 @@ include:
   - local: .gitlab/railway-preview.gitlab-ci.yml
   - local: .gitlab/version-bump.gitlab-ci.yml
   - local: .gitlab/renovate.gitlab-ci.yml
+  - local: .gitlab/chromatic.gitlab-ci.yml

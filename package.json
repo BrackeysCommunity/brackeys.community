@@ -130,6 +130,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "@vitest/coverage-v8": "^4.1.2",
     "babel-plugin-react-compiler": "^1.0.0",
+    "chromatic": "^16.3.0",
     "commitizen": "^4.3.1",
     "commitlint-config-gitmoji": "^2.3.1",
     "cz-emoji-conventional": "^1.2.1",

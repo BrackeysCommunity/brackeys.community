@@ -1,0 +1,26 @@
+chromatic:
+  stage: check
+  image: oven/bun:latest
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - bun install --frozen-lockfile
+  script:
+    - bun x chromatic --exit-zero-on-changes --only-changed
+  variables:
+    GIT_DEPTH: 0
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/**/*
+        - .storybook/**/*
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/**/*
+        - .storybook/**/*
+        - package.json
+        - bun.lock
