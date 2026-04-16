@@ -18,7 +18,7 @@
     "check": "vp check --no-fmt",
     "check:changed": "git diff --cached --name-only --diff-filter=d | xargs bun vp check --fix",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
+    "build-storybook": "storybook build && cp storybook-static/index.html storybook-static/iframe.html",
     "prepare": "vp config",
     "commit": "cz",
     "railway:dev": "railway run -- sh -c \"BETTER_AUTH_URL=http://localhost:3000 vp dev --port 3000\"",
@@ -113,6 +113,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
+    "@chromatic-com/storybook": "^5.1.2",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@inlang/paraglide-js": "^2.8.0",
