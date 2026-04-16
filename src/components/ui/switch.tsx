@@ -21,7 +21,7 @@ function Switch({ className, size = "sm", notchOpts, ...props }: SwitchProps) {
       className={cn(
         "peer group/switch relative inline-flex shrink-0 items-center outline-none",
         // Deboss container — sunken track, neutral border
-        "chonk-deboss rounded-xs border border-input",
+        "chonk-deboss rounded-xs border border-[var(--deboss-shadow)] focus-within:!border-[var(--deboss-shadow)] focus-within:!shadow-[inset_0_2px_0_0_var(--deboss-shadow)]",
         "dark:bg-deboss-surface",
         // Sizes
         isLg ? "h-6 w-11 px-0.5" : "h-[18px] w-8 px-0.5",

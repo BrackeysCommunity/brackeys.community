@@ -266,6 +266,93 @@ const form = useFormConfig({
 
         <section className="flex flex-col gap-3">
           <Heading as="h2" size="sm" monospace>
+            Notched Fields
+          </Heading>
+          <Text as="p" size="xs" variant="muted">
+            All form inputs support the <InlineCode>notchOpts</InlineCode> prop for chamfered
+            corners.
+          </Text>
+          <div className="flex flex-col gap-6 border border-border bg-card p-8">
+            <Form form={quickForm} className="w-full max-w-sm">
+              <FormField name="name" label="Name (notched)" required>
+                {(field: { state: { value: string }; handleChange: (v: string) => void }) => (
+                  <Input
+                    notchOpts
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Notched input"
+                  />
+                )}
+              </FormField>
+              <FormField name="email" label="Email (notched)" required>
+                {(field: { state: { value: string }; handleChange: (v: string) => void }) => (
+                  <Input
+                    notchOpts={{ corners: ["tl", "br"] }}
+                    type="email"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Custom notch corners"
+                  />
+                )}
+              </FormField>
+              <FormSubmit notchOpts>Submit (notched)</FormSubmit>
+            </Form>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <Heading as="h2" size="sm" monospace>
+            All Field Types
+          </Heading>
+          <Text as="p" size="xs" variant="muted">
+            Every field type working with <InlineCode>FormField</InlineCode>.
+          </Text>
+          <div className="flex flex-col gap-6 border border-border bg-card p-8">
+            <Form form={fullForm} className="w-full max-w-md">
+              <FormField name="firstName" label="Text Input" required>
+                {(field: { state: { value: string }; handleChange: (v: string) => void }) => (
+                  <Input
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Regular text"
+                  />
+                )}
+              </FormField>
+              <FormField name="email" label="Email Input" required>
+                {(field: { state: { value: string }; handleChange: (v: string) => void }) => (
+                  <Input
+                    type="email"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="email@example.com"
+                  />
+                )}
+              </FormField>
+              <FormField name="bio" label="Textarea">
+                {(field: { state: { value: string }; handleChange: (v: string) => void }) => (
+                  <Textarea
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Tell us about yourself..."
+                  />
+                )}
+              </FormField>
+              <FormField name="notifications" label="Switch" layout="row">
+                {(field: { state: { value: boolean }; handleChange: (v: boolean) => void }) => (
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                )}
+              </FormField>
+              <FormField name="terms" label="Checkbox" layout="row">
+                {(field: { state: { value: boolean }; handleChange: (v: boolean) => void }) => (
+                  <Checkbox checked={field.state.value} onCheckedChange={field.handleChange} />
+                )}
+              </FormField>
+            </Form>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <Heading as="h2" size="sm" monospace>
             Accessibility
           </Heading>
           <div className="max-w-xl space-y-2">

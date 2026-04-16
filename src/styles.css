@@ -282,6 +282,38 @@
     transition-duration: 50ms;
   }
 
+  /* Dropdown/menu trigger stays depressed while popup is open — overrides hover */
+  .chonk-emboss[data-popup-open],
+  .chonk-emboss[data-popup-open]:hover,
+  [data-popup-open] > .chonk-emboss,
+  [data-popup-open] > .chonk-emboss:hover,
+  [data-popup-open] .chonk-emboss,
+  [data-popup-open] .chonk-emboss:hover {
+    --chonk-y: 0px !important;
+    transition-duration: 50ms;
+  }
+
+  /* Emboss for floating panels (dropdown, popover) — independent hover, not affected by trigger */
+  .chonk-emboss-panel {
+    --chonk-lift: 2px;
+    --chonk-lift-hover: 3px;
+    --chonk-y: var(--chonk-lift);
+    border: 1px solid var(--emboss-shadow);
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000),
+      var(--tw-ring-shadow, 0 0 #0000),
+      0 var(--chonk-y) 0 0 var(--emboss-shadow);
+    transform: translateY(calc(-1 * var(--chonk-y)));
+    transition: --chonk-y 75ms ease-out;
+  }
+  .chonk-emboss-panel:hover {
+    --chonk-y: var(--chonk-lift-hover);
+  }
+  .chonk-emboss-panel:active {
+    --chonk-y: 0px;
+    transition-duration: 50ms;
+  }
+
   .chonk-emboss-notched {
     --chonk-lift: 2px;
     --chonk-lift-hover: 3px;

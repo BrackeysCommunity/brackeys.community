@@ -134,6 +134,7 @@ export const Overview: Story = {
               onSave={simulateSave}
               label="Email Notifications"
               layout="row"
+              saveOn="change"
             >
               {(field: { state: { value: boolean }; handleChange: (v: boolean) => void }) => (
                 <Switch

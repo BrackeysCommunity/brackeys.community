@@ -29,6 +29,8 @@ type AutoSaveFieldProps<TSchema extends ZodObject<ZodRawShape>, TName extends st
   required?: boolean;
   /** Layout direction. */
   layout?: "stack" | "row";
+  /** When to trigger save. "blur" for text inputs (default), "change" for checkboxes/switches/radios/selects. */
+  saveOn?: "blur" | "change";
   /** Confirmation message before saving. String = always, function = conditional. */
   confirm?: string | ((value: unknown) => string | undefined);
   /** Render prop receiving the field API. */
@@ -52,6 +54,7 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
   hint,
   required,
   layout = "stack",
+  saveOn = "blur",
   confirm,
   children,
   className,
@@ -76,9 +79,6 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
       try {
         await onSave({ [name]: value[name] });
         setStatus("success");
-
-        // Reset form to match new server value
-        form.reset();
 
         // Fade success indicator after 2s
         if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
@@ -142,10 +142,30 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
                 >
                   <div
                     className="flex-1"
-                    onBlur={() => {
-                      field.handleBlur();
-                      handleSave();
-                    }}
+                    onBlur={
+                      saveOn === "blur"
+                        ? () => {
+                            field.handleBlur();
+                            handleSave();
+                          }
+                        : undefined
+                    }
+                    onChangeCapture={
+                      saveOn === "change"
+                        ? () => {
+                            // Defer to let React state update first
+                            setTimeout(handleSave, 0);
+                          }
+                        : undefined
+                    }
+                    onClickCapture={
+                      saveOn === "change"
+                        ? () => {
+                            // For checkboxes/switches that don't fire native change
+                            setTimeout(handleSave, 0);
+                          }
+                        : undefined
+                    }
                   >
                     {children(field)}
                   </div>

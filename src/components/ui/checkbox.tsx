@@ -29,7 +29,7 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "chonk-deboss peer relative inline-flex shrink-0 items-center justify-center rounded-xs border border-input transition-colors outline-none select-none dark:bg-deboss-surface",
+        "chonk-deboss peer relative inline-flex shrink-0 items-center justify-center rounded-xs border border-input transition-colors outline-none select-none focus-within:!border-input focus-within:!shadow-[inset_0_2px_0_0_var(--deboss-shadow)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:bg-deboss-surface",
         "data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary",
         "focus-visible:outline-hidden",
         "aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
