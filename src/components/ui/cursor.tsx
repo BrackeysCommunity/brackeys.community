@@ -146,7 +146,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       spinControls.set({ rotate: 0 });
       isSpinRef.current = false;
 
-      const cs = cursorState.cornerSize ?? CORNER_HOVERED;
+      const cs = CORNER_HOVERED;
       const hpx = (cursorState.paddingX ?? 0) / 2;
       const hpy = (cursorState.paddingY ?? 0) / 2;
 
