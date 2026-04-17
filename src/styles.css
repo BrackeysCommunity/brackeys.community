@@ -77,8 +77,8 @@
   --popover-foreground: oklch(0.141 0.005 285.823);
   --primary: #5865f2;
   --primary-foreground: oklch(0.96 0.02 272);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
   --muted: oklch(0.967 0.001 286.375);
   --muted-foreground: oklch(0.552 0.016 285.938);
   --accent: #5865f2;
@@ -124,8 +124,8 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: #5865f2;
   --primary-foreground: oklch(0.96 0.02 272);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
   --muted: oklch(0.274 0.006 286.033);
   --muted-foreground: oklch(0.705 0.015 286.067);
   --accent: #5865f2;
@@ -289,6 +289,13 @@
   [data-popup-open] > .chonk-emboss:hover,
   [data-popup-open] .chonk-emboss,
   [data-popup-open] .chonk-emboss:hover {
+    --chonk-y: 0px !important;
+    transition-duration: 50ms;
+  }
+
+  /* Checked elements (e.g. checkbox) stay depressed — overrides hover */
+  .chonk-emboss[data-checked],
+  .chonk-emboss[data-checked]:hover {
     --chonk-y: 0px !important;
     transition-duration: 50ms;
   }

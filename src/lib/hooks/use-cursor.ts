@@ -27,7 +27,6 @@ export interface CursorState {
 
 export function useCursorState() {
   const [state, setState] = useState<CursorState>({ type: "default" });
-  const focusLockedRef = useRef<HTMLElement | null>(null);
 
   const buildMagneticState = useCallback(
     (magneticTarget: HTMLElement, target: HTMLElement): CursorState => {
@@ -67,13 +66,11 @@ export function useCursorState() {
       const cursorLabel = target.closest("[data-cursor-label]")?.getAttribute("data-cursor-label");
 
       if (magneticTarget) {
-        focusLockedRef.current = null;
         setState(buildMagneticState(magneticTarget, target));
         return;
       }
 
       if (cursorType || cursorLabel) {
-        focusLockedRef.current = null;
         setState({
           type: (cursorType as CursorState["type"]) || "pointer",
           label: cursorLabel || undefined,
@@ -84,7 +81,7 @@ export function useCursorState() {
           setState({ type: "pointer" });
         } else if (style.cursor === "text") {
           setState({ type: "text" });
-        } else if (!focusLockedRef.current) {
+        } else {
           setState({ type: "default" });
         }
       }
@@ -96,53 +93,11 @@ export function useCursorState() {
     const target = e.target as HTMLElement;
     const magneticTarget = target.closest("[data-magnetic]") as HTMLElement;
     if (!magneticTarget) return;
-
-    const active = document.activeElement;
-    if (active && magneticTarget.contains(active)) {
-      focusLockedRef.current = magneticTarget;
-      return;
-    }
-
     setState({ type: "default" });
   }, []);
 
-  useEffect(() => {
-    const onFocusOut = () => {
-      if (focusLockedRef.current) {
-        requestAnimationFrame(() => {
-          const active = document.activeElement as HTMLElement | null;
-          if (!focusLockedRef.current || !active || !focusLockedRef.current.contains(active)) {
-            const newMagnetic = active?.closest("[data-magnetic]") as HTMLElement | null;
-            if (newMagnetic && active) {
-              focusLockedRef.current = newMagnetic;
-              setState(buildMagneticState(newMagnetic, active));
-            } else {
-              focusLockedRef.current = null;
-              setState({ type: "default" });
-            }
-          }
-        });
-      }
-    };
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (focusLockedRef.current && !focusLockedRef.current.contains(e.target as Node)) {
-        focusLockedRef.current = null;
-        setState({ type: "default" });
-      }
-    };
-
-    document.addEventListener("focusout", onFocusOut);
-    document.addEventListener("mousedown", onMouseDown);
-    return () => {
-      document.removeEventListener("focusout", onFocusOut);
-      document.removeEventListener("mousedown", onMouseDown);
-    };
-  }, [buildMagneticState]);
-
   const { pathname } = useLocation();
   useEffect(() => {
-    focusLockedRef.current = null;
     setState({ type: "default" });
   }, [pathname]);
 
