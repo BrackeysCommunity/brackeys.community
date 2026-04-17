@@ -13,14 +13,14 @@ const buttonVariants = cva(
       variant: {
         default:
           "chonk-emboss bg-primary text-primary-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)] [a]:hover:bg-primary/80",
-        outline:
-          "chonk-emboss bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
         secondary:
           "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)] hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-        ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+        outline:
+          "chonk-emboss bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
+        ghost:
+          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -79,6 +79,7 @@ function Button({
     const button = (
       <ButtonPrimitive
         data-slot="button"
+        data-magnetic={isMagnetic ? "" : undefined}
         className={cn(
           buttonVariants({ variant, size, className }),
           "translate-y-0! transform-none! border-0! shadow-none! transition-[background-color]!",
@@ -109,7 +110,6 @@ function Button({
       return (
         <motion.div
           ref={ref as React.RefObject<HTMLDivElement>}
-          data-magnetic
           animate={{ x: position.x, y: position.y }}
           transition={springTransition}
           className="relative z-10 inline-flex"
@@ -127,13 +127,13 @@ function Button({
     return (
       <motion.div
         ref={ref as React.RefObject<HTMLDivElement>}
-        data-magnetic
         animate={{ x: position.x, y: position.y }}
         transition={springTransition}
         className="relative z-10 inline-flex"
       >
         <ButtonPrimitive
           data-slot="button"
+          data-magnetic=""
           className={cn(buttonVariants({ variant, size, className }))}
           {...props}
         />

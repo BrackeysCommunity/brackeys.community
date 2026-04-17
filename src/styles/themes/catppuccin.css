@@ -21,8 +21,8 @@
   /* ── Brand / emphasis ──────────────────────────────────────────── */
   --primary: #cba6f7;
   --primary-foreground: #1e1e2e;
-  --secondary: #45475a;
-  --secondary-foreground: #cdd6f4;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
   --accent: #f5c2e7;
   --accent-foreground: #1e1e2e;
 
