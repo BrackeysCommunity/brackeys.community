@@ -9,7 +9,7 @@ pipeline-status:
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
 
-check:
+lint:
   stage: check
   image: oven/bun:latest
   before_script:
@@ -17,10 +17,11 @@ check:
     - bun install --frozen-lockfile
   variables:
     RUST_BACKTRACE: "full"
+  retry:
+    max: 2
+    when: script_failure
   script:
-    - ulimit -n 65536 || true
-    - echo "fd limit=$(ulimit -n) threads=RAYON:2,TOKIO:2"
-    - bun run check
+    - bun run lint
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:

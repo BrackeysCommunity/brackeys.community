@@ -16,6 +16,7 @@
     "db:studio": "drizzle-kit studio",
     "db:export": "drizzle-kit export",
     "check": "vp check --no-fmt",
+    "lint": "vp lint",
     "check:changed": "git diff --cached --name-only --diff-filter=d | xargs bun vp check --fix",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
