@@ -4,7 +4,7 @@ import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/reac
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { lazy, Suspense } from "react";
 
-import Dither from "@/components/Dither";
+const Dither = lazy(() => import("@/components/Dither"));
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
 const AppHeader = lazy(() =>
@@ -109,16 +109,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body className="flex h-screen flex-col overflow-hidden">
         <Cursor />
         {/* <GridBackground /> */}
-        <Dither
-          waveColor={[0.2, 0.22, 0.55]}
-          disableAnimation={false}
-          enableMouseInteraction
-          mouseRadius={0.3}
-          colorNum={4}
-          waveAmplitude={0.3}
-          waveFrequency={3}
-          waveSpeed={0.04}
-        />
+        <Suspense>
+          <Dither
+            waveColor={[0.2, 0.22, 0.55]}
+            disableAnimation={false}
+            enableMouseInteraction
+            mouseRadius={0.3}
+            colorNum={4}
+            waveAmplitude={0.3}
+            waveFrequency={3}
+            waveSpeed={0.04}
+          />
+        </Suspense>
         {/* CRT scanline overlay */}
         <div
           className="animate-scanlines pointer-events-none fixed inset-0 z-55 opacity-10"
