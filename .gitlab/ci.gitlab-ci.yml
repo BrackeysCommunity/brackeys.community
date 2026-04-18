@@ -16,10 +16,11 @@ check:
     - apt-get update -qq && apt-get install -y -qq git
     - bun install --frozen-lockfile
   variables:
-    RAYON_NUM_THREADS: "4"
-    TOKIO_WORKER_THREADS: "4"
+    RAYON_NUM_THREADS: "2"
+    TOKIO_WORKER_THREADS: "2"
   script:
     - ulimit -n 65536 || true
+    - echo "fd limit=$(ulimit -n) threads=RAYON:2,TOKIO:2"
     - bun run check
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
