@@ -17,6 +17,7 @@ check:
     - bun install --frozen-lockfile
   variables:
     RAYON_NUM_THREADS: "4"
+    TOKIO_WORKER_THREADS: "4"
   script:
     - ulimit -n 65536 || true
     - bun run check
