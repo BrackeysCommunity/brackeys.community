@@ -5,7 +5,7 @@ chromatic:
     - apt-get update -qq && apt-get install -y -qq git
     - bun install --frozen-lockfile
   script:
-    - bun run build-storybook
+    - bun run build-storybook --stats-json
     # oven/bun:latest has no `node` binary, so the chromatic shim's
     # `#!/usr/bin/env node` shebang fails. Run it with bun instead.
     - bun ./node_modules/.bin/chromatic --storybook-build-dir storybook-static --exit-zero-on-changes --only-changed

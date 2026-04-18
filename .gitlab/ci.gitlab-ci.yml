@@ -18,6 +18,7 @@ check:
   variables:
     RAYON_NUM_THREADS: "2"
     TOKIO_WORKER_THREADS: "2"
+    RUST_BACKTRACE: "1"
   script:
     - ulimit -n 65536 || true
     - echo "fd limit=$(ulimit -n) threads=RAYON:2,TOKIO:2"
