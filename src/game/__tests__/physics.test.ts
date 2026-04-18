@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it } from "vite-plus/test";
+
 import { createPhysicsWorld, getRapier, initRapier } from "../physics";
 
 // ─── Rapier WASM init (once for all tests) ───────────────

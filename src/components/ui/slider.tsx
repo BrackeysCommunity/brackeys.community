@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -17,11 +17,7 @@ type SliderProps = SliderPrimitive.Root.Props & {
   formatOptions?: Intl.NumberFormatOptions;
 };
 
-function computeTickPositions(
-  ticks: TickConfig | undefined,
-  min: number,
-  max: number,
-): number[] {
+function computeTickPositions(ticks: TickConfig | undefined, min: number, max: number): number[] {
   if (!ticks) return [];
   if (ticks.values) return ticks.values;
   if (ticks.count != null && ticks.count > 1) {
@@ -55,12 +51,7 @@ function Slider({
   ...props
 }: SliderProps) {
   const _values = React.useMemo(
-    () =>
-      Array.isArray(value)
-        ? value
-        : Array.isArray(defaultValue)
-          ? defaultValue
-          : [min, max],
+    () => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min, max]),
     [value, defaultValue, min, max],
   );
 
@@ -74,7 +65,7 @@ function Slider({
   return (
     <div className={cn("relative", className)}>
       <SliderPrimitive.Root
-        className="data-horizontal:w-full data-vertical:h-full group/slider"
+        className="group/slider data-horizontal:w-full data-vertical:h-full"
         data-slot="slider"
         defaultValue={defaultValue}
         value={value}
@@ -83,10 +74,10 @@ function Slider({
         thumbAlignment="edge"
         {...props}
       >
-        <SliderPrimitive.Control className="data-vertical:min-h-40 relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:w-auto data-vertical:flex-col">
+        <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col">
           <SliderPrimitive.Track
             data-slot="slider-track"
-            className="relative grow select-none overflow-hidden rounded-xs bg-muted data-horizontal:h-1.5 data-horizontal:w-full data-vertical:h-full data-vertical:w-1.5 border border-border/30"
+            className="relative grow overflow-hidden rounded-xs border border-border/30 bg-muted select-none data-horizontal:h-1.5 data-horizontal:w-full data-vertical:h-full data-vertical:w-1.5"
           >
             <SliderPrimitive.Indicator
               data-slot="slider-range"
@@ -97,7 +88,7 @@ function Slider({
             <SliderPrimitive.Thumb
               data-slot="slider-thumb"
               key={index}
-              className="chonk-emboss [--chonk-lift:1px] [--chonk-lift-hover:2px] relative block size-3.5 shrink-0 select-none rounded-xs border border-ring bg-white transition-all after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
+              className="chonk-emboss relative block size-3.5 shrink-0 rounded-xs border border-ring bg-white transition-all select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
             />
           ))}
         </SliderPrimitive.Control>

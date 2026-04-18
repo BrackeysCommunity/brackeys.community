@@ -10,6 +10,7 @@
  */
 
 import type RAPIER from "@dimforge/rapier2d";
+
 import { getRapier } from "./physics";
 
 // ─── Group bits (membership) ─────────────────────────────

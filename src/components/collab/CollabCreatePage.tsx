@@ -1,8 +1,10 @@
 import { useStore } from "@tanstack/react-store";
 import { useEffect } from "react";
+
 import { authStore } from "@/lib/auth-store";
 import { collabStore, getWizardSteps, resetWizard } from "@/lib/collab-store";
 import { usePageSidebar } from "@/lib/hooks/use-page-layout";
+
 import { CollabCreateSidebar } from "./CollabCreateSidebar";
 
 export function CollabCreatePage() {
@@ -37,10 +39,10 @@ export function CollabCreatePage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
+        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           NEW
           <br />
-          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+          <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
             POST.
           </span>
         </h1>
@@ -50,7 +52,7 @@ export function CollabCreatePage() {
       </div>
 
       {/* Step indicator */}
-      <nav className="my-6 sm:mt-12 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <nav className="my-6 flex flex-col gap-3 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-end">
         {steps.map((step, i) => (
           <div
             key={step.id}

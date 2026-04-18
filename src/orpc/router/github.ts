@@ -1,11 +1,12 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import * as z from "zod";
 import { and, eq } from "drizzle-orm";
+import * as z from "zod";
+
 import { db } from "@/db";
 import { account, linkedAccounts } from "@/db/schema";
-import { requireAuth, authMiddleware } from "@/orpc/middleware/auth";
 import { fetchGitHubUser, fetchContributionCalendar } from "@/lib/github";
+import { requireAuth, authMiddleware } from "@/orpc/middleware/auth";
 
 export const syncGitHubLink = os
   .use(requireAuth)

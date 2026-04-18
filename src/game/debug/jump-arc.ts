@@ -1,7 +1,8 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
+
+import { JUMP_VELOCITY, GRAVITY, MAX_FALL_SPEED } from "../entities/player";
 import type { Vec2 } from "../types";
 import type { PlayerDebugState } from "./index";
-import { JUMP_VELOCITY, GRAVITY, MAX_FALL_SPEED } from "../entities/player";
 
 const ARC_SAMPLES = 120;
 

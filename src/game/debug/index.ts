@@ -1,14 +1,15 @@
-import type { Container } from "pixi.js";
 import type { Store } from "@tanstack/store";
-import type { DebugMode, GameStoreState, Vec2 } from "../types";
-import { setDebugMode } from "../store";
+import type { Container } from "pixi.js";
+
 import type { Camera } from "../camera";
 import type { PhysicsWorld } from "../physics";
+import { setDebugMode } from "../store";
+import type { DebugMode, GameStoreState, Vec2 } from "../types";
+import { createDebugPanel, type DebugPanel } from "./debug-panel";
 import { createGridOverlay, type GridOverlay } from "./grid-overlay";
-import { createPlayerScaleRef, type PlayerScaleRef } from "./player-scale";
 import { createJumpArcOverlay, type JumpArcOverlay } from "./jump-arc";
 import { createPhysicsWireframes, type PhysicsWireframes } from "./physics-wireframes";
-import { createDebugPanel, type DebugPanel } from "./debug-panel";
+import { createPlayerScaleRef, type PlayerScaleRef } from "./player-scale";
 
 export type PlayerDebugState = {
   position: Vec2;

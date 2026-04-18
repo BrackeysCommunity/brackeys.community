@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+
 import type { Vec2 } from "../types";
 
 // ─── Config ──────────────────────────────────────────────

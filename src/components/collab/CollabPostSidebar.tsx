@@ -14,6 +14,7 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useState } from "react";
+
 import { buttonVariants } from "@/components/ui/button";
 import { authStore } from "@/lib/auth-store";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
@@ -32,7 +33,7 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-4 py-2 border-b border-muted/30">
+    <div className="border-b border-muted/30 px-4 py-2">
       <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
         {children}
       </span>
@@ -144,34 +145,34 @@ function ResponseForm({ postId }: { postId: number }) {
   if (success) {
     return (
       <div className="px-4 py-6 text-center">
-        <p className="font-mono text-xs text-green-500 tracking-widest uppercase">Response sent!</p>
+        <p className="font-mono text-xs tracking-widest text-green-500 uppercase">Response sent!</p>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-3 space-y-3">
+    <div className="space-y-3 px-4 py-3">
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Write your application message..."
         rows={4}
         maxLength={2000}
-        className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
+        className="w-full resize-none border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
       />
       <input
         type="text"
         value={portfolioUrl}
         onChange={(e) => setPortfolioUrl(e.target.value)}
         placeholder="Portfolio URL (optional)"
-        className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 transition-colors"
+        className="w-full border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
       />
       {error && <p className="font-mono text-[10px] text-destructive">{error}</p>}
       <button
         type="button"
         onClick={() => respondMutation.mutate()}
         disabled={!message.trim() || respondMutation.isPending}
-        className="w-full bg-primary/20 border border-primary/40 py-2 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-full border border-primary/40 bg-primary/20 py-2 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/30 disabled:cursor-not-allowed disabled:opacity-30"
       >
         {respondMutation.isPending ? "SENDING..." : "SEND RESPONSE"}
       </button>
@@ -201,19 +202,19 @@ function ResponseList({
   return (
     <div className="space-y-2">
       {responses.map((resp) => (
-        <div key={resp.id} className="border border-muted/30 bg-muted/10 p-3 space-y-2">
+        <div key={resp.id} className="space-y-2 border border-muted/30 bg-muted/10 p-3">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
               {resp.responderAvatar ? (
                 <img
                   src={resp.responderAvatar}
                   alt=""
-                  className="w-5 h-5 rounded-full border border-muted/30 shrink-0"
+                  className="h-5 w-5 shrink-0 rounded-full border border-muted/30"
                 />
               ) : (
-                <div className="w-5 h-5 rounded-full bg-muted/30 border border-muted/30 shrink-0" />
+                <div className="h-5 w-5 shrink-0 rounded-full border border-muted/30 bg-muted/30" />
               )}
-              <span className="font-mono text-[10px] text-foreground truncate">
+              <span className="truncate font-mono text-[10px] text-foreground">
                 {resp.responderUsername
                   ? `@${resp.responderUsername}`
                   : resp.responderId.slice(0, 8)}
@@ -221,18 +222,18 @@ function ResponseList({
             </div>
             <span
               className={cn(
-                "font-mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 border",
+                "border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase",
                 resp.status === "accepted"
-                  ? "bg-green-500/10 border-green-500/30 text-green-500"
+                  ? "border-green-500/30 bg-green-500/10 text-green-500"
                   : resp.status === "declined"
-                    ? "bg-destructive/10 border-destructive/30 text-destructive"
-                    : "bg-brackeys-yellow/10 border-brackeys-yellow/30 text-brackeys-yellow",
+                    ? "border-destructive/30 bg-destructive/10 text-destructive"
+                    : "border-brackeys-yellow/30 bg-brackeys-yellow/10 text-brackeys-yellow",
               )}
             >
               {resp.status}
             </span>
           </div>
-          <p className="font-mono text-[10px] text-foreground whitespace-pre-wrap">
+          <p className="font-mono text-[10px] whitespace-pre-wrap text-foreground">
             {resp.message}
           </p>
           {resp.portfolioUrl && (
@@ -253,7 +254,7 @@ function ResponseList({
                 onClick={() =>
                   updateStatusMutation.mutate({ responseId: resp.id, status: "accepted" })
                 }
-                className="flex-1 bg-green-500/10 border border-green-500/30 py-1 font-mono text-[10px] text-green-500 uppercase tracking-wider hover:bg-green-500/20 transition-colors"
+                className="flex-1 border border-green-500/30 bg-green-500/10 py-1 font-mono text-[10px] tracking-wider text-green-500 uppercase transition-colors hover:bg-green-500/20"
               >
                 Accept
               </button>
@@ -262,7 +263,7 @@ function ResponseList({
                 onClick={() =>
                   updateStatusMutation.mutate({ responseId: resp.id, status: "declined" })
                 }
-                className="flex-1 bg-destructive/10 border border-destructive/30 py-1 font-mono text-[10px] text-destructive uppercase tracking-wider hover:bg-destructive/20 transition-colors"
+                className="flex-1 border border-destructive/30 bg-destructive/10 py-1 font-mono text-[10px] tracking-wider text-destructive uppercase transition-colors hover:bg-destructive/20"
               >
                 Decline
               </button>
@@ -325,21 +326,21 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
   });
 
   return (
-    <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
+    <div className="flex min-h-0 flex-1 p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 max-h-[min(800px,calc(100vh-120px))] my-auto bg-muted/60 pointer-events-auto"
+        className="pointer-events-auto my-auto max-h-[min(800px,calc(100vh-120px))] min-h-0 min-w-0 flex-1 bg-muted/60"
         style={{ clipPath: notchClip, padding: "2px" }}
       >
         <div
-          className="flex flex-col h-full bg-background/90 backdrop-blur-md relative"
+          className="relative flex h-full flex-col bg-background/90 backdrop-blur-md"
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+          <span className="pointer-events-none absolute top-0 left-0 z-10 h-2 w-2 border-t border-l border-brackeys-yellow/50" />
+          <span className="pointer-events-none absolute right-0 bottom-0 z-10 h-2 w-2 border-r border-b border-brackeys-yellow/50" />
           <svg
             aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
+            className="pointer-events-none absolute top-0 right-0 z-10 text-brackeys-yellow/40"
             width={NOTCH_SIZE + 2}
             height={NOTCH_SIZE + 2}
             viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -356,7 +357,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
           </svg>
           <svg
             aria-hidden="true"
-            className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10"
+            className="pointer-events-none absolute bottom-0 left-0 z-10 text-brackeys-yellow/40"
             width={NOTCH_SIZE + 2}
             height={NOTCH_SIZE + 2}
             viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -373,7 +374,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
           </svg>
 
           {/* Header bar */}
-          <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5 shrink-0">
+          <div className="flex shrink-0 items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
             <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
               COLLAB // POST
             </span>
@@ -390,14 +391,14 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
           </div>
 
           {isLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+            <div className="flex flex-1 items-center justify-center">
+              <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
                 Loading post data...
               </span>
             </div>
           ) : !post ? (
-            <div className="flex-1 flex items-center justify-center">
-              <span className="font-mono text-xs text-muted-foreground tracking-widest uppercase">
+            <div className="flex flex-1 items-center justify-center">
+              <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
                 Post not found
               </span>
             </div>
@@ -405,7 +406,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
             <>
               <OverlayScrollbarsComponent
                 element="div"
-                className="flex-1 min-h-0"
+                className="min-h-0 flex-1"
                 options={{
                   scrollbars: {
                     theme: "os-theme-dark",
@@ -416,24 +417,24 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
               >
                 {/* Metadata */}
                 <SectionHeader>Info</SectionHeader>
-                <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+                <div className="space-y-2 border-b border-muted/30 px-4 py-3">
                   <div className="flex flex-wrap gap-1">
                     <span
                       className={cn(
-                        "border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+                        "border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase",
                         TYPE_BADGE_COLORS[post.type] ??
-                          "bg-muted/20 border-muted/40 text-muted-foreground",
+                          "border-muted/40 bg-muted/20 text-muted-foreground",
                       )}
                     >
                       {post.type}
                     </span>
                     {post.isIndividual && (
-                      <span className="bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+                      <span className="border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase">
                         INDIVIDUAL
                       </span>
                     )}
                     {post.featuredAt && (
-                      <span className="bg-brackeys-yellow/10 border border-brackeys-yellow/30 px-1.5 py-0.5 font-mono text-[10px] text-brackeys-yellow uppercase tracking-wider">
+                      <span className="border border-brackeys-yellow/30 bg-brackeys-yellow/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-brackeys-yellow uppercase">
                         FEATURED
                       </span>
                     )}
@@ -453,7 +454,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {post.contactType || post.contactMethod ? (
                   <>
                     <SectionHeader>Contact</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 space-y-1">
+                    <div className="space-y-1 border-b border-muted/30 px-4 py-3">
                       {post.contactType && (
                         <p className="font-mono text-[10px] text-muted-foreground">
                           <span className="text-primary uppercase">
@@ -478,7 +479,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
 
                 {/* Portfolio link (non-playtest) */}
                 {post.portfolioUrl && post.type !== "playtest" && (
-                  <div className="px-4 py-2 border-b border-muted/30">
+                  <div className="border-b border-muted/30 px-4 py-2">
                     <a
                       href={post.portfolioUrl}
                       target="_blank"
@@ -495,11 +496,11 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {post.roles && post.roles.length > 0 && (
                   <>
                     <SectionHeader>Roles Needed</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1 border-b border-muted/30 px-4 py-3">
                       {post.roles.map((role) => (
                         <span
                           key={role.id}
-                          className="bg-primary/10 border border-primary/30 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider"
+                          className="border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase"
                         >
                           {role.name}
                         </span>
@@ -512,13 +513,13 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {post.images && post.images.length > 0 && (
                   <>
                     <SectionHeader>Images</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+                    <div className="space-y-2 border-b border-muted/30 px-4 py-3">
                       {post.images.map((img) => (
                         <img
                           key={img.id}
                           src={img.url}
                           alt={img.alt ?? "Post image"}
-                          className="w-full h-32 object-cover border border-muted/20"
+                          className="h-32 w-full border border-muted/20 object-cover"
                         />
                       ))}
                     </div>
@@ -529,15 +530,15 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {isOwner && (
                   <>
                     <SectionHeader>Actions</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+                    <div className="space-y-2 border-b border-muted/30 px-4 py-3">
                       {post.status === "recruiting" ? (
                         <button
                           type="button"
                           onClick={() => closeMutation.mutate()}
                           disabled={closeMutation.isPending}
-                          className="w-full bg-brackeys-yellow/10 border border-brackeys-yellow/30 py-1.5 font-mono text-[10px] text-brackeys-yellow uppercase tracking-widest hover:bg-brackeys-yellow/20 transition-colors disabled:opacity-30"
+                          className="w-full border border-brackeys-yellow/30 bg-brackeys-yellow/10 py-1.5 font-mono text-[10px] tracking-widest text-brackeys-yellow uppercase transition-colors hover:bg-brackeys-yellow/20 disabled:opacity-30"
                         >
-                          <HugeiconsIcon icon={Cancel01Icon} size={10} className="inline mr-1" />
+                          <HugeiconsIcon icon={Cancel01Icon} size={10} className="mr-1 inline" />
                           Close Post
                         </button>
                       ) : (
@@ -545,15 +546,15 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                           type="button"
                           onClick={() => reopenMutation.mutate()}
                           disabled={reopenMutation.isPending}
-                          className="w-full bg-green-500/10 border border-green-500/30 py-1.5 font-mono text-[10px] text-green-500 uppercase tracking-widest hover:bg-green-500/20 transition-colors disabled:opacity-30"
+                          className="w-full border border-green-500/30 bg-green-500/10 py-1.5 font-mono text-[10px] tracking-widest text-green-500 uppercase transition-colors hover:bg-green-500/20 disabled:opacity-30"
                         >
-                          <HugeiconsIcon icon={Tick01Icon} size={10} className="inline mr-1" />
+                          <HugeiconsIcon icon={Tick01Icon} size={10} className="mr-1 inline" />
                           Reopen Post
                         </button>
                       )}
                       {confirmDelete ? (
                         <div className="space-y-1.5">
-                          <p className="font-mono text-[10px] text-destructive text-center tracking-widest uppercase">
+                          <p className="text-center font-mono text-[10px] tracking-widest text-destructive uppercase">
                             Delete this post?
                           </p>
                           <div className="flex gap-1.5">
@@ -561,14 +562,14 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                               type="button"
                               onClick={() => deleteMutation.mutate()}
                               disabled={deleteMutation.isPending}
-                              className="flex-1 bg-destructive/20 border border-destructive/40 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/30 transition-colors disabled:opacity-30"
+                              className="flex-1 border border-destructive/40 bg-destructive/20 py-1.5 font-mono text-[10px] tracking-widest text-destructive uppercase transition-colors hover:bg-destructive/30 disabled:opacity-30"
                             >
                               Confirm
                             </button>
                             <button
                               type="button"
                               onClick={() => setConfirmDelete(false)}
-                              className="flex-1 border border-muted/40 py-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-widest hover:border-muted transition-colors"
+                              className="flex-1 border border-muted/40 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:border-muted"
                             >
                               Cancel
                             </button>
@@ -579,9 +580,9 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                           type="button"
                           onClick={() => setConfirmDelete(true)}
                           disabled={deleteMutation.isPending}
-                          className="w-full bg-destructive/10 border border-destructive/30 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/20 transition-colors disabled:opacity-30"
+                          className="w-full border border-destructive/30 bg-destructive/10 py-1.5 font-mono text-[10px] tracking-widest text-destructive uppercase transition-colors hover:bg-destructive/20 disabled:opacity-30"
                         >
-                          <HugeiconsIcon icon={Delete02Icon} size={10} className="inline mr-1" />
+                          <HugeiconsIcon icon={Delete02Icon} size={10} className="mr-1 inline" />
                           Delete Post
                         </button>
                       )}
@@ -593,19 +594,19 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {!isOwner && post.responses && (
                   <>
                     <SectionHeader>Staff</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30 space-y-2">
+                    <div className="space-y-2 border-b border-muted/30 px-4 py-3">
                       <button
                         type="button"
                         onClick={() => featureMutation.mutate(!post.featuredAt)}
                         disabled={featureMutation.isPending}
-                        className="w-full bg-brackeys-yellow/10 border border-brackeys-yellow/30 py-1.5 font-mono text-[10px] text-brackeys-yellow uppercase tracking-widest hover:bg-brackeys-yellow/20 transition-colors disabled:opacity-30"
+                        className="w-full border border-brackeys-yellow/30 bg-brackeys-yellow/10 py-1.5 font-mono text-[10px] tracking-widest text-brackeys-yellow uppercase transition-colors hover:bg-brackeys-yellow/20 disabled:opacity-30"
                       >
-                        <HugeiconsIcon icon={StarIcon} size={10} className="inline mr-1" />
+                        <HugeiconsIcon icon={StarIcon} size={10} className="mr-1 inline" />
                         {post.featuredAt ? "Unfeature" : "Feature"}
                       </button>
                       {confirmDelete ? (
                         <div className="space-y-1.5">
-                          <p className="font-mono text-[10px] text-destructive text-center tracking-widest uppercase">
+                          <p className="text-center font-mono text-[10px] tracking-widest text-destructive uppercase">
                             Delete this post?
                           </p>
                           <div className="flex gap-1.5">
@@ -613,14 +614,14 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                               type="button"
                               onClick={() => deleteMutation.mutate()}
                               disabled={deleteMutation.isPending}
-                              className="flex-1 bg-destructive/20 border border-destructive/40 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/30 transition-colors disabled:opacity-30"
+                              className="flex-1 border border-destructive/40 bg-destructive/20 py-1.5 font-mono text-[10px] tracking-widest text-destructive uppercase transition-colors hover:bg-destructive/30 disabled:opacity-30"
                             >
                               Confirm
                             </button>
                             <button
                               type="button"
                               onClick={() => setConfirmDelete(false)}
-                              className="flex-1 border border-muted/40 py-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-widest hover:border-muted transition-colors"
+                              className="flex-1 border border-muted/40 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:border-muted"
                             >
                               Cancel
                             </button>
@@ -631,9 +632,9 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                           type="button"
                           onClick={() => setConfirmDelete(true)}
                           disabled={deleteMutation.isPending}
-                          className="w-full bg-destructive/10 border border-destructive/30 py-1.5 font-mono text-[10px] text-destructive uppercase tracking-widest hover:bg-destructive/20 transition-colors disabled:opacity-30"
+                          className="w-full border border-destructive/30 bg-destructive/10 py-1.5 font-mono text-[10px] tracking-widest text-destructive uppercase transition-colors hover:bg-destructive/20 disabled:opacity-30"
                         >
-                          <HugeiconsIcon icon={Delete02Icon} size={10} className="inline mr-1" />
+                          <HugeiconsIcon icon={Delete02Icon} size={10} className="mr-1 inline" />
                           Delete Post
                         </button>
                       )}
@@ -645,11 +646,11 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {isOwner && post.responses ? (
                   <>
                     <SectionHeader>Responses ({post.responses.length})</SectionHeader>
-                    <div className="px-4 py-3 border-b border-muted/30">
+                    <div className="border-b border-muted/30 px-4 py-3">
                       {post.responses.length > 0 ? (
                         <ResponseList responses={post.responses} postId={postId} />
                       ) : (
-                        <p className="font-mono text-[10px] text-muted-foreground/50 tracking-widest uppercase text-center py-4">
+                        <p className="py-4 text-center font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase">
                           No responses yet
                         </p>
                       )}
@@ -663,7 +664,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 ) : !isAuthenticated && !authPending ? (
                   <>
                     <SectionHeader>Respond</SectionHeader>
-                    <div className="px-4 py-6 text-center space-y-3">
+                    <div className="space-y-3 px-4 py-6 text-center">
                       <p className="font-mono text-xs text-muted-foreground">
                         Sign in to respond to this post
                       </p>
@@ -676,7 +677,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                         }}
                         className={cn(
                           buttonVariants({ variant: "outline", size: "sm" }),
-                          "border-primary/60 text-primary hover:bg-primary/10 hover:border-primary font-mono text-[10px] font-bold tracking-widest uppercase gap-2",
+                          "gap-2 border-primary/60 font-mono text-[10px] font-bold tracking-widest text-primary uppercase hover:border-primary hover:bg-primary/10",
                         )}
                       >
                         <HugeiconsIcon icon={Login01Icon} size={13} />
@@ -690,9 +691,9 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                 {isAuthenticated && !isOwner && (
                   <>
                     <SectionHeader>Report</SectionHeader>
-                    <div className="px-4 py-3 space-y-2">
+                    <div className="space-y-2 px-4 py-3">
                       {reportSuccess ? (
-                        <p className="font-mono text-[10px] text-green-500 tracking-widest uppercase text-center py-2">
+                        <p className="py-2 text-center font-mono text-[10px] tracking-widest text-green-500 uppercase">
                           Report submitted
                         </p>
                       ) : showReport ? (
@@ -703,14 +704,14 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                             placeholder="Describe the issue..."
                             rows={3}
                             maxLength={1000}
-                            className="w-full bg-muted/20 border border-muted/30 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 resize-none transition-colors"
+                            className="w-full resize-none border border-muted/30 bg-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
                           />
                           <div className="flex gap-2">
                             <button
                               type="button"
                               onClick={() => reportMutation.mutate()}
                               disabled={!reportReason.trim() || reportMutation.isPending}
-                              className="flex-1 bg-destructive/10 border border-destructive/30 py-1 font-mono text-[10px] text-destructive uppercase tracking-wider hover:bg-destructive/20 transition-colors disabled:opacity-30"
+                              className="flex-1 border border-destructive/30 bg-destructive/10 py-1 font-mono text-[10px] tracking-wider text-destructive uppercase transition-colors hover:bg-destructive/20 disabled:opacity-30"
                             >
                               Submit
                             </button>
@@ -720,7 +721,7 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                                 setShowReport(false);
                                 setReportReason("");
                               }}
-                              className="flex-1 border border-muted/30 py-1 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-muted/60 transition-colors"
+                              className="flex-1 border border-muted/30 py-1 font-mono text-[10px] tracking-wider text-muted-foreground uppercase transition-colors hover:border-muted/60"
                             >
                               Cancel
                             </button>
@@ -730,9 +731,9 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
                         <button
                           type="button"
                           onClick={() => setShowReport(true)}
-                          className="w-full border border-dashed border-muted/40 py-2 font-mono text-[10px] text-muted-foreground hover:border-destructive/50 hover:text-destructive transition-colors uppercase tracking-widest"
+                          className="w-full border border-dashed border-muted/40 py-2 font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:border-destructive/50 hover:text-destructive"
                         >
-                          <HugeiconsIcon icon={Flag01Icon} size={10} className="inline mr-1" />
+                          <HugeiconsIcon icon={Flag01Icon} size={10} className="mr-1 inline" />
                           Report this post
                         </button>
                       )}
@@ -742,12 +743,12 @@ export function CollabPostSidebar({ post, isLoading, postId }: CollabPostSidebar
               </OverlayScrollbarsComponent>
 
               {/* Footer */}
-              <div className="border-t border-muted/60 bg-card/30 px-6 py-4 flex gap-4 shrink-0">
+              <div className="flex shrink-0 gap-4 border-t border-muted/60 bg-card/30 px-6 py-4">
                 <MagneticFooterButton
                   onClick={() => navigate({ to: "/collab" })}
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
-                    "w-full border-muted/40 text-muted-foreground hover:bg-muted/10 hover:border-muted font-mono text-[10px] font-bold tracking-widest uppercase justify-center",
+                    "w-full justify-center border-muted/40 font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase hover:border-muted hover:bg-muted/10",
                   )}
                 >
                   Back to Browse

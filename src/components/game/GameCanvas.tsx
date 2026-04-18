@@ -1,6 +1,7 @@
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
 import { useEffect, useRef, useState } from "react";
+
 import type { GameInstance, GameStoreState } from "@/game";
 import { createGame, selectDebugMode, selectFPS, selectPhase } from "@/game";
 
@@ -63,7 +64,7 @@ export function GameCanvas({ roomId }: GameCanvasProps) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#1a1a2e]">
-      <canvas ref={canvasRef} className="block w-full h-full" style={{ touchAction: "none" }} />
+      <canvas ref={canvasRef} className="block h-full w-full" style={{ touchAction: "none" }} />
       {store && <GameHUD store={store} roomId={roomId} />}
     </div>
   );
@@ -77,15 +78,15 @@ function GameHUD({ store, roomId }: { store: Store<GameStoreState>; roomId: stri
   const debugMode = useStore(store, selectDebugMode);
 
   return (
-    <div className="fixed top-4 left-4 z-50 pointer-events-none font-mono text-xs space-y-1">
-      <div className="text-brackeys-yellow/80 tracking-widest uppercase">Room: {roomId}</div>
+    <div className="pointer-events-none fixed top-4 left-4 z-50 space-y-1 font-mono text-xs">
+      <div className="tracking-widest text-brackeys-yellow/80 uppercase">Room: {roomId}</div>
       <div className="text-muted-foreground/60">
         {phase === "running" ? `${Math.round(fps)} FPS` : phase}
       </div>
       {import.meta.env.DEV && debugMode !== "off" && (
-        <div className="text-cyan-400/70 uppercase tracking-wider">Debug: {debugMode}</div>
+        <div className="tracking-wider text-cyan-400/70 uppercase">Debug: {debugMode}</div>
       )}
-      <div className="text-muted-foreground/40 text-[10px] mt-2">
+      <div className="mt-2 text-[10px] text-muted-foreground/40">
         WASD / Arrow keys to move · Space to jump
         {import.meta.env.DEV && " · F3 debug overlay"}
       </div>

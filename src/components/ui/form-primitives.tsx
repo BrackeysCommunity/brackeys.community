@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+
 import { useMagnetic } from "@/lib/hooks/use-cursor";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +39,7 @@ export function MagneticFooterButton({
 
 export function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-4 py-2 border-b border-muted/30">
+    <div className="border-b border-muted/30 px-4 py-2">
       <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
         {children}
       </span>
@@ -48,7 +49,7 @@ export function SectionHeader({ children }: { children: React.ReactNode }) {
 
 export function FieldError({ errors }: { errors: string[] }) {
   if (!errors.length) return null;
-  return <p className="font-mono text-[10px] text-destructive mt-1">{errors[0]}</p>;
+  return <p className="mt-1 font-mono text-[10px] text-destructive">{errors[0]}</p>;
 }
 
 export function CharCount({ current, min, max }: { current: number; min?: number; max: number }) {

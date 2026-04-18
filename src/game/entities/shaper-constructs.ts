@@ -12,11 +12,12 @@
  */
 
 import { Graphics, type Container } from "pixi.js";
+
+import { SHAMAN_OBJ_COLLISION_GROUP } from "../collisions";
+import { createSensorCollider } from "../collisions";
 import { getRapier } from "../physics";
 import type { PhysicsWorld } from "../physics";
 import type { Vec2 } from "../types";
-import { SHAMAN_OBJ_COLLISION_GROUP } from "../collisions";
-import { createSensorCollider } from "../collisions";
 
 // ─── Construct type definitions ──────────────────────────
 

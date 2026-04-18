@@ -6,11 +6,13 @@ import { useStore } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import { authClient } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { collabStore } from "@/lib/collab-store";
 import { NOTCH_SIZE, notchClip, notchClipInner } from "@/lib/notch";
 import { client } from "@/orpc/client";
+
 import { FilterContent } from "./CollabBrowsePage";
 import { CollabPostCard, CollabUserCard } from "./CollabPostCard";
 
@@ -153,9 +155,9 @@ export function CollabBrowseSidebar() {
   ]);
 
   return (
-    <div className="flex h-full flex-col p-4 sm:p-6 selection:bg-primary selection:text-white pointer-events-auto relative">
+    <div className="pointer-events-auto relative flex h-full flex-col p-4 selection:bg-primary selection:text-white sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 shrink-0">
+      <div className="flex shrink-0 items-center justify-between pb-4">
         <span className="font-mono text-[11px] tracking-widest text-foreground uppercase">
           {!combinedIsLoading &&
             combinedTotal > 0 &&
@@ -164,12 +166,12 @@ export function CollabBrowseSidebar() {
         <button
           type="button"
           onClick={() => setShowFilters(true)}
-          className="lg:hidden flex items-center gap-1.5 px-2.5 py-1 border border-muted bg-muted/40 font-mono text-[11px] text-foreground/80 uppercase tracking-widest hover:border-primary hover:text-primary transition-colors"
+          className="flex items-center gap-1.5 border border-muted bg-muted/40 px-2.5 py-1 font-mono text-[11px] tracking-widest text-foreground/80 uppercase transition-colors hover:border-primary hover:text-primary lg:hidden"
         >
           <HugeiconsIcon icon={FilterIcon} size={12} />
           FILTER
           {activeFilterCount > 0 && (
-            <span className="bg-primary/30 border border-primary/60 text-primary px-1 text-[10px]">
+            <span className="border border-primary/60 bg-primary/30 px-1 text-[10px] text-primary">
               {activeFilterCount}
             </span>
           )}
@@ -177,12 +179,12 @@ export function CollabBrowseSidebar() {
       </div>
 
       {/* Create post CTA (mobile only) */}
-      <div className="lg:hidden pb-3 shrink-0">
+      <div className="shrink-0 pb-3 lg:hidden">
         {!isPending &&
           (session?.user ? (
             <Link
               to="/collab/new"
-              className="flex items-center justify-center gap-2 border border-primary/50 bg-primary/10 px-3 py-2 font-mono text-[11px] font-bold text-primary uppercase tracking-widest hover:bg-primary/20 transition-colors"
+              className="flex items-center justify-center gap-2 border border-primary/50 bg-primary/10 px-3 py-2 font-mono text-[11px] font-bold tracking-widest text-primary uppercase transition-colors hover:bg-primary/20"
             >
               <HugeiconsIcon icon={Add01Icon} size={14} />
               CREATE POST
@@ -191,7 +193,7 @@ export function CollabBrowseSidebar() {
             <button
               type="button"
               onClick={() => authClient.signIn.social({ provider: "discord" })}
-              className="w-full flex items-center justify-center gap-2 border border-primary/50 bg-primary/10 px-3 py-2 font-mono text-[11px] font-bold text-primary uppercase tracking-widest hover:bg-primary/20 transition-colors"
+              className="flex w-full items-center justify-center gap-2 border border-primary/50 bg-primary/10 px-3 py-2 font-mono text-[11px] font-bold tracking-widest text-primary uppercase transition-colors hover:bg-primary/20"
             >
               <HugeiconsIcon icon={Login01Icon} size={14} />
               SIGN IN TO POST
@@ -202,22 +204,22 @@ export function CollabBrowseSidebar() {
       {/* Virtualized infinite-scroll post list */}
       <div
         ref={parentRef}
-        className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {combinedIsLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={`skel-${i.toString()}`}
-                className="border border-muted bg-muted/40 p-4 h-24 animate-pulse"
+                className="h-24 animate-pulse border border-muted bg-muted/40 p-4"
                 style={{ animationDelay: `${i * 100}ms` }}
               />
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
+          <div className="flex h-full flex-col items-center justify-center gap-3">
             <span className="font-mono text-4xl text-muted-foreground/40">[ ]</span>
-            <p className="font-mono text-xs text-muted-foreground tracking-widest uppercase">
+            <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
               No results match your filters
             </p>
           </div>
@@ -229,10 +231,10 @@ export function CollabBrowseSidebar() {
                 return (
                   <div
                     key="loader"
-                    className="absolute top-0 left-0 w-full flex justify-center py-4"
+                    className="absolute top-0 left-0 flex w-full justify-center py-4"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    <span className="font-mono text-[11px] text-muted-foreground animate-pulse tracking-widest uppercase">
+                    <span className="animate-pulse font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
                       Loading more...
                     </span>
                   </div>
@@ -270,7 +272,7 @@ export function CollabBrowseSidebar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4"
+            className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm"
             onClick={() => setShowFilters(false)}
           >
             <motion.div
@@ -278,19 +280,19 @@ export function CollabBrowseSidebar() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="w-full max-w-md max-h-[80vh] bg-muted"
+              className="max-h-[80vh] w-full max-w-md bg-muted"
               style={{ clipPath: notchClip, padding: "2px" }}
               onClick={(e) => e.stopPropagation()}
             >
               <div
-                className="flex flex-col h-full bg-background backdrop-blur-md relative overflow-hidden"
+                className="relative flex h-full flex-col overflow-hidden bg-background backdrop-blur-md"
                 style={{ clipPath: notchClipInner }}
               >
-                <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-                <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+                <span className="pointer-events-none absolute top-0 left-0 z-10 h-2 w-2 border-t border-l border-brackeys-yellow/50" />
+                <span className="pointer-events-none absolute right-0 bottom-0 z-10 h-2 w-2 border-r border-b border-brackeys-yellow/50" />
                 <svg
                   aria-hidden="true"
-                  className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
+                  className="pointer-events-none absolute top-0 right-0 z-10 text-brackeys-yellow/40"
                   width={NOTCH_SIZE + 2}
                   height={NOTCH_SIZE + 2}
                   viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -307,7 +309,7 @@ export function CollabBrowseSidebar() {
                 </svg>
                 <svg
                   aria-hidden="true"
-                  className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10"
+                  className="pointer-events-none absolute bottom-0 left-0 z-10 text-brackeys-yellow/40"
                   width={NOTCH_SIZE + 2}
                   height={NOTCH_SIZE + 2}
                   viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -323,20 +325,20 @@ export function CollabBrowseSidebar() {
                   />
                 </svg>
 
-                <div className="flex items-center justify-between border-b border-muted bg-card/60 px-4 py-2.5 shrink-0">
+                <div className="flex shrink-0 items-center justify-between border-b border-muted bg-card/60 px-4 py-2.5">
                   <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
                     {"COLLAB // FILTERS"}
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowFilters(false)}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <HugeiconsIcon icon={Cancel01Icon} size={14} />
                   </button>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
                   <FilterContent onDone={() => setShowFilters(false)} />
                 </div>
               </div>

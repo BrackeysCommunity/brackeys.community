@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+
 import { cn } from "@/lib/utils";
 
 interface CollabPostCardProps {
@@ -60,17 +61,17 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
       to="/collab/$postId"
       params={{ postId: String(post.id) }}
       className={cn(
-        "block border bg-muted/30 p-3 space-y-2 transition-all hover:bg-muted/40",
+        "block space-y-2 border bg-muted/30 p-3 transition-all hover:bg-muted/40",
         isFeatured ? "border-brackeys-yellow/60" : "border-muted",
         isClosed && "opacity-60",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider line-clamp-1">
+        <span className="line-clamp-1 font-mono text-xs font-bold tracking-wider text-foreground uppercase">
           {post.title}
         </span>
         {isFeatured && (
-          <span className="shrink-0 font-mono text-[10px] text-brackeys-yellow tracking-widest uppercase">
+          <span className="shrink-0 font-mono text-[10px] tracking-widest text-brackeys-yellow uppercase">
             FEATURED
           </span>
         )}
@@ -79,30 +80,30 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
       <div className="flex flex-wrap gap-1">
         <span
           className={cn(
-            "inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider",
-            TYPE_COLORS[post.type] ?? "bg-muted/30 border-muted/50 text-muted-foreground",
+            "inline-block border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase",
+            TYPE_COLORS[post.type] ?? "border-muted/50 bg-muted/30 text-muted-foreground",
           )}
         >
           {post.type}
         </span>
         {post.isIndividual && (
-          <span className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider">
+          <span className="inline-block border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase">
             INDIVIDUAL
           </span>
         )}
         {post.compensationType && (
           <span
             className={cn(
-              "inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+              "inline-block border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase",
               COMP_TYPE_COLORS[post.compensationType] ??
-                "bg-muted/30 border-muted/50 text-muted-foreground",
+                "border-muted/50 bg-muted/30 text-muted-foreground",
             )}
           >
             {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
           </span>
         )}
         {isClosed && (
-          <span className="inline-block bg-destructive/15 border border-destructive/40 px-1.5 py-0.5 font-mono text-[10px] text-destructive uppercase tracking-wider">
+          <span className="inline-block border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-destructive uppercase">
             CLOSED
           </span>
         )}
@@ -113,7 +114,7 @@ export function CollabPostCard({ post, responseCount, roles }: CollabPostCardPro
           {roles.slice(0, 3).map((role) => (
             <span
               key={role.id}
-              className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider"
+              className="inline-block border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase"
             >
               {role.name}
             </span>
@@ -190,41 +191,41 @@ export function CollabUserCard({ user, skills }: CollabUserCardProps) {
     <Link
       to="/profile/$userId"
       params={{ userId: user.id }}
-      className="block border bg-muted/30 p-3 space-y-2 transition-all hover:bg-muted/40 border-muted"
+      className="block space-y-2 border border-muted bg-muted/30 p-3 transition-all hover:bg-muted/40"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
           {user.avatarUrl ? (
             <img
               src={user.avatarUrl}
               alt=""
-              className="w-6 h-6 rounded-full border border-muted/30 shrink-0"
+              className="h-6 w-6 shrink-0 rounded-full border border-muted/30"
             />
           ) : (
-            <div className="w-6 h-6 rounded-full bg-muted/30 border border-muted/30 shrink-0" />
+            <div className="h-6 w-6 shrink-0 rounded-full border border-muted/30 bg-muted/30" />
           )}
-          <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider line-clamp-1">
+          <span className="line-clamp-1 font-mono text-xs font-bold tracking-wider text-foreground uppercase">
             {user.tagline || user.discordUsername || "Unknown"}
           </span>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-1">
-        <span className="inline-block bg-cyan-500/15 border border-cyan-500/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-500 uppercase tracking-wider">
+        <span className="inline-block border border-cyan-500/40 bg-cyan-500/15 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-cyan-500 uppercase">
           AVAILABLE
         </span>
         {user.availability && (
-          <span className="inline-block bg-muted/30 border border-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+          <span className="inline-block border border-muted/50 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
             {AVAILABILITY_LABELS[user.availability] ?? user.availability}
           </span>
         )}
         {user.rateType && (
           <span
             className={cn(
-              "inline-block border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+              "inline-block border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase",
               user.rateType === "negotiable"
-                ? "bg-brackeys-yellow/15 border-brackeys-yellow/40 text-brackeys-yellow"
-                : "bg-green-500/15 border-green-500/40 text-green-500",
+                ? "border-brackeys-yellow/40 bg-brackeys-yellow/15 text-brackeys-yellow"
+                : "border-green-500/40 bg-green-500/15 text-green-500",
             )}
           >
             {RATE_TYPE_LABELS[user.rateType] ?? user.rateType}
@@ -237,7 +238,7 @@ export function CollabUserCard({ user, skills }: CollabUserCardProps) {
           {skills.slice(0, 3).map((skill) => (
             <span
               key={skill.skillId}
-              className="inline-block bg-primary/15 border border-primary/40 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider"
+              className="inline-block border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase"
             >
               {skill.name}
             </span>

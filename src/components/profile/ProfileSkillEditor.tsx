@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+
 import { useMagnetic } from "@/lib/hooks/use-cursor";
 import { orpc } from "@/orpc/client";
 
@@ -10,12 +11,12 @@ const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0
 
 export function SkillTag({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
-    <span className="group inline-flex items-center gap-1 bg-primary/10 border border-primary/25 px-2 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider hover:border-primary/50 transition-colors overflow-hidden">
+    <span className="group inline-flex items-center gap-1 overflow-hidden border border-primary/25 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase transition-colors hover:border-primary/50">
       {name}
       <button
         type="button"
         onClick={onRemove}
-        className="w-0 -mr-1 opacity-0 group-hover:w-3 group-hover:opacity-100 text-primary/50 hover:text-destructive focus:text-destructive focus:w-3 focus:opacity-100 outline-none transition-all duration-200 shrink-0"
+        className="-mr-1 w-0 shrink-0 text-primary/50 opacity-0 transition-all duration-200 outline-none group-hover:w-3 group-hover:opacity-100 hover:text-destructive focus:w-3 focus:text-destructive focus:opacity-100"
       >
         <HugeiconsIcon icon={Cancel01Icon} size={9} />
       </button>
@@ -33,15 +34,15 @@ export function PendingSkillTag({ name, onRemove }: { name: string; onRemove?: (
       data-cursor-bounce={0.03}
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
-      className="group inline-flex items-center gap-1.5 bg-brackeys-yellow/5 border border-brackeys-yellow/20 px-2 py-0.5 font-mono text-[10px] text-muted-foreground uppercase tracking-wider hover:border-brackeys-yellow/40 transition-colors overflow-hidden"
+      className="group inline-flex items-center gap-1.5 overflow-hidden border border-brackeys-yellow/20 bg-brackeys-yellow/5 px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase transition-colors hover:border-brackeys-yellow/40"
     >
       {name}
-      <span className="text-[9px] text-brackeys-yellow font-bold tracking-widest">PENDING</span>
+      <span className="text-[9px] font-bold tracking-widest text-brackeys-yellow">PENDING</span>
       {onRemove && (
         <button
           type="button"
           onClick={onRemove}
-          className="w-0 -mr-1.5 group-hover:mr-0 focus:mr-0 opacity-0 group-hover:w-3 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive focus:text-destructive focus:w-3 focus:opacity-100 outline-none transition-all duration-200 shrink-0"
+          className="-mr-1.5 w-0 shrink-0 text-muted-foreground/50 opacity-0 transition-all duration-200 outline-none group-hover:mr-0 group-hover:w-3 group-hover:opacity-100 hover:text-destructive focus:mr-0 focus:w-3 focus:text-destructive focus:opacity-100"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
@@ -115,10 +116,10 @@ export function SkillAutocomplete({
             if (search.trim()) setShowDropdown(true);
           }}
           placeholder="+ Add skill..."
-          className="bg-transparent border border-dashed border-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 outline-none focus:border-primary/50 w-28 transition-colors"
+          className="w-28 border border-dashed border-muted/40 bg-transparent px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
         />
         {showDropdown && search.trim() && (
-          <div className="absolute top-full left-0 mt-1 w-48 max-h-40 overflow-y-auto bg-card border border-muted/60 shadow-lg z-50">
+          <div className="absolute top-full left-0 z-50 mt-1 max-h-40 w-48 overflow-y-auto border border-muted/60 bg-card shadow-lg">
             {skillResults?.map((skill) => (
               <button
                 key={skill.id}
@@ -128,11 +129,11 @@ export function SkillAutocomplete({
                   setSearch("");
                   setShowDropdown(false);
                 }}
-                className="w-full text-left px-2 py-1.5 font-mono text-[10px] text-foreground hover:bg-primary/10 hover:text-primary transition-colors uppercase tracking-wider"
+                className="w-full px-2 py-1.5 text-left font-mono text-[10px] tracking-wider text-foreground uppercase transition-colors hover:bg-primary/10 hover:text-primary"
               >
                 {skill.name}
                 {skill.category && (
-                  <span className="text-muted-foreground/50 ml-1">({skill.category})</span>
+                  <span className="ml-1 text-muted-foreground/50">({skill.category})</span>
                 )}
               </button>
             ))}
@@ -144,7 +145,7 @@ export function SkillAutocomplete({
                   setSearch("");
                   setShowDropdown(false);
                 }}
-                className="w-full text-left px-2 py-1.5 font-mono text-[10px] text-brackeys-yellow hover:bg-brackeys-yellow/10 transition-colors uppercase tracking-wider border-t border-muted/30"
+                className="w-full border-t border-muted/30 px-2 py-1.5 text-left font-mono text-[10px] tracking-wider text-brackeys-yellow uppercase transition-colors hover:bg-brackeys-yellow/10"
               >
                 Request &apos;{search.trim()}&apos;
               </button>

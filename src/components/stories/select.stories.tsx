@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 
 import {
   Select,
@@ -109,8 +109,8 @@ export const Overview: Story = {
             Sizes
           </Heading>
           <Text as="p" size="xs" variant="muted">
-            Trigger sizes: <InlineCode>default</InlineCode> (h-8),{" "}
-            <InlineCode>sm</InlineCode> (h-7), <InlineCode>xs</InlineCode> (h-6).
+            Trigger sizes: <InlineCode>default</InlineCode> (h-8), <InlineCode>sm</InlineCode>{" "}
+            (h-7), <InlineCode>xs</InlineCode> (h-6).
           </Text>
           <div className="flex flex-col gap-6 border border-border bg-card p-8">
             <div className="flex flex-wrap items-end justify-center gap-3">
@@ -146,12 +146,7 @@ export const Overview: Story = {
           <div className="flex flex-col gap-6 border border-border bg-card p-8">
             <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
               {(["default", "sm", "xs"] as const).map((size) => (
-                <Select
-                  key={size}
-                  multiple
-                  value={multiValue}
-                  onValueChange={setMultiValue}
-                >
+                <Select key={size} multiple value={multiValue} onValueChange={setMultiValue}>
                   <SelectMultiTrigger
                     size={size}
                     selectedLabels={multiLabels}
@@ -204,9 +199,7 @@ export const Overview: Story = {
                   <SelectMultiTrigger
                     size={size}
                     selectedLabels={multiClearableLabels}
-                    onRemove={(val) =>
-                      setMultiClearable((prev) => prev.filter((v) => v !== val))
-                    }
+                    onRemove={(val) => setMultiClearable((prev) => prev.filter((v) => v !== val))}
                     onClear={() => setMultiClearable([])}
                     placeholder="Select items..."
                   />
@@ -269,9 +262,7 @@ export const Overview: Story = {
                   notchOpts
                   badgeNotchOpts
                   selectedLabels={multiClearableLabels}
-                  onRemove={(val) =>
-                    setMultiClearable((prev) => prev.filter((v) => v !== val))
-                  }
+                  onRemove={(val) => setMultiClearable((prev) => prev.filter((v) => v !== val))}
                   onClear={() => setMultiClearable([])}
                   placeholder="Select items..."
                 />
@@ -415,8 +406,8 @@ export const Overview: Story = {
           </Heading>
           <div className="max-w-xl space-y-2">
             <Text as="p" size="xs" variant="muted" density="comfortable">
-              Built on <InlineCode>@base-ui/react/select</InlineCode> with proper listbox
-              semantics. Keyboard: Arrow Up/Down navigate, Enter selects, Escape closes.
+              Built on <InlineCode>@base-ui/react/select</InlineCode> with proper listbox semantics.
+              Keyboard: Arrow Up/Down navigate, Enter selects, Escape closes.
             </Text>
             <Text as="p" size="xs" variant="muted" density="comfortable">
               Multi-select uses checkmarks on items. Individual badge × buttons and the clear-all

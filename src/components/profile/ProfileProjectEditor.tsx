@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { type FileRejection, useDropzone } from "react-dropzone";
+
 import { useMagnetic } from "@/lib/hooks/use-cursor";
 import {
   PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES,
@@ -27,6 +28,7 @@ import {
   type ProfileProjectType,
 } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
+
 import { ProfileProjectTypeBadge } from "./ProfileProjectTypeBadge";
 
 const fieldSpring = {
@@ -101,7 +103,7 @@ export function EditableProjectCard({
 
   if (project.type === "jam") {
     return (
-      <div className="group border border-muted/20 bg-muted/5 hover:border-muted/40 transition-colors p-3">
+      <div className="group border border-muted/20 bg-muted/5 p-3 transition-colors hover:border-muted/40">
         <div className="flex items-start justify-between gap-3">
           <div className="relative flex min-w-0 flex-1 gap-3">
             <div className="mt-1.5 shrink-0">
@@ -110,13 +112,13 @@ export function EditableProjectCard({
 
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground">
+                <span className="font-mono text-[11px] font-bold tracking-wider text-foreground uppercase">
                   {project.jamUrl ? (
                     <a
                       href={project.jamUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-primary transition-colors"
+                      className="transition-colors hover:text-primary"
                     >
                       {project.jamName ?? project.title}
                     </a>
@@ -128,13 +130,13 @@ export function EditableProjectCard({
               </div>
 
               {project.submissionTitle && (
-                <p className="font-mono text-[10px] text-muted-foreground/60 truncate">
+                <p className="truncate font-mono text-[10px] text-muted-foreground/60">
                   {project.submissionUrl ? (
                     <a
                       href={project.submissionUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-primary transition-colors"
+                      className="transition-colors hover:text-primary"
                     >
                       {project.submissionTitle}
                     </a>
@@ -146,7 +148,7 @@ export function EditableProjectCard({
 
               <div className="flex flex-wrap items-center gap-2">
                 {project.result && (
-                  <span className="bg-brackeys-yellow/10 border border-brackeys-yellow/25 px-1.5 py-0.5 font-mono text-[9px] text-brackeys-yellow uppercase tracking-wider">
+                  <span className="border border-brackeys-yellow/25 bg-brackeys-yellow/10 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-brackeys-yellow uppercase">
                     {project.result}
                   </span>
                 )}
@@ -165,7 +167,7 @@ export function EditableProjectCard({
           <button
             type="button"
             onClick={onRemove}
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all shrink-0 mt-0.5"
+            className="mt-0.5 shrink-0 text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} size={12} />
           </button>
@@ -188,36 +190,36 @@ export function EditableProjectCard({
   }
 
   return (
-    <div className="group flex gap-3 border border-muted/20 bg-muted/5 hover:border-muted/40 hover:bg-muted/10 transition-colors p-3">
+    <div className="group flex gap-3 border border-muted/20 bg-muted/5 p-3 transition-colors hover:border-muted/40 hover:bg-muted/10">
       {project.imageUrl && (
         <img
           src={project.imageUrl}
           alt={project.title}
-          className="h-16 w-16 shrink-0 object-cover border border-muted/20"
+          className="h-16 w-16 shrink-0 border border-muted/20 object-cover"
         />
       )}
 
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <span className="font-mono text-[11px] font-bold text-foreground uppercase tracking-wider truncate">
-              {project.pinned && <span className="text-brackeys-yellow mr-1.5">*</span>}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="truncate font-mono text-[11px] font-bold tracking-wider text-foreground uppercase">
+              {project.pinned && <span className="mr-1.5 text-brackeys-yellow">*</span>}
               {project.title}
             </span>
             <ProfileProjectTypeBadge type={project.type} subTypes={project.subTypes} />
             {project.status === "pending" && (
-              <span className="shrink-0 bg-brackeys-yellow/10 border border-brackeys-yellow/25 px-1.5 py-0.5 font-mono text-[9px] text-brackeys-yellow uppercase tracking-wider">
+              <span className="shrink-0 border border-brackeys-yellow/25 bg-brackeys-yellow/10 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-brackeys-yellow uppercase">
                 Pending
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex shrink-0 items-center gap-1">
             {onEdit && (
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-primary transition-all"
+                className="text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:text-primary"
               >
                 <HugeiconsIcon icon={PencilEdit01Icon} size={12} />
               </button>
@@ -225,7 +227,7 @@ export function EditableProjectCard({
             <button
               type="button"
               onClick={onRemove}
-              className="opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all"
+              className="text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive"
             >
               <HugeiconsIcon icon={Delete02Icon} size={12} />
             </button>
@@ -233,7 +235,7 @@ export function EditableProjectCard({
         </div>
 
         {project.description && (
-          <p className="font-mono text-[10px] text-muted-foreground/60 line-clamp-2 leading-relaxed">
+          <p className="line-clamp-2 font-mono text-[10px] leading-relaxed text-muted-foreground/60">
             {project.description}
           </p>
         )}
@@ -243,7 +245,7 @@ export function EditableProjectCard({
             href={project.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-mono text-[10px] text-primary/60 hover:text-primary transition-colors truncate"
+            className="inline-flex items-center gap-1 truncate font-mono text-[10px] text-primary/60 transition-colors hover:text-primary"
           >
             <HugeiconsIcon icon={Link01Icon} size={10} />
             {project.url}
@@ -365,14 +367,14 @@ function InlineProjectEditForm({
   const currentImageUrl = previewUrl ?? project.imageUrl;
 
   return (
-    <div className="border border-primary/25 bg-primary/3 p-3 space-y-3">
+    <div className="space-y-3 border border-primary/25 bg-primary/3 p-3">
       <div className="flex gap-3">
         {/* Image preview / dropzone */}
         <button
           type="button"
           {...getRootProps()}
           className={cn(
-            "relative h-16 w-16 shrink-0 border border-dashed flex items-center justify-center cursor-pointer transition-colors",
+            "relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center border border-dashed transition-colors",
             isDragActive
               ? "border-primary/50 bg-primary/10"
               : "border-muted/30 bg-muted/5 hover:border-muted/50",
@@ -403,7 +405,7 @@ function InlineProjectEditForm({
                 type="button"
                 onClick={() => handleTypeChange(option)}
                 className={cn(
-                  "border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] transition-colors",
+                  "border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.15em] uppercase transition-colors",
                   type === option
                     ? "border-primary/40 bg-primary/12 text-primary"
                     : "border-muted/20 text-muted-foreground/40 hover:border-muted/40 hover:text-foreground/60",
@@ -424,7 +426,7 @@ function InlineProjectEditForm({
               type="button"
               onClick={() => toggleSubType(subType)}
               className={cn(
-                "border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] transition-colors",
+                "border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.15em] uppercase transition-colors",
                 subTypes.includes(subType)
                   ? "border-primary/35 bg-primary/10 text-primary"
                   : "border-muted/20 text-muted-foreground/40 hover:border-muted/40 hover:text-foreground/60",
@@ -458,7 +460,7 @@ function InlineProjectEditForm({
           type="button"
           onClick={handleSubmit}
           disabled={isUploading || !title.trim()}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-primary/15 border border-primary/30 py-1.5 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/25 transition-colors disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-1.5 border border-primary/30 bg-primary/15 py-1.5 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25 disabled:opacity-50"
         >
           <HugeiconsIcon icon={Tick01Icon} size={10} />
           {isUploading ? "Saving..." : "Save"}
@@ -466,7 +468,7 @@ function InlineProjectEditForm({
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 flex items-center justify-center gap-1.5 border border-muted/20 py-1.5 font-mono text-[10px] text-muted-foreground/50 uppercase tracking-widest hover:border-muted/40 transition-colors"
+          className="flex flex-1 items-center justify-center gap-1.5 border border-muted/20 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={10} />
           Cancel
@@ -623,7 +625,7 @@ export function AddProjectForm({
         transition={fieldSpring}
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full border border-dashed border-muted/25 py-3 font-mono text-[10px] text-muted-foreground/50 hover:border-primary/40 hover:text-primary transition-colors uppercase tracking-widest flex items-center justify-center gap-1.5"
+        className="flex w-full items-center justify-center gap-1.5 border border-dashed border-muted/25 py-3 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-primary/40 hover:text-primary"
       >
         <HugeiconsIcon icon={Add01Icon} size={10} />
         Add Project
@@ -632,14 +634,14 @@ export function AddProjectForm({
   }
 
   return (
-    <div className="border border-primary/20 bg-primary/3 p-3 space-y-3">
+    <div className="space-y-3 border border-primary/20 bg-primary/3 p-3">
       <div className="flex gap-3">
         {/* Image area */}
         <button
           type="button"
           {...getRootProps()}
           className={cn(
-            "relative h-16 w-16 shrink-0 border border-dashed flex items-center justify-center cursor-pointer transition-colors",
+            "relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center border border-dashed transition-colors",
             isDragActive
               ? "border-primary/50 bg-primary/10"
               : "border-muted/30 bg-muted/5 hover:border-muted/50",
@@ -659,7 +661,7 @@ export function AddProjectForm({
                   setPreviewUrl(null);
                   setUploadError("");
                 }}
-                className="absolute -top-1.5 -right-1.5 bg-background border border-muted/40 rounded-full p-0.5 text-muted-foreground/60 hover:text-destructive transition-colors"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-muted/40 bg-background p-0.5 text-muted-foreground/60 transition-colors hover:text-destructive"
               >
                 <HugeiconsIcon icon={Delete02Icon} size={8} />
               </button>
@@ -688,7 +690,7 @@ export function AddProjectForm({
                 type="button"
                 onClick={() => handleTypeChange(option)}
                 className={cn(
-                  "border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] transition-colors",
+                  "border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.15em] uppercase transition-colors",
                   type === option
                     ? "border-primary/40 bg-primary/12 text-primary"
                     : "border-muted/20 text-muted-foreground/40 hover:border-muted/40 hover:text-foreground/60",
@@ -709,7 +711,7 @@ export function AddProjectForm({
               type="button"
               onClick={() => toggleSubType(subType)}
               className={cn(
-                "border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] transition-colors",
+                "border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.15em] uppercase transition-colors",
                 subTypes.includes(subType)
                   ? "border-primary/35 bg-primary/10 text-primary"
                   : "border-muted/20 text-muted-foreground/40 hover:border-muted/40 hover:text-foreground/60",
@@ -743,14 +745,14 @@ export function AddProjectForm({
           type="button"
           onClick={handleSubmit}
           disabled={isUploading || !title.trim()}
-          className="flex-1 bg-primary/15 border border-primary/30 py-1.5 font-mono text-[10px] text-primary uppercase tracking-widest hover:bg-primary/25 transition-colors disabled:opacity-50"
+          className="flex-1 border border-primary/30 bg-primary/15 py-1.5 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25 disabled:opacity-50"
         >
           {isUploading ? "Saving..." : "Save"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 border border-muted/20 py-1.5 font-mono text-[10px] text-muted-foreground/50 uppercase tracking-widest hover:border-muted/40 transition-colors"
+          className="flex-1 border border-muted/20 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
         >
           Cancel
         </button>

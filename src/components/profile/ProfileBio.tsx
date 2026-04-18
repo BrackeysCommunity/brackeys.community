@@ -11,14 +11,14 @@ export function ProfileBio({ bio, maxLines, className }: ProfileBioProps) {
     <div className={cn("relative", className)}>
       <p
         className={cn(
-          "font-sans text-[13px] text-muted-foreground/80 leading-[1.7] whitespace-pre-wrap",
+          "font-sans text-[13px] leading-[1.7] whitespace-pre-wrap text-muted-foreground/80",
           maxLines && `line-clamp-${maxLines}`,
         )}
       >
         {bio}
       </p>
       {maxLines && (
-        <div className="absolute bottom-0 left-0 right-0 h-6 bg-linear-to-t from-background/80 to-transparent pointer-events-none" />
+        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-linear-to-t from-background/80 to-transparent" />
       )}
     </div>
   );

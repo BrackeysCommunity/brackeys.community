@@ -7,7 +7,9 @@ import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
+
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+
 import { CyclingWord } from "./CyclingWord";
 
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
@@ -31,7 +33,7 @@ function NavCard({ item }: { item: NavItem }) {
       data-cursor-padding-y="24"
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
-      className="relative z-10 w-full sm:w-auto pointer-events-auto"
+      className="pointer-events-auto relative z-10 w-full sm:w-auto"
     >
       <Link
         to={item.to}
@@ -47,7 +49,7 @@ function NavCard({ item }: { item: NavItem }) {
             className="text-muted-foreground group-hover:text-primary"
           />
         </div>
-        <div className="font-mono font-bold text-2xl leading-none tracking-tight text-foreground group-hover:text-primary whitespace-pre-line">
+        <div className="font-mono text-2xl leading-none font-bold tracking-tight whitespace-pre-line text-foreground group-hover:text-primary">
           {item.label}
         </div>
       </Link>
@@ -63,7 +65,7 @@ const NAV_ITEMS = [
 
 export function HeroSection() {
   return (
-    <div className="flex w-full h-full flex-col justify-center">
+    <div className="flex h-full w-full flex-col justify-center">
       <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{">"}</span>
         {"SYSTEM READY"}
@@ -74,10 +76,10 @@ export function HeroSection() {
       </div>
 
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
+        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           <CyclingWord />
           <br />
-          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+          <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
             GAMES.
           </span>
         </h1>
@@ -87,7 +89,7 @@ export function HeroSection() {
         </p>
       </div>
 
-      <nav className="my-6 sm:mt-12 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <nav className="my-6 flex flex-col gap-4 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-end">
         {NAV_ITEMS.map((item) => (
           <NavCard key={item.id} item={item} />
         ))}

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+
 import { createInputSystem } from "../input";
 import type { InputBinding } from "../types";
 

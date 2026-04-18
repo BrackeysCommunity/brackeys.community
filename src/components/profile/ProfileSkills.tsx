@@ -32,7 +32,7 @@ export function ProfileSkills({ skills, className }: ProfileSkillsProps) {
       {hasCategories ? (
         Array.from(grouped.entries()).map(([category, catSkills]) => (
           <div key={category}>
-            <span className="font-mono text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase mb-1.5 block">
+            <span className="mb-1.5 block font-mono text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase">
               {category}
             </span>
             <SkillTagList skills={catSkills} />
@@ -51,7 +51,7 @@ function SkillTagList({ skills }: { skills: Skill[] }) {
       {skills.map((skill) => (
         <span
           key={skill.id}
-          className="inline-flex items-center px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest uppercase border border-brackeys-yellow/30 text-brackeys-yellow/90 bg-brackeys-yellow/5 hover:bg-brackeys-yellow/15 hover:border-brackeys-yellow/50 transition-colors"
+          className="inline-flex items-center border border-brackeys-yellow/30 bg-brackeys-yellow/5 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-brackeys-yellow/90 uppercase transition-colors hover:border-brackeys-yellow/50 hover:bg-brackeys-yellow/15"
         >
           {skill.name}
         </span>

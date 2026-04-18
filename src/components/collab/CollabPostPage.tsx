@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+
 import { usePageSidebar } from "@/lib/hooks/use-page-layout";
 import { orpc } from "@/orpc/client";
 import { Route } from "@/routes/collab.$postId";
+
 import { CollabPostSidebar } from "./CollabPostSidebar";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -71,7 +73,7 @@ export function CollabPostPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(2rem,5vw,6rem)] leading-[0.85] tracking-tighter text-foreground">
+        <h1 className="font-mono text-[clamp(2rem,5vw,6rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : post ? (
@@ -82,7 +84,7 @@ export function CollabPostPage() {
                   <>
                     {words[0]}
                     <br />
-                    <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+                    <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
                       POST.
                     </span>
                   </>
@@ -95,7 +97,7 @@ export function CollabPostPage() {
                 <>
                   {line1}
                   <br />
-                  <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+                  <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
                     {line2 || "POST."}
                   </span>
                 </>
@@ -112,7 +114,7 @@ export function CollabPostPage() {
           )}
         </h1>
         {post && (
-          <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl whitespace-pre-wrap">
+          <p className="mt-8 max-w-xl font-sans text-lg whitespace-pre-wrap text-muted-foreground lg:text-xl">
             {post.description}
           </p>
         )}
@@ -125,7 +127,7 @@ export function CollabPostPage() {
 
       {/* Post details */}
       {post && (
-        <div className="my-6 sm:mt-12 space-y-4">
+        <div className="my-6 space-y-4 sm:mt-12">
           {/* Project section */}
           {(post.projectName || post.teamSize || post.projectLength || post.platforms?.length) && (
             <div className="space-y-2">
@@ -134,18 +136,18 @@ export function CollabPostPage() {
               </span>
               {post.projectName && (
                 <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-                  <span className="text-primary text-xs">PROJECT</span>
+                  <span className="text-xs text-primary">PROJECT</span>
                   <span className="text-foreground">{post.projectName}</span>
                 </div>
               )}
               {post.platforms && post.platforms.length > 0 && (
                 <div className="flex items-center gap-3 font-mono text-sm">
-                  <span className="text-primary text-xs">PLATFORMS</span>
+                  <span className="text-xs text-primary">PLATFORMS</span>
                   <div className="flex flex-wrap gap-1">
                     {post.platforms.map((p) => (
                       <span
                         key={p}
-                        className="inline-block bg-primary/10 border border-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary uppercase tracking-wider"
+                        className="inline-block border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-primary uppercase"
                       >
                         {p}
                       </span>
@@ -155,13 +157,13 @@ export function CollabPostPage() {
               )}
               {post.teamSize && (
                 <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-                  <span className="text-primary text-xs">TEAM</span>
+                  <span className="text-xs text-primary">TEAM</span>
                   <span className="text-foreground">{post.teamSize}</span>
                 </div>
               )}
               {post.projectLength && (
                 <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-                  <span className="text-primary text-xs">
+                  <span className="text-xs text-primary">
                     {post.type === "playtest" ? "PLAY TIME" : "LENGTH"}
                   </span>
                   <span className="text-foreground">{post.projectLength}</span>
@@ -178,15 +180,15 @@ export function CollabPostPage() {
               </span>
               {post.compensationType && (
                 <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-                  <span className="text-green-500 text-xs">TYPE</span>
-                  <span className="inline-block bg-green-500/10 border border-green-500/30 px-1.5 py-0.5 font-mono text-[10px] text-green-500 uppercase tracking-wider">
+                  <span className="text-xs text-green-500">TYPE</span>
+                  <span className="inline-block border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-green-500 uppercase">
                     {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
                   </span>
                 </div>
               )}
               {post.compensation && (
                 <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-                  <span className="text-green-500 text-xs">COMP</span>
+                  <span className="text-xs text-green-500">COMP</span>
                   <span className="text-foreground">{post.compensation}</span>
                 </div>
               )}
@@ -196,7 +198,7 @@ export function CollabPostPage() {
           {/* Experience section */}
           {post.experienceLevel && (
             <div className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-              <span className="text-primary text-xs">EXP</span>
+              <span className="text-xs text-primary">EXP</span>
               <span className="text-foreground capitalize">{post.experienceLevel}</span>
             </div>
           )}
@@ -211,7 +213,7 @@ export function CollabPostPage() {
                 {feedbackTypes.map((ft) => (
                   <span
                     key={ft}
-                    className="inline-block bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 font-mono text-[10px] text-purple-500 uppercase tracking-wider"
+                    className="inline-block border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-purple-500 uppercase"
                   >
                     {ft}
                   </span>
@@ -223,12 +225,12 @@ export function CollabPostPage() {
           {/* Playtest game link */}
           {post.type === "playtest" && post.portfolioUrl && (
             <div className="flex items-center gap-3 font-mono text-sm">
-              <span className="text-purple-500 text-xs">GAME</span>
+              <span className="text-xs text-purple-500">GAME</span>
               <a
                 href={post.portfolioUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline break-all"
+                className="break-all text-primary hover:underline"
               >
                 {post.portfolioUrl}
               </a>

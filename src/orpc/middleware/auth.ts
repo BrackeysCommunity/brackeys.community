@@ -1,14 +1,15 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { eq } from "drizzle-orm";
+
+import { db } from "@/db";
+import { developerProfiles } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import {
   isStaffMember as checkIsStaff,
   isAdmin as checkIsAdmin,
   isGuildMember,
 } from "@/lib/discord";
-import { db } from "@/db";
-import { developerProfiles } from "@/db/schema";
 
 export const authMiddleware = os.middleware(async ({ context, next }) => {
   let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null;

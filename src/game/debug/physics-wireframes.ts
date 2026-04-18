@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+
 import type { PhysicsWorld } from "../physics";
 import { getSurfaceType, type SurfaceType } from "../surfaces";
 

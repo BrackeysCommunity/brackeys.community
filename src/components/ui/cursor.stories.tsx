@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { motion } from "framer-motion";
 import * as React from "react";
+
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+
 import { Button } from "./button";
 import { Cursor } from "./cursor";
 
@@ -13,7 +15,7 @@ const meta: Meta<typeof Cursor> = {
   },
   decorators: [
     (Story) => (
-      <div className="min-h-screen w-full bg-background p-8 flex flex-col gap-8 items-center justify-center">
+      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-8 bg-background p-8">
         <style>{`
           body {
             cursor: none !important;
@@ -52,10 +54,10 @@ export const Showcase: Story = {
   render: () => (
     <>
       <Cursor />
-      <div className="flex flex-col gap-12 items-center">
-        <div className="flex flex-col gap-4 items-center">
+      <div className="flex flex-col items-center gap-12">
+        <div className="flex flex-col items-center gap-4">
           <h1 className="text-4xl font-bold">Cursors</h1>
-          <div className="flex gap-4 items-center">
+          <div className="flex items-center gap-4">
             <Button size="lg" className="bg-foreground text-background">
               Default Pointer
             </Button>
@@ -72,7 +74,7 @@ export const Showcase: Story = {
         </div>
 
         <div
-          className="p-12 border-2 border-dashed rounded-xl w-full max-w-md text-center"
+          className="w-full max-w-md rounded-xl border-2 border-dashed p-12 text-center"
           data-cursor="text"
         >
           Text Selection Area

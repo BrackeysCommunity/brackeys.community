@@ -3,9 +3,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+
 import type { BotCommand, BotId, Macro } from "@/data/commands";
 import { marcoMacros } from "@/data/commands";
 import { NOTCH_SIZE, notchClip, notchClipInner } from "@/lib/notch";
+
 import { CommandRow } from "./CommandRow";
 import { MacroRow } from "./MacroRow";
 
@@ -172,21 +174,21 @@ export function CommandCenterSidebar({
   );
 
   return (
-    <div className="flex-1 min-h-0 flex p-6 selection:bg-primary selection:text-white">
+    <div className="flex min-h-0 flex-1 p-6 selection:bg-primary selection:text-white">
       <div
-        className="flex-1 min-h-0 min-w-0 bg-muted/60 pointer-events-auto"
+        className="pointer-events-auto min-h-0 min-w-0 flex-1 bg-muted/60"
         style={{ clipPath: notchClip, padding: "2px" }}
       >
         <div
-          className="flex flex-col h-full bg-[#0a0a0a] relative overflow-hidden"
+          className="relative flex h-full flex-col overflow-hidden bg-[#0a0a0a]"
           style={{ clipPath: notchClipInner }}
         >
           {/* Corner decorators */}
-          <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-brackeys-yellow/50 pointer-events-none z-10" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-brackeys-yellow/50 pointer-events-none z-10" />
+          <span className="pointer-events-none absolute top-0 left-0 z-10 h-2 w-2 border-t border-l border-brackeys-yellow/50" />
+          <span className="pointer-events-none absolute right-0 bottom-0 z-10 h-2 w-2 border-r border-b border-brackeys-yellow/50" />
           <svg
             aria-hidden="true"
-            className="absolute top-0 right-0 pointer-events-none text-brackeys-yellow/40 z-10"
+            className="pointer-events-none absolute top-0 right-0 z-10 text-brackeys-yellow/40"
             width={NOTCH_SIZE + 2}
             height={NOTCH_SIZE + 2}
             viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -203,7 +205,7 @@ export function CommandCenterSidebar({
           </svg>
           <svg
             aria-hidden="true"
-            className="absolute bottom-0 left-0 pointer-events-none text-brackeys-yellow/40 z-10"
+            className="pointer-events-none absolute bottom-0 left-0 z-10 text-brackeys-yellow/40"
             width={NOTCH_SIZE + 2}
             height={NOTCH_SIZE + 2}
             viewBox={`0 0 ${NOTCH_SIZE + 2} ${NOTCH_SIZE + 2}`}
@@ -220,7 +222,7 @@ export function CommandCenterSidebar({
           </svg>
 
           {/* Title bar */}
-          <div className="text-muted-foreground px-4 py-2.5 flex justify-between items-center font-mono text-xs font-bold select-none shrink-0">
+          <div className="flex shrink-0 items-center justify-between px-4 py-2.5 font-mono text-xs font-bold text-muted-foreground select-none">
             <span>ROOT@BRACKEYS-SERVER:~</span>
             <span>
               {totalResults} PROTOCOL{totalResults !== 1 ? "S" : ""} LOADED
@@ -228,7 +230,7 @@ export function CommandCenterSidebar({
           </div>
 
           {/* Bot filter tabs (mobile — on desktop these are in the left column nav cards) */}
-          <div className="lg:hidden flex border-b border-muted/30 shrink-0">
+          <div className="flex shrink-0 border-b border-muted/30 lg:hidden">
             {BOT_TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -236,7 +238,7 @@ export function CommandCenterSidebar({
                 onClick={() => handleTabChange(tab.id)}
                 className={`flex-1 py-2 font-mono text-[10px] font-bold tracking-widest uppercase transition-colors ${
                   activeBot === tab.id
-                    ? "text-primary border-b-2 border-primary"
+                    ? "border-b-2 border-primary text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -246,9 +248,9 @@ export function CommandCenterSidebar({
           </div>
 
           {/* Search Bar */}
-          <div className="px-4 py-4 border-b border-muted/30 bg-[#121212] shrink-0">
-            <div className="flex items-center w-full gap-3">
-              <span className="text-primary font-mono text-lg font-bold shrink-0 leading-none">
+          <div className="shrink-0 border-b border-muted/30 bg-[#121212] px-4 py-4">
+            <div className="flex w-full items-center gap-3">
+              <span className="shrink-0 font-mono text-lg leading-none font-bold text-primary">
                 &gt;
               </span>
               {/* Wrapper provides positioning context for the block cursor */}
@@ -257,7 +259,7 @@ export function CommandCenterSidebar({
                 <span
                   ref={mirrorRef}
                   aria-hidden
-                  className="absolute top-0 left-0 invisible pointer-events-none font-mono text-base uppercase whitespace-pre"
+                  className="pointer-events-none invisible absolute top-0 left-0 font-mono text-base whitespace-pre uppercase"
                 />
                 <input
                   ref={inputRef}
@@ -268,14 +270,14 @@ export function CommandCenterSidebar({
                   onBlur={() => {}}
                   onSelect={updateCursor}
                   onKeyUp={updateCursor}
-                  className="w-full bg-transparent border-none focus:ring-0 p-0 text-base font-mono text-brackeys-yellow placeholder-muted/50 caret-transparent uppercase outline-none"
+                  className="w-full border-none bg-transparent p-0 font-mono text-base text-brackeys-yellow uppercase placeholder-muted/50 caret-transparent outline-none focus:ring-0"
                   placeholder="SEARCH COMMANDS..."
                   spellCheck="false"
                   type="text"
                 />
                 {/* Block cursor — positioned by measured text width */}
                 <span
-                  className="absolute top-1/2 -translate-y-1/2 w-[0.6em] h-[1.15em] bg-brackeys-yellow pointer-events-none"
+                  className="pointer-events-none absolute top-1/2 h-[1.15em] w-[0.6em] -translate-y-1/2 bg-brackeys-yellow"
                   style={{ left: cursorX, animation: "terminal-blink 1.1s step-end infinite" }}
                 />
               </div>
@@ -285,7 +287,7 @@ export function CommandCenterSidebar({
           {/* Virtualized content list */}
           <OverlayScrollbarsComponent
             element="div"
-            className="flex-1 min-h-0"
+            className="min-h-0 flex-1"
             options={{
               scrollbars: {
                 theme: "os-theme-dark",
@@ -319,30 +321,30 @@ export function CommandCenterSidebar({
                     {item.type === "macro" && <MacroRow macro={item.data} />}
 
                     {(item.type === "macro-header" || item.type === "marco-header") && (
-                      <div className="flex items-center gap-3 px-5 py-3 bg-[#0d0d16]">
+                      <div className="flex items-center gap-3 bg-[#0d0d16] px-5 py-3">
                         <HugeiconsIcon
                           icon={Robot01Icon}
                           size={14}
                           className="text-muted-foreground"
                         />
-                        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                        <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
                           Marco Macros: use /macro name:macroname or []macroname
                         </span>
                       </div>
                     )}
 
                     {item.type === "error" && (
-                      <div className="p-6 bg-[#1a0a0a] border-l-4 border-destructive/50 flex items-start gap-4">
+                      <div className="flex items-start gap-4 border-l-4 border-destructive/50 bg-[#1a0a0a] p-6">
                         <HugeiconsIcon
                           icon={AlertCircleIcon}
                           size={20}
-                          className="text-destructive mt-0.5 shrink-0"
+                          className="mt-0.5 shrink-0 text-destructive"
                         />
                         <div>
-                          <h4 className="text-destructive font-mono font-bold uppercase mb-1">
+                          <h4 className="mb-1 font-mono font-bold text-destructive uppercase">
                             System Error: {item.title}
                           </h4>
-                          <p className="text-muted-foreground font-mono text-sm">{item.msg}</p>
+                          <p className="font-mono text-sm text-muted-foreground">{item.msg}</p>
                         </div>
                       </div>
                     )}
@@ -353,8 +355,8 @@ export function CommandCenterSidebar({
           </OverlayScrollbarsComponent>
 
           {/* Footer */}
-          <div className="border-t border-muted/20 px-4 py-2 flex justify-end shrink-0 bg-[#0a0a0a]">
-            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest animate-pulse">
+          <div className="flex shrink-0 justify-end border-t border-muted/20 bg-[#0a0a0a] px-4 py-2">
+            <span className="animate-pulse font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
               Awaiting Input...
             </span>
           </div>

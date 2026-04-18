@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vite-plus/test";
+
+import { computeJumpArc } from "../debug/jump-arc";
+import { createGameStore, selectDebugMode, setDebugMode } from "../store";
 import { DEBUG_MODES } from "../types";
 import type { DebugMode } from "../types";
-import { createGameStore, selectDebugMode, setDebugMode } from "../store";
-import { computeJumpArc } from "../debug/jump-arc";
 
 // ─── Debug Mode cycling ──────────────────────────────────
 

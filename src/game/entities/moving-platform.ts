@@ -1,9 +1,10 @@
 import { Graphics, type Container } from "pixi.js";
-import type { Vec2 } from "../types";
+
+import { GROUND_COLLISION_GROUP } from "../collisions";
 import { getRapier } from "../physics";
 import type { PhysicsWorld } from "../physics";
-import { GROUND_COLLISION_GROUP } from "../collisions";
 import { registerSurface, type SurfaceType } from "../surfaces";
+import type { Vec2 } from "../types";
 
 // ─── Types ──────────────────────────────────────────────
 

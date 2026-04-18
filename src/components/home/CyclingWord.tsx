@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { ScrambleText, stagger } from "@/components/ui/scramble-text";
 
 const WORDS = ["MAKE", "DESIGN", "PRODUCE", "DEVELOP", "TEST", "CREATE", "PLAY", "BUILD"];

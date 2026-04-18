@@ -39,7 +39,7 @@ function RadioGroupItem({ className, size = "sm", ...props }: RadioGroupItemProp
     <RadioPrimitive.Root
       data-slot="radio-group-item"
       className={cn(
-        "border-input dark:bg-input/30 peer group/radio-group-item relative inline-flex shrink-0 items-center justify-center rounded-full border outline-none",
+        "peer group/radio-group-item relative inline-flex shrink-0 items-center justify-center rounded-full border border-input outline-none dark:bg-input/30",
         "data-checked:border-primary data-checked:bg-primary",
         "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50",
         "aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
@@ -53,7 +53,7 @@ function RadioGroupItem({ className, size = "sm", ...props }: RadioGroupItemProp
       <RadioPrimitive.Indicator
         data-slot="radio-group-indicator"
         className={cn(
-          "group-aria-invalid/radio-group-item:text-destructive flex items-center justify-center text-white",
+          "flex items-center justify-center text-white group-aria-invalid/radio-group-item:text-destructive",
           indicatorSizes[size],
         )}
       >

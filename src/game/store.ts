@@ -1,4 +1,5 @@
 import { Store } from "@tanstack/store";
+
 import type { CameraState, DebugMode, GamePhase, GameStoreState, PlayerInfo, Vec2 } from "./types";
 
 // ─── Factory ─────────────────────────────────────────────

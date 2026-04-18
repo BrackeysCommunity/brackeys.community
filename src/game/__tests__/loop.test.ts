@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vite-plus/test";
+
 import { createGameLoop } from "../loop";
 
 // Mock rAF/cAF — we drive the loop manually via the captured callback

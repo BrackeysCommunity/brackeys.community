@@ -1,4 +1,5 @@
 import { Application, Container } from "pixi.js";
+
 import type { GameConfig } from "./types";
 
 export type Renderer = {

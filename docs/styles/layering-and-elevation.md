@@ -30,6 +30,7 @@ Background colors conform to the element's elevation value. Use the design token
 Borders establish and accentuate depth. We use **"chonk" borders** — thicker at the bottom for embossed/raised elements, thicker at the top for debossed/inset elements. This simulates isometric perspective: a raised button viewed from slightly below shows a thicker bottom edge.
 
 Our implementation:
+
 - **`chonk-emboss`**: Raised elements (buttons, toggles). Uses `--emboss-surface` and `--emboss-shadow` tokens. A `box-shadow` at the bottom creates the thick border illusion, with `translateY` lifting the element.
 - **`chonk-deboss`**: Inset elements (inputs, textareas). Uses `--deboss-surface` and `--deboss-shadow` tokens. Depth is expressed via an **inset box-shadow** (`inset 0 2px 0 0 var(--deboss-shadow)`) plus a matching `border-color`.
 - **`chonk-emboss-notched`**: Raised elements with notched/clipped corners, using `drop-shadow` filter instead of `box-shadow`.
@@ -87,25 +88,25 @@ In our system: `bg-popover` with appropriate shadow utilities.
 
 ## Quick Reference
 
-| Category          | Background | Chonk Border | Shadow | Examples                       |
-| ----------------- | ---------- | ------------ | ------ | ------------------------------ |
-| Layer (no area)   | None       | None         | None   | Text, icons, dividers          |
-| Sheet             | Yes        | None         | None   | Cards, panels, grouped areas   |
-| Slab (embossed)   | Yes        | Bottom       | None   | Buttons, toggles, checkboxes   |
-| Well (debossed)   | Yes        | Top          | None   | Inputs, textareas, select      |
-| Floating          | Yes        | None         | Yes    | Modals, tooltips, popovers     |
+| Category        | Background | Chonk Border | Shadow | Examples                     |
+| --------------- | ---------- | ------------ | ------ | ---------------------------- |
+| Layer (no area) | None       | None         | None   | Text, icons, dividers        |
+| Sheet           | Yes        | None         | None   | Cards, panels, grouped areas |
+| Slab (embossed) | Yes        | Bottom       | None   | Buttons, toggles, checkboxes |
+| Well (debossed) | Yes        | Top          | None   | Inputs, textareas, select    |
+| Floating        | Yes        | None         | Yes    | Modals, tooltips, popovers   |
 
 ## Design Tokens
 
-| Token                 | Purpose                              |
-| --------------------- | ------------------------------------ |
-| `--background`        | Ground-level page background         |
-| `--card`              | Sheet-level elevated background      |
-| `--popover`           | Floating-level background            |
-| `--emboss-surface`    | Slab surface color                   |
-| `--emboss-shadow`     | Slab bottom-border shadow color      |
-| `--deboss-surface`    | Well surface color                   |
-| `--deboss-shadow`     | Well top-border shadow color         |
-| `--deboss-highlight`  | Well bottom highlight (defined, currently unused) |
-| `--chonk-lift`        | Resting translateY for embossed els  |
-| `--chonk-lift-hover`  | Hover translateY for embossed els    |
+| Token                | Purpose                                           |
+| -------------------- | ------------------------------------------------- |
+| `--background`       | Ground-level page background                      |
+| `--card`             | Sheet-level elevated background                   |
+| `--popover`          | Floating-level background                         |
+| `--emboss-surface`   | Slab surface color                                |
+| `--emboss-shadow`    | Slab bottom-border shadow color                   |
+| `--deboss-surface`   | Well surface color                                |
+| `--deboss-shadow`    | Well top-border shadow color                      |
+| `--deboss-highlight` | Well bottom highlight (defined, currently unused) |
+| `--chonk-lift`       | Resting translateY for embossed els               |
+| `--chonk-lift-hover` | Hover translateY for embossed els                 |

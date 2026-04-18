@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounceFn } from "ahooks";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useMemo, useState } from "react";
+
 import type { JamEntry } from "@/lib/jam-store";
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -34,50 +35,50 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
       onMouseLeave={handleMouseLeave}
       className={`relative flex flex-col px-3 py-2.5 transition-all duration-200 ${
         expanded
-          ? "bg-card/80 border-x border-primary/40 shadow-[0_6px_24px_rgba(0,0,0,0.6)] -translate-y-px z-20"
+          ? "z-20 -translate-y-px border-x border-primary/40 bg-card/80 shadow-[0_6px_24px_rgba(0,0,0,0.6)]"
           : "z-0"
       }`}
     >
       {/* Main row: cover + title/meta + link button */}
       <div className="flex items-center gap-2.5">
         {/* Cover thumbnail */}
-        <div className="shrink-0 w-10 h-10 overflow-hidden bg-muted/40">
+        <div className="h-10 w-10 shrink-0 overflow-hidden bg-muted/40">
           {entry.game.cover ? (
             <img
               src={entry.game.cover}
               alt={entry.game.title}
-              className={`w-full h-full object-cover transition-all duration-300 ${
+              className={`h-full w-full object-cover transition-all duration-300 ${
                 expanded ? "grayscale-0" : "grayscale"
               }`}
             />
           ) : (
             <div
-              className="w-full h-full"
+              className="h-full w-full"
               style={{ backgroundColor: entry.game.cover_color ?? "#111" }}
             />
           )}
         </div>
 
         {/* Title + author + platforms */}
-        <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <code
-            className={`font-mono text-xs font-bold px-1.5 py-0.5 border self-start truncate max-w-full transition-colors duration-150 ${
+            className={`max-w-full self-start truncate border px-1.5 py-0.5 font-mono text-xs font-bold transition-colors duration-150 ${
               expanded
-                ? "text-primary border-primary/60 bg-primary/10"
-                : "text-brackeys-yellow bg-brackeys-yellow/10 border-brackeys-yellow/30"
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "border-brackeys-yellow/30 bg-brackeys-yellow/10 text-brackeys-yellow"
             }`}
           >
             {entry.game.title}
           </code>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-mono text-[10px] text-muted-foreground/60 truncate">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="truncate font-mono text-[10px] text-muted-foreground/60">
               {entry.game.user.name}
             </span>
             {entry.game.platforms.slice(0, 4).map((p) => (
               <span
                 key={p}
-                className="font-mono text-[10px] font-bold tracking-widest px-1 py-px border border-muted/40 text-muted-foreground/50 leading-none"
+                className="border border-muted/40 px-1 py-px font-mono text-[10px] leading-none font-bold tracking-widest text-muted-foreground/50"
               >
                 {PLATFORM_LABELS[p] ?? p.toUpperCase()}
               </span>
@@ -91,10 +92,10 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className={`flex items-center gap-1 px-2 py-1 bg-black border text-muted-foreground hover:text-white transition-all duration-150 shrink-0 font-mono text-[10px] font-bold uppercase ${
+          className={`flex shrink-0 items-center gap-1 border bg-black px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground uppercase transition-all duration-150 hover:text-white ${
             expanded
-              ? "opacity-100 border-primary/40 hover:border-primary"
-              : "opacity-0 border-muted pointer-events-none"
+              ? "border-primary/40 opacity-100 hover:border-primary"
+              : "pointer-events-none border-muted opacity-0"
           }`}
         >
           <HugeiconsIcon icon={LinkSquare02Icon} size={11} />
@@ -105,10 +106,10 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
       {/* Expandable description */}
       <div
         className={`overflow-hidden transition-all duration-250 ease-out ${
-          expanded ? "max-h-24 opacity-100 mt-2" : "max-h-0 opacity-0 mt-0"
+          expanded ? "mt-2 max-h-24 opacity-100" : "mt-0 max-h-0 opacity-0"
         }`}
       >
-        <p className="text-xs font-mono text-muted-foreground leading-relaxed whitespace-pre-wrap overflow-y-auto max-h-20 pr-1">
+        <p className="max-h-20 overflow-y-auto pr-1 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
           {entry.game.short_text || (
             <span className="text-muted-foreground/30 italic">No description provided.</span>
           )}
@@ -139,7 +140,7 @@ export function SubmissionsList({ entries }: { entries: JamEntry[] }) {
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground/40">
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
         <span className="font-mono text-xs tracking-widest uppercase">No entries yet</span>
       </div>
     );
@@ -167,7 +168,7 @@ export function SubmissionsList({ entries }: { entries: JamEntry[] }) {
               key={vItem.key}
               ref={virtualizer.measureElement}
               data-index={vItem.index}
-              className="absolute top-0 left-0 w-full border-b border-muted/20 list-none"
+              className="absolute top-0 left-0 w-full list-none border-b border-muted/20"
               style={{ transform: `translateY(${vItem.start}px)` }}
             >
               <SubmissionCard entry={entry} />

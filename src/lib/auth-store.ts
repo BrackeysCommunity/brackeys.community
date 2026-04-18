@@ -1,4 +1,5 @@
 import { Store } from "@tanstack/store";
+
 import type { Session } from "@/lib/auth-client";
 
 type AuthState = {

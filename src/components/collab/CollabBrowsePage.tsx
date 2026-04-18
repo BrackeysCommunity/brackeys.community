@@ -9,6 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
+
 import { NotchedCard } from "@/components/ui/notched-card";
 import { authClient } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
@@ -24,6 +25,7 @@ import {
   setCollabFilters,
 } from "@/lib/collab-store";
 import { usePageSidebar } from "@/lib/hooks/use-page-layout";
+
 import { CollabBrowseSidebar } from "./CollabBrowseSidebar";
 
 const TYPE_OPTIONS: { value: CollabPostType; label: string; icon: string }[] = [
@@ -85,10 +87,10 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider border transition-colors ${
+      className={`border px-2.5 py-1 font-mono text-[10px] tracking-wider uppercase transition-colors ${
         active
-          ? `${accent ?? "bg-primary/25 border-primary/60 text-primary"}`
-          : "bg-muted/30 border-muted/60 text-foreground/70 hover:border-muted hover:text-foreground"
+          ? `${accent ?? "border-primary/60 bg-primary/25 text-primary"}`
+          : "border-muted/60 bg-muted/30 text-foreground/70 hover:border-muted hover:text-foreground"
       }`}
     >
       {label}
@@ -125,7 +127,7 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
     <div className="flex flex-col gap-5">
       {/* Search bar */}
       <div className="flex items-center gap-2 border border-muted bg-muted/40 px-3 py-2">
-        <HugeiconsIcon icon={Search01Icon} size={14} className="text-foreground/80 shrink-0" />
+        <HugeiconsIcon icon={Search01Icon} size={14} className="shrink-0 text-foreground/80" />
         <input
           type="text"
           value={searchInput}
@@ -152,7 +154,7 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
             FILTERS
           </span>
           {activeFilterCount > 0 && (
-            <span className="font-mono text-[10px] bg-primary/30 border border-primary/60 text-primary px-1.5 py-0.5">
+            <span className="border border-primary/60 bg-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary">
               {activeFilterCount}
             </span>
           )}
@@ -164,7 +166,7 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
               resetCollabFilters();
               setSearchInput("");
             }}
-            className="font-mono text-[10px] text-foreground/80 hover:text-primary tracking-wider uppercase transition-colors"
+            className="font-mono text-[10px] tracking-wider text-foreground/80 uppercase transition-colors hover:text-primary"
           >
             CLEAR ALL
           </button>
@@ -296,7 +298,7 @@ export function FilterContent({ onDone }: { onDone?: () => void }) {
         <button
           type="button"
           onClick={onDone}
-          className="w-full bg-primary/30 border border-primary/60 py-2.5 font-mono text-[11px] text-primary uppercase tracking-widest hover:bg-primary/40 transition-colors"
+          className="w-full border border-primary/60 bg-primary/30 py-2.5 font-mono text-[11px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/40"
         >
           DONE
         </button>
@@ -311,14 +313,14 @@ export function CollabBrowsePage() {
   usePageSidebar(<CollabBrowseSidebar />);
 
   return (
-    <div className="flex flex-col h-full gap-4 selection:bg-primary selection:text-white">
+    <div className="flex h-full flex-col gap-4 selection:bg-primary selection:text-white">
       {/* Create post / sign in CTA */}
       {!isPending && (
         <div className="shrink-0">
           {session?.user ? (
             <Link
               to="/collab/new"
-              className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none pointer-events-auto"
+              className="group pointer-events-auto flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none"
             >
               <HugeiconsIcon icon={Add01Icon} size={18} />
               CREATE POST
@@ -327,7 +329,7 @@ export function CollabBrowsePage() {
             <button
               type="button"
               onClick={() => authClient.signIn.social({ provider: "discord" })}
-              className="group flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none pointer-events-auto"
+              className="group pointer-events-auto flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none"
             >
               <HugeiconsIcon icon={Login01Icon} size={18} />
               SIGN IN TO POST
@@ -337,7 +339,7 @@ export function CollabBrowsePage() {
       )}
 
       <NotchedCard
-        className="flex-1 min-h-0"
+        className="min-h-0 flex-1"
         header={
           <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
             {"COLLAB // FILTERS"}

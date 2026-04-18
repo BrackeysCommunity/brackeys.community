@@ -1,4 +1,5 @@
 import { type Container, Graphics } from "pixi.js";
+
 import {
   PLAYER_COLLISION_GROUP,
   registerPlayerCollider,

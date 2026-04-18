@@ -13,8 +13,7 @@
  */
 
 import { Graphics, type Container } from "pixi.js";
-import type { PhysicsWorld } from "../physics";
-import type { Vec2 } from "../types";
+
 import type { GrappleAnchorSystem } from "../entities/grapple-anchor";
 import {
   type ConstructType,
@@ -24,6 +23,8 @@ import {
   clearWindZones,
   clearBouncePads,
 } from "../entities/shaper-constructs";
+import type { PhysicsWorld } from "../physics";
+import type { Vec2 } from "../types";
 
 // ─── Placement validation ────────────────────────────────
 

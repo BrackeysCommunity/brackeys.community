@@ -20,23 +20,23 @@ export function ProfileJams({ jams, className }: ProfileJamsProps) {
 
   return (
     <div className={cn("relative", className)}>
-      <div className="absolute left-[5.5px] top-2 bottom-2 w-px bg-muted/30" />
+      <div className="absolute top-2 bottom-2 left-[5.5px] w-px bg-muted/30" />
 
       <div className="flex flex-col gap-3">
         {jams.map((jam) => (
-          <div key={jam.id} className="flex items-start gap-3 relative group">
+          <div key={jam.id} className="group relative flex items-start gap-3">
             <div className="relative z-10 mt-1.5 shrink-0">
-              <div className="w-3 h-3 rounded-full border-2 border-muted/50 bg-background group-hover:border-brackeys-yellow/60 group-hover:bg-brackeys-yellow/10 transition-colors" />
+              <div className="h-3 w-3 rounded-full border-2 border-muted/50 bg-background transition-colors group-hover:border-brackeys-yellow/60 group-hover:bg-brackeys-yellow/10" />
             </div>
 
-            <div className="flex-1 min-w-0 pb-0.5">
-              <p className="font-mono text-xs font-bold tracking-widest text-foreground uppercase truncate">
+            <div className="min-w-0 flex-1 pb-0.5">
+              <p className="truncate font-mono text-xs font-bold tracking-widest text-foreground uppercase">
                 {jam.jamUrl ? (
                   <a
                     href={jam.jamUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:text-primary transition-colors"
+                    className="transition-colors hover:text-primary"
                   >
                     {jam.jamName}
                   </a>
@@ -46,13 +46,13 @@ export function ProfileJams({ jams, className }: ProfileJamsProps) {
               </p>
 
               {jam.submissionTitle && (
-                <p className="font-mono text-[10px] text-muted-foreground/60 truncate mt-0.5">
+                <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/60">
                   {jam.submissionUrl ? (
                     <a
                       href={jam.submissionUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-primary transition-colors"
+                      className="transition-colors hover:text-primary"
                     >
                       {jam.submissionTitle}
                     </a>
@@ -62,7 +62,7 @@ export function ProfileJams({ jams, className }: ProfileJamsProps) {
                 </p>
               )}
 
-              <div className="flex items-center gap-2 mt-1">
+              <div className="mt-1 flex items-center gap-2">
                 {jam.result && (
                   <span className="font-mono text-[10px] font-bold tracking-widest text-brackeys-yellow uppercase">
                     {jam.result}

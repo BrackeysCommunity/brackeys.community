@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { validatePlacement } from "../systems/shaper";
+
 import { type ConstructType, CONSTRUCT_CONFIGS } from "../entities/shaper-constructs";
+import { validatePlacement } from "../systems/shaper";
 
 function zeroCounts(): Record<ConstructType, number> {
   return {

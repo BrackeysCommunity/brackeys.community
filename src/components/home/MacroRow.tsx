@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { useDebounceFn } from "ahooks";
 import { Copy01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useDebounceFn } from "ahooks";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
+import { useState } from "react";
+
 import type { Macro } from "@/data/commands";
 
 interface MacroRowProps {
@@ -33,20 +34,20 @@ export function MacroRow({ macro }: MacroRowProps) {
     <li
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative flex flex-col list-none px-5 py-3 transition-all duration-200 ${
+      className={`relative flex list-none flex-col px-5 py-3 transition-all duration-200 ${
         expanded
-          ? "bg-card/80 border-x border-primary/40 shadow-[0_6px_24px_rgba(0,0,0,0.6)] -translate-y-px z-20"
+          ? "z-20 -translate-y-px border-x border-primary/40 bg-card/80 shadow-[0_6px_24px_rgba(0,0,0,0.6)]"
           : "z-0"
       }`}
     >
       {/* Name + aliases + copy button row */}
       <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
           <code
-            className={`font-mono text-sm font-bold px-2 py-0.5 border shrink-0 self-start transition-colors duration-150 ${
+            className={`shrink-0 self-start border px-2 py-0.5 font-mono text-sm font-bold transition-colors duration-150 ${
               expanded
-                ? "text-brackeys-yellow border-brackeys-yellow/60 bg-brackeys-yellow-muted/20"
-                : "text-brackeys-yellow bg-brackeys-yellow-muted/20 border-brackeys-yellow/30"
+                ? "border-brackeys-yellow/60 bg-brackeys-yellow-muted/20 text-brackeys-yellow"
+                : "border-brackeys-yellow/30 bg-brackeys-yellow-muted/20 text-brackeys-yellow"
             }`}
           >
             []{macro.name}
@@ -57,7 +58,7 @@ export function MacroRow({ macro }: MacroRowProps) {
               {macro.aliases.map((alias) => (
                 <span
                   key={alias}
-                  className="text-[10px] font-mono text-muted-foreground border border-muted/40 px-1.5 py-0.5 bg-card/30"
+                  className="border border-muted/40 bg-card/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                 >
                   []{alias}
                 </span>
@@ -69,10 +70,10 @@ export function MacroRow({ macro }: MacroRowProps) {
         <button
           type="button"
           onClick={handleCopy}
-          className={`flex items-center gap-1.5 px-2 py-1 bg-black border text-muted-foreground hover:text-white transition-all duration-150 shrink-0 font-mono text-[10px] font-bold uppercase ${
+          className={`flex shrink-0 items-center gap-1.5 border bg-black px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground uppercase transition-all duration-150 hover:text-white ${
             expanded
-              ? "opacity-100 border-primary/40 hover:border-primary"
-              : "opacity-0 border-muted hover:border-primary"
+              ? "border-primary/40 opacity-100 hover:border-primary"
+              : "border-muted opacity-0 hover:border-primary"
           }`}
         >
           <HugeiconsIcon icon={Copy01Icon} size={12} />
@@ -83,7 +84,7 @@ export function MacroRow({ macro }: MacroRowProps) {
       {/* Expandable description */}
       <div
         className={`overflow-hidden transition-all duration-250 ease-out ${
-          expanded ? "max-h-48 opacity-100 mt-2.5" : "max-h-0 opacity-0 mt-0"
+          expanded ? "mt-2.5 max-h-48 opacity-100" : "mt-0 max-h-0 opacity-0"
         }`}
       >
         <OverlayScrollbarsComponent
@@ -98,7 +99,7 @@ export function MacroRow({ macro }: MacroRowProps) {
           }}
           defer
         >
-          <p className="text-xs font-mono text-muted-foreground leading-relaxed whitespace-pre-wrap pr-1">
+          <p className="pr-1 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
             {macro.description}
           </p>
         </OverlayScrollbarsComponent>

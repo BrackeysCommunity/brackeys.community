@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+
 import { addVec2, clamp, clampVec2, distanceVec2, lerp, lerpVec2, scaleVec2 } from "../math";
 
 describe("lerp", () => {

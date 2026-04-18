@@ -1,4 +1,5 @@
 import type RAPIER from "@dimforge/rapier2d";
+
 import {
   GROUND_COLLISION_GROUP,
   CLOUD_COLLISION_GROUP,

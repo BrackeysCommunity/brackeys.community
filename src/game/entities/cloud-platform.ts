@@ -1,7 +1,8 @@
 import { Graphics, type Container } from "pixi.js";
-import { getCloudPlatformHandles } from "../surfaces";
+
 import type { PhysicsWorld } from "../physics";
 import { getRapier } from "../physics";
+import { getCloudPlatformHandles } from "../surfaces";
 import type { Vec2 } from "../types";
 
 /**

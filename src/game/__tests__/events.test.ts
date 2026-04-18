@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+
 import { GameEventEmitter } from "../events";
 
 describe("GameEventEmitter", () => {

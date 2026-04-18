@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 
 import { Slider } from "@/components/ui/slider";
 import { Heading, Text, InlineCode } from "@/components/ui/typography";
@@ -237,12 +237,12 @@ export const Overview: Story = {
             <Text as="p" size="xs" variant="muted" density="comfortable">
               Built on <InlineCode>@base-ui/react/slider</InlineCode> which provides{" "}
               <InlineCode>role="slider"</InlineCode>, <InlineCode>aria-valuemin</InlineCode>,{" "}
-              <InlineCode>aria-valuemax</InlineCode>, and{" "}
-              <InlineCode>aria-valuenow</InlineCode> attributes.
+              <InlineCode>aria-valuemax</InlineCode>, and <InlineCode>aria-valuenow</InlineCode>{" "}
+              attributes.
             </Text>
             <Text as="p" size="xs" variant="muted" density="comfortable">
-              Keyboard: Arrow Left/Down decrease, Arrow Right/Up increase. Home/End jump to
-              min/max. Page Up/Down for larger increments.
+              Keyboard: Arrow Left/Down decrease, Arrow Right/Up increase. Home/End jump to min/max.
+              Page Up/Down for larger increments.
             </Text>
           </div>
         </section>

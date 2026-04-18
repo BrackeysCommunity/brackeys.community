@@ -1,4 +1,5 @@
 import type { Container } from "pixi.js";
+
 import { clampVec2, lerpVec2 } from "./math";
 import type { CameraConfig, Vec2 } from "./types";
 import { VIRTUAL_HEIGHT } from "./types";

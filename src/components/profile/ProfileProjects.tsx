@@ -1,12 +1,14 @@
 import { Link01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { startTransition, useState } from "react";
+
 import {
   PROFILE_PROJECT_TYPE_LABELS,
   PROFILE_PROJECT_TYPES,
   type ProfileProjectType,
 } from "@/lib/profile-projects";
 import { cn } from "@/lib/utils";
+
 import { ProfileProjectTypeBadge } from "./ProfileProjectTypeBadge";
 
 interface Project {
@@ -84,7 +86,7 @@ export function ProfileProjects({ projects, className, showFilters = true }: Pro
 
       {filteredProjects.length === 0 ? (
         <div className="border border-dashed border-muted/25 px-3 py-4 text-center">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/40">
+          <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/40 uppercase">
             No{" "}
             {activeFilter === "all"
               ? "projects"
@@ -119,7 +121,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.18em] transition-colors",
+        "border px-2 py-1 font-mono text-[9px] tracking-[0.18em] uppercase transition-colors",
         active
           ? "border-primary/35 bg-primary/10 text-primary"
           : "border-muted/25 text-muted-foreground/45 hover:border-muted/45 hover:text-foreground/70",
@@ -132,21 +134,21 @@ function FilterChip({
 
 function ProjectCard({ project }: { project: Project }) {
   return (
-    <div className="group flex gap-3 border border-muted/60 bg-card/30 p-3 transition-all duration-200 hover:border-muted hover:bg-card/60 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_var(--color-muted)]">
+    <div className="group flex gap-3 border border-muted/60 bg-card/30 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-muted hover:bg-card/60 hover:shadow-[2px_2px_0px_var(--color-muted)]">
       {project.imageUrl && (
         <img
           src={project.imageUrl}
           alt={project.title}
-          className="h-20 w-20 shrink-0 object-cover border border-muted/40 grayscale group-hover:grayscale-0 transition-all duration-500"
+          className="h-20 w-20 shrink-0 border border-muted/40 object-cover grayscale transition-all duration-500 group-hover:grayscale-0"
         />
       )}
 
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <h5 className="font-mono text-xs font-bold tracking-widest text-foreground uppercase group-hover:text-primary transition-colors">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h5 className="font-mono text-xs font-bold tracking-widest text-foreground uppercase transition-colors group-hover:text-primary">
               {project.pinned && (
-                <span className="text-brackeys-yellow mr-1.5" title="Pinned">
+                <span className="mr-1.5 text-brackeys-yellow" title="Pinned">
                   *
                 </span>
               )}
@@ -160,7 +162,7 @@ function ProjectCard({ project }: { project: Project }) {
               href={project.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground/50 hover:text-primary transition-colors shrink-0"
+              className="shrink-0 text-muted-foreground/50 transition-colors hover:text-primary"
             >
               <HugeiconsIcon icon={Link01Icon} size={12} />
             </a>
@@ -168,7 +170,7 @@ function ProjectCard({ project }: { project: Project }) {
         </div>
 
         {project.description && (
-          <p className="font-sans text-xs text-muted-foreground/70 line-clamp-2 leading-relaxed">
+          <p className="line-clamp-2 font-sans text-xs leading-relaxed text-muted-foreground/70">
             {project.description}
           </p>
         )}
@@ -178,7 +180,7 @@ function ProjectCard({ project }: { project: Project }) {
             {project.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground/50 border border-muted/30 uppercase hover:text-muted-foreground hover:border-muted/60 transition-colors"
+                className="border border-muted/30 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/60 hover:text-muted-foreground"
               >
                 {tag}
               </span>
@@ -195,19 +197,19 @@ function JamTimelineCard({ project }: { project: Project }) {
     <div className="group border border-muted/60 bg-card/25 px-3 py-3 transition-all duration-200 hover:border-muted hover:bg-card/45">
       <div className="flex items-start gap-3">
         <div className="relative mt-1.5 shrink-0">
-          <div className="absolute left-1/2 top-3 h-[calc(100%+12px)] w-px -translate-x-1/2 bg-muted/30 group-last:hidden" />
-          <div className="h-3 w-3 rounded-full border-2 border-brackeys-yellow/50 bg-background group-hover:border-brackeys-yellow/80 transition-colors" />
+          <div className="absolute top-3 left-1/2 h-[calc(100%+12px)] w-px -translate-x-1/2 bg-muted/30 group-last:hidden" />
+          <div className="h-3 w-3 rounded-full border-2 border-brackeys-yellow/50 bg-background transition-colors group-hover:border-brackeys-yellow/80" />
         </div>
 
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs font-bold tracking-widest text-foreground uppercase truncate">
+            <span className="truncate font-mono text-xs font-bold tracking-widest text-foreground uppercase">
               {project.jamUrl ? (
                 <a
                   href={project.jamUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-primary transition-colors"
+                  className="transition-colors hover:text-primary"
                 >
                   {project.jamName ?? project.title}
                 </a>
@@ -219,13 +221,13 @@ function JamTimelineCard({ project }: { project: Project }) {
           </div>
 
           {project.submissionTitle && (
-            <p className="font-mono text-[10px] text-muted-foreground/60 truncate">
+            <p className="truncate font-mono text-[10px] text-muted-foreground/60">
               {project.submissionUrl ? (
                 <a
                   href={project.submissionUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-primary transition-colors"
+                  className="transition-colors hover:text-primary"
                 >
                   {project.submissionTitle}
                 </a>

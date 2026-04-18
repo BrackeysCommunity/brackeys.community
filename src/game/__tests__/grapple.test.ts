@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+
 import { initSwingState, stepSwing, getSwingReleaseVelocity } from "../entities/grapple-state";
 
 describe("initSwingState", () => {

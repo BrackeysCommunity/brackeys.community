@@ -1,6 +1,18 @@
-import type { GameConfig, GameEventMap, GameInstance, GameStoreState } from "./types";
-import { DEFAULT_GAME_CONFIG } from "./types";
+import type { Store } from "@tanstack/store";
+
+import { initAssets } from "./assets";
+import { createCamera } from "./camera";
+import { createDebugOverlay, type DebugOverlay } from "./debug";
+import { createCloudPlatformSystem } from "./entities/cloud-platform";
+import { createGrappleAnchorSystem } from "./entities/grapple-anchor";
+import { createMovingPlatformSystem } from "./entities/moving-platform";
+import { createPlayerEntity } from "./entities/player";
+import { type ConstructType, CONSTRUCT_CONFIGS } from "./entities/shaper-constructs";
 import { GameEventEmitter } from "./events";
+import { createInputSystem } from "./input";
+import { createGameLoop } from "./loop";
+import { initRapier, createPhysicsWorld } from "./physics";
+import { createRenderer } from "./renderer";
 import {
   createGameStore,
   incrementTick,
@@ -10,20 +22,9 @@ import {
   updateCamera,
   updatePlayer,
 } from "./store";
-import { createRenderer } from "./renderer";
-import { createGameLoop } from "./loop";
-import { createInputSystem } from "./input";
-import { createCamera } from "./camera";
-import { createPlayerEntity } from "./entities/player";
-import { createCloudPlatformSystem } from "./entities/cloud-platform";
-import { createMovingPlatformSystem } from "./entities/moving-platform";
-import { createGrappleAnchorSystem } from "./entities/grapple-anchor";
 import { createShaperSystem } from "./systems/shaper";
-import { type ConstructType, CONSTRUCT_CONFIGS } from "./entities/shaper-constructs";
-import { initAssets } from "./assets";
-import { initRapier, createPhysicsWorld } from "./physics";
-import { createDebugOverlay, type DebugOverlay } from "./debug";
-import type { Store } from "@tanstack/store";
+import type { GameConfig, GameEventMap, GameInstance, GameStoreState } from "./types";
+import { DEFAULT_GAME_CONFIG } from "./types";
 
 export async function createGame(
   canvas: HTMLCanvasElement,

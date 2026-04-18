@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Heading, Text, InlineCode } from "@/components/ui/typography";
@@ -97,7 +97,9 @@ export const Overview: Story = {
                   aria-label="Select all items"
                   checked={allChecked || someChecked}
                   indeterminate={someChecked && !allChecked}
-                  onCheckedChange={() => setItems(allChecked ? [false, false, false] : [true, true, true])}
+                  onCheckedChange={() =>
+                    setItems(allChecked ? [false, false, false] : [true, true, true])
+                  }
                 />
                 Select all items
               </span>
@@ -181,8 +183,8 @@ export const Overview: Story = {
           </Heading>
           <div className="flex flex-col gap-6 border border-border bg-card p-8">
             <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox checked={checked} onCheckedChange={(val) => setChecked(!!val)} />
-              I agree to the terms ({checked ? "checked" : "unchecked"})
+              <Checkbox checked={checked} onCheckedChange={(val) => setChecked(!!val)} />I agree to
+              the terms ({checked ? "checked" : "unchecked"})
             </label>
             <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
               {`<Checkbox checked={checked} onCheckedChange={setChecked} />`}
@@ -197,8 +199,8 @@ export const Overview: Story = {
           <div className="max-w-xl space-y-2">
             <Text as="p" size="xs" variant="muted" density="comfortable">
               Built on <InlineCode>@base-ui/react/checkbox</InlineCode> which provides proper ARIA
-              semantics. Always wrap checkboxes in a{" "}
-              <InlineCode>&lt;label&gt;</InlineCode> element for proper accessibility.
+              semantics. Always wrap checkboxes in a <InlineCode>&lt;label&gt;</InlineCode> element
+              for proper accessibility.
             </Text>
           </div>
         </section>

@@ -1,9 +1,10 @@
 import { Login01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useStore } from "@tanstack/react-store";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
+import { useEffect } from "react";
+
 import { authClient } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
@@ -22,7 +23,7 @@ function DiscordSignInCTA() {
         data-cursor-padding-y="24"
         animate={{ x: position.x, y: position.y }}
         transition={springTransition}
-        className="relative z-10 inline-block pointer-events-auto"
+        className="pointer-events-auto relative z-10 inline-block"
       >
         <button
           type="button"
@@ -33,12 +34,12 @@ function DiscordSignInCTA() {
             <span className="font-mono text-xs text-primary">AUTHENTICATE</span>
             <HugeiconsIcon icon={Login01Icon} size={20} className="text-primary" />
           </div>
-          <div className="font-mono font-bold text-2xl leading-none tracking-tight text-primary whitespace-pre-line">
+          <div className="font-mono text-2xl leading-none font-bold tracking-tight whitespace-pre-line text-primary">
             {"SIGN IN\nW/ DISCORD"}
           </div>
         </button>
       </motion.div>
-      <p className="mt-4 font-mono text-xs text-muted-foreground tracking-wider">
+      <p className="mt-4 font-mono text-xs tracking-wider text-muted-foreground">
         {"> SIGN IN TO VIEW AND EDIT YOUR PROFILE"}
       </p>
     </div>
@@ -58,7 +59,7 @@ export function ProfileBuilderPage() {
   if (isPending) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+        <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
           Authenticating...
         </span>
       </div>
@@ -68,7 +69,7 @@ export function ProfileBuilderPage() {
   if (session?.user) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="font-mono text-xs text-muted-foreground animate-pulse tracking-widest uppercase">
+        <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
           Redirecting to your profile...
         </span>
       </div>
@@ -83,10 +84,10 @@ export function ProfileBuilderPage() {
       </div>
 
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono font-bold text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] tracking-tighter text-foreground">
+        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           DEV
           <br />
-          <span className="text-transparent [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary transition-colors duration-300">
+          <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">
             PROFILE.
           </span>
         </h1>

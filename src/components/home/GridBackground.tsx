@@ -1,5 +1,6 @@
 import { PatternLines } from "@visx/pattern";
 import { useId } from "react";
+
 import { cn } from "@/lib/utils";
 
 const CELL = 40;
@@ -14,7 +15,7 @@ export function GridBackground({ className, opacity = 0.1 }: GridBackgroundProps
 
   return (
     <div
-      className={cn("fixed inset-0 z-0 pointer-events-none overflow-hidden", className)}
+      className={cn("pointer-events-none fixed inset-0 z-0 overflow-hidden", className)}
       style={{ opacity }}
     >
       <svg

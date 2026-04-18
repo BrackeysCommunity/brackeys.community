@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
@@ -213,10 +213,9 @@ export const Overview: Story = {
           </Heading>
           <div className="max-w-xl space-y-2">
             <Text as="p" size="xs" variant="muted" density="comfortable">
-              Built on Base UI's NumberField which provides full ARIA spin button semantics including{" "}
-              <InlineCode>role="spinbutton"</InlineCode>,{" "}
-              <InlineCode>aria-valuemin</InlineCode>,{" "}
-              <InlineCode>aria-valuemax</InlineCode>, and{" "}
+              Built on Base UI's NumberField which provides full ARIA spin button semantics
+              including <InlineCode>role="spinbutton"</InlineCode>,{" "}
+              <InlineCode>aria-valuemin</InlineCode>, <InlineCode>aria-valuemax</InlineCode>, and{" "}
               <InlineCode>aria-valuenow</InlineCode> attributes.
             </Text>
             <Text as="p" size="xs" variant="muted" density="comfortable">

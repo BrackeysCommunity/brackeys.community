@@ -168,25 +168,25 @@ export const Overview: Story = {
               </tr>
             </thead>
             <tbody>
-              {(
-                ["default", "secondary", "destructive", "outline", "ghost", "link"] as const
-              ).map((variant) => (
-                <tr key={variant} className="align-middle">
-                  <td className="py-2 pr-6">
-                    <Text size="xs" variant="muted" monospace>
-                      {variant}
-                    </Text>
-                  </td>
-                  <td className="py-2 pr-4">
-                    <Badge variant={variant}>Label</Badge>
-                  </td>
-                  <td className="py-2 pr-4">
-                    <Badge variant={variant} notchOpts>
-                      Label
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
+              {(["default", "secondary", "destructive", "outline", "ghost", "link"] as const).map(
+                (variant) => (
+                  <tr key={variant} className="align-middle">
+                    <td className="py-2 pr-6">
+                      <Text size="xs" variant="muted" monospace>
+                        {variant}
+                      </Text>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <Badge variant={variant}>Label</Badge>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <Badge variant={variant} notchOpts>
+                        Label
+                      </Badge>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>
