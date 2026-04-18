@@ -4,7 +4,6 @@ import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/reac
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { lazy, Suspense } from "react";
 
-const Dither = lazy(() => import("@/components/Dither"));
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
 const AppHeader = lazy(() =>
@@ -12,6 +11,7 @@ const AppHeader = lazy(() =>
 );
 
 import { Cursor } from "@/components/ui/cursor";
+import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
@@ -108,19 +108,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="flex h-screen flex-col overflow-hidden">
         <Cursor />
-        {/* <GridBackground /> */}
-        <Suspense>
-          <Dither
-            waveColor={[0.2, 0.22, 0.55]}
-            disableAnimation={false}
-            enableMouseInteraction
-            mouseRadius={0.3}
-            colorNum={4}
-            waveAmplitude={0.3}
-            waveFrequency={3}
-            waveSpeed={0.04}
-          />
-        </Suspense>
+        <ThemedDotField
+          dotRadius={2}
+          dotSpacing={14}
+          bulgeStrength={67}
+          glowRadius={60}
+          sparkle
+          waveAmplitude={3}
+          cursorRadius={500}
+          cursorForce={0.05}
+          bulgeOnly={false}
+          className="pointer-events-none fixed inset-0 z-0"
+        />
         {/* CRT scanline overlay */}
         <div
           className="animate-scanlines pointer-events-none fixed inset-0 z-55 opacity-10"
