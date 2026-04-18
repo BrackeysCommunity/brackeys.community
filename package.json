@@ -120,7 +120,7 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@inlang/paraglide-js": "^2.8.0",
     "@tanstack/devtools-event-client": "^0.4.0",
-    "@tanstack/devtools-vite": "^0.3.11",
+    "@tanstack/devtools-vite": "^0.6.0",
     "@tanstack/eslint-plugin-query": "^5.96.2",
     "@tanstack/eslint-plugin-router": "^1.161.6",
     "@testing-library/dom": "^10.4.0",
