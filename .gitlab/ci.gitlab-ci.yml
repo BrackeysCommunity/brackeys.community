@@ -16,9 +16,7 @@ check:
     - apt-get update -qq && apt-get install -y -qq git
     - bun install --frozen-lockfile
   variables:
-    RAYON_NUM_THREADS: "2"
-    TOKIO_WORKER_THREADS: "2"
-    RUST_BACKTRACE: "1"
+    RUST_BACKTRACE: "full"
   script:
     - ulimit -n 65536 || true
     - echo "fd limit=$(ulimit -n) threads=RAYON:2,TOKIO:2"
