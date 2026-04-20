@@ -170,6 +170,24 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   const sidebar = useCurrentSidebar();
   const mobileMode = useMobileMode();
   const showContentOnMobile = mobileMode === "content";
+  const hasSidebar = sidebar != null;
+
+  // When a page doesn't register a sidebar, it owns the full width and handles
+  // its own internal layout (e.g. the redesigned HomePage).
+  if (!hasSidebar) {
+    return (
+      <div
+        id="main-content"
+        className="pointer-events-none mx-auto flex w-full max-w-[1920px] flex-1 overflow-hidden pt-[57px]"
+      >
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-h-full w-full flex-col p-4 selection:bg-primary selection:text-white sm:p-6 lg:p-10 xl:p-14">
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
