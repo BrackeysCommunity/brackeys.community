@@ -233,9 +233,11 @@ export function JamPanel({ className }: { className?: string }) {
           data-magnetic
           data-magnetic-strength=""
           data-cursor-no-drift
+          notchOpts
           variant="default"
           size="sm"
-          className="flex-[3]"
+          wrapperClassName="flex-3"
+          className="w-full"
           onClick={() => window.open("https://itch.io/jam/brackeys-14", "_blank")}
         >
           <HugeiconsIcon icon={FlashIcon} size={13} />
@@ -245,9 +247,13 @@ export function JamPanel({ className }: { className?: string }) {
           data-magnetic
           data-magnetic-strength=""
           data-cursor-no-drift
+          notchOpts={{
+            corners: ["tl", "br"]
+          }}
           variant="outline"
           size="sm"
-          className="flex-1"
+          wrapperClassName="flex-1"
+          className="w-full"
           onClick={() => window.open("https://itch.io/jam/brackeys-14/entries", "_blank")}
         >
           <HugeiconsIcon icon={Globe02Icon} size={13} />

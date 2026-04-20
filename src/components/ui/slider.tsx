@@ -77,7 +77,7 @@ function Slider({
         <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col">
           <SliderPrimitive.Track
             data-slot="slider-track"
-            className="relative grow overflow-hidden rounded-xs border border-border/30 bg-muted select-none data-horizontal:h-1.5 data-horizontal:w-full data-vertical:h-full data-vertical:w-1.5"
+            className="relative grow overflow-hidden rounded border border-border/30 bg-muted select-none data-horizontal:h-1.5 data-horizontal:w-full data-vertical:h-full data-vertical:w-1.5"
           >
             <SliderPrimitive.Indicator
               data-slot="slider-range"
@@ -88,7 +88,7 @@ function Slider({
             <SliderPrimitive.Thumb
               data-slot="slider-thumb"
               key={index}
-              className="chonk-emboss relative block size-3.5 shrink-0 rounded-xs border border-ring bg-white transition-all select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
+              className="chonk-emboss relative block size-3.5 shrink-0 rounded border border-ring bg-white transition-all select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
             />
           ))}
         </SliderPrimitive.Control>

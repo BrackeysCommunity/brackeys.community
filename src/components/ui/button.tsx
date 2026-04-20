@@ -7,7 +7,7 @@ import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-xs border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -56,6 +56,7 @@ type ButtonProps = ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
     isMagnetic?: boolean;
     notchOpts?: NotchOpts | true;
+    wrapperClassName?: string;
   };
 
 function Button({
@@ -64,6 +65,7 @@ function Button({
   size = "default",
   isMagnetic,
   notchOpts,
+  wrapperClassName,
   ...props
 }: ButtonProps) {
   const { ref, position } = useMagnetic(0.2);
@@ -91,7 +93,10 @@ function Button({
 
     const frame = (
       <div
-        className="chonk-emboss-notched inline-flex"
+        className={cn(
+          "chonk-emboss-notched inline-flex overflow-hidden rounded",
+          wrapperClassName,
+        )}
         data-slot="button"
         style={
           {
@@ -100,7 +105,10 @@ function Button({
           } as React.CSSProperties
         }
       >
-        <div className="flex" style={{ clipPath: outerClip, background: bgColor }}>
+        <div
+          className="flex w-full"
+          style={{ clipPath: outerClip, background: bgColor }}
+        >
           {button}
         </div>
       </div>

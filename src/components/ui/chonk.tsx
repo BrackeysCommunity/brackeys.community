@@ -6,7 +6,7 @@ import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const chonkVariants = cva(
-  "chonk-emboss relative flex rounded-xs border bg-clip-padding text-left transition-all outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+  "chonk-emboss relative flex rounded border bg-clip-padding text-left transition-all outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
   {
     variants: {
       variant: {

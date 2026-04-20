@@ -5,7 +5,7 @@ import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const wellVariants = cva(
-  "relative flex flex-col rounded-xs bg-card/85 text-card-foreground backdrop-blur-md",
+  "relative flex flex-col rounded bg-card/85 text-card-foreground backdrop-blur-md",
   {
     variants: {
       variant: {
@@ -28,7 +28,7 @@ type WellProps = React.ComponentProps<"div"> &
  * Debossed container surface. Non-interactive frame for panels, readouts, and
  * list containers. Pass `notchOpts` for the notched variant.
  *
- * Notched composition mirrors `Input`: an outer `rounded-xs overflow-hidden`
+ * Notched composition mirrors `Input`: an outer `rounded overflow-hidden`
  * wrapper keeps a subtle radius at the non-notched corners, a middle layer
  * clipped to the outer notch path and filled with `var(--deboss-shadow)` acts
  * as the 1px frame, and the inner content surface clips to the same path
@@ -41,7 +41,7 @@ function Well({ className, variant, notchOpts, style, children, ...props }: Well
       <div
         data-slot="well"
         data-notched="true"
-        className={cn("flex w-full overflow-hidden rounded-xs", className)}
+        className={cn("flex w-full overflow-hidden rounded", className)}
         style={style}
       >
         <div
