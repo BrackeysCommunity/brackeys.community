@@ -76,7 +76,6 @@ export function HomePage() {
       trigger="mount"
       duration={0.7}
       intensity={0.7}
-      scanlines
       flicker
       style={{ width: "100%" }}
     >
@@ -111,10 +110,7 @@ export function HomePage() {
             </motion.div>
 
             {/* Node cards — staggered in as a row */}
-            <motion.div
-              className="grid grid-cols-1 gap-4 md:grid-cols-3"
-              variants={cardRow}
-            >
+            <motion.div className="grid grid-cols-1 gap-4 md:grid-cols-3" variants={cardRow}>
               <motion.div variants={fadeUp}>
                 <NodeCard
                   index="01"
