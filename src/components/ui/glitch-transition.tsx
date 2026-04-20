@@ -178,17 +178,19 @@ const GlitchTransition = memo(function GlitchTransition({
 }: GlitchTransitionProps) {
   useGlitchStyles();
 
-  const [isGlitching, setIsGlitching] = useState(
-    trigger === "mount" || trigger === "continuous",
-  );
+  const [isGlitching, setIsGlitching] = useState(trigger === "mount" || trigger === "continuous");
   const endedRef = useRef<() => void>(() => {});
-  endedRef.current = onGlitchEnd ?? (() => {});
+  useEffect(() => {
+    endedRef.current = onGlitchEnd ?? (() => {});
+  }, [onGlitchEnd]);
 
   // Buffered children so `trigger="change"` can defer the content swap
   // until mid-glitch — old content glitches out, new content glitches in.
   const [displayedChildren, setDisplayedChildren] = useState(children);
   const latestChildrenRef = useRef(children);
-  latestChildrenRef.current = children;
+  useEffect(() => {
+    latestChildrenRef.current = children;
+  }, [children]);
 
   // Keep buffered children in sync when we're NOT orchestrating a change.
   useEffect(() => {
@@ -296,9 +298,7 @@ const GlitchTransition = memo(function GlitchTransition({
           </div>
         </>
       )}
-      {isGlitching && scanlines && (
-        <div className="bk-gt-scanlines" aria-hidden="true" />
-      )}
+      {isGlitching && scanlines && <div className="bk-gt-scanlines" aria-hidden="true" />}
     </div>
   );
 });
