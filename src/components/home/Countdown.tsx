@@ -1,5 +1,6 @@
 import { useCountDown } from "ahooks";
 
+import useDateNow from "@/lib/hooks/use-date-now";
 import { cn } from "@/lib/utils";
 
 interface CountdownProps {
@@ -10,8 +11,9 @@ interface CountdownProps {
 
 export function Countdown({ targetDate, precision = "dhm", className }: CountdownProps) {
   const [, { days, hours, minutes, seconds }] = useCountDown({ targetDate });
+  const timeNow = useDateNow();
 
-  const isOver = Date.now() >= targetDate.getTime();
+  const isOver = timeNow >= targetDate.getTime();
   if (isOver) {
     return (
       <span
