@@ -16,7 +16,7 @@ const badgeVariants = cva(
         secondary:
           "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)]",
         destructive:
-          "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40",
+          "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] focus-visible:ring-destructive/30",
         outline: "chonk-emboss border-border text-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
@@ -35,7 +35,7 @@ const staticEmbossOverride =
 const notchEmbossColor: Record<string, string | undefined> = {
   default: "color-mix(in srgb, var(--primary) 50%, black)",
   secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
-  destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
+  destructive: "color-mix(in srgb, var(--destructive) 45%, black)",
   outline: undefined,
 };
 

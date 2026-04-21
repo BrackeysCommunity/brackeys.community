@@ -16,7 +16,7 @@ const buttonVariants = cva(
         secondary:
           "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)] hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         destructive:
-          "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] hover:bg-destructive/90 focus-visible:ring-destructive/30",
         outline:
           "chonk-emboss bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
         ghost:
@@ -47,7 +47,7 @@ const notchEmbossColor: Record<string, string | undefined> = {
   default: "color-mix(in srgb, var(--primary) 50%, black)",
   outline: undefined, // inherits --emboss-shadow from theme
   secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
-  destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
+  destructive: "color-mix(in srgb, var(--destructive) 45%, black)",
 };
 
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
@@ -93,10 +93,7 @@ function Button({
 
     const frame = (
       <div
-        className={cn(
-          "chonk-emboss-notched inline-flex overflow-hidden rounded",
-          wrapperClassName,
-        )}
+        className={cn("chonk-emboss-notched inline-flex overflow-hidden rounded", wrapperClassName)}
         data-slot="button"
         style={
           {
@@ -105,10 +102,7 @@ function Button({
           } as React.CSSProperties
         }
       >
-        <div
-          className="flex w-full"
-          style={{ clipPath: outerClip, background: bgColor }}
-        >
+        <div className="flex w-full" style={{ clipPath: outerClip, background: bgColor }}>
           {button}
         </div>
       </div>

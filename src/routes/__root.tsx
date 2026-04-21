@@ -4,6 +4,7 @@ import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/reac
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { lazy, Suspense } from "react";
 
+import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
 const AppHeader = lazy(() =>
@@ -108,6 +109,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="flex h-screen flex-col overflow-hidden">
         <Cursor />
+        <BackgroundBlobs />
         <ThemedDotField
           dotRadius={1}
           dotSpacing={20}
@@ -115,13 +117,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           glowRadius={60}
           waveAmplitude={1}
           cursorRadius={500}
-          cursorForce={0.01}
+          cursorForce={0.0075}
           bulgeOnly={false}
           className="pointer-events-none fixed inset-0 z-0"
         />
         {/* CRT scanline overlay */}
         <div
-          className="animate-scanlines pointer-events-none fixed inset-0 z-55 opacity-15"
+          className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-7"
           style={{
             background:
               "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",

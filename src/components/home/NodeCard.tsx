@@ -7,90 +7,137 @@ import { useState } from "react";
 
 import { Chonk } from "@/components/ui/chonk";
 import { GlitchTransition } from "@/components/ui/glitch-transition";
+import { cn } from "@/lib/utils";
 
 const NODE_CARD_HEIGHT = 280;
 
-interface NodeCardProps {
+type NodeCardCommon = {
   index: string;
   title: string;
   icon: IconSvgElement;
-  to: string;
   stat: string;
   statLabel: string;
   middle?: React.ReactNode;
+  /** Label shown in the bottom-right corner. Defaults to `ENTER →` / `SELECT`. */
+  footerLabel?: string;
   className?: string;
-}
+};
 
-export function NodeCard({
-  index,
-  title,
-  icon,
-  to,
-  stat,
-  statLabel,
-  middle,
-  className,
-}: NodeCardProps) {
+type NodeCardLinkProps = NodeCardCommon & {
+  to: string;
+  onClick?: never;
+  active?: never;
+};
+
+type NodeCardToggleProps = NodeCardCommon & {
+  to?: never;
+  onClick: () => void;
+  active?: boolean;
+};
+
+export type NodeCardProps = NodeCardLinkProps | NodeCardToggleProps;
+
+/**
+ * Shared card used by the home nav tiles and the command-center bot toggles.
+ *
+ * - `to` → renders as a `<Link>` (nav card).
+ * - `onClick` + `active` → renders as a `<button>` toggle. When `active`, the
+ *   card is fully depressed (`--chonk-y: 0`), hover lift is suppressed, the bg
+ *   goes solid primary-tinted, and the middle visuals stay revealed.
+ */
+export function NodeCard(props: NodeCardProps) {
+  const { index, title, icon, stat, statLabel, middle, footerLabel, className } = props;
+  const isToggle = "onClick" in props && typeof props.onClick === "function";
+  const active = isToggle ? Boolean(props.active) : false;
+
   const [hovered, setHovered] = useState(false);
+  const revealed = hovered || active;
+
+  // Fully depressed pressed state — overrides chonk-emboss's transform/shadow so
+  // it doesn't lift on hover, looks solidly pressed-in, and reads as selected.
+  const pressedClasses = cn(
+    "[--chonk-y:0px]!",
+    "border-primary bg-primary/25 backdrop-blur-none",
+    "hover:border-primary hover:bg-primary/25",
+  );
 
   return (
     <Chonk
       variant="surface"
       size="xl"
-      className={className}
+      className={cn("group/node", active && pressedClasses, className)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
       render={
-        <Link
-          to={to}
-          data-magnetic
-          data-cursor-no-drift
-          data-cursor-corner-size="lg"
-          className="group/node flex flex-col p-4"
-          style={{ height: NODE_CARD_HEIGHT }}
-        />
+        isToggle ? (
+          <button
+            type="button"
+            onClick={props.onClick}
+            aria-pressed={active}
+            data-magnetic={active ? undefined : true}
+            data-cursor-no-drift
+            data-cursor-corner-size="lg"
+            className="flex flex-col p-4 text-left"
+            style={{ height: NODE_CARD_HEIGHT }}
+          />
+        ) : (
+          <Link
+            to={props.to}
+            data-magnetic
+            data-cursor-no-drift
+            data-cursor-corner-size="lg"
+            className="flex flex-col p-4"
+            style={{ height: NODE_CARD_HEIGHT }}
+          />
+        )
       }
     >
       {/* Header row */}
       <div className="flex shrink-0 items-start justify-between">
-        <span className="font-mono text-xs tracking-widest text-muted-foreground transition-colors group-hover/node:text-accent">
+        <span
+          className={cn(
+            "font-mono text-xs tracking-widest transition-colors",
+            active ? "text-accent" : "text-muted-foreground group-hover/node:text-accent",
+          )}
+        >
           § {index}
         </span>
         <HugeiconsIcon
           icon={icon}
           size={18}
-          className="text-muted-foreground transition-colors group-hover/node:text-accent"
+          className={cn(
+            "transition-colors",
+            active ? "text-accent" : "text-muted-foreground group-hover/node:text-accent",
+          )}
         />
       </div>
 
       {/* Middle region */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
-        {/* Title — animate fontSize/paddingTop for smooth size interpolation */}
         <motion.div
           initial={false}
           animate={{
-            fontSize: hovered ? "1.5rem" : "2.5rem",
-            paddingTop: hovered ? "0.5rem" : "1.5rem",
+            fontSize: revealed ? "1.5rem" : "2.5rem",
+            paddingTop: revealed ? "0.5rem" : "1.5rem",
           }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
-          className="origin-top-left font-mono font-bold leading-[0.95] tracking-tight whitespace-pre-line text-foreground"
+          className="origin-top-left font-mono leading-[0.95] font-bold tracking-tight whitespace-pre-line text-foreground"
         >
           {title}
         </motion.div>
 
-        {/* Middle slot — animated reveal with glitch */}
         {middle && (
           <motion.div
             initial={false}
-            animate={hovered ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+            animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="mt-3 flex-1"
           >
             <GlitchTransition
               trigger="manual"
-              active={hovered}
+              active={revealed}
               duration={0.5}
               intensity={0.7}
               scanlines
@@ -113,9 +160,27 @@ export function NodeCard({
             {statLabel}
           </span>
         </div>
-        <span className="flex items-center gap-1 font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors group-hover/node:text-accent">
-          Enter
-          <HugeiconsIcon icon={ArrowRight02Icon} size={14} />
+        <span
+          className={cn(
+            "flex items-center gap-1 font-mono text-xs tracking-widest uppercase transition-colors",
+            active ? "text-accent" : "text-muted-foreground group-hover/node:text-accent",
+          )}
+        >
+          {footerLabel ?? (isToggle ? (active ? "Active" : "Select") : "Enter")}
+          {!isToggle && <HugeiconsIcon icon={ArrowRight02Icon} size={14} />}
+          {isToggle && (
+            <span className="relative ml-1 inline-flex h-1.5 w-1.5">
+              {active && (
+                <span className="absolute inset-0 animate-ping rounded-full bg-accent opacity-75" />
+              )}
+              <span
+                className={cn(
+                  "relative inline-block h-1.5 w-1.5 rounded-full",
+                  active ? "bg-accent" : "bg-muted-foreground/40",
+                )}
+              />
+            </span>
+          )}
         </span>
       </div>
     </Chonk>
