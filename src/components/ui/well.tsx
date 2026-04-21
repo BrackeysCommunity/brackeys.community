@@ -45,7 +45,7 @@ function Well({ className, variant, notchOpts, style, children, ...props }: Well
         style={style}
       >
         <div
-          className="flex w-full"
+          className="flex h-full w-full"
           style={{
             clipPath: buildNotchPath(resolved),
             background: "var(--deboss-shadow)",
@@ -53,9 +53,8 @@ function Well({ className, variant, notchOpts, style, children, ...props }: Well
         >
           <div
             className={cn(
-              "relative flex w-full flex-col bg-card/85 text-card-foreground backdrop-blur-md",
-              variant !== "ghost" &&
-                "shadow-[inset_0_4px_0_0_var(--deboss-shadow)]",
+              "relative flex h-full w-full flex-col bg-card/85 text-card-foreground backdrop-blur-md",
+              variant !== "ghost" && "shadow-[inset_0_4px_0_0_var(--deboss-shadow)]",
             )}
             style={{ clipPath: buildNotchPath(resolved, 1) }}
             {...props}
