@@ -179,10 +179,10 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
     return (
       <div
         id="main-content"
-        className="mx-auto flex w-full max-w-[1920px] flex-1 overflow-hidden pt-[57px]"
+        className="mx-auto flex w-full max-w-480 flex-1 overflow-x-hidden pt-14"
       >
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex min-h-full w-full flex-col p-4 selection:bg-primary selection:text-white sm:p-6 lg:p-10 xl:p-14">
+          <div className="bk-page-transition flex min-h-full w-full flex-col p-4 selection:bg-primary selection:text-white sm:p-6 sm:pb-20 lg:p-10 lg:pb-28 xl:p-14 xl:pb-32">
             {children}
           </div>
         </div>
@@ -193,13 +193,13 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       id="main-content"
-      className="mx-auto flex w-full max-w-[1920px] flex-1 overflow-hidden pt-[57px]"
+      className="mx-auto flex w-full max-w-480 flex-1 overflow-hidden pt-14.25"
     >
       {/* Left column — main page content */}
       <div
         className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
-        <div className="flex min-h-full w-full flex-col justify-center p-4 selection:bg-primary selection:text-white sm:p-6 lg:p-12 xl:p-16">
+        <div className="bk-page-transition flex min-h-full w-full flex-col justify-center p-4 pb-16 selection:bg-primary selection:text-white sm:p-6 sm:pb-20 lg:p-12 lg:pb-28 xl:p-16 xl:pb-32">
           {children}
         </div>
       </div>

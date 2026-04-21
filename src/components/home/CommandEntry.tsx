@@ -1,4 +1,4 @@
-import { ArrowDown01Icon, Copy01Icon, StarIcon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -18,7 +18,6 @@ export interface CommandEntryData {
   body?: string;
   aliases?: string[];
   tags?: string[];
-  popular?: boolean;
   copyText: string;
 }
 
@@ -70,12 +69,6 @@ export function CommandEntry({ entry }: CommandEntryProps) {
           >
             {entry.bot}
           </Badge>
-          {entry.popular && (
-            <Badge variant="destructive" className="gap-1 font-mono text-[10px] uppercase">
-              <HugeiconsIcon icon={StarIcon} size={10} />
-              popular
-            </Badge>
-          )}
           {entry.aliases?.map((alias) => (
             <Badge key={alias} variant="outline" className="font-mono text-[10px]">
               /{alias}

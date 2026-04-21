@@ -4,32 +4,12 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { CommandEntry, type CommandEntryData } from "@/components/home/CommandEntry";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
-
-export type CommandCategory =
-  | "all"
-  | "moderation"
-  | "utility"
-  | "learning"
-  | "fun"
-  | "gamification";
-
-export const COMMAND_CATEGORIES: { id: CommandCategory; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "moderation", label: "Moderation" },
-  { id: "utility", label: "Utility" },
-  { id: "learning", label: "Learning" },
-  { id: "fun", label: "Fun" },
-  { id: "gamification", label: "Gamification" },
-];
 
 interface CommandTerminalProps {
   entries: CommandEntryData[];
   totalCount: number;
-  category: CommandCategory;
-  onCategoryChange: (c: CommandCategory) => void;
   search: string;
   onSearchChange: (s: string) => void;
   scopeLabel: string;
@@ -39,8 +19,6 @@ interface CommandTerminalProps {
 export function CommandTerminal({
   entries,
   totalCount,
-  category,
-  onCategoryChange,
   search,
   onSearchChange,
   scopeLabel,
@@ -49,6 +27,7 @@ export function CommandTerminal({
   const inputRef = useRef<HTMLInputElement>(null);
   const mirrorRef = useRef<HTMLSpanElement>(null);
   const [cursorX, setCursorX] = useState(0);
+  const [focused, setFocused] = useState(false);
 
   // Focus on mount
   useEffect(() => {
@@ -108,14 +87,18 @@ export function CommandTerminal({
               onChange={(e) => onSearchChange(e.target.value)}
               onSelect={updateCursor}
               onKeyUp={updateCursor}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
               onKeyDown={(e) => e.key === "Escape" && onSearchChange("")}
               placeholder="SEARCH COMMANDS…"
               className="w-full border-none bg-transparent p-0 font-mono text-sm text-brackeys-yellow uppercase placeholder-muted-foreground/50 caret-transparent outline-none focus:ring-0"
             />
-            <span
-              className="pointer-events-none absolute top-1/2 h-[1.15em] w-[0.55em] -translate-y-1/2 bg-brackeys-yellow"
-              style={{ left: cursorX, animation: "terminal-blink 1.1s step-end infinite" }}
-            />
+            {focused && (
+              <span
+                className="pointer-events-none absolute top-1/2 h-[1.15em] w-[0.55em] -translate-y-1/2 bg-brackeys-yellow"
+                style={{ left: cursorX, animation: "terminal-blink 1.1s step-end infinite" }}
+              />
+            )}
           </div>
           <kbd className="shrink-0 border border-muted/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             ⌘K
@@ -123,20 +106,8 @@ export function CommandTerminal({
         </div>
       </div>
 
-      {/* Category tabs + scope */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-muted/40 bg-muted/20 px-3 py-2">
-        <SegmentedControl
-          value={category}
-          onChange={(v) => onCategoryChange(v as CommandCategory)}
-          size="xs"
-          className="flex-wrap"
-        >
-          {COMMAND_CATEGORIES.map((c) => (
-            <SegmentedControl.Item key={c.id} value={c.id}>
-              <span className="font-mono tracking-widest uppercase">{c.label}</span>
-            </SegmentedControl.Item>
-          ))}
-        </SegmentedControl>
+      {/* Scope strip */}
+      <div className="flex shrink-0 items-center justify-end gap-3 border-b border-muted/40 bg-muted/20 px-4 py-2">
         <span className="shrink-0 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
           Scope: <span className="text-primary">{scopeLabel}</span>
         </span>

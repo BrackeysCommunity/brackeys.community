@@ -17,7 +17,12 @@ type NodeCardCommon = {
   icon: IconSvgElement;
   stat: string;
   statLabel: string;
-  middle?: React.ReactNode;
+  /**
+   * Middle visual. Pass a function to receive `revealed` — useful for
+   * pausing animations when the card is not hovered/selected so they don't
+   * tick while invisible.
+   */
+  middle?: React.ReactNode | ((revealed: boolean) => React.ReactNode);
   /** Label shown in the bottom-right corner. Defaults to `ENTER →` / `SELECT`. */
   footerLabel?: string;
   className?: string;
@@ -51,21 +56,21 @@ export function NodeCard(props: NodeCardProps) {
   const active = isToggle ? Boolean(props.active) : false;
 
   const [hovered, setHovered] = useState(false);
-  const revealed = hovered || active;
+  const revealed = hovered;
 
-  // Fully depressed pressed state — overrides chonk-emboss's transform/shadow so
-  // it doesn't lift on hover, looks solidly pressed-in, and reads as selected.
+  // Pressed-in look for the "selected" state: keep the chonk depressed and
+  // recolor the emboss/border to primary. Background stays put so the card
+  // reads the same as its siblings apart from the embossed accent.
   const pressedClasses = cn(
-    "[--chonk-y:0px]!",
-    "border-primary bg-primary/25 backdrop-blur-none",
-    "hover:border-primary hover:bg-primary/25",
+    "[--chonk-y:0px]! [--emboss-shadow:var(--primary)]",
+    "border-primary hover:border-primary",
   );
 
   return (
     <Chonk
       variant="surface"
       size="xl"
-      className={cn("group/node", active && pressedClasses, className)}
+      className={cn("group/node w-full min-w-0", active && pressedClasses, className)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
@@ -79,8 +84,8 @@ export function NodeCard(props: NodeCardProps) {
             data-magnetic={active ? undefined : true}
             data-cursor-no-drift
             data-cursor-corner-size="lg"
-            className="flex flex-col p-4 text-left"
-            style={{ height: NODE_CARD_HEIGHT }}
+            className="flex w-full min-w-0 flex-col overflow-hidden p-4 text-left"
+            style={{ height: NODE_CARD_HEIGHT, width: "100%" }}
           />
         ) : (
           <Link
@@ -88,8 +93,8 @@ export function NodeCard(props: NodeCardProps) {
             data-magnetic
             data-cursor-no-drift
             data-cursor-corner-size="lg"
-            className="flex flex-col p-4"
-            style={{ height: NODE_CARD_HEIGHT }}
+            className="flex w-full min-w-0 flex-col overflow-hidden p-4"
+            style={{ height: NODE_CARD_HEIGHT, width: "100%" }}
           />
         )
       }
@@ -133,7 +138,7 @@ export function NodeCard(props: NodeCardProps) {
             initial={false}
             animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="mt-3 flex-1"
+            className="relative mt-3 w-full min-w-0 flex-1 overflow-hidden"
           >
             <GlitchTransition
               trigger="manual"
@@ -142,9 +147,10 @@ export function NodeCard(props: NodeCardProps) {
               intensity={0.7}
               scanlines
               flicker
-              style={{ width: "100%" }}
+              className="block w-full max-w-full min-w-0"
+              style={{ width: "100%", maxWidth: "100%" }}
             >
-              {middle}
+              {typeof middle === "function" ? middle(revealed) : middle}
             </GlitchTransition>
           </motion.div>
         )}
