@@ -8,7 +8,7 @@ data "external_schema" "drizzle" {
 
 env "local" {
   dev = getenv("ATLAS_DEV_URL")
-  schemas = ["public", "auth", "user", "hammer", "collab"]
+  schemas = ["public", "auth", "user", "hammer", "collab", "itch"]
   schema {
     src = data.external_schema.drizzle.url
   }

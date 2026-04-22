@@ -65,7 +65,7 @@ function TooltipContent({
           className={cn(
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
             "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-            "z-50 w-fit origin-(--transform-origin) translate-y-[-2px] rounded-xs px-3 py-1.5 text-xs [filter:drop-shadow(0_2px_0_var(--tooltip-shadow))]",
+            "z-50 w-fit origin-(--transform-origin) -translate-y-0.5 rounded px-3 py-1.5 text-xs filter-[drop-shadow(0_2px_0_var(--tooltip-shadow))]",
             variantStyles[variant],
             className,
           )}

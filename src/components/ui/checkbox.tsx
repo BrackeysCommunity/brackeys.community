@@ -29,7 +29,7 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "chonk-emboss peer relative inline-flex shrink-0 items-center justify-center rounded-xs border bg-background transition-colors outline-none select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:bg-emboss-surface",
+        "chonk-emboss peer relative inline-flex shrink-0 items-center justify-center rounded border bg-background transition-colors outline-none select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:bg-emboss-surface",
         "data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground data-checked:[--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)] dark:data-checked:bg-primary",
         "focus-visible:outline-hidden",
         "aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
@@ -68,7 +68,7 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
   if (notchOpts) {
     const resolved = resolveNotchOpts(notchOpts === true ? { size: 3 } : { size: 3, ...notchOpts });
     return (
-      <div className="inline-flex shrink-0 overflow-hidden rounded-xs">
+      <div className="inline-flex shrink-0 overflow-hidden rounded">
         <div
           className="inline-flex shrink-0"
           style={{

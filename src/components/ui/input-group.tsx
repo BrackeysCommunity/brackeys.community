@@ -17,7 +17,7 @@ function InputGroup({ className, size = "default", ...props }: InputGroupProps) 
       data-size={size}
       role="group"
       className={cn(
-        "group/input-group chonk-deboss relative flex w-full min-w-0 items-center rounded-xs border border-input transition-colors outline-none dark:bg-deboss-surface",
+        "group/input-group chonk-deboss relative flex w-full min-w-0 items-center rounded border border-input transition-colors outline-none dark:bg-deboss-surface",
         size === "default" && "h-8",
         size === "sm" && "h-7",
         size === "xs" && "h-6",

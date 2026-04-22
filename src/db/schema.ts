@@ -1,7 +1,11 @@
+import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   integer,
+  jsonb,
+  numeric,
   pgSchema,
   primaryKey,
   serial,
@@ -16,6 +20,7 @@ export const authSchema = pgSchema("auth");
 export const userSchema = pgSchema("user");
 export const hammerSchema = pgSchema("hammer");
 export const collabSchema = pgSchema("collab");
+export const itchSchema = pgSchema("itch");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
   "game",
@@ -439,3 +444,90 @@ export const collabPostReports = collabSchema.table("collab_post_reports", {
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── itch.io scraped data (itch schema) ───────────────────────────────────────
+
+export type ItchJamHost = { name: string; url: string };
+export type ItchJamContributor = { name: string; url: string };
+export type ItchJamStatus = "upcoming" | "running" | "voting" | "over";
+
+export const itchJams = itchSchema.table("jams", {
+  jamId: integer("jam_id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  bannerUrl: text("banner_url"),
+  hashtag: text("hashtag"),
+  hosts: jsonb("hosts").$type<ItchJamHost[]>().notNull().default(sql`'[]'::jsonb`),
+  status: text("status").$type<ItchJamStatus>().notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  votingEndsAt: timestamp("voting_ends_at", { withTimezone: true }),
+  entriesCount: integer("entries_count"),
+  ratingsCount: integer("ratings_count"),
+  contentHtml: text("content_html"),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const itchJamEntries = itchSchema.table("jam_entries", {
+  // jam_game.id — itch's submission id, distinct from the underlying game id.
+  entryId: bigint("entry_id", { mode: "number" }).primaryKey(),
+  jamId: integer("jam_id")
+    .notNull()
+    .references(() => itchJams.jamId, { onDelete: "cascade" }),
+  gameId: bigint("game_id", { mode: "number" }).notNull(),
+  rateUrl: text("rate_url").notNull(),
+  ratingCount: integer("rating_count").notNull().default(0),
+  coolness: integer("coolness").notNull().default(0),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  gameTitle: text("game_title").notNull(),
+  gameShortText: text("game_short_text"),
+  gameUrl: text("game_url").notNull(),
+  gameCoverUrl: text("game_cover_url"),
+  gameCoverColor: text("game_cover_color"),
+  gamePlatforms: text("game_platforms").array(),
+  authorId: bigint("author_id", { mode: "number" }),
+  authorName: text("author_name"),
+  authorUrl: text("author_url"),
+  contributors: jsonb("contributors")
+    .$type<ItchJamContributor[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  resultsFetchedAt: timestamp("results_fetched_at", { withTimezone: true }),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// Per-criterion rank scraped from /jam/{slug}/rate/{gameId} after voting ends.
+// The submission stats (rank/score/raw score per criterion) are rendered only
+// in the rate page HTML — they aren't exposed in the entries.json API.
+export const itchJamEntryResults = itchSchema.table(
+  "jam_entry_results",
+  {
+    entryId: bigint("entry_id", { mode: "number" })
+      .notNull()
+      .references(() => itchJamEntries.entryId, { onDelete: "cascade" }),
+    criterion: text("criterion").notNull(),
+    rank: integer("rank").notNull(),
+    score: numeric("score", { precision: 6, scale: 3 }).notNull(),
+    rawScore: numeric("raw_score", { precision: 6, scale: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.entryId, table.criterion] })],
+);
