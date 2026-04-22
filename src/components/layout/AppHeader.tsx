@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Hotkey } from "@/components/ui/hotkey";
 import {
   activeUserStore,
   clearActiveUserProfile,
@@ -55,9 +55,6 @@ const getUtcTime = () => {
 export function AppHeader() {
   const [utcTime, setUtcTime] = useState(getUtcTime);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isMac] = useState(
-    () => typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac"),
-  );
   useInterval(() => setUtcTime(getUtcTime()), 1000);
   const { setOpen: openPalette } = useCommandPalette();
   const { data: session } = authClient.useSession();
@@ -173,10 +170,7 @@ export function AppHeader() {
             className="gap-2 border-muted font-mono text-xs text-muted-foreground shadow-[2px_2px_0px_var(--color-primary)] hover:border-primary hover:text-primary"
           >
             <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} />
-            <KbdGroup className="hidden opacity-60 xl:inline-flex">
-              <Kbd>{isMac ? "CMD" : "CTRL"}</Kbd>
-              <Kbd>K</Kbd>
-            </KbdGroup>
+            <Hotkey value="command+k" className="hidden opacity-60 xl:inline-flex" />
           </Button>
 
           {session?.user ? (

@@ -7,7 +7,7 @@ import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-xs border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -16,7 +16,7 @@ const buttonVariants = cva(
         secondary:
           "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)] hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         destructive:
-          "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] hover:bg-destructive/90 focus-visible:ring-destructive/30",
         outline:
           "chonk-emboss bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
         ghost:
@@ -47,7 +47,7 @@ const notchEmbossColor: Record<string, string | undefined> = {
   default: "color-mix(in srgb, var(--primary) 50%, black)",
   outline: undefined, // inherits --emboss-shadow from theme
   secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
-  destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
+  destructive: "color-mix(in srgb, var(--destructive) 45%, black)",
 };
 
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
@@ -56,6 +56,7 @@ type ButtonProps = ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
     isMagnetic?: boolean;
     notchOpts?: NotchOpts | true;
+    wrapperClassName?: string;
   };
 
 function Button({
@@ -64,6 +65,7 @@ function Button({
   size = "default",
   isMagnetic,
   notchOpts,
+  wrapperClassName,
   ...props
 }: ButtonProps) {
   const { ref, position } = useMagnetic(0.2);
@@ -91,7 +93,7 @@ function Button({
 
     const frame = (
       <div
-        className="chonk-emboss-notched inline-flex"
+        className={cn("chonk-emboss-notched inline-flex overflow-hidden rounded", wrapperClassName)}
         data-slot="button"
         style={
           {
@@ -100,7 +102,7 @@ function Button({
           } as React.CSSProperties
         }
       >
-        <div className="flex" style={{ clipPath: outerClip, background: bgColor }}>
+        <div className="flex w-full" style={{ clipPath: outerClip, background: bgColor }}>
           {button}
         </div>
       </div>

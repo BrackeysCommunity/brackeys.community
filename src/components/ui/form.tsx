@@ -250,7 +250,7 @@ function FormGroup({ title, className, children, ...props }: FormGroupProps) {
   return (
     <fieldset
       data-slot="form-group"
-      className={cn("flex flex-col gap-4 rounded-xs border border-border p-4", className)}
+      className={cn("flex flex-col gap-4 rounded border border-border p-4", className)}
       {...props}
     >
       <legend className="px-2 text-xs font-medium text-foreground">{title}</legend>

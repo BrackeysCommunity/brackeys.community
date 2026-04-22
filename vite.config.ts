@@ -135,6 +135,7 @@ const config = defineConfig({
       "build/",
       "worker-configuration.d.ts",
       "scripts/",
+      "services/",
     ],
   },
   define: {

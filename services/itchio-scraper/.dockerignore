@@ -1,0 +1,9 @@
+**/node_modules
+**/.output
+**/.turbo
+**/dist
+**/.git
+**/.env*
+!.env.example
+storybook-static
+**/coverage

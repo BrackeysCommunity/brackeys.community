@@ -7,7 +7,7 @@ import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-xs border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
@@ -16,7 +16,7 @@ const badgeVariants = cva(
         secondary:
           "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)]",
         destructive:
-          "chonk-emboss bg-destructive/10 text-destructive [--emboss-shadow:color-mix(in_srgb,var(--destructive)_40%,black)] focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40",
+          "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] focus-visible:ring-destructive/30",
         outline: "chonk-emboss border-border text-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
@@ -35,7 +35,7 @@ const staticEmbossOverride =
 const notchEmbossColor: Record<string, string | undefined> = {
   default: "color-mix(in srgb, var(--primary) 50%, black)",
   secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
-  destructive: "color-mix(in srgb, var(--destructive) 40%, black)",
+  destructive: "color-mix(in srgb, var(--destructive) 45%, black)",
   outline: undefined,
 };
 
@@ -82,7 +82,7 @@ function Badge({ className, variant = "default", notchOpts, render, ...props }: 
     const bgColor = embossColor ?? "var(--emboss-shadow)";
 
     return (
-      <div className="inline-flex shrink-0 overflow-hidden rounded-xs">
+      <div className="inline-flex shrink-0 overflow-hidden rounded">
         <div
           className="chonk-emboss-notched pointer-events-none inline-flex [--chonk-lift-hover:2px] [--chonk-lift:2px]"
           style={
@@ -103,7 +103,7 @@ function Badge({ className, variant = "default", notchOpts, render, ...props }: 
   if (notchOpts) {
     const resolved = resolveNotchOpts(notchOpts === true ? { size: 4 } : notchOpts);
     return (
-      <div className="inline-flex shrink-0 overflow-hidden rounded-xs">
+      <div className="inline-flex shrink-0 overflow-hidden rounded">
         <div className="inline-flex shrink-0" style={{ clipPath: buildNotchPath(resolved) }}>
           {badge}
         </div>
