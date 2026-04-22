@@ -1,5 +1,5 @@
-import { config } from "../config.ts";
 import type { ItchJamContributor } from "../../../../src/db/schema.ts";
+import { config } from "../config.ts";
 
 export type ItchEntry = {
   entryId: number;
@@ -52,6 +52,10 @@ export async function fetchJamEntries(jamId: number): Promise<ItchEntry[]> {
       accept: "application/json",
     },
   });
+  if (res.status === 404) {
+    // Upcoming jams have no entries.json until submissions open.
+    return [];
+  }
   if (!res.ok) {
     throw new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
   }
@@ -63,9 +67,7 @@ export async function fetchJamEntries(jamId: number): Promise<ItchEntry[]> {
     rateUrl: g.url,
     ratingCount: g.rating_count ?? 0,
     coolness: g.coolness ?? 0,
-    submittedAt: g.created_at
-      ? new Date(`${g.created_at.replace(" ", "T")}Z`)
-      : null,
+    submittedAt: g.created_at ? new Date(`${g.created_at.replace(" ", "T")}Z`) : null,
     gameTitle: g.game.title,
     gameShortText: g.game.short_text ?? null,
     gameUrl: g.game.url,

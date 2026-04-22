@@ -5,15 +5,33 @@ per-submission rankings) and syncs it into the main brackeys Postgres DB.
 
 ## What it scrapes
 
-| Source | Access | Captured fields |
-| --- | --- | --- |
-| `/jam/{slug}` | puppeteer (Browserless) | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML |
-| `/jam/{jamId}/entries.json` | plain `fetch` (undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries)) | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors |
-| `/jam/{slug}/rate/{gameId}` | puppeteer (Browserless) | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API) |
+| Source                                  | Access                                                                                                               | Captured fields                                                                                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/jams/upcoming` (page 1)               | puppeteer (Browserless)                                                                                              | jam slugs for forward discovery                                                                                                                             |
+| `/search?q=brackeys&type=jams` (page 1) | puppeteer (Browserless)                                                                                              | jam slugs for one-time Brackeys backfill                                                                                                                    |
+| `/jam/{slug}`                           | puppeteer (Browserless)                                                                                              | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                           |
+| `/jam/{jamId}/entries.json`             | plain `fetch` (undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries)) | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors |
+| `/jam/{slug}/rate/{gameId}`             | puppeteer (Browserless)                                                                                              | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                            |
 
-The `/jams` calendar page is intentionally **not** scraped — it only gives us
-jam names and a visual calendar (positions encoded in CSS pixels). Everything
-useful lives on the individual jam pages.
+### How slugs are chosen each tick
+
+The sync set is the union of three buckets:
+
+1. **Upcoming discovery** — every slug on page 1 of `/jams/upcoming`. Always
+   synced so we catch newly-announced jams as soon as they appear.
+2. **Brackeys backfill** — every slug on page 1 of
+   `/search?q=brackeys&type=jams` **that isn't already in `itch.jams`**.
+   Brings in historical Brackeys jams (brackeys-1 … brackeys-15) the first
+   time we see them, then drops out of the bucket forever.
+3. **Persisted re-sync** — every slug already in `itch.jams` where the jam
+   isn't "done" yet. Specifically: `status != 'over'` **or** at least one of
+   its entries still has `results_fetched_at IS NULL`. Jams in terminal
+   state with all rate pages collected are skipped, so we don't burn cycles
+   re-scraping hundreds of historical Brackeys submissions every Monday.
+
+The `/jams` calendar page is intentionally **not** scraped — it only encodes
+dates as CSS pixels and gives us nothing the per-jam page doesn't already
+provide.
 
 ## Schema
 
@@ -53,7 +71,6 @@ daemon, no `node-cron`.
    - `BROWSERLESS_WS_ENDPOINT` — the Browserless v2 websocket URL, usually
      `wss://browserless.railway.internal?token=…` via Railway's private
      networking
-   - `ITCH_JAM_SLUGS` — comma-separated slugs (`brackeys-15`, …)
 
 ## Running locally
 
