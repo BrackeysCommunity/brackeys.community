@@ -29,14 +29,50 @@ function parseCount(raw: string | undefined, title: string | undefined): number 
   return digits ? Number.parseInt(digits, 10) : null;
 }
 
-function parseEmbeddedJamId(html: string): number | null {
-  // The numeric id appears in different places depending on jam state:
-  //   upcoming  → data-href="/jam/{id}/join" on the join button
-  //   running   → submit / manage-submission button hrefs
-  //   voting    → entries_url / randomizer_url in the BrowseEntries payload
-  //   over      → results / entries URLs
-  // A single `/jam/{digits}/...` match covers all of them, plus a few fallbacks
-  // for query-string / JSON forms that don't include a trailing path segment.
+type ViewJamPayload = {
+  id: number;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  votingEndsAt: Date | null;
+};
+
+function parseIsoMaybe(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  // itch serializes these as UTC naive strings like "2026-02-15 11:00:00".
+  const iso = raw.includes("T") ? raw : `${raw.replace(" ", "T")}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseViewJamPayload(html: string): ViewJamPayload | null {
+  // Every jam page bootstraps a `new I.ViewJam('#view_jam_NN', { ... })`
+  // constructor — regardless of status — and the JSON object always carries
+  // the numeric id, start/end, and (when applicable) voting_end_date. This
+  // is the most reliable source we have across upcoming / running / over.
+  const match = html.match(/I\.ViewJam\(\s*'[^']+'\s*,\s*(\{[^}]*\})\s*\)/);
+  if (!match?.[1]) return null;
+  try {
+    const parsed = JSON.parse(match[1]) as {
+      id?: number;
+      start_date?: string;
+      end_date?: string;
+      voting_end_date?: string;
+    };
+    if (typeof parsed.id !== "number") return null;
+    return {
+      id: parsed.id,
+      startsAt: parseIsoMaybe(parsed.start_date),
+      endsAt: parseIsoMaybe(parsed.end_date),
+      votingEndsAt: parseIsoMaybe(parsed.voting_end_date),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseEmbeddedJamIdFallback(html: string): number | null {
+  // Used only if the ViewJam constructor can't be parsed. Covers state-specific
+  // URL / query-string embeds of the id as a last resort.
   const patterns = [
     /\/jam\/(\d+)\/[a-z_-]+/,
     /\\\/jam\\\/(\d+)\\\/[a-z_-]+/,
@@ -83,15 +119,28 @@ export async function scrapeJamPage(browser: Browser, slug: string): Promise<Scr
     })
     .filter((h) => h.url.includes(".itch.io"));
 
-  const dates: Date[] = [];
-  $(".date_format").each((_, el) => {
-    const attr = $(el).attr("title");
-    if (!attr) return;
-    // Always UTC e.g. "2026-02-15 11:00:00 UTC".
-    const iso = attr.replace(" UTC", "Z").replace(" ", "T");
-    const d = new Date(iso);
-    if (!Number.isNaN(d.getTime())) dates.push(d);
-  });
+  const viewJam = parseViewJamPayload(html);
+  const jamId = viewJam?.id ?? parseEmbeddedJamIdFallback(html);
+  if (!jamId) throw new Error(`Could not determine numeric jam id for ${slug}`);
+
+  // Prefer labeled dates from the ViewJam JSON. Fall back to positional
+  // `.date_format` elements if the bootstrap payload isn't parseable.
+  let startsAt = viewJam?.startsAt ?? null;
+  let endsAt = viewJam?.endsAt ?? null;
+  let votingEndsAt = viewJam?.votingEndsAt ?? null;
+  if (!startsAt || !endsAt) {
+    const dates: Date[] = [];
+    $(".date_format").each((_, el) => {
+      const attr = $(el).attr("title");
+      if (!attr) return;
+      const iso = attr.replace(" UTC", "Z").replace(" ", "T");
+      const d = new Date(iso);
+      if (!Number.isNaN(d.getTime())) dates.push(d);
+    });
+    startsAt = startsAt ?? dates[0] ?? null;
+    endsAt = endsAt ?? dates[1] ?? null;
+    votingEndsAt = votingEndsAt ?? dates[2] ?? null;
+  }
 
   const statBoxes: Array<{ label: string; count: number | null }> = [];
   $(".stats_container .stat_box").each((_, el) => {
@@ -104,9 +153,6 @@ export async function scrapeJamPage(browser: Browser, slug: string): Promise<Scr
   const entriesCount = statBoxes.find((s) => /entries/i.test(s.label))?.count ?? null;
   const ratingsCount = statBoxes.find((s) => /ratings/i.test(s.label))?.count ?? null;
 
-  const jamId = parseEmbeddedJamId(html);
-  if (!jamId) throw new Error(`Could not determine numeric jam id for ${slug}`);
-
   const banner = $(".jam_banner img, .jam_banner_outer img").first().attr("src") ?? null;
   const contentHtml = $(".jam_content").first().html()?.trim() || null;
 
@@ -118,9 +164,9 @@ export async function scrapeJamPage(browser: Browser, slug: string): Promise<Scr
     hashtag,
     hosts,
     status: deriveStatus(viewClasses),
-    startsAt: dates[0] ?? null,
-    endsAt: dates[1] ?? null,
-    votingEndsAt: dates[2] ?? null,
+    startsAt,
+    endsAt,
+    votingEndsAt,
     entriesCount,
     ratingsCount,
     contentHtml,
