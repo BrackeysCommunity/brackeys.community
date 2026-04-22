@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import type { Browser } from "puppeteer-core";
 
 import type { ItchJamHost, ItchJamStatus } from "../../../../src/db/schema.ts";
 import { fetchHtml } from "../browser.ts";
@@ -99,9 +98,9 @@ function deriveStatus(viewClasses: string): ItchJamStatus {
   return "upcoming";
 }
 
-export async function scrapeJamPage(browser: Browser, slug: string): Promise<ScrapedJam> {
+export async function scrapeJamPage(slug: string): Promise<ScrapedJam> {
   const url = `https://itch.io/jam/${slug}`;
-  const html = await fetchHtml(browser, url);
+  const html = await fetchHtml(url);
   const $ = cheerio.load(html);
 
   const viewClasses = $(".view_jam_base_page").attr("class") ?? "";

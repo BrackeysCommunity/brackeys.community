@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import type { Browser } from "puppeteer-core";
 
 import { fetchHtml } from "../browser.ts";
 
@@ -8,8 +7,8 @@ import { fetchHtml } from "../browser.ts";
  * Both use the same `.jam_grid_widget .jam` cell with the first `<a
  * href="/jam/{slug}">` pointing at the jam. We only ever look at page 1.
  */
-async function listJamSlugs(browser: Browser, url: string): Promise<string[]> {
-  const html = await fetchHtml(browser, url);
+async function listJamSlugs(url: string): Promise<string[]> {
+  const html = await fetchHtml(url);
   const $ = cheerio.load(html);
   const slugs = new Set<string>();
   $(".jam_grid_widget .jam").each((_, el) => {
@@ -20,10 +19,10 @@ async function listJamSlugs(browser: Browser, url: string): Promise<string[]> {
   return [...slugs];
 }
 
-export function discoverUpcomingSlugs(browser: Browser): Promise<string[]> {
-  return listJamSlugs(browser, "https://itch.io/jams/upcoming");
+export function discoverUpcomingSlugs(): Promise<string[]> {
+  return listJamSlugs("https://itch.io/jams/upcoming");
 }
 
-export function discoverBrackeysSearchSlugs(browser: Browser): Promise<string[]> {
-  return listJamSlugs(browser, "https://itch.io/search?q=brackeys&type=jams");
+export function discoverBrackeysSearchSlugs(): Promise<string[]> {
+  return listJamSlugs("https://itch.io/search?q=brackeys&type=jams");
 }

@@ -1,8 +1,6 @@
 import { and, eq, exists, isNull, ne, or, sql } from "drizzle-orm";
-import type { Browser } from "puppeteer-core";
 
 import { itchJamEntries, itchJams } from "../../../src/db/schema.ts";
-import { connectBrowser } from "./browser.ts";
 import { db, pool } from "./db/client.ts";
 import { syncJam } from "./jobs/sync-jam.ts";
 import { discoverBrackeysSearchSlugs, discoverUpcomingSlugs } from "./scrape/discover-listings.ts";
@@ -13,13 +11,13 @@ type SlugBuckets = {
   persistedResync: string[];
 };
 
-async function collectSlugs(browser: Browser): Promise<SlugBuckets> {
+async function collectSlugs(): Promise<SlugBuckets> {
   const [upcoming, brackeysSearch, allPersisted, needsResync] = await Promise.all([
-    discoverUpcomingSlugs(browser).catch((err) => {
+    discoverUpcomingSlugs().catch((err) => {
       console.error("[scrape] /jams/upcoming failed", err);
       return [] as string[];
     }),
-    discoverBrackeysSearchSlugs(browser).catch((err) => {
+    discoverBrackeysSearchSlugs().catch((err) => {
       console.error("[scrape] brackeys search failed", err);
       return [] as string[];
     }),
@@ -59,35 +57,29 @@ async function collectSlugs(browser: Browser): Promise<SlugBuckets> {
 
 async function runScrape() {
   const started = Date.now();
-  let browser: Browser | null = null;
   let hadFailure = false;
-  try {
-    browser = await connectBrowser();
-    const { upcoming, brackeysBackfill, persistedResync } = await collectSlugs(browser);
-    const slugs = [...new Set([...upcoming, ...brackeysBackfill, ...persistedResync])];
 
-    console.log(
-      `[scrape] slugs: upcoming=${upcoming.length} brackeys-backfill=${brackeysBackfill.length} persisted-resync=${persistedResync.length} total=${slugs.length}`,
-    );
+  const { upcoming, brackeysBackfill, persistedResync } = await collectSlugs();
+  const slugs = [...new Set([...upcoming, ...brackeysBackfill, ...persistedResync])];
 
-    if (slugs.length === 0) {
-      console.warn("[scrape] nothing to sync this tick");
-      return;
-    }
+  console.log(
+    `[scrape] slugs: upcoming=${upcoming.length} brackeys-backfill=${brackeysBackfill.length} persisted-resync=${persistedResync.length} total=${slugs.length}`,
+  );
 
-    for (const slug of slugs) {
-      try {
-        await syncJam(browser, slug);
-      } catch (err) {
-        hadFailure = true;
-        console.error(`[scrape] failed to sync jam ${slug}`, err);
-      }
-    }
-  } finally {
-    // puppeteer.connect() uses disconnect() — we never close the shared
-    // Browserless browser.
-    if (browser) await browser.disconnect().catch(() => {});
+  if (slugs.length === 0) {
+    console.warn("[scrape] nothing to sync this tick");
+    return;
   }
+
+  for (const slug of slugs) {
+    try {
+      await syncJam(slug);
+    } catch (err) {
+      hadFailure = true;
+      console.error(`[scrape] failed to sync jam ${slug}`, err);
+    }
+  }
+
   const elapsed = Math.round((Date.now() - started) / 1000);
   console.log(`[scrape] finished run in ${elapsed}s`);
   if (hadFailure) {

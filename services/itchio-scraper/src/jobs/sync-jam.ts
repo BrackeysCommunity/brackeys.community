@@ -1,12 +1,8 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Browser } from "puppeteer-core";
+
+import { itchJamEntries, itchJamEntryResults, itchJams } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
-import {
-  itchJamEntries,
-  itchJamEntryResults,
-  itchJams,
-} from "../../../../src/db/schema.ts";
 import { fetchJamEntries, type ItchEntry } from "../scrape/entries.ts";
 import { scrapeJamPage, type ScrapedJam } from "../scrape/jam-page.ts";
 import { scrapeRatePage } from "../scrape/rate-page.ts";
@@ -112,16 +108,12 @@ async function upsertEntries(jamId: number, entries: ItchEntry[]) {
 }
 
 async function syncEntryResults(
-  browser: Browser,
   jam: ScrapedJam,
 ): Promise<{ attempted: number; succeeded: number }> {
   if (config.SCRAPE_ENTRY_RESULTS === "never") {
     return { attempted: 0, succeeded: 0 };
   }
-  if (
-    config.SCRAPE_ENTRY_RESULTS === "after-voting" &&
-    jam.status !== "over"
-  ) {
+  if (config.SCRAPE_ENTRY_RESULTS === "after-voting" && jam.status !== "over") {
     return { attempted: 0, succeeded: 0 };
   }
 
@@ -131,12 +123,7 @@ async function syncEntryResults(
       gameId: itchJamEntries.gameId,
     })
     .from(itchJamEntries)
-    .where(
-      and(
-        eq(itchJamEntries.jamId, jam.jamId),
-        isNull(itchJamEntries.resultsFetchedAt),
-      ),
-    );
+    .where(and(eq(itchJamEntries.jamId, jam.jamId), isNull(itchJamEntries.resultsFetchedAt)));
 
   let succeeded = 0;
   const queue = [...pending];
@@ -146,7 +133,7 @@ async function syncEntryResults(
       const item = queue.shift();
       if (!item) return;
       try {
-        const page = await scrapeRatePage(browser, jam.slug, item.gameId);
+        const page = await scrapeRatePage(jam.slug, item.gameId);
         await db.transaction(async (tx) => {
           if (page.results.length > 0) {
             await tx
@@ -171,10 +158,7 @@ async function syncEntryResults(
         });
         succeeded += 1;
       } catch (err) {
-        console.error(
-          `[sync-jam] failed to scrape rate page for entry ${item.entryId}`,
-          err,
-        );
+        console.error(`[sync-jam] failed to scrape rate page for entry ${item.entryId}`, err);
       }
       if (config.ENTRY_RESULTS_DELAY_MS > 0) {
         await new Promise((r) => setTimeout(r, config.ENTRY_RESULTS_DELAY_MS));
@@ -182,18 +166,16 @@ async function syncEntryResults(
     }
   }
 
-  await Promise.all(
-    Array.from({ length: config.ENTRY_RESULTS_CONCURRENCY }, () => worker()),
-  );
+  await Promise.all(Array.from({ length: config.ENTRY_RESULTS_CONCURRENCY }, () => worker()));
 
   return { attempted: pending.length, succeeded };
 }
 
-export async function syncJam(browser: Browser, slug: string) {
+export async function syncJam(slug: string) {
   const started = Date.now();
   console.log(`[sync-jam] start slug=${slug}`);
 
-  const jam = await scrapeJamPage(browser, slug);
+  const jam = await scrapeJamPage(slug);
   await upsertJam(jam);
   console.log(
     `[sync-jam] jam=${jam.slug} id=${jam.jamId} status=${jam.status} entries=${jam.entriesCount}`,
@@ -203,7 +185,7 @@ export async function syncJam(browser: Browser, slug: string) {
   await upsertEntries(jam.jamId, entries);
   console.log(`[sync-jam] upserted ${entries.length} entries for ${jam.slug}`);
 
-  const results = await syncEntryResults(browser, jam);
+  const results = await syncEntryResults(jam);
   if (results.attempted > 0) {
     console.log(
       `[sync-jam] results scraped ${results.succeeded}/${results.attempted} for ${jam.slug}`,
