@@ -1,7 +1,8 @@
 import * as cheerio from "cheerio";
 import type { Browser } from "puppeteer-core";
-import { fetchHtml } from "../browser.ts";
+
 import type { ItchJamHost, ItchJamStatus } from "../../../../src/db/schema.ts";
+import { fetchHtml } from "../browser.ts";
 
 export type ScrapedJam = {
   jamId: number;
@@ -29,11 +30,17 @@ function parseCount(raw: string | undefined, title: string | undefined): number 
 }
 
 function parseEmbeddedJamId(html: string): number | null {
-  // The page embeds the numeric jam id in several places (randomizer URL,
-  // entries_url, etc.). Try each in turn.
+  // The numeric id appears in different places depending on jam state:
+  //   upcoming  → data-href="/jam/{id}/join" on the join button
+  //   running   → submit / manage-submission button hrefs
+  //   voting    → entries_url / randomizer_url in the BrowseEntries payload
+  //   over      → results / entries URLs
+  // A single `/jam/{digits}/...` match covers all of them, plus a few fallbacks
+  // for query-string / JSON forms that don't include a trailing path segment.
   const patterns = [
-    /\\\/jam\\\/(\d+)\\\/entries\.json/,
-    /jam_id=(\d+)/,
+    /\/jam\/(\d+)\/[a-z_-]+/,
+    /\\\/jam\\\/(\d+)\\\/[a-z_-]+/,
+    /[?&]jam_id=(\d+)/,
     /"jam_id"\s*:\s*(\d+)/,
   ];
   for (const pattern of patterns) {
@@ -56,10 +63,7 @@ function deriveStatus(viewClasses: string): ItchJamStatus {
   return "upcoming";
 }
 
-export async function scrapeJamPage(
-  browser: Browser,
-  slug: string,
-): Promise<ScrapedJam> {
+export async function scrapeJamPage(browser: Browser, slug: string): Promise<ScrapedJam> {
   const url = `https://itch.io/jam/${slug}`;
   const html = await fetchHtml(browser, url);
   const $ = cheerio.load(html);
@@ -69,8 +73,7 @@ export async function scrapeJamPage(
   if (!title) throw new Error(`Could not find jam title for ${slug}`);
 
   const hostHeader = $(".jam_host_header").first();
-  const hashtag =
-    hostHeader.find('a[href*="hashtag"]').first().text().trim() || null;
+  const hashtag = hostHeader.find('a[href*="hashtag"]').first().text().trim() || null;
   const hosts: ItchJamHost[] = hostHeader
     .find("a")
     .toArray()
@@ -98,16 +101,13 @@ export async function scrapeJamPage(
     const titleAttr = $el.attr("title") ?? undefined;
     statBoxes.push({ label, count: parseCount(value, titleAttr) });
   });
-  const entriesCount =
-    statBoxes.find((s) => /entries/i.test(s.label))?.count ?? null;
-  const ratingsCount =
-    statBoxes.find((s) => /ratings/i.test(s.label))?.count ?? null;
+  const entriesCount = statBoxes.find((s) => /entries/i.test(s.label))?.count ?? null;
+  const ratingsCount = statBoxes.find((s) => /ratings/i.test(s.label))?.count ?? null;
 
   const jamId = parseEmbeddedJamId(html);
   if (!jamId) throw new Error(`Could not determine numeric jam id for ${slug}`);
 
-  const banner =
-    $(".jam_banner img, .jam_banner_outer img").first().attr("src") ?? null;
+  const banner = $(".jam_banner img, .jam_banner_outer img").first().attr("src") ?? null;
   const contentHtml = $(".jam_content").first().html()?.trim() || null;
 
   return {
