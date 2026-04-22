@@ -79,9 +79,10 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/kbd", () => ({
-  Kbd: ({ children }: { children: React.ReactNode }) => <kbd>{children}</kbd>,
-  KbdGroup: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+vi.mock("@/components/ui/hotkey", () => ({
+  Hotkey: ({ value }: { value: string | string[] }) => (
+    <kbd>{Array.isArray(value) ? value[0] : value}</kbd>
+  ),
 }));
 
 vi.mock("@/lib/auth-client", () => ({

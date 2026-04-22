@@ -18,7 +18,6 @@ import {
 } from "@/components/home/NodeCard";
 import { SectionRule } from "@/components/home/SectionRule";
 import { OnlinePulse, StatCell, StatStrip } from "@/components/home/StatStrip";
-import { SystemStatusBar } from "@/components/home/SystemStatusBar";
 
 // TODO: replace with real data
 const MOCK_STATS = {
@@ -82,10 +81,7 @@ export function HomePage() {
         <div className="flex flex-col gap-8">
           {/* Hero */}
           <div className="flex flex-col">
-            <motion.div variants={fadeUp}>
-              <SystemStatusBar />
-            </motion.div>
-            <motion.div variants={fadeUp} className="mt-20 lg:mt-28">
+            <motion.div variants={fadeUp} className="mt-8 lg:mt-12">
               <HeroWordmark primary={<CyclingWord />} secondary="GAMES" />
             </motion.div>
             <motion.p

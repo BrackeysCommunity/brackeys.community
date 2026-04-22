@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { CommandEntry, type CommandEntryData } from "@/components/home/CommandEntry";
+import { Hotkey } from "@/components/ui/hotkey";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +13,6 @@ interface CommandTerminalProps {
   totalCount: number;
   search: string;
   onSearchChange: (s: string) => void;
-  scopeLabel: string;
   className?: string;
 }
 
@@ -21,7 +21,6 @@ export function CommandTerminal({
   totalCount,
   search,
   onSearchChange,
-  scopeLabel,
   className,
 }: CommandTerminalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -100,18 +99,19 @@ export function CommandTerminal({
               />
             )}
           </div>
-          <kbd className="shrink-0 border border-muted/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            ⌘K
-          </kbd>
+          <Hotkey value="command+k" className="shrink-0" />
         </div>
       </div>
 
-      {/* Scope strip */}
-      <div className="flex shrink-0 items-center justify-end gap-3 border-b border-muted/40 bg-muted/20 px-4 py-2">
-        <span className="shrink-0 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-          Scope: <span className="text-primary">{scopeLabel}</span>
-        </span>
-      </div>
+      {/* Diagonal-striped divider */}
+      <div
+        aria-hidden="true"
+        className="h-3 shrink-0 border-b border-muted/40"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(135deg, transparent 0 10px, rgba(255,255,255,0.03) 10px 11px)",
+        }}
+      />
 
       {/* Command list — virtualized */}
       <VirtualizedCommandList entries={entries} />

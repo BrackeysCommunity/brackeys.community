@@ -13,7 +13,7 @@ export function BackgroundBlobs() {
     >
       {/* Fuchsia blob — upper-left drift */}
       <motion.div
-        className="absolute top-[-15%] left-[-10%] h-[55vw] w-[55vw] rounded-full bg-brackeys-fuscia/15 blur-[140px]"
+        className="absolute top-[-15%] left-[-10%] h-[55vw] w-[55vw] rounded-full bg-brackeys-fuscia/20 blur-[140px]"
         animate={{
           x: [0, 60, -30, 0],
           y: [0, -40, 30, 0],
@@ -26,7 +26,7 @@ export function BackgroundBlobs() {
       />
       {/* Yellow blob — lower-right drift */}
       <motion.div
-        className="absolute top-[45%] right-[-15%] h-[50vw] w-[50vw] rounded-full bg-brackeys-yellow/15 blur-[160px]"
+        className="absolute top-[45%] right-[-15%] h-[50vw] w-[50vw] rounded-full bg-brackeys-purple/20 blur-[160px]"
         animate={{
           x: [0, -50, 30, 0],
           y: [0, 30, -20, 0],

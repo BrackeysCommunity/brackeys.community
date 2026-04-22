@@ -3,12 +3,12 @@ import type { Variants } from "framer-motion";
 import { animate, motion, useMotionValue } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { StatusStrip, type StatusSegment } from "@/components/common/StatusStrip";
 import type { CommandEntryData } from "@/components/home/CommandEntry";
 import { CommandTerminal } from "@/components/home/CommandTerminal";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NodeCard } from "@/components/home/NodeCard";
 import { SectionRule } from "@/components/home/SectionRule";
+import { Hotkey } from "@/components/ui/hotkey";
 import { hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
 import type { BotId } from "@/data/commands";
 import { cn } from "@/lib/utils";
@@ -102,14 +102,14 @@ function HammerGraphic({ active }: { active: boolean }) {
   }, [rotation]);
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden">
+    <div className="flex h-full w-full flex-col justify-center gap-2">
       <span className="font-mono text-[9px] tracking-widest text-muted-foreground/70 uppercase">
         // moderation
       </span>
 
       <svg
         viewBox="0 0 100 60"
-        className="h-16 w-full max-w-[150px] text-accent"
+        className="h-16 w-full text-accent"
         fill="none"
         stroke="currentColor"
         strokeLinecap="round"
@@ -223,7 +223,7 @@ function PencilGraphic({ active }: { active: boolean }) {
   return (
     <div className="flex h-full w-full flex-col justify-center gap-2">
       <span className="font-mono text-[9px] tracking-widest text-muted-foreground/70 uppercase">
-        \\tex render
+        // tex render
       </span>
       <div className="relative h-8">
         <motion.div
@@ -375,15 +375,6 @@ export function CommandCenterPage() {
     [allEntries],
   );
 
-  const statusSegments: StatusSegment[] = [
-    { key: "status", value: "BOT DOCS ONLINE", leadingDot: true },
-    { key: "version", value: `v${__APP_VERSION__}` },
-    { key: "count", value: `${allEntries.length} COMMANDS INDEXED` },
-  ];
-
-  const scopeLabel =
-    activeBot === "all" ? "All Bots" : activeBot.charAt(0).toUpperCase() + activeBot.slice(1);
-
   return (
     <motion.div
       className="flex flex-col gap-8 pb-10 lg:gap-10"
@@ -395,10 +386,7 @@ export function CommandCenterPage() {
         {/* LEFT: status + hero + bot cards */}
         <div className="flex flex-col gap-8">
           <div className="flex flex-col">
-            <motion.div variants={fadeUp}>
-              <StatusStrip segments={statusSegments} />
-            </motion.div>
-            <motion.div variants={fadeUp} className="mt-20 lg:mt-28">
+            <motion.div variants={fadeUp} className="mt-8 lg:mt-12">
               <HeroWordmark primary="BOT" secondary="DOCS" />
             </motion.div>
             <motion.p
@@ -406,10 +394,7 @@ export function CommandCenterPage() {
               className="mt-6 max-w-xl font-sans text-base text-foreground [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] lg:text-lg"
             >
               Full command reference for every bot in the Brackeys server. Filter by bot, jump with{" "}
-              <kbd className="rounded-xs border border-muted/60 bg-muted/40 px-1 font-mono text-xs">
-                ⌘K
-              </kbd>
-              , or browse freely.
+              <Hotkey value="command+k" />, or browse freely.
             </motion.p>
           </div>
 
@@ -419,7 +404,7 @@ export function CommandCenterPage() {
 
           {/* Bot cards */}
           <motion.div
-            className="grid grid-cols-1 gap-4 md:grid-cols-3 md:[&>*]:min-w-0"
+            className="grid grid-cols-1 gap-1 md:grid-cols-3 md:[&>*]:min-w-0"
             variants={cardRow}
           >
             <motion.div variants={fadeUp} className="min-w-0">
@@ -468,7 +453,6 @@ export function CommandCenterPage() {
             totalCount={allEntries.length}
             search={search}
             onSearchChange={setSearch}
-            scopeLabel={scopeLabel}
           />
         </motion.div>
       </div>
