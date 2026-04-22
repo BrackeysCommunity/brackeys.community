@@ -110,13 +110,13 @@ export const marcoMacros: Macro[] = [
     name: "learngit",
     aliases: ["learngithub", "git", "github"],
     description:
-      "__**Git learning resources**__\n- <https://www.atlassian.com/git/tutorials> (Atlassian Git tutorials)\n- <https://www.w3schools.com/git/> (w3schools Git tutorial)\n- <https://www.youtube.com/watch?v=RGOj5yH7evk> (freeCodeCamp Git and GitHub tutorials)\n\n*If you are a looking for the BrackeysBot GitHub page, use `[]source`*",
+      "__**Git learning resources**__\n\n- <https://www.atlassian.com/git/tutorials> (Atlassian Git tutorials)\n- <https://www.w3schools.com/git/> (w3schools Git tutorial)\n- <https://www.youtube.com/watch?v=RGOj5yH7evk> (freeCodeCamp Git and GitHub tutorials)\n\n*If you are a looking for the BrackeysBot GitHub page, use `[]source`*",
   },
   {
     name: "screenshot",
     aliases: [],
     description:
-      "**Capturing a screenshot on Windows**\nUse `Win+Shift+S`, select a region of your screen, and then paste it into Discord using `Ctrl+V`.\n(Works on Windows 11, and Windows 10 April 2017 update or later)\n\n**Capturing a screenshot on macOS**\nUse `Shift+Cmd+4`, select a region of your screen, and then paste it into Discord using `Cmd+V`.\n\n**Capturing a screenshot on Linux**\nThe screenshot shortcut may vary between distros.\nIf you are using Ubuntu: use `Shift+PrintScreen`, select a region of your screen, and then paste it into Discord using `Ctrl+V`.",
+      "**Capturing a screenshot on Windows**\n\nUse `Win+Shift+S`, select a region of your screen, and then paste it into Discord using `Ctrl+V`.\n(Works on Windows 11, and Windows 10 April 2017 update or later)\n\n**Capturing a screenshot on macOS**\nUse `Shift+Cmd+4`, select a region of your screen, and then paste it into Discord using `Cmd+V`.\n\n**Capturing a screenshot on Linux**\nThe screenshot shortcut may vary between distros.\nIf you are using Ubuntu: use `Shift+PrintScreen`, select a region of your screen, and then paste it into Discord using `Ctrl+V`.",
   },
   {
     name: "tryit",
@@ -162,7 +162,7 @@ export const marcoMacros: Macro[] = [
     name: "projectideas",
     aliases: ["projectidea"],
     description:
-      "These are some links with ideas for small projects!\n- <https://github.com/karan/Projects>\n- <https://github.com/joereynolds/what-to-code>\n- <http://andrewcombs13.com/projectIdeas/>\n- <https://www.reddit.com/r/dailyprogrammer/>\n- <https://qph.fs.quoracdn.net/main-qimg-2fa8b318be75adf3d32f85eb42d2422e-c>\n- <https://github.com/scraggo/bookmarks-programming/blob/master/project-ideas.md>\n- <https://rosettacode.org/wiki/Category:Programming_Tasks>",
+      "These are some links with ideas for small projects!\n\n- <https://github.com/karan/Projects>\n- <https://github.com/joereynolds/what-to-code>\n- <http://andrewcombs13.com/projectIdeas/>\n- <https://www.reddit.com/r/dailyprogrammer/>\n- <https://qph.fs.quoracdn.net/main-qimg-2fa8b318be75adf3d32f85eb42d2422e-c>\n- <https://github.com/scraggo/bookmarks-programming/blob/master/project-ideas.md>\n- <https://rosettacode.org/wiki/Category:Programming_Tasks>",
   },
   {
     name: "tape",
@@ -190,7 +190,7 @@ export const marcoMacros: Macro[] = [
     name: "basics",
     aliases: [],
     description:
-      "__**Why are the basics important?**__\nWe understand, games are amazing so what could be even better than making games?! The downside is, there are a lot of different aspects to game development that have to come together. Jumping into the deep can, for some, work. But often times it’ll be extremely intimidating and will cause you to run into issues not related to game development, but much rather with the basics of the discipline. Especially when programming this occurs quite a bit, for example not knowing the basic structure of a script. And when you have to learn both the basics of programming, together with the basics of Unity, you make it harder for yourself than it needs to be due to Unity’s API which you’d also have to learn how to use, and in a lot of cases uses more advanced topics than just the basics.\n\nIf you however start learning C# on it’s own you gain experience with programming, and are later able to implement the things you’ve learned doing just programming, while learning Unity. Meaning there are less things for you to learn, and more game making for you to do.",
+      "__**Why are the basics important?**__\n\nWe understand, games are amazing so what could be even better than making games?! The downside is, there are a lot of different aspects to game development that have to come together. Jumping into the deep can, for some, work. But often times it’ll be extremely intimidating and will cause you to run into issues not related to game development, but much rather with the basics of the discipline. Especially when programming this occurs quite a bit, for example not knowing the basic structure of a script. And when you have to learn both the basics of programming, together with the basics of Unity, you make it harder for yourself than it needs to be due to Unity’s API which you’d also have to learn how to use, and in a lot of cases uses more advanced topics than just the basics.\n\nIf you however start learning C# on it’s own you gain experience with programming, and are later able to implement the things you’ve learned doing just programming, while learning Unity. Meaning there are less things for you to learn, and more game making for you to do.",
   },
   {
     name: "nocode",
@@ -214,13 +214,13 @@ export const marcoMacros: Macro[] = [
     name: "poorquestion",
     aliases: ["poorq", "badq"],
     description:
-      "__**It's hard to answer a poorly asked question**__\nIn order for someone to be able to help you, they must understand the issue/code/etc. properly. Not posting the code/explaining the issue/etc. would make it very inconvenient for the helper. Please make sure your question has the proper information and structure so that other users will be able to help you much efficiently, and thus solve your problem more easily and fast.\n\nWe recommend taking a look at this video to know what makes a good question:\nhttps://www.youtube.com/watch?v=53zkBvL4ZB4",
+      "__**It's hard to answer a poorly asked question**__\n\nIn order for someone to be able to help you, they must understand the issue/code/etc. properly. Not posting the code/explaining the issue/etc. would make it very inconvenient for the helper. Please make sure your question has the proper information and structure so that other users will be able to help you much efficiently, and thus solve your problem more easily and fast.\n\nWe recommend taking a look at this video to know what makes a good question:\nhttps://www.youtube.com/watch?v=53zkBvL4ZB4",
   },
   {
     name: "nointellisense",
     aliases: ["noint", "intellisense"],
     description:
-      "__**How to deal with no VS intellisense problem:**__\nIf you have opened script and see Miscellaneous Files in place where should be name of your project (see screenshot below) it means that the file was not correctly loaded into project or you don't have any project loaded. Follow these steps to fix this:\n- *Unity tools and Unity IDE preference* - make sure to install the Visual Studio Tools for Unity in your VS Installer and check the Unity preferences `Edit - Preferences - External Tools` and verify that the right External Script Editor is selected (you want Visual Studio there).\n- *Reload project* - `View - Solution Explorer` right click on project and click Unload project then right click on it again and load it again. If you don't see any project in Solution Explorer then move to the next step.\n- Regenerate solution files - Remove the `.sln` and `.csproj` files from root of your unity project (in File Explorer), they will be regenerated next time you open script from Unity.\n\n__**How to deal with no VSCode intellisense problem:**__\nFollow the guidelines on this page:\n<https://code.visualstudio.com/docs/other/unity>\n\nhttps://media.discordapp.net/attachments/674324348559032320/1207285047141470218/image.png?ex=65df16d1&is=65cca1d1&hm=f3c3ae40d3df7b47f31d20ae8da60125679b4e18ca2943921726fe5f167a9fad&=&format=webp&quality=lossless&width=654&height=186",
+      "__**How to deal with no VS intellisense problem:**__\n\nIf you have opened script and see Miscellaneous Files in place where should be name of your project (see screenshot below) it means that the file was not correctly loaded into project or you don't have any project loaded. Follow these steps to fix this:\n- *Unity tools and Unity IDE preference* - make sure to install the Visual Studio Tools for Unity in your VS Installer and check the Unity preferences `Edit - Preferences - External Tools` and verify that the right External Script Editor is selected (you want Visual Studio there).\n- *Reload project* - `View - Solution Explorer` right click on project and click Unload project then right click on it again and load it again. If you don't see any project in Solution Explorer then move to the next step.\n- Regenerate solution files - Remove the `.sln` and `.csproj` files from root of your unity project (in File Explorer), they will be regenerated next time you open script from Unity.\n\n__**How to deal with no VSCode intellisense problem:**__\n\nFollow the guidelines on this page:\n<https://code.visualstudio.com/docs/other/unity>\n\nhttps://media.discordapp.net/attachments/674324348559032320/1207285047141470218/image.png?ex=65df16d1&is=65cca1d1&hm=f3c3ae40d3df7b47f31d20ae8da60125679b4e18ca2943921726fe5f167a9fad&=&format=webp&quality=lossless&width=654&height=186",
   },
   {
     name: "imageofcode",
@@ -250,13 +250,13 @@ export const marcoMacros: Macro[] = [
     name: "getareference",
     aliases: ["ref", "reference", "getref"],
     description:
-      '__**How to get a reference**__\n"How do I access a variable from another script?" is usually one of the first questions we ask when learning Unity. Whether you are C# beginner or a C# professional, understanding the way Unity does things differently can be confusing.\n\n🌳 __If the objects are already present in the scene hierarchy...__\n... then you can use the SerializeField attribute on a field, and assign it by dragging the object which has the script you want to access onto the field slot. This also works if the two scripts are on the same object.\n```cs\n[SerializeField] private SomeScript someScript;\n```\n\n<:prefab:797631836121595935> __If the objects are instantiated prefabs...__\n... then you can use a form of injection after you call Instantiate:\n`SomeScript.cs`\n```cs\npublic GameManager TheManager { get; set; }\n```\n`GameManager.cs`\n```cs\nvar clone = Instantiate(prefab);\nclone.GetComponent<SomeScript>().TheManager = this;\n```',
+      '__**How to get a reference**__\n\n"How do I access a variable from another script?" is usually one of the first questions we ask when learning Unity. Whether you are C# beginner or a C# professional, understanding the way Unity does things differently can be confusing.\n\n🌳 __If the objects are already present in the scene hierarchy...__\n... then you can use the SerializeField attribute on a field, and assign it by dragging the object which has the script you want to access onto the field slot. This also works if the two scripts are on the same object.\n```cs\n[SerializeField] private SomeScript someScript;\n```\n\n<:prefab:797631836121595935> __If the objects are instantiated prefabs...__\n... then you can use a form of injection after you call Instantiate:\n`SomeScript.cs`\n```cs\npublic GameManager TheManager { get; set; }\n```\n`GameManager.cs`\n```cs\nvar clone = Instantiate(prefab);\nclone.GetComponent<SomeScript>().TheManager = this;\n```',
   },
   {
     name: "gameidea",
     aliases: [],
     description:
-      "Want to make a game but don't have an idea?\nTry using https://seblague.github.io/ideagenerator/ !",
+      "Want to make a game but don't have an idea?\n\nTry using https://seblague.github.io/ideagenerator/ !",
   },
   {
     name: "deltatime",
@@ -359,7 +359,7 @@ export const marcoMacros: Macro[] = [
     name: "ianal",
     aliases: ["lawyer", "legal", "legaladvice", "wanl"],
     description:
-      "__**We Are Not Lawyers**__\nWe are a community of game dev and programming enthusiasts, and should not be a substitute for professional legal advice.\n\nDo not take legal advice from random strangers on the internet. Please consult with a lawyer.",
+      "__**We Are Not Lawyers**__\n\nWe are a community of game dev and programming enthusiasts, and should not be a substitute for professional legal advice.\n\nDo not take legal advice from random strangers on the internet. Please consult with a lawyer.",
   },
   {
     name: "helpchat",

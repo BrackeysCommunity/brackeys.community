@@ -1,9 +1,11 @@
 import { LegalHammerIcon, PencilIcon, Robot01Icon } from "@hugeicons/core-free-icons";
+import { useStore } from "@tanstack/react-store";
 import type { Variants } from "framer-motion";
 import { animate, motion, useMotionValue } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CommandEntryData } from "@/components/home/CommandEntry";
+import { buildCopyText } from "@/components/home/CommandRow";
 import { CommandTerminal } from "@/components/home/CommandTerminal";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NodeCard } from "@/components/home/NodeCard";
@@ -11,6 +13,7 @@ import { SectionRule } from "@/components/home/SectionRule";
 import { Hotkey } from "@/components/ui/hotkey";
 import { hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
 import type { BotId } from "@/data/commands";
+import { activeUserStore } from "@/lib/active-user-store";
 import { cn } from "@/lib/utils";
 
 type ActiveBot = "all" | BotId;
@@ -19,40 +22,49 @@ type ActiveBot = "all" | BotId;
 // Commands and macros both flow into the same terminal list. Commands keep
 // their option-based copy text; macros use the `/macro name:…` form.
 
-function buildEntries(): (CommandEntryData & { bot: BotId })[] {
+function buildEntries(username?: string): (CommandEntryData & { bot: BotId })[] {
   const commands: (CommandEntryData & { bot: BotId })[] = [
     ...hammerCommands,
     ...pencilCommands,
-  ].map((c, i) => ({
-    id: c.id,
-    index: i + 1,
-    label: c.cmd,
-    bot: c.bot,
-    description: c.description,
-    body: c.options
-      ?.map(
-        (o) =>
-          `- **${o.name}**${o.required ? " (required)" : ""}: ${o.description}${
-            o.default ? ` — default \`${o.default}\`` : ""
-          }`,
-      )
-      .join("\n"),
-    aliases: [],
-    copyText: c.cmd,
-  }));
+  ].map((c, i) => {
+    // Mirror CommandRow's option-list logic: hide `mention` when no active
+    // username is set, render as `name: description` + optional required tag,
+    // and let buildCopyText own the default-value formatting in the example.
+    const visibleOptions = c.options?.filter((o) => username || o.name !== "mention") ?? [];
+    const body = visibleOptions.length
+      ? visibleOptions
+          .map((o) => `- \`${o.name}\`: ${o.description}${o.required ? " _(required)_" : ""}`)
+          .join("\n")
+      : undefined;
+
+    return {
+      id: c.id,
+      index: i + 1,
+      label: c.cmd,
+      bot: c.bot,
+      description: c.description,
+      body,
+      aliases: [],
+      copyText: buildCopyText(c, username),
+    };
+  });
+
+  // Marco macro descriptions use Discord-flavored conventions: `• ` bullets and
+  // `<url>` autolinks. Convert bullets to markdown list syntax and ensure a
+  // blank line precedes the list so marked parses it as a real <ul>.
+  const normalizeMarkdown = (src: string) =>
+    src.replace(/^• /gm, "- ").replace(/([^\n])\n(- )/g, "$1\n\n$2");
 
   const macros: (CommandEntryData & { bot: BotId })[] = marcoMacros.map((m, i) => ({
     id: `macro:${m.name}`,
     index: commands.length + i + 1,
-    label: `/${m.name}`,
+    label: `[]${m.name}`,
     bot: "marco" as const,
-    description: m.description
-      .split("\n")[0]
-      .replace(/__|\*\*/g, "")
-      .slice(0, 140),
-    body: m.description,
+    description: m.description.split("\n")[0].slice(0, 200),
+    body: normalizeMarkdown(m.description),
     aliases: m.aliases,
     copyText: `/macro name:${m.name}`,
+    altCopyText: `[]${m.name}`,
   }));
 
   return [...commands, ...macros];
@@ -348,8 +360,10 @@ const cardRow: Variants = {
 export function CommandCenterPage() {
   const [search, setSearch] = useState("");
   const [activeBot, setActiveBot] = useState<ActiveBot>("all");
+  const user = useStore(activeUserStore);
+  const username = user.profile?.discordUsername ?? undefined;
 
-  const allEntries = useMemo(() => buildEntries(), []);
+  const allEntries = useMemo(() => buildEntries(username), [username]);
 
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();

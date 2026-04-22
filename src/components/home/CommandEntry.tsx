@@ -20,6 +20,8 @@ export interface CommandEntryData {
   aliases?: string[];
   tags?: string[];
   copyText: string;
+  /** Optional shorter form shown alongside `copyText` (e.g. Marco's `[]name`). */
+  altCopyText?: string;
 }
 
 interface CommandEntryProps {
@@ -47,7 +49,7 @@ export function CommandEntry({ entry }: CommandEntryProps) {
   };
 
   return (
-    <li className="group/row relative border-b border-muted/40 transition-colors last:border-b-0 hover:bg-muted/40 has-[>button:focus-visible]:bg-muted/30 has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-primary">
+    <li className="group/row relative border-b border-muted-foreground/20 transition-colors hover:bg-muted/40 has-[>button:focus-visible]:bg-muted/30 has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-primary">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -73,7 +75,7 @@ export function CommandEntry({ entry }: CommandEntryProps) {
             </Badge>
             {entry.aliases?.map((alias) => (
               <Badge key={alias} variant="outline" className="font-mono text-[10px]">
-                /{alias}
+                []{alias}
               </Badge>
             ))}
           </div>
@@ -96,9 +98,12 @@ export function CommandEntry({ entry }: CommandEntryProps) {
           )}
         >
           <div className="overflow-hidden">
-            <p className="truncate px-4 pb-2.5 pl-[52px] font-mono text-xs text-muted-foreground">
+            <MarkedText
+              inline
+              className="block truncate px-4 pb-2.5 pl-[52px] text-xs text-muted-foreground"
+            >
               {entry.description}
-            </p>
+            </MarkedText>
           </div>
         </div>
       </button>
@@ -115,21 +120,29 @@ export function CommandEntry({ entry }: CommandEntryProps) {
         <div className="overflow-hidden border-l-2 border-primary/60 bg-muted/20">
           <div className="px-4 py-3 pl-[52px]">
             {entry.body ? (
-              <MarkedText className="font-mono text-xs text-muted-foreground">
-                {entry.body}
-              </MarkedText>
+              <MarkedText className="text-xs text-muted-foreground">{entry.body}</MarkedText>
             ) : (
-              <p className="font-mono text-xs text-foreground">{entry.description}</p>
+              <p className="text-xs text-foreground">{entry.description}</p>
             )}
 
             <div className="mt-3 flex items-center justify-between gap-3 border-t border-muted/30 pt-3">
-              <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                 <span className="shrink-0 font-mono text-xs tracking-widest text-muted-foreground uppercase">
                   Example:
                 </span>
                 <InlineCode className="min-w-0 truncate border-brackeys-yellow/40 bg-brackeys-yellow-muted/20 px-2 py-1 text-xs text-brackeys-yellow [--emboss-shadow:var(--color-brackeys-yellow)]">
                   {entry.copyText}
                 </InlineCode>
+                {entry.altCopyText && (
+                  <>
+                    <span className="shrink-0 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                      or
+                    </span>
+                    <InlineCode className="min-w-0 truncate border-brackeys-yellow/40 bg-brackeys-yellow-muted/20 px-2 py-1 text-xs text-brackeys-yellow [--emboss-shadow:var(--color-brackeys-yellow)]">
+                      {entry.altCopyText}
+                    </InlineCode>
+                  </>
+                )}
               </div>
               <Button
                 data-magnetic

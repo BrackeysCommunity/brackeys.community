@@ -4,7 +4,7 @@ import { type ComponentProps, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 const inlineCodeVariants = cva(
-  "chonk-emboss pointer-events-none relative -mb-0.5 inline-flex items-center rounded border px-1 py-0.5 align-baseline font-mono text-[0.9em] leading-none [--chonk-lift-hover:2px] [--chonk-lift:2px] active:transition-none",
+  "chonk-emboss pointer-events-none relative -mb-0.5 inline-flex items-center rounded border px-1 py-0.5 align-baseline font-mono text-[0.9em] leading-none not-italic [--chonk-lift-hover:2px] [--chonk-lift:2px] active:transition-none",
   {
     variants: {
       variant: {
