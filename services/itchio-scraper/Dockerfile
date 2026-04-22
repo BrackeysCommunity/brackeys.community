@@ -5,7 +5,7 @@
 FROM oven/bun:1.3-slim AS deps
 WORKDIR /app
 COPY services/itchio-scraper/package.json ./services/itchio-scraper/package.json
-RUN cd services/itchio-scraper && bun install --production=false
+RUN cd services/itchio-scraper && bun install
 
 FROM oven/bun:1.3-slim AS runtime
 ENV NODE_ENV=production
