@@ -5,21 +5,22 @@ per-submission rankings) and syncs it into the main brackeys Postgres DB.
 
 ## What it scrapes
 
-| Source                                  | Access                                                                                                               | Captured fields                                                                                                                                             |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/jams/upcoming` (page 1)               | puppeteer (Browserless)                                                                                              | jam slugs for forward discovery                                                                                                                             |
-| `/search?q=brackeys&type=jams` (page 1) | puppeteer (Browserless)                                                                                              | jam slugs for one-time Brackeys backfill                                                                                                                    |
-| `/jam/{slug}`                           | puppeteer (Browserless)                                                                                              | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                           |
-| `/jam/{jamId}/entries.json`             | plain `fetch` (undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries)) | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors |
-| `/jam/{slug}/rate/{gameId}`             | puppeteer (Browserless)                                                                                              | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                            |
+| Source                                     | Access                                                                                                               | Captured fields                                                                                                                                             |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/jams/upcoming` (paginated)               | puppeteer (Browserless)                                                                                              | jam slugs for forward discovery                                                                                                                             |
+| `/search?q=brackeys&type=jams` (paginated) | puppeteer (Browserless)                                                                                              | jam slugs for one-time Brackeys backfill                                                                                                                    |
+| `/jam/{slug}`                              | puppeteer (Browserless)                                                                                              | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                           |
+| `/jam/{jamId}/entries.json`                | plain `fetch` (undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries)) | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors |
+| `/jam/{slug}/rate/{gameId}`                | puppeteer (Browserless)                                                                                              | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                            |
 
 ### How slugs are chosen each tick
 
 The sync set is the union of three buckets:
 
-1. **Upcoming discovery** — every slug on page 1 of `/jams/upcoming`. Always
-   synced so we catch newly-announced jams as soon as they appear.
-2. **Brackeys backfill** — every slug on page 1 of
+1. **Upcoming discovery** — every slug on every page of `/jams/upcoming`,
+   walked until itch stops rendering a "Next" pager link. Always synced so
+   we catch newly-announced jams as soon as they appear.
+2. **Brackeys backfill** — every slug from every page of
    `/search?q=brackeys&type=jams` **that isn't already in `itch.jams`**.
    Brings in historical Brackeys jams (brackeys-1 … brackeys-15) the first
    time we see them, then drops out of the bucket forever.
