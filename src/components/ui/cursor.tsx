@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from "framer-motion";
 import * as React from "react";
 
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { useCursorState } from "@/lib/hooks/use-cursor";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +58,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const isText = cursorState.type === "text";
 
   const [isPressed, setIsPressed] = React.useState(false);
-  const [isMobile, setIsMobile] = React.useState(false);
+  const isMobile = useIsTouchDevice();
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
@@ -85,11 +86,6 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const sc2y = useSpring(c2y, CORNER_SPRING);
   const sc3x = useSpring(c3x, CORNER_SPRING);
   const sc3y = useSpring(c3y, CORNER_SPRING);
-
-  React.useEffect(() => {
-    const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-    setIsMobile(hasTouch && window.innerWidth <= 768);
-  }, []);
 
   React.useEffect(() => {
     if (isMobile) return;

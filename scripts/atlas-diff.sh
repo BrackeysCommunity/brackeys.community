@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Calculate next sequence number from existing migrations
-LAST=$(find drizzle -maxdepth 1 -name '*.sql' -printf '%f\n' | grep -oP '^\d+' | sort -rn | head -1)
+# Calculate next sequence number from existing migrations.
+# Uses POSIX find + sed instead of GNU-only `-printf` / `grep -P` so the
+# script works on macOS BSD utilities as well as Linux GNU.
+LAST=$(find drizzle -maxdepth 1 -name '*.sql' -exec basename {} \; \
+  | sed -n 's/^\([0-9]\{1,\}\)_.*/\1/p' \
+  | sort -rn | head -1)
+LAST=${LAST:-0}
 NEXT=$(printf "%04d" $(( 10#$LAST + 1 )))
 
 # Run atlas migrate diff, passing through all arguments

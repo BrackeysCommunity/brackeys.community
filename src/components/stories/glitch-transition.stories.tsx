@@ -20,13 +20,7 @@ const meta: Meta<typeof GlitchTransition> = {
 export default meta;
 type Story = StoryObj<typeof GlitchTransition>;
 
-function DemoCard({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
+function DemoCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="flex w-[320px] flex-col gap-2 border border-border bg-card p-6">
       <div className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
@@ -65,9 +59,9 @@ export const Overview: Story = {
             </code>
           </pre>
           <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
-            A zero-styling wrapper that applies configurable sci-fi glitch transitions
-            (jitter, skew, RGB split, slice cuts, flicker, optional scanlines) to any
-            frame, card, or page-level content. Children keep their own layout and state.
+            A zero-styling wrapper that applies configurable sci-fi glitch transitions (jitter,
+            skew, RGB split, slice cuts, flicker, optional scanlines) to any frame, card, or
+            page-level content. Children keep their own layout and state.
           </Text>
         </section>
 
@@ -197,16 +191,13 @@ export const Overview: Story = {
           </Heading>
           <Text as="p" size="xs" variant="muted">
             <InlineCode>intensity</InlineCode> (0–1) scales displacement, skew, and RGB split
-            together. Override any individually via{" "}
-            <InlineCode>displacement</InlineCode>, <InlineCode>skew</InlineCode>,{" "}
-            <InlineCode>rgbSplit</InlineCode>.
+            together. Override any individually via <InlineCode>displacement</InlineCode>,{" "}
+            <InlineCode>skew</InlineCode>, <InlineCode>rgbSplit</InlineCode>.
           </Text>
           <div className="grid grid-cols-3 gap-6 border border-border bg-card p-8">
             {[0.3, 0.7, 1].map((i) => (
               <div key={i} className="flex flex-col gap-2">
-                <div className="font-mono text-[10px] text-muted-foreground">
-                  intensity={i}
-                </div>
+                <div className="font-mono text-[10px] text-muted-foreground">intensity={i}</div>
                 <GlitchTransition trigger="continuous" duration={1.8} intensity={i}>
                   <div className="flex h-24 w-full items-center justify-center border border-border bg-background font-mono text-xs text-foreground">
                     {`LVL_${i}`}
@@ -257,12 +248,8 @@ export const Overview: Story = {
           </Text>
           <GlitchTransition duration={0.9} intensity={1} scanlines>
             <div className="flex w-[640px] flex-col gap-4 border border-border bg-card p-10">
-              <div className="font-mono text-xs text-muted-foreground">
-                // ROUTE / dashboard
-              </div>
-              <div className="font-mono text-2xl font-bold text-foreground">
-                CONTROL_DECK
-              </div>
+              <div className="font-mono text-xs text-muted-foreground">// ROUTE / dashboard</div>
+              <div className="font-mono text-2xl font-bold text-foreground">CONTROL_DECK</div>
               <div className="grid grid-cols-3 gap-3">
                 {["PWR", "NET", "MEM"].map((k) => (
                   <div
@@ -299,23 +286,19 @@ export const Overview: Story = {
               <span className="text-primary">intensity</span>
               <span className="text-muted-foreground">0–1 — default 1</span>
               <span className="text-primary">displacement / skew / rgbSplit</span>
-              <span className="text-muted-foreground">
-                fine-grained overrides in px / deg
-              </span>
+              <span className="text-muted-foreground">fine-grained overrides in px / deg</span>
               <span className="text-primary">colorA / colorB</span>
               <span className="text-muted-foreground">RGB split channel tints</span>
               <span className="text-primary">scanlines</span>
               <span className="text-muted-foreground">CRT overlay while active</span>
               <span className="text-primary">flicker</span>
               <span className="text-primary">onGlitchEnd</span>
-              <span className="text-muted-foreground">
-                fires when one-shot animation completes
-              </span>
+              <span className="text-muted-foreground">fires when one-shot animation completes</span>
             </div>
           </div>
           <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
-            Respects <InlineCode>prefers-reduced-motion</InlineCode> — animation and RGB
-            layers are disabled for users who opted out.
+            Respects <InlineCode>prefers-reduced-motion</InlineCode> — animation and RGB layers are
+            disabled for users who opted out.
           </Text>
         </section>
       </>
