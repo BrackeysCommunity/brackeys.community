@@ -30,6 +30,16 @@ vi.mock("framer-motion", () => {
   };
 });
 
+// CountUp drives a spring animation off intersection observer state, neither
+// of which is meaningful in jsdom; render the final value statically so the
+// carousel tests can assert on joined/entries counts.
+vi.mock("@/components/ui/count-up", () => ({
+  CountUp: ({ to, separator = "" }: { to: number; separator?: string }) => {
+    const formatted = new Intl.NumberFormat("en-US", { useGrouping: !!separator }).format(to);
+    return <span>{separator ? formatted.replace(/,/g, separator) : formatted}</span>;
+  },
+}));
+
 vi.mock("@hugeicons/react", () => ({
   HugeiconsIcon: ({ icon }: { icon: string }) => <span data-testid={`icon-${icon}`} />,
 }));
