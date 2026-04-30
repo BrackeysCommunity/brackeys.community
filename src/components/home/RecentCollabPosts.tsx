@@ -1,5 +1,3 @@
-import { ArrowRight02Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
@@ -60,24 +58,24 @@ export function RecentCollabPosts() {
 
   return (
     <section className="flex flex-col gap-4">
-      <header className="flex items-end justify-between gap-3">
-        <div>
-          <div className="font-mono text-[10px] tracking-widest text-muted-foreground">§ 02</div>
-          <h2 className="font-mono text-3xl font-bold tracking-tight">RECENT COLLAB POSTS</h2>
-          <p className="mt-1 font-sans text-sm text-muted-foreground">
-            Latest roles, playtests, and mentorships off the collab board.
-          </p>
+      <header className="flex flex-col gap-2">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-widest text-muted-foreground">§ 02</div>
+            <h2 className="font-mono text-2xl font-bold tracking-tight md:text-3xl">
+              RECENT COLLAB POSTS
+            </h2>
+          </div>
+          <Link
+            to="/collab"
+            className="shrink-0 font-mono text-[11px] font-bold tracking-widest whitespace-nowrap text-muted-foreground"
+          >
+            OPEN BOARD ▸
+          </Link>
         </div>
-        <Chonk
-          variant="surface"
-          size="sm"
-          render={<Link to="/collab" aria-label="Open board" />}
-          className="flex items-center gap-2 px-3 py-2 font-mono text-[11px] font-bold tracking-widest text-muted-foreground"
-        >
-          <HugeiconsIcon icon={UserGroupIcon} size={14} />
-          OPEN BOARD
-          <HugeiconsIcon icon={ArrowRight02Icon} size={12} />
-        </Chonk>
+        <p className="font-sans text-sm text-muted-foreground">
+          Latest roles, playtests, and mentorships off the collab board.
+        </p>
       </header>
 
       <div className="grid gap-3 md:grid-cols-3">

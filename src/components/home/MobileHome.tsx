@@ -14,7 +14,6 @@ import { FeaturedJamCarousel } from "@/components/home/FeaturedJamCarousel";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
-import { SectionRule } from "@/components/home/SectionRule";
 import { Chonk } from "@/components/ui/chonk";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
@@ -78,8 +77,7 @@ export function MobileHome() {
 
       {/* Enter Node — horizontal scroll */}
       <div className="flex flex-col gap-3">
-        <SectionRule label="Enter Node" />
-        <div className="-mx-4 flex snap-x snap-mandatory gap-1.5 overflow-x-auto py-3 pr-4 pl-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-4 flex snap-x snap-mandatory scroll-pl-6 gap-1.5 overflow-x-auto py-3 pr-4 pl-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV_TILES.map((tile) => {
             const inner = (
               <div className="flex h-full flex-col justify-between gap-1 px-3 py-2.5">
