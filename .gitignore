@@ -17,3 +17,4 @@ todos.json
 .codex-schemas
 /storybook-static
 build-storybook.log
+coverage
