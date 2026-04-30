@@ -37,4 +37,4 @@ export const themes: Theme[] = [
   },
 ];
 
-export const DEFAULT_THEME_ID = "brackeys";
+export const DEFAULT_THEME_ID = "nord";

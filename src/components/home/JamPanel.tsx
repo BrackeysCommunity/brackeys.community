@@ -248,7 +248,7 @@ export function JamPanel({ className }: { className?: string }) {
           data-magnetic-strength=""
           data-cursor-no-drift
           notchOpts={{
-            corners: ["tl", "br"]
+            corners: ["tl", "br"],
           }}
           variant="outline"
           size="sm"

@@ -1,13 +1,7 @@
-import {
-  Cancel01Icon,
-  Clock01Icon,
-  ComputerTerminal01Icon,
-  Menu01Icon,
-} from "@hugeicons/core-free-icons";
+import { Cancel01Icon, ComputerTerminal01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useInterval } from "ahooks";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -47,15 +41,8 @@ function MagneticLink({ children, className }: { children: React.ReactNode; clas
   );
 }
 
-const getUtcTime = () => {
-  const now = new Date();
-  return `UTC ${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
-};
-
 export function AppHeader() {
-  const [utcTime, setUtcTime] = useState(getUtcTime);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  useInterval(() => setUtcTime(getUtcTime()), 1000);
   const { setOpen: openPalette } = useCommandPalette();
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -156,11 +143,6 @@ export function AppHeader() {
             </MagneticLink>
           </nav>
 
-          <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-            <HugeiconsIcon icon={Clock01Icon} size={14} />
-            <span>{utcTime}</span>
-          </div>
-
           <Button
             variant="outline"
             size="sm"
@@ -248,11 +230,7 @@ export function AppHeader() {
               >
                 PROFILE
               </Link>
-              <div className="mt-2 flex items-center justify-between border-t border-muted/20 px-4 pt-3">
-                <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                  <HugeiconsIcon icon={Clock01Icon} size={14} />
-                  <span>{utcTime}</span>
-                </div>
+              <div className="mt-2 flex items-center justify-end border-t border-muted/20 px-4 pt-3">
                 {session?.user ? (
                   <UserMenu user={session.user} />
                 ) : (

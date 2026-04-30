@@ -21,7 +21,7 @@ import {
 } from "./collab";
 import { syncGitHubLink, unlinkGitHub, getContributions } from "./github";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
-import { getJamData } from "./jam";
+import { getJamData, listJams } from "./jam";
 import {
   getProfile,
   getMyProfile,
@@ -43,6 +43,7 @@ import {
 
 export default {
   getJamData,
+  listJams,
   getProfile,
   getMyProfile,
   updateProfile,

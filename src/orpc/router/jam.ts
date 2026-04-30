@@ -1,6 +1,9 @@
 import { os } from "@orpc/server";
+import { and, asc, desc, gt, isNull, lte, or, sql } from "drizzle-orm";
 import * as z from "zod";
 
+import { db } from "@/db";
+import { itchJams } from "@/db/schema";
 import type { JamEntry } from "@/lib/jam-store";
 
 // Feb 22, 2026 at 5:00 AM CST = 11:00 AM UTC
@@ -86,3 +89,57 @@ export const getJamData = os.input(z.object({})).handler(async () => {
 
   return { joinedCount, submissionCount, ratingCount, submissions };
 });
+
+/**
+ * Filtering uses date comparisons rather than the `status` column because the
+ * scraper's status snapshot lags reality (and itch's own status field is
+ * occasionally stale).
+ */
+export const listJams = os
+  .input(
+    z.object({
+      filter: z.enum(["live", "upcoming", "active", "all"]).default("active"),
+      sortBy: z.enum(["soonest", "popularity"]).default("soonest"),
+      limit: z.number().min(1).max(100).default(20),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const now = new Date();
+
+    const isLive = and(
+      lte(itchJams.startsAt, now),
+      or(gt(itchJams.endsAt, now), isNull(itchJams.endsAt)),
+    );
+    const isUpcoming = gt(itchJams.startsAt, now);
+
+    const where = (() => {
+      switch (input.filter) {
+        case "live":
+          return isLive;
+        case "upcoming":
+          return isUpcoming;
+        case "active":
+          return or(isLive, isUpcoming);
+        case "all":
+          return undefined;
+      }
+    })();
+
+    // For "soonest" we sort by upcoming-first (asc startsAt) which naturally
+    // surfaces live jams (already started) ahead of true upcoming. For
+    // "popularity" we order by entriesCount desc (closest proxy we have for
+    // joined-count since itch only exposes joined via HTML scraping).
+    const orderBy =
+      input.sortBy === "popularity"
+        ? [desc(sql`COALESCE(${itchJams.entriesCount}, 0)`), asc(itchJams.endsAt)]
+        : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
+
+    const jams = await db
+      .select()
+      .from(itchJams)
+      .where(where)
+      .orderBy(...orderBy)
+      .limit(input.limit);
+
+    return { jams };
+  });

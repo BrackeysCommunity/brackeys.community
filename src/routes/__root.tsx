@@ -1,9 +1,8 @@
-import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { lazy, Suspense } from "react";
 
+import { SiteFooter } from "@/components/home/SiteFooter";
 import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
@@ -11,15 +10,19 @@ const AppHeader = lazy(() =>
   import("@/components/layout/AppHeader").then((m) => ({ default: m.AppHeader })),
 );
 
+const MobileShell = lazy(() =>
+  import("@/components/layout/MobileShell").then((m) => ({ default: m.MobileShell })),
+);
+
 import { Cursor } from "@/components/ui/cursor";
 import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
 
-import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
 
 import fontsCss from "../fonts.css?url";
@@ -39,7 +42,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Brackeys Community" },
     ],
     links: [
@@ -98,7 +101,7 @@ function RoutePendingFallback() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark" data-theme="brackeys">
+    <html lang="en" className="dark" data-theme="nord">
       <head>
         <HeadContent />
         <script
@@ -143,17 +146,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <CommandPaletteProvider>
                   <PageLayoutProvider>
                     <CommandPalette />
-                    <Suspense>
-                      <AppHeader />
-                    </Suspense>
-                    <TwoColumnShell>{children}</TwoColumnShell>
-                    <TanStackDevtools
-                      config={{ position: "bottom-right" }}
-                      plugins={[
-                        { name: "Tanstack Router", render: <TanStackRouterDevtoolsPanel /> },
-                        TanStackQueryDevtools,
-                      ]}
-                    />
+                    <ResponsiveShell>{children}</ResponsiveShell>
                   </PageLayoutProvider>
                 </CommandPaletteProvider>
               </TooltipProvider>
@@ -164,6 +157,27 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
+  );
+}
+
+function ResponsiveShell({ children }: { children: React.ReactNode }) {
+  const isTouch = useIsTouchDevice();
+
+  if (isTouch) {
+    return (
+      <Suspense>
+        <MobileShell>{children}</MobileShell>
+      </Suspense>
+    );
+  }
+
+  return (
+    <>
+      <Suspense>
+        <AppHeader />
+      </Suspense>
+      <TwoColumnShell>{children}</TwoColumnShell>
+    </>
   );
 }
 
@@ -182,9 +196,13 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         className="mx-auto flex w-full max-w-480 flex-1 overflow-x-hidden pt-14"
       >
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="bk-page-transition flex min-h-full w-full flex-col p-4 selection:bg-primary selection:text-white sm:p-6 sm:pb-20 lg:p-10 lg:pb-28 xl:p-14 xl:pb-32">
+          <div
+            className="bk-page-transition flex w-full shrink-0 flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14"
+            style={{ minHeight: "100%" }}
+          >
             {children}
           </div>
+          <SiteFooter />
         </div>
       </div>
     );
@@ -199,9 +217,13 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       <div
         className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
-        <div className="bk-page-transition flex min-h-full w-full flex-col justify-center p-4 pb-16 selection:bg-primary selection:text-white sm:p-6 sm:pb-20 lg:p-12 lg:pb-28 xl:p-16 xl:pb-32">
+        <div
+          className="bk-page-transition flex w-full shrink-0 flex-col justify-center p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-12 lg:pt-12 xl:px-16 xl:pt-16"
+          style={{ minHeight: "100%" }}
+        >
           {children}
         </div>
+        <SiteFooter />
       </div>
 
       {/* Right column — page-specific sidebar */}

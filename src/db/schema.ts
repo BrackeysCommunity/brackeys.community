@@ -457,23 +457,21 @@ export const itchJams = itchSchema.table("jams", {
   title: text("title").notNull(),
   bannerUrl: text("banner_url"),
   hashtag: text("hashtag"),
-  hosts: jsonb("hosts").$type<ItchJamHost[]>().notNull().default(sql`'[]'::jsonb`),
+  hosts: jsonb("hosts")
+    .$type<ItchJamHost[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   status: text("status").$type<ItchJamStatus>().notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }),
   endsAt: timestamp("ends_at", { withTimezone: true }),
   votingEndsAt: timestamp("voting_ends_at", { withTimezone: true }),
+  joinedCount: integer("joined_count"),
   entriesCount: integer("entries_count"),
   ratingsCount: integer("ratings_count"),
   contentHtml: text("content_html"),
-  scrapedAt: timestamp("scraped_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const itchJamEntries = itchSchema.table("jam_entries", {
@@ -501,15 +499,9 @@ export const itchJamEntries = itchSchema.table("jam_entries", {
     .notNull()
     .default(sql`'[]'::jsonb`),
   resultsFetchedAt: timestamp("results_fetched_at", { withTimezone: true }),
-  scrapedAt: timestamp("scraped_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 // Per-criterion rank scraped from /jam/{slug}/rate/{gameId} after voting ends.
@@ -525,9 +517,7 @@ export const itchJamEntryResults = itchSchema.table(
     rank: integer("rank").notNull(),
     score: numeric("score", { precision: 6, scale: 3 }).notNull(),
     rawScore: numeric("raw_score", { precision: 6, scale: 3 }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.entryId, table.criterion] })],
 );
