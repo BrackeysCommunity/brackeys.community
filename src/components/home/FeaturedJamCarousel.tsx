@@ -1,7 +1,6 @@
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  Calendar03Icon,
   FlashIcon,
   PauseIcon,
   PlayIcon,
@@ -52,7 +51,7 @@ export interface FeaturedJamCarouselProps {
 }
 
 const SLIDE_DISTANCE = 60; // px
-const BODY_TRANSITION = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const };
+const BODY_TRANSITION = { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const };
 const BANNER_TRANSITION = { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const };
 
 /**
@@ -184,91 +183,82 @@ export function FeaturedJamCarousel({
 
       {/* Body — cross-fades between slides */}
       <div className={`flex flex-col gap-3 ${isCompact ? "p-3" : "p-4"}`}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={jam.jamId}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={BODY_TRANSITION}
-            className="flex flex-col gap-3"
-          >
-            <div>
-              <h3 className={`font-mono ${titleClass} leading-tight font-bold`}>{jam.title}</h3>
-              <p className="font-mono text-[11px] text-muted-foreground">
-                {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "Dates TBA"}
-                {!isCompact && jam.hosts[0] && ` · Hosts · ${jam.hosts[0].name}`}
-              </p>
-            </div>
-
-            <Well variant="ghost">
-              <div className={cn("grid gap-3 p-3", isCompact ? "grid-cols-3" : "grid-cols-3")}>
-                <div>
-                  <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
-                    {state === "upcoming" ? "OPENS IN" : state === "ended" ? "ENDED" : "CLOSES IN"}
-                  </div>
-                  <div className={`font-mono ${statValueClass} font-bold text-primary`}>
-                    {state === "ended"
-                      ? "—"
-                      : (formatCountdown(state === "upcoming" ? jam.startsAt : jam.endsAt, nowDate)
-                          ?.text ?? "—")}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
-                    JOINED
-                  </div>
-                  <div className={`font-mono ${statValueClass} font-bold`}>
-                    {jam.joinedCount?.toLocaleString("en-US") ?? "—"}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
-                    ENTRIES
-                  </div>
-                  <div className={`font-mono ${statValueClass} font-bold`}>
-                    {jam.entriesCount?.toLocaleString("en-US") ?? "—"}
-                  </div>
-                </div>
+        <div className="grid [&>*]:col-start-1 [&>*]:row-start-1">
+          <AnimatePresence initial={false}>
+            <motion.div
+              key={jam.jamId}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={BODY_TRANSITION}
+              className="flex flex-col gap-3"
+            >
+              <div>
+                <h3 className={`font-mono ${titleClass} leading-tight font-bold`}>{jam.title}</h3>
+                <p className="font-mono text-[11px] text-muted-foreground">
+                  {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "Dates TBA"}
+                  {!isCompact && jam.hosts[0] && ` · Hosts · ${jam.hosts[0].name}`}
+                </p>
               </div>
-            </Well>
 
-            <div className="flex flex-wrap gap-2">
-              <Chonk
-                variant="primary"
-                render={
-                  <a
-                    href={jamUrl(jam.slug)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Open jam"
-                  />
-                }
-                className="flex flex-1 items-center justify-center gap-2 px-4 py-2.5 font-mono text-xs font-bold tracking-widest"
-              >
-                <HugeiconsIcon icon={FlashIcon} size={14} />
-                OPEN JAM
-              </Chonk>
-              {!isCompact && (
+              <Well variant="ghost">
+                <div className={cn("grid gap-3 p-3", isCompact ? "grid-cols-3" : "grid-cols-3")}>
+                  <div>
+                    <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+                      {state === "upcoming"
+                        ? "OPENS IN"
+                        : state === "ended"
+                          ? "ENDED"
+                          : "CLOSES IN"}
+                    </div>
+                    <div className={`font-mono ${statValueClass} font-bold text-primary`}>
+                      {state === "ended"
+                        ? "—"
+                        : (formatCountdown(
+                            state === "upcoming" ? jam.startsAt : jam.endsAt,
+                            nowDate,
+                          )?.text ?? "—")}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+                      JOINED
+                    </div>
+                    <div className={`font-mono ${statValueClass} font-bold`}>
+                      {jam.joinedCount?.toLocaleString("en-US") ?? "—"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+                      ENTRIES
+                    </div>
+                    <div className={`font-mono ${statValueClass} font-bold`}>
+                      {jam.entriesCount?.toLocaleString("en-US") ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              </Well>
+
+              <div className="flex flex-wrap gap-2">
                 <Chonk
-                  variant="surface"
+                  variant="primary"
                   render={
                     <a
-                      href="https://itch.io/jams"
+                      href={jamUrl(jam.slug)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="All jams"
+                      aria-label="Open jam"
                     />
                   }
-                  className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-bold tracking-widest text-muted-foreground"
+                  className="flex flex-1 items-center justify-center gap-2 px-4 py-2.5 font-mono text-xs font-bold tracking-widest"
                 >
-                  <HugeiconsIcon icon={Calendar03Icon} size={14} />
-                  ALL JAMS
+                  <HugeiconsIcon icon={FlashIcon} size={14} />
+                  OPEN JAM
                 </Chonk>
-              )}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
         {/* Nubs + controls */}
         {jams.length > 1 && (

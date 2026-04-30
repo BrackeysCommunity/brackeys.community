@@ -79,7 +79,7 @@ export function MobileHome() {
       {/* Enter Node — horizontal scroll */}
       <div className="flex flex-col gap-3">
         <SectionRule label="Enter Node" />
-        <div className="-mx-4 flex snap-x snap-mandatory gap-1.5 overflow-x-auto py-3 pr-4 pl-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-4 flex snap-x snap-mandatory gap-1.5 overflow-x-auto py-3 pr-4 pl-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV_TILES.map((tile) => {
             const inner = (
               <div className="flex h-full flex-col justify-between gap-1 px-3 py-2.5">

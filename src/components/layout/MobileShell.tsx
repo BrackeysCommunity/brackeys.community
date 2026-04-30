@@ -46,15 +46,17 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
 
       <main
         id="main-content"
-        className="pointer-events-auto fixed inset-x-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="pointer-events-auto fixed inset-x-0 bottom-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           top: HEADER_HEIGHT,
-          bottom: BOTTOM_NAV_HEIGHT,
           paddingLeft: "env(safe-area-inset-left)",
           paddingRight: "env(safe-area-inset-right)",
         }}
       >
-        <div className="bk-page-transition flex w-full flex-col px-4 py-6 selection:bg-primary selection:text-white">
+        <div
+          className="bk-page-transition flex w-full flex-col px-4 pt-6 selection:bg-primary selection:text-white"
+          style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT} + 1rem)` }}
+        >
           {children}
         </div>
       </main>
