@@ -14,6 +14,7 @@ export type ScrapedJam = {
   startsAt: Date | null;
   endsAt: Date | null;
   votingEndsAt: Date | null;
+  joinedCount: number | null;
   entriesCount: number | null;
   ratingsCount: number | null;
   contentHtml: string | null;
@@ -149,6 +150,7 @@ export async function scrapeJamPage(slug: string): Promise<ScrapedJam> {
     const titleAttr = $el.attr("title") ?? undefined;
     statBoxes.push({ label, count: parseCount(value, titleAttr) });
   });
+  const joinedCount = statBoxes.find((s) => /joined/i.test(s.label))?.count ?? null;
   const entriesCount = statBoxes.find((s) => /entries/i.test(s.label))?.count ?? null;
   const ratingsCount = statBoxes.find((s) => /ratings/i.test(s.label))?.count ?? null;
 
@@ -166,6 +168,7 @@ export async function scrapeJamPage(slug: string): Promise<ScrapedJam> {
     startsAt,
     endsAt,
     votingEndsAt,
+    joinedCount,
     entriesCount,
     ratingsCount,
     contentHtml,
