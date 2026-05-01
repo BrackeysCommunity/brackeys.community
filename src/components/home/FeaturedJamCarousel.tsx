@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { CountUp } from "@/components/ui/count-up";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
@@ -150,9 +151,16 @@ export function FeaturedJamCarousel({
   if (!jam) {
     return (
       <Well>
-        <div className="p-6 text-center font-mono text-xs tracking-widest text-muted-foreground uppercase">
+        <Text
+          as="div"
+          monospace
+          size="sm"
+          variant="muted"
+          align="center"
+          className="p-6 tracking-widest uppercase"
+        >
           No active jams right now
-        </div>
+        </Text>
       </Well>
     );
   }
@@ -160,7 +168,7 @@ export function FeaturedJamCarousel({
   const state = effectiveJamState(jam.startsAt, jam.endsAt, nowDate);
   const isCompact = density === "compact";
   const bannerHeight = isCompact ? "h-32" : "h-40";
-  const titleClass = isCompact ? "text-lg" : "text-xl";
+  const titleSize = isCompact ? "lg" : "xl";
   const statValueClass = isCompact ? "text-xl" : "text-2xl";
 
   return (
@@ -232,18 +240,27 @@ export function FeaturedJamCarousel({
                   <Badge variant="secondary">{state.toUpperCase()}</Badge>
                 )}
                 {jam.hosts[0] && (
-                  <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  <Text
+                    monospace
+                    bold
+                    size="xs"
+                    variant="muted"
+                    className="tracking-widest uppercase"
+                  >
                     {jam.hosts[0].name}
-                  </span>
+                  </Text>
                 )}
               </div>
 
               {!jam.bannerUrl && (
-                <span
-                  className={`absolute right-3 bottom-3 font-mono ${isCompact ? "text-3xl" : "text-5xl"} z-10 leading-none font-bold tracking-tighter text-foreground/40`}
+                <Text
+                  monospace
+                  bold
+                  density="dense"
+                  className={`absolute right-3 bottom-3 ${isCompact ? "text-3xl" : "text-5xl"} z-10 tracking-tighter text-foreground/40`}
                 >
                   {shortName(jam.title)}
-                </span>
+                </Text>
               )}
             </motion.div>
           </AnimatePresence>
@@ -262,13 +279,13 @@ export function FeaturedJamCarousel({
               exit={{ opacity: 0 }}
               transition={BODY_TRANSITION}
             >
-              <h3 className={`truncate font-mono ${titleClass} leading-tight font-bold`}>
+              <Heading as="h3" size={titleSize} monospace ellipsis className="leading-tight">
                 {jam.title}
-              </h3>
-              <p className="font-mono text-[11px] text-muted-foreground">
+              </Heading>
+              <Text as="p" monospace variant="muted" className="text-[11px]">
                 {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "Dates TBA"}
                 {!isCompact && jam.hosts[0] && ` · Hosts · ${jam.hosts[0].name}`}
-              </p>
+              </Text>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -279,9 +296,9 @@ export function FeaturedJamCarousel({
         <Well variant="ghost">
           <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-3 p-3">
             <div>
-              <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+              <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
                 {state === "upcoming" ? "OPENS IN" : state === "ended" ? "ENDED" : "CLOSES IN"}
-              </div>
+              </Text>
               <CountdownValue
                 target={state === "upcoming" ? jam.startsAt : jam.endsAt}
                 now={nowDate}
@@ -290,17 +307,17 @@ export function FeaturedJamCarousel({
               />
             </div>
             <div>
-              <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+              <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
                 JOINED
-              </div>
+              </Text>
               <div className={`font-mono ${statValueClass} font-bold`}>
                 <CountUp to={jam.joinedCount ?? 0} duration={0.5} separator="," />
               </div>
             </div>
             <div className="border-l border-muted/40 pl-4">
-              <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+              <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
                 ENTRIES
-              </div>
+              </Text>
               <div className={`font-mono ${statValueClass} font-bold`}>
                 <CountUp to={jam.entriesCount ?? 0} duration={0.5} separator="," />
               </div>

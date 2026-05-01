@@ -4,3 +4,4 @@ export { InlineCode, inlineCodeVariants, type InlineCodeProps } from "./inline-c
 export { Quote, type QuoteProps, type QuoteSource } from "./quote";
 export { Prose, type ProseProps } from "./prose";
 export { MarkedText, type MarkedTextProps } from "./marked-text";
+export { Link, type LinkProps } from "./link";

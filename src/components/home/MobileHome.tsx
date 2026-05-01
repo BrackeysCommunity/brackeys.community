@@ -14,6 +14,7 @@ import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
+import { Heading, Link, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
@@ -98,9 +99,9 @@ export function MobileHome() {
             secondary="GAMES"
             className="text-[clamp(3rem,18vw,5rem)]!"
           />
-          <p className="font-sans text-sm text-foreground [text-shadow:0_1px_3px_rgba(0,0,0,0.75)]">
+          <Text as="p" size="md" className="[text-shadow:0_1px_3px_rgba(0,0,0,0.75)]">
             The neural network for the Brackeys community. Find your squad, browse every jam, ship.
-          </p>
+          </Text>
         </div>
 
         <ShortcutTiles tiles={navTiles} />
@@ -110,17 +111,24 @@ export function MobileHome() {
       <section className="flex flex-col gap-4">
         <header className="flex items-end justify-between gap-3">
           <div>
-            <div className="font-mono text-[10px] tracking-widest text-muted-foreground">§ 01</div>
-            <h2 className="font-mono text-2xl font-bold tracking-tight">JAMS</h2>
+            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+              § 01
+            </Text>
+            <Heading as="h2" size="2xl" monospace>
+              JAMS
+            </Heading>
           </div>
-          <a
+          <Link
             href="https://itch.io/jams"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[11px] font-bold tracking-widest text-muted-foreground"
+            monospace
+            bold
+            variant="muted"
+            className="text-[11px] tracking-widest"
           >
             FULL ▸
-          </a>
+          </Link>
         </header>
 
         <div ref={featuredRef} className="scroll-mt-20">
@@ -130,15 +138,24 @@ export function MobileHome() {
         {/* Soonest upcoming */}
         <div ref={upcomingRef} className="scroll-mt-20">
           <Well>
-            <div className="flex items-center gap-2 border-b border-muted/30 px-3 py-2 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-              <span>◆ Soonest Upcoming</span>
+            <div className="flex items-center gap-2 border-b border-muted/30 px-3 py-2">
+              <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                ◆ Soonest Upcoming
+              </Text>
             </div>
             {upcomingLoading ? (
               <div className="h-40 animate-pulse" aria-hidden />
             ) : upcoming.length === 0 ? (
-              <div className="p-6 text-center font-mono text-xs tracking-widest text-muted-foreground uppercase">
+              <Text
+                as="div"
+                monospace
+                size="sm"
+                variant="muted"
+                align="center"
+                className="p-6 tracking-widest uppercase"
+              >
                 No upcoming jams
-              </div>
+              </Text>
             ) : (
               <ul className="divide-y divide-muted/20">
                 {upcoming.map((jam) => {
@@ -146,33 +163,47 @@ export function MobileHome() {
                   const counted = formatCountdown(jam.startsAt, nowDate);
                   return (
                     <li key={jam.jamId}>
-                      <a
+                      <Link
                         href={jamUrl(jam.slug)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 px-3 py-3 transition-colors active:bg-muted/40"
                       >
                         <div className="w-10 shrink-0 text-center">
-                          <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+                          <Text
+                            as="div"
+                            monospace
+                            size="xs"
+                            variant="muted"
+                            className="tracking-widest"
+                          >
                             {start?.toLocaleString(undefined, { month: "short" }).toUpperCase() ??
                               "TBA"}
-                          </div>
-                          <div className="font-mono text-lg leading-none font-bold">
+                          </Text>
+                          <Text as="div" monospace bold density="dense" className="text-lg">
                             {start?.getUTCDate() ?? "—"}
-                          </div>
+                          </Text>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate font-sans text-sm font-bold">{jam.title}</div>
-                          <div className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                          <Text as="div" bold ellipsis size="md">
+                            {jam.title}
+                          </Text>
+                          <Text
+                            as="div"
+                            monospace
+                            size="xs"
+                            variant="muted"
+                            className="tracking-widest uppercase"
+                          >
                             {jam.hosts[0]?.name ?? "COMMUNITY"}
                             {durationDays(jam.startsAt, jam.endsAt) &&
                               ` · ${durationDays(jam.startsAt, jam.endsAt)}`}
-                          </div>
+                          </Text>
                         </div>
-                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground">
+                        <Text monospace size="xs" variant="muted" className="tracking-widest">
                           {counted ? `in ${counted.text}` : ""}
-                        </div>
-                      </a>
+                        </Text>
+                      </Link>
                     </li>
                   );
                 })}
