@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { fetchHtml } from "../browser.ts";
+import { config } from "../config.ts";
 
 type ListPage = { slugs: string[]; hasNext: boolean };
 
@@ -18,8 +19,10 @@ function parseListPage(html: string): ListPage {
 }
 
 /**
- * Walks every page of a `.jam_grid_widget` listing until itch stops
- * rendering a "next" button. The same parser handles both /jams/upcoming
+ * Walks a `.jam_grid_widget` listing. When `DISCOVERY_PAGINATE=true` (the
+ * default — used by the weekly cron) it walks every page until itch stops
+ * rendering a "next" button; when false (used by the lighter nightly
+ * cron) it stops after page 1. The same parser handles both /jams/upcoming
  * and /search?q=…&type=jams.
  */
 async function listJamSlugs(baseUrl: string): Promise<string[]> {
@@ -32,7 +35,7 @@ async function listJamSlugs(baseUrl: string): Promise<string[]> {
     const { slugs, hasNext } = parseListPage(html);
     if (slugs.length === 0) break;
     for (const slug of slugs) seen.add(slug);
-    if (!hasNext) break;
+    if (!hasNext || !config.DISCOVERY_PAGINATE) break;
     page += 1;
   }
   return [...seen];

@@ -17,11 +17,13 @@ per-submission rankings) and syncs it into the main brackeys Postgres DB.
 
 The sync set is the union of three buckets:
 
-1. **Upcoming discovery** — every slug on every page of `/jams/upcoming`,
-   walked until itch stops rendering a "Next" pager link. Always synced so
-   we catch newly-announced jams as soon as they appear.
-2. **Brackeys backfill** — every slug from every page of
-   `/search?q=brackeys&type=jams` **that isn't already in `itch.jams`**.
+1. **Upcoming discovery** — slugs on `/jams/upcoming`. Pagination is
+   controlled by `DISCOVERY_PAGINATE` (default `true`): the weekly cron
+   walks every page until itch stops rendering a "Next" pager link, the
+   nightly cron sets it to `false` and stops after page 1. Either way,
+   newly-announced jams get picked up as soon as they appear.
+2. **Brackeys backfill** — slugs from `/search?q=brackeys&type=jams`
+   **that aren't already in `itch.jams`**. Same pagination knob applies.
    Brings in historical Brackeys jams (brackeys-1 … brackeys-15) the first
    time we see them, then drops out of the bucket forever.
 3. **Persisted re-sync** — every slug already in `itch.jams` where the jam
