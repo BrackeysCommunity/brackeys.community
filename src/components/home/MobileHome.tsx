@@ -5,8 +5,6 @@ import {
   PaintBucketIcon,
   ToolsIcon,
 } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import type { IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 
@@ -15,7 +13,7 @@ import { FeaturedJamCarousel } from "@/components/home/FeaturedJamCarousel";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
-import { Chonk } from "@/components/ui/chonk";
+import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
 import { Well } from "@/components/ui/well";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
@@ -25,16 +23,6 @@ import { client } from "@/orpc/client";
 
 const FEATURED_LIMIT = 10;
 const UPCOMING_LIMIT = 4;
-
-interface NavTile {
-  label: string;
-  stat: string;
-  icon: IconSvgElement;
-  onClick?: () => void;
-  /** Override stat text styling — e.g. for non-numeric values that don't
-      look right at the default 2xl size. */
-  statClassName?: string;
-}
 
 function jamUrl(slug: string) {
   return `https://itch.io/jam/${slug}`;
@@ -69,7 +57,7 @@ export function MobileHome() {
   const liveJams = liveData?.jams ?? [];
   const upcoming = upcomingData?.jams ?? [];
 
-  const navTiles: NavTile[] = [
+  const navTiles: ShortcutTile[] = [
     {
       label: "HOT JAMS",
       stat: liveLoading ? "—" : String(liveJams.length),
@@ -87,7 +75,6 @@ export function MobileHome() {
       stat: theme.name,
       icon: PaintBucketIcon,
       onClick: () => openPalette(true),
-      statClassName: "text-base leading-none tracking-wide truncate",
     },
     {
       label: "BOT COMMANDS",
@@ -109,51 +96,14 @@ export function MobileHome() {
           <HeroWordmark
             primary={<CyclingWord />}
             secondary="GAMES"
-            className="!text-[clamp(3rem,18vw,5rem)]"
+            className="text-[clamp(3rem,18vw,5rem)]!"
           />
           <p className="font-sans text-sm text-foreground [text-shadow:0_1px_3px_rgba(0,0,0,0.75)]">
             The neural network for the Brackeys community. Find your squad, browse every jam, ship.
           </p>
         </div>
 
-        {/* Enter Node — horizontal scroll */}
-        <div className="-mx-4 flex snap-x snap-mandatory scroll-pl-4 gap-1.5 overflow-x-auto py-3 pr-4 pl-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {navTiles.map((tile) => {
-            const inner = (
-              <div className="flex h-full flex-col justify-between gap-1 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 font-mono text-[10px] font-bold tracking-widest text-muted-foreground">
-                  <span className="text-left leading-tight">{tile.label}</span>
-                  <HugeiconsIcon icon={tile.icon} size={20} />
-                </div>
-                <div
-                  className={`font-mono font-bold text-primary ${tile.statClassName ?? "text-2xl leading-none"}`}
-                >
-                  {tile.stat}
-                </div>
-              </div>
-            );
-            return tile.onClick ? (
-              <Chonk
-                key={tile.label}
-                variant="surface"
-                size="lg"
-                render={<button type="button" onClick={tile.onClick} aria-label={tile.label} />}
-                className="block w-auto min-w-36 shrink-0 snap-start text-left"
-              >
-                {inner}
-              </Chonk>
-            ) : (
-              <Chonk
-                key={tile.label}
-                variant="surface"
-                size="lg"
-                className="block w-auto min-w-36 shrink-0 snap-start"
-              >
-                {inner}
-              </Chonk>
-            );
-          })}
-        </div>
+        <ShortcutTiles tiles={navTiles} />
       </div>
 
       {/* § 01 JAMS */}
