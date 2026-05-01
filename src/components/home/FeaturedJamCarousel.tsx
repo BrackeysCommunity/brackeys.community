@@ -12,16 +12,38 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { CountUp } from "@/components/ui/count-up";
+import { Grainient } from "@/components/ui/grainient";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
+import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
 
-const STRIPE_BG =
-  "repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-foreground) 4%, transparent) 0 8px, transparent 8px 16px)";
-const IMAGE_MASK = "linear-gradient(to right, transparent 0%, black 15%)";
+// Cheap deterministic hash so a given jam id always picks the same theme
+// colors across renders — but the palette itself comes from the active
+// theme rather than being computed from the id.
+function hash32(n: number) {
+  let x = n | 0;
+  x = x ^ 61 ^ (x >>> 16);
+  x = x + (x << 3);
+  x = x ^ (x >>> 4);
+  x = Math.imul(x, 0x27d4eb2d);
+  x = x ^ (x >>> 15);
+  return x >>> 0;
+}
+
+/** Pick two distinct hex colors from `palette`, seeded by `jamId`. */
+function pickJamColors(palette: string[], jamId: number): [string, string] {
+  if (palette.length === 0) return ["#888888", "#444444"];
+  if (palette.length === 1) return [palette[0]!, palette[0]!];
+  const seed = hash32(jamId);
+  const i = seed % palette.length;
+  let j = (seed >>> 8) % palette.length;
+  if (j === i) j = (j + 1) % palette.length;
+  return [palette[i]!, palette[j]!];
+}
 
 function countdownParts(target: Date | string | null | undefined, now: Date) {
   if (!target) return null;
@@ -106,6 +128,7 @@ export function FeaturedJamCarousel({
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [paused, setPaused] = useState(false);
+  const palette = useThemeChartColors();
 
   // Reset to start whenever the underlying list changes shape.
   useEffect(() => {
@@ -170,19 +193,52 @@ export function FeaturedJamCarousel({
   const bannerHeight = isCompact ? "h-32" : "h-40";
   const titleSize = isCompact ? "lg" : "xl";
   const statValueClass = isCompact ? "text-xl" : "text-2xl";
+  const [c1, c2] = pickJamColors(palette, jam.jamId);
 
   return (
     <Well className="overflow-hidden">
-      {/* Banner. Stripe pattern is painted on the static outer container with
-          `background-attachment: fixed`, so as the page scrolls the stripes
-          stay anchored to the viewport — the carousel reveals different
-          stripes as it moves, producing a subtle parallax. The drag layer
-          inside translates the image+content on swipe; the stripes stay put
-          because they live on the non-translating parent. */}
-      <div
-        className={`relative ${bannerHeight} overflow-hidden`}
-        style={{ backgroundImage: STRIPE_BG, backgroundAttachment: "fixed" }}
-      >
+      {/* Banner. Layers (back→front):
+            1. Colored Grainient — always mounted; its colors lerp toward
+               the current jam's two theme colors. Container opacity fades
+               to 0 when a photo banner is showing so the photo takes
+               over, and back to 1 when we return to a jam without art.
+            2. Blurred banner image — cross-fades between photo jams via
+               AnimatePresence; absent for jams without `bannerUrl`.
+            3. Grain-only Grainient overlay — grayscale film-grain in
+               `mix-blend-overlay`, takes its colorway from whatever's
+               beneath (photo or colored Grainient). */}
+      <div className={`relative ${bannerHeight} overflow-hidden`}>
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            className="absolute inset-0"
+            animate={{ opacity: jam.bannerUrl ? 0 : 1 }}
+            transition={BANNER_TRANSITION}
+          >
+            <Grainient color1={c1} color2={c2} color3={c1} />
+          </motion.div>
+          <AnimatePresence initial={false}>
+            {jam.bannerUrl && (
+              <motion.img
+                key={jam.jamId}
+                src={jam.bannerUrl}
+                alt=""
+                aria-hidden
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={BANNER_TRANSITION}
+                className="absolute inset-0 h-full w-full scale-125 object-cover blur-2xl saturate-150"
+              />
+            )}
+          </AnimatePresence>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-60 mix-blend-overlay"
+          >
+            <Grainient grainOnly grainAmount={0.45} grainScale={3} />
+          </div>
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-background/20" />
+        </div>
         {/* Re-paint the Well's debossed top edge above the banner image so
             the deboss isn't obscured by full-bleed banners. */}
         <div
@@ -220,8 +276,7 @@ export function FeaturedJamCarousel({
                   src={jam.bannerUrl}
                   alt=""
                   aria-hidden
-                  className="absolute top-0 right-0 block h-full w-auto max-w-full object-cover object-right"
-                  style={{ maskImage: IMAGE_MASK, WebkitMaskImage: IMAGE_MASK }}
+                  className="absolute inset-0 block h-full w-full object-contain"
                 />
               )}
 
