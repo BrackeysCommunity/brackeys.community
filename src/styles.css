@@ -244,8 +244,14 @@
   .chonk-emboss:focus-visible {
     border-color: var(--emboss-shadow);
   }
-  .chonk-emboss:hover:not(:disabled) {
-    --chonk-y: var(--chonk-lift-hover);
+  /* Only apply the hover lift on devices with a precise pointer (mouse /
+     trackpad). Touch devices can satisfy `(hover: hover)` and leave the
+     :hover state sticky after a tap, so we additionally require
+     `(pointer: fine)` to avoid the button staying raised. */
+  @media (hover: hover) and (pointer: fine) {
+    .chonk-emboss:hover:not(:disabled) {
+      --chonk-y: var(--chonk-lift-hover);
+    }
   }
   .chonk-emboss:active:not(:disabled) {
     --chonk-y: 0px;
@@ -275,8 +281,10 @@
     transform: translateY(calc(-1 * var(--chonk-y)));
     transition: --chonk-y 75ms ease-out;
   }
-  .group\/switch:hover:not(:disabled) .switch-thumb-emboss {
-    --chonk-y: var(--chonk-lift-hover);
+  @media (hover: hover) and (pointer: fine) {
+    .group\/switch:hover:not(:disabled) .switch-thumb-emboss {
+      --chonk-y: var(--chonk-lift-hover);
+    }
   }
   .group\/switch:active:not(:disabled) .switch-thumb-emboss {
     --chonk-y: 0px;
@@ -314,8 +322,10 @@
     transform: translateY(calc(-1 * var(--chonk-y)));
     transition: --chonk-y 75ms ease-out;
   }
-  .chonk-emboss-panel:hover {
-    --chonk-y: var(--chonk-lift-hover);
+  @media (hover: hover) and (pointer: fine) {
+    .chonk-emboss-panel:hover {
+      --chonk-y: var(--chonk-lift-hover);
+    }
   }
   .chonk-emboss-panel:active {
     --chonk-y: 0px;
@@ -330,8 +340,10 @@
     transform: translateY(calc(-1 * var(--chonk-y)));
     transition: --chonk-y 75ms ease-out;
   }
-  .chonk-emboss-notched:hover {
-    --chonk-y: var(--chonk-lift-hover);
+  @media (hover: hover) and (pointer: fine) {
+    .chonk-emboss-notched:hover {
+      --chonk-y: var(--chonk-lift-hover);
+    }
   }
   .chonk-emboss-notched:active,
   .chonk-emboss-notched:has(:active) {

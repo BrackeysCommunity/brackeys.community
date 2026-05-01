@@ -111,8 +111,7 @@ describe("FeaturedJamCarousel", () => {
 
   it("derives running state from dates (LIVE pill) regardless of any DB status", () => {
     render(<FeaturedJamCarousel jams={[makeJam()]} />);
-    // The LIVE pill is rendered as text content "// LIVE"
-    expect(screen.getByText(/\/\/ LIVE/i)).toBeTruthy();
+    expect(screen.getByText(/^LIVE$/i)).toBeTruthy();
   });
 
   it("shows OPENS IN label and start countdown for upcoming jams", () => {
