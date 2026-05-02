@@ -57,6 +57,18 @@ vi.mock("@/lib/hooks/use-date-now", () => ({
   default: () => new Date("2026-04-30T12:00:00Z").getTime(),
 }));
 
+// Stub the theme palette hook — tests don't need the live CSS-variable
+// resolution path and aren't wrapped in `AppThemeProvider`.
+vi.mock("@/lib/hooks/use-theme-chart-colors", () => ({
+  useThemeChartColors: () => ["#111111", "#222222", "#333333", "#444444", "#555555"],
+}));
+
+// The Grainient runs WebGL via `ogl` — jsdom has no WebGL. Render a stub
+// so the carousel mounts in the test environment.
+vi.mock("@/components/ui/grainient", () => ({
+  Grainient: () => <div data-testid="grainient" />,
+}));
+
 // ── Import after mocks ─────────────────────────────────────────────────────
 
 const { FeaturedJamCarousel } = await import("../FeaturedJamCarousel");
