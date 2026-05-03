@@ -140,9 +140,16 @@ export function Grainient({
 
     const mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
 
+    // Use `clientWidth/clientHeight` rather than `getBoundingClientRect`
+    // so a CSS transform on the container (e.g. framer-motion's
+    // shared-layout animation) doesn't trick us into sizing the canvas
+    // to the *visually* transformed box. Layout-driven size changes
+    // still come through via ResizeObserver, which observes the
+    // content box and ignores transforms.
     const setSize = () => {
-      const rect = container.getBoundingClientRect();
-      renderer.setSize(Math.max(1, Math.floor(rect.width)), Math.max(1, Math.floor(rect.height)));
+      const w = Math.max(1, container.clientWidth);
+      const h = Math.max(1, container.clientHeight);
+      renderer.setSize(w, h);
       const res = (program.uniforms.iResolution as { value: Float32Array }).value;
       res[0] = gl.drawingBufferWidth;
       res[1] = gl.drawingBufferHeight;
@@ -186,6 +193,12 @@ export function Grainient({
       } catch {
         // Canvas may already be detached during fast remounts; ignore.
       }
+      // Browsers don't reclaim WebGL contexts on canvas detach until GC
+      // runs — and the limit (~16) is hit quickly when many Grainients
+      // mount/unmount via virtualization. Explicitly drop the context so
+      // the slot is freed immediately.
+      const lose = gl.getExtension("WEBGL_lose_context");
+      lose?.loseContext();
       programRef.current = null;
     };
   }, []);

@@ -10,6 +10,11 @@ const inlineCodeVariants = cva(
       variant: {
         default: "border-accent/30 bg-background/50 text-accent [--emboss-shadow:var(--accent)]",
         neutral: "border-border bg-muted text-foreground [--emboss-shadow:var(--muted-foreground)]",
+        primary: "border-primary/30 bg-background/50 text-primary [--emboss-shadow:var(--primary)]",
+        warning: "border-warning/30 bg-background/50 text-warning [--emboss-shadow:var(--warning)]",
+        destructive:
+          "border-destructive/30 bg-background/50 text-destructive [--emboss-shadow:var(--destructive)]",
+        success: "border-success/30 bg-background/50 text-success [--emboss-shadow:var(--success)]",
       },
     },
     defaultVariants: {

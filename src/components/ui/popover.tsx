@@ -17,9 +17,13 @@ function PopoverContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  anchor,
   ...props
 }: PopoverPrimitive.Popup.Props &
-  Pick<PopoverPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
+  Pick<
+    PopoverPrimitive.Positioner.Props,
+    "align" | "alignOffset" | "side" | "sideOffset" | "anchor"
+  >) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -27,6 +31,7 @@ function PopoverContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
+        anchor={anchor}
         className="isolate z-50"
       >
         <PopoverPrimitive.Popup
@@ -39,6 +44,24 @@ function PopoverContent({
         />
       </PopoverPrimitive.Positioner>
     </PopoverPrimitive.Portal>
+  );
+}
+
+/**
+ * Full-screen backdrop rendered behind a modal popover. Apple-style
+ * spotlight: blurs and dims the rest of the page while the popover is
+ * open. Pair with `<Popover modal>`.
+ */
+function PopoverBackdrop({ className, ...props }: PopoverPrimitive.Backdrop.Props) {
+  return (
+    <PopoverPrimitive.Backdrop
+      data-slot="popover-backdrop"
+      className={cn(
+        "fixed inset-0 z-40 bg-background/60 backdrop-blur-sm duration-150 data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
@@ -72,4 +95,12 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
   );
 }
 
-export { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger };
+export {
+  Popover,
+  PopoverBackdrop,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+};

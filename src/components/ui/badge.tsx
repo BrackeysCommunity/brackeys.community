@@ -17,6 +17,10 @@ const badgeVariants = cva(
           "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)]",
         destructive:
           "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] focus-visible:ring-destructive/30",
+        warning:
+          "chonk-emboss bg-warning text-warning-foreground [--emboss-shadow:color-mix(in_srgb,var(--warning)_45%,black)] focus-visible:ring-warning/30",
+        success:
+          "chonk-emboss bg-success text-success-foreground [--emboss-shadow:color-mix(in_srgb,var(--success)_45%,black)] focus-visible:ring-success/30",
         outline: "chonk-emboss border-border text-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
@@ -36,6 +40,8 @@ const notchEmbossColor: Record<string, string | undefined> = {
   default: "color-mix(in srgb, var(--primary) 50%, black)",
   secondary: "color-mix(in srgb, var(--secondary) 50%, black)",
   destructive: "color-mix(in srgb, var(--destructive) 45%, black)",
+  warning: "color-mix(in srgb, var(--warning) 45%, black)",
+  success: "color-mix(in srgb, var(--success) 45%, black)",
   outline: undefined,
 };
 
