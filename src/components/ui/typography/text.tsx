@@ -23,6 +23,8 @@ const textVariants = cva("", {
       inherit: "text-inherit",
     },
     density: {
+      touching: "leading-0 tracking-tight",
+      dense: "leading-none tracking-tight",
       compressed: "leading-tight tracking-tight",
       default: "",
       comfortable: "leading-relaxed tracking-normal",

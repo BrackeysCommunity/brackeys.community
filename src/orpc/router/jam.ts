@@ -127,11 +127,16 @@ export const listJams = os
 
     // For "soonest" we sort by upcoming-first (asc startsAt) which naturally
     // surfaces live jams (already started) ahead of true upcoming. For
-    // "popularity" we order by entriesCount desc (closest proxy we have for
-    // joined-count since itch only exposes joined via HTML scraping).
+    // "popularity" we order by joinedCount desc (most-joined first), with
+    // entriesCount as a tiebreaker for jams that haven't been scraped for
+    // joined-count yet.
     const orderBy =
       input.sortBy === "popularity"
-        ? [desc(sql`COALESCE(${itchJams.entriesCount}, 0)`), asc(itchJams.endsAt)]
+        ? [
+            desc(sql`COALESCE(${itchJams.joinedCount}, 0)`),
+            desc(sql`COALESCE(${itchJams.entriesCount}, 0)`),
+            asc(itchJams.endsAt),
+          ]
         : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
 
     const jams = await db

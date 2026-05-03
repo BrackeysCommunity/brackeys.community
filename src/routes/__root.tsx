@@ -190,20 +190,27 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   // When a page doesn't register a sidebar, it owns the full width and handles
   // its own internal layout (e.g. the redesigned HomePage).
   if (!hasSidebar) {
+    // Scrolling lives on the outer (full-width) container so SiteFooter can
+    // sit as a full-bleed sibling of the max-w-480 content wrapper. The
+    // content wrapper deliberately *does not* set `overflow-x-hidden` —
+    // doing so would auto-promote overflow-y to `auto` and capture the
+    // scroll inside the wrapper, leaving the footer pinned to the viewport
+    // bottom. A great-grandparent (`overflow-hidden` at the root shell)
+    // still clips horizontally so we don't risk a page-level scrollbar.
     return (
       <div
         id="main-content"
-        className="mx-auto flex w-full max-w-480 flex-1 overflow-x-hidden pt-14"
+        className="flex flex-1 flex-col overflow-y-auto pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mx-auto flex w-full max-w-480 flex-col">
           <div
             className="bk-page-transition flex w-full shrink-0 flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14"
             style={{ minHeight: "100%" }}
           >
             {children}
           </div>
-          <SiteFooter />
         </div>
+        <SiteFooter />
       </div>
     );
   }

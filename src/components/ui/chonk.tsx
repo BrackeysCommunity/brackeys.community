@@ -24,8 +24,8 @@ const chonkVariants = cva(
       size: {
         sm: "[--chonk-lift-hover:2px]! [--chonk-lift:1px]!",
         default: "[--chonk-lift-hover:3px]! [--chonk-lift:2px]!",
-        lg: "[--chonk-lift-hover:4px]! [--chonk-lift:3px]!",
-        xl: "[--chonk-lift-hover:16px]! [--chonk-lift:8px]!",
+        lg: "rounded-lg! [--chonk-lift-hover:4px]! [--chonk-lift:3px]!",
+        xl: "rounded-lg! [--chonk-lift-hover:16px]! [--chonk-lift:8px]!",
       },
     },
     defaultVariants: {
