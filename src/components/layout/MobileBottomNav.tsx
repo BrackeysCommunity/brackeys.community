@@ -1,74 +1,73 @@
 import {
   Calendar03Icon,
-  PaintBucketIcon,
+  ComputerTerminal01Icon,
+  Settings01Icon,
   Shield01Icon,
   UserGroupIcon,
-  UserIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { useStore } from "@tanstack/react-store";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 
-import { ButtonGroup } from "@/components/ui/button-group";
-import { Chonk } from "@/components/ui/chonk";
-import { activeUserStore } from "@/lib/active-user-store";
-import { authClient } from "@/lib/auth-client";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { cn } from "@/lib/utils";
 
-const TAB_BASE =
-  "flex h-14 w-16 flex-col items-center justify-center gap-0.5 font-mono text-[10px] font-bold tracking-widest";
-
-interface TabBodyProps {
+interface NavTabBody {
   icon: IconSvgElement;
   label: string;
-  active: boolean;
-  primary?: boolean;
 }
 
-function TabBody({ icon, label, active, primary }: TabBodyProps) {
+function TabBody({ icon, label }: NavTabBody) {
   return (
-    <span
-      className={cn(
-        "flex flex-col items-center gap-0.5 transition-colors",
-        primary ? "text-primary-foreground" : active ? "text-primary" : "text-muted-foreground",
-      )}
-    >
-      <HugeiconsIcon icon={icon} size={18} />
-      <span>{label}</span>
+    <span className="flex flex-col items-center gap-0.5">
+      <HugeiconsIcon icon={icon} />
+      <span className="font-mono text-[10px] font-bold tracking-widest">{label}</span>
     </span>
   );
 }
 
 export interface MobileBottomNavProps {
-  /** Override active-route detection (useful in stories / demos). */
   pathnameOverride?: string;
-  /** Render without fixed positioning so the nav sits inline (stories). */
   inline?: boolean;
-  /** Override the Themes button action (defaults to opening command palette). */
-  onOpenThemes?: () => void;
 }
 
-export function MobileBottomNav({
-  pathnameOverride,
-  inline = false,
-  onOpenThemes,
-}: MobileBottomNavProps = {}) {
+type TabValue = "home" | "jams" | "collab" | "command" | "settings";
+
+export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBottomNavProps = {}) {
   const routerPathname = useRouterState({ select: (s) => s.location.pathname });
   const pathname = pathnameOverride ?? routerPathname;
-  const { data: session } = authClient.useSession();
-  const activeProfile = useStore(activeUserStore, (s) => s.profile);
-  const profileSlug = activeProfile?.urlStub ?? session?.user?.id;
+  const navigate = useNavigate();
   const { setOpen: openPalette } = useCommandPalette();
 
-  const onHome = pathname === "/";
-  const onCollab = pathname.startsWith("/collab");
-  const onProfile = pathname.startsWith("/profile");
+  const active: TabValue = pathname.startsWith("/collab")
+    ? "collab"
+    : pathname.startsWith("/command-center")
+      ? "command"
+      : pathname.startsWith("/settings")
+        ? "settings"
+        : pathname.startsWith("/jams")
+          ? "jams"
+          : "home";
 
-  const handleThemes = () => {
-    if (onOpenThemes) onOpenThemes();
-    else openPalette(true);
+  const handleChange = (value: string) => {
+    switch (value as TabValue) {
+      case "home":
+        navigate({ to: "/" });
+        return;
+      case "jams":
+        navigate({ to: "/jams" });
+        return;
+      case "collab":
+        navigate({ to: "/collab" });
+        return;
+      case "command":
+        navigate({ to: "/command-center" });
+        return;
+      case "settings":
+        openPalette(true);
+        return;
+    }
   };
 
   return (
@@ -90,64 +89,29 @@ export function MobileBottomNav({
             }
       }
     >
-      <ButtonGroup>
-        <Chonk
-          variant="surface"
-          size="sm"
-          render={<Link to="/" aria-label="Home" />}
-          className={TAB_BASE}
-        >
-          <TabBody icon={Shield01Icon} label="HOME" active={onHome} />
-        </Chonk>
-
-        {/* TODO: route to a dedicated /jams page when it exists */}
-        <Chonk
-          variant="surface"
-          size="sm"
-          render={<Link to="/" aria-label="Jams" />}
-          className={TAB_BASE}
-        >
-          <TabBody icon={Calendar03Icon} label="JAMS" active={false} />
-        </Chonk>
-
-        <Chonk
-          variant="primary"
-          size="sm"
-          render={<Link to="/collab" aria-label="Collab" />}
-          className={TAB_BASE}
-        >
-          <TabBody icon={UserGroupIcon} label="COLLAB" active={onCollab} primary />
-        </Chonk>
-
-        {profileSlug ? (
-          <Chonk
-            variant="surface"
-            size="sm"
-            render={<Link to="/profile/$userId" params={{ userId: profileSlug }} aria-label="Me" />}
-            className={TAB_BASE}
-          >
-            <TabBody icon={UserIcon} label="ME" active={onProfile} />
-          </Chonk>
-        ) : (
-          <Chonk
-            variant="surface"
-            size="sm"
-            render={<Link to="/profile" aria-label="Me" />}
-            className={TAB_BASE}
-          >
-            <TabBody icon={UserIcon} label="ME" active={onProfile} />
-          </Chonk>
-        )}
-
-        <Chonk
-          variant="surface"
-          size="sm"
-          render={<button type="button" onClick={handleThemes} aria-label="Themes" />}
-          className={TAB_BASE}
-        >
-          <TabBody icon={PaintBucketIcon} label="THEMES" active={false} />
-        </Chonk>
-      </ButtonGroup>
+      <SegmentedControl
+        size="lg"
+        priority="default"
+        value={active}
+        onChange={handleChange}
+        aria-label="Primary navigation"
+      >
+        <SegmentedControl.Item value="home" aria-label="Home" className="rounded-l-md">
+          <TabBody icon={Shield01Icon} label="HOME" />
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="jams" aria-label="Jams">
+          <TabBody icon={Calendar03Icon} label="JAMS" />
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="collab" priority="primary" aria-label="Collab">
+          <TabBody icon={UserGroupIcon} label="COLLAB" />
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="command" aria-label="Command">
+          <TabBody icon={ComputerTerminal01Icon} label="BOTS" />
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="settings" aria-label="Settings" className="rounded-r-md">
+          <TabBody icon={Settings01Icon} label="OPTS" />
+        </SegmentedControl.Item>
+      </SegmentedControl>
     </nav>
   );
 }

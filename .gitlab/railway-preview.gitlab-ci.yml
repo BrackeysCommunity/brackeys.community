@@ -35,26 +35,32 @@ deploy-preview:
         railway variable set DATABASE_URL="$PREVIEW_DATABASE_URL"
       fi
 
-    # Deploy from the MR branch checkout
-    - railway up --ci
+    # Deploy from the MR branch checkout. Use --detach so the CLI returns
+    # immediately after uploading instead of streaming build logs (which can
+    # drop and cause spurious non-zero exits). The health check below is the
+    # source of truth for whether the preview is actually up.
+    - railway up --detach
     - export PREVIEW_DOMAIN=$(railway domain 2>&1 | grep -oE '[a-z0-9-]+\.up\.railway\.app' | head -1)
     - echo "PREVIEW_DOMAIN=${PREVIEW_DOMAIN}" >> deploy.env
 
     # Wait for deployment to be reachable
     - |
       echo "Waiting for https://${PREVIEW_DOMAIN} to be healthy..."
+      HEALTHY=0
       for i in $(seq 1 60); do
         STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://${PREVIEW_DOMAIN}" || true)
         echo "  Attempt $i: HTTP $STATUS"
         if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
           echo "Preview is live!"
+          HEALTHY=1
           break
-        fi
-        if [ "$i" = "60" ]; then
-          echo "Warning: preview did not become healthy within 5 minutes"
         fi
         sleep 5
       done
+      if [ "$HEALTHY" != "1" ]; then
+        echo "ERROR: preview did not become healthy within 5 minutes"
+        exit 1
+      fi
     - echo "Deployed to https://${PREVIEW_DOMAIN}"
     # Post or update MR comment
     - |

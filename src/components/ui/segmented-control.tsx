@@ -8,14 +8,17 @@ import * as React from "react";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-type Size = "xs" | "sm" | "md";
+type Size = "xs" | "sm" | "md" | "lg";
 type Priority = "default" | "primary";
 
 const itemVariants = cva(
   [
     // base button-group item: outlined chonk-emboss mini-button
     "group/segmented-item chonk-emboss relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-none border border-input bg-background font-medium outline-none transition-colors",
-    "hover:bg-muted hover:text-foreground",
+    // Only apply hover styles on devices with a fine pointer (mouse / trackpad).
+    // Touch devices report `(hover: hover)` on some platforms, so a tap can
+    // briefly trigger the hover state — we additionally require `(pointer: fine)`.
+    "[@media(hover:hover)and(pointer:fine)]:hover:bg-muted [@media(hover:hover)and(pointer:fine)]:hover:text-foreground",
     "focus-visible:z-10 focus-visible:ring-1 focus-visible:ring-ring",
     // Disabled items sit flat (depressed) like checkbox disabled state
     "disabled:pointer-events-none disabled:opacity-50 disabled:translate-y-0 disabled:[--chonk-lift:0px] disabled:[--chonk-lift-hover:0px]",
@@ -28,6 +31,7 @@ const itemVariants = cva(
         xs: "h-6 min-w-6 px-2 text-[11px] [--chonk-lift-hover:2px] [--chonk-lift:1px]",
         sm: "h-7 min-w-7 px-2.5 text-xs",
         md: "h-8 min-w-8 px-3 text-xs",
+        lg: "h-14 min-w-14 px-3 text-xs [--chonk-lift-hover:4px] [--chonk-lift:3px] [&_svg:not([class*='size-'])]:size-[18px]",
       },
       priority: {
         default: [
@@ -113,6 +117,8 @@ type SegmentedControlItemProps = Omit<TogglePrimitive.Props, "value"> &
     value: string;
     icon?: React.ReactNode;
     tooltip?: React.ReactNode;
+    /** Override the group-level priority for this item only. */
+    priority?: Priority;
   };
 
 function SegmentedControlItem({
@@ -122,9 +128,11 @@ function SegmentedControlItem({
   tooltip,
   disabled,
   value,
+  priority: priorityProp,
   ...props
 }: SegmentedControlItemProps) {
-  const { size, priority } = React.useContext(SegmentedControlContext);
+  const { size, priority: ctxPriority } = React.useContext(SegmentedControlContext);
+  const priority = priorityProp ?? ctxPriority;
 
   const button = (
     <TogglePrimitive
