@@ -77,10 +77,10 @@ describe("MobileBottomNav", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it("clicking Jams opens the command palette (no dedicated route yet)", () => {
+  it("clicking Jams navigates to /jams", () => {
     render(<MobileBottomNav />);
     fireEvent.click(screen.getByLabelText("Jams"));
-    expect(setOpen).toHaveBeenCalledWith(true);
+    expect(navigate).toHaveBeenCalledWith({ to: "/jams" });
   });
 
   it("reflects active pathname on the segmented item (Collab)", () => {
