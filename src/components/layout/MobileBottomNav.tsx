@@ -56,8 +56,7 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         navigate({ to: "/" });
         return;
       case "jams":
-        // No dedicated /jams route yet — open the command palette as a stand-in.
-        openPalette(true);
+        navigate({ to: "/jams" });
         return;
       case "collab":
         navigate({ to: "/collab" });
