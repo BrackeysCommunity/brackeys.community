@@ -1,9 +1,12 @@
-import { Logout03Icon, Share01Icon, UserIcon } from "@hugeicons/core-free-icons";
+import { Logout03Icon, Settings02Icon, Share01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
+import { useState } from "react";
 
+import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
+import { Chonk } from "@/components/ui/chonk";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,69 +33,89 @@ export function UserMenu({ user }: UserMenuProps) {
   const navigate = useNavigate();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileSlug = activeProfile?.urlStub ?? user.id;
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <DropdownMenu>
-      <motion.div
-        ref={ref as React.RefObject<HTMLDivElement>}
-        data-magnetic
-        data-cursor-no-drift
-        animate={{ x: position.x, y: position.y }}
-        transition={springTransition}
-        className="relative z-10 inline-flex"
-      >
-        <DropdownMenuTrigger className="flex items-center gap-2 border border-muted bg-card/40 px-3 py-1.5 font-mono text-xs font-bold tracking-widest text-foreground transition-colors outline-none hover:border-primary hover:text-primary">
-          {user.image ? (
-            <img src={user.image} alt="" className="h-6 w-6 rounded-full" />
-          ) : (
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-              <HugeiconsIcon icon={UserIcon} size={14} />
-            </div>
-          )}
-          <span className="max-w-[100px] truncate uppercase">{user.name ?? "USER"}</span>
-        </DropdownMenuTrigger>
-      </motion.div>
+    <>
+      <DropdownMenu>
+        <motion.div
+          ref={ref as React.RefObject<HTMLDivElement>}
+          data-magnetic
+          data-cursor-no-drift
+          animate={{ x: position.x, y: position.y }}
+          transition={springTransition}
+          className="relative z-10 inline-flex"
+        >
+          <DropdownMenuTrigger
+            render={
+              <Chonk
+                variant="surface"
+                size="sm"
+                render={<button type="button" />}
+                className="items-center gap-2 px-3 py-1.5 font-mono text-xs font-bold tracking-widest"
+              />
+            }
+          >
+            {user.image ? (
+              <img src={user.image} alt="" className="h-6 w-6 rounded-full" />
+            ) : (
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
+                <HugeiconsIcon icon={UserIcon} size={14} />
+              </div>
+            )}
+            <span className="max-w-[100px] truncate uppercase">{user.name ?? "USER"}</span>
+          </DropdownMenuTrigger>
+        </motion.div>
 
-      <DropdownMenuContent
-        align="end"
-        sideOffset={8}
-        className="min-w-[180px] border border-muted bg-background/95 p-1 backdrop-blur-md"
-      >
-        <DropdownMenuItem
-          className="font-mono text-xs font-bold tracking-widest uppercase"
-          render={<Link to="/profile" />}
+        <DropdownMenuContent
+          align="end"
+          sideOffset={8}
+          className="min-w-[180px] border border-muted bg-background/95 p-1 backdrop-blur-md"
         >
-          <HugeiconsIcon icon={UserIcon} size={14} />
-          MY PROFILE
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="font-mono text-xs font-bold tracking-widest uppercase"
-          render={
-            <Link
-              data-testid="view-public-link"
-              to="/profile/$userId"
-              params={{ userId: profileSlug }}
-            />
-          }
-        >
-          <HugeiconsIcon icon={Share01Icon} size={14} />
-          VIEW PUBLIC
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="font-mono text-xs font-bold tracking-widest text-destructive uppercase"
-          onClick={async () => {
-            await authClient.signOut({
-              fetchOptions: {
-                onSuccess: () => navigate({ reloadDocument: true }),
-              },
-            });
-          }}
-        >
-          <HugeiconsIcon icon={Logout03Icon} size={14} />
-          SIGN OUT
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem
+            className="font-mono text-xs font-bold tracking-widest uppercase"
+            render={<Link to="/profile" />}
+          >
+            <HugeiconsIcon icon={UserIcon} size={14} />
+            MY PROFILE
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="font-mono text-xs font-bold tracking-widest uppercase"
+            render={
+              <Link
+                data-testid="view-public-link"
+                to="/profile/$userId"
+                params={{ userId: profileSlug }}
+              />
+            }
+          >
+            <HugeiconsIcon icon={Share01Icon} size={14} />
+            VIEW PUBLIC
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="font-mono text-xs font-bold tracking-widest uppercase"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <HugeiconsIcon icon={Settings02Icon} size={14} />
+            SETTINGS
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="font-mono text-xs font-bold tracking-widest text-destructive uppercase"
+            onClick={async () => {
+              await authClient.signOut({
+                fetchOptions: {
+                  onSuccess: () => navigate({ reloadDocument: true }),
+                },
+              });
+            }}
+          >
+            <HugeiconsIcon icon={Logout03Icon} size={14} />
+            SIGN OUT
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+    </>
   );
 }

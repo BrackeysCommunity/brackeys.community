@@ -1,27 +1,34 @@
 import {
   Calendar03Icon,
   ComputerTerminal01Icon,
-  Settings01Icon,
   Shield01Icon,
   UserGroupIcon,
+  UserIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useCommandPalette } from "@/lib/hooks/use-command-palette";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 interface NavTabBody {
   icon: IconSvgElement;
   label: string;
+  /** Optional avatar image used by the ME tab when the user is
+   * signed in — sits in place of the icon at the same size. */
+  avatarUrl?: string | null;
 }
 
-function TabBody({ icon, label }: NavTabBody) {
+function TabBody({ icon, label, avatarUrl }: NavTabBody) {
   return (
     <span className="flex flex-col items-center gap-0.5">
-      <HugeiconsIcon icon={icon} />
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" aria-hidden className="size-5 rounded-full object-cover" />
+      ) : (
+        <HugeiconsIcon icon={icon} />
+      )}
       <span className="font-mono text-[10px] font-bold tracking-widest">{label}</span>
     </span>
   );
@@ -32,20 +39,21 @@ export interface MobileBottomNavProps {
   inline?: boolean;
 }
 
-type TabValue = "home" | "jams" | "collab" | "command" | "settings";
+type TabValue = "home" | "jams" | "collab" | "command" | "me";
 
 export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBottomNavProps = {}) {
   const routerPathname = useRouterState({ select: (s) => s.location.pathname });
   const pathname = pathnameOverride ?? routerPathname;
   const navigate = useNavigate();
-  const { setOpen: openPalette } = useCommandPalette();
+  const { data: session } = authClient.useSession();
+  const avatarUrl = session?.user?.image ?? null;
 
   const active: TabValue = pathname.startsWith("/collab")
     ? "collab"
     : pathname.startsWith("/command-center")
       ? "command"
-      : pathname.startsWith("/settings")
-        ? "settings"
+      : pathname.startsWith("/profile")
+        ? "me"
         : pathname.startsWith("/jams")
           ? "jams"
           : "home";
@@ -64,8 +72,8 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
       case "command":
         navigate({ to: "/command-center" });
         return;
-      case "settings":
-        openPalette(true);
+      case "me":
+        navigate({ to: "/profile" });
         return;
     }
   };
@@ -108,8 +116,8 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         <SegmentedControl.Item value="command" aria-label="Command">
           <TabBody icon={ComputerTerminal01Icon} label="BOTS" />
         </SegmentedControl.Item>
-        <SegmentedControl.Item value="settings" aria-label="Settings" className="rounded-r-md">
-          <TabBody icon={Settings01Icon} label="OPTS" />
+        <SegmentedControl.Item value="me" aria-label="Profile" className="rounded-r-md">
+          <TabBody icon={UserIcon} label="ME" avatarUrl={avatarUrl} />
         </SegmentedControl.Item>
       </SegmentedControl>
     </nav>

@@ -1,7 +1,10 @@
+import { Settings02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 
+import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
@@ -14,6 +17,7 @@ const BOTTOM_NAV_HEIGHT = "calc(5.5rem + env(safe-area-inset-bottom))";
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const { data: session } = authClient.useSession();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
@@ -51,7 +55,15 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         {session?.user ? (
-          <UserMenu user={session.user} />
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+            className="font-mono"
+          >
+            <HugeiconsIcon icon={Settings02Icon} size={14} />
+          </Button>
         ) : (
           <Button
             variant="default"
@@ -63,6 +75,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           </Button>
         )}
       </header>
+      <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <main
         id="main-content"

@@ -18,6 +18,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
+import { Route as ProfilePreviewRouteImport } from './routes/profile.preview'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
@@ -72,6 +73,11 @@ const CollabIndexRoute = CollabIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => CollabRoute,
+} as any)
+const ProfilePreviewRoute = ProfilePreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
   id: '/$userId',
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/profile/preview': typeof ProfilePreviewRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/profile/preview': typeof ProfilePreviewRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/profile/preview': typeof ProfilePreviewRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/collab/new'
     | '/game/$roomId'
     | '/profile/$userId'
+    | '/profile/preview'
     | '/collab/'
     | '/game/'
     | '/profile/'
@@ -208,6 +218,7 @@ export interface FileRouteTypes {
     | '/collab/new'
     | '/game/$roomId'
     | '/profile/$userId'
+    | '/profile/preview'
     | '/collab'
     | '/game'
     | '/profile'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/collab/new'
     | '/game/$roomId'
     | '/profile/$userId'
+    | '/profile/preview'
     | '/collab/'
     | '/game/'
     | '/profile/'
@@ -315,6 +327,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/collab/'
       preLoaderRoute: typeof CollabIndexRouteImport
       parentRoute: typeof CollabRoute
+    }
+    '/profile/preview': {
+      id: '/profile/preview'
+      path: '/preview'
+      fullPath: '/profile/preview'
+      preLoaderRoute: typeof ProfilePreviewRouteImport
+      parentRoute: typeof ProfileRoute
     }
     '/profile/$userId': {
       id: '/profile/$userId'
@@ -411,11 +430,13 @@ const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
 
 interface ProfileRouteChildren {
   ProfileUserIdRoute: typeof ProfileUserIdRoute
+  ProfilePreviewRoute: typeof ProfilePreviewRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
 
 const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileUserIdRoute: ProfileUserIdRoute,
+  ProfilePreviewRoute: ProfilePreviewRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }
 

@@ -19,6 +19,7 @@ import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
@@ -142,14 +143,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </a>
           <TanStackQueryProvider>
             <AppThemeProvider>
-              <TooltipProvider>
-                <CommandPaletteProvider>
-                  <PageLayoutProvider>
-                    <CommandPalette />
-                    <ResponsiveShell>{children}</ResponsiveShell>
-                  </PageLayoutProvider>
-                </CommandPaletteProvider>
-              </TooltipProvider>
+              <AppSettingsProvider>
+                <TooltipProvider>
+                  <CommandPaletteProvider>
+                    <PageLayoutProvider>
+                      <CommandPalette />
+                      <ResponsiveShell>{children}</ResponsiveShell>
+                    </PageLayoutProvider>
+                  </CommandPaletteProvider>
+                </TooltipProvider>
+              </AppSettingsProvider>
             </AppThemeProvider>
           </TanStackQueryProvider>
         </div>
