@@ -62,26 +62,70 @@ deploy-preview:
         exit 1
       fi
     - echo "Deployed to https://${PREVIEW_DOMAIN}"
-    # Post or update MR comment
+    # Post or update MR comment. The deploy has already succeeded by this point,
+    # so any failure here (missing token, API error, jq parse error) is logged
+    # loudly but must NOT fail the job.
     - |
-      MARKER="<!-- railway-preview -->"
-      BODY="${MARKER}\n:rocket: **Preview deployed!**\n\n- [\`${PREVIEW_DOMAIN}\`](https://${PREVIEW_DOMAIN})\n\n---\n*commit: ${CI_COMMIT_SHORT_SHA} by ${GITLAB_USER_NAME}*"
+      post_mr_comment() {
+        local marker="<!-- railway-preview -->"
+        local body="${marker}\n:rocket: **Preview deployed!**\n\n- [\`${PREVIEW_DOMAIN}\`](https://${PREVIEW_DOMAIN})\n\n---\n*commit: ${CI_COMMIT_SHORT_SHA} by ${GITLAB_USER_NAME}*"
+        local notes_url="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes"
 
-      EXISTING=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes" \
-        | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
+        if [ -z "${GITLAB_API_TOKEN:-}" ]; then
+          echo "  ⚠  GITLAB_API_TOKEN is not set — skipping MR comment."
+          echo "     Define it as a CI/CD variable (scope: api) to enable preview comments."
+          return 0
+        fi
 
-      if [ -n "$EXISTING" ]; then
-        curl -s --request PUT \
+        local response http_code
+        response=$(curl -sS --write-out "\n%{http_code}" \
           --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes/${EXISTING}" \
-          --data-urlencode "body=$(echo -e "$BODY")"
-      else
-        curl -s --request POST \
-          --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes" \
-          --data-urlencode "body=$(echo -e "$BODY")"
-      fi
+          "${notes_url}") || {
+          echo "  ⚠  Failed to fetch existing MR notes (curl error). Skipping comment."
+          return 0
+        }
+        http_code=$(printf '%s\n' "$response" | tail -n1)
+        response=$(printf '%s\n' "$response" | sed '$d')
+
+        if [ "$http_code" != "200" ]; then
+          echo "  ⚠  GitLab API returned HTTP ${http_code} when listing notes."
+          echo "     Response: $(printf '%s' "$response" | head -c 300)"
+          echo "     Likely causes: token missing 'api' scope, token not exposed to this MR (fork?), or wrong project ID."
+          return 0
+        fi
+
+        local existing
+        existing=$(printf '%s' "$response" \
+          | jq -r --arg marker "$marker" \
+              'if type=="array" then (.[] | select(.body | contains($marker)) | .id) else empty end' \
+          2>/dev/null | head -n1) || existing=""
+
+        local result_code
+        if [ -n "$existing" ]; then
+          echo "  ↻  Updating existing preview comment (note ${existing})..."
+          result_code=$(curl -sS -o /dev/null --write-out "%{http_code}" --request PUT \
+            --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+            "${notes_url}/${existing}" \
+            --data-urlencode "body=$(printf '%b' "$body")") || result_code="curl-error"
+        else
+          echo "  +  Posting new preview comment..."
+          result_code=$(curl -sS -o /dev/null --write-out "%{http_code}" --request POST \
+            --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+            "${notes_url}" \
+            --data-urlencode "body=$(printf '%b' "$body")") || result_code="curl-error"
+        fi
+
+        case "$result_code" in
+          2??) echo "  ✓  MR comment posted (HTTP ${result_code})." ;;
+          *)   echo "  ⚠  MR comment request returned ${result_code}. Deploy is unaffected." ;;
+        esac
+      }
+
+      echo "──────────────────────────────────────────────"
+      echo " Posting MR preview comment"
+      echo "──────────────────────────────────────────────"
+      post_mr_comment || echo "  ⚠  MR comment step errored unexpectedly — ignoring (deploy already succeeded)."
+      echo "──────────────────────────────────────────────"
   artifacts:
     reports:
       dotenv: deploy.env
