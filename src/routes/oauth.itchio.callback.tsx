@@ -13,11 +13,39 @@ function ItchIoCallbackPage() {
   const navigate = useNavigate();
   const processed = useRef(false);
 
+  // Linking just stores the access token. Once that succeeds we
+  // kick off `importItchIoGames` to pull the user's published games
+  // into their `profile_projects` so they show up in the PROJECTS
+  // section without a manual import step. Import errors are
+  // surfaced as a toast but don't block the navigation back —
+  // linking already succeeded and the user can re-run the import
+  // from the projects section if it failed.
+  const { mutate: importGames } = useMutation({
+    mutationFn: () => client.importItchIoGames({}),
+    onSuccess: (data) => {
+      const count =
+        typeof data === "object" && data && "imported" in data
+          ? (data as { imported?: number }).imported
+          : undefined;
+      toast.success(
+        count != null
+          ? `Imported ${count} game${count === 1 ? "" : "s"} from itch.io`
+          : "Imported your itch.io games",
+      );
+    },
+    onError: (err: Error) => {
+      toast.error(
+        err.message || "Linked, but couldn't import your games — try again from PROJECTS",
+      );
+    },
+    onSettled: () => navigate({ to: "/profile" }),
+  });
+
   const { mutate: linkItchIo } = useMutation({
     mutationFn: (accessToken: string) => client.linkItchIo({ accessToken }),
     onSuccess: (data) => {
       toast.success(`Linked itch.io account: ${data.providerUsername}`);
-      navigate({ to: "/profile" });
+      importGames();
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to link itch.io account");

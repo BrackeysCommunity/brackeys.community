@@ -43,6 +43,7 @@ vi.mock("framer-motion", () => ({
 
 vi.mock("@hugeicons/core-free-icons", () => ({
   Logout03Icon: "logout-icon",
+  Settings02Icon: "settings-icon",
   Share01Icon: "share-icon",
   UserIcon: "user-icon",
 }));
@@ -76,6 +77,10 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
     ),
   };
 });
+
+vi.mock("@/components/layout/AppSettingsDialog", () => ({
+  AppSettingsDialog: () => null,
+}));
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: { signOut: vi.fn() },
