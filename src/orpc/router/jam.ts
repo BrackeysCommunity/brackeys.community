@@ -100,7 +100,7 @@ export const listJams = os
     z.object({
       filter: z.enum(["live", "upcoming", "active", "all"]).default("active"),
       sortBy: z.enum(["soonest", "popularity"]).default("soonest"),
-      limit: z.number().min(1).max(100).default(20),
+      limit: z.number().min(1).max(5000).default(20),
     }),
   )
   .handler(async ({ input }) => {
