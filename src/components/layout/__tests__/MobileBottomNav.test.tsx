@@ -18,14 +18,15 @@ vi.mock("@hugeicons/react", () => ({
 vi.mock("@hugeicons/core-free-icons", () => ({
   Calendar03Icon: "calendar",
   ComputerTerminal01Icon: "terminal",
-  Settings01Icon: "settings",
   Shield01Icon: "shield",
   UserGroupIcon: "user-group",
+  UserIcon: "user",
 }));
 
-const setOpen = vi.fn();
-vi.mock("@/lib/hooks/use-command-palette", () => ({
-  useCommandPalette: () => ({ setOpen, open: false }),
+vi.mock("@/lib/auth-client", () => ({
+  authClient: {
+    useSession: () => ({ data: null }),
+  },
 }));
 
 let __pathname = "/";
@@ -36,19 +37,18 @@ const { MobileBottomNav } = await import("../MobileBottomNav");
 
 afterEach(() => {
   cleanup();
-  setOpen.mockReset();
   navigate.mockReset();
   __pathname = "/";
 });
 
 describe("MobileBottomNav", () => {
-  it("renders Home / Jams / Collab / Command / Settings", () => {
+  it("renders Home / Jams / Collab / Command / Profile", () => {
     render(<MobileBottomNav />);
     expect(screen.getByLabelText("Home")).toBeTruthy();
     expect(screen.getByLabelText("Jams")).toBeTruthy();
     expect(screen.getByLabelText("Collab")).toBeTruthy();
     expect(screen.getByLabelText("Command")).toBeTruthy();
-    expect(screen.getByLabelText("Settings")).toBeTruthy();
+    expect(screen.getByLabelText("Profile")).toBeTruthy();
   });
 
   it("clicking Home navigates to /", () => {
@@ -70,11 +70,10 @@ describe("MobileBottomNav", () => {
     expect(navigate).toHaveBeenCalledWith({ to: "/command-center" });
   });
 
-  it("clicking Settings opens the command palette", () => {
+  it("clicking Profile navigates to /profile", () => {
     render(<MobileBottomNav />);
-    fireEvent.click(screen.getByLabelText("Settings"));
-    expect(setOpen).toHaveBeenCalledWith(true);
-    expect(navigate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("Profile"));
+    expect(navigate).toHaveBeenCalledWith({ to: "/profile" });
   });
 
   it("clicking Jams navigates to /jams", () => {
