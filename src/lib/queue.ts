@@ -19,21 +19,46 @@ function makeRedis(): IORedis {
   });
 }
 
-export const redis: IORedis = globalThis.__brackeysRedis ?? makeRedis();
-if (!globalThis.__brackeysRedis) globalThis.__brackeysRedis = redis;
-
-function makeQueues() {
-  return {
-    notifications: new Queue("notifications", { connection: redis }),
-    email: new Queue("email", { connection: redis }),
-  };
+function getRedis(): IORedis {
+  if (!globalThis.__brackeysRedis) globalThis.__brackeysRedis = makeRedis();
+  return globalThis.__brackeysRedis;
 }
 
-const queues = globalThis.__brackeysQueues ?? makeQueues();
-if (!globalThis.__brackeysQueues) globalThis.__brackeysQueues = queues;
+function getQueues(): { notifications: Queue; email: Queue } {
+  if (!globalThis.__brackeysQueues) {
+    const connection = getRedis();
+    globalThis.__brackeysQueues = {
+      notifications: new Queue("notifications", { connection }),
+      email: new Queue("email", { connection }),
+    };
+  }
+  return globalThis.__brackeysQueues;
+}
 
-export const notificationsQueue: Queue = queues.notifications;
-export const emailQueue: Queue = queues.email;
+// Lazy proxies: importing this module must not require REDIS_URL — the
+// connection is only opened when a queue method is actually invoked. This
+// keeps client-bundled paths (and tests that transitively import this file
+// without mocking it) from crashing at module-eval time.
+function lazyQueue(name: "notifications" | "email"): Queue {
+  return new Proxy({} as Queue, {
+    get(_target, prop, receiver) {
+      const q = getQueues()[name] as unknown as Record<PropertyKey, unknown>;
+      const value = Reflect.get(q, prop, receiver);
+      return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(q) : value;
+    },
+  });
+}
+
+export const redis: IORedis = new Proxy({} as IORedis, {
+  get(_target, prop, receiver) {
+    const r = getRedis() as unknown as Record<PropertyKey, unknown>;
+    const value = Reflect.get(r, prop, receiver);
+    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(r) : value;
+  },
+});
+
+export const notificationsQueue: Queue = lazyQueue("notifications");
+export const emailQueue: Queue = lazyQueue("email");
 
 export type NotificationJobName = "side_effects" | "weekly_digests";
 export type NotificationSideEffectsJob = { notificationId: number };
