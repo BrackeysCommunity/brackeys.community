@@ -71,6 +71,10 @@ vi.mock("@/components/layout/UserMenu", () => ({
   UserMenu: () => <div data-testid="user-menu" />,
 }));
 
+vi.mock("@/components/notifications/NotificationBell", () => ({
+  NotificationBell: () => <div data-testid="notification-bell" />,
+}));
+
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...rest }: { children?: React.ReactNode; [key: string]: unknown }) => (
     <button type="button" {...rest}>
