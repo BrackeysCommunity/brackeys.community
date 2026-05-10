@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { UserMenu } from "@/components/layout/UserMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { Hotkey } from "@/components/ui/hotkey";
 import {
@@ -156,7 +157,10 @@ export function AppHeader() {
           </Button>
 
           {session?.user ? (
-            <UserMenu user={session.user} />
+            <>
+              <NotificationBell />
+              <UserMenu user={session.user} />
+            </>
           ) : (
             <Button
               variant="default"

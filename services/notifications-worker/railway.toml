@@ -1,0 +1,8 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/notifications-worker/Dockerfile"
+
+[deploy]
+# Long-lived worker: stays resident, consumes BullMQ jobs from Redis.
+startCommand = "bun run start"
+restartPolicyType = "ALWAYS"

@@ -17,6 +17,7 @@ import {
   skills,
 } from "@/db/schema";
 import { isStaffMember } from "@/lib/discord";
+import { notify } from "@/lib/notifications";
 import { getProfileProjectImageUrl } from "@/lib/profile-project-image-storage";
 import {
   authMiddleware,
@@ -220,6 +221,17 @@ export const closePost = os
       .set({ status: "party_full", updatedAt: new Date() })
       .where(eq(collabPosts.id, input.postId))
       .returning();
+
+    if (!isOwner && context.isStaff) {
+      await notify({
+        userId: post.authorId,
+        type: "collab_post_closed_by_staff",
+        actorId: context.user.id,
+        entityType: "collab_post",
+        entityId: String(post.id),
+        data: { postId: post.id, postTitle: post.title },
+      });
+    }
 
     return updated;
   });
@@ -483,7 +495,7 @@ export const listPosts = os
 export const featurePost = os
   .use(requireStaff)
   .input(z.object({ postId: z.number(), featured: z.boolean() }))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     const [updated] = await db
       .update(collabPosts)
       .set({ featuredAt: input.featured ? new Date() : null, updatedAt: new Date() })
@@ -492,6 +504,17 @@ export const featurePost = os
 
     if (!updated) {
       throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+    }
+
+    if (input.featured) {
+      await notify({
+        userId: updated.authorId,
+        type: "collab_post_featured",
+        actorId: context.user.id,
+        entityType: "collab_post",
+        entityId: String(updated.id),
+        data: { postId: updated.id, postTitle: updated.title },
+      });
     }
 
     return updated;
@@ -540,6 +563,15 @@ export const respondToPost = os
         portfolioUrl: input.portfolioUrl,
       })
       .returning();
+
+    await notify({
+      userId: post.authorId,
+      type: "collab_response_received",
+      actorId: context.user.id,
+      entityType: "collab_post",
+      entityId: String(post.id),
+      data: { postId: post.id, postTitle: post.title, responseId: response.id },
+    });
 
     return response;
   });
@@ -609,6 +641,17 @@ export const updateResponseStatus = os
       .set({ status: input.status })
       .where(eq(collabResponses.id, input.responseId))
       .returning();
+
+    if (post) {
+      await notify({
+        userId: response.responderId,
+        type: input.status === "accepted" ? "collab_response_accepted" : "collab_response_declined",
+        actorId: context.user.id,
+        entityType: "collab_response",
+        entityId: String(response.id),
+        data: { postId: post.id, postTitle: post.title, responseId: response.id },
+      });
+    }
 
     return updated;
   });
