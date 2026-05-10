@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 export const PROFILE_PROJECT_IMAGE_PREFIX = "profile-projects";
 export const PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES = [
@@ -30,7 +32,7 @@ export function isAllowedProfileProjectImageType(mimeType: string) {
 
 export function buildProfileProjectImageObjectKey(userId: string, filename: string) {
   const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/${crypto.randomUUID()}-${sanitizedFilename}`;
+  return `${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/${nanoid()}-${sanitizedFilename}`;
 }
 
 export function isOwnedProfileProjectImageKey(userId: string, key: string) {

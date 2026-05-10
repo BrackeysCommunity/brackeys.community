@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import { CollabCreatePage } from "@/components/collab/CollabCreatePage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/collab/new")({
-  component: CollabCreatePage,
+  beforeLoad: () => {
+    throw redirect({ to: "/collab", search: { new: true } });
+  },
 });

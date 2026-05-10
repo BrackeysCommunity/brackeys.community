@@ -46,20 +46,38 @@ function getMinioClient() {
   return minioClient;
 }
 
-export function getProfileProjectImageUrl(objectKey: string | null | undefined) {
-  if (!objectKey) {
-    return null;
-  }
+/** Default presigned-URL TTL (24 h). MinIO's hard upper bound is 7 days. */
+const PRESIGNED_URL_TTL_SECONDS = 24 * 60 * 60;
+
+/**
+ * Resolve a stored object key to a browser-loadable URL. We use
+ * presigned GET URLs so the bucket can stay private — anyone who can
+ * read this row from the API gets a fresh, time-limited link without
+ * us having to flip the bucket public-read.
+ */
+export async function getProfileProjectImageUrl(objectKey: string | null | undefined) {
+  if (!objectKey) return null;
 
   const bucket = env.MINIO_BUCKET;
   const endpoint = env.MINIO_ENDPOINT;
-  if (!bucket || !endpoint) {
+  if (!bucket || !endpoint) return null;
+
+  try {
+    return await getMinioClient().presignedGetObject(bucket, objectKey, PRESIGNED_URL_TTL_SECONDS);
+  } catch (error) {
+    console.error("Failed to presign profile project image", { objectKey, error });
     return null;
   }
+}
 
-  const baseUrl = endpoint.includes("://") ? endpoint : `https://${endpoint}`;
-  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return new URL(`${bucket}/${objectKey}`, normalizedBaseUrl).toString();
+/**
+ * Resolve many object keys at once. Skips empty/null keys and falls
+ * back to `null` for any that fail to presign.
+ */
+export async function getProfileProjectImageUrls(
+  objectKeys: readonly (string | null | undefined)[],
+) {
+  return Promise.all(objectKeys.map((key) => getProfileProjectImageUrl(key)));
 }
 
 export async function uploadProfileProjectImageToStorage({
@@ -92,7 +110,7 @@ export async function uploadProfileProjectImageToStorage({
     "Content-Type": file.type,
   });
 
-  const url = getProfileProjectImageUrl(objectKey);
+  const url = await getProfileProjectImageUrl(objectKey);
   if (!url) {
     throw new ProfileProjectImageUploadError(
       "Profile image URL could not be resolved from MinIO configuration.",

@@ -207,7 +207,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto flex w-full max-w-480 flex-col">
           <div
-            className="bk-page-transition flex w-full shrink-0 flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14"
+            className="flex w-full shrink-0 flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14"
             style={{ minHeight: "100%" }}
           >
             {children}
@@ -228,7 +228,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
         <div
-          className="bk-page-transition flex w-full shrink-0 flex-col justify-center p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-12 lg:pt-12 xl:px-16 xl:pt-16"
+          className="flex w-full shrink-0 flex-col justify-center p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-12 lg:pt-12 xl:px-16 xl:pt-16"
           style={{ minHeight: "100%" }}
         >
           {children}
