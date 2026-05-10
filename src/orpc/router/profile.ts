@@ -90,16 +90,26 @@ function assertOwnedUploadedProjectImage(
   }
 }
 
-function serializeProfileProject<
+async function serializeProfileProject<
   T extends {
     imageKey: string | null;
     imageUrl: string | null;
   },
 >(project: T) {
+  const presigned = await getProfileProjectImageUrl(project.imageKey);
   return {
     ...project,
-    imageUrl: getProfileProjectImageUrl(project.imageKey) ?? project.imageUrl,
+    imageUrl: presigned ?? project.imageUrl,
   };
+}
+
+async function serializeProfileProjects<
+  T extends {
+    imageKey: string | null;
+    imageUrl: string | null;
+  },
+>(projects: T[]) {
+  return Promise.all(projects.map(serializeProfileProject));
 }
 
 export const getProfile = os
@@ -172,7 +182,7 @@ export const getProfile = os
     return {
       profile,
       skills: skillList,
-      projects: projects.map(serializeProfileProject),
+      projects: await serializeProfileProjects(projects),
       isOwner,
       urlStub: urlStub[0]?.stub ?? null,
       pendingSkillRequests,
@@ -220,7 +230,7 @@ export const getMyProfile = os
     return {
       profile,
       skills: skillList,
-      projects: projects.map(serializeProfileProject),
+      projects: await serializeProfileProjects(projects),
       pendingSkillRequests,
       urlStub: urlStub[0]?.stub ?? null,
       isOwner: true,

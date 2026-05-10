@@ -17,6 +17,7 @@ import {
   skills,
 } from "@/db/schema";
 import { isStaffMember } from "@/lib/discord";
+import { getProfileProjectImageUrl } from "@/lib/profile-project-image-storage";
 import {
   authMiddleware,
   requireAuth,
@@ -338,10 +339,20 @@ export const getPost = os
         .orderBy(desc(collabResponses.createdAt));
     }
 
+    // Re-presign each image's URL — `images.url` was generated at
+    // upload time and the presigned link inside it has likely expired.
+    // The `strapiMediaId` column doubles as the MinIO object key.
+    const presignedImages = await Promise.all(
+      images.map(async (img) => ({
+        ...img,
+        url: (await getProfileProjectImageUrl(img.strapiMediaId)) ?? img.url,
+      })),
+    );
+
     return {
       ...post,
       roles,
-      images,
+      images: presignedImages,
       responseCount: responseCount?.count ?? 0,
       responses,
       isOwner,
@@ -423,8 +434,48 @@ export const listPosts = os
 
     const [totalResult] = await db.select({ count: count() }).from(collabPosts).where(where);
 
+    // Fetch the primary (first by sortOrder) image per post in a single
+    // query, keyed by post id. The card view only needs one preview
+    // image, so we don't bother joining the full images relation here.
+    // We presign each URL fresh here — the `url` column captured on
+    // upload is a presigned link that expires after 24h, and even when
+    // unexpired we re-stamp so the response always carries a usable
+    // link. `strapiMediaId` doubles as the MinIO object key.
+    const postIds = posts.map((p) => p.id);
+    const primaryImagesByPostId = new Map<number, string>();
+    if (postIds.length > 0) {
+      const images = await db
+        .select({
+          postId: collabPostImages.postId,
+          objectKey: collabPostImages.strapiMediaId,
+          fallbackUrl: collabPostImages.url,
+          sortOrder: collabPostImages.sortOrder,
+        })
+        .from(collabPostImages)
+        .where(inArray(collabPostImages.postId, postIds))
+        .orderBy(asc(collabPostImages.sortOrder));
+      const seen = new Set<number>();
+      const primaries = images.filter((img) => {
+        if (seen.has(img.postId)) return false;
+        seen.add(img.postId);
+        return true;
+      });
+      const presigned = await Promise.all(
+        primaries.map(async (img) => ({
+          postId: img.postId,
+          url: (await getProfileProjectImageUrl(img.objectKey)) ?? img.fallbackUrl,
+        })),
+      );
+      for (const { postId, url } of presigned) {
+        primaryImagesByPostId.set(postId, url);
+      }
+    }
+
     return {
-      posts,
+      posts: posts.map((p) => ({
+        ...p,
+        primaryImageUrl: primaryImagesByPostId.get(p.id) ?? null,
+      })),
       total: totalResult?.count ?? 0,
     };
   });

@@ -14,7 +14,7 @@ type Priority = "default" | "primary";
 const itemVariants = cva(
   [
     // base button-group item: outlined chonk-emboss mini-button
-    "group/segmented-item chonk-emboss relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-none border border-input bg-background font-medium outline-none transition-colors",
+    "group/segmented-item chonk-emboss relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded border border-input bg-background font-medium outline-none transition-colors",
     // Only apply hover styles on devices with a fine pointer (mouse / trackpad).
     // Touch devices report `(hover: hover)` on some platforms, so a tap can
     // briefly trigger the hover state — we additionally require `(pointer: fine)`.
@@ -98,8 +98,12 @@ function SegmentedControlRoot({
           if (last && last !== value) onChange(last);
         }}
         className={cn(
-          // button-group layout: collapse borders, keep a single seam
-          "inline-flex w-fit items-stretch rounded-none",
+          // button-group layout: items keep `rounded`, but interior edges
+          // collapse to a single seam by stripping the inner rounding and
+          // pulling the next item back over the previous border.
+          "inline-flex w-fit items-stretch",
+          "[&>[data-slot=segmented-control-item]:not(:first-child)]:rounded-l-none",
+          "[&>[data-slot=segmented-control-item]:not(:last-child)]:rounded-r-none",
           "[&>[data-slot=segmented-control-item]:not(:first-child)]:-ml-px",
           className,
         )}

@@ -8,11 +8,28 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import wasm from "vite-plugin-wasm";
-import { defineConfig } from "vite-plus";
+import { createLogger, defineConfig } from "vite-plus";
 
 import pkg from "./package.json" with { type: "json" };
 
+// Filter noisy "Failed to load source map" warnings from @tanstack/* packages
+// which ship sourceMappingURL comments without the .map files.
+const logger = createLogger();
+const shouldFilter = (msg: string) =>
+  msg.includes("Failed to load source map") && msg.includes("/@tanstack/");
+const originalWarn = logger.warn;
+const originalWarnOnce = logger.warnOnce;
+logger.warn = (msg, options) => {
+  if (shouldFilter(msg)) return;
+  originalWarn(msg, options);
+};
+logger.warnOnce = (msg, options) => {
+  if (shouldFilter(msg)) return;
+  originalWarnOnce(msg, options);
+};
+
 const config = defineConfig({
+  customLogger: logger,
   staged: {
     "*": "vp check --fix",
   },

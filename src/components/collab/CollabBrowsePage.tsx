@@ -1,355 +1,267 @@
-import {
-  Add01Icon,
-  Login01Icon,
-  Search01Icon,
-  FilterIcon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { NotchedCard } from "@/components/ui/notched-card";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Text } from "@/components/ui/typography";
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { authClient } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import {
-  type CollabCompensationType,
-  type CollabExperienceLevel,
-  type CollabPostType,
-  type CollabSortBy,
-  type CollabStatus,
-  type CollabListingType,
   collabStore,
+  countActiveCollabFilters,
   resetCollabFilters,
   setCollabFilters,
 } from "@/lib/collab-store";
-import { usePageSidebar } from "@/lib/hooks/use-page-layout";
+import { client } from "@/orpc/client";
 
-import { CollabBrowseSidebar } from "./CollabBrowseSidebar";
+import { CollabCreateCta } from "./CollabCreateCta";
+import { CollabCreateFlyout } from "./CollabCreateFlyout";
+import { CollabFeaturedPerson } from "./CollabFeaturedPerson";
+import { COLLAB_SEARCH_INPUT_ID, CollabFilterPanel } from "./CollabFilterPanel";
+import { CollabHero } from "./CollabHero";
+import { CollabHotSkills } from "./CollabHotSkills";
+import { CollabListingToggle } from "./CollabListingToggle";
+import { CollabMobilePostPrompt } from "./CollabMobilePostPrompt";
+import { CollabMobileSearch } from "./CollabMobileSearch";
+import { CollabPostFeed } from "./CollabPostFeed";
+import { CollabPostPopover } from "./CollabPostPopover";
+import { CollabPulse } from "./CollabPulse";
+import { CollabQuickBoard } from "./CollabQuickBoard";
+import { AddSectionAction, CollabSectionHeader } from "./CollabSectionHeader";
 
-const TYPE_OPTIONS: { value: CollabPostType; label: string; icon: string }[] = [
-  { value: "paid", label: "PAID", icon: "$" },
-  { value: "hobby", label: "HOBBY", icon: "~" },
-  { value: "playtest", label: "PLAYTEST", icon: ">" },
-  { value: "mentor", label: "MENTOR", icon: "*" },
-];
-
-const LISTING_TYPE_OPTIONS: { value: CollabListingType; label: string }[] = [
-  { value: "posts", label: "PROJECTS" },
-  { value: "people", label: "PEOPLE" },
-];
-
-const STATUS_OPTIONS: { value: CollabStatus; label: string }[] = [
-  { value: "recruiting", label: "OPEN" },
-  { value: "party_full", label: "CLOSED" },
-];
-
-const EXPERIENCE_OPTIONS: { value: CollabExperienceLevel; label: string }[] = [
-  { value: "any", label: "ANY" },
-  { value: "beginner", label: "BEGINNER" },
-  { value: "intermediate", label: "INTERMEDIATE" },
-  { value: "experienced", label: "EXPERIENCED" },
-];
-
-const COMP_OPTIONS: { value: CollabCompensationType; label: string }[] = [
-  { value: "hourly", label: "HOURLY" },
-  { value: "fixed", label: "FIXED" },
-  { value: "rev_share", label: "REV SHARE" },
-  { value: "negotiable", label: "NEGOTIABLE" },
-];
-
-const SORT_OPTIONS: { value: CollabSortBy; label: string }[] = [
-  { value: "createdAt", label: "NEWEST" },
-  { value: "updatedAt", label: "UPDATED" },
-];
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="font-mono text-[11px] font-bold tracking-widest text-foreground/80 uppercase">
-      {children}
-    </span>
-  );
+interface CollabSearch {
+  new?: boolean;
+  /** Drives the post detail popover — `?post=<id>` opens the popover
+   *  on mount so direct links land on the right post. */
+  post?: number;
 }
 
-function FilterChip({
-  label,
-  active,
-  onClick,
-  accent,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  accent?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`border px-2.5 py-1 font-mono text-[10px] tracking-wider uppercase transition-colors ${
-        active
-          ? `${accent ?? "border-primary/60 bg-primary/25 text-primary"}`
-          : "border-muted/60 bg-muted/30 text-foreground/70 hover:border-muted hover:text-foreground"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
+// The right rail (PULSE / SKILLS / FEATURED) leans on data sources we
+// don't have backends for yet (real-time post counts per hour, skill
+// trend deltas, curated featured users). Keep it dark behind a local
+// boolean until the underlying APIs land — flip to `true` here to
+// preview the layout, or wire to an env / feature-flag service later.
+const SHOW_RIGHT_RAIL = false;
 
-export function FilterContent({ onDone }: { onDone?: () => void }) {
-  const { filters } = useStore(collabStore);
-  const [searchInput, setSearchInput] = useState(filters.search);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setCollabFilters({ search: searchInput });
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchInput]);
-
-  const activeFilterCount = [
-    filters.type,
-    filters.listingType,
-    filters.status,
-    filters.experienceLevel,
-    filters.compensationType,
-    filters.isIndividual !== undefined ? true : undefined,
-    filters.search,
-  ].filter(Boolean).length;
-
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Search bar */}
-      <div className="flex items-center gap-2 border border-muted bg-muted/40 px-3 py-2">
-        <HugeiconsIcon icon={Search01Icon} size={14} className="shrink-0 text-foreground/80" />
-        <input
-          type="text"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search posts..."
-          className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder-muted-foreground outline-none"
-        />
-        {searchInput && (
-          <button
-            type="button"
-            onClick={() => setSearchInput("")}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={12} />
-          </button>
-        )}
-      </div>
-
-      {/* Filter header with reset */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={FilterIcon} size={14} className="text-foreground" />
-          <span className="font-mono text-[11px] font-bold tracking-widest text-foreground uppercase">
-            FILTERS
-          </span>
-          {activeFilterCount > 0 && (
-            <span className="border border-primary/60 bg-primary/30 px-1.5 py-0.5 font-mono text-[10px] text-primary">
-              {activeFilterCount}
-            </span>
-          )}
-        </div>
-        {activeFilterCount > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              resetCollabFilters();
-              setSearchInput("");
-            }}
-            className="font-mono text-[10px] tracking-wider text-foreground/80 uppercase transition-colors hover:text-primary"
-          >
-            CLEAR ALL
-          </button>
-        )}
-      </div>
-
-      {/* Post type */}
-      <div className="space-y-2">
-        <SectionLabel>Type</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {TYPE_OPTIONS.map((t) => (
-            <FilterChip
-              key={t.value}
-              label={`${t.icon} ${t.label}`}
-              active={filters.type === t.value}
-              onClick={() =>
-                setCollabFilters({ type: filters.type === t.value ? undefined : t.value })
-              }
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Listing type */}
-      <div className="space-y-2">
-        <SectionLabel>Show</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {LISTING_TYPE_OPTIONS.map((lt) => (
-            <FilterChip
-              key={lt.value}
-              label={lt.label}
-              active={filters.listingType === lt.value}
-              onClick={() =>
-                setCollabFilters({
-                  listingType: filters.listingType === lt.value ? undefined : lt.value,
-                })
-              }
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Status */}
-      <div className="space-y-2">
-        <SectionLabel>Status</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {STATUS_OPTIONS.map((s) => (
-            <FilterChip
-              key={s.value}
-              label={s.label}
-              active={filters.status === s.value}
-              onClick={() =>
-                setCollabFilters({ status: filters.status === s.value ? undefined : s.value })
-              }
-              accent={
-                s.value === "recruiting"
-                  ? "bg-green-500/25 border-green-500/60 text-green-500"
-                  : "bg-destructive/25 border-destructive/60 text-destructive"
-              }
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Experience level */}
-      <div className="space-y-2">
-        <SectionLabel>Experience</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {EXPERIENCE_OPTIONS.map((e) => (
-            <FilterChip
-              key={e.value}
-              label={e.label}
-              active={filters.experienceLevel === e.value}
-              onClick={() =>
-                setCollabFilters({
-                  experienceLevel: filters.experienceLevel === e.value ? undefined : e.value,
-                })
-              }
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Compensation type (paid only) */}
-      {filters.type === "paid" && (
-        <div className="space-y-2">
-          <SectionLabel>Compensation</SectionLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {COMP_OPTIONS.map((c) => (
-              <FilterChip
-                key={c.value}
-                label={c.label}
-                active={filters.compensationType === c.value}
-                onClick={() =>
-                  setCollabFilters({
-                    compensationType: filters.compensationType === c.value ? undefined : c.value,
-                  })
-                }
-                accent="bg-green-500/25 border-green-500/60 text-green-500"
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Sort */}
-      <div className="space-y-2">
-        <SectionLabel>Sort By</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {SORT_OPTIONS.map((s) => (
-            <FilterChip
-              key={s.value}
-              label={s.label}
-              active={filters.sortBy === s.value}
-              onClick={() => setCollabFilters({ sortBy: s.value })}
-            />
-          ))}
-          <FilterChip
-            label={filters.sortOrder === "desc" ? "DESC" : "ASC"}
-            active={false}
-            onClick={() =>
-              setCollabFilters({ sortOrder: filters.sortOrder === "desc" ? "asc" : "desc" })
-            }
-          />
-        </div>
-      </div>
-
-      {onDone && (
-        <button
-          type="button"
-          onClick={onDone}
-          className="w-full border border-primary/60 bg-primary/30 py-2.5 font-mono text-[11px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/40"
-        >
-          DONE
-        </button>
-      )}
-    </div>
-  );
-}
-
+/**
+ * Top-level collab browser. Lays out a hero + quick board header, a
+ * three-column body on desktop (filter rail / feed / right rail), and a
+ * stacked single-column flow on mobile. The create flyout is owned at
+ * this level so any of the CTAs can summon it.
+ */
 export function CollabBrowsePage() {
   const { session, isPending } = useStore(authStore);
+  const isTouch = useIsTouchDevice();
+  const navigate = useNavigate();
+  const search = (useSearch({ strict: false }) as CollabSearch) ?? {};
 
-  usePageSidebar(<CollabBrowseSidebar />);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filters = useStore(collabStore, (s) => s.filters);
+  const activeFilterCount = countActiveCollabFilters(filters);
+
+  // Open the create flyout when arriving via /collab/new (which
+  // redirects here with `?new=1`). After consuming the flag we strip
+  // it from the URL so back-navigation doesn't loop.
+  useEffect(() => {
+    if (search.new) {
+      setCreateOpen(true);
+      navigate({ to: "/collab", search: {}, replace: true });
+    }
+  }, [search.new, navigate]);
+
+  // Global keyboard shortcuts:
+  //   `/`   focuses the filter search input
+  //   `P`   toggles between the projects ↔ people listing
+  // Both are skipped while the user is typing inside an input/textarea
+  // or a contenteditable surface so they don't hijack normal typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const inEditable =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target?.isContentEditable === true;
+      if (inEditable) return;
+
+      if (e.key === "/") {
+        e.preventDefault();
+        document.getElementById(COLLAB_SEARCH_INPUT_ID)?.focus();
+        return;
+      }
+      if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        const next = collabStore.state.filters.listingType === "people" ? "posts" : "people";
+        setCollabFilters({ listingType: next });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const { data: counts } = useQuery({
+    queryKey: ["collabCounts"],
+    queryFn: async () => {
+      const [paid, hobby, playtest, mentor] = await Promise.all([
+        client.listPosts({ type: "paid", status: "recruiting", limit: 1 }),
+        client.listPosts({ type: "hobby", status: "recruiting", limit: 1 }),
+        client.listPosts({ type: "playtest", status: "recruiting", limit: 1 }),
+        client.listPosts({ type: "mentor", status: "recruiting", limit: 1 }),
+      ]);
+      return {
+        paid: paid.total ?? 0,
+        hobby: hobby.total ?? 0,
+        playtest: playtest.total ?? 0,
+        mentor: mentor.total ?? 0,
+      };
+    },
+    staleTime: 30 * 1000,
+  });
+
+  const totalRoles =
+    (counts?.paid ?? 0) + (counts?.hobby ?? 0) + (counts?.playtest ?? 0) + (counts?.mentor ?? 0);
+
+  const handleCreate = () => {
+    if (!isPending && !session?.user) {
+      authClient.signIn.social({ provider: "discord" });
+      return;
+    }
+    setCreateOpen(true);
+  };
+
+  // The post detail popover is driven entirely by the `?post=<id>`
+  // search param so direct-links and back/forward navigation just work.
+  // `openPost` writes to the URL; `closePost` strips the param.
+  const openPost = (postId: number) => {
+    navigate({ to: "/collab", search: { post: postId }, replace: false });
+  };
+  const closePost = () => {
+    navigate({ to: "/collab", search: {}, replace: false });
+  };
+  const openPostId = typeof search.post === "number" ? search.post : null;
 
   return (
-    <div className="flex h-full flex-col gap-4 selection:bg-primary selection:text-white">
-      {/* Create post / sign in CTA */}
-      {!isPending && (
-        <div className="shrink-0">
-          {session?.user ? (
-            <Link
-              to="/collab/new"
-              className="group pointer-events-auto flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none"
-            >
-              <HugeiconsIcon icon={Add01Icon} size={18} />
-              CREATE POST
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => authClient.signIn.social({ provider: "discord" })}
-              className="group pointer-events-auto flex items-center gap-3 border-2 border-primary bg-primary/5 px-4 py-3 font-mono text-sm font-bold text-primary transition-all hover:bg-primary/10 hover:shadow-[3px_3px_0px_var(--color-primary)] active:translate-y-px active:shadow-none"
-            >
-              <HugeiconsIcon icon={Login01Icon} size={18} />
-              SIGN IN TO POST
-            </button>
-          )}
-        </div>
-      )}
+    <div className="flex flex-col gap-8 selection:bg-primary selection:text-white">
+      {/* Hero + quick board */}
+      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-end lg:gap-10">
+        <CollabHero />
+        <CollabQuickBoard
+          paid={counts?.paid ?? 0}
+          hobby={counts?.hobby ?? 0}
+          playtest={counts?.playtest ?? 0}
+          mentor={counts?.mentor ?? 0}
+          compact={isTouch}
+        />
+      </div>
 
-      <NotchedCard
-        className="min-h-0 flex-1"
-        header={
-          <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
-            {"COLLAB // FILTERS"}
-          </span>
+      {/* Narrow viewport (mobile + thin desktop): single-column flow.
+          Driven by `lg:hidden` rather than `isTouch` so a non-touch
+          browser at < lg width still gets a usable layout instead of
+          a blank page. */}
+      <div className="flex flex-col gap-4 lg:hidden">
+        <CollabMobilePostPrompt onClick={handleCreate} />
+        <CollabMobileSearch onOpenFilters={() => setFiltersOpen(true)} />
+        <CollabListingToggle priority="primary" />
+        <CollabPostFeed currentUserId={session?.user?.id ?? null} onOpenPost={openPost} />
+      </div>
+
+      {/* Desktop: 3-column body composed of isolated sections — the
+          right rail collapses out when its flag is off. */}
+      <div
+        className={
+          SHOW_RIGHT_RAIL
+            ? "hidden lg:grid lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(220px,300px)] lg:gap-8"
+            : "hidden lg:grid lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] lg:gap-8"
         }
       >
-        <div className="p-4">
-          <FilterContent />
-        </div>
-      </NotchedCard>
+        <section className="flex flex-col gap-5">
+          {!isPending ? (
+            <CollabCreateCta authenticated={!!session?.user} onClick={handleCreate} />
+          ) : null}
+          <CollabSectionHeader
+            index="01"
+            title="FILTERS"
+            action={
+              activeFilterCount > 0 ? (
+                <>
+                  <Text
+                    as="span"
+                    monospace
+                    size="xs"
+                    variant="muted"
+                    className="tracking-widest tabular-nums"
+                  >
+                    {activeFilterCount} ACTIVE
+                  </Text>
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="Clear all filters"
+                    onClick={resetCollabFilters}
+                    className="font-mono"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={10} />
+                  </Button>
+                </>
+              ) : null
+            }
+          />
+          <CollabFilterPanel />
+        </section>
+
+        <section className="flex min-h-[60vh] flex-col gap-4">
+          <CollabSectionHeader
+            index="02"
+            title="BOARD"
+            action={<AddSectionAction onAdd={handleCreate} label="POST" />}
+          />
+          <CollabPostFeed currentUserId={session?.user?.id ?? null} onOpenPost={openPost} />
+        </section>
+
+        {SHOW_RIGHT_RAIL ? (
+          <section className="flex flex-col gap-5">
+            <CollabSectionHeader index="A" title="PULSE" />
+            <CollabPulse posts={totalRoles} />
+            <CollabSectionHeader index="B" title="SKILLS" />
+            <CollabHotSkills />
+            <CollabSectionHeader index="C" title="FEATURED" />
+            <CollabFeaturedPerson />
+          </section>
+        ) : null}
+      </div>
+
+      <CollabCreateFlyout
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(postId) => {
+          openPost(postId);
+        }}
+      />
+
+      <CollabPostPopover
+        postId={openPostId}
+        currentUserId={session?.user?.id ?? null}
+        onClose={closePost}
+      />
+
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl">
+          <SheetHeader>
+            <SheetTitle className="font-mono tracking-widest uppercase">// FILTERS</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <CollabFilterPanel onDone={() => setFiltersOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -87,7 +87,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         }}
       >
         <div
-          className="bk-page-transition flex w-full flex-col px-4 pt-16 selection:bg-primary selection:text-white"
+          className="flex w-full flex-col px-4 pt-16 selection:bg-primary selection:text-white"
           style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT} + 1rem)` }}
         >
           {children}

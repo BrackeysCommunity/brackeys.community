@@ -17,9 +17,21 @@ export type CollabProjectLength =
   | "6+ months"
   | "ongoing";
 
+/**
+ * A pending project image attached to the create-post wizard. Held in
+ * memory while the wizard is open — uploaded to MinIO only when the
+ * user actually submits the post, so abandoned drafts don't leave
+ * orphaned bucket objects behind. The preview shown in the wizard
+ * uses a local `URL.createObjectURL(file)` blob URL.
+ */
 export type UploadedImage = {
-  strapiMediaId: string;
-  url: string;
+  /** The actual file the user picked. Bytes are uploaded at submit. */
+  file: File;
+  /** Stable id used as the React key — generated when the file is added. */
+  localId: string;
+  /** Cached `URL.createObjectURL(file)` so we don't recreate it on each render. */
+  previewUrl: string;
+  /** Optional alt text. */
   alt?: string;
 };
 
@@ -153,6 +165,19 @@ export function resetCollabFilters() {
     filters: { ...defaultFilters },
     pagination: { ...s.pagination, offset: 0 },
   }));
+}
+
+/** Returns the number of active filter constraints (excluding sort). */
+export function countActiveCollabFilters(filters: CollabFilters): number {
+  return [
+    filters.type,
+    filters.listingType,
+    filters.status,
+    filters.experienceLevel,
+    filters.compensationType,
+    filters.isIndividual !== undefined ? true : undefined,
+    filters.search,
+  ].filter(Boolean).length;
 }
 
 export function setCollabPage(offset: number) {
