@@ -3,6 +3,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  index,
   integer,
   jsonb,
   numeric,
@@ -198,6 +199,43 @@ export const linkedAccounts = userSchema.table(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [unique().on(table.profileId, table.provider)],
+);
+
+// ── Notifications (user schema) ─────────────────────────────────────────────
+
+export type NotificationType =
+  | "collab_response_received"
+  | "collab_response_accepted"
+  | "collab_response_declined"
+  | "collab_post_featured"
+  | "collab_post_closed_by_staff";
+
+export type NotificationEntityType = "collab_post" | "collab_response";
+
+export const notifications = userSchema.table(
+  "notifications",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").$type<NotificationType>().notNull(),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    entityType: text("entity_type").$type<NotificationEntityType>(),
+    entityId: text("entity_id"),
+    data: jsonb("data")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("notifications_user_unread_idx")
+      .on(t.userId, t.createdAt.desc())
+      .where(sql`${t.readAt} IS NULL`),
+    index("notifications_user_created_idx").on(t.userId, t.createdAt.desc()),
+  ],
 );
 
 // ── Moderation tables (hammer schema) ───────────────────────────────────────
