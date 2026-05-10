@@ -2,7 +2,7 @@ import { and, eq, gte } from "drizzle-orm";
 
 import { db } from "@/db";
 import { notifications, type NotificationEntityType, type NotificationType } from "@/db/schema";
-import { notificationsQueue } from "@/lib/queue";
+import { getNotificationsQueue } from "@/lib/queue";
 
 export type NotifyParams = {
   userId: string;
@@ -79,7 +79,8 @@ export async function notify(params: NotifyParams): Promise<void> {
   if (result.deduped) return;
 
   try {
-    await notificationsQueue.add(
+    const queue = await getNotificationsQueue();
+    await queue.add(
       "side_effects",
       { notificationId: result.id },
       {

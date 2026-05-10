@@ -35,7 +35,7 @@ vi.mock("@/db/schema", () => ({
 }));
 
 vi.mock("@/lib/queue", () => ({
-  notificationsQueue: { add: mocks.queueAdd },
+  getNotificationsQueue: async () => ({ add: mocks.queueAdd }),
 }));
 
 import { notify } from "../notifications";
