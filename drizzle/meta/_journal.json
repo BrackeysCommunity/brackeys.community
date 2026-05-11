@@ -1,0 +1,21 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    { "idx": 0, "version": "7", "when": 1700000000000, "tag": "0000_zippy_wraith", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1700000001000, "tag": "0001_chilly_vision", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1700000002000, "tag": "0002_marvelous_hardball", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1700000003000, "tag": "0003_motionless_rumiko_fujikawa", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1700000004000, "tag": "0004_flawless_juggernaut", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1700000005000, "tag": "0005_melted_ultimates", "breakpoints": true },
+    { "idx": 6, "version": "7", "when": 1700000006000, "tag": "0006_lumpy_silvermane", "breakpoints": true },
+    { "idx": 7, "version": "7", "when": 1700000007000, "tag": "0007_itchio-linked-accounts", "breakpoints": true },
+    { "idx": 8, "version": "7", "when": 1700000008000, "tag": "0008_unified_profile_project", "breakpoints": true },
+    { "idx": 9, "version": "7", "when": 1700000009000, "tag": "0009_awesome_madelyne_pryor", "breakpoints": true },
+    { "idx": 10, "version": "7", "when": 1700000010000, "tag": "0010_organic_vin_gonzales", "breakpoints": true },
+    { "idx": 11, "version": "7", "when": 1700000011000, "tag": "0011_link_hammer_and_update_primary_keys", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1776724038000, "tag": "0012_itch_schema", "breakpoints": true },
+    { "idx": 13, "version": "7", "when": 1777553920000, "tag": "0013_jams_joined_count", "breakpoints": true },
+    { "idx": 14, "version": "7", "when": 1778425981000, "tag": "0014_notifications", "breakpoints": true }
+  ]
+}
