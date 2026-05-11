@@ -44,14 +44,16 @@ main brackeys drizzle schema under the `itch` Postgres schema:
 - `itch.jam_entry_results`
 
 They're defined in `src/db/schema.ts` and picked up by `drizzle.config.ts`
-and `atlas.hcl` (`schemas = [..., "itch"]`). To materialize them:
+(`schemaFilter: [..., "itch"]`). To materialize them:
 
 ```bash
 # From repo root, after pulling this change:
-bun atlas:diff            # generates drizzle/00XX_*.sql and refreshes atlas.sum
-bun atlas:apply           # apply locally
-bun railway:atlas:apply   # apply in prod
+bun run db:generate       # emits drizzle/00XX_*.sql + meta/ snapshot
+bun run db:migrate        # applies pending migrations to DATABASE_URL
 ```
+
+Staging and prod migrations run automatically via
+`.gitlab/db-migrate.gitlab-ci.yml` on `main` / `prod`.
 
 ## Railway setup
 

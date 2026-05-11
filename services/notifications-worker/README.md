@@ -16,7 +16,7 @@ a user-facing request and can be scaled independently.
 
 The worker does **not** manage its own migrations. The `user.notifications`
 table lives in the main brackeys drizzle schema (`src/db/schema.ts`) and is
-applied via the same `drizzle-kit` / `atlas` flow as the rest of the app.
+applied via the same `drizzle-kit` flow as the rest of the app.
 
 ## Queues
 

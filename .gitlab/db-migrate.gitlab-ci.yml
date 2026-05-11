@@ -1,0 +1,39 @@
+# Apply Drizzle migrations to staging (main) and prod (prod) when files under
+# drizzle/ change. `drizzle-kit migrate` reads drizzle/meta/_journal.json,
+# checks drizzle.__drizzle_migrations on the target DB, and applies any
+# entries whose `when` is greater than the largest `created_at` recorded.
+
+.db-migrate:
+  stage: db-migrate
+  image: oven/bun:latest
+  before_script:
+    - bun install --frozen-lockfile
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+
+db-migrate-staging:
+  extends: .db-migrate
+  variables:
+    DATABASE_URL: $STAGING_DATABASE_URL
+  script:
+    - bun run db:migrate
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - drizzle/**/*
+
+db-migrate-prod:
+  extends: .db-migrate
+  variables:
+    DATABASE_URL: $PROD_DATABASE_URL
+  script:
+    - bun run db:migrate
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'prod'
+      changes:
+        - drizzle/**/*
