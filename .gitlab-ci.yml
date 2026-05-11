@@ -9,16 +9,14 @@ stages:
   - test
   - sonar
   - deploy
-  - atlas-push
-  - atlas-apply
+  - db-migrate
   - version
   - renovate
 
 include:
   - local: .gitlab/ci.gitlab-ci.yml
   - local: .gitlab/sonar.gitlab-ci.yml
-  - local: .gitlab/atlas-staging.gitlab-ci.yml
-  - local: .gitlab/atlas-prod.gitlab-ci.yml
+  - local: .gitlab/db-migrate.gitlab-ci.yml
   - local: .gitlab/railway-preview.gitlab-ci.yml
   - local: .gitlab/version-bump.gitlab-ci.yml
   - local: .gitlab/renovate.gitlab-ci.yml
