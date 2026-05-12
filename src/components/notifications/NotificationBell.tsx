@@ -2,88 +2,17 @@ import { Notification03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNowStrict } from "date-fns";
 import { useEffect, useRef, useState } from "react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  NotificationRow,
+  type NotificationItem,
+} from "@/components/notifications/notification-utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
 const REFETCH_INTERVAL_MS = 30_000;
 const AUTO_MARK_DELAY_MS = 1500;
-
-type NotificationItem = {
-  id: number;
-  type: string;
-  actorId: string | null;
-  entityType: string | null;
-  entityId: string | null;
-  data: Record<string, unknown>;
-  readAt: Date | string | null;
-  createdAt: Date | string;
-  actorUsername: string | null;
-  actorAvatarUrl: string | null;
-};
-
-function renderCopy(n: NotificationItem): { line: React.ReactNode; href: string | null } {
-  const actor = n.actorUsername ? `@${n.actorUsername}` : "Someone";
-  const postTitle = (n.data.postTitle as string | undefined) ?? "your post";
-  const postId = n.data.postId as number | undefined;
-  const href = postId ? `/collab/${postId}` : null;
-
-  switch (n.type) {
-    case "collab_response_received":
-      return {
-        line: (
-          <>
-            {actor} responded to <em className="font-medium not-italic">{postTitle}</em>
-          </>
-        ),
-        href,
-      };
-    case "collab_response_accepted":
-      return {
-        line: (
-          <>
-            {actor} accepted your response on{" "}
-            <em className="font-medium not-italic">{postTitle}</em>
-          </>
-        ),
-        href,
-      };
-    case "collab_response_declined":
-      return {
-        line: (
-          <>
-            {actor} declined your response on{" "}
-            <em className="font-medium not-italic">{postTitle}</em>
-          </>
-        ),
-        href,
-      };
-    case "collab_post_featured":
-      return {
-        line: (
-          <>
-            Your post <em className="font-medium not-italic">{postTitle}</em> was featured
-          </>
-        ),
-        href,
-      };
-    case "collab_post_closed_by_staff":
-      return {
-        line: (
-          <>
-            Staff closed your post <em className="font-medium not-italic">{postTitle}</em>
-          </>
-        ),
-        href,
-      };
-    default:
-      return { line: <>You have a new notification</>, href };
-  }
-}
 
 export function NotificationBell() {
   const queryClient = useQueryClient();
@@ -184,44 +113,20 @@ export function NotificationBell() {
               You're all caught up.
             </div>
           ) : (
-            items.map((n) => {
-              const { line, href } = renderCopy(n);
-              const Body = (
-                <div
-                  className={cn(
-                    "flex gap-2.5 border-b border-muted/30 px-3 py-2.5 transition-colors last:border-b-0 hover:bg-muted/20",
-                    !n.readAt && "bg-primary/5",
-                  )}
-                >
-                  <Avatar className="h-7 w-7 shrink-0 rounded-none border border-muted/40">
-                    {n.actorAvatarUrl ? (
-                      <AvatarImage src={n.actorAvatarUrl} alt="" />
-                    ) : (
-                      <AvatarFallback className="rounded-none bg-muted/40 font-mono text-[10px] font-bold">
-                        {(n.actorUsername ?? "?")[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <p className="text-xs leading-snug text-foreground/90">{line}</p>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      {formatDistanceToNowStrict(new Date(n.createdAt), { addSuffix: true })}
-                    </span>
-                  </div>
-                  {!n.readAt && (
-                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                  )}
-                </div>
-              );
-              return href ? (
-                <Link key={n.id} to={href} onClick={() => setOpen(false)} className="block">
-                  {Body}
-                </Link>
-              ) : (
-                <div key={n.id}>{Body}</div>
-              );
-            })
+            items.map((n) => (
+              <NotificationRow key={n.id} notification={n} onNavigate={() => setOpen(false)} />
+            ))
           )}
+        </div>
+
+        <div className="border-t border-muted/40 px-3 py-2 text-center">
+          <Link
+            to="/notifications"
+            onClick={() => setOpen(false)}
+            className="font-mono text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
+          >
+            See all
+          </Link>
         </div>
       </PopoverContent>
     </Popover>

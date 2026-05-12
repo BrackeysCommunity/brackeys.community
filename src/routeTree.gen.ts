@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as JamsRouteImport } from './routes/jams'
 import { Route as GameRouteImport } from './routes/game'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
@@ -32,6 +33,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JamsRoute = JamsRouteImport.update({
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/command-center': typeof CommandCenterRoute
   '/jams': typeof JamsRoute
+  '/notifications': typeof NotificationsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -194,6 +203,7 @@ export interface FileRouteTypes {
     | '/command-center'
     | '/game'
     | '/jams'
+    | '/notifications'
     | '/profile'
     | '/api/$'
     | '/collab/$postId'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/'
     | '/command-center'
     | '/jams'
+    | '/notifications'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/command-center'
     | '/game'
     | '/jams'
+    | '/notifications'
     | '/profile'
     | '/api/$'
     | '/collab/$postId'
@@ -255,6 +267,7 @@ export interface RootRouteChildren {
   CommandCenterRoute: typeof CommandCenterRoute
   GameRoute: typeof GameRouteWithChildren
   JamsRoute: typeof JamsRoute
+  NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -270,6 +283,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jams': {
@@ -449,6 +469,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommandCenterRoute: CommandCenterRoute,
   GameRoute: GameRouteWithChildren,
   JamsRoute: JamsRoute,
+  NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

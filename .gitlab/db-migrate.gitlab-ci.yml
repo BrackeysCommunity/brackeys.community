@@ -7,6 +7,7 @@
   stage: db-migrate
   image: oven/bun:latest
   before_script:
+    - apt-get update -qq && apt-get install -y -qq git
     - bun install --frozen-lockfile
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"

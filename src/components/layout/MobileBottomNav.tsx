@@ -7,11 +7,13 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { orpc } from "@/orpc/client";
 
 interface NavTabBody {
   icon: IconSvgElement;
@@ -19,16 +21,28 @@ interface NavTabBody {
   /** Optional avatar image used by the ME tab when the user is
    * signed in — sits in place of the icon at the same size. */
   avatarUrl?: string | null;
+  /** Renders a small red dot on the icon corner — used to signal
+   * unread notifications on the ME tab. */
+  showDot?: boolean;
 }
 
-function TabBody({ icon, label, avatarUrl }: NavTabBody) {
+function TabBody({ icon, label, avatarUrl, showDot }: NavTabBody) {
   return (
     <span className="flex flex-col items-center gap-0.5">
-      {avatarUrl ? (
-        <img src={avatarUrl} alt="" aria-hidden className="size-5 rounded-full object-cover" />
-      ) : (
-        <HugeiconsIcon icon={icon} />
-      )}
+      <span className="relative">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" aria-hidden className="size-5 rounded-full object-cover" />
+        ) : (
+          <HugeiconsIcon icon={icon} />
+        )}
+        {showDot && (
+          <span
+            data-testid="me-tab-unread-dot"
+            aria-label="Unread notifications"
+            className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary ring-1 ring-background"
+          />
+        )}
+      </span>
       <span className="font-mono text-[10px] font-bold tracking-widest">{label}</span>
     </span>
   );
@@ -47,6 +61,14 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const avatarUrl = session?.user?.image ?? null;
+
+  const unread = useQuery({
+    ...orpc.unreadCount.queryOptions({ input: {} }),
+    enabled: !!session?.user,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  const hasUnread = (unread.data?.count ?? 0) > 0;
 
   const active: TabValue = pathname.startsWith("/collab")
     ? "collab"
@@ -117,7 +139,7 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
           <TabBody icon={ComputerTerminal01Icon} label="BOTS" />
         </SegmentedControl.Item>
         <SegmentedControl.Item value="me" aria-label="Profile" className="rounded-r-md">
-          <TabBody icon={UserIcon} label="ME" avatarUrl={avatarUrl} />
+          <TabBody icon={UserIcon} label="ME" avatarUrl={avatarUrl} showDot={hasUnread} />
         </SegmentedControl.Item>
       </SegmentedControl>
     </nav>

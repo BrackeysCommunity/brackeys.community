@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
@@ -55,15 +56,18 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         {session?.user ? (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Settings"
-            onClick={() => setSettingsOpen(true)}
-            className="font-mono"
-          >
-            <HugeiconsIcon icon={Settings02Icon} size={14} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label="Settings"
+              onClick={() => setSettingsOpen(true)}
+              className="font-mono"
+            >
+              <HugeiconsIcon icon={Settings02Icon} size={14} />
+            </Button>
+          </div>
         ) : (
           <Button
             variant="default"

@@ -29,6 +29,16 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: undefined }),
+}));
+
+vi.mock("@/orpc/client", () => ({
+  orpc: {
+    unreadCount: { queryOptions: () => ({ queryKey: ["unreadCount"], queryFn: vi.fn() }) },
+  },
+}));
+
 let __pathname = "/";
 
 // ── Import after mocks ─────────────────────────────────────────────────────
