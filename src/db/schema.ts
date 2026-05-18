@@ -238,6 +238,34 @@ export const notifications = userSchema.table(
   ],
 );
 
+export const notificationPreferences = userSchema.table(
+  "notification_preferences",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").$type<NotificationType>().notNull(),
+    inApp: boolean("in_app").notNull().default(true),
+    email: boolean("email").notNull().default(false),
+    digest: boolean("digest").notNull().default(false),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.type] })],
+);
+
+export const userNotificationSettings = userSchema.table("user_notification_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  lastDigestAt: timestamp("last_digest_at"),
+  // Stable random token used for one-click unsubscribe links in emails.
+  // Issued lazily on first email send; remains valid until the user
+  // explicitly regenerates it. Indexed unique so the unsub route can
+  // resolve it without a userId.
+  unsubscribeToken: text("unsubscribe_token").unique(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ── Moderation tables (hammer schema) ───────────────────────────────────────
 
 export const altAccounts = hammerSchema.table(

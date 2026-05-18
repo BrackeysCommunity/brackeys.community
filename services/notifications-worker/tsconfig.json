@@ -10,7 +10,15 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "../../src/db/schema.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "../../src/db/schema.ts",
+    "../../src/lib/notification-copy.ts",
+    "../../src/lib/unsubscribe.ts",
+    "../../src/emails/**/*.tsx"
+  ]
 }

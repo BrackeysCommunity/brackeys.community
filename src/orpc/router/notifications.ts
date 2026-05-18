@@ -3,16 +3,18 @@ import { and, count, desc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
-import { developerProfiles, notifications } from "@/db/schema";
+import {
+  developerProfiles,
+  notificationPreferences,
+  notifications,
+  type NotificationType,
+} from "@/db/schema";
+import { NOTIFICATION_DEFAULTS, NOTIFICATION_TYPES } from "@/lib/notification-copy";
 import { requireAuth } from "@/orpc/middleware/auth";
 
-const NOTIFICATION_TYPES = [
-  "collab_response_received",
-  "collab_response_accepted",
-  "collab_response_declined",
-  "collab_post_featured",
-  "collab_post_closed_by_staff",
-] as const;
+const notificationTypeSchema = z.enum(
+  NOTIFICATION_TYPES as [NotificationType, ...NotificationType[]],
+);
 
 export const listNotifications = os
   .use(requireAuth)
@@ -96,4 +98,72 @@ export const markAllRead = os
     return { ok: true };
   });
 
-export type NotificationTypeName = (typeof NOTIFICATION_TYPES)[number];
+// ── Preferences ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns one row per notification type, merged with the shared defaults
+ * so the UI always sees a complete matrix even on first visit.
+ */
+export const getPreferences = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    const rows = await db
+      .select()
+      .from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, context.user.id));
+
+    const byType = new Map(rows.map((r) => [r.type as NotificationType, r]));
+
+    return {
+      preferences: NOTIFICATION_TYPES.map((type) => {
+        const existing = byType.get(type);
+        const fallback = NOTIFICATION_DEFAULTS[type];
+        return {
+          type,
+          inApp: existing?.inApp ?? fallback.inApp,
+          email: existing?.email ?? fallback.email,
+          digest: existing?.digest ?? fallback.digest,
+        };
+      }),
+    };
+  });
+
+export const updatePreference = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      type: notificationTypeSchema,
+      inApp: z.boolean().optional(),
+      email: z.boolean().optional(),
+      digest: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const fallback = NOTIFICATION_DEFAULTS[input.type];
+    const next = {
+      userId: context.user.id,
+      type: input.type,
+      inApp: input.inApp ?? fallback.inApp,
+      email: input.email ?? fallback.email,
+      digest: input.digest ?? fallback.digest,
+      updatedAt: new Date(),
+    };
+
+    await db
+      .insert(notificationPreferences)
+      .values(next)
+      .onConflictDoUpdate({
+        target: [notificationPreferences.userId, notificationPreferences.type],
+        set: {
+          inApp: next.inApp,
+          email: next.email,
+          digest: next.digest,
+          updatedAt: next.updatedAt,
+        },
+      });
+
+    return { ok: true };
+  });
+
+export type NotificationTypeName = NotificationType;

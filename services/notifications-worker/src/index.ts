@@ -2,9 +2,9 @@ import { Queue, Worker } from "bullmq";
 
 import { config } from "./config.ts";
 import { pool } from "./db/client.ts";
-import { EMAIL_QUEUE, NOTIFICATIONS_QUEUE, redis } from "./queue.ts";
+import { EMAIL_QUEUE, NOTIFICATIONS_QUEUE, publisher, redis, type SendEmailJob } from "./queue.ts";
 import { handleSideEffects } from "./tasks/notification-side-effects.ts";
-import { handleSendEmail, type SendEmailJob } from "./tasks/send-email.ts";
+import { handleSendEmail } from "./tasks/send-email.ts";
 import { handleWeeklyDigests } from "./tasks/send-weekly-digests.ts";
 
 const notificationsQueue = new Queue(NOTIFICATIONS_QUEUE, { connection: redis });
@@ -53,6 +53,7 @@ async function shutdown(signal: string) {
     notificationsQueue.close(),
   ]);
   await redis.quit().catch(() => {});
+  await publisher.quit().catch(() => {});
   await pool.end().catch(() => {});
   process.exit(0);
 }

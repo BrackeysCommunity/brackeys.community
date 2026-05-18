@@ -28,6 +28,8 @@ import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
 import { Route as OauthGithubCallbackRouteImport } from './routes/oauth.github.callback'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
+import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifications.unsub'
+import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const ProfileRoute = ProfileRouteImport.update({
@@ -125,6 +127,16 @@ const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   path: '/api/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNotificationsUnsubRoute = ApiNotificationsUnsubRouteImport.update({
+  id: '/api/notifications/unsub',
+  path: '/api/notifications/unsub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotificationsStreamRoute = ApiNotificationsStreamRouteImport.update({
+  id: '/api/notifications/stream',
+  path: '/api/notifications/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -149,6 +161,8 @@ export interface FileRoutesByFullPath {
   '/game/': typeof GameIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/notifications/stream': typeof ApiNotificationsStreamRoute
+  '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
@@ -168,6 +182,8 @@ export interface FileRoutesByTo {
   '/game': typeof GameIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/notifications/stream': typeof ApiNotificationsStreamRoute
+  '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
@@ -191,6 +207,8 @@ export interface FileRoutesById {
   '/game/': typeof GameIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/notifications/stream': typeof ApiNotificationsStreamRoute
+  '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
@@ -215,6 +233,8 @@ export interface FileRouteTypes {
     | '/game/'
     | '/profile/'
     | '/api/auth/$'
+    | '/api/notifications/stream'
+    | '/api/notifications/unsub'
     | '/api/rpc/$'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
@@ -234,6 +254,8 @@ export interface FileRouteTypes {
     | '/game'
     | '/profile'
     | '/api/auth/$'
+    | '/api/notifications/stream'
+    | '/api/notifications/unsub'
     | '/api/rpc/$'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
@@ -256,6 +278,8 @@ export interface FileRouteTypes {
     | '/game/'
     | '/profile/'
     | '/api/auth/$'
+    | '/api/notifications/stream'
+    | '/api/notifications/unsub'
     | '/api/rpc/$'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
@@ -271,6 +295,8 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
+  ApiNotificationsUnsubRoute: typeof ApiNotificationsUnsubRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
   OauthGithubCallbackRoute: typeof OauthGithubCallbackRoute
   OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
@@ -411,6 +437,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/notifications/unsub': {
+      id: '/api/notifications/unsub'
+      path: '/api/notifications/unsub'
+      fullPath: '/api/notifications/unsub'
+      preLoaderRoute: typeof ApiNotificationsUnsubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications/stream': {
+      id: '/api/notifications/stream'
+      path: '/api/notifications/stream'
+      fullPath: '/api/notifications/stream'
+      preLoaderRoute: typeof ApiNotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -473,6 +513,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
+  ApiNotificationsUnsubRoute: ApiNotificationsUnsubRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
   OauthGithubCallbackRoute: OauthGithubCallbackRoute,
   OauthItchioCallbackRoute: OauthItchioCallbackRoute,

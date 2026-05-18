@@ -22,6 +22,7 @@ import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
+import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
 
 import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
@@ -163,23 +164,29 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   );
 }
 
+function NotificationStreamMount() {
+  useNotificationStream();
+  return null;
+}
+
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const isTouch = useIsTouchDevice();
 
-  if (isTouch) {
-    return (
-      <Suspense>
-        <MobileShell>{children}</MobileShell>
-      </Suspense>
-    );
-  }
-
   return (
     <>
-      <Suspense>
-        <AppHeader />
-      </Suspense>
-      <TwoColumnShell>{children}</TwoColumnShell>
+      <NotificationStreamMount />
+      {isTouch ? (
+        <Suspense>
+          <MobileShell>{children}</MobileShell>
+        </Suspense>
+      ) : (
+        <>
+          <Suspense>
+            <AppHeader />
+          </Suspense>
+          <TwoColumnShell>{children}</TwoColumnShell>
+        </>
+      )}
     </>
   );
 }

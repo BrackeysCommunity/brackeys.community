@@ -22,7 +22,14 @@ import {
 import { syncGitHubLink, unlinkGitHub, getContributions } from "./github";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
 import { getJamData, listJams } from "./jam";
-import { listNotifications, unreadCount, markRead, markAllRead } from "./notifications";
+import {
+  listNotifications,
+  unreadCount,
+  markRead,
+  markAllRead,
+  getPreferences,
+  updatePreference,
+} from "./notifications";
 import {
   getProfile,
   getMyProfile,
@@ -91,4 +98,6 @@ export default {
   unreadCount,
   markRead,
   markAllRead,
+  getPreferences,
+  updatePreference,
 };

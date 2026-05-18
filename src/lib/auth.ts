@@ -3,10 +3,13 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { oAuthProxy } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, eq } from "drizzle-orm";
+import { createElement } from "react";
 
 import { db } from "@/db";
 import { user, session, account, verification, developerProfiles } from "@/db/schema";
+import { AuthEmail } from "@/emails/AuthEmail";
 import { fetchGuildMember, resolveRoleNames } from "@/lib/discord";
+import { sendEmail } from "@/lib/email";
 
 export const auth = betterAuth({
   trustedOrigins: [
@@ -32,6 +35,38 @@ export const auth = betterAuth({
   accountLinking: {
     enabled: true,
     trustedProviders: ["discord", "github"],
+  },
+  // Today we only do social OAuth, but we keep these wired so future
+  // email-based flows (verification, magic links, password reset)
+  // dispatch via Resend without a follow-up change.
+  emailVerification: {
+    sendVerificationEmail: async ({ user: recipient, url }) => {
+      await sendEmail({
+        to: recipient.email,
+        subject: "Verify your Brackeys email",
+        react: createElement(AuthEmail, {
+          variant: "verify",
+          recipientName: recipient.name ?? null,
+          url,
+        }),
+        tags: [{ name: "category", value: "auth_verify" }],
+      });
+    },
+  },
+  emailAndPassword: {
+    enabled: false,
+    sendResetPassword: async ({ user: recipient, url }) => {
+      await sendEmail({
+        to: recipient.email,
+        subject: "Reset your Brackeys password",
+        react: createElement(AuthEmail, {
+          variant: "reset",
+          recipientName: recipient.name ?? null,
+          url,
+        }),
+        tags: [{ name: "category", value: "auth_reset" }],
+      });
+    },
   },
   plugins: [
     tanstackStartCookies(),
