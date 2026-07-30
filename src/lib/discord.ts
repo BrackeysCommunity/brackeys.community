@@ -1,3 +1,10 @@
+import type IORedis from "ioredis";
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __brackeysDiscordRedis: IORedis | undefined;
+}
+
 export interface DiscordGuildMember {
   avatar: string | null;
   nick: string | null;
@@ -38,13 +45,104 @@ export function isAdmin(guildRoles: string[] | null): boolean {
   return hasRole(guildRoles, "Admin");
 }
 
+// ── Rate-limit hygiene ─────────────────────────────────────────────
+//
+// Railway egress IPs are shared across tenants, and a Cloudflare 1015 ban
+// on discord.com takes OAuth sign-in down with it (better-auth's token
+// exchange hits the same zone). So we are deliberately heavy handed:
+// every call funnels through `discordFetch`, any 429 opens a Redis-backed
+// backoff window shared across instances, and guild membership is cached
+// so middleware traffic to discord.com is near zero. Redis being down must
+// never hurt more than Discord being down — the cache/backoff plumbing
+// swallows its own errors.
+
+const BACKOFF_KEY = "discord:backoff-until";
+const DEFAULT_BACKOFF_SECONDS = 30;
+const MAX_BACKOFF_SECONDS = 900;
+const MEMBER_CACHE_TTL_SECONDS = 600;
+const NON_MEMBER_CACHE_TTL_SECONDS = 120;
+
+/** Thrown when we refuse to call discord.com because a rate-limit backoff window is active. */
+export class DiscordBackoffError extends Error {
+  constructor(untilEpochMs: number) {
+    super(
+      `Discord requests suspended until ${new Date(untilEpochMs).toISOString()} (rate limited)`,
+    );
+    this.name = "DiscordBackoffError";
+  }
+}
+
+async function getRedis(): Promise<IORedis> {
+  if (globalThis.__brackeysDiscordRedis) return globalThis.__brackeysDiscordRedis;
+  const url = process.env.REDIS_URL;
+  if (!url) throw new Error("REDIS_URL is not set");
+  const { default: IORedisCtor } = await import("ioredis");
+  globalThis.__brackeysDiscordRedis = new IORedisCtor(url, {
+    maxRetriesPerRequest: null,
+  });
+  return globalThis.__brackeysDiscordRedis;
+}
+
+async function getBackoffUntil(): Promise<number | null> {
+  try {
+    const redis = await getRedis();
+    const raw = await redis.get(BACKOFF_KEY);
+    if (!raw) return null;
+    const until = Number(raw);
+    return Number.isFinite(until) && until > Date.now() ? until : null;
+  } catch {
+    return null;
+  }
+}
+
+async function openBackoffWindow(retryAfterSeconds: number): Promise<void> {
+  const seconds = Math.min(
+    Math.max(retryAfterSeconds, DEFAULT_BACKOFF_SECONDS),
+    MAX_BACKOFF_SECONDS,
+  );
+  try {
+    const redis = await getRedis();
+    const until = Date.now() + seconds * 1000;
+    // Keep the furthest-out window if two instances hit 429 concurrently.
+    const existing = Number((await redis.get(BACKOFF_KEY)) ?? 0);
+    if (until > existing) {
+      await redis.set(BACKOFF_KEY, String(until), "EX", seconds);
+    }
+  } catch {
+    // Backoff is best-effort — never let Redis failures mask the 429 itself.
+  }
+}
+
+function parseRetryAfter(response: Response): number {
+  const header = Number(response.headers.get("retry-after"));
+  return Number.isFinite(header) && header > 0 ? header : DEFAULT_BACKOFF_SECONDS;
+}
+
+/**
+ * Fetch against discord.com that fails fast while the shared backoff window
+ * is active and opens/extends that window whenever Discord answers 429.
+ */
+async function discordFetch(url: string, init: RequestInit): Promise<Response> {
+  const backoffUntil = await getBackoffUntil();
+  if (backoffUntil) throw new DiscordBackoffError(backoffUntil);
+
+  const response = await fetch(url, init);
+  if (response.status === 429) {
+    await openBackoffWindow(parseRetryAfter(response));
+  }
+  return response;
+}
+
 export async function fetchGuildMember(accessToken: string): Promise<DiscordGuildMember> {
   const guildId = process.env.DISCORD_GUILD_ID!;
-  const response = await fetch(`https://discord.com/api/users/@me/guilds/${guildId}/member`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const response = await discordFetch(
+    `https://discord.com/api/users/@me/guilds/${guildId}/member`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch guild member: ${response.status}`);
@@ -53,22 +151,68 @@ export async function fetchGuildMember(accessToken: string): Promise<DiscordGuil
   return response.json() as Promise<DiscordGuildMember>;
 }
 
+function memberCacheKey(discordUserId: string): string {
+  return `discord:guild-member:${discordUserId}`;
+}
+
+async function readCachedMembership(discordUserId: string): Promise<boolean | null> {
+  try {
+    const redis = await getRedis();
+    const cached = await redis.get(memberCacheKey(discordUserId));
+    return cached === null ? null : cached === "1";
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedMembership(discordUserId: string, isMember: boolean): Promise<void> {
+  try {
+    const redis = await getRedis();
+    await redis.set(
+      memberCacheKey(discordUserId),
+      isMember ? "1" : "0",
+      "EX",
+      isMember ? MEMBER_CACHE_TTL_SECONDS : NON_MEMBER_CACHE_TTL_SECONDS,
+    );
+  } catch {
+    // Cache is an optimization — membership answers must not depend on Redis.
+  }
+}
+
 /**
- * Check if a Discord user is a member of the guild using the bot token.
- * Uses GET /guilds/{guild_id}/members/{user_id} (Discord API v10).
- * Returns true if the user is in the guild, false otherwise.
+ * Check if a Discord user is a member of the guild using the bot token,
+ * answering from the Redis cache when possible. Fails closed (returns
+ * false) when rate limited or when Discord errors.
  */
 export async function isGuildMember(discordUserId: string): Promise<boolean> {
+  const cached = await readCachedMembership(discordUserId);
+  if (cached !== null) return cached;
+
   const guildId = process.env.DISCORD_GUILD_ID!;
   const botToken = process.env.DISCORD_BOT_TOKEN!;
-  const response = await fetch(
-    `https://discord.com/api/v10/guilds/${guildId}/members/${discordUserId}`,
-    {
-      headers: {
-        Authorization: `Bot ${botToken}`,
+  let response: Response;
+  try {
+    response = await discordFetch(
+      `https://discord.com/api/v10/guilds/${guildId}/members/${discordUserId}`,
+      {
+        headers: {
+          Authorization: `Bot ${botToken}`,
+        },
       },
-    },
-  );
+    );
+  } catch {
+    return false;
+  }
 
-  return response.ok;
+  // Only a definitive yes (200) or no (404) is cacheable; a 429/5xx tells
+  // us nothing about membership, so deny without poisoning the cache.
+  if (response.ok) {
+    await writeCachedMembership(discordUserId, true);
+    return true;
+  }
+  if (response.status === 404) {
+    await writeCachedMembership(discordUserId, false);
+    return false;
+  }
+  return false;
 }

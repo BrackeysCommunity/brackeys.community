@@ -18,3 +18,8 @@ todos.json
 /storybook-static
 build-storybook.log
 coverage
+ds-bundle
+ds_bundle
+ds_bundle/**/*
+.design-sync
+.ds-sync
