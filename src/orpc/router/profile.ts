@@ -14,6 +14,7 @@ import {
   skills,
   userSkills,
 } from "@/db/schema";
+import { syncItchIoLibraryThrottled } from "@/lib/itchio-sync";
 import {
   getProfileProjectImageUrl,
   removeProfileProjectImageFromStorage,
@@ -143,6 +144,14 @@ export const getProfile = os
 
     const profileId = profile.id;
     const isOwner = context.user?.id === profileId;
+
+    if (isOwner) {
+      // Owner views opportunistically refresh the itch.io library (Redis-
+      // throttled to once an hour) so games unpublished on itch.io stop
+      // showing publicly without a manual re-import. Fire-and-forget: the
+      // response below may still carry pre-sync data.
+      void syncItchIoLibraryThrottled(profileId).catch(console.error);
+    }
 
     const [skillList, projects, urlStub, pendingSkillRequests, linkedAccountsList] =
       await Promise.all([

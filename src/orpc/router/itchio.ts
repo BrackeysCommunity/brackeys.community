@@ -4,8 +4,9 @@ import { and, eq } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
-import { linkedAccounts, profileProjects } from "@/db/schema";
-import { fetchGames, validateToken } from "@/lib/itchio";
+import { linkedAccounts } from "@/db/schema";
+import { validateToken } from "@/lib/itchio";
+import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";
 import { requireAuth } from "@/orpc/middleware/auth";
 
 export const linkItchIo = os
@@ -100,74 +101,21 @@ export const importItchIoGames = os
   .use(requireAuth)
   .input(z.object({}))
   .handler(async ({ context }) => {
-    const userId = context.user.id;
+    const result = await syncItchIoLibrary(context.user.id).catch((err) => {
+      if (err instanceof ItchIoSyncFetchError) {
+        throw new ORPCError("BAD_REQUEST", {
+          message:
+            "Failed to fetch games from itch.io. Your token may have expired — try re-linking.",
+        });
+      }
+      throw err;
+    });
 
-    const [itchAccount] = await db
-      .select()
-      .from(linkedAccounts)
-      .where(and(eq(linkedAccounts.profileId, userId), eq(linkedAccounts.provider, "itchio")))
-      .limit(1);
-
-    if (!itchAccount?.accessToken) {
+    if (!result) {
       throw new ORPCError("BAD_REQUEST", {
         message: "No itch.io account linked or access token missing.",
       });
     }
 
-    const games = await fetchGames(itchAccount.accessToken).catch(() => {
-      throw new ORPCError("BAD_REQUEST", {
-        message:
-          "Failed to fetch games from itch.io. Your token may have expired — try re-linking.",
-      });
-    });
-
-    if (games.length === 0) {
-      return { imported: 0, total: 0 };
-    }
-
-    const existing = await db
-      .select({
-        id: profileProjects.id,
-        sourceId: profileProjects.sourceId,
-        published: profileProjects.published,
-      })
-      .from(profileProjects)
-      .where(and(eq(profileProjects.profileId, userId), eq(profileProjects.source, "itchio")));
-
-    const existingBySourceId = new Map(existing.map((e) => [e.sourceId, e]));
-
-    // Unpublished drafts are imported too — getProfile hides them from
-    // everyone but the owner via the `published` flag.
-    const newGames = games.filter((g) => !existingBySourceId.has(String(g.id)));
-
-    if (newGames.length > 0) {
-      await db.insert(profileProjects).values(
-        newGames.map((game) => ({
-          profileId: userId,
-          type: "game" as const,
-          title: game.title,
-          description: game.short_text || null,
-          url: game.url || null,
-          imageUrl: game.cover_url || null,
-          source: "itchio" as const,
-          sourceId: String(game.id),
-          status: "approved",
-          published: game.published,
-        })),
-      );
-    }
-
-    // Re-imports sync visibility, so publishing or unpublishing on itch.io
-    // is reflected here.
-    for (const game of games) {
-      const row = existingBySourceId.get(String(game.id));
-      if (row && row.published !== game.published) {
-        await db
-          .update(profileProjects)
-          .set({ published: game.published })
-          .where(eq(profileProjects.id, row.id));
-      }
-    }
-
-    return { imported: newGames.length, total: games.length };
+    return result;
   });

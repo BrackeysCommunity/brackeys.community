@@ -1,8 +1,8 @@
 {
-  "name": "@brackeys/itchio-scraper",
+  "name": "@brackeys/itchio-library-sync",
   "version": "0.1.0",
   "private": true,
-  "description": "Railway cron job that scrapes itch.io jam data and syncs it into the main brackeys Postgres DB.",
+  "description": "Railway cron job that re-syncs every linked itch.io account's game library into the main brackeys Postgres DB.",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -10,10 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "cheerio": "^1.2.0",
     "drizzle-orm": "1.0.0-rc.4",
     "pg": "^8.20.0",
-    "puppeteer-core": "^24.42.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

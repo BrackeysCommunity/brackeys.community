@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ── Schemas ─────────────────────────────────────────────────────────────────
@@ -148,41 +149,51 @@ export const profileUrlStubs = userSchema.table("profile_url_stubs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const profileProjects = userSchema.table("profile_projects", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  profileId: text("profile_id")
-    .notNull()
-    .references(() => developerProfiles.id, { onDelete: "cascade" }),
-  type: profileProjectTypeEnum("type").notNull().default("game"),
-  subTypes: text("sub_types").array().notNull().default([]),
-  title: text("title").notNull(),
-  description: text("description"),
-  url: text("url"),
-  imageUrl: text("image_url"),
-  imageKey: text("image_key"),
-  imageFilename: text("image_filename"),
-  imageMimeType: text("image_mime_type"),
-  imageSizeBytes: integer("image_size_bytes"),
-  tags: text("tags").array(),
-  pinned: boolean("pinned").default(false),
-  sortOrder: integer("sort_order").default(0),
-  status: text("status").notNull().default("pending"),
-  // Mirrors the provider's visibility (e.g. itch.io `published`). Unpublished
-  // titles are only shown to the profile owner.
-  published: boolean("published").notNull().default(true),
-  source: profileProjectSourceEnum("source").notNull().default("manual"),
-  sourceId: text("source_id"),
-  jamName: text("jam_name"),
-  jamUrl: text("jam_url"),
-  submissionTitle: text("submission_title"),
-  submissionUrl: text("submission_url"),
-  result: text("result"),
-  teamMembers: text("team_members").array(),
-  participatedAt: timestamp("participated_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const profileProjects = userSchema.table(
+  "profile_projects",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    type: profileProjectTypeEnum("type").notNull().default("game"),
+    subTypes: text("sub_types").array().notNull().default([]),
+    title: text("title").notNull(),
+    description: text("description"),
+    url: text("url"),
+    imageUrl: text("image_url"),
+    imageKey: text("image_key"),
+    imageFilename: text("image_filename"),
+    imageMimeType: text("image_mime_type"),
+    imageSizeBytes: integer("image_size_bytes"),
+    tags: text("tags").array(),
+    pinned: boolean("pinned").default(false),
+    sortOrder: integer("sort_order").default(0),
+    status: text("status").notNull().default("pending"),
+    // Mirrors the provider's visibility (e.g. itch.io `published`). Unpublished
+    // titles are only shown to the profile owner.
+    published: boolean("published").notNull().default(true),
+    source: profileProjectSourceEnum("source").notNull().default("manual"),
+    sourceId: text("source_id"),
+    jamName: text("jam_name"),
+    jamUrl: text("jam_url"),
+    submissionTitle: text("submission_title"),
+    submissionUrl: text("submission_url"),
+    result: text("result"),
+    teamMembers: text("team_members").array(),
+    participatedAt: timestamp("participated_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Imported rows are unique per (profile, source, external id) so
+    // concurrent syncs can insert with onConflictDoNothing.
+    uniqueIndex("profile_projects_source_unique")
+      .on(table.profileId, table.source, table.sourceId)
+      .where(sql`${table.sourceId} IS NOT NULL`),
+  ],
+);
 
 export const linkedAccounts = userSchema.table(
   "linked_accounts",
