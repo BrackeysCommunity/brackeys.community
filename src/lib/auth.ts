@@ -8,8 +8,10 @@ import { createElement } from "react";
 import { db } from "@/db";
 import { user, session, account, verification, developerProfiles } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
+import { cleanupUserData } from "@/lib/account-deletion";
 import { fetchGuildMember, resolveRoleNames } from "@/lib/discord";
 import { sendEmail } from "@/lib/email";
+import { purgePresence } from "@/lib/presence";
 
 export const auth = betterAuth({
   trustedOrigins: [
@@ -35,6 +37,34 @@ export const auth = betterAuth({
   accountLinking: {
     enabled: true,
     trustedProviders: ["discord", "github"],
+  },
+  user: {
+    deleteUser: {
+      enabled: true,
+      // OAuth-only users have no password, so deletion always goes through
+      // an emailed confirmation link before anything is removed.
+      sendDeleteAccountVerification: async ({ user: recipient, url }) => {
+        await sendEmail({
+          to: recipient.email,
+          subject: "Confirm deleting your Brackeys account",
+          react: createElement(AuthEmail, {
+            variant: "delete",
+            recipientName: recipient.name ?? null,
+            url,
+          }),
+          tags: [{ name: "category", value: "auth_delete" }],
+        });
+      },
+      // better-auth cascades the auth/collab/notification tables from the
+      // user row; app-owned data (developer profile tree, MinIO images) and
+      // the guild-membership cache are cleaned up here.
+      beforeDelete: async (deletedUser) => {
+        await cleanupUserData(deletedUser.id);
+      },
+      afterDelete: async (deletedUser) => {
+        await purgePresence(deletedUser.id);
+      },
+    },
   },
   // Today we only do social OAuth, but we keep these wired so future
   // email-based flows (verification, magic links, password reset)

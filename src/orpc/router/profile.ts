@@ -156,6 +156,8 @@ export const getProfile = os
                 and(
                   eq(profileProjects.profileId, profileId),
                   eq(profileProjects.status, "approved"),
+                  // Unpublished titles (e.g. itch.io drafts) are owner-only.
+                  eq(profileProjects.published, true),
                 ),
               ),
         db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),

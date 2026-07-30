@@ -62,4 +62,13 @@ export async function isUserOnline(userId: string): Promise<boolean> {
   return n > 0;
 }
 
+/**
+ * Drop the user's presence set, e.g. when they delete their account.
+ * The 60s TTL is the backstop if this is skipped.
+ */
+export async function purgePresence(userId: string): Promise<void> {
+  const redis = await getRedis();
+  await redis.del(key(userId));
+}
+
 export const presenceChannel = (userId: string) => `notifications:user:${userId}`;

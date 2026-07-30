@@ -155,6 +155,16 @@ function memberCacheKey(discordUserId: string): string {
   return `discord:guild-member:${discordUserId}`;
 }
 
+/**
+ * Forget a user's cached membership, e.g. when they delete their account.
+ * Errors propagate so deletion flows can surface incomplete cleanup; the
+ * cache TTL (≤10 min) is the backstop if this is skipped.
+ */
+export async function purgeGuildMemberCache(discordUserId: string): Promise<void> {
+  const redis = await getRedis();
+  await redis.del(memberCacheKey(discordUserId));
+}
+
 async function readCachedMembership(discordUserId: string): Promise<boolean | null> {
   try {
     const redis = await getRedis();

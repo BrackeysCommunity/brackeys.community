@@ -126,13 +126,19 @@ export const importItchIoGames = os
     }
 
     const existing = await db
-      .select({ sourceId: profileProjects.sourceId })
+      .select({
+        id: profileProjects.id,
+        sourceId: profileProjects.sourceId,
+        published: profileProjects.published,
+      })
       .from(profileProjects)
       .where(and(eq(profileProjects.profileId, userId), eq(profileProjects.source, "itchio")));
 
-    const existingIds = new Set(existing.map((e) => e.sourceId));
+    const existingBySourceId = new Map(existing.map((e) => [e.sourceId, e]));
 
-    const newGames = games.filter((g) => g.published && !existingIds.has(String(g.id)));
+    // Unpublished drafts are imported too — getProfile hides them from
+    // everyone but the owner via the `published` flag.
+    const newGames = games.filter((g) => !existingBySourceId.has(String(g.id)));
 
     if (newGames.length > 0) {
       await db.insert(profileProjects).values(
@@ -146,8 +152,21 @@ export const importItchIoGames = os
           source: "itchio" as const,
           sourceId: String(game.id),
           status: "approved",
+          published: game.published,
         })),
       );
+    }
+
+    // Re-imports sync visibility, so publishing or unpublishing on itch.io
+    // is reflected here.
+    for (const game of games) {
+      const row = existingBySourceId.get(String(game.id));
+      if (row && row.published !== game.published) {
+        await db
+          .update(profileProjects)
+          .set({ published: game.published })
+          .where(eq(profileProjects.id, row.id));
+      }
     }
 
     return { imported: newGames.length, total: games.length };

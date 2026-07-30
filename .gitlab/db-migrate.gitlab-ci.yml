@@ -1,7 +1,9 @@
 # Apply Drizzle migrations to staging (main) and prod (prod) when files under
-# drizzle/ change. `drizzle-kit migrate` reads drizzle/meta/_journal.json,
-# checks drizzle.__drizzle_migrations on the target DB, and applies any
-# entries whose `when` is greater than the largest `created_at` recorded.
+# drizzle/ change. `drizzle-kit migrate` (v1) scans the timestamped migration
+# folders under drizzle/, compares folder names against rows recorded in
+# drizzle.__drizzle_migrations on the target DB, and applies every migration
+# not yet recorded there. See drizzle/README.md for the one-time re-baseline
+# each existing DB needs before its first v1 run.
 
 .db-migrate:
   stage: db-migrate

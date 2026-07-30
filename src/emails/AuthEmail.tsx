@@ -11,7 +11,7 @@ import {
   Text,
 } from "@react-email/components";
 
-export type AuthEmailVariant = "verify" | "reset";
+export type AuthEmailVariant = "verify" | "reset" | "delete";
 
 export interface AuthEmailProps {
   variant: AuthEmailVariant;
@@ -34,6 +34,12 @@ const COPY: Record<
     heading: "Reset your password",
     body: "Click below to set a new password. If you didn't request this, ignore this email.",
     cta: "Reset password",
+  },
+  delete: {
+    preview: "Confirm deleting your Brackeys account",
+    heading: "Delete your account",
+    body: "Click below to permanently delete your account, profile, and projects. This cannot be undone. If you didn't request this, ignore this email and your account will stay untouched.",
+    cta: "Delete my account",
   },
 };
 

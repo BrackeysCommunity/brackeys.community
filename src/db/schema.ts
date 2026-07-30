@@ -169,6 +169,9 @@ export const profileProjects = userSchema.table("profile_projects", {
   pinned: boolean("pinned").default(false),
   sortOrder: integer("sort_order").default(0),
   status: text("status").notNull().default("pending"),
+  // Mirrors the provider's visibility (e.g. itch.io `published`). Unpublished
+  // titles are only shown to the profile owner.
+  published: boolean("published").notNull().default(true),
   source: profileProjectSourceEnum("source").notNull().default("manual"),
   sourceId: text("source_id"),
   jamName: text("jam_name"),

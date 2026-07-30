@@ -919,7 +919,72 @@ function LinksStep({ profile, save }: { profile: ProfileViewModel; save: SaveCon
           disabled
         />
       </div>
+      <DeleteAccountZone />
     </StepFrame>
+  );
+}
+
+function DeleteAccountZone() {
+  const [armed, setArmed] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const requestDeletion = async () => {
+    setSending(true);
+    try {
+      const { error } = await authClient.deleteUser({ callbackURL: "/" });
+      if (error) throw new Error(error.message ?? "Request failed");
+      toast.success("Check your email — click the link there to confirm deletion.");
+      setArmed(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't start account deletion.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Well className="mt-2 flex flex-col gap-2 border-destructive/40 px-3 py-2.5">
+      <Text monospace size="xs" variant="muted" className="tracking-widest">
+        DANGER ZONE
+      </Text>
+      <Text size="sm" variant="muted">
+        Permanently delete your account, profile, and projects. We'll email you a confirmation link
+        first — nothing is removed until you click it.
+      </Text>
+      <div className="flex items-center gap-2">
+        <Button
+          variant={armed ? "destructive" : "outline"}
+          size="sm"
+          disabled={sending}
+          className="font-mono tracking-widest"
+          onClick={() => {
+            if (!armed) {
+              setArmed(true);
+              return;
+            }
+            void requestDeletion();
+          }}
+        >
+          {sending ? (
+            <Spinner className="size-3" />
+          ) : armed ? (
+            "SEND CONFIRMATION EMAIL"
+          ) : (
+            "DELETE ACCOUNT"
+          )}
+        </Button>
+        {armed && !sending && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="font-mono tracking-widest"
+            onClick={() => setArmed(false)}
+          >
+            CANCEL
+          </Button>
+        )}
+      </div>
+    </Well>
   );
 }
 

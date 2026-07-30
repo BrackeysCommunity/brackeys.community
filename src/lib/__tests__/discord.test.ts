@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { DiscordBackoffError, fetchGuildMember, isGuildMember } from "@/lib/discord";
+import {
+  DiscordBackoffError,
+  fetchGuildMember,
+  isGuildMember,
+  purgeGuildMemberCache,
+} from "@/lib/discord";
 
 // In-memory stand-in for Redis. `set` supports the ("EX", seconds) form the
 // lib uses; TTLs are ignored since tests never advance far enough to expire.
@@ -17,6 +22,10 @@ const fakeRedis = vi.hoisted(() => {
       if (this.failing) throw new Error("redis down");
       store.set(key, value);
     },
+    async del(key: string): Promise<void> {
+      if (this.failing) throw new Error("redis down");
+      store.delete(key);
+    },
   };
 });
 
@@ -24,6 +33,7 @@ vi.mock("ioredis", () => ({
   default: class {
     get = fakeRedis.get.bind(fakeRedis);
     set = fakeRedis.set.bind(fakeRedis);
+    del = fakeRedis.del.bind(fakeRedis);
   },
 }));
 
@@ -94,6 +104,25 @@ describe("isGuildMember", () => {
 
     await expect(isGuildMember("user-1")).resolves.toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("purgeGuildMemberCache", () => {
+  it("removes the cached membership so the next check hits Discord again", async () => {
+    fakeRedis.store.set(MEMBER_KEY, "1");
+    const fetchMock = mockFetchResponse(404);
+
+    await purgeGuildMemberCache("user-1");
+    expect(fakeRedis.store.has(MEMBER_KEY)).toBe(false);
+
+    await expect(isGuildMember("user-1")).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates Redis failures instead of reporting a clean purge", async () => {
+    fakeRedis.failing = true;
+
+    await expect(purgeGuildMemberCache("user-1")).rejects.toThrow("redis down");
   });
 });
 
