@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/typography";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
-import { authClient } from "@/lib/auth-client";
+import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import {
   collabStore,
@@ -131,7 +131,7 @@ export function CollabBrowsePage() {
 
   const handleCreate = () => {
     if (!isPending && !session?.user) {
-      authClient.signIn.social({ provider: "discord" });
+      signInWithDiscord();
       return;
     }
     setCreateOpen(true);

@@ -23,7 +23,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
-import { authClient } from "@/lib/auth-client";
+import { signInWithDiscord } from "@/lib/auth-client";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 
@@ -62,9 +62,7 @@ export function CommandPalette() {
 
           {/* Quick Actions */}
           <CommandGroup heading="ACTIONS">
-            <CommandItem
-              onSelect={() => run(() => authClient.signIn.social({ provider: "discord" }))}
-            >
+            <CommandItem onSelect={() => run(() => signInWithDiscord())}>
               <HugeiconsIcon icon={Login01Icon} className="text-primary" />
               <span>Login</span>
             </CommandItem>

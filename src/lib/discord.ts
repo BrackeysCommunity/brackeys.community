@@ -5,6 +5,11 @@ declare global {
   var __brackeysDiscordRedis: IORedis | undefined;
 }
 
+export interface DiscordApiUser {
+  id: string;
+  avatar: string | null;
+}
+
 export interface DiscordGuildMember {
   avatar: string | null;
   nick: string | null;
@@ -13,6 +18,31 @@ export interface DiscordGuildMember {
   bio: string | null;
   pending: boolean;
   flags: number;
+  user?: DiscordApiUser;
+}
+
+const DISCORD_CDN = "https://cdn.discordapp.com";
+
+/**
+ * True when a stored avatar URL points at Discord's CDN — i.e. it came from
+ * Discord and is safe to refresh, as opposed to a GitHub or custom avatar.
+ */
+export function isDiscordAvatarUrl(url: string | null | undefined): boolean {
+  return url != null && url.startsWith(`${DISCORD_CDN}/`);
+}
+
+/**
+ * CDN URL for a user's current Discord avatar, matching the format better-auth
+ * stores at signup: gif for animated hashes, and the default embed avatar when
+ * the user has none.
+ */
+export function discordAvatarUrl(discordUser: DiscordApiUser): string {
+  if (!discordUser.avatar) {
+    const index = Number((BigInt(discordUser.id) >> 22n) % 6n);
+    return `${DISCORD_CDN}/embed/avatars/${index}.png`;
+  }
+  const format = discordUser.avatar.startsWith("a_") ? "gif" : "png";
+  return `${DISCORD_CDN}/avatars/${discordUser.id}/${discordUser.avatar}.${format}`;
 }
 
 // Hardcoded role ID → display name map.
@@ -149,6 +179,25 @@ export async function fetchGuildMember(accessToken: string): Promise<DiscordGuil
   }
 
   return response.json() as Promise<DiscordGuildMember>;
+}
+
+/**
+ * Fetch the OAuth user's own profile. Only needed when the guild-member
+ * lookup can't answer (user not in the guild) — the member payload already
+ * embeds the user object.
+ */
+export async function fetchDiscordUser(accessToken: string): Promise<DiscordApiUser> {
+  const response = await discordFetch("https://discord.com/api/users/@me", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Discord user: ${response.status}`);
+  }
+
+  return response.json() as Promise<DiscordApiUser>;
 }
 
 function memberCacheKey(discordUserId: string): string {

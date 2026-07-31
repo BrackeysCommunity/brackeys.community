@@ -7,7 +7,7 @@ import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { authClient, signInWithDiscord } from "@/lib/auth-client";
 
 // Header h-14 (3.5rem) + iOS notch / Android status bar.
 const HEADER_HEIGHT = "calc(3.5rem + env(safe-area-inset-top))";
@@ -73,7 +73,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
             variant="default"
             size="sm"
             className="px-4 font-mono text-xs font-bold tracking-widest"
-            onClick={() => authClient.signIn.social({ provider: "discord" })}
+            onClick={() => signInWithDiscord()}
           >
             LOGIN
           </Button>

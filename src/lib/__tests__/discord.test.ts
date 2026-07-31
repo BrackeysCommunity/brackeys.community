@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import {
   DiscordBackoffError,
+  discordAvatarUrl,
+  fetchDiscordUser,
   fetchGuildMember,
+  isDiscordAvatarUrl,
   isGuildMember,
   purgeGuildMemberCache,
 } from "@/lib/discord";
@@ -123,6 +126,67 @@ describe("purgeGuildMemberCache", () => {
     fakeRedis.failing = true;
 
     await expect(purgeGuildMemberCache("user-1")).rejects.toThrow("redis down");
+  });
+});
+
+describe("isDiscordAvatarUrl", () => {
+  it("accepts Discord CDN urls", () => {
+    expect(isDiscordAvatarUrl("https://cdn.discordapp.com/avatars/123/abc.png")).toBe(true);
+    expect(isDiscordAvatarUrl("https://cdn.discordapp.com/embed/avatars/2.png")).toBe(true);
+  });
+
+  it("rejects non-Discord and missing urls", () => {
+    expect(isDiscordAvatarUrl("https://avatars.githubusercontent.com/u/1?v=4")).toBe(false);
+    expect(isDiscordAvatarUrl(null)).toBe(false);
+    expect(isDiscordAvatarUrl(undefined)).toBe(false);
+  });
+});
+
+describe("discordAvatarUrl", () => {
+  it("builds png urls for static avatar hashes", () => {
+    expect(discordAvatarUrl({ id: "123", avatar: "abc" })).toBe(
+      "https://cdn.discordapp.com/avatars/123/abc.png",
+    );
+  });
+
+  it("builds gif urls for animated avatar hashes", () => {
+    expect(discordAvatarUrl({ id: "123", avatar: "a_abc" })).toBe(
+      "https://cdn.discordapp.com/avatars/123/a_abc.gif",
+    );
+  });
+
+  it("falls back to the default embed avatar when the user has none", () => {
+    // (id >> 22) % 6 with id = 5 << 22 → index 5
+    expect(discordAvatarUrl({ id: String(5n << 22n), avatar: null })).toBe(
+      "https://cdn.discordapp.com/embed/avatars/5.png",
+    );
+  });
+});
+
+describe("fetchDiscordUser", () => {
+  it("returns the user payload", async () => {
+    const response = new Response(JSON.stringify({ id: "123", avatar: "abc" }), { status: 200 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => response),
+    );
+
+    await expect(fetchDiscordUser("token")).resolves.toEqual({ id: "123", avatar: "abc" });
+  });
+
+  it("fails fast while the backoff window is open", async () => {
+    fakeRedis.store.set(BACKOFF_KEY, String(Date.now() + 30_000));
+    const fetchMock = mockFetchResponse(200);
+
+    await expect(fetchDiscordUser("token")).rejects.toBeInstanceOf(DiscordBackoffError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces non-ok responses as errors after recording a 429", async () => {
+    mockFetchResponse(429, { "retry-after": "45" });
+
+    await expect(fetchDiscordUser("token")).rejects.toThrow("429");
+    expect(Number(fakeRedis.store.get(BACKOFF_KEY))).toBeGreaterThan(Date.now());
   });
 });
 

@@ -5,7 +5,7 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useEffect } from "react";
 
-import { authClient } from "@/lib/auth-client";
+import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
 
@@ -27,7 +27,7 @@ function DiscordSignInCTA() {
       >
         <button
           type="button"
-          onClick={() => authClient.signIn.social({ provider: "discord" })}
+          onClick={() => signInWithDiscord()}
           className="group flex h-24 min-w-[280px] flex-col justify-between border-2 border-primary bg-card p-4 text-left transition-all duration-100 hover:-translate-y-1 hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none"
         >
           <div className="flex justify-between">

@@ -14,7 +14,7 @@ import {
   clearActiveUserProfile,
   fetchActiveUserProfile,
 } from "@/lib/active-user-store";
-import { authClient } from "@/lib/auth-client";
+import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
@@ -167,7 +167,7 @@ export function AppHeader() {
               isMagnetic
               className="px-5 font-mono text-xs font-bold tracking-widest"
               data-cursor-no-drift
-              onClick={() => authClient.signIn.social({ provider: "discord" })}
+              onClick={() => signInWithDiscord()}
             >
               LOGIN
             </Button>
@@ -243,8 +243,7 @@ export function AppHeader() {
                     size="sm"
                     className="font-mono text-xs font-bold tracking-widest"
                     onClick={() => {
-                      void authClient.signIn.social({
-                        provider: "discord",
+                      void signInWithDiscord({
                         fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },
                       });
                     }}

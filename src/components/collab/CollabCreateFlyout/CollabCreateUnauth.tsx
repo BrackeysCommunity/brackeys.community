@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
-import { authClient } from "@/lib/auth-client";
+import { signInWithDiscord } from "@/lib/auth-client";
 
 interface CollabCreateUnauthProps {
   isTouch: boolean;
@@ -51,7 +51,7 @@ export function CollabCreateUnauth({ isTouch, onClose }: CollabCreateUnauthProps
         <Button
           variant="outline"
           size="sm"
-          onClick={() => authClient.signIn.social({ provider: "discord" })}
+          onClick={() => signInWithDiscord()}
           className="gap-2 border-primary/60 font-mono tracking-widest text-primary hover:border-primary hover:bg-primary/10"
         >
           <HugeiconsIcon icon={Login01Icon} size={13} />

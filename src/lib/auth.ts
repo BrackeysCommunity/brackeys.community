@@ -9,7 +9,13 @@ import { db } from "@/db";
 import { user, session, account, verification, developerProfiles } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
 import { cleanupUserData } from "@/lib/account-deletion";
-import { fetchGuildMember, resolveRoleNames } from "@/lib/discord";
+import {
+  discordAvatarUrl,
+  fetchDiscordUser,
+  fetchGuildMember,
+  isDiscordAvatarUrl,
+  resolveRoleNames,
+} from "@/lib/discord";
 import { sendEmail } from "@/lib/email";
 import { purgePresence } from "@/lib/presence";
 
@@ -120,6 +126,7 @@ export const auth = betterAuth({
           let guildNickname: string | null = null;
           let guildJoinedAt: Date | null = null;
           let guildRoles: string[] | null = null;
+          let latestDiscordAvatarUrl: string | null = null;
 
           try {
             const [discordAccount] = await db
@@ -130,13 +137,40 @@ export const auth = betterAuth({
 
             if (discordAccount?.accessToken) {
               discordId = discordAccount.accountId;
-              const member = await fetchGuildMember(discordAccount.accessToken);
-              guildNickname = member.nick;
-              guildJoinedAt = new Date(member.joined_at);
-              guildRoles = resolveRoleNames(member.roles);
+              try {
+                // The member payload embeds the user object, so guild members
+                // get their current avatar with no extra Discord call.
+                const member = await fetchGuildMember(discordAccount.accessToken);
+                guildNickname = member.nick;
+                guildJoinedAt = new Date(member.joined_at);
+                guildRoles = resolveRoleNames(member.roles);
+                if (member.user) latestDiscordAvatarUrl = discordAvatarUrl(member.user);
+              } catch {
+                // User not in guild (or rate limited) — continue without guild data
+              }
+              if (!latestDiscordAvatarUrl) {
+                latestDiscordAvatarUrl = discordAvatarUrl(
+                  await fetchDiscordUser(discordAccount.accessToken),
+                );
+              }
             }
           } catch {
-            // Token may be expired or user not in guild — continue without guild data
+            // Token may be expired or Discord unavailable — continue with what we have
+          }
+
+          // Refresh a stale Discord avatar, but never clobber a non-Discord
+          // one (e.g. sourced from GitHub).
+          let avatarUrl = userRecord.image;
+          if (
+            latestDiscordAvatarUrl &&
+            latestDiscordAvatarUrl !== userRecord.image &&
+            (userRecord.image == null || isDiscordAvatarUrl(userRecord.image))
+          ) {
+            avatarUrl = latestDiscordAvatarUrl;
+            await db
+              .update(user)
+              .set({ image: avatarUrl, updatedAt: new Date() })
+              .where(eq(user.id, session.userId));
           }
 
           await db
@@ -145,7 +179,7 @@ export const auth = betterAuth({
               id: session.userId,
               discordId,
               discordUsername: userRecord.name,
-              avatarUrl: userRecord.image,
+              avatarUrl,
               guildNickname,
               guildJoinedAt,
               guildRoles,
@@ -157,7 +191,7 @@ export const auth = betterAuth({
               set: {
                 discordId: discordId ?? undefined,
                 discordUsername: userRecord.name,
-                avatarUrl: userRecord.image,
+                avatarUrl,
                 guildNickname: guildNickname ?? undefined,
                 guildJoinedAt: guildJoinedAt ?? undefined,
                 guildRoles: guildRoles ?? undefined,
