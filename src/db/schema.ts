@@ -184,6 +184,10 @@ export const profileProjects = userSchema.table(
     result: text("result"),
     teamMembers: text("team_members").array(),
     participatedAt: timestamp("participated_at"),
+    // Provider-side publish date (e.g. itch.io `published_at`) — the
+    // honest "shipped" date for imported titles, vs. `createdAt` which
+    // is just when the row landed in our database.
+    publishedAt: timestamp("published_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

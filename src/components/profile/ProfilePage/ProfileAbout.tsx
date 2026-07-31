@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 import { EditSectionAction, ProfileSectionHeader } from "./ProfileSectionHeader";
 
 interface ProfileAboutProps {
+  /** Section index chip — `§01` by default; the sidebar placement
+   * passes a letter to match its A/B/C series. */
+  index?: string;
   bio: string | null;
   pinnedNote: string | null;
   isOwner: boolean;
@@ -20,11 +23,18 @@ interface ProfileAboutProps {
  * notes. Renders inside the standard dotted-rule section header so it
  * matches the rest of the profile's coded block delimiters.
  */
-export function ProfileAbout({ bio, pinnedNote, isOwner, onEdit, compact }: ProfileAboutProps) {
+export function ProfileAbout({
+  index = "01",
+  bio,
+  pinnedNote,
+  isOwner,
+  onEdit,
+  compact,
+}: ProfileAboutProps) {
   return (
     <section className="flex flex-col gap-3">
       <ProfileSectionHeader
-        index="01"
+        index={index}
         title="ABOUT"
         action={isOwner ? <EditSectionAction onEdit={onEdit} /> : null}
       />

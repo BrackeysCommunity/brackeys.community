@@ -30,16 +30,31 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: undefined }),
+  useQuery: (opts: { queryKey?: unknown[] }) => {
+    // The nav queries `getProfile` for `/profile/<param>` routes to
+    // decide whether ME should highlight — serve the stubbed
+    // ownership answer for that key, nothing for the rest.
+    if (Array.isArray(opts.queryKey) && opts.queryKey[0] === "getProfile") {
+      return { data: __viewedProfile };
+    }
+    return { data: undefined };
+  },
 }));
 
 vi.mock("@/orpc/client", () => ({
   orpc: {
     unreadCount: { queryOptions: () => ({ queryKey: ["unreadCount"], queryFn: vi.fn() }) },
+    getProfile: {
+      queryOptions: ({ input }: { input: { userId: string } }) => ({
+        queryKey: ["getProfile", input],
+        queryFn: vi.fn(),
+      }),
+    },
   },
 }));
 
 let __pathname = "/";
+let __viewedProfile: { isOwner: boolean } | undefined;
 
 // ── Import after mocks ─────────────────────────────────────────────────────
 
@@ -49,6 +64,7 @@ afterEach(() => {
   cleanup();
   navigate.mockReset();
   __pathname = "/";
+  __viewedProfile = undefined;
 });
 
 describe("MobileBottomNav", () => {
@@ -100,5 +116,22 @@ describe("MobileBottomNav", () => {
   it("reflects active pathname on the segmented item (Home)", () => {
     render(<MobileBottomNav pathnameOverride="/" />);
     expect(screen.getByLabelText("Home").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("selects ME on the own-profile index route", () => {
+    render(<MobileBottomNav pathnameOverride="/profile" />);
+    expect(screen.getByLabelText("Profile").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("selects ME when the viewed profile is owned by the session user", () => {
+    __viewedProfile = { isOwner: true };
+    render(<MobileBottomNav pathnameOverride="/profile/some-stub" />);
+    expect(screen.getByLabelText("Profile").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("does not select ME when viewing someone else's profile", () => {
+    __viewedProfile = { isOwner: false };
+    render(<MobileBottomNav pathnameOverride="/profile/someone-else" />);
+    expect(screen.getByLabelText("Profile").getAttribute("aria-pressed")).not.toBe("true");
   });
 });

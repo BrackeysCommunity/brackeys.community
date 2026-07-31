@@ -1,5 +1,4 @@
 import { ContributionCalendar } from "@/components/profile/ContributionCalendar";
-import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 
 import { ProfileEmptyState } from "./ProfileEmptyState";
@@ -11,8 +10,10 @@ interface ProfileActivitySectionProps {
    * via `ContributionCalendar`. */
   profileId: string;
   /** When set, drives the section's `GITHUB · @{name}` sub-line.
-   * When null we fall back to the friendly empty state. */
+   * When null, owners see a "link GitHub" empty state and visitors
+   * see nothing at all. */
   githubUsername: string | null;
+  isOwner: boolean;
 }
 
 /**
@@ -26,8 +27,10 @@ export function ProfileActivitySection({
   index,
   profileId,
   githubUsername,
+  isOwner,
 }: ProfileActivitySectionProps) {
   if (!githubUsername) {
+    if (!isOwner) return null;
     return (
       <section className="flex flex-col gap-3">
         <ProfileSectionHeader index={index} title="ACTIVITY" />
@@ -45,9 +48,14 @@ export function ProfileActivitySection({
         index={index}
         title="ACTIVITY"
         action={
-          <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+          <a
+            href={`https://github.com/${githubUsername}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors hover:text-foreground"
+          >
             @{githubUsername}
-          </Text>
+          </a>
         }
       />
       <Well className="overflow-hidden">

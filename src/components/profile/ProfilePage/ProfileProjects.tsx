@@ -13,28 +13,29 @@ import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
 import { AddProjectDialog, type ProjectInitial } from "./AddProjectDialog";
+import { GradientBanner } from "./GradientBanner";
 import type { EditableProject, ProfileProject, ProjectKind } from "./helpers";
 import { ProfileEmptyState } from "./ProfileEmptyState";
 import { AddSectionAction, ProfileSectionHeader } from "./ProfileSectionHeader";
 
 interface ProfileProjectsSectionProps {
   index: string;
+  /** Section heading — defaults to SHIPPED WORK to match the
+   * capsule-grid treatment; pass "PROJECTS" etc. on other surfaces. */
+  title?: string;
   projects: ProfileProject[];
   /** Owner-side raw rows used by the inline editor — same data, but
-   * shaped for `EditableProjectCard` (the legacy editor we lift
-   * verbatim into this section). */
+   * shaped for the edit dialog flow. */
   editableProjects?: EditableProject[];
   isOwner: boolean;
   /** Optional fallback edit handler — used in non-owner contexts
    * where deep-linking somewhere else (e.g. the flyout) is wanted.
    * Owner mode handles its own add/edit/remove via mutations. */
   onEdit?: () => void;
-  /** "+ ADD" lives next to the section header on this surface (the
-   * desktop wireframe shows it). When false, edit-only entry points
-   * still appear in the header. */
+  /** "+ ADD" lives next to the section header on this surface. */
   showAddAction?: boolean;
   /** Stack as a single column with full-width banners (mobile) vs.
-   * the 2-column grid the desktop uses. */
+   * the responsive capsule grid the desktop uses. */
   layout?: "grid" | "list";
   /** Query key for the underlying `getProfile` fetch — invalidated
    * after every owner mutation so the section re-renders with the
@@ -43,14 +44,15 @@ interface ProfileProjectsSectionProps {
 }
 
 /**
- * `§NN PROJECTS` — collection of project cards. Owners see the
- * inline edit flow (re-uses the legacy `EditableProjectCard` +
- * `AddProjectForm` so we don't fork the project-management
- * implementation); other viewers get the read-only `ProjectCard`
- * grid.
+ * `§NN SHIPPED WORK` — itch-style capsule grid. Each card leads with
+ * banner art (uploaded image, or the seeded striped-gradient capsule
+ * with the title set over it), then title, jam/year sub-line, tags,
+ * and an "entry note" box when the project carries a description.
+ * Owners get edit/delete controls overlaid on each banner.
  */
 export function ProfileProjectsSection({
   index,
+  title = "SHIPPED WORK",
   projects,
   editableProjects,
   isOwner,
@@ -105,7 +107,7 @@ export function ProfileProjectsSection({
     <section className="flex flex-col gap-3">
       <ProfileSectionHeader
         index={index}
-        title="PROJECTS"
+        title={title}
         action={isOwner && showAddAction ? <AddSectionAction onAdd={handleAddClick} /> : null}
       />
       {ownerEdits ? (
@@ -123,14 +125,9 @@ export function ProfileProjectsSection({
           hint="Drop a tool, game, or experiment so collaborators can see what you ship."
         />
       ) : (
-        <div
-          className={cn(
-            "grid gap-4",
-            layout === "list" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
-          )}
-        >
-          {projects.map((project, i) => (
-            <ProjectCard key={project.id} project={project} index={i + 1} />
+        <div className={cn("grid gap-4", gridClass(layout))}>
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
           ))}
         </div>
       )}
@@ -162,6 +159,10 @@ export function ProfileProjectsSection({
   );
 }
 
+function gridClass(layout: "grid" | "list"): string {
+  return layout === "list" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
+}
+
 /** Translate the legacy `EditableProject` row shape into the dialog's
  * `initial` form. Anything that doesn't map cleanly to a manual
  * project type (e.g. `jam`, `web`, `writing`) gets normalised to
@@ -184,10 +185,9 @@ function editableToInitial(p: EditableProject): ProjectInitial {
 }
 
 /**
- * Owner-side body — renders the same `ProjectCard` design that
- * non-owner viewers see, plus a small edit/delete action overlay
- * in each card's top-right corner. Empty state CTA opens the add
- * dialog.
+ * Owner-side body — same capsule cards, plus edit/delete controls
+ * floated in each banner's top-left corner. Empty state CTA opens
+ * the add dialog.
  */
 function OwnerProjectsBody({
   editableProjects,
@@ -213,128 +213,47 @@ function OwnerProjectsBody({
     );
   }
   return (
-    <div
-      className={cn("grid gap-4", layout === "list" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2")}
-    >
-      {editableProjects.map((project, i) => (
-        <OwnerProjectCard
+    <div className={cn("grid gap-4", gridClass(layout))}>
+      {editableProjects.map((project) => (
+        <ProjectCard
           key={project.id}
-          project={project}
-          index={i + 1}
-          onEdit={() => onEditClick(project)}
-          onRemove={() => onRemoveClick(project.id)}
+          project={editableToDisplay(project)}
+          ownerControls={
+            <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon-xs"
+                aria-label={`Edit ${project.title}`}
+                onClick={() => onEditClick(project)}
+              >
+                <HugeiconsIcon icon={Edit02Icon} size={12} />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-xs"
+                aria-label={`Remove ${project.title}`}
+                onClick={() => {
+                  if (window.confirm(`Remove "${project.title}"? This can't be undone.`))
+                    onRemoveClick(project.id);
+                }}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <HugeiconsIcon icon={Delete02Icon} size={12} />
+              </Button>
+            </div>
+          }
         />
       ))}
     </div>
   );
 }
 
-/** Owner-mode card. Renders the same visual `ProjectCard` design
- * that the read-only path uses, with edit + delete buttons floated
- * in the top-right corner of the banner. The card itself is no
- * longer click-through (no stretched anchor) so the corner controls
- * stay reliably tappable; the URL is exposed via the `OPEN ↗` chip
- * at the bottom-right of the meta row. */
-function OwnerProjectCard({
-  project,
-  index,
-  onEdit,
-  onRemove,
-}: {
-  project: EditableProject;
-  index: number;
-  onEdit: () => void;
-  onRemove: () => void;
-}) {
-  const display: ProfileProject = editableToDisplay(project, index);
-  const palette = paletteForId(project.id);
-  return (
-    <Well className="group relative gap-2 p-3 transition-colors hover:bg-card">
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded bg-muted/40">
-        {display.bannerUrl ? (
-          <img
-            src={display.bannerUrl}
-            alt=""
-            aria-hidden
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <div aria-hidden className={cn("absolute inset-0", palette.tint, palette.stripe)} />
-        )}
-        <div className="absolute top-2 left-2 z-10">
-          <Badge variant="secondary" className="font-mono text-[10px] tracking-widest uppercase">
-            {display.kind}
-          </Badge>
-        </div>
-        <div className="absolute right-2 bottom-2 z-10">
-          <Badge variant="secondary" className="font-mono text-[10px] tracking-widest uppercase">
-            {display.year}
-          </Badge>
-        </div>
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon-xs"
-            aria-label={`Edit ${display.title}`}
-            onClick={onEdit}
-          >
-            <HugeiconsIcon icon={Edit02Icon} size={12} />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-xs"
-            aria-label={`Remove ${display.title}`}
-            onClick={() => {
-              if (window.confirm(`Remove "${display.title}"? This can't be undone.`)) onRemove();
-            }}
-            className="text-muted-foreground hover:text-destructive"
-          >
-            <HugeiconsIcon icon={Delete02Icon} size={12} />
-          </Button>
-        </div>
-      </div>
-      <Text bold size="lg" className="leading-tight">
-        {display.title}
-      </Text>
-      {display.shortDescription ? (
-        <Text size="sm" variant="muted" className="line-clamp-2">
-          {display.shortDescription}
-        </Text>
-      ) : null}
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {display.tags.map((tag) => (
-            <Badge
-              key={tag}
-              variant="outline"
-              className="font-mono text-[10px] tracking-widest uppercase"
-            >
-              {tag}
-            </Badge>
-          ))}
-        </div>
-        {display.url ? (
-          <a
-            href={display.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors hover:text-foreground"
-          >
-            OPEN
-            <HugeiconsIcon icon={ArrowUpRight01Icon} size={12} />
-          </a>
-        ) : null}
-      </div>
-    </Well>
-  );
-}
-
 /** Map an `EditableProject` row into the same shape the read-only
  * `ProjectCard` consumes — keeps the visual treatment identical
  * across owner / non-owner views. */
-function editableToDisplay(p: EditableProject, _index: number): ProfileProject {
+function editableToDisplay(p: EditableProject): ProfileProject {
   const kind = (p.type as ProjectKind) ?? "other";
-  const year = (p.participatedAt ?? new Date()).getUTCFullYear();
+  const year = (p.participatedAt ?? p.publishedAt ?? new Date()).getUTCFullYear();
   return {
     id: p.id,
     title: p.submissionTitle ?? p.title,
@@ -344,52 +263,83 @@ function editableToDisplay(p: EditableProject, _index: number): ProfileProject {
     bannerUrl: p.imageUrl,
     url: p.submissionUrl ?? p.url,
     tags: (p.subTypes ?? []).slice(0, 4),
+    jamName: p.jamName,
     jamPlacement: p.result ?? null,
   };
 }
 
-function ProjectCard({ project, index }: { project: ProfileProject; index: number }) {
-  const banner = project.bannerUrl;
-  const palette = paletteForId(project.id);
+/**
+ * The capsule card. Banner art up top (image, or seeded gradient with
+ * the title set over it in letterspaced caps), placement chip in the
+ * banner corner, then the text stack: title → jam/year sub-line →
+ * tags → optional entry-note box.
+ *
+ * When `ownerControls` is present the card drops its stretched
+ * click-through anchor so the corner buttons stay reliably tappable;
+ * the URL stays reachable via the OPEN chip.
+ */
+function ProjectCard({
+  project,
+  ownerControls,
+}: {
+  project: ProfileProject;
+  ownerControls?: React.ReactNode;
+}) {
+  const clickThrough = !ownerControls && project.url;
   return (
     <Well className="group relative gap-2 p-3 transition-colors hover:bg-card">
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded bg-muted/40">
-        {banner ? (
+      <div className="relative aspect-[16/7] w-full overflow-hidden rounded bg-muted/40">
+        {project.bannerUrl ? (
           <img
-            src={banner}
+            src={project.bannerUrl}
             alt=""
             aria-hidden
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : (
-          <div aria-hidden className={cn("absolute inset-0", palette.tint, palette.stripe)} />
+          <GradientBanner seed={project.id} className="absolute inset-0 flex">
+            <span
+              aria-hidden
+              className="relative m-auto line-clamp-2 px-4 text-center font-mono text-sm font-bold tracking-[0.25em] text-white/90 uppercase [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]"
+            >
+              {project.title}
+            </span>
+          </GradientBanner>
         )}
-        <div className="absolute top-2 left-2 z-10">
-          <Badge variant="secondary" className="font-mono text-[10px] tracking-widest uppercase">
-            {project.kind}
+        {project.jamPlacement ? (
+          <Badge
+            variant="warning"
+            className="absolute top-2 right-2 z-10 font-mono text-[10px] tracking-widest uppercase"
+          >
+            {project.jamPlacement}
           </Badge>
-        </div>
-        <div className="absolute right-2 bottom-2 z-10">
-          <Badge variant="secondary" className="font-mono text-[10px] tracking-widest uppercase">
-            {project.year}
-          </Badge>
-        </div>
-        {/* Section paginator — mirrors §NN treatment used by section
-            headers, anchored top-right of the banner so a row of
-            cards reads as a numbered series. */}
-        <div className="absolute top-2 right-2 z-10 hidden font-mono text-[10px] tracking-widest text-foreground/70 sm:inline-block">
-          §{index.toString().padStart(2, "0")}
-        </div>
+        ) : null}
+        {ownerControls}
       </div>
-      <Text bold size="lg" className="leading-tight">
-        {project.title}
-      </Text>
-      {project.shortDescription ? (
-        <Text size="sm" variant="muted" className="line-clamp-2">
-          {project.shortDescription}
+
+      <div className="flex items-baseline justify-between gap-2">
+        <Text bold size="lg" className="truncate leading-tight">
+          {project.title}
         </Text>
-      ) : null}
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+        {project.url ? (
+          <a
+            href={project.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${project.title}`}
+            className="relative z-10 inline-flex shrink-0 items-center gap-1 font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors group-hover:text-foreground hover:text-foreground"
+          >
+            OPEN
+            <HugeiconsIcon icon={ArrowUpRight01Icon} size={12} />
+          </a>
+        ) : null}
+      </div>
+
+      <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+        {[project.jamName ?? project.kind, project.year].join(" · ")}
+      </Text>
+
+      {project.tags.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {project.tags.map((tag) => (
             <Badge
@@ -400,79 +350,32 @@ function ProjectCard({ project, index }: { project: ProfileProject; index: numbe
               {tag}
             </Badge>
           ))}
-          {project.jamPlacement ? (
-            <Badge variant="warning" className="font-mono text-[10px] tracking-widest uppercase">
-              {project.jamPlacement}
-            </Badge>
-          ) : null}
         </div>
-        <span className="inline-flex items-center gap-1 font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors group-hover:text-foreground">
-          OPEN
-          <HugeiconsIcon icon={ArrowUpRight01Icon} size={12} />
-        </span>
-      </div>
-      {/* Stretched link makes the entire Well clickable while keeping
-          inner badges / tag chips selectable separately if we ever
-          add child interactivity. */}
-      {project.url ? (
+      ) : null}
+
+      {project.shortDescription ? (
+        <div className="rounded border border-muted/40 bg-muted/10 px-2.5 py-2">
+          <Text size="sm" variant="muted" className="line-clamp-3">
+            {project.jamName ? (
+              <span className="font-medium text-foreground/80">Entry note: </span>
+            ) : null}
+            {project.shortDescription}
+          </Text>
+        </div>
+      ) : null}
+
+      {/* Stretched link makes the entire card clickable in read-only
+          mode; the explicit OPEN chip sits above it (z-10) so both
+          paths work. */}
+      {clickThrough ? (
         <a
-          href={project.url}
+          href={project.url ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Open ${project.title}`}
-          className="absolute inset-0 z-20 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+          className="absolute inset-0 z-0 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
         />
       ) : null}
     </Well>
   );
-}
-
-/** Pool of palette pairs we cycle through when a project doesn't
- * have an uploaded banner — deterministically picked by the project
- * id so the same project always shows the same colorway, but the
- * grid as a whole reads as varied. */
-const PROJECT_PALETTES: Array<{ stripe: string; tint: string }> = [
-  {
-    stripe:
-      "bg-[image:repeating-linear-gradient(135deg,transparent_0_8px,color-mix(in_srgb,var(--color-info,#5da9d6)_45%,transparent)_8px_14px)]",
-    tint: "bg-info/15",
-  },
-  {
-    stripe:
-      "bg-[image:repeating-linear-gradient(135deg,transparent_0_8px,color-mix(in_srgb,var(--color-accent)_45%,transparent)_8px_14px)]",
-    tint: "bg-accent/10",
-  },
-  {
-    stripe:
-      "bg-[image:repeating-linear-gradient(90deg,transparent_0_6px,color-mix(in_srgb,var(--color-success)_55%,transparent)_6px_10px)]",
-    tint: "bg-success/10",
-  },
-  {
-    stripe:
-      "bg-[image:repeating-linear-gradient(45deg,transparent_0_8px,color-mix(in_srgb,var(--color-primary)_45%,transparent)_8px_14px)]",
-    tint: "bg-primary/10",
-  },
-  {
-    stripe:
-      "bg-[image:repeating-linear-gradient(135deg,transparent_0_8px,color-mix(in_srgb,var(--color-warning)_45%,transparent)_8px_14px)]",
-    tint: "bg-warning/10",
-  },
-  {
-    stripe:
-      "bg-[image:repeating-linear-gradient(90deg,transparent_0_6px,color-mix(in_srgb,var(--color-destructive)_45%,transparent)_6px_12px)]",
-    tint: "bg-destructive/10",
-  },
-];
-
-/** Hash a project id into a palette index so each project's
- * placeholder is stable across renders but varies between projects. */
-function paletteForId(id: string): { stripe: string; tint: string } {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  const palette = PROJECT_PALETTES[h % PROJECT_PALETTES.length];
-  // Fallback only in case the array is somehow empty (it isn't —
-  // narrows TS to make the return non-undefined).
-  return palette ?? PROJECT_PALETTES[0]!;
 }

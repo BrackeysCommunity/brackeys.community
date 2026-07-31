@@ -55,6 +55,14 @@ export interface MobileBottomNavProps {
 
 type TabValue = "home" | "jams" | "collab" | "command" | "me";
 
+/** Extract the `/profile/<param>` segment, or null on any other
+ * route (including the bare `/profile` index, which is always the
+ * viewer's own profile). */
+function profileParamFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/profile\/([^/]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
 export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBottomNavProps = {}) {
   const routerPathname = useRouterState({ select: (s) => s.location.pathname });
   const pathname = pathnameOverride ?? routerPathname;
@@ -70,12 +78,30 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
   });
   const hasUnread = (unread.data?.count ?? 0) > 0;
 
-  const active: TabValue = pathname.startsWith("/collab")
+  // `/profile/<param>` may be someone else's profile — ME only
+  // highlights when the viewed profile is the session user's own.
+  // Reuses the profile route's `getProfile` cache entry (same query
+  // key), so this doesn't issue a second fetch in practice.
+  const profileParam = profileParamFromPath(pathname);
+  const viewedProfile = useQuery({
+    ...orpc.getProfile.queryOptions({ input: { userId: profileParam ?? "" } }),
+    enabled: !!profileParam && profileParam !== "preview",
+    staleTime: 60 * 1000,
+  });
+  const isOwnProfile =
+    !profileParam ||
+    profileParam === "preview" ||
+    profileParam === session?.user?.id ||
+    (viewedProfile.data?.isOwner ?? false);
+
+  const active: TabValue | "none" = pathname.startsWith("/collab")
     ? "collab"
     : pathname.startsWith("/command-center")
       ? "command"
       : pathname.startsWith("/profile")
-        ? "me"
+        ? isOwnProfile
+          ? "me"
+          : "none"
         : pathname.startsWith("/jams")
           ? "jams"
           : "home";

@@ -50,6 +50,7 @@ export async function syncItchIoLibrary(
       id: profileProjects.id,
       sourceId: profileProjects.sourceId,
       published: profileProjects.published,
+      publishedAt: profileProjects.publishedAt,
     })
     .from(profileProjects)
     .where(and(eq(profileProjects.profileId, userId), eq(profileProjects.source, "itchio")));
@@ -75,6 +76,7 @@ export async function syncItchIoLibrary(
           sourceId: String(game.id),
           status: "approved",
           published: game.published,
+          publishedAt: game.published_at ? new Date(game.published_at) : null,
         })),
       )
       // Concurrent syncs (route, profile view, cron sweep) can race on the
@@ -82,14 +84,22 @@ export async function syncItchIoLibrary(
       .onConflictDoNothing();
   }
 
-  // Re-syncs update visibility, so publishing or unpublishing on itch.io
-  // is reflected here.
+  // Re-syncs update visibility (publishing / unpublishing on itch.io is
+  // reflected here) and backfill the provider publish date on rows
+  // imported before the `published_at` column existed.
   for (const game of games) {
     const row = existingBySourceId.get(String(game.id));
-    if (row && row.published !== game.published) {
+    if (!row) continue;
+    const publishedAt = game.published_at ? new Date(game.published_at) : null;
+    const needsPublishFlip = row.published !== game.published;
+    const needsDateBackfill = row.publishedAt == null && publishedAt != null;
+    if (needsPublishFlip || needsDateBackfill) {
       await db
         .update(profileProjects)
-        .set({ published: game.published })
+        .set({
+          published: game.published,
+          ...(needsDateBackfill ? { publishedAt } : {}),
+        })
         .where(eq(profileProjects.id, row.id));
     }
   }

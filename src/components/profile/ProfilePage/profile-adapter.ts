@@ -1,5 +1,7 @@
 import type {
   EditableProject,
+  ProfileBadge,
+  ProfileItchSync,
   ProfileLink,
   ProfileProject,
   ProfileSkill,
@@ -51,6 +53,7 @@ export interface RpcProfile {
     submissionUrl: string | null;
     result: string | null;
     participatedAt: Date | null;
+    publishedAt: Date | null;
     createdAt: Date;
   }[];
   isOwner: boolean;
@@ -168,6 +171,29 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const jamProjects = projects.filter((p) => p.kind === "jam" && p.jamPlacement);
   const bestPlacement = jamProjects[0]?.jamPlacement ?? null;
 
+  const itchAccount = rpc.linkedAccounts.find(
+    (acc) => acc.provider === "itchio" || acc.provider === "itch.io",
+  );
+  const itch: ProfileItchSync | null = itchAccount
+    ? {
+        username: itchAccount.providerUsername,
+        url: itchAccount.providerProfileUrl,
+        display:
+          (itchAccount.providerProfileUrl && stripUrlScheme(itchAccount.providerProfileUrl)) ||
+          (itchAccount.providerUsername ? `${itchAccount.providerUsername}.itch.io` : "itch.io"),
+        linkedAt: itchAccount.linkedAt,
+        gamesCount: rpc.projects.filter((p) => p.source === "itchio").length,
+      }
+    : null;
+
+  const badges: ProfileBadge[] = [];
+  if (rpc.projects.some((p) => p.result && /^1$|winner|1st/i.test(p.result))) {
+    badges.push({ label: "jam winner", variant: "winner" });
+  }
+  if (profile.availableForWork) {
+    badges.push({ label: "available", variant: "online" });
+  }
+
   return {
     handle,
     name: displayName.toUpperCase(),
@@ -186,7 +212,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       responseTime: null,
       timezone: null,
     },
-    badges: [],
+    badges,
     stats: {
       projectsShipped,
       projectsLabel: projectsShipped > 0 ? deriveProjectsLabel(projects) : "—",
@@ -197,6 +223,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       streakDays: 0,
       streakStatus: "—",
     },
+    itch,
     projects,
     editableProjects: rpc.projects.map(adaptEditable),
     jamLog: [],
@@ -237,12 +264,16 @@ function adaptEditable(p: RpcProfile["projects"][number]): EditableProject {
     submissionUrl: p.submissionUrl,
     result: p.result,
     participatedAt: p.participatedAt,
+    publishedAt: p.publishedAt,
   };
 }
 
 function adaptProject(p: RpcProfile["projects"][number]): ProfileProject {
   const kind = (p.type as ProfileProject["kind"]) ?? "other";
-  const year = (p.participatedAt ?? p.createdAt).getUTCFullYear();
+  // Prefer the jam participation date, then the provider publish date
+  // (itch.io `published_at`) — `createdAt` is only when the row landed
+  // in our DB, which is wrong for back-catalogue imports.
+  const year = (p.participatedAt ?? p.publishedAt ?? p.createdAt).getUTCFullYear();
   return {
     id: p.id,
     title: p.submissionTitle ?? p.title,
@@ -252,6 +283,7 @@ function adaptProject(p: RpcProfile["projects"][number]): ProfileProject {
     bannerUrl: p.imageUrl,
     url: p.submissionUrl ?? p.url,
     tags: [...(p.subTypes ?? []), ...(p.tags ?? [])].slice(0, 4),
+    jamName: p.jamName,
     jamPlacement: p.result ? formatJamPlacement(p.result) : null,
   };
 }

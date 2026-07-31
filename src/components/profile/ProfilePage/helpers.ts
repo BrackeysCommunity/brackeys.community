@@ -30,6 +30,10 @@ export interface ProfileViewModel {
 
   stats: ProfileStats;
 
+  /** Linked itch.io account summary — drives the sync bar under the
+   * hero. Null when no itch.io account is linked. */
+  itch: ProfileItchSync | null;
+
   projects: ProfileProject[];
   /** Raw projects in the shape the legacy `EditableProjectCard`
    * consumes (id/title/type/subTypes/url/imageUrl/etc). The owner
@@ -115,6 +119,18 @@ export function formatRateType(rateType: string | null | undefined): string | nu
   }
 }
 
+export interface ProfileItchSync {
+  /** itch.io username ("mikakell"). */
+  username: string | null;
+  /** Full profile URL when known. */
+  url: string | null;
+  /** Display string for the bar ("mikakell.itch.io"). */
+  display: string;
+  linkedAt: Date;
+  /** Count of projects imported from itch.io. */
+  gamesCount: number;
+}
+
 export interface ProfileBadge {
   label: string;
   variant: "online" | "winner" | "neutral";
@@ -164,6 +180,9 @@ export interface EditableProject {
   submissionUrl: string | null;
   result: string | null;
   participatedAt: Date | null;
+  /** Provider publish date (itch.io `published_at`) — preferred over
+   * DB insert time when deriving the display year. */
+  publishedAt: Date | null;
 }
 
 export interface ProfileProject {
@@ -175,6 +194,9 @@ export interface ProfileProject {
   bannerUrl: string | null;
   url: string | null;
   tags: string[];
+  /** Jam this entry shipped in ("Brackeys Jam 2026.2") — drives the
+   * card's sub-line when present. */
+  jamName: string | null;
   /** When `kind === "jam"` — small placement chip on the card. */
   jamPlacement: string | null;
 }

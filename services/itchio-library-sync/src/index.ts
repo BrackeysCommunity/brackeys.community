@@ -14,6 +14,7 @@ interface ItchGame {
   url?: string;
   cover_url?: string;
   published: boolean;
+  published_at?: string;
 }
 
 class ItchApiError extends Error {
@@ -56,6 +57,7 @@ async function syncAccount(
       id: profileProjects.id,
       sourceId: profileProjects.sourceId,
       published: profileProjects.published,
+      publishedAt: profileProjects.publishedAt,
     })
     .from(profileProjects)
     .where(and(eq(profileProjects.profileId, profileId), eq(profileProjects.source, "itchio")));
@@ -78,6 +80,7 @@ async function syncAccount(
           sourceId: String(game.id),
           status: "approved",
           published: game.published,
+          publishedAt: game.published_at ? new Date(game.published_at) : null,
         })),
       )
       // The app may sync the same account concurrently; the partial unique
@@ -88,12 +91,21 @@ async function syncAccount(
   let flipped = 0;
   for (const game of games) {
     const row = existingBySourceId.get(String(game.id));
-    if (row && row.published !== game.published) {
+    if (!row) continue;
+    const publishedAt = game.published_at ? new Date(game.published_at) : null;
+    const needsPublishFlip = row.published !== game.published;
+    // Backfill the provider publish date on rows imported before the
+    // `published_at` column existed.
+    const needsDateBackfill = row.publishedAt == null && publishedAt != null;
+    if (needsPublishFlip || needsDateBackfill) {
       await db
         .update(profileProjects)
-        .set({ published: game.published })
+        .set({
+          published: game.published,
+          ...(needsDateBackfill ? { publishedAt } : {}),
+        })
         .where(eq(profileProjects.id, row.id));
-      flipped++;
+      if (needsPublishFlip) flipped++;
     }
   }
 

@@ -1,336 +1,251 @@
-import { Edit02Icon, Location01Icon, Share05Icon } from "@hugeicons/core-free-icons";
+import { Edit02Icon, Share05Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
+import { client } from "@/orpc/client";
 
-import {
-  formatCommitment,
-  type ProfileAvailability,
-  type ProfileBadge,
-  type ProfileViewModel,
-} from "./helpers";
+import { GradientBanner } from "./GradientBanner";
+import { formatCommitment, type ProfileAvailability, type ProfileViewModel } from "./helpers";
 
 interface ProfileHeroProps {
   profile: ProfileViewModel;
   isOwner: boolean;
   onEditProfile: () => void;
-  /** Mobile compact mode. Layout collapses from "huge stacked title +
-   * big square avatar to the right" to "small avatar tile inline-left
-   * of stacked name+tag", matching the mobile wireframe. */
+  /** Query key for the underlying `getProfile` fetch — the owner's
+   * availability toggle mutates `availableForWork` directly and
+   * invalidates this so the pill/badges/directory state stay honest. */
+  queryKey?: readonly unknown[];
+  /** Mobile compact mode — banner shortens and the identity block
+   * stacks under the avatar instead of flowing beside it. */
   compact?: boolean;
 }
 
 /**
- * Top-of-page hero. Two distinct layouts share one component because
- * the surrounding context (chips, one-liner, action set, stats row)
- * is the same in both modes — only the title block + avatar
- * arrangement flips.
+ * Top-of-page hero card. A striped pastel gradient strip (seeded by
+ * the user's handle so every profile keeps a stable colorway) with
+ * the avatar tile overlapping its lower edge, then the identity row:
+ * name + availability pill, and a mono meta line (@handle · top
+ * skills · location · timezone · member since).
  *
- * - Desktop: huge `clamp()` display name on the left, large square
- *   avatar tile pinned to the right.
- * - Mobile (`compact`): small avatar inline-left of the stacked name
- *   and outlined tag, with a status dot on the avatar's bottom-right
- *   and a `· they/them` meta line tucked under the name block.
+ * Owners get a real AVAILABLE FOR WORK toggle card pinned to the
+ * hero's right side; visitors see the pill only and hire details in
+ * the sidebar.
  */
 export function ProfileHero({
   profile,
   isOwner,
   onEditProfile,
+  queryKey,
   compact = false,
 }: ProfileHeroProps) {
-  return compact ? (
-    <CompactHero profile={profile} isOwner={isOwner} onEditProfile={onEditProfile} />
-  ) : (
-    <WideHero profile={profile} isOwner={isOwner} onEditProfile={onEditProfile} />
-  );
-}
-
-// ── Wide / desktop hero ────────────────────────────────────────────
-
-function WideHero({
-  profile,
-  isOwner,
-  onEditProfile,
-}: {
-  profile: ProfileViewModel;
-  isOwner: boolean;
-  onEditProfile: () => void;
-}) {
   return (
-    <div className="flex w-full items-stretch justify-between gap-6">
-      <div className="flex min-w-0 flex-1 flex-col gap-4">
-        <DisplayNameStacked name={profile.name} tag={profile.tag} />
-        <MetaChips profile={profile} />
-        {profile.oneLiner ? (
-          <Text monospace size="sm" variant="muted" className="max-w-prose tracking-wide">
-            {profile.oneLiner}
-          </Text>
-        ) : null}
-        <ActionRow
-          isOwner={isOwner}
-          onEditProfile={onEditProfile}
-          handle={profile.handle}
-          compact={false}
-        />
-      </div>
-      <WideAvatarTile profile={profile} />
-    </div>
-  );
-}
+    <Well className="overflow-hidden p-0">
+      <GradientBanner
+        seed={profile.handle}
+        pattern="vertical"
+        className={compact ? "h-16 w-full" : "h-28 w-full"}
+      />
 
-function DisplayNameStacked({ name, tag }: { name: string; tag: string | null }) {
-  return (
-    <div className="flex flex-col gap-10">
-      <Heading
-        as="h1"
-        monospace
-        className="text-[clamp(3rem,10vw,7rem)] leading-[0.85] tracking-tight text-foreground"
-      >
-        {name}
-      </Heading>
-      {tag ? <OutlineTag size="display">{tag}</OutlineTag> : null}
-    </div>
-  );
-}
-
-function WideAvatarTile({ profile }: { profile: ProfileViewModel }) {
-  return (
-    <div className="flex max-w-[18rem] flex-1 shrink-0 flex-col gap-2">
-      <Well
-        variant="default"
-        className="relative flex aspect-square w-full items-center justify-center overflow-hidden"
-      >
-        {profile.avatar.imageUrl ? (
-          <img
-            src={profile.avatar.imageUrl}
-            alt={profile.name}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <AvatarGlyph glyph={profile.avatar.glyph} size="display" />
-        )}
-      </Well>
-      {profile.badges.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {profile.badges.map((b) => (
-            <ProfileBadgeChip key={b.label} badge={b} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-// ── Mobile / compact hero ──────────────────────────────────────────
-
-function CompactHero({
-  profile,
-  isOwner,
-  onEditProfile,
-}: {
-  profile: ProfileViewModel;
-  isOwner: boolean;
-  onEditProfile: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      {/* Avatar (left) inline with the name + outlined tag (right) —
-          this is the layout the wireframe uses; the avatar is a
-          mid-size square thumbnail anchored to the same row as the
-          headline and the meta chips sit below. */}
-      <div className="grid grid-cols-[7.25rem_minmax(0,1fr)] items-start gap-3">
-        <CompactAvatarTile profile={profile} online={hasOnlineBadge(profile.badges)} />
-        <div className="flex min-w-0 flex-col">
-          <Heading
-            as="h1"
-            monospace
-            className="text-[2.6rem] leading-[0.9] tracking-tight text-foreground"
-          >
-            {profile.name}
-          </Heading>
-          {profile.tag ? (
-            <div className="mt-2">
-              <OutlineTag size="compact">{profile.tag}</OutlineTag>
+      <div className={cn("relative flex flex-col gap-3 px-4 pb-4", !compact && "sm:px-5 sm:pb-5")}>
+        {/* Avatar row — the actions cluster sits to its right, level
+            with the banner edge, so the identity stack below keeps a
+            single uninterrupted left edge. */}
+        <div className="flex items-start justify-between gap-4">
+          <AvatarTile profile={profile} compact={compact} />
+          {compact ? null : (
+            <div className="flex flex-row flex-wrap items-center justify-end gap-2 pt-3">
+              {isOwner ? (
+                <AvailabilityToggleCard
+                  availability={profile.availability}
+                  queryKey={queryKey}
+                  compact={compact}
+                />
+              ) : null}
+              <ActionRow
+                isOwner={isOwner}
+                onEditProfile={onEditProfile}
+                handle={profile.handle}
+                compact={compact}
+              />
             </div>
+          )}
+        </div>
+
+        {/* Identity stack — name, tagline, meta, one-liner all share
+            one left edge under the avatar. */}
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <Heading
+              as="h1"
+              monospace
+              className={cn(
+                "leading-none tracking-tight text-foreground",
+                compact ? "text-3xl" : "text-4xl",
+              )}
+            >
+              {profile.name}
+            </Heading>
+            <AvailabilityPill availability={profile.availability} />
+          </div>
+          {profile.tag ? (
+            <span className="text-lg leading-tight font-semibold tracking-tight text-accent">
+              {profile.tag}
+            </span>
           ) : null}
           <MetaLine profile={profile} />
+          {profile.oneLiner ? (
+            <Text monospace size="sm" variant="muted" className="max-w-prose tracking-wide">
+              {profile.oneLiner}
+            </Text>
+          ) : null}
         </div>
-      </div>
 
-      <CompactChipsRow profile={profile} />
-
-      {profile.oneLiner ? (
-        <div className="border-l-2 border-accent/60 pl-3">
-          <Text monospace size="sm" variant="muted" className="tracking-wide">
-            {profile.oneLiner}
-          </Text>
-        </div>
-      ) : null}
-
-      <ActionRow isOwner={isOwner} onEditProfile={onEditProfile} handle={profile.handle} compact />
-    </div>
-  );
-}
-
-function CompactAvatarTile({ profile, online }: { profile: ProfileViewModel; online: boolean }) {
-  return (
-    <div className="relative aspect-square w-full">
-      <Well
-        variant="default"
-        className="relative flex h-full w-full items-center justify-center overflow-hidden"
-      >
-        {profile.avatar.imageUrl ? (
-          <img
-            src={profile.avatar.imageUrl}
-            alt={profile.name}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <AvatarGlyph glyph={profile.avatar.glyph} size="compact" />
-        )}
-      </Well>
-      {online ? (
-        // Online indicator overlapping the avatar's bottom-edge — the
-        // wireframe's small green chip with a dot inside.
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
-          <Badge
-            variant="success"
-            className="h-5 gap-1.5 border border-success/30 px-1.5 font-mono text-[9px] tracking-widest"
-          >
-            <span
-              aria-hidden
-              className="inline-block h-1.5 w-1.5 rounded-full bg-success-foreground"
+        {compact ? (
+          <div className="flex flex-row flex-wrap items-stretch gap-2">
+            {isOwner ? (
+              <AvailabilityToggleCard
+                availability={profile.availability}
+                queryKey={queryKey}
+                compact={compact}
+              />
+            ) : null}
+            <ActionRow
+              isOwner={isOwner}
+              onEditProfile={onEditProfile}
+              handle={profile.handle}
+              compact={compact}
             />
-          </Badge>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
+    </Well>
+  );
+}
+
+function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: boolean }) {
+  return (
+    <div
+      className={cn(
+        "relative z-10 shrink-0 overflow-hidden rounded border-4 border-card bg-card",
+        compact ? "-mt-10 h-20 w-20" : "-mt-12 h-28 w-28",
+      )}
+    >
+      {profile.avatar.imageUrl ? (
+        <img
+          src={profile.avatar.imageUrl}
+          alt={profile.name}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <GradientBanner seed={profile.handle} className="flex h-full w-full">
+          <span
+            aria-hidden
+            className={cn(
+              "relative m-auto font-mono leading-none font-bold tracking-tight text-white/90",
+              compact ? "text-4xl" : "text-5xl",
+            )}
+          >
+            {profile.avatar.glyph}
+          </span>
+        </GradientBanner>
+      )}
     </div>
   );
 }
 
-function MetaLine({ profile }: { profile: ProfileViewModel }) {
-  // Mobile wireframe shows `· @handle · they/them` directly under the
-  // tag — purely typographic, no chips. Pronouns is the more
-  // meaningful side here; we trust handle is already in the
-  // breadcrumb.
-  if (!profile.pronouns) return null;
+function AvailabilityPill({ availability }: { availability: ProfileAvailability }) {
+  if (availability.state === "closed") return null;
+  const open = availability.state === "open";
   return (
-    <Text monospace size="xs" variant="muted" className="mt-1.5 tracking-widest">
-      <span className="mr-1.5 text-success">●</span>
-      {profile.pronouns.toUpperCase()}
+    <Badge
+      variant={open ? "success" : "warning"}
+      className="gap-1.5 font-mono text-[10px] tracking-widest uppercase"
+    >
+      <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {open ? "Available for work" : "Selectively open"}
+    </Badge>
+  );
+}
+
+/** The `@handle · skill · skill · location · UTC+1 · member since`
+ * mono line under the name — mirrors the reference layout's single
+ * dotted meta row rather than a chip pile. */
+function MetaLine({ profile }: { profile: ProfileViewModel }) {
+  const topSkills = profile.skills
+    .filter((s) => s.state === "active")
+    .slice(0, 2)
+    .map((s) => s.name);
+  const joinedYear = profile.joinedAt.getUTCFullYear();
+  const parts: string[] = [
+    `@${profile.handle}`,
+    ...topSkills,
+    ...(profile.pronouns ? [profile.pronouns] : []),
+    ...(profile.location ? [profile.location] : []),
+    ...(profile.availability.timezone ? [profile.availability.timezone] : []),
+    `Member since ${joinedYear}`,
+  ];
+  return (
+    <Text monospace size="xs" variant="muted" className="tracking-widest">
+      {parts.join("  ·  ")}
     </Text>
   );
 }
 
-function CompactChipsRow({ profile }: { profile: ProfileViewModel }) {
-  const { availability, location, joinedAt } = profile;
-  const joinedLabel = joinedAt
-    .toLocaleString(undefined, { month: "short", year: "numeric", timeZone: "UTC" })
-    .toUpperCase();
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <AvailabilityChip availability={availability} />
-      {location ? (
-        <MetaChip>
-          <HugeiconsIcon icon={Location01Icon} size={11} className="text-accent" />
-          {location.toUpperCase()}
-        </MetaChip>
-      ) : null}
-      <MetaChip>JOINED {joinedLabel}</MetaChip>
-    </div>
-  );
-}
-
-function hasOnlineBadge(badges: ProfileBadge[]): boolean {
-  return badges.some((b) => b.variant === "online");
-}
-
-// ── Shared sub-components ──────────────────────────────────────────
-
-function OutlineTag({
-  children,
-  size,
+/** Owner-only card with a live switch bound to
+ * `developer_profiles.availableForWork` — flipping it updates the
+ * directory listing immediately. */
+function AvailabilityToggleCard({
+  availability,
+  queryKey,
+  compact,
 }: {
-  children: React.ReactNode;
-  size: "display" | "compact";
+  availability: ProfileAvailability;
+  queryKey?: readonly unknown[];
+  compact: boolean;
 }) {
-  // Sub-line tag under the display name. Uses the page's display
-  // font (sans, not mono) for a softer counterpoint to the chunky
-  // mono headline, filled in accent colour rather than stroked. Sits
-  // at roughly a third of the display name's size so it reads as a
-  // stylized suffix without competing with the name itself. Tight
-  // line-height keeps multi-line taglines compact under the name.
+  const qc = useQueryClient();
+  const open = availability.state === "open";
+  const toggle = useMutation({
+    mutationFn: (next: boolean) => client.updateProfile({ availableForWork: next }),
+    onSuccess: (_data, next) => {
+      if (queryKey) void qc.invalidateQueries({ queryKey });
+      toast.success(next ? "You're shown as available for work" : "Availability turned off");
+    },
+    onError: () => toast.error("Failed to update availability"),
+  });
+
+  const commitment = formatCommitment(availability.commitment);
   return (
-    <span
+    <div
       className={cn(
-        "block font-semibold tracking-tight text-accent",
-        size === "display" ? "text-[clamp(1rem,3vw,2.25rem)]" : "text-base",
-        "leading-none",
+        "flex items-center gap-3 rounded border border-input bg-muted/15 px-3 py-2",
+        compact && "flex-1",
       )}
     >
-      {children}
-    </span>
-  );
-}
-
-function MetaChips({ profile }: { profile: ProfileViewModel }) {
-  const { availability, pronouns, location, joinedAt } = profile;
-  const joinedLabel = joinedAt
-    .toLocaleString(undefined, { month: "short", year: "numeric", timeZone: "UTC" })
-    .toUpperCase();
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <AvailabilityChip availability={availability} />
-      {pronouns ? <MetaChip>{pronouns.toUpperCase()}</MetaChip> : null}
-      {location ? (
-        <MetaChip>
-          <HugeiconsIcon icon={Location01Icon} size={12} className="text-accent" />
-          {location.toUpperCase()}
-        </MetaChip>
-      ) : null}
-      <MetaChip>JOINED {joinedLabel}</MetaChip>
+      <Switch
+        checked={open}
+        onCheckedChange={(next) => toggle.mutate(next)}
+        disabled={toggle.isPending}
+        aria-label="Available for work"
+      />
+      <div className="flex min-w-0 flex-col">
+        <Text monospace size="xs" bold className={cn("tracking-widest", open && "text-success")}>
+          AVAILABLE FOR WORK
+        </Text>
+        <Text monospace size="xs" variant="muted" className="truncate tracking-wider">
+          {open
+            ? ["Shown in the directory", commitment].filter(Boolean).join(" · ")
+            : "Hidden from the directory"}
+        </Text>
+      </div>
     </div>
-  );
-}
-
-function AvailabilityChip({ availability }: { availability: ProfileAvailability }) {
-  const dotClass =
-    availability.state === "open"
-      ? "bg-success"
-      : availability.state === "selective"
-        ? "bg-warning"
-        : "bg-muted-foreground";
-  const labelMap: Record<ProfileAvailability["state"], string> = {
-    open: "Available",
-    selective: "Selective",
-    closed: "Busy",
-  };
-  const commitmentLabel = formatCommitment(availability.commitment);
-  return (
-    <Badge variant="secondary" className="gap-2 font-mono text-[11px] tracking-widest uppercase">
-      <span className={cn("inline-block h-1.5 w-1.5 rounded-full", dotClass)} aria-hidden />
-      {labelMap[availability.state]}
-      {commitmentLabel ? (
-        <>
-          <span aria-hidden className="opacity-60">
-            ·
-          </span>
-          <span className="opacity-80">{commitmentLabel}</span>
-        </>
-      ) : null}
-    </Badge>
-  );
-}
-
-function MetaChip({ children }: { children: React.ReactNode }) {
-  return (
-    <Badge variant="secondary" className="gap-1.5 font-mono text-[11px] tracking-widest uppercase">
-      {children}
-    </Badge>
   );
 }
 
@@ -349,79 +264,21 @@ function ActionRow({
     if (typeof window === "undefined") return;
     const url = `${window.location.origin}/profile/${handle}`;
     void navigator.clipboard?.writeText(url);
+    toast.success("Profile link copied");
   };
 
-  if (compact) {
-    return (
-      <div className="grid grid-cols-[1fr_auto] items-stretch gap-2">
-        {isOwner ? (
-          <Button
-            variant="default"
-            size="lg"
-            onClick={onEditProfile}
-            className="font-mono tracking-widest"
-          >
-            <HugeiconsIcon icon={Edit02Icon} size={14} />
-            EDIT PROFILE
-          </Button>
-        ) : (
-          <span />
-        )}
-        <Button variant="outline" size="lg" onClick={onShare} className="font-mono tracking-widest">
-          <HugeiconsIcon icon={Share05Icon} size={14} />
-          SHARE
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={cn("flex items-center gap-2", compact && "shrink-0")}>
       {isOwner ? (
-        <Button variant="default" size="sm" onClick={onEditProfile}>
+        <Button variant="outline" size="sm" onClick={onEditProfile}>
           <HugeiconsIcon icon={Edit02Icon} size={14} />
-          <span className="font-mono tracking-widest">EDIT PROFILE</span>
+          <span className="font-mono tracking-widest">EDIT</span>
         </Button>
       ) : null}
-      <Button variant="outline" size="sm" onClick={onShare}>
+      <Button variant="outline" size="sm" onClick={onShare} aria-label="Share profile">
         <HugeiconsIcon icon={Share05Icon} size={14} />
-        <span className="font-mono tracking-widest">SHARE</span>
+        {isOwner ? null : <span className="font-mono tracking-widest">SHARE</span>}
       </Button>
     </div>
-  );
-}
-
-function AvatarGlyph({ glyph, size }: { glyph: string; size: "display" | "compact" }) {
-  return (
-    <>
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-[image:repeating-linear-gradient(135deg,transparent_0_8px,color-mix(in_srgb,var(--color-foreground)_8%,transparent)_8px_10px)]"
-      />
-      <span
-        aria-hidden
-        className={cn(
-          "relative font-mono leading-none font-bold tracking-tight",
-          "text-transparent [-webkit-text-stroke:3px_var(--accent)]",
-          size === "display" ? "text-[12rem]" : "text-[5rem]",
-        )}
-      >
-        {glyph}
-      </span>
-    </>
-  );
-}
-
-function ProfileBadgeChip({ badge }: { badge: ProfileBadge }) {
-  const variant: "secondary" | "warning" | "success" =
-    badge.variant === "online" ? "success" : badge.variant === "winner" ? "warning" : "secondary";
-  const glyph = badge.variant === "online" ? "●" : badge.variant === "winner" ? "♛" : "■";
-  return (
-    <Badge variant={variant} className="font-mono text-[10px] tracking-widest uppercase">
-      <span aria-hidden className="mr-1">
-        {glyph}
-      </span>
-      {badge.label}
-    </Badge>
   );
 }
