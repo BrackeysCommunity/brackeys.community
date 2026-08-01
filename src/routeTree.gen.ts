@@ -17,10 +17,13 @@ import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
+import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as ProfilePreviewRouteImport } from './routes/profile.preview'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
+import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
+import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
@@ -72,6 +75,11 @@ const ProfileIndexRoute = ProfileIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProfileRoute,
 } as any)
+const JamsIndexRoute = JamsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => JamsRoute,
+} as any)
 const GameIndexRoute = GameIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -91,6 +99,16 @@ const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
   getParentRoute: () => ProfileRoute,
+} as any)
+const JamsCalendarRoute = JamsCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => JamsRoute,
+} as any)
+const JamsArchiveRoute = JamsArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => JamsRoute,
 } as any)
 const GameRoomIdRoute = GameRoomIdRouteImport.update({
   id: '/$roomId',
@@ -148,17 +166,20 @@ export interface FileRoutesByFullPath {
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
-  '/jams': typeof JamsRoute
+  '/jams': typeof JamsRouteWithChildren
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/jams/archive': typeof JamsArchiveRoute
+  '/jams/calendar': typeof JamsCalendarRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
+  '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
@@ -170,16 +191,18 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/command-center': typeof CommandCenterRoute
-  '/jams': typeof JamsRoute
   '/notifications': typeof NotificationsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/jams/archive': typeof JamsArchiveRoute
+  '/jams/calendar': typeof JamsCalendarRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
+  '/jams': typeof JamsIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
@@ -194,17 +217,20 @@ export interface FileRoutesById {
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
-  '/jams': typeof JamsRoute
+  '/jams': typeof JamsRouteWithChildren
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/jams/archive': typeof JamsArchiveRoute
+  '/jams/calendar': typeof JamsCalendarRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
+  '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
@@ -227,10 +253,13 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
+    | '/jams/archive'
+    | '/jams/calendar'
     | '/profile/$userId'
     | '/profile/preview'
     | '/collab/'
     | '/game/'
+    | '/jams/'
     | '/profile/'
     | '/api/auth/$'
     | '/api/notifications/stream'
@@ -242,16 +271,18 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/command-center'
-    | '/jams'
     | '/notifications'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
+    | '/jams/archive'
+    | '/jams/calendar'
     | '/profile/$userId'
     | '/profile/preview'
     | '/collab'
     | '/game'
+    | '/jams'
     | '/profile'
     | '/api/auth/$'
     | '/api/notifications/stream'
@@ -272,10 +303,13 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
+    | '/jams/archive'
+    | '/jams/calendar'
     | '/profile/$userId'
     | '/profile/preview'
     | '/collab/'
     | '/game/'
+    | '/jams/'
     | '/profile/'
     | '/api/auth/$'
     | '/api/notifications/stream'
@@ -290,7 +324,7 @@ export interface RootRouteChildren {
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
   GameRoute: typeof GameRouteWithChildren
-  JamsRoute: typeof JamsRoute
+  JamsRoute: typeof JamsRouteWithChildren
   NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
@@ -360,6 +394,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileIndexRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/jams/': {
+      id: '/jams/'
+      path: '/'
+      fullPath: '/jams/'
+      preLoaderRoute: typeof JamsIndexRouteImport
+      parentRoute: typeof JamsRoute
+    }
     '/game/': {
       id: '/game/'
       path: '/'
@@ -387,6 +428,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/$userId'
       preLoaderRoute: typeof ProfileUserIdRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/jams/calendar': {
+      id: '/jams/calendar'
+      path: '/calendar'
+      fullPath: '/jams/calendar'
+      preLoaderRoute: typeof JamsCalendarRouteImport
+      parentRoute: typeof JamsRoute
+    }
+    '/jams/archive': {
+      id: '/jams/archive'
+      path: '/archive'
+      fullPath: '/jams/archive'
+      preLoaderRoute: typeof JamsArchiveRouteImport
+      parentRoute: typeof JamsRoute
     }
     '/game/$roomId': {
       id: '/game/$roomId'
@@ -488,6 +543,20 @@ const GameRouteChildren: GameRouteChildren = {
 
 const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
 
+interface JamsRouteChildren {
+  JamsArchiveRoute: typeof JamsArchiveRoute
+  JamsCalendarRoute: typeof JamsCalendarRoute
+  JamsIndexRoute: typeof JamsIndexRoute
+}
+
+const JamsRouteChildren: JamsRouteChildren = {
+  JamsArchiveRoute: JamsArchiveRoute,
+  JamsCalendarRoute: JamsCalendarRoute,
+  JamsIndexRoute: JamsIndexRoute,
+}
+
+const JamsRouteWithChildren = JamsRoute._addFileChildren(JamsRouteChildren)
+
 interface ProfileRouteChildren {
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   ProfilePreviewRoute: typeof ProfilePreviewRoute
@@ -508,7 +577,7 @@ const rootRouteChildren: RootRouteChildren = {
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
   GameRoute: GameRouteWithChildren,
-  JamsRoute: JamsRoute,
+  JamsRoute: JamsRouteWithChildren,
   NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,

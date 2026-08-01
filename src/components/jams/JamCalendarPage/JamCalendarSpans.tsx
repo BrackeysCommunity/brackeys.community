@@ -5,13 +5,12 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
 
-import { DayDetailContent } from "./DayDetailPanel";
+import { dayCellLayoutId, DayDetailModal } from "./DayDetailPanel";
 import {
   type DayBuckets,
   dayKey,
@@ -103,7 +102,10 @@ export function JamCalendarSpans({
 
   return (
     <LayoutGroup>
-      <Well className="flex flex-col">
+      {/* `inert` while the day spotlight is open makes the whole
+          calendar unfocusable and non-interactive, so tabbing can't
+          land on a cell or bar hidden behind the backdrop. */}
+      <Well inert={detailDay != null ? true : undefined} className="flex flex-col">
         <header className="flex flex-wrap items-center gap-3 border-b border-muted/30 px-3 py-2">
           <ButtonGroup className="[&>*:first-child]:rounded-l-md [&>*:last-child]:rounded-r-md">
             <Button
@@ -198,11 +200,11 @@ export function JamCalendarSpans({
         onClose={() => setSelected(null)}
       />
 
-      <Dialog open={detailDay != null} onOpenChange={(open) => !open && setDetailDay(null)}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto p-0 sm:max-w-md" showCloseButton>
-          {detailDay && <DayDetailContent day={detailDay} buckets={byDay.get(dayKey(detailDay))} />}
-        </DialogContent>
-      </Dialog>
+      <DayDetailModal
+        day={detailDay}
+        buckets={detailDay ? byDay.get(dayKey(detailDay)) : undefined}
+        onClose={() => setDetailDay(null)}
+      />
     </LayoutGroup>
   );
 }
@@ -242,9 +244,18 @@ function WeekRow({
           const outside = !isSameMonth(day, monthStart);
           const isToday = isSameDay(day, today);
           return (
-            <button
+            <motion.button
               key={key}
               type="button"
+              // Every cell is a tracked source/destination for the day
+              // spotlight's grow + shrink. `layout={false}` keeps that
+              // shared morph while opting out of self-layout animation,
+              // so month nav and `useDateNow` re-renders don't spring
+              // the cells around.
+              layoutId={dayCellLayoutId(day)}
+              layout={false}
+              transition={ROW_CLOSE_TRANSITION}
+              style={{ borderRadius: 4 }}
               onClick={() => onDayClick(day)}
               aria-label={`Details for ${day.toLocaleString(undefined, { month: "long", day: "numeric", timeZone: "UTC" })}`}
               className={cn(
@@ -279,7 +290,7 @@ function WeekRow({
                   </Text>
                 )}
               </span>
-            </button>
+            </motion.button>
           );
         })}
       </div>

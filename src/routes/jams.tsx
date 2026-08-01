@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { JamCalendarPage } from "@/components/jams/JamCalendarPage";
+import { JamsPageLayout } from "@/components/jams/JamCalendarPage";
 
-export const Route = createFileRoute("/jams")({ component: JamCalendarPage });
+export const Route = createFileRoute("/jams")({ component: JamsPageLayout });

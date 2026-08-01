@@ -4,9 +4,13 @@ import type { ArchiveData, ArchiveQueryState, BoardData, CalendarData } from "./
 
 export type StatKey = "upcoming" | "live" | "voting" | "archive";
 
-/** Common shape that desktop + mobile layouts both consume. The
- * orchestrator (`index.tsx`) owns the state and passes this bundle in. */
-export interface JamCalendarLayoutProps {
+/** Everything the `/jams` layout route shares with its view routes. The
+ * provider (`jams-context.tsx`) owns the state; the board, calendar and
+ * archive routes read out of it what they need. */
+export interface JamsPageContextValue {
+  /** Touch device — stacked hero stats and the denser calendar. */
+  compact: boolean;
+
   // Time-window state
   monthStart: Date;
   today: Date;
@@ -21,7 +25,7 @@ export interface JamCalendarLayoutProps {
   stats: Record<StatKey, number>;
   totalTracked: number;
 
-  // UI state
+  /** Active view, derived from the URL rather than held as state. */
   view: ViewMode;
   search: string;
   /** Board-only display state, owned here so the board's controls can
@@ -33,6 +37,7 @@ export interface JamCalendarLayoutProps {
   // Setters
   setMonth: (delta: number) => void;
   setMonthAt: (month: Date) => void;
+  /** Navigates to that view's route. */
   setView: (v: ViewMode) => void;
   setSearch: (q: string) => void;
   setBoardSort: (s: BoardSort) => void;
@@ -40,4 +45,9 @@ export interface JamCalendarLayoutProps {
   setArchiveState: (patch: Partial<ArchiveQueryState>) => void;
   /** Stat tile click — jumps to the matching shelf or the archive view. */
   onStatClick: (k: StatKey) => void;
+
+  /** Shelf the board should scroll to once it mounts, parked here
+   * because the click can happen on a different route. */
+  pendingShelf: StatKey | null;
+  clearPendingShelf: () => void;
 }
