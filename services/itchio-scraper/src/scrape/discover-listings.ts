@@ -76,6 +76,21 @@ function parseDatedListPage(html: string): DatedListPage {
   return { entries, hasNext: $("a.next_page").length > 0 };
 }
 
+export type PastJamListing = DatedListPage;
+
+/**
+ * Fetches one page of /jams/past/sort-date (end date descending, 50 cells per
+ * page). Used by the recently-ended discovery walk and the historical
+ * backfill job.
+ */
+export async function fetchPastSortDatePage(page: number): Promise<PastJamListing> {
+  const url =
+    page === 1
+      ? "https://itch.io/jams/past/sort-date"
+      : `https://itch.io/jams/past/sort-date?page=${page}`;
+  return parseDatedListPage(await fetchHtml(url));
+}
+
 /**
  * Walks /jams/past/sort-date (end date descending) and returns every jam that
  * ended within the lookback window. This catches jams that were created and
@@ -88,12 +103,7 @@ export async function discoverRecentlyEndedSlugs(lookbackDays: number): Promise<
   const seen = new Set<string>();
   let page = 1;
   for (;;) {
-    const url =
-      page === 1
-        ? "https://itch.io/jams/past/sort-date"
-        : `https://itch.io/jams/past/sort-date?page=${page}`;
-    const html = await fetchHtml(url);
-    const { entries, hasNext } = parseDatedListPage(html);
+    const { entries, hasNext } = await fetchPastSortDatePage(page);
     if (entries.length === 0) break;
     let pastCutoff = false;
     for (const { slug, endedAt } of entries) {

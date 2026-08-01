@@ -105,6 +105,32 @@ cp .env.example .env
 bun run start
 ```
 
+## Historical backfill
+
+`bun run backfill` walks `/jams/past/sort-date` (~420 pages, back to 2014) and
+ingests every jam not yet persisted — metadata + entries, with zero-rating
+entries pre-marked so the nightly cron only drains rate pages that can actually
+rank. It is idempotent and resumable: a jam only counts as done once its
+entries landed, so interrupting mid-run (SIGTERM, crash, redeploy) is safe —
+re-running continues where it left off. Knobs: `BACKFILL_MAX_JAMS` (cap per
+invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
+(default 400). Sizing expectations are documented in
+[the deep-dive doc](../../docs/research/itch-scraper-browserless-deep-dive.md)
+(~3-6 h for metadata + entries; rankings drain over subsequent cron runs).
+
+**Running it on Railway** (recommended for the full multi-hour pull):
+
+1. Create a new service in the project pointing at this repo.
+2. In service Settings, set **Config file path** to
+   `services/itchio-scraper/railway.backfill.toml` (leave Root Directory
+   blank, same as the main scraper service).
+3. Add `DATABASE_URL` referencing the database service's variable.
+4. Deploy. The hourly cron doubles as the resume mechanism — interrupted or
+   partial runs continue on the next tick, ticks during an active run are
+   SKIPPED, and once everything is ingested each tick is a ~5-minute no-op.
+5. Watch progress via the run logs (`[backfill] page N done — ingested=…`),
+   then **delete the service** once it reports nothing left to ingest.
+
 ## Behavior & guarantees
 
 - **Upserts, not inserts.** Each run updates existing rows keyed on

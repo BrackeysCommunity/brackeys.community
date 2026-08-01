@@ -1,5 +1,6 @@
 import type { ItchJamContributor } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
+import { pacedFetch } from "../http.ts";
 
 export type ItchEntry = {
   entryId: number;
@@ -44,17 +45,23 @@ type RawResponse = {
   jam_games?: RawEntry[];
 };
 
-export async function fetchJamEntries(jamId: number): Promise<ItchEntry[]> {
+/**
+ * Returns the jam's current submissions, or null when entries.json doesn't
+ * exist (upcoming jams before submissions open). Null lets callers tell
+ * "no list available" apart from "list exists and is empty" — only the
+ * latter may be used to reconcile removed entries.
+ */
+export async function fetchJamEntries(jamId: number): Promise<ItchEntry[] | null> {
   const url = `https://itch.io/jam/${jamId}/entries.json`;
-  const res = await fetch(url, {
+  const res = await pacedFetch(url, {
     headers: {
       "user-agent": config.USER_AGENT,
       accept: "application/json",
     },
+    signal: AbortSignal.timeout(60_000),
   });
   if (res.status === 404) {
-    // Upcoming jams have no entries.json until submissions open.
-    return [];
+    return null;
   }
   if (!res.ok) {
     throw new Error(`GET ${url} -> ${res.status} ${res.statusText}`);

@@ -9,6 +9,11 @@ const schema = z.object({
   // weren't watching. Must comfortably exceed the longest plausible gap
   // between successful runs.
   ENDED_LOOKBACK_DAYS: z.coerce.number().int().positive().default(14),
+  // Global pacing across ALL itch.io requests: minimum gap between any two
+  // requests, and how long the whole pool pauses after a 429/503 when itch
+  // doesn't send a Retry-After header.
+  MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().nonnegative().default(350),
+  RATE_LIMIT_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
   USER_AGENT: z.string().default("brackeys-itchio-scraper/0.1 (+https://brackeys.community)"),
 });
 

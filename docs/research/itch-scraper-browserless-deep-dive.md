@@ -66,6 +66,46 @@ is the right and only approach; it just doesn't need a browser to fetch the HTML
   browser fetcher is a contained change behind `fetchHtml`'s signature.
 - Keep per-request pacing (~300-400 ms) and the existing 429 backoff; itch tolerates
   the current volume fine.
+- **Rate limiting must be global, not per-request** (learned 2026-08-01): the first
+  3,500-entry jam sustained ~8 req/s from 5 workers and tripped itch's limiter hard —
+  per-request backoff only slowed the failing request while the pool kept feeding
+  fresh attempts. All itch requests now flow through one shared pacer
+  (`MIN_REQUEST_INTERVAL_MS`, default 350 ms ≈ max ~2.9 req/s) plus a pool-wide
+  cooldown on 429/503 that honors `Retry-After` (fallback `RATE_LIMIT_COOLDOWN_MS`,
+  default 60 s).
+
+## Mass historical pull — sizing (researched 2026-08-01)
+
+How far back we have data today: essentially **2026 only** (1,036 of 1,118 jams;
+the rest are the Brackeys 2018-2026 backfill plus a few far-future joke jams).
+
+How far back itch goes: `/jams/past/sort-date` is **not** meaningfully capped — it
+spans **418 pages × 50 = ~20,900 public past jams**, date-sorted back to **Nov 2014**.
+A full walk of it (slug + end date for every listed past jam) is ~420 requests ≈ 5
+minutes. No jam-ID enumeration needed (that space is ~420k ids at ~5-10% hit rate —
+viable but strictly worse).
+
+Measured plain-fetch throughput: ~1.8 req/s sequential (~560 ms/page, ~18 KB); jam
+sync (page + entries.json) ≈ 1-2 s. Sampled 2023-era jams: ~11 entries/jam average,
+~87% of entries have ≥1 rating.
+
+Budget for pulling all ~19,800 missing historical jams:
+
+| Phase                                  | Requests  | Wall time (2-4 req/s, polite) |
+| -------------------------------------- | --------- | ----------------------------- |
+| Discovery (listing walk)               | ~420      | ~5 min                        |
+| Jam metadata + entries.json            | ~40k      | **~3-6 h**                    |
+| Rate-page results (rated entries only) | ~200-260k | **~15-35 h**                  |
+
+Storage impact: well under 1 GB (entries ≈ +200 MB, results ≈ +300 MB, jams ≈ +80 MB).
+
+Verdict: **yes — the plain-fetch refactor makes a mass historical pull practical.**
+Through Browserless (~2 s/page, wedge-prone) the results phase alone would have been
+5+ days of Chrome sessions. Recommended shape: a resumable one-off backfill job
+(cursor over the sort-date walk) for metadata + entries, letting the nightly cron's
+pending-results bucket drain rankings over subsequent runs; pre-mark
+`results_fetched_at` on entries with `rating_count = 0` (they can't rank) to skip
+~13% of rate fetches. Pace at ≤4 req/s with the existing 429 backoff.
 
 ## Outage recovery record (2026-08-01)
 

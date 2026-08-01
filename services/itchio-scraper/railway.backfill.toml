@@ -1,0 +1,19 @@
+# Config-as-code for a TEMPORARY Railway service that runs the historical
+# backfill (src/jobs/backfill-history.ts). Create a service pointing at this
+# repo, set its "Config file path" to services/itchio-scraper/railway.backfill.toml,
+# and reference the shared DATABASE_URL variable. Delete the service once the
+# walk reports nothing left to ingest.
+#
+# The hourly cron is the resume mechanism: if a run is interrupted (deploy,
+# crash, platform restart), the next tick picks up where it left off — ticks
+# that fire while a run is still going are SKIPPED by Railway, and once the
+# backfill is complete each tick is a ~5-minute no-op walk.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/itchio-scraper/Dockerfile"
+
+[deploy]
+startCommand = "bun run backfill"
+cronSchedule = "0 * * * *"
+restartPolicyType = "NEVER"
