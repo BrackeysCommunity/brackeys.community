@@ -6,6 +6,7 @@ import * as z from "zod";
 import { db } from "@/db";
 import { linkedAccounts } from "@/db/schema";
 import { validateToken } from "@/lib/itchio";
+import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";
 import { requireAuth } from "@/orpc/middleware/auth";
 
@@ -116,6 +117,13 @@ export const importItchIoGames = os
         message: "No itch.io account linked or access token missing.",
       });
     }
+
+    // Jam participation rides along with the explicit import, but a failure
+    // here shouldn't fail the game import the user actually asked for — the
+    // cron sweep retries it daily anyway.
+    await syncItchIoJamParticipations(context.user.id).catch((err) => {
+      console.error(`[itchio] jam backfill failed for ${context.user.id}`, err);
+    });
 
     return result;
   });

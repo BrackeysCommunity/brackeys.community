@@ -13,6 +13,7 @@ import type IORedis from "ioredis";
 import { db } from "@/db";
 import { linkedAccounts, profileProjects } from "@/db/schema";
 import { fetchGames } from "@/lib/itchio";
+import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 
 /** Thrown when the itch.io API call itself fails (vs. no linked account). */
 export class ItchIoSyncFetchError extends Error {
@@ -158,5 +159,16 @@ export async function syncItchIoLibraryThrottled(userId: string): Promise<void> 
     }
   } catch (err) {
     console.error(`[itchio-sync] background refresh failed for ${userId}`, err);
+  }
+
+  try {
+    const jams = await syncItchIoJamParticipations(userId);
+    if (jams && jams.imported > 0) {
+      console.log(
+        `[itchio-sync] jam backfill for ${userId}: imported ${jams.imported} of ${jams.total}`,
+      );
+    }
+  } catch (err) {
+    console.error(`[itchio-sync] jam backfill failed for ${userId}`, err);
   }
 }

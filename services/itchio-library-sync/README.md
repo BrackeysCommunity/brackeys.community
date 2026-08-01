@@ -12,6 +12,19 @@ both in `src/lib/itchio-sync.ts`).
 
 ## What it does each tick
 
+0. **Jam participation backfill** (runs first — DB-only, so it survives the
+   itch.io-facing phases aborting early). The itch.io OAuth API has no jam
+   endpoints, so jam participation comes from the scraped `itch.jam_entries`
+   (itchio-scraper service): for every linked itchio account (token not
+   required), entries are matched by uploader id
+   (`author_id = provider_user_id`) or contributor profile URL (normalized;
+   never by name) and mirrored into `profile_projects` as `type = 'jam'`,
+   `source = 'itchio-jam'`, `source_id = entry_id` rows referencing
+   `itch.jams` via `jam_id` (name/URL come from the join at read time).
+   Re-runs backfill `result` ("Overall: #N of M") once the post-voting
+   rate-page scrape lands, keep team rosters in step, and refresh covers
+   unless the owner uploaded their own image. Mirrors the app's
+   `src/lib/itchio-jam-sync.ts`.
 1. Selects every `user.linked_accounts` row with `provider = 'itchio'` and a
    non-null `access_token`.
 2. Sequentially per account (no concurrency, `SYNC_DELAY_MS` sleep between

@@ -1,6 +1,6 @@
 export const PROFILE_PROJECT_TYPES = ["jam", "game", "audio", "tool", "app"] as const;
 export const MANUAL_PROFILE_PROJECT_TYPES = ["game", "audio", "tool", "app"] as const;
-export const PROFILE_PROJECT_SOURCE_TYPES = ["manual", "itchio"] as const;
+export const PROFILE_PROJECT_SOURCE_TYPES = ["manual", "itchio", "itchio-jam"] as const;
 
 export type ProfileProjectType = (typeof PROFILE_PROJECT_TYPES)[number];
 export type ManualProfileProjectType = (typeof MANUAL_PROFILE_PROJECT_TYPES)[number];

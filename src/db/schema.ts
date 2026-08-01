@@ -33,6 +33,7 @@ export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
 export const profileProjectSourceEnum = userSchema.enum("profile_project_source", [
   "manual",
   "itchio",
+  "itchio-jam",
 ]);
 
 // ── Better Auth core tables (auth schema) ───────────────────────────────────
@@ -177,6 +178,10 @@ export const profileProjects = userSchema.table(
     published: boolean("published").notNull().default(true),
     source: profileProjectSourceEnum("source").notNull().default("manual"),
     sourceId: text("source_id"),
+    // Imported jam rows reference the scraped jam and derive name/URL from
+    // the join; manual rows keep the free-text jamName/jamUrl below so
+    // off-itch jams remain possible. Read paths coalesce text over join.
+    jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
     jamName: text("jam_name"),
     jamUrl: text("jam_url"),
     submissionTitle: text("submission_title"),

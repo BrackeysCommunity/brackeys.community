@@ -69,6 +69,12 @@ vi.mock("@/lib/itchio", () => ({
   fetchGames: mocks.fetchGames,
 }));
 
+// Only the throttled path calls the jam sync; stub it so this suite's db
+// mock doesn't have to satisfy the jam module's imports.
+vi.mock("@/lib/itchio-jam-sync", () => ({
+  syncItchIoJamParticipations: vi.fn(async () => null),
+}));
+
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "../itchio-sync";
 
 function game(overrides: Partial<Record<string, unknown>> & { id: number; published: boolean }) {

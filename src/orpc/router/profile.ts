@@ -1,12 +1,13 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import * as z from "zod";
 
 import { db } from "@/db";
 import {
   developerProfiles,
+  itchJams,
   linkedAccounts,
   profileProjects,
   profileUrlStubs,
@@ -35,6 +36,26 @@ const profanityMatcher = new RegExpMatcher({
   ...englishDataset.build(),
   ...englishRecommendedTransformers,
 });
+
+// Imported jam rows (source `itchio-jam`) carry only a jam_id reference;
+// their display name/URL come from the scraped `itch.jams` row. Manual rows
+// keep their free-text jamName/jamUrl, which always wins in the coalesce.
+async function queryProfileProjects(where: SQL | undefined) {
+  const rows = await db
+    .select({
+      project: profileProjects,
+      itchJamTitle: itchJams.title,
+      itchJamSlug: itchJams.slug,
+    })
+    .from(profileProjects)
+    .leftJoin(itchJams, eq(profileProjects.jamId, itchJams.jamId))
+    .where(where);
+  return rows.map(({ project, itchJamTitle, itchJamSlug }) => ({
+    ...project,
+    jamName: project.jamName ?? itchJamTitle,
+    jamUrl: project.jamUrl ?? (itchJamSlug ? `https://itch.io/jam/${itchJamSlug}` : null),
+  }));
+}
 
 function queryUserSkills(userId: string) {
   return db
@@ -157,22 +178,19 @@ export const getProfile = os
       await Promise.all([
         queryUserSkills(profileId),
         isOwner
-          ? db.select().from(profileProjects).where(eq(profileProjects.profileId, profileId))
-          : db
-              .select()
-              .from(profileProjects)
-              .where(
-                and(
-                  eq(profileProjects.profileId, profileId),
-                  eq(profileProjects.status, "approved"),
-                  // Unpublished titles (e.g. itch.io drafts) are owner-only.
-                  eq(profileProjects.published, true),
-                  // itch.io "Restricted" pages report published=true from the
-                  // API but 404 for anonymous visitors; the library-sync
-                  // sweep's URL probe records that here. Owner-only too.
-                  isNull(profileProjects.restrictedAt),
-                ),
+          ? queryProfileProjects(eq(profileProjects.profileId, profileId))
+          : queryProfileProjects(
+              and(
+                eq(profileProjects.profileId, profileId),
+                eq(profileProjects.status, "approved"),
+                // Unpublished titles (e.g. itch.io drafts) are owner-only.
+                eq(profileProjects.published, true),
+                // itch.io "Restricted" pages report published=true from the
+                // API but 404 for anonymous visitors; the library-sync
+                // sweep's URL probe records that here. Owner-only too.
+                isNull(profileProjects.restrictedAt),
               ),
+            ),
         db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
         isOwner
           ? db
@@ -222,7 +240,7 @@ export const getMyProfile = os
     const [skillList, projects, pendingSkillRequests, urlStub, linkedAccountsList] =
       await Promise.all([
         queryUserSkills(userId),
-        db.select().from(profileProjects).where(eq(profileProjects.profileId, userId)),
+        queryProfileProjects(eq(profileProjects.profileId, userId)),
         db
           .select()
           .from(skillRequests)

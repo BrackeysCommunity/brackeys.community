@@ -1,6 +1,12 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 
-import { linkedAccounts, profileProjects } from "../../../src/db/schema.ts";
+import {
+  itchJamEntries,
+  itchJamEntryResults,
+  itchJams,
+  linkedAccounts,
+  profileProjects,
+} from "../../../src/db/schema.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
 
@@ -222,8 +228,203 @@ async function probeRestricted(): Promise<{ probed: number; marked: number; clea
   return { probed, marked, cleared };
 }
 
+// ── Jam participation backfill ───────────────────────────────────────────────
+//
+// The itch.io OAuth API has no jam endpoints, so jam participation comes from
+// the scraped `itch.jam_entries` (itchio-scraper service) — a pure DB join,
+// no itch.io traffic and no access token needed. Uploaders match by numeric
+// itch user id, teammates by contributor profile URL (never by name). Same
+// shape as the app's syncItchIoJamParticipations (src/lib/itchio-jam-sync.ts),
+// but bound to this service's drizzle client.
+
+function normalizeItchProfileUrl(url: string | null): string | null {
+  if (!url) return null;
+  const normalized = url.trim().toLowerCase().replace(/\/+$/, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function composeOverallResult(rank: number, entriesCount: number | null): string {
+  return entriesCount != null && entriesCount > 0
+    ? `Overall: #${rank} of ${entriesCount}`
+    : `Overall: #${rank}`;
+}
+
+function sameMembers(a: string[] | null, b: string[] | null): boolean {
+  if (a == null || b == null) return a == null && b == null;
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+async function backfillJamsForAccount(account: {
+  profileId: string;
+  providerUserId: string;
+  providerProfileUrl: string | null;
+}): Promise<{ imported: number }> {
+  const authorId = Number(account.providerUserId);
+  const profileUrl = normalizeItchProfileUrl(account.providerProfileUrl);
+
+  const matchConditions: SQL[] = [];
+  if (Number.isFinite(authorId)) {
+    matchConditions.push(eq(itchJamEntries.authorId, authorId));
+  }
+  if (profileUrl) {
+    matchConditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM jsonb_array_elements(${itchJamEntries.contributors}) AS contributor
+        WHERE lower(trim(TRAILING '/' FROM contributor->>'url')) = ${profileUrl}
+      )`,
+    );
+  }
+  if (matchConditions.length === 0) return { imported: 0 };
+
+  const matches = await db
+    .select({
+      entry: itchJamEntries,
+      jamEntriesCount: itchJams.entriesCount,
+    })
+    .from(itchJamEntries)
+    .innerJoin(itchJams, eq(itchJamEntries.jamId, itchJams.jamId))
+    .where(or(...matchConditions));
+
+  if (matches.length === 0) return { imported: 0 };
+
+  const overallRows = await db
+    .select({
+      entryId: itchJamEntryResults.entryId,
+      rank: itchJamEntryResults.rank,
+    })
+    .from(itchJamEntryResults)
+    .where(
+      and(
+        inArray(
+          itchJamEntryResults.entryId,
+          matches.map((m) => m.entry.entryId),
+        ),
+        sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+      ),
+    );
+  const overallByEntryId = new Map(overallRows.map((r) => [r.entryId, r.rank]));
+
+  const existing = await db
+    .select({
+      id: profileProjects.id,
+      sourceId: profileProjects.sourceId,
+      result: profileProjects.result,
+      teamMembers: profileProjects.teamMembers,
+      imageUrl: profileProjects.imageUrl,
+      imageKey: profileProjects.imageKey,
+    })
+    .from(profileProjects)
+    .where(
+      and(
+        eq(profileProjects.profileId, account.profileId),
+        eq(profileProjects.source, "itchio-jam"),
+      ),
+    );
+  const existingBySourceId = new Map(existing.map((e) => [e.sourceId, e]));
+
+  const resultFor = (m: (typeof matches)[number]) => {
+    const rank = overallByEntryId.get(m.entry.entryId);
+    return rank != null ? composeOverallResult(rank, m.jamEntriesCount) : null;
+  };
+  const teamFor = (m: (typeof matches)[number]) => {
+    const names = m.entry.contributors.map((c) => c.name).filter((n) => n.length > 0);
+    return names.length > 0 ? names : null;
+  };
+
+  const newMatches = matches.filter((m) => !existingBySourceId.has(String(m.entry.entryId)));
+
+  if (newMatches.length > 0) {
+    await db
+      .insert(profileProjects)
+      .values(
+        newMatches.map((m) => ({
+          profileId: account.profileId,
+          type: "jam" as const,
+          title: m.entry.gameTitle,
+          description: m.entry.gameShortText,
+          url: m.entry.gameUrl,
+          imageUrl: m.entry.gameCoverUrl,
+          source: "itchio-jam" as const,
+          sourceId: String(m.entry.entryId),
+          status: "approved",
+          // Jam participation is public record on itch — entries pages are
+          // public regardless of the game page's visibility, so no
+          // restricted-probe coupling here.
+          published: true,
+          jamId: m.entry.jamId,
+          submissionTitle: m.entry.gameTitle,
+          submissionUrl: m.entry.rateUrl,
+          result: resultFor(m),
+          teamMembers: teamFor(m),
+          participatedAt: m.entry.submittedAt,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  // Re-syncs backfill `result` once the post-voting rate-page scrape lands,
+  // keep the team roster in step, and refresh the cover unless the owner
+  // uploaded their own image (imageKey set — always wins).
+  for (const m of matches) {
+    const row = existingBySourceId.get(String(m.entry.entryId));
+    if (!row) continue;
+    const result = resultFor(m);
+    const team = teamFor(m);
+    const coverUrl = m.entry.gameCoverUrl;
+    const needsResult = result != null && row.result !== result;
+    const needsTeam = !sameMembers(row.teamMembers, team);
+    const needsCover = row.imageKey == null && row.imageUrl !== coverUrl;
+    if (needsResult || needsTeam || needsCover) {
+      await db
+        .update(profileProjects)
+        .set({
+          ...(needsResult ? { result } : {}),
+          ...(needsTeam ? { teamMembers: team } : {}),
+          ...(needsCover ? { imageUrl: coverUrl } : {}),
+        })
+        .where(eq(profileProjects.id, row.id));
+    }
+  }
+
+  return { imported: newMatches.length };
+}
+
+async function backfillJams(): Promise<{ accounts: number; imported: number; failed: number }> {
+  // No token filter: the join needs only the account identity, so accounts
+  // with revoked tokens still get their jam history backfilled.
+  const accounts = await db
+    .select({
+      profileId: linkedAccounts.profileId,
+      providerUserId: linkedAccounts.providerUserId,
+      providerProfileUrl: linkedAccounts.providerProfileUrl,
+    })
+    .from(linkedAccounts)
+    .where(eq(linkedAccounts.provider, "itchio"));
+
+  let imported = 0;
+  let failed = 0;
+  for (const account of accounts) {
+    try {
+      const result = await backfillJamsForAccount(account);
+      imported += result.imported;
+    } catch (err) {
+      failed++;
+      console.error(`[jams] backfill failed for profile ${account.profileId}`, err);
+    }
+  }
+
+  return { accounts: accounts.length, imported, failed };
+}
+
 async function runSweep() {
   const started = Date.now();
+
+  // Jam backfill first: it's DB-only (no itch.io traffic), so it must not be
+  // lost when the API sweep below aborts early on a 429/5xx.
+  const jams = await backfillJams();
+  console.log(
+    `[jams] backfilled ${jams.accounts} accounts, imported ${jams.imported}, failed ${jams.failed}`,
+  );
 
   const accounts = await db
     .select({
