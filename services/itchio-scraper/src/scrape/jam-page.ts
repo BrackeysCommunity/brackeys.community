@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 
 import type { ItchJamHost, ItchJamStatus } from "../../../../src/db/schema.ts";
-import { fetchHtml } from "../browser.ts";
+import { fetchHtml } from "../http.ts";
 
 export type ScrapedJam = {
   jamId: number;

@@ -5,30 +5,49 @@ per-submission rankings) and syncs it into the main brackeys Postgres DB.
 
 ## What it scrapes
 
-| Source                                     | Access                                                                                                               | Captured fields                                                                                                                                             |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/jams/upcoming` (paginated)               | puppeteer (Browserless)                                                                                              | jam slugs for forward discovery                                                                                                                             |
-| `/search?q=brackeys&type=jams` (paginated) | puppeteer (Browserless)                                                                                              | jam slugs for one-time Brackeys backfill                                                                                                                    |
-| `/jam/{slug}`                              | puppeteer (Browserless)                                                                                              | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                           |
-| `/jam/{jamId}/entries.json`                | plain `fetch` (undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries)) | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors |
-| `/jam/{slug}/rate/{gameId}`                | puppeteer (Browserless)                                                                                              | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                            |
+Everything is fetched with plain HTTP (`fetch` + cheerio) — every page the
+scraper reads is fully server-rendered by itch.io and served without a JS
+challenge, even to our self-identifying bot user agent. No headless browser
+is involved (see
+[docs/research/itch-scraper-browserless-deep-dive.md](../../docs/research/itch-scraper-browserless-deep-dive.md)
+for the investigation that removed Browserless).
+
+| Source                                      | Captured fields                                                                                                                                                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/jams/upcoming` (paginated)                | jam slugs for forward discovery                                                                                                                                                                                                                                    |
+| `/jams/in-progress` (paginated)             | jam slugs for jams already running (catches jams first seen mid-flight)                                                                                                                                                                                            |
+| `/jams/past/sort-date` (paginated, bounded) | jam slugs that ended within `ENDED_LOOKBACK_DAYS` (catches jams that started _and_ ended between runs)                                                                                                                                                             |
+| `/search?q=brackeys&type=jams` (paginated)  | jam slugs for one-time Brackeys backfill                                                                                                                                                                                                                           |
+| `/jam/{slug}`                               | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                                                                                                                                  |
+| `/jam/{jamId}/entries.json`                 | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors — undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries) |
+| `/jam/{slug}/rate/{gameId}`                 | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                                                                                                                                   |
 
 ### How slugs are chosen each tick
 
-The sync set is the union of three buckets:
+The sync set is the union of five buckets:
 
 1. **Upcoming discovery** — every slug on every page of `/jams/upcoming`,
    walked until itch stops rendering a "Next" pager link. Always synced so
    we catch newly-announced jams as soon as they appear.
-2. **Brackeys backfill** — every slug from every page of
+2. **In-progress discovery** — every slug on every page of
+   `/jams/in-progress`. Overlaps heavily with persisted re-sync (dedupe
+   handles that); its job is jams whose first appearance we missed while
+   they were upcoming.
+3. **Brackeys backfill** — every slug from every page of
    `/search?q=brackeys&type=jams` **that isn't already in `itch.jams`**.
    Brings in historical Brackeys jams (brackeys-1 … brackeys-15) the first
    time we see them, then drops out of the bucket forever.
-3. **Persisted re-sync** — every slug already in `itch.jams` where the jam
+4. **Recently-ended backfill** — every slug from `/jams/past/sort-date`
+   (end date descending, walked until the cutoff) that ended within
+   `ENDED_LOOKBACK_DAYS` **and isn't already in `itch.jams`**. This is the
+   outage-recovery bucket: jams that were created and finished entirely
+   between successful runs are otherwise invisible to the other buckets
+   forever (as happened in the June 2026 outage).
+5. **Persisted re-sync** — every slug already in `itch.jams` where the jam
    isn't "done" yet. Specifically: `status != 'over'` **or** at least one of
    its entries still has `results_fetched_at IS NULL`. Jams in terminal
    state with all rate pages collected are skipped, so we don't burn cycles
-   re-scraping hundreds of historical Brackeys submissions every Monday.
+   re-scraping hundreds of historical Brackeys submissions every tick.
 
 The `/jams` calendar page is intentionally **not** scraped — it only encodes
 dates as CSS pixels and gives us nothing the per-jam page doesn't already
@@ -67,13 +86,13 @@ daemon, no `node-cron`.
 3. **Set the Dockerfile Path** to `services/itchio-scraper/Dockerfile`
    (also set in `railway.toml`).
 4. **Cron schedule** is configured in `railway.toml` via `cronSchedule`
-   (default `0 4 * * 1` — Mondays 04:00 UTC). Override in the Railway
-   dashboard under Settings → Cron Schedule if you want a different cadence.
+   (daily 00:00 UTC). Override in the Railway dashboard under Settings →
+   Cron Schedule if you want a different cadence. Note that a `railway
+redeploy` of a cron service only re-arms the schedule; to force an
+   immediate run, use the dashboard's run button (or the GraphQL
+   `deploymentRestart` mutation).
 5. **Environment variables** — see [`.env.example`](./.env.example). Minimum:
    - `DATABASE_URL` — reference the Railway Postgres service variable
-   - `BROWSERLESS_WS_ENDPOINT` — the Browserless v2 websocket URL, usually
-     `wss://browserless.railway.internal?token=…` via Railway's private
-     networking
 
 ## Running locally
 
@@ -81,8 +100,7 @@ daemon, no `node-cron`.
 cd services/itchio-scraper
 bun install
 cp .env.example .env
-# edit .env — you can point BROWSERLESS_WS_ENDPOINT at a local
-# `docker run -p 3000:3000 ghcr.io/browserless/chromium:latest`
+# edit .env — point DATABASE_URL at a local or staging DB
 
 bun run start
 ```
@@ -97,11 +115,8 @@ bun run start
   (`SCRAPE_ENTRY_RESULTS=after-voting`) it only runs once the jam has moved
   into the `over` status, and each entry is only scraped until
   `results_fetched_at` is populated.
-- **Puppeteer connects, never launches.** We use `puppeteer-core` +
-  `puppeteer.connect({ browserWSEndpoint })` so no Chromium is bundled in
-  the image. Disconnect on exit — never close the shared Browserless
-  browser.
-- **Network is trimmed.** Images/fonts/media are blocked per page to keep
-  each scrape fast and cheap.
+- **Polite pacing.** Listing walks and per-jam syncs sleep a few hundred ms
+  between requests, rate-page workers respect `ENTRY_RESULTS_DELAY_MS`, and
+  429/503 responses back off starting at 15s.
 - **Exit code reflects success.** If any jam fails the process exits
   non-zero, so Railway's run logs flag failed ticks clearly.
