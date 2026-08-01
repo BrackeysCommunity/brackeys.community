@@ -5,7 +5,14 @@ import { Heading, Link, Text } from "@/components/ui/typography";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
 
-import { type ChipKind, type DayBuckets, jamPhase, type JamFromList, jamUrl } from "./helpers";
+import {
+  type ChipKind,
+  type DayBuckets,
+  jamPhase,
+  jamSignal,
+  type JamFromList,
+  jamUrl,
+} from "./helpers";
 
 interface DayDetailContentProps {
   day: Date;
@@ -129,6 +136,9 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
   const phase = jamPhase(jam, now);
   const state = effectiveJamState(jam.startsAt, jam.endsAt, now);
   const meta = describeKindAndDates(jam, kind);
+  // Phase-aware metric: joined counts are the signal before the
+  // deadline (entries are definitionally 0 then); entries after.
+  const signal = jamSignal(jam, now);
   return (
     <Link
       href={jamUrl(jam.slug)}
@@ -147,7 +157,7 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
           {jam.title}
         </Text>
         <Text monospace size="xs" variant="muted" className="tracking-widest">
-          {meta} · {jam.entriesCount ?? 0} entries
+          {meta} · {signal.value.toLocaleString()} {signal.label.toLowerCase()}
         </Text>
       </div>
       <PhaseBadge phase={phase} state={state} />

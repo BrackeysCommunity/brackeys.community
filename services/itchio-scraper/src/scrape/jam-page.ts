@@ -18,7 +18,27 @@ export type ScrapedJam = {
   entriesCount: number | null;
   ratingsCount: number | null;
   contentHtml: string | null;
+  themeColor: string | null;
 };
+
+/**
+ * Host-chosen page background from the jam page's generated theme CSS
+ * (`body{background-color: …}` inside a `<style>` block). Strictly
+ * validated — the value ends up inside inline `style` attributes on the
+ * web app, so anything that isn't a plain hex/rgb() literal is dropped
+ * rather than stored.
+ */
+export function parseThemeColor(html: string): string | null {
+  const match = html.match(/body\s*\{\s*background-color:\s*([^;}]+)[;}]/);
+  const raw = match?.[1]?.trim();
+  if (!raw) return null;
+  const isSafe =
+    /^#[0-9a-fA-F]{3}$/.test(raw) ||
+    /^#[0-9a-fA-F]{6}$/.test(raw) ||
+    /^#[0-9a-fA-F]{8}$/.test(raw) ||
+    /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)$/.test(raw);
+  return isSafe ? raw : null;
+}
 
 function parseCount(raw: string | undefined, title: string | undefined): number | null {
   // Prefer the exact count in the `title` attribute ("31,777") over the
@@ -172,5 +192,6 @@ export async function scrapeJamPage(slug: string): Promise<ScrapedJam> {
     entriesCount,
     ratingsCount,
     contentHtml,
+    themeColor: parseThemeColor(html),
   };
 }

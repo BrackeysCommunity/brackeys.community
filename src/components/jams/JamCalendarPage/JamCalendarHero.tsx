@@ -5,29 +5,34 @@ import { Chonk } from "@/components/ui/chonk";
 import { Heading, InlineCode, Text } from "@/components/ui/typography";
 
 import type { ViewMode } from "./helpers";
+import type { StatKey } from "./shared-types";
 
 interface JamCalendarHeroProps {
   totalJams: number;
-  stats: { upcoming: number; live: number; voting: number; archive: number };
+  stats: Record<StatKey, number>;
   /** Lay out the stat tiles inline with the title (desktop), stacked
-   * below it (narrower desktop viewports), or hide them entirely
-   * (touch / mobile, where the bottom nav already exposes the relevant
-   * counts and screen real estate is at a premium). */
+   * below it, or hide them entirely (touch / mobile). */
   statsLayout: "inline" | "stacked" | "hidden";
-  /** Active surface — drives which copy the description shows
-   * (calendar mentions clicking days, timeline mentions browsing the
-   * vertical list). */
   view: ViewMode;
-  /** Toggling the active surface — clicking the title's view word swaps
-   * between calendar and timeline, replacing the standalone toolbar
-   * SegmentedControl. */
   onViewChange: (v: ViewMode) => void;
+  /** Tile click — jumps to the matching board shelf / archive view. */
+  onStatClick: (k: StatKey) => void;
 }
 
-interface StatTile {
-  label: string;
-  value: number;
-}
+const VIEW_ORDER: ViewMode[] = ["board", "calendar", "archive"];
+
+const VIEW_WORD: Record<ViewMode, string> = {
+  board: "BOARD",
+  calendar: "CALENDAR",
+  archive: "ARCHIVE",
+};
+
+const TILES: { key: StatKey; label: string }[] = [
+  { key: "upcoming", label: "UPCOMING" },
+  { key: "live", label: "LIVE NOW" },
+  { key: "voting", label: "VOTING" },
+  { key: "archive", label: "ARCHIVE" },
+];
 
 export function JamCalendarHero({
   totalJams,
@@ -35,14 +40,9 @@ export function JamCalendarHero({
   statsLayout,
   view,
   onViewChange,
+  onStatClick,
 }: JamCalendarHeroProps) {
-  const otherView: ViewMode = view === "timeline" ? "calendar" : "timeline";
-  const tiles: StatTile[] = [
-    { label: "UPCOMING", value: stats.upcoming },
-    { label: "LIVE NOW", value: stats.live },
-    { label: "VOTING", value: stats.voting },
-    { label: "ARCHIVE", value: stats.archive },
-  ];
+  const nextView = VIEW_ORDER[(VIEW_ORDER.indexOf(view) + 1) % VIEW_ORDER.length]!;
 
   return (
     <div
@@ -63,11 +63,11 @@ export function JamCalendarHero({
           </span>
           <button
             type="button"
-            onClick={() => onViewChange(otherView)}
-            aria-label={`Switch to ${otherView} view`}
+            onClick={() => onViewChange(nextView)}
+            aria-label={`Switch to ${VIEW_WORD[nextView].toLowerCase()} view`}
             className="group -ml-[0.15em] inline-flex cursor-pointer items-center gap-[0.4em] rounded-md px-[0.2em] underline decoration-accent/40 decoration-[0.06em] underline-offset-[0.06em] transition-colors hover:decoration-accent focus-visible:bg-accent/10 focus-visible:outline-none"
           >
-            {view === "timeline" ? "TIMELINE" : "CALENDAR"}
+            {VIEW_WORD[view]}
             <HugeiconsIcon
               icon={ArrowDataTransferHorizontalIcon}
               className="h-[0.5em] w-[0.5em] text-accent transition-transform group-hover:scale-110"
@@ -75,17 +75,24 @@ export function JamCalendarHero({
           </button>
         </Heading>
         <Text as="p" size="md" variant="muted" className="max-w-prose">
-          Tracking {totalJams} jams across itch.io.{" "}
-          {view === "calendar"
-            ? "Each day shows badges for jams that "
-            : "Each row marks the moment a jam "}
-          <InlineCode variant="primary">▶ start{view === "calendar" ? "" : "s"}</InlineCode>, hit
-          {view === "calendar" ? "" : "s"} a{" "}
-          <InlineCode variant="warning">⊙ submission deadline</InlineCode>, or{" "}
-          <InlineCode variant="destructive">
-            ■ voting end{view === "calendar" ? "" : "s"}
-          </InlineCode>
-          {view === "calendar" ? ". Click any day for details." : "."}
+          Tracking {totalJams.toLocaleString()} jams across itch.io.{" "}
+          {view === "board" && (
+            <>
+              Ranked by who's actually joining: <InlineCode variant="destructive">live</InlineCode>{" "}
+              first, then <InlineCode variant="primary">upcoming</InlineCode> and{" "}
+              <InlineCode variant="warning">voting</InlineCode>. The long tail of small jams sits
+              behind each shelf's fold — search reaches everything.
+            </>
+          )}
+          {view === "calendar" && (
+            <>The biggest jams drawn as bars across each week. Click any day for the full list.</>
+          )}
+          {view === "archive" && (
+            <>
+              Every finished jam. Sort by entries, ratings, length, or date — click a row for
+              details.
+            </>
+          )}
         </Text>
       </div>
       {statsLayout !== "hidden" && (
@@ -96,12 +103,15 @@ export function JamCalendarHero({
               : "grid grid-cols-2 gap-2 sm:grid-cols-4"
           }
         >
-          {tiles.map((tile) => (
+          {TILES.map((tile) => (
             <Chonk
-              key={tile.label}
+              key={tile.key}
               variant="surface"
               size="lg"
-              className="flex min-w-28 flex-col justify-between gap-2 px-4 py-3"
+              render={<button type="button" />}
+              onClick={() => onStatClick(tile.key)}
+              aria-label={`Jump to ${tile.label.toLowerCase()}`}
+              className="flex min-w-28 cursor-pointer flex-col justify-between gap-2 px-4 py-3 text-left"
             >
               <Text
                 as="div"
@@ -122,7 +132,7 @@ export function JamCalendarHero({
                 align="right"
                 className="text-2xl tabular-nums"
               >
-                {tile.value}
+                {stats[tile.key]}
               </Text>
             </Chonk>
           ))}

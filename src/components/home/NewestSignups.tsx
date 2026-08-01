@@ -79,8 +79,8 @@ export function NewestSignups() {
             const handle = u.discordUsername ?? "anonymous";
             const topSkills = u.skills.slice(0, 3).map((s) => s.name);
             return (
-              <Well key={u.id} className="flex flex-row items-start gap-3 p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden bg-muted/60">
+              <Well key={u.id} className="flex flex-row items-stretch overflow-hidden">
+                <div className="flex w-20 shrink-0 items-center justify-center self-stretch overflow-hidden bg-muted/60">
                   {u.avatarUrl ? (
                     <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
@@ -89,7 +89,7 @@ export function NewestSignups() {
                     </Text>
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 p-3">
                   <div className="flex items-baseline gap-2">
                     <Text bold ellipsis size="md">
                       {u.guildNickname ?? handle}

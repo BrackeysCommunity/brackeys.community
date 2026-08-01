@@ -1,6 +1,8 @@
-import type { ChipKind, DayBuckets, JamFromList, ViewMode } from "./helpers";
+import type { BoardLayout, BoardSort } from "./board/build-board";
+import type { ViewMode } from "./helpers";
+import type { ArchiveData, ArchiveQueryState, BoardData, CalendarData } from "./use-jam-data";
 
-export type TimelineRange = "upcoming" | "all";
+export type StatKey = "upcoming" | "live" | "voting" | "archive";
 
 /** Common shape that desktop + mobile layouts both consume. The
  * orchestrator (`index.tsx`) owns the state and passes this bundle in. */
@@ -8,29 +10,34 @@ export interface JamCalendarLayoutProps {
   // Time-window state
   monthStart: Date;
   today: Date;
-  selectedDay: Date;
   now: Date;
 
-  // Data
-  isLoading: boolean;
-  jams: JamFromList[];
-  byDay: Map<string, DayBuckets>;
-  stats: { upcoming: number; live: number; voting: number; archive: number };
-  totalShown: number;
-  totalAll: number;
+  // Data — one slice per view; calendar and archive fetch lazily.
+  board: BoardData;
+  calendar: CalendarData;
+  archive: ArchiveData;
+
+  // Hero stats (pre-search, world-state numbers)
+  stats: Record<StatKey, number>;
+  totalTracked: number;
 
   // UI state
   view: ViewMode;
   search: string;
-  visibleChips: Record<ChipKind, boolean>;
-  timelineRange: TimelineRange;
+  /** Board-only display state, owned here so the board's controls can
+   * live in the shared toolbar rather than inside the board itself. */
+  boardSort: BoardSort;
+  boardLayout: BoardLayout;
+  archiveState: ArchiveQueryState;
 
   // Setters
   setMonth: (delta: number) => void;
   setMonthAt: (month: Date) => void;
-  setSelectedDay: (day: Date) => void;
   setView: (v: ViewMode) => void;
   setSearch: (q: string) => void;
-  toggleChip: (k: ChipKind) => void;
-  setTimelineRange: (r: TimelineRange) => void;
+  setBoardSort: (s: BoardSort) => void;
+  setBoardLayout: (l: BoardLayout) => void;
+  setArchiveState: (patch: Partial<ArchiveQueryState>) => void;
+  /** Stat tile click — jumps to the matching shelf or the archive view. */
+  onStatClick: (k: StatKey) => void;
 }

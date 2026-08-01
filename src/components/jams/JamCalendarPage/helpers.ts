@@ -8,7 +8,20 @@ export type JamPhase = "upcoming" | "running" | "voting" | "archive";
 
 export type ChipKind = "starting" | "deadline" | "ending";
 
-export type ViewMode = "calendar" | "timeline";
+export type ViewMode = "board" | "calendar" | "archive";
+
+/** Board shelf a jam sorts into. `ongoing` catches perpetual pseudo-jams
+ * (year-long "jams", newsletters, community hubs) that would otherwise
+ * squat at the top of date-sorted views forever. */
+export type ShelfKind = "live" | "upcoming" | "voting" | "ongoing";
+
+/** Submission windows longer than this are communities, not events. */
+export const ONGOING_DAYS = 90;
+
+/** Jams below this signal collapse into the board's per-shelf tail —
+ * ~85% of tracked jams have zero signal, and burying the shelf under
+ * them is what made the old timeline unusable. */
+export const SIGNAL_THRESHOLD = 10;
 
 /**
  * Like `effectiveJamState` but also recognizes the post-deadline voting
@@ -28,6 +41,63 @@ export function jamPhase(jam: JamFromList, now: Date): JamPhase {
 
 /** Wraps `effectiveJamState` so callers can stay typed off it. */
 export type EffectiveState = ReturnType<typeof effectiveJamState>;
+
+export function isOngoing(jam: JamFromList): boolean {
+  if (!jam.startsAt) return false;
+  // A started jam with no end date "runs" forever — same bucket.
+  if (!jam.endsAt) return true;
+  const days = (new Date(jam.endsAt).getTime() - new Date(jam.startsAt).getTime()) / 86_400_000;
+  return days > ONGOING_DAYS;
+}
+
+export function jamShelf(jam: JamFromList, now: Date): ShelfKind | "archive" {
+  if (isOngoing(jam)) return "ongoing";
+  const phase = jamPhase(jam, now);
+  if (phase === "upcoming") return "upcoming";
+  if (phase === "running") return "live";
+  if (phase === "voting") return "voting";
+  return "archive";
+}
+
+/**
+ * The participation metric that is actually meaningful for a jam's
+ * phase: pre-deadline, `entriesCount` is definitionally ~0 and
+ * `joinedCount` is the signal; once submissions close it inverts
+ * (archive rows have entries but were never scraped for joined).
+ */
+export function jamSignal(jam: JamFromList, now: Date): { value: number; label: string } {
+  const phase = jamPhase(jam, now);
+  if (phase === "upcoming" || phase === "running") {
+    return { value: jam.joinedCount ?? 0, label: "JOINED" };
+  }
+  return { value: jam.entriesCount ?? jam.joinedCount ?? 0, label: "ENTRIES" };
+}
+
+export interface Milestone {
+  kind: ChipKind;
+  date: Date;
+  /** Short verb phrase for countdown headlines, e.g. "SUBMISSIONS CLOSE". */
+  label: string;
+}
+
+/** The next milestone in a jam's lifecycle from `now`, or null once
+ * everything is in the past. A jam without a voting window has its end
+ * date as a full close — "ENDS", styled like a voting end (red ■), not
+ * like a submission deadline (yellow ⊙). */
+export function nextMilestone(jam: JamFromList, now: Date): Milestone | null {
+  const t = now.getTime();
+  const s = jam.startsAt ? new Date(jam.startsAt) : null;
+  const e = jam.endsAt ? new Date(jam.endsAt) : null;
+  const v = jam.votingEndsAt ? new Date(jam.votingEndsAt) : null;
+  if (s && s.getTime() > t) return { kind: "starting", date: s, label: "STARTS" };
+  if (e && e.getTime() > t) {
+    return v
+      ? { kind: "deadline", date: e, label: "SUBMISSIONS CLOSE" }
+      : { kind: "ending", date: e, label: "ENDS" };
+  }
+  if (v && v.getTime() > t) return { kind: "ending", date: v, label: "VOTING ENDS" };
+  return null;
+}
 
 /** YYYY-MM-DD key in UTC — used as a Map key for grouping events by day. */
 export function dayKey(d: Date): string {
@@ -71,6 +141,21 @@ export function isSameMonth(a: Date, b: Date): boolean {
 
 export function jamUrl(slug: string): string {
   return `https://itch.io/jam/${slug}`;
+}
+
+/**
+ * Re-validates a scraped theme color before it is interpolated into an
+ * inline `style` — the scraper already validates at ingest, but scraped
+ * text never gets to reach a style attribute on trust.
+ */
+export function safeThemeColor(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const ok =
+    /^#[0-9a-fA-F]{3}$/.test(raw) ||
+    /^#[0-9a-fA-F]{6}$/.test(raw) ||
+    /^#[0-9a-fA-F]{8}$/.test(raw) ||
+    /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)$/.test(raw);
+  return ok ? raw : null;
 }
 
 /**
@@ -121,18 +206,4 @@ export function jamMatchesSearch(jam: JamFromList, query: string): boolean {
   if (jam.title.toLowerCase().includes(q)) return true;
   if (jam.hashtag?.toLowerCase().includes(q)) return true;
   return jam.hosts.some((h) => h.name.toLowerCase().includes(q));
-}
-
-/** Used by the timeline view to group rows by month. */
-export function monthKey(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-export function monthLabel(yearMonth: string): { month: string; year: string } {
-  const [y, m] = yearMonth.split("-");
-  const date = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
-  return {
-    month: date.toLocaleString(undefined, { month: "long", timeZone: "UTC" }).toUpperCase(),
-    year: y!,
-  };
 }

@@ -81,7 +81,7 @@ export function JamDetailModal({ jam, layoutKey, onClose }: JamDetailModalProps)
             layoutId={`tl-row-${layoutKey}`}
             transition={MODAL_TRANSITION}
             style={{ borderRadius: 12 }}
-            className="fixed inset-0 z-50 m-auto h-fit max-h-[85vh] w-[min(36rem,calc(100vw-2rem))] cursor-default overflow-hidden border border-[var(--emboss-shadow)] bg-card text-foreground shadow-[0_16px_0_0_var(--emboss-shadow)] [--emboss-shadow:var(--muted-foreground)]"
+            className="fixed inset-0 z-50 m-auto h-fit max-h-[85vh] w-[min(36rem,calc(100vw-2rem))] cursor-default overflow-hidden border border-[var(--emboss-shadow)] bg-card text-foreground shadow-[0_6px_0_0_var(--emboss-shadow)] [--emboss-shadow:var(--muted-foreground)]"
           >
             <ModalContent jam={jam} layoutKey={layoutKey} onClose={onClose} />
           </motion.div>
@@ -205,6 +205,8 @@ function ModalContent({
               {cohosts.length > 0 && ` · ${cohosts.map((h) => h.name).join(", ")}`}
             </Text>
 
+            <JamStatsLine jam={jam} />
+
             {jam.contentHtml ? (
               <RichHtml html={jam.contentHtml} className="mt-2" />
             ) : (
@@ -225,6 +227,28 @@ function ModalContent({
         </OverlayScrollbarsComponent>
       </motion.div>
     </motion.div>
+  );
+}
+
+/** Every participation number we have for the jam, in one line — the
+ * meaningful one flips by phase (joined pre-deadline, entries after),
+ * so show whichever exist rather than guessing. */
+function JamStatsLine({ jam }: { jam: JamFromList }) {
+  const parts: string[] = [];
+  if (jam.joinedCount != null && jam.joinedCount > 0) {
+    parts.push(`${jam.joinedCount.toLocaleString()} JOINED`);
+  }
+  if (jam.entriesCount != null && jam.entriesCount > 0) {
+    parts.push(`${jam.entriesCount.toLocaleString()} ENTRIES`);
+  }
+  if (jam.ratingsCount != null && jam.ratingsCount > 0) {
+    parts.push(`${jam.ratingsCount.toLocaleString()} RATINGS`);
+  }
+  if (parts.length === 0) return null;
+  return (
+    <Text monospace size="xs" bold className="tracking-widest tabular-nums">
+      {parts.join(" · ")}
+    </Text>
   );
 }
 

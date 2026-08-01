@@ -58,6 +58,7 @@ export async function upsertJam(jam: ScrapedJam) {
       entriesCount: jam.entriesCount,
       ratingsCount: jam.ratingsCount,
       contentHtml: jam.contentHtml,
+      themeColor: jam.themeColor,
       scrapedAt: now,
       updatedAt: now,
     })
@@ -77,6 +78,7 @@ export async function upsertJam(jam: ScrapedJam) {
         entriesCount: excluded("entries_count"),
         ratingsCount: excluded("ratings_count"),
         contentHtml: excluded("content_html"),
+        themeColor: excluded("theme_color"),
         // A successful scrape proves the jam exists again.
         missingSince: null,
         scrapedAt: now,

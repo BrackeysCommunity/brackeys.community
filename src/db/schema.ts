@@ -552,6 +552,10 @@ export const itchJams = itchSchema.table("jams", {
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
   bannerUrl: text("banner_url"),
+  // Host-chosen page background color scraped from the jam page's theme CSS
+  // (`body{background-color: …}`). Validated to a strict hex/rgb() form at
+  // scrape time; null when the host kept itch's default theme.
+  themeColor: text("theme_color"),
   hashtag: text("hashtag"),
   hosts: jsonb("hosts")
     .$type<ItchJamHost[]>()

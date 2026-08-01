@@ -1,0 +1,1 @@
+ALTER TABLE "itch"."jams" ADD COLUMN IF NOT EXISTS "theme_color" text;

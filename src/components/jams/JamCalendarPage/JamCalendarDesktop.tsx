@@ -1,82 +1,118 @@
+import { BoardViewControls } from "./board/BoardViewControls";
+import { JamArchiveTable } from "./JamArchiveTable";
+import { JamBoard } from "./JamBoard";
 import { JamCalendarHero } from "./JamCalendarHero";
-import { JamCalendarMonthGrid } from "./JamCalendarMonthGrid";
-import { JamCalendarTimeline } from "./JamCalendarTimeline";
+import { JamCalendarSpans } from "./JamCalendarSpans";
 import { JamCalendarToolbar } from "./JamCalendarToolbar";
 import type { JamCalendarLayoutProps } from "./shared-types";
 
 /**
- * Desktop layout: hero, toolbar, then the full-width month grid (or
- * timeline list). Selecting a day opens the day-detail popover anchored
- * to that day's cell — no separate side rail.
+ * Desktop layout: hero, search rail, then the active view — the ranked
+ * discovery board (default), the named-span calendar, or the archive
+ * table.
  */
 export function JamCalendarDesktop(props: JamCalendarLayoutProps) {
+  return <JamCalendarLayout {...props} compact={false} />;
+}
+
+/** Shared between desktop and mobile — the two only differ in hero
+ * stat placement and calendar density. */
+export function JamCalendarLayout(props: JamCalendarLayoutProps & { compact: boolean }) {
   const {
     monthStart,
     today,
-    selectedDay,
-    byDay,
-    visibleChips,
-    timelineRange,
+    now,
+    board,
+    calendar,
+    archive,
+    stats,
+    totalTracked,
     view,
     search,
-    stats,
-    totalShown,
-    totalAll,
-    isLoading,
-    jams,
-    now,
+    boardSort,
+    boardLayout,
+    archiveState,
     setMonth,
     setMonthAt,
-    setSelectedDay,
     setView,
     setSearch,
-    toggleChip,
-    setTimelineRange,
+    setBoardSort,
+    setBoardLayout,
+    setArchiveState,
+    onStatClick,
+    compact,
   } = props;
 
+  const counter =
+    view === "board"
+      ? `${board.jams.length}/${board.totalAll} JAMS`
+      : view === "calendar"
+        ? `${calendar.jams.length}/${calendar.totalAll} JAMS`
+        : undefined;
+
+  const toolbar = (
+    <JamCalendarToolbar
+      search={search}
+      onSearchChange={setSearch}
+      counter={counter}
+      placeholder={view === "archive" ? "search the whole archive" : "search jams, hosts, themes"}
+      actions={
+        view === "board" ? (
+          <BoardViewControls
+            sort={boardSort}
+            onSortChange={setBoardSort}
+            layout={boardLayout}
+            onLayoutChange={setBoardLayout}
+          />
+        ) : undefined
+      }
+    />
+  );
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className={compact ? "flex flex-col gap-6" : "flex flex-col gap-8"}>
       <JamCalendarHero
-        totalJams={totalAll}
+        totalJams={totalTracked}
         stats={stats}
-        statsLayout="inline"
+        statsLayout={compact ? "stacked" : "inline"}
         view={view}
         onViewChange={setView}
+        onStatClick={onStatClick}
       />
-      <JamCalendarToolbar
-        view={view}
-        visibleChips={visibleChips}
-        onToggleChip={toggleChip}
-        search={search}
-        onSearchChange={setSearch}
-        totalShown={totalShown}
-        totalAll={totalAll}
-        timelineRange={timelineRange}
-        onTimelineRangeChange={setTimelineRange}
-        layout="wide"
-      />
-      {view === "calendar" ? (
-        <JamCalendarMonthGrid
+      {/* On the board the toolbar sits *inside* the board, below the
+          featured rail — featured jams are the page's headline and
+          shouldn't be pushed under a filter row. Other views keep it on
+          top. */}
+      {view === "board" ? (
+        <JamBoard
+          jams={board.jams}
+          now={now}
+          isLoading={board.isLoading}
+          searching={search.trim() !== ""}
+          sort={boardSort}
+          layout={boardLayout}
+          toolbar={toolbar}
+        />
+      ) : (
+        toolbar
+      )}
+      {view === "calendar" && (
+        <JamCalendarSpans
           monthStart={monthStart}
           today={today}
-          selectedDay={selectedDay}
-          byDay={byDay}
-          visibleChips={visibleChips}
-          compact={false}
-          onSelectDay={setSelectedDay}
+          jams={calendar.jams}
+          byDay={calendar.byDay}
+          now={now}
+          isLoading={calendar.isLoading}
+          compact={compact}
           onMonthChange={setMonthAt}
           onPrevMonth={() => setMonth(-1)}
           onNextMonth={() => setMonth(1)}
-          onJumpToday={() => setSelectedDay(today)}
+          onJumpToday={() => setMonthAt(today)}
         />
-      ) : (
-        <JamCalendarTimeline
-          jams={jams}
-          now={now}
-          isLoading={isLoading}
-          range={timelineRange}
-          visibleChips={visibleChips}
-        />
+      )}
+      {view === "archive" && (
+        <JamArchiveTable data={archive} state={archiveState} onStateChange={setArchiveState} />
       )}
     </div>
   );

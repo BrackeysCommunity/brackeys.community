@@ -1,5 +1,5 @@
 import { os } from "@orpc/server";
-import { and, asc, desc, gt, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, gt, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -90,6 +90,21 @@ export const getJamData = os.input(z.object({})).handler(async () => {
   return { joinedCount, submissionCount, ratingCount, submissions };
 });
 
+/** How far back the "calendar" filter keeps archived jams. */
+const CALENDAR_ARCHIVE_MONTHS = 12;
+
+/**
+ * Latest calendar event a jam will ever produce. '-infinity' keeps
+ * GREATEST null-safe without discarding rows that have partial dates —
+ * a jam with no dates at all sorts before everything (and lands in the
+ * archive, never on the board).
+ */
+const lastEventAt = sql`GREATEST(
+  COALESCE(${itchJams.startsAt}, '-infinity'::timestamptz),
+  COALESCE(${itchJams.endsAt}, '-infinity'::timestamptz),
+  COALESCE(${itchJams.votingEndsAt}, '-infinity'::timestamptz)
+)`;
+
 /**
  * Filtering uses date comparisons rather than the `status` column because the
  * scraper's status snapshot lags reality (and itch's own status field is
@@ -98,7 +113,7 @@ export const getJamData = os.input(z.object({})).handler(async () => {
 export const listJams = os
   .input(
     z.object({
-      filter: z.enum(["live", "upcoming", "active", "all"]).default("active"),
+      filter: z.enum(["live", "upcoming", "active", "board", "calendar", "all"]).default("active"),
       sortBy: z.enum(["soonest", "popularity"]).default("soonest"),
       limit: z.number().min(1).max(5000).default(20),
     }),
@@ -116,6 +131,18 @@ export const listJams = os
     // verification) — never surface them in listings.
     const notMissing = isNull(itchJams.missingSince);
 
+    // Any event still in the future — live, upcoming, or in its voting
+    // window. This is the discovery board's working set (~500 rows), a
+    // fraction of the calendar window's.
+    const isOnBoard = sql`${lastEventAt} >= ${now}`;
+
+    // Everything still active (any event in the future) plus a trailing
+    // archive window — keeps the calendar payload bounded no matter how
+    // large the scraped table grows.
+    const archiveCutoff = new Date(now);
+    archiveCutoff.setUTCMonth(archiveCutoff.getUTCMonth() - CALENDAR_ARCHIVE_MONTHS);
+    const isOnCalendar = sql`${lastEventAt} >= ${archiveCutoff}`;
+
     const where = (() => {
       switch (input.filter) {
         case "live":
@@ -124,6 +151,10 @@ export const listJams = os
           return and(notMissing, isUpcoming);
         case "active":
           return and(notMissing, or(isLive, isUpcoming));
+        case "board":
+          return and(notMissing, isOnBoard);
+        case "calendar":
+          return and(notMissing, isOnCalendar);
         case "all":
           return notMissing;
       }
@@ -133,15 +164,24 @@ export const listJams = os
     // surfaces live jams (already started) ahead of true upcoming. For
     // "popularity" we order by joinedCount desc (most-joined first), with
     // entriesCount as a tiebreaker for jams that haven't been scraped for
-    // joined-count yet.
+    // joined-count yet. "calendar" ignores sortBy: the client re-sorts by
+    // event date, so we return newest-last-event first — if the set ever
+    // outgrows the limit, truncation drops the oldest archive instead of
+    // upcoming jams.
     const orderBy =
-      input.sortBy === "popularity"
-        ? [
-            desc(sql`COALESCE(${itchJams.joinedCount}, 0)`),
-            desc(sql`COALESCE(${itchJams.entriesCount}, 0)`),
-            asc(itchJams.endsAt),
-          ]
-        : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
+      input.filter === "calendar"
+        ? [desc(lastEventAt), asc(itchJams.startsAt)]
+        : input.filter === "board"
+          ? // Board shelves re-rank client-side; joined-first keeps the
+            // payload's head useful if the limit ever truncates.
+            [desc(sql`COALESCE(${itchJams.joinedCount}, 0)`), asc(itchJams.startsAt)]
+          : input.sortBy === "popularity"
+            ? [
+                desc(sql`COALESCE(${itchJams.joinedCount}, 0)`),
+                desc(sql`COALESCE(${itchJams.entriesCount}, 0)`),
+                asc(itchJams.endsAt),
+              ]
+            : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
 
     const jams = await db
       .select()
@@ -150,5 +190,73 @@ export const listJams = os
       .orderBy(...orderBy)
       .limit(input.limit);
 
-    return { jams };
+    // The jams page's hero advertises how many jams we track overall,
+    // which the windowed payload no longer reveals — count it separately.
+    let trackedTotal: number | undefined;
+    if (input.filter === "calendar" || input.filter === "board") {
+      const [row] = await db.select({ count: count() }).from(itchJams).where(notMissing);
+      trackedTotal = row?.count ?? jams.length;
+    }
+
+    return { jams, trackedTotal };
+  });
+
+/**
+ * Server-paginated archive browser: every jam whose last event is in the
+ * past. The archive is ~19k rows and growing, so unlike the board it is
+ * never shipped wholesale — the table view pages through it with
+ * server-side search and sort. `contentHtml` is included (a page is at
+ * most 100 rows) so the detail modal works from archive rows too.
+ */
+export const archiveJams = os
+  .input(
+    z.object({
+      search: z.string().trim().max(200).default(""),
+      sortBy: z.enum(["lastEvent", "entries", "ratings", "duration", "title"]).default("lastEvent"),
+      sortDir: z.enum(["asc", "desc"]).default("desc"),
+      page: z.number().int().min(0).default(0),
+      pageSize: z.number().int().min(1).max(100).default(25),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const now = new Date();
+    const notMissing = isNull(itchJams.missingSince);
+    const isPast = sql`${lastEventAt} < ${now}`;
+
+    // `hosts` is a jsonb array of {name,url}; a text cast keeps host
+    // search simple without unnesting. Title/hashtag get plain ILIKE.
+    const q = input.search ? `%${input.search}%` : null;
+    const matchesSearch = q
+      ? or(
+          ilike(itchJams.title, q),
+          ilike(itchJams.hashtag, q),
+          sql`${itchJams.hosts}::text ILIKE ${q}`,
+        )
+      : undefined;
+
+    const where = and(notMissing, isPast, matchesSearch);
+
+    const sortCol = {
+      lastEvent: lastEventAt,
+      entries: sql`COALESCE(${itchJams.entriesCount}, 0)`,
+      ratings: sql`COALESCE(${itchJams.ratingsCount}, 0)`,
+      duration: sql`COALESCE(${itchJams.endsAt} - ${itchJams.startsAt}, INTERVAL '0')`,
+      title: sql`LOWER(${itchJams.title})`,
+    }[input.sortBy];
+    const primary = input.sortDir === "asc" ? asc(sortCol) : desc(sortCol);
+
+    const [jams, [totalRow]] = await Promise.all([
+      db
+        .select()
+        .from(itchJams)
+        .where(where)
+        // jamId tiebreak keeps pagination stable when the sort key ties
+        // (e.g. thousands of jams share entries_count = 1).
+        .orderBy(primary, desc(itchJams.jamId))
+        .limit(input.pageSize)
+        .offset(input.page * input.pageSize),
+      db.select({ count: count() }).from(itchJams).where(where),
+    ]);
+
+    return { jams, total: totalRow?.count ?? 0 };
   });
