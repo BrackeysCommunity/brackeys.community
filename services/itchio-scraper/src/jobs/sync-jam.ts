@@ -1,29 +1,44 @@
-import { and, eq, isNull, ne, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { itchJamEntries, itchJamEntryResults, itchJams } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
+import { isNotFound } from "../http.ts";
 import { fetchJamEntries, type ItchEntry } from "../scrape/entries.ts";
 import { scrapeJamPage, type ScrapedJam } from "../scrape/jam-page.ts";
 import { scrapeRatePage } from "../scrape/rate-page.ts";
+import { chunk } from "../util.ts";
 
 function excluded(column: string) {
   return sql.raw(`excluded."${column}"`);
 }
 
+/** Builds the parking slug a displaced jam row is renamed to (see upsertJam). */
+export function displacedSlug(slug: string, jamId: number): string {
+  return `${slug}--displaced-${jamId}`;
+}
+
 export async function upsertJam(jam: ScrapedJam) {
   const now = new Date();
   // Hosts can delete a jam and recreate it under the same URL, which moves the
-  // slug to a new jam_id (seen with days-of-horror-4/5). The displaced row is
-  // unreachable via this slug, so drop it before upserting; if the old jam
-  // still exists under a new slug, discovery re-inserts it fresh.
-  const displaced = await db
-    .delete(itchJams)
-    .where(and(eq(itchJams.slug, jam.slug), ne(itchJams.jamId, jam.jamId)))
-    .returning({ jamId: itchJams.jamId });
-  if (displaced.length > 0) {
+  // slug to a new jam_id (seen with days-of-horror-4/5). The displaced row
+  // would collide with the unique slug constraint, so park it under a
+  // recognizable synthetic slug instead of deleting it. If the old jam still
+  // exists under a new slug, discovery re-syncs it by jam_id and restores the
+  // real slug; if it's truly gone, syncing the parking slug 404s and the
+  // missing-jam machinery takes over.
+  const [stale] = await db
+    .select({ jamId: itchJams.jamId })
+    .from(itchJams)
+    .where(and(eq(itchJams.slug, jam.slug), ne(itchJams.jamId, jam.jamId)));
+  if (stale) {
+    const parkedSlug = displacedSlug(jam.slug, stale.jamId);
+    await db
+      .update(itchJams)
+      .set({ slug: parkedSlug, updatedAt: now })
+      .where(eq(itchJams.jamId, stale.jamId));
     console.warn(
-      `[sync-jam] slug ${jam.slug} moved to jam_id=${jam.jamId}; dropped stale jam_id=${displaced[0]?.jamId}`,
+      `[sync-jam] slug ${jam.slug} moved to jam_id=${jam.jamId}; parked stale jam_id=${stale.jamId} under ${parkedSlug}`,
     );
   }
   await db
@@ -62,6 +77,8 @@ export async function upsertJam(jam: ScrapedJam) {
         entriesCount: excluded("entries_count"),
         ratingsCount: excluded("ratings_count"),
         contentHtml: excluded("content_html"),
+        // A successful scrape proves the jam exists again.
+        missingSince: null,
         scrapedAt: now,
         updatedAt: now,
       },
@@ -72,9 +89,7 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
   if (entries.length === 0) return;
   const now = new Date();
   // Batch to keep Postgres parameter count comfortable (~20 cols * 500 rows).
-  const batchSize = 500;
-  for (let i = 0; i < entries.length; i += batchSize) {
-    const batch = entries.slice(i, i + batchSize);
+  for (const batch of chunk(entries, 500)) {
     await db
       .insert(itchJamEntries)
       .values(
@@ -115,6 +130,8 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
           authorName: excluded("author_name"),
           authorUrl: excluded("author_url"),
           contributors: excluded("contributors"),
+          // Being listed in entries.json again resurrects a missing entry.
+          missingSince: null,
           scrapedAt: now,
           updatedAt: now,
         },
@@ -122,39 +139,56 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
   }
 }
 
-async function syncEntryResults(
-  jam: ScrapedJam,
-): Promise<{ attempted: number; succeeded: number }> {
-  if (config.SCRAPE_ENTRY_RESULTS === "never") {
-    return { attempted: 0, succeeded: 0 };
-  }
-  if (config.SCRAPE_ENTRY_RESULTS === "after-voting" && jam.status !== "over") {
-    return { attempted: 0, succeeded: 0 };
-  }
-
-  // Entries with zero ratings can't rank — itch renders no results table for
-  // them, so fetching their rate page is a guaranteed no-op. Mark them fetched
-  // up front so they leave the pending pool (and the resync bucket) for good.
+/**
+ * Entries with zero ratings can't rank — itch renders no results table for
+ * them, so fetching their rate page is a guaranteed no-op. Mark them fetched
+ * up front so they leave the pending pool (and the resync bucket) for good.
+ * Shared by the nightly sync and the historical backfill.
+ */
+export async function markUnratableEntriesFetched(jamId: number) {
   await db
     .update(itchJamEntries)
     .set({ resultsFetchedAt: new Date() })
     .where(
       and(
-        eq(itchJamEntries.jamId, jam.jamId),
+        eq(itchJamEntries.jamId, jamId),
         isNull(itchJamEntries.resultsFetchedAt),
         eq(itchJamEntries.ratingCount, 0),
       ),
     );
+}
 
+async function syncEntryResults(
+  jam: ScrapedJam,
+): Promise<{ attempted: number; succeeded: number; gone: number }> {
+  if (config.SCRAPE_ENTRY_RESULTS === "never") {
+    return { attempted: 0, succeeded: 0, gone: 0 };
+  }
+  if (config.SCRAPE_ENTRY_RESULTS === "after-voting" && jam.status !== "over") {
+    return { attempted: 0, succeeded: 0, gone: 0 };
+  }
+
+  await markUnratableEntriesFetched(jam.jamId);
+
+  // Entries already marked missing are excluded — their rate pages 404. If
+  // one reappears in entries.json, the upsert clears missing_since and it
+  // rejoins this pool with its results still pending.
   const pending = await db
     .select({
       entryId: itchJamEntries.entryId,
       gameId: itchJamEntries.gameId,
     })
     .from(itchJamEntries)
-    .where(and(eq(itchJamEntries.jamId, jam.jamId), isNull(itchJamEntries.resultsFetchedAt)));
+    .where(
+      and(
+        eq(itchJamEntries.jamId, jam.jamId),
+        isNull(itchJamEntries.resultsFetchedAt),
+        isNull(itchJamEntries.missingSince),
+      ),
+    );
 
   let succeeded = 0;
+  let gone = 0;
   const queue = [...pending];
 
   async function worker() {
@@ -187,16 +221,17 @@ async function syncEntryResults(
         });
         succeeded += 1;
       } catch (err) {
-        if (err instanceof Error && err.message.includes("failed with status 404")) {
+        if (isNotFound(err)) {
           // The submission vanished between the entries fetch and now (game
-          // deleted/hidden or pulled from the jam). Mark it fetched so it
-          // stops churning; the next sync's reconciliation drops the row.
+          // deleted/hidden or pulled from the jam). Mark it missing so it
+          // stops churning; if it's ever listed again the upsert resurrects
+          // it with results still pending.
           await db
             .update(itchJamEntries)
-            .set({ resultsFetchedAt: new Date() })
+            .set({ missingSince: new Date() })
             .where(eq(itchJamEntries.entryId, item.entryId));
-          console.warn(`[sync-jam] rate page gone for entry ${item.entryId}; marked fetched`);
-          succeeded += 1;
+          console.warn(`[sync-jam] rate page gone for entry ${item.entryId}; marked missing`);
+          gone += 1;
         } else {
           console.error(`[sync-jam] failed to scrape rate page for entry ${item.entryId}`, err);
         }
@@ -209,40 +244,29 @@ async function syncEntryResults(
 
   await Promise.all(Array.from({ length: config.ENTRY_RESULTS_CONCURRENCY }, () => worker()));
 
-  return { attempted: pending.length, succeeded };
+  return { attempted: pending.length, succeeded, gone };
 }
 
 /**
- * A persisted jam whose page now 404s was deleted on itch. Keep rows that
- * already carry ranked results (historical data we can never refetch) but
- * stop them from resyncing; drop everything else so it can't fail every run.
+ * A persisted jam whose page now 404s was deleted on itch — or itch served a
+ * spurious 404. Nothing is deleted either way: the row is stamped
+ * missing_since and keeps being retried until the stamp is older than
+ * MISSING_RETRY_DAYS, at which point it drops out of the resync bucket (see
+ * index.ts) and waits for manual verification. A later successful scrape
+ * clears the stamp.
  */
-async function handleDeletedJam(slug: string) {
-  const [jam] = await db
-    .select({ jamId: itchJams.jamId })
-    .from(itchJams)
-    .where(eq(itchJams.slug, slug));
-  if (!jam) return;
-
-  const [ranked] = await db
-    .select({ one: sql<number>`1` })
-    .from(itchJamEntryResults)
-    .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, itchJamEntryResults.entryId))
-    .where(eq(itchJamEntries.jamId, jam.jamId))
-    .limit(1);
-
-  if (ranked) {
-    await db.transaction(async (tx) => {
-      await tx.update(itchJams).set({ status: "over" }).where(eq(itchJams.jamId, jam.jamId));
-      await tx
-        .update(itchJamEntries)
-        .set({ resultsFetchedAt: new Date() })
-        .where(and(eq(itchJamEntries.jamId, jam.jamId), isNull(itchJamEntries.resultsFetchedAt)));
-    });
-    console.warn(`[sync-jam] jam ${slug} deleted on itch; kept ranked history, marked terminal`);
+async function markJamMissing(slug: string) {
+  const stamped = await db
+    .update(itchJams)
+    .set({ missingSince: new Date() })
+    .where(and(eq(itchJams.slug, slug), isNull(itchJams.missingSince)))
+    .returning({ jamId: itchJams.jamId });
+  if (stamped.length > 0) {
+    console.warn(
+      `[sync-jam] jam ${slug} 404s — marked missing; retrying for ${config.MISSING_RETRY_DAYS}d before parking for manual review`,
+    );
   } else {
-    await db.delete(itchJams).where(eq(itchJams.jamId, jam.jamId));
-    console.warn(`[sync-jam] jam ${slug} deleted on itch; dropped row`);
+    console.warn(`[sync-jam] jam ${slug} still 404s`);
   }
 }
 
@@ -254,8 +278,8 @@ export async function syncJam(slug: string) {
   try {
     jam = await scrapeJamPage(slug);
   } catch (err) {
-    if (err instanceof Error && err.message.includes("failed with status 404")) {
-      await handleDeletedJam(slug);
+    if (isNotFound(err)) {
+      await markJamMissing(slug);
       return;
     }
     throw err;
@@ -270,29 +294,31 @@ export async function syncJam(slug: string) {
     await upsertEntries(jam.jamId, entries);
     // entries.json is the authoritative current submission list — entries we
     // hold that itch no longer lists were deleted, hidden, or pulled from the
-    // jam. Their rate pages 404 forever, so drop them (cascades results).
+    // jam. Mark them missing (never delete; re-listing resurrects them).
     // Deliberately skipped for an empty list: a transiently empty response
-    // must never wipe a jam's entries wholesale.
-    let removed = 0;
+    // must never mark a jam's entries missing wholesale. The diff is computed
+    // here and updated in inArray batches to keep parameter counts bounded,
+    // same as the upserts above.
+    let marked = 0;
     if (entries.length > 0) {
-      removed = (
+      const listed = new Set(entries.map((e) => e.entryId));
+      const held = await db
+        .select({ entryId: itchJamEntries.entryId })
+        .from(itchJamEntries)
+        .where(and(eq(itchJamEntries.jamId, jam.jamId), isNull(itchJamEntries.missingSince)));
+      const unlisted = held.map((r) => r.entryId).filter((id) => !listed.has(id));
+      const now = new Date();
+      for (const batch of chunk(unlisted, 500)) {
         await db
-          .delete(itchJamEntries)
-          .where(
-            and(
-              eq(itchJamEntries.jamId, jam.jamId),
-              notInArray(
-                itchJamEntries.entryId,
-                entries.map((e) => e.entryId),
-              ),
-            ),
-          )
-          .returning({ entryId: itchJamEntries.entryId })
-      ).length;
+          .update(itchJamEntries)
+          .set({ missingSince: now })
+          .where(inArray(itchJamEntries.entryId, batch));
+      }
+      marked = unlisted.length;
     }
     console.log(
       `[sync-jam] upserted ${entries.length} entries for ${jam.slug}${
-        removed > 0 ? `, removed ${removed} no longer listed` : ""
+        marked > 0 ? `, marked ${marked} missing (no longer listed)` : ""
       }`,
     );
   }
@@ -300,7 +326,9 @@ export async function syncJam(slug: string) {
   const results = await syncEntryResults(jam);
   if (results.attempted > 0) {
     console.log(
-      `[sync-jam] results scraped ${results.succeeded}/${results.attempted} for ${jam.slug}`,
+      `[sync-jam] results scraped ${results.succeeded}/${results.attempted} for ${jam.slug}${
+        results.gone > 0 ? ` (${results.gone} rate pages gone)` : ""
+      }`,
     );
   }
 

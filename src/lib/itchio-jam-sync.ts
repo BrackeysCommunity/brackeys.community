@@ -1,4 +1,4 @@
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 
 /**
  * Jam participation backfill: joins the scraped `itch.jam_entries` against
@@ -78,7 +78,9 @@ export async function syncItchIoJamParticipations(
     })
     .from(itchJamEntries)
     .innerJoin(itchJams, eq(itchJamEntries.jamId, itchJams.jamId))
-    .where(or(...matchConditions));
+    // Entries stamped missing_since were delisted on itch — don't import them
+    // as participations.
+    .where(and(isNull(itchJamEntries.missingSince), or(...matchConditions)));
 
   if (matches.length === 0) {
     return { imported: 0, total: 0 };

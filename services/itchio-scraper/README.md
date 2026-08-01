@@ -141,8 +141,22 @@ invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
   (`SCRAPE_ENTRY_RESULTS=after-voting`) it only runs once the jam has moved
   into the `over` status, and each entry is only scraped until
   `results_fetched_at` is populated.
-- **Polite pacing.** Listing walks and per-jam syncs sleep a few hundred ms
-  between requests, rate-page workers respect `ENTRY_RESULTS_DELAY_MS`, and
-  429/503 responses back off starting at 15s.
+- **Polite pacing.** Every itch.io request flows through one global pacer
+  (`MIN_REQUEST_INTERVAL_MS` between any two requests, shared by all
+  workers); a 429/503 pauses the whole pool for `Retry-After` (or
+  `RATE_LIMIT_COOLDOWN_MS` when itch doesn't send one).
+- **Nothing is ever deleted.** A jam or entry that 404s or drops off itch is
+  stamped `missing_since` instead of being removed. Missing jams keep being
+  retried for `MISSING_RETRY_DAYS`, then drop out of the resync bucket; a
+  later successful scrape (or an entry being listed again) clears the stamp.
+  Slugs reused by a new jam get their displaced row parked under
+  `<slug>--displaced-<jam_id>`. Review what's accumulated with:
+
+  ```sql
+  SELECT slug, missing_since FROM itch.jams WHERE missing_since IS NOT NULL;
+  SELECT entry_id, jam_id, missing_since FROM itch.jam_entries WHERE missing_since IS NOT NULL;
+  SELECT slug, first_seen_at FROM itch.missing_jams; -- never-persisted 404s from the backfill walk
+  ```
+
 - **Exit code reflects success.** If any jam fails the process exits
   non-zero, so Railway's run logs flag failed ticks clearly.

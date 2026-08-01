@@ -11,6 +11,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "types": ["node", "bun"],
     "paths": {
       // The shared ../../src/db/schema.ts resolves drizzle-orm from the repo
       // root; force our own imports there too so TS sees one module identity

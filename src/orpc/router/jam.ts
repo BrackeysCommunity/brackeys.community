@@ -112,16 +112,20 @@ export const listJams = os
     );
     const isUpcoming = gt(itchJams.startsAt, now);
 
+    // Jams stamped missing_since 404 on itch (deleted, or awaiting manual
+    // verification) — never surface them in listings.
+    const notMissing = isNull(itchJams.missingSince);
+
     const where = (() => {
       switch (input.filter) {
         case "live":
-          return isLive;
+          return and(notMissing, isLive);
         case "upcoming":
-          return isUpcoming;
+          return and(notMissing, isUpcoming);
         case "active":
-          return or(isLive, isUpcoming);
+          return and(notMissing, or(isLive, isUpcoming));
         case "all":
-          return undefined;
+          return notMissing;
       }
     })();
 

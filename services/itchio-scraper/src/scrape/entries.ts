@@ -1,6 +1,6 @@
 import type { ItchJamContributor } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
-import { pacedFetch } from "../http.ts";
+import { HttpStatusError, pacedFetch } from "../http.ts";
 
 export type ItchEntry = {
   entryId: number;
@@ -64,7 +64,7 @@ export async function fetchJamEntries(jamId: number): Promise<ItchEntry[] | null
     return null;
   }
   if (!res.ok) {
-    throw new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
+    throw new HttpStatusError(res.status, url);
   }
   const json = (await res.json()) as RawResponse;
   const games = json.jam_games ?? [];

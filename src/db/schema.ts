@@ -565,6 +565,10 @@ export const itchJams = itchSchema.table("jams", {
   entriesCount: integer("entries_count"),
   ratingsCount: integer("ratings_count"),
   contentHtml: text("content_html"),
+  // Set when the jam page 404s (deleted on itch, or its slug was reused by a
+  // new jam). Rows are never deleted — the scraper retries for a grace window,
+  // then leaves the row for manual verification. Cleared on successful scrape.
+  missingSince: timestamp("missing_since", { withTimezone: true }),
   scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -595,9 +599,20 @@ export const itchJamEntries = itchSchema.table("jam_entries", {
     .notNull()
     .default(sql`'[]'::jsonb`),
   resultsFetchedAt: timestamp("results_fetched_at", { withTimezone: true }),
+  // Set when itch no longer lists the entry (pulled from the jam, or its rate
+  // page 404s). Rows are never deleted; cleared if the entry is listed again.
+  missingSince: timestamp("missing_since", { withTimezone: true }),
   scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Slugs from the /jams/past listing whose jam page 404s and that were never
+// persisted (jam deleted on itch before we ever scraped it). Recorded so the
+// historical backfill doesn't re-fetch known-dead pages on every run.
+export const itchMissingJams = itchSchema.table("missing_jams", {
+  slug: text("slug").primaryKey(),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 // Per-criterion rank scraped from /jam/{slug}/rate/{gameId} after voting ends.

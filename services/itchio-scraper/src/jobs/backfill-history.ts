@@ -1,11 +1,12 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
-import { itchJamEntries, itchJams } from "../../../../src/db/schema.ts";
+import { itchJamEntries, itchJams, itchMissingJams } from "../../../../src/db/schema.ts";
 import { db, pool } from "../db/client.ts";
+import { isNotFound } from "../http.ts";
 import { fetchPastSortDatePage } from "../scrape/discover-listings.ts";
 import { fetchJamEntries } from "../scrape/entries.ts";
 import { scrapeJamPage } from "../scrape/jam-page.ts";
-import { upsertEntries, upsertJam } from "./sync-jam.ts";
+import { markUnratableEntriesFetched, upsertEntries, upsertJam } from "./sync-jam.ts";
 
 /**
  * One-off, resumable historical backfill: walks /jams/past/sort-date (end
@@ -17,6 +18,8 @@ import { upsertEntries, upsertJam } from "./sync-jam.ts";
  *
  * Resumability comes from idempotence: already-persisted jams are skipped, so
  * re-running after an interruption continues where the previous run got to.
+ * Listed jams whose page 404s (deleted on itch before we ever saw them) are
+ * recorded in `itch.missing_jams` so later runs skip the known-dead fetch.
  *
  * Sizing and pacing rationale: docs/research/itch-scraper-browserless-deep-dive.md.
  *
@@ -28,22 +31,31 @@ import { upsertEntries, upsertJam } from "./sync-jam.ts";
  *   BACKFILL_DELAY_MS   pause between jams (default: 400)
  */
 
-const MAX_JAMS = process.env.BACKFILL_MAX_JAMS
-  ? Number.parseInt(process.env.BACKFILL_MAX_JAMS, 10)
-  : Number.POSITIVE_INFINITY;
-const OLDEST = process.env.BACKFILL_OLDEST ? new Date(process.env.BACKFILL_OLDEST) : null;
-const DELAY_MS = process.env.BACKFILL_DELAY_MS
-  ? Number.parseInt(process.env.BACKFILL_DELAY_MS, 10)
-  : 400;
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export type PersistedJamRow = {
+  status: string;
+  entriesCount: number | null;
+  hasEntries: boolean;
+};
+
+/**
+ * A jam only counts as done for backfill purposes when its entries made it in
+ * too — a run killed between the jam upsert and the entries upsert must
+ * re-ingest on resume. Non-terminal jams are the nightly cron's job either
+ * way, and jams reporting zero entries have nothing further to fetch.
+ */
+export function isIngestComplete(row: PersistedJamRow): boolean {
+  return row.hasEntries || (row.entriesCount ?? 0) === 0 || row.status !== "over";
+}
 
 async function backfillJam(slug: string): Promise<"ok" | "gone"> {
   let jam;
   try {
     jam = await scrapeJamPage(slug);
   } catch (err) {
-    if (err instanceof Error && err.message.includes("failed with status 404")) {
+    if (isNotFound(err)) {
+      await db.insert(itchMissingJams).values({ slug }).onConflictDoNothing();
       return "gone";
     }
     throw err;
@@ -52,19 +64,7 @@ async function backfillJam(slug: string): Promise<"ok" | "gone"> {
 
   const entries = (await fetchJamEntries(jam.jamId)) ?? [];
   await upsertEntries(jam.jamId, entries);
-
-  // Zero-rating entries can't rank — itch renders no results table for them.
-  // Pre-mark them fetched so the cron's pending-results bucket skips them.
-  await db
-    .update(itchJamEntries)
-    .set({ resultsFetchedAt: new Date() })
-    .where(
-      and(
-        eq(itchJamEntries.jamId, jam.jamId),
-        isNull(itchJamEntries.resultsFetchedAt),
-        eq(itchJamEntries.ratingCount, 0),
-      ),
-    );
+  await markUnratableEntriesFetched(jam.jamId);
 
   console.log(
     `[backfill] ok ${slug} id=${jam.jamId} status=${jam.status} entries=${entries.length}`,
@@ -73,11 +73,15 @@ async function backfillJam(slug: string): Promise<"ok" | "gone"> {
 }
 
 async function main() {
+  const MAX_JAMS = process.env.BACKFILL_MAX_JAMS
+    ? Number.parseInt(process.env.BACKFILL_MAX_JAMS, 10)
+    : Number.POSITIVE_INFINITY;
+  const OLDEST = process.env.BACKFILL_OLDEST ? new Date(process.env.BACKFILL_OLDEST) : null;
+  const DELAY_MS = process.env.BACKFILL_DELAY_MS
+    ? Number.parseInt(process.env.BACKFILL_DELAY_MS, 10)
+    : 400;
+
   const started = Date.now();
-  // A jam only counts as done for backfill purposes when its entries made it
-  // in too — a run killed between the jam upsert and the entries upsert must
-  // re-ingest on resume. Non-terminal jams are the nightly cron's job either
-  // way, and jams reporting zero entries have nothing further to fetch.
   const rows = await db
     .select({
       slug: itchJams.slug,
@@ -88,14 +92,15 @@ async function main() {
       )`,
     })
     .from(itchJams);
-  const persisted = new Set(
-    rows
-      .filter((r) => r.hasEntries || (r.entriesCount ?? 0) === 0 || r.status !== "over")
-      .map((r) => r.slug),
-  );
+  const persisted = new Set(rows.filter(isIngestComplete).map((r) => r.slug));
+  // Known-dead slugs from previous runs — no point re-fetching their 404s.
+  const knownGone = await db
+    .select({ slug: itchMissingJams.slug })
+    .from(itchMissingJams)
+    .then((r) => new Set(r.map((row) => row.slug)));
   const partial = rows.length - persisted.size;
   console.log(
-    `[backfill] starting — ${rows.length} jams persisted, ${persisted.size} complete, ${partial} to re-ingest`,
+    `[backfill] starting — ${rows.length} jams persisted, ${persisted.size} complete, ${partial} to re-ingest, ${knownGone.size} known gone`,
   );
 
   let ingested = 0;
@@ -113,7 +118,7 @@ async function main() {
         reachedCutoff = true;
         break outer;
       }
-      if (persisted.has(slug)) {
+      if (persisted.has(slug) || knownGone.has(slug)) {
         skipped++;
         continue;
       }
@@ -146,8 +151,10 @@ async function main() {
   if (failed > 0) process.exitCode = 1;
 }
 
-try {
-  await main();
-} finally {
-  await pool.end().catch(() => {});
+if (import.meta.main) {
+  try {
+    await main();
+  } finally {
+    await pool.end().catch(() => {});
+  }
 }

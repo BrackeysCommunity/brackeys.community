@@ -76,14 +76,12 @@ function parseDatedListPage(html: string): DatedListPage {
   return { entries, hasNext: $("a.next_page").length > 0 };
 }
 
-export type PastJamListing = DatedListPage;
-
 /**
  * Fetches one page of /jams/past/sort-date (end date descending, 50 cells per
  * page). Used by the recently-ended discovery walk and the historical
  * backfill job.
  */
-export async function fetchPastSortDatePage(page: number): Promise<PastJamListing> {
+export async function fetchPastSortDatePage(page: number): Promise<DatedListPage> {
   const url =
     page === 1
       ? "https://itch.io/jams/past/sort-date"

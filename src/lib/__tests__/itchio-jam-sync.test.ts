@@ -46,6 +46,7 @@ vi.mock("drizzle-orm", () => ({
   eq: (...args: unknown[]) => ({ _: "eq", args }),
   or: (...args: unknown[]) => ({ _: "or", args }),
   inArray: (...args: unknown[]) => ({ _: "inArray", args }),
+  isNull: (...args: unknown[]) => ({ _: "isNull", args }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ _: "sql", strings, values }),
 }));
 

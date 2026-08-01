@@ -14,6 +14,10 @@ const schema = z.object({
   // doesn't send a Retry-After header.
   MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().nonnegative().default(350),
   RATE_LIMIT_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
+  // How long a jam whose page 404s keeps being retried before it drops out of
+  // the resync bucket. Rows are never deleted — after this window they sit
+  // with missing_since set, awaiting manual verification.
+  MISSING_RETRY_DAYS: z.coerce.number().int().positive().default(3),
   USER_AGENT: z.string().default("brackeys-itchio-scraper/0.1 (+https://brackeys.community)"),
 });
 

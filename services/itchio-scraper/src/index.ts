@@ -1,4 +1,4 @@
-import { and, eq, exists, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, exists, gt, isNull, ne, or, sql } from "drizzle-orm";
 
 import { itchJamEntries, itchJams } from "../../../src/db/schema.ts";
 import { config } from "./config.ts";
@@ -47,23 +47,37 @@ async function collectSlugs(): Promise<SlugBuckets> {
         .then((rows) => new Set(rows.map((r) => r.slug))),
       // Re-sync a persisted jam only if it isn't in a terminal state yet:
       //   - status isn't "over" (catches state transitions), OR
-      //   - at least one entry still hasn't had its rate page scraped.
+      //   - at least one entry still hasn't had its rate page scraped
+      //     (missing entries don't count — their rate pages 404).
+      // Jams marked missing keep being retried for MISSING_RETRY_DAYS, then
+      // drop out until manually reviewed (or until a successful scrape via
+      // discovery clears the mark).
       db
         .select({ slug: itchJams.slug })
         .from(itchJams)
         .where(
-          or(
-            ne(itchJams.status, "over"),
-            exists(
-              db
-                .select({ one: sql<number>`1` })
-                .from(itchJamEntries)
-                .where(
-                  and(
-                    eq(itchJamEntries.jamId, itchJams.jamId),
-                    isNull(itchJamEntries.resultsFetchedAt),
+          and(
+            or(
+              isNull(itchJams.missingSince),
+              gt(
+                itchJams.missingSince,
+                sql`now() - make_interval(days => ${config.MISSING_RETRY_DAYS})`,
+              ),
+            ),
+            or(
+              ne(itchJams.status, "over"),
+              exists(
+                db
+                  .select({ one: sql<number>`1` })
+                  .from(itchJamEntries)
+                  .where(
+                    and(
+                      eq(itchJamEntries.jamId, itchJams.jamId),
+                      isNull(itchJamEntries.resultsFetchedAt),
+                      isNull(itchJamEntries.missingSince),
+                    ),
                   ),
-                ),
+              ),
             ),
           ),
         )
