@@ -58,6 +58,8 @@ async function syncAccount(
       sourceId: profileProjects.sourceId,
       published: profileProjects.published,
       publishedAt: profileProjects.publishedAt,
+      imageUrl: profileProjects.imageUrl,
+      imageKey: profileProjects.imageKey,
     })
     .from(profileProjects)
     .where(and(eq(profileProjects.profileId, profileId), eq(profileProjects.source, "itchio")));
@@ -93,16 +95,21 @@ async function syncAccount(
     const row = existingBySourceId.get(String(game.id));
     if (!row) continue;
     const publishedAt = game.published_at ? new Date(game.published_at) : null;
+    const coverUrl = game.cover_url || null;
     const needsPublishFlip = row.published !== game.published;
     // Backfill the provider publish date on rows imported before the
     // `published_at` column existed.
     const needsDateBackfill = row.publishedAt == null && publishedAt != null;
-    if (needsPublishFlip || needsDateBackfill) {
+    // Keep cover art in step with itch.io unless the owner uploaded their
+    // own image (`imageKey` set), which always wins.
+    const needsCoverRefresh = row.imageKey == null && row.imageUrl !== coverUrl;
+    if (needsPublishFlip || needsDateBackfill || needsCoverRefresh) {
       await db
         .update(profileProjects)
         .set({
           published: game.published,
           ...(needsDateBackfill ? { publishedAt } : {}),
+          ...(needsCoverRefresh ? { imageUrl: coverUrl } : {}),
         })
         .where(eq(profileProjects.id, row.id));
       if (needsPublishFlip) flipped++;
@@ -113,6 +120,107 @@ async function syncAccount(
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ── Restricted-visibility probe ──────────────────────────────────────────────
+//
+// itch.io pages have three visibility states (Draft / Restricted / Public)
+// but the API's `published` boolean only encodes Draft=false — Restricted
+// games come back `published: true` with no distinguishing field at all.
+// The only signal is the public page itself: anonymous requests get 200 for
+// Public and 404 for Restricted (and note that `<url>/data.json` returns
+// 200 even for restricted pages, so it can't be used as a lighter probe).
+
+class ProbeBackoffError extends Error {
+  constructor(public readonly status: number) {
+    super(`itch.io returned ${status} during visibility probe`);
+  }
+}
+
+/** Anonymous HEAD of a game page. Returns the visibility verdict, null when
+ * the response proves nothing (timeouts, network errors, odd statuses), and
+ * throws ProbeBackoffError on 429/5xx so the sweep stops hammering. */
+async function probeVisibility(url: string): Promise<"public" | "hidden" | null> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "HEAD",
+      headers: { "User-Agent": config.USER_AGENT },
+      redirect: "follow",
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    return null;
+  }
+  if (res.status === 200) return "public";
+  if (res.status === 404) return "hidden";
+  if (res.status === 429 || res.status >= 500) throw new ProbeBackoffError(res.status);
+  return null;
+}
+
+/**
+ * Second sweep phase: probe every API-published itch.io row's public URL
+ * and keep `restricted_at` in step — set on a hard 404 (Restricted on
+ * itch.io, or deleted; either way not publicly viewable), cleared on 200.
+ * `restricted_at` is owned by this probe alone: the API sync keeps
+ * asserting `published: true` for restricted games, so encoding the state
+ * in `published` would just get flipped back next sync.
+ */
+async function probeRestricted(): Promise<{ probed: number; marked: number; cleared: number }> {
+  const rows = await db
+    .select({
+      id: profileProjects.id,
+      url: profileProjects.url,
+      restrictedAt: profileProjects.restrictedAt,
+    })
+    .from(profileProjects)
+    .where(
+      and(
+        eq(profileProjects.source, "itchio"),
+        eq(profileProjects.published, true),
+        isNotNull(profileProjects.url),
+      ),
+    );
+
+  let probed = 0;
+  let marked = 0;
+  let cleared = 0;
+
+  for (const [i, row] of rows.entries()) {
+    if (!row.url) continue; // filtered in SQL; narrows the type
+    if (i > 0) await sleep(config.SYNC_DELAY_MS);
+
+    let verdict: "public" | "hidden" | null;
+    try {
+      verdict = await probeVisibility(row.url);
+    } catch (err) {
+      if (err instanceof ProbeBackoffError) {
+        // itch.io is rate-limiting or unwell: stop probing and let the next
+        // cron tick finish the job. Rows already updated this run stand.
+        console.error(`[probe] itch.io returned ${err.status}; aborting probe phase early`);
+        break;
+      }
+      throw err;
+    }
+    probed++;
+    if (verdict === "hidden" && row.restrictedAt == null) {
+      await db
+        .update(profileProjects)
+        .set({ restrictedAt: new Date() })
+        .where(eq(profileProjects.id, row.id));
+      marked++;
+      console.log(`[probe] marked restricted: ${row.url}`);
+    } else if (verdict === "public" && row.restrictedAt != null) {
+      await db
+        .update(profileProjects)
+        .set({ restrictedAt: null })
+        .where(eq(profileProjects.id, row.id));
+      cleared++;
+      console.log(`[probe] cleared restricted: ${row.url}`);
+    }
+  }
+
+  return { probed, marked, cleared };
+}
 
 async function runSweep() {
   const started = Date.now();
@@ -167,6 +275,13 @@ async function runSweep() {
       `[sweep] synced ${synced} accounts, imported ${imported}, visibility-flipped ${flipped}, failed ${failed} in ${elapsed}s`,
     );
   }
+
+  // Probe after the API sync so freshly imported rows are covered too, and
+  // so rows the sync just unpublished (drafts) are already excluded.
+  const probe = await probeRestricted();
+  console.log(
+    `[probe] probed ${probe.probed} pages, marked ${probe.marked} restricted, cleared ${probe.cleared}`,
+  );
 }
 
 async function main() {

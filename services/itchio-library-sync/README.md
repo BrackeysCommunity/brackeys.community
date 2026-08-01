@@ -18,13 +18,26 @@ both in `src/lib/itchio-sync.ts`).
    accounts — polite to api.itch.io), fetches
    `https://api.itch.io/profile/games` with the stored token.
 3. Upserts: inserts unseen games (`onConflictDoNothing` against the partial
-   unique index on `(profile_id, source, source_id)`), and flips `published`
-   where it changed on itch.io.
+   unique index on `(profile_id, source, source_id)`), flips `published`
+   where it changed on itch.io, and refreshes `image_url` from `cover_url`
+   (skipped when the owner uploaded their own image — `image_key` set).
 4. **401/403** ⇒ token revoked: logged and skipped (the row stays; the
    profile UI's reconnect path handles re-linking). **429/5xx** ⇒ the whole
    run aborts early rather than hammering; the next cron tick retries.
 5. One bad account never stops the sweep; a summary line is logged at the
    end (`synced N accounts, imported X, visibility-flipped Y, failed Z`).
+6. **Restricted-visibility probe.** itch.io pages have three visibility
+   states (Draft / Restricted / Public), but the API's `published` boolean
+   only encodes Draft=false — Restricted games come back `published: true`
+   with no distinguishing field (`<url>/data.json` even returns 200 for
+   them). So after the API sync, the sweep anonymously `HEAD`s the public
+   URL of every itch row with `published = true`: a hard **404** sets
+   `restricted_at` (hidden from non-owners by `getProfile`), a **200**
+   clears it. Timeouts and odd statuses prove nothing and leave the row
+   untouched; **429/5xx** aborts the probe phase early. `restricted_at` is
+   owned by this probe alone — the API sync keeps asserting
+   `published: true` for restricted games, so the state can't live in
+   `published` without being flipped back on the next sync.
 
 ## Schema
 

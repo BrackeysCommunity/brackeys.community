@@ -1,0 +1,1 @@
+ALTER TABLE "user"."profile_projects" ADD COLUMN "restricted_at" timestamp;

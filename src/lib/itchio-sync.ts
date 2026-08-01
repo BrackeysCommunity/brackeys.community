@@ -51,6 +51,8 @@ export async function syncItchIoLibrary(
       sourceId: profileProjects.sourceId,
       published: profileProjects.published,
       publishedAt: profileProjects.publishedAt,
+      imageUrl: profileProjects.imageUrl,
+      imageKey: profileProjects.imageKey,
     })
     .from(profileProjects)
     .where(and(eq(profileProjects.profileId, userId), eq(profileProjects.source, "itchio")));
@@ -85,20 +87,25 @@ export async function syncItchIoLibrary(
   }
 
   // Re-syncs update visibility (publishing / unpublishing on itch.io is
-  // reflected here) and backfill the provider publish date on rows
-  // imported before the `published_at` column existed.
+  // reflected here), backfill the provider publish date on rows imported
+  // before the `published_at` column existed, and keep the cover art in
+  // step with itch.io (unless the owner uploaded their own image, which
+  // `imageKey` records and always wins).
   for (const game of games) {
     const row = existingBySourceId.get(String(game.id));
     if (!row) continue;
     const publishedAt = game.published_at ? new Date(game.published_at) : null;
+    const coverUrl = game.cover_url || null;
     const needsPublishFlip = row.published !== game.published;
     const needsDateBackfill = row.publishedAt == null && publishedAt != null;
-    if (needsPublishFlip || needsDateBackfill) {
+    const needsCoverRefresh = row.imageKey == null && row.imageUrl !== coverUrl;
+    if (needsPublishFlip || needsDateBackfill || needsCoverRefresh) {
       await db
         .update(profileProjects)
         .set({
           published: game.published,
           ...(needsDateBackfill ? { publishedAt } : {}),
+          ...(needsCoverRefresh ? { imageUrl: coverUrl } : {}),
         })
         .where(eq(profileProjects.id, row.id));
     }

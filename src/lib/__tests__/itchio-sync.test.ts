@@ -7,7 +7,14 @@ const mocks = vi.hoisted(() => ({
   accountLimit: vi.fn(async () => [] as { accessToken: string | null }[]),
   // Existing projects: db.select().from().where() awaited directly
   existingWhere: vi.fn(
-    async () => [] as { id: string; sourceId: string | null; published: boolean }[],
+    async () =>
+      [] as {
+        id: string;
+        sourceId: string | null;
+        published: boolean;
+        imageUrl?: string | null;
+        imageKey?: string | null;
+      }[],
   ),
   insertOnConflict: vi.fn(async (_rows: unknown) => undefined),
   updateWhere: vi.fn(async (_patch: unknown) => undefined),
@@ -52,6 +59,9 @@ vi.mock("@/db/schema", () => ({
     source: "source",
     sourceId: "sourceId",
     published: "published",
+    publishedAt: "publishedAt",
+    imageUrl: "imageUrl",
+    imageKey: "imageKey",
   },
 }));
 
@@ -122,7 +132,9 @@ describe("syncItchIoLibrary()", () => {
   });
 
   it("flips published when itch.io visibility changed", async () => {
-    mocks.existingWhere.mockResolvedValue([{ id: "row1", sourceId: "1", published: true }]);
+    mocks.existingWhere.mockResolvedValue([
+      { id: "row1", sourceId: "1", published: true, imageUrl: "https://img.itch.zone/1.png" },
+    ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: false })]);
 
     await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
@@ -133,12 +145,60 @@ describe("syncItchIoLibrary()", () => {
   });
 
   it("no-ops when nothing changed", async () => {
-    mocks.existingWhere.mockResolvedValue([{ id: "row1", sourceId: "1", published: true }]);
+    mocks.existingWhere.mockResolvedValue([
+      { id: "row1", sourceId: "1", published: true, imageUrl: "https://img.itch.zone/1.png" },
+    ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
     await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
 
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
+    expect(mocks.updateWhere).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the stored cover when itch.io's cover_url changed", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      { id: "row1", sourceId: "1", published: true, imageUrl: "https://img.itch.zone/old.png" },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
+
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+
+    expect(mocks.updateWhere).toHaveBeenCalledTimes(1);
+    expect(mocks.updateWhere).toHaveBeenCalledWith({
+      published: true,
+      imageUrl: "https://img.itch.zone/1.png",
+    });
+  });
+
+  it("backfills a missing cover on re-sync", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      { id: "row1", sourceId: "1", published: true, imageUrl: null },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
+
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+
+    expect(mocks.updateWhere).toHaveBeenCalledWith({
+      published: true,
+      imageUrl: "https://img.itch.zone/1.png",
+    });
+  });
+
+  it("never overwrites an owner-uploaded image (imageKey set)", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        imageUrl: null,
+        imageKey: "profile-project-images/u1/custom.png",
+      },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
+
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+
     expect(mocks.updateWhere).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import * as z from "zod";
 
@@ -167,6 +167,10 @@ export const getProfile = os
                   eq(profileProjects.status, "approved"),
                   // Unpublished titles (e.g. itch.io drafts) are owner-only.
                   eq(profileProjects.published, true),
+                  // itch.io "Restricted" pages report published=true from the
+                  // API but 404 for anonymous visitors; the library-sync
+                  // sweep's URL probe records that here. Owner-only too.
+                  isNull(profileProjects.restrictedAt),
                 ),
               ),
         db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),

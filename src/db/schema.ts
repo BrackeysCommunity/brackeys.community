@@ -188,6 +188,13 @@ export const profileProjects = userSchema.table(
     // honest "shipped" date for imported titles, vs. `createdAt` which
     // is just when the row landed in our database.
     publishedAt: timestamp("published_at"),
+    // Set when the provider page 404s for anonymous visitors even though
+    // the API reports it published (itch.io "Restricted" visibility — the
+    // API exposes no field for it). Owned exclusively by the
+    // itchio-library-sync sweep's URL probe; `published` stays mirrored
+    // from the API, so restricted state must not be encoded there or the
+    // next sync would flip it back. NULL = publicly reachable.
+    restrictedAt: timestamp("restricted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
