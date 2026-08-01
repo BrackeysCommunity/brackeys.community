@@ -4,7 +4,7 @@ dockerfilePath = "services/itchio-scraper/Dockerfile"
 
 [deploy]
 # Railway cron: this service runs to completion on each tick and exits.
-# Default: Mondays 04:00 UTC.
+# Daily at 00:00 UTC (matches the schedule configured in the dashboard).
 startCommand = "bun run start"
-cronSchedule = "0 4 * * 1"
+cronSchedule = "0 0 * * *"
 restartPolicyType = "NEVER"

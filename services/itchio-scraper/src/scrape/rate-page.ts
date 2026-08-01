@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 
-import { fetchHtml } from "../browser.ts";
+import { fetchHtml } from "../http.ts";
 
 export type ScrapedEntryResult = {
   criterion: string;
