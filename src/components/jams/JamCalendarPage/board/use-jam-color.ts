@@ -1,6 +1,7 @@
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
+import { jamPaletteColors } from "@/lib/jam-palette";
 
-import { type JamFromList, jamPaletteColors, safeThemeColor } from "../helpers";
+import { type JamFromList, safeThemeColor } from "../helpers";
 
 /**
  * The jam's display color: the real itch theme color (the host-chosen

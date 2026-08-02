@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
+import { pickTwo } from "@/lib/jam-palette";
 
-import { type JamLike, pickTwo } from "./helpers";
+import type { JamLike } from "./helpers";
 
 /**
  * Returns the two random theme colors that drive the colored Grainient

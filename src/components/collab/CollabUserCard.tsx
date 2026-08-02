@@ -3,8 +3,9 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-
-import { profileLinkParams, timeAgo } from "./format";
+import { formatRate } from "@/lib/format-rate";
+import { timeAgo } from "@/lib/format-time";
+import { profileLinkParams } from "@/lib/profile-links";
 
 interface CollabUserCardProps {
   user: {
@@ -34,22 +35,10 @@ const RATE_TYPE_LABELS: Record<string, string> = {
   negotiable: "NEGOTIABLE",
 };
 
-function formatUserRate(
-  rateType: string | null,
-  rateMin: number | null,
-  rateMax: number | null,
-): string {
-  if (!rateType || rateType === "negotiable") return rateType === "negotiable" ? "Negotiable" : "";
-  const fmt = (n: number) =>
-    n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`;
-  const suffix = rateType === "hourly" ? " /hr" : "";
-  if (rateMin != null && rateMax != null) return `${fmt(rateMin)} - ${fmt(rateMax)}${suffix}`;
-  if (rateMin != null) return `${fmt(rateMin)}+${suffix}`;
-  return "";
-}
-
 export function CollabUserCard({ user, skills }: CollabUserCardProps) {
-  const rate = formatUserRate(user.rateType, user.rateMin, user.rateMax);
+  const rate = formatRate(user.rateType, user.rateMin, user.rateMax, {
+    negotiableLabel: "Negotiable",
+  });
 
   return (
     <Well className="overflow-hidden p-0">

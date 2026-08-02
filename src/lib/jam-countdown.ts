@@ -6,6 +6,11 @@ export function formatCountdown(target: Date | string | null | undefined, now: D
   return formatRelativeMs(ms);
 }
 
+/**
+ * Decomposes a signed duration into the `1d 02h`/`03h 04m` house format.
+ * The raw `d`/`h`/`m` parts come back alongside `text` so callers that
+ * animate the numbers (`<CountUp>`) don't have to re-derive them.
+ */
 export function formatRelativeMs(ms: number) {
   const past = ms < 0;
   const abs = Math.abs(ms);
@@ -16,17 +21,19 @@ export function formatRelativeMs(ms: number) {
   if (d > 0) parts.push(`${d}d`);
   if (h > 0 || d > 0) parts.push(`${String(h).padStart(d > 0 ? 2 : 1, "0")}h`);
   if (d === 0) parts.push(`${String(m).padStart(2, "0")}m`);
-  return { text: parts.join(" "), past };
+  return { text: parts.join(" "), past, d, h, m };
 }
 
 export function formatJamShortDates(startsAt: Date | string | null, endsAt: Date | string | null) {
   if (!startsAt || !endsAt) return null;
   const s = typeof startsAt === "string" ? new Date(startsAt) : startsAt;
   const e = typeof endsAt === "string" ? new Date(endsAt) : endsAt;
-  const month = s.toLocaleString(undefined, { month: "short" });
+  // UTC on both halves: the day numbers below are UTC, so a local month
+  // label could name the wrong month for them near a boundary.
+  const month = s.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
   const sameMonth = s.getUTCMonth() === e.getUTCMonth();
   if (sameMonth) return `${month} ${s.getUTCDate()}-${e.getUTCDate()}`;
-  const monthEnd = e.toLocaleString(undefined, { month: "short" });
+  const monthEnd = e.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
   return `${month} ${s.getUTCDate()} – ${monthEnd} ${e.getUTCDate()}`;
 }
 

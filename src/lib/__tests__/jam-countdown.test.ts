@@ -10,27 +10,49 @@ import {
 
 const NOW = new Date("2026-04-30T12:00:00Z");
 
+/** The short month label the UTC calendar puts a date in, independent of
+ * the runner's timezone. */
+function utcShortMonth(d: Date): string {
+  return d.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
+}
+
 describe("formatRelativeMs", () => {
   it("formats sub-hour durations as Mm only", () => {
-    expect(formatRelativeMs(15 * 60_000)).toEqual({ text: "15m", past: false });
+    expect(formatRelativeMs(15 * 60_000)).toEqual({ text: "15m", past: false, d: 0, h: 0, m: 15 });
   });
 
   it("zero-pads minutes", () => {
-    expect(formatRelativeMs(3 * 60_000)).toEqual({ text: "03m", past: false });
+    expect(formatRelativeMs(3 * 60_000)).toEqual({ text: "03m", past: false, d: 0, h: 0, m: 3 });
   });
 
   it("formats hours-only spans (no day, no minutes)", () => {
     const h = 5 * 3_600_000 + 13 * 60_000;
-    expect(formatRelativeMs(h)).toEqual({ text: "5h 13m", past: false });
+    expect(formatRelativeMs(h)).toEqual({ text: "5h 13m", past: false, d: 0, h: 5, m: 13 });
   });
 
   it("formats day spans as `Nd HHh` (drops minutes)", () => {
     const span = 2 * 86_400_000 + 7 * 3_600_000 + 30 * 60_000;
-    expect(formatRelativeMs(span)).toEqual({ text: "2d 07h", past: false });
+    expect(formatRelativeMs(span)).toEqual({ text: "2d 07h", past: false, d: 2, h: 7, m: 30 });
   });
 
   it("flags negative durations as past", () => {
-    expect(formatRelativeMs(-90_000_000)).toEqual({ text: expect.any(String), past: true });
+    expect(formatRelativeMs(-90_000_000)).toMatchObject({ text: expect.any(String), past: true });
+  });
+
+  it("exposes the raw d/h/m parts alongside the joined text", () => {
+    // `<CountUp>` in the featured carousel animates these numbers, so they
+    // must not be re-derived from the string.
+    const span = 3 * 86_400_000 + 4 * 3_600_000 + 9 * 60_000;
+    expect(formatRelativeMs(span)).toMatchObject({ d: 3, h: 4, m: 9 });
+  });
+
+  it("reports parts as absolute values for past durations", () => {
+    expect(formatRelativeMs(-(2 * 3_600_000 + 5 * 60_000))).toMatchObject({
+      past: true,
+      d: 0,
+      h: 2,
+      m: 5,
+    });
   });
 
   it("treats exactly zero as not-past", () => {
@@ -50,12 +72,12 @@ describe("formatCountdown", () => {
 
   it("computes future deltas", () => {
     const target = new Date(NOW.getTime() + 86_400_000 + 3 * 3_600_000);
-    expect(formatCountdown(target, NOW)).toEqual({ text: "1d 03h", past: false });
+    expect(formatCountdown(target, NOW)).toMatchObject({ text: "1d 03h", past: false });
   });
 
   it("accepts ISO strings as input", () => {
     const target = new Date(NOW.getTime() + 2 * 3_600_000).toISOString();
-    expect(formatCountdown(target, NOW)).toEqual({ text: "2h 00m", past: false });
+    expect(formatCountdown(target, NOW)).toMatchObject({ text: "2h 00m", past: false });
   });
 
   it("flags past targets", () => {
@@ -85,6 +107,15 @@ describe("formatJamShortDates", () => {
       new Date("2026-06-09T00:00:00Z"),
     );
     expect(result).toMatch(/^[A-Za-z]+ 14 – [A-Za-z]+ 9$/);
+  });
+
+  it("labels the month in UTC, matching the UTC day numbers beside it", () => {
+    // Regression: the month label used the viewer's local timezone while
+    // the day numbers used getUTCDate(). West of UTC, 2026-05-01T02:00Z is
+    // still Apr 30 locally, so the label read "Apr" next to the day "1".
+    const start = new Date("2026-05-01T02:00:00Z");
+    const end = new Date("2026-05-04T02:00:00Z");
+    expect(formatJamShortDates(start, end)).toBe(`${utcShortMonth(start)} 1-4`);
   });
 });
 

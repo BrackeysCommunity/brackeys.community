@@ -12,9 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { Text } from "@/components/ui/typography";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
+import { formatRate } from "@/lib/format-rate";
 import { cn } from "@/lib/utils";
 
-import { COMP_SLIDER_CONFIG, formatCompensation } from "./shared";
+import { COMP_SLIDER_CONFIG } from "./shared";
 
 // ── FieldRow ───────────────────────────────────────────────────────────────
 
@@ -191,7 +192,7 @@ export function CompensationField({
         />
       </div>
       <Text as="p" size="xs" variant="success" className="text-center tracking-wider">
-        {formatCompensation(compensationType, currentMin, currentMax)}
+        {formatRate(compensationType, currentMin, currentMax)}
       </Text>
     </FieldRow>
   );

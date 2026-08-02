@@ -200,21 +200,6 @@ export const COMP_SLIDER_CONFIG: Record<string, CompSliderConfig> = {
   rev_share: { min: 5, max: 100, step: 5, defaultMin: 10, defaultMax: 30 },
 };
 
-export function formatCompensation(
-  type: CollabCompensationType | undefined,
-  min: number | undefined,
-  max: number | undefined,
-): string {
-  if (!type || type === "negotiable" || min === undefined) return "";
-  const fmt = (n: number) =>
-    n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`;
-  if (type === "rev_share") {
-    return max !== undefined ? `${min}% - ${max}%` : `${min}%+`;
-  }
-  const suffix = type === "hourly" ? " /hr" : "";
-  return max !== undefined ? `${fmt(min)} - ${fmt(max)}${suffix}` : `${fmt(min)}+${suffix}`;
-}
-
 // ── MinIO upload ───────────────────────────────────────────────────────────
 
 /** Server response from `/api/profile/project-image`. */

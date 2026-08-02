@@ -18,6 +18,7 @@ import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { profileSlug } from "@/lib/profile-links";
 
 const springTransition = {
   type: "spring",
@@ -48,7 +49,12 @@ export function AppHeader() {
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
-  const profileSlug = activeProfile?.urlStub ?? session?.user?.id;
+  const sessionUserId = session?.user?.id;
+  // Null until the session resolves — the links below fall back to
+  // `/profile` (the builder route) rather than a broken `$userId`.
+  const ownProfileSlug = sessionUserId
+    ? profileSlug({ id: sessionUserId, urlStub: activeProfile?.urlStub })
+    : null;
 
   const PAGE_TITLES: Record<string, string> = {
     "/command-center": "COMMANDS",
@@ -136,8 +142,8 @@ export function AppHeader() {
                 data-testid="desktop-profile-link"
                 data-cursor-no-drift
                 className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to={profileSlug ? "/profile/$userId" : "/profile"}
-                {...(profileSlug ? { params: { userId: profileSlug } } : {})}
+                to={ownProfileSlug ? "/profile/$userId" : "/profile"}
+                {...(ownProfileSlug ? { params: { userId: ownProfileSlug } } : {})}
               >
                 PROFILE
               </Link>
@@ -229,8 +235,8 @@ export function AppHeader() {
               </Link>
               <Link
                 data-testid="mobile-profile-link"
-                to={profileSlug ? "/profile/$userId" : "/profile"}
-                {...(profileSlug ? { params: { userId: profileSlug } } : {})}
+                to={ownProfileSlug ? "/profile/$userId" : "/profile"}
+                {...(ownProfileSlug ? { params: { userId: ownProfileSlug } } : {})}
                 onClick={() => setMobileMenuOpen(false)}
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >

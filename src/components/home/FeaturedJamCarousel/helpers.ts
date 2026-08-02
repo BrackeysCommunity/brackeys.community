@@ -34,16 +34,6 @@ export const slideVariants = {
   exit: (dir: 1 | -1) => ({ x: -SLIDE_DISTANCE * dir, opacity: 0, scale: 1.15 }),
 };
 
-/** Pick two distinct random hex colors from `palette`. */
-export function pickTwo(palette: string[]): [string, string] {
-  if (palette.length === 0) return ["#444444", "#222222"];
-  if (palette.length === 1) return [palette[0]!, palette[0]!];
-  const i = Math.floor(Math.random() * palette.length);
-  let j = Math.floor(Math.random() * palette.length);
-  if (j === i) j = (j + 1) % palette.length;
-  return [palette[i]!, palette[j]!];
-}
-
 /** Word-initials acronym fallback used as the "shortName" for jams without art. */
 export function shortName(title: string) {
   const initials = title
@@ -53,8 +43,4 @@ export function shortName(title: string) {
     .map((w) => w[0]!.toUpperCase())
     .join("");
   return initials.slice(0, 6) || title.slice(0, 5).toUpperCase();
-}
-
-export function jamUrl(slug: string) {
-  return `https://itch.io/jam/${slug}`;
 }

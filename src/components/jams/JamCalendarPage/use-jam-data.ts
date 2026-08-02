@@ -19,6 +19,24 @@ import {
 const BOARD_LIMIT = 2000;
 const CALENDAR_LIMIT = 5000;
 
+/** Jam data is scraped on a cadence measured in hours; five minutes of
+ * staleness is free. */
+export const JAM_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * The board fetch, shared verbatim by `useBoardJams` and `useHomeJams`.
+ * Both must land on the *same* query key so the home page and the jam
+ * board read one cache entry — routing between them should never refetch.
+ * They used to repeat the config inline, which left nothing enforcing that.
+ */
+function useBoardQuery() {
+  return useQuery({
+    queryKey: ["list-jams", "board", BOARD_LIMIT],
+    queryFn: () => client.listJams({ filter: "board", limit: BOARD_LIMIT }),
+    staleTime: JAM_STALE_MS,
+  });
+}
+
 export interface BoardData {
   isLoading: boolean;
   /** Board jams narrowed by search. */
@@ -41,11 +59,7 @@ function countShelves(jams: JamFromList[], now: Date): Record<ShelfKind, number>
 
 /** The discovery board's working set: every jam with a future event. */
 export function useBoardJams(now: Date, search: string): BoardData {
-  const { data, isLoading } = useQuery({
-    queryKey: ["list-jams", "board", BOARD_LIMIT],
-    queryFn: () => client.listJams({ filter: "board", limit: BOARD_LIMIT }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data, isLoading } = useBoardQuery();
 
   const all = useMemo(() => data?.jams ?? [], [data]);
   const jams = useMemo(() => all.filter((j) => jamMatchesSearch(j, search)), [all, search]);
@@ -80,11 +94,7 @@ export interface HomeJamsData {
  * that surfaces zero-signal jams.
  */
 export function useHomeJams(now: number): HomeJamsData {
-  const { data, isLoading } = useQuery({
-    queryKey: ["list-jams", "board", BOARD_LIMIT],
-    queryFn: () => client.listJams({ filter: "board", limit: BOARD_LIMIT }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data, isLoading } = useBoardQuery();
 
   const all = useMemo(() => data?.jams ?? [], [data]);
   return useMemo(() => {
@@ -114,7 +124,7 @@ export function useCalendarJams(search: string, enabled: boolean): CalendarData 
   const { data, isLoading } = useQuery({
     queryKey: ["list-jams", "calendar", CALENDAR_LIMIT],
     queryFn: () => client.listJams({ filter: "calendar", limit: CALENDAR_LIMIT }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: JAM_STALE_MS,
     enabled,
   });
 
@@ -158,7 +168,7 @@ export function useArchiveJams(state: ArchiveQueryState, enabled: boolean): Arch
         page: state.page,
         pageSize: ARCHIVE_PAGE_SIZE,
       }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: JAM_STALE_MS,
     placeholderData: keepPreviousData,
     enabled,
   });

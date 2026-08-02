@@ -7,9 +7,10 @@ import { CountUp } from "@/components/ui/count-up";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { type effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
+import { jamUrl } from "@/lib/jam-links";
 
 import { CarouselControls, Nub } from "./CarouselControls";
-import { BODY_TRANSITION, jamUrl, type JamLike } from "./helpers";
+import { BODY_TRANSITION, type JamLike } from "./helpers";
 import { JamCountdown } from "./JamCountdown";
 
 type JamState = ReturnType<typeof effectiveJamState>;

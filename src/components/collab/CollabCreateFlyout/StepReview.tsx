@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatRate } from "@/lib/format-rate";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";
 import { useWizardForm } from "./form-context";
-import { type AnyFormStore, CONTACT_TYPE_LABELS, POST_TYPES, formatCompensation } from "./shared";
+import { type AnyFormStore, CONTACT_TYPE_LABELS, POST_TYPES } from "./shared";
 
 /**
  * Step N — pre-flight checklist + compact post preview. Mirrors the
@@ -34,7 +35,7 @@ export function StepReview() {
     }
   }
 
-  const compDisplay = formatCompensation(v.compensationType, v.compensationMin, v.compensationMax);
+  const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
 
   const checks: { label: string; ok: boolean }[] = [

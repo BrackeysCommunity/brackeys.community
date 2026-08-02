@@ -9,9 +9,11 @@ import { Grainient } from "@/components/ui/grainient";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
+import { hostName, jamUrl } from "@/lib/jam-links";
+import { jamPaletteColors } from "@/lib/jam-palette";
 import { cn } from "@/lib/utils";
 
-import { type JamFromList, jamPaletteColors, jamUrl } from "./helpers";
+import type { JamFromList } from "./helpers";
 
 interface JamDetailModalProps {
   jam: JamFromList | null;
@@ -185,7 +187,7 @@ function ModalContent({
                 variant="secondary"
                 className="font-mono text-[10px] tracking-widest uppercase"
               >
-                {jam.hosts[0]?.name ?? "COMMUNITY"}
+                {hostName(jam)}
               </Badge>
               {jam.hashtag && (
                 <Text size="xs" variant="muted" className="tracking-widest uppercase">

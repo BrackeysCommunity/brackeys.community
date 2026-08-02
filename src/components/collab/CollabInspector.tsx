@@ -7,11 +7,11 @@ import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { type CollabPostType, setCollabFilters } from "@/lib/collab-store";
+import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { CollabPostDetail } from "./CollabPostDetail";
-import { profileLinkParams } from "./format";
 import { useCollabOpenCounts } from "./use-collab-counts";
 
 interface CollabInspectorProps {

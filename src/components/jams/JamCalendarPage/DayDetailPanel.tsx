@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
+import { hostName, jamUrl } from "@/lib/jam-links";
 
 import {
   type ChipKind,
@@ -14,7 +15,6 @@ import {
   jamPhase,
   jamSignal,
   type JamFromList,
-  jamUrl,
 } from "./helpers";
 
 interface DayDetailContentProps {
@@ -247,7 +247,7 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
           <Text size="xs" variant="muted" className="tracking-widest uppercase">
-            {jam.hosts[0]?.name ?? "COMMUNITY"}
+            {hostName(jam)}
             {jam.hashtag ? ` · ${jam.hashtag.toUpperCase()}` : ""}
           </Text>
         </div>

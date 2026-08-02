@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNowStrict } from "date-fns";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Text } from "@/components/ui/typography";
+import { timeAgo } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
 
 export type NotificationItem = {
@@ -124,7 +125,7 @@ export function NotificationRow({
         {n.actorAvatarUrl ? (
           <AvatarImage src={n.actorAvatarUrl} alt="" />
         ) : (
-          <AvatarFallback className="rounded-none bg-muted/40 font-mono text-[10px] font-bold">
+          <AvatarFallback className="rounded-none bg-muted/40 text-[10px] font-bold">
             {(n.actorUsername ?? "?")[0]?.toUpperCase()}
           </AvatarFallback>
         )}
@@ -133,9 +134,9 @@ export function NotificationRow({
         <p className={cn("leading-snug text-foreground/90", isComfortable ? "text-sm" : "text-xs")}>
           {line}
         </p>
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {formatDistanceToNowStrict(new Date(n.createdAt), { addSuffix: true })}
-        </span>
+        <Text size="xs" variant="muted">
+          {timeAgo(n.createdAt)}
+        </Text>
       </div>
       {!n.readAt && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
     </div>

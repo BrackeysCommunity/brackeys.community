@@ -12,19 +12,14 @@ import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
+import { UpcomingJamList } from "@/components/home/UpcomingJamList";
 import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Heading, Link, Text } from "@/components/ui/typography";
-import { Well } from "@/components/ui/well";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import useDateNow from "@/lib/hooks/use-date-now";
-import { durationDays, formatCountdown } from "@/lib/jam-countdown";
 
 const UPCOMING_LIMIT = 4;
-
-function jamUrl(slug: string) {
-  return `https://itch.io/jam/${slug}`;
-}
 
 export function MobileHome() {
   const now = useDateNow();
@@ -39,8 +34,7 @@ export function MobileHome() {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const { isLoading, featured, upcoming: upcomingAll, liveCount, upcomingCount } = useHomeJams(now);
-  const upcoming = upcomingAll.slice(0, UPCOMING_LIMIT);
+  const { isLoading, featured, upcoming, liveCount, upcomingCount } = useHomeJams(now);
 
   const navTiles: ShortcutTile[] = [
     {
@@ -112,71 +106,13 @@ export function MobileHome() {
 
         {/* Soonest upcoming */}
         <div ref={upcomingRef} className="scroll-mt-20">
-          <Well>
-            <div className="flex items-center gap-2 border-b border-muted/30 px-3 py-2">
-              <Text size="xs" variant="muted" className="tracking-widest uppercase">
-                ◆ Soonest Upcoming
-              </Text>
-            </div>
-            {isLoading ? (
-              <div className="h-40 animate-pulse" aria-hidden />
-            ) : upcoming.length === 0 ? (
-              <Text
-                as="div"
-                size="sm"
-                variant="muted"
-                align="center"
-                className="p-6 tracking-widest uppercase"
-              >
-                No upcoming jams
-              </Text>
-            ) : (
-              <ul className="divide-y divide-muted/20">
-                {upcoming.map((jam) => {
-                  const start = jam.startsAt ? new Date(jam.startsAt) : null;
-                  const counted = formatCountdown(jam.startsAt, nowDate);
-                  return (
-                    <li key={jam.jamId}>
-                      <Link
-                        href={jamUrl(jam.slug)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-3 py-3 transition-colors active:bg-muted/40"
-                      >
-                        <div className="w-10 shrink-0 text-center">
-                          <Text as="div" size="xs" variant="muted" className="tracking-widest">
-                            {start?.toLocaleString(undefined, { month: "short" }).toUpperCase() ??
-                              "TBA"}
-                          </Text>
-                          <Text as="div" bold density="dense" className="text-lg">
-                            {start?.getUTCDate() ?? "—"}
-                          </Text>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <Text as="div" bold ellipsis size="md">
-                            {jam.title}
-                          </Text>
-                          <Text
-                            as="div"
-                            size="xs"
-                            variant="muted"
-                            className="tracking-widest uppercase"
-                          >
-                            {jam.hosts[0]?.name ?? "COMMUNITY"}
-                            {durationDays(jam.startsAt, jam.endsAt) &&
-                              ` · ${durationDays(jam.startsAt, jam.endsAt)}`}
-                          </Text>
-                        </div>
-                        <Text size="xs" variant="muted" className="tracking-widest">
-                          {counted ? `in ${counted.text}` : ""}
-                        </Text>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Well>
+          <UpcomingJamList
+            jams={upcoming}
+            isLoading={isLoading}
+            now={nowDate}
+            limit={UPCOMING_LIMIT}
+            density="compact"
+          />
         </div>
       </section>
 

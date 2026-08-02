@@ -16,12 +16,12 @@ import { MediaCardImage } from "@/components/ui/media-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
 import { CollabPostResponseForm } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
-import { profileLinkParams } from "./format";
 
 const TYPE_LABELS: Record<string, string> = {
   paid: "PAID WORK",

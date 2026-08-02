@@ -17,6 +17,7 @@ import {
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { profileLinkParams } from "@/lib/profile-links";
 
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
@@ -32,7 +33,7 @@ export function UserMenu({ user }: UserMenuProps) {
   const { ref, position } = useMagnetic(0.2);
   const navigate = useNavigate();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
-  const profileSlug = activeProfile?.urlStub ?? user.id;
+  const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -82,11 +83,7 @@ export function UserMenu({ user }: UserMenuProps) {
           <DropdownMenuItem
             className="text-xs font-bold tracking-widest uppercase"
             render={
-              <Link
-                data-testid="view-public-link"
-                to="/profile/$userId"
-                params={{ userId: profileSlug }}
-              />
+              <Link data-testid="view-public-link" to="/profile/$userId" params={profileParams} />
             }
           >
             <HugeiconsIcon icon={Share01Icon} size={14} />

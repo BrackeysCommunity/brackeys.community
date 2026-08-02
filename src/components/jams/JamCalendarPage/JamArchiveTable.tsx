@@ -15,6 +15,7 @@ import {
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { durationDays } from "@/lib/jam-countdown";
+import { hostName } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import { ROW_CLOSE_TRANSITION } from "./board/transitions";
@@ -144,7 +145,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                   >
                     <TableCell className="max-w-64 truncate font-medium">{jam.title}</TableCell>
                     <TableCell className="hidden max-w-40 truncate text-muted-foreground md:table-cell">
-                      {jam.hosts[0]?.name ?? "—"}
+                      {hostName(jam, "—")}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
                       {formatArchiveDate(jam)}

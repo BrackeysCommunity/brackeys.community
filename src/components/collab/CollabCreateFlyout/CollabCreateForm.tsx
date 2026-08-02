@@ -5,13 +5,13 @@ import { useEffect, useState } from "react";
 
 import { Heading, Text } from "@/components/ui/typography";
 import { collabStore, resetWizard, setWizardStep, updateWizardDraft } from "@/lib/collab-store";
+import { formatRate } from "@/lib/format-rate";
 import { client } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";
 import { CollabCreateStepper } from "./CollabCreateStepper";
 import { WizardFormContext } from "./form-context";
 import {
-  formatCompensation,
   getStepValidationError,
   getWizardTabs,
   uploadCollabPostImage,
@@ -90,7 +90,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
         portfolioUrl = /^https?:\/\//.test(url) ? url : `https://${url}`;
       }
       const compensation =
-        formatCompensation(v.compensationType, v.compensationMin, v.compensationMax) || undefined;
+        formatRate(v.compensationType, v.compensationMin, v.compensationMax) || undefined;
 
       const post = await client.createPost({
         type: v.type!,

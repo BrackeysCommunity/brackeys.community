@@ -139,10 +139,6 @@ export function isSameMonth(a: Date, b: Date): boolean {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
 }
 
-export function jamUrl(slug: string): string {
-  return `https://itch.io/jam/${slug}`;
-}
-
 /**
  * Re-validates a scraped theme color before it is interpolated into an
  * inline `style` — the scraper already validates at ingest, but scraped
@@ -156,22 +152,6 @@ export function safeThemeColor(raw: string | null | undefined): string | null {
     /^#[0-9a-fA-F]{8}$/.test(raw) ||
     /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)$/.test(raw);
   return ok ? raw : null;
-}
-
-/**
- * Deterministic two-color palette pick keyed by jam id. Both the
- * timeline row's Grainient backdrop and the spotlight modal's banner
- * call this so a jam without an image keeps the same colorway across
- * the shared-layout morph (a random pick would re-roll on the modal
- * mount and cross-fade through a different palette mid-animation).
- */
-export function jamPaletteColors(palette: string[], jamId: number): [string, string] {
-  if (palette.length === 0) return ["#444444", "#222222"];
-  if (palette.length === 1) return [palette[0]!, palette[0]!];
-  const a = Math.abs(jamId) % palette.length;
-  let b = Math.abs(jamId * 1103515245 + 12345) % palette.length;
-  if (b === a) b = (b + 1) % palette.length;
-  return [palette[a]!, palette[b]!];
 }
 
 /** Per-day index of which jams kick off, hit a submission deadline, or

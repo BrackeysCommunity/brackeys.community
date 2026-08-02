@@ -1,3 +1,5 @@
+import { formatRate } from "@/lib/format-rate";
+
 import type {
   EditableProject,
   ProfileBadge,
@@ -208,7 +210,10 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     availability: {
       state: profile.availableForWork ? "open" : "closed",
       commitment: profile.availability,
-      rate: formatRate(profile.rateType, profile.rateMin, profile.rateMax),
+      rate:
+        formatRate(profile.rateType, profile.rateMin, profile.rateMax, {
+          negotiableLabel: "Negotiable",
+        }) || null,
       responseTime: null,
       timezone: null,
     },
@@ -298,13 +303,6 @@ function deriveProjectsLabel(projects: ProfileProject[]): string {
       .slice(0, 2)
       .join(" & ") || "—"
   );
-}
-
-function formatRate(type: string | null, min: number | null, max: number | null): string | null {
-  if (!type && min == null && max == null) return null;
-  if (min != null && max != null) return `$${min}–$${max} ${type ?? ""}`.trim();
-  if (min != null) return `$${min}${type ? ` ${type}` : ""}`;
-  return type;
 }
 
 function formatJamPlacement(result: string): string {

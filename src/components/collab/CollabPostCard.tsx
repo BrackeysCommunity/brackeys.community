@@ -12,9 +12,8 @@ import {
 } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { timeAgo } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
-
-import { timeAgo } from "./format";
 
 interface CollabPostCardPost {
   id: number;
