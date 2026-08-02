@@ -3,7 +3,6 @@ import {
   ComputerTerminal01Icon,
   FireIcon,
   PaintBucketIcon,
-  ToolsIcon,
 } from "@hugeicons/core-free-icons";
 import { useRef } from "react";
 
@@ -68,7 +67,6 @@ export function MobileHome() {
       icon: ComputerTerminal01Icon,
       onClick: () => openPalette(true),
     },
-    { label: "TOOLS", stat: "9", icon: ToolsIcon },
   ];
 
   return (
@@ -103,14 +101,7 @@ export function MobileHome() {
               JAMS
             </Heading>
           </div>
-          <Link
-            href="https://itch.io/jams"
-            target="_blank"
-            rel="noopener noreferrer"
-            bold
-            variant="muted"
-            className="text-[11px] tracking-widest"
-          >
+          <Link as="router" to="/jams" bold variant="muted" className="text-[11px] tracking-widest">
             FULL ▸
           </Link>
         </header>

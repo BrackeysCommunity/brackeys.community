@@ -1,7 +1,7 @@
 import {
   Calendar03Icon,
   ComputerTerminal01Icon,
-  Shield01Icon,
+  Home01Icon,
   UserGroupIcon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
@@ -207,7 +207,7 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         className="w-full max-w-md"
       >
         <SegmentedControl.Item value="home" aria-label="Home" className={cn(SEG, "rounded-l-md")}>
-          <TabBody icon={Shield01Icon} label="HOME" />
+          <TabBody icon={Home01Icon} label="HOME" />
         </SegmentedControl.Item>
         <SegmentedControl.Item value="jams" aria-label="Jams" className={SEG}>
           <TabBody icon={Calendar03Icon} label="JAMS" />

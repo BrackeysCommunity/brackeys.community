@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { FeaturedJamCarousel } from "@/components/home/FeaturedJamCarousel";
 import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Chonk } from "@/components/ui/chonk";
+import { Link } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { durationDays, effectiveJamState, formatCountdown } from "@/lib/jam-countdown";
@@ -34,14 +35,7 @@ export function JamsLandingSection() {
         <Chonk
           variant="surface"
           size="sm"
-          render={
-            <a
-              href="https://itch.io/jams"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Full calendar"
-            />
-          }
+          render={<Link as="router" to="/jams" aria-label="Full calendar" />}
           className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold tracking-widest text-muted-foreground hover:text-primary"
         >
           <HugeiconsIcon icon={Calendar03Icon} size={14} />
@@ -56,14 +50,9 @@ export function JamsLandingSection() {
         <Well>
           <div className="flex items-center justify-between gap-2 border-b border-muted/30 px-3 py-2 text-[10px] tracking-widest text-muted-foreground uppercase">
             <span>◆ Soonest Upcoming</span>
-            <a
-              href="https://itch.io/jams"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-primary"
-            >
+            <Link as="router" to="/jams" variant="inherit" className="hover:text-primary">
               View all
-            </a>
+            </Link>
           </div>
           {isLoading ? (
             <div className="h-64 animate-pulse" aria-hidden />
