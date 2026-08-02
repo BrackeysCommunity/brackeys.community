@@ -5,7 +5,6 @@ import { animate, motion, useMotionValue } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CommandEntryData } from "@/components/home/CommandEntry";
-import { buildCopyText } from "@/components/home/CommandRow";
 import { CommandTerminal } from "@/components/home/CommandTerminal";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NodeCard } from "@/components/home/NodeCard";
@@ -14,6 +13,7 @@ import { Hotkey } from "@/components/ui/hotkey";
 import { hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
 import type { BotId } from "@/data/commands";
 import { activeUserStore } from "@/lib/active-user-store";
+import { buildCopyText } from "@/lib/command-copy";
 import { cn } from "@/lib/utils";
 
 type ActiveBot = "all" | BotId;

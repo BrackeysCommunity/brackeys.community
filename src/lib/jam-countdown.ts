@@ -31,7 +31,10 @@ export function formatJamShortDates(startsAt: Date | string | null, endsAt: Date
   // UTC on both halves: the day numbers below are UTC, so a local month
   // label could name the wrong month for them near a boundary.
   const month = s.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
-  const sameMonth = s.getUTCMonth() === e.getUTCMonth();
+  // Year matters: a jam running Sep 2026 → Sep 2027 is not a same-month
+  // span, and collapsing it would render "Sep 11-21" for a year-long event.
+  const sameMonth =
+    s.getUTCMonth() === e.getUTCMonth() && s.getUTCFullYear() === e.getUTCFullYear();
   if (sameMonth) return `${month} ${s.getUTCDate()}-${e.getUTCDate()}`;
   const monthEnd = e.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
   return `${month} ${s.getUTCDate()} – ${monthEnd} ${e.getUTCDate()}`;

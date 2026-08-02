@@ -49,7 +49,7 @@ function StandingBadge({ badge }: { badge: ProfileBadge }) {
     badge.variant === "online" ? "success" : badge.variant === "winner" ? "warning" : "secondary";
   const glyph = badge.variant === "online" ? "●" : badge.variant === "winner" ? "♛" : "■";
   return (
-    <Badge variant={variant} className="font-mono text-[10px] tracking-widest uppercase">
+    <Badge variant={variant} size="label" className="uppercase">
       <span aria-hidden className="mr-1">
         {glyph}
       </span>

@@ -307,10 +307,7 @@ function ProjectCard({
           </GradientBanner>
         )}
         {project.jamPlacement ? (
-          <Badge
-            variant="warning"
-            className="absolute top-2 right-2 z-10 font-mono text-[10px] tracking-widest uppercase"
-          >
+          <Badge variant="warning" size="label" className="absolute top-2 right-2 z-10 uppercase">
             {project.jamPlacement}
           </Badge>
         ) : null}
@@ -342,11 +339,7 @@ function ProjectCard({
       {project.tags.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {project.tags.map((tag) => (
-            <Badge
-              key={tag}
-              variant="outline"
-              className="font-mono text-[10px] tracking-widest uppercase"
-            >
+            <Badge key={tag} variant="outline" size="label" className="uppercase">
               {tag}
             </Badge>
           ))}

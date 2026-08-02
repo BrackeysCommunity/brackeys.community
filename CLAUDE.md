@@ -93,17 +93,21 @@ Reach for these before writing a new helper or a raw utility-class string.
 Duplicates of each of these existed in 3–5 places until they were
 consolidated; new copies undo that.
 
-| Need                                                     | Use                                                                       | Not                                         |
-| -------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------- |
-| Micro-label voice (`text-[10px] tracking-widest`, muted) | `Text` from `@/components/ui/typography` (`size="xs" variant="muted"`)    | a raw className string                      |
-| Loading placeholder                                      | `Skeleton` from `@/components/ui/skeleton`                                | a hand-rolled `animate-pulse` div           |
-| Avatar with initial fallback                             | `Avatar` / `AvatarImage` / `AvatarFallback` from `@/components/ui/avatar` | an inline `avatarUrl ? <img> : <div>`       |
-| Compensation / rate strings                              | `formatRate` from `@/lib/format-rate`                                     | a local `$K` formatter                      |
-| Past relative time ("3h ago")                            | `timeAgo` from `@/lib/format-time`                                        | `date-fns`                                  |
-| Future countdowns                                        | `formatCountdown` / `formatRelativeMs` from `@/lib/jam-countdown`         | re-deriving d/h/m                           |
-| Jam permalink, host name, date block                     | `jamUrl` / `hostName` / `jamMonthDay` from `@/lib/jam-links`              | an inline template or `hosts[0]?.name ?? …` |
-| Jam fallback colors                                      | `@/lib/jam-palette`                                                       | a local random pick                         |
-| `/profile/$userId` links                                 | `profileSlug` / `profileLinkParams` from `@/lib/profile-links`            | `urlStub ?? id` inline                      |
+| Need                                                        | Use                                                                                | Not                                         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| Micro-label voice (`font-mono text-[10px] tracking-widest`) | `MicroLabel` from `@/components/ui/typography`, or `Badge size="label"`            | a raw className string                      |
+| Loading placeholder                                         | `Skeleton` from `@/components/ui/skeleton`                                         | a hand-rolled `animate-pulse` div           |
+| Avatar with initial fallback                                | `UserAvatar` from `@/components/ui/user-avatar` (wraps the `ui/avatar` primitives) | an inline `avatarUrl ? <img> : <div>`       |
+| Compensation / rate strings                                 | `formatRate` from `@/lib/format-rate`                                              | a local `$K` formatter                      |
+| Past relative time ("3h ago")                               | `timeAgo` from `@/lib/format-time`                                                 | `date-fns`                                  |
+| Future countdowns                                           | `formatCountdown` / `formatRelativeMs` from `@/lib/jam-countdown`                  | re-deriving d/h/m                           |
+| Jam permalink, host name, date block                        | `jamUrl` / `hostName` / `jamMonthDay` from `@/lib/jam-links`                       | an inline template or `hosts[0]?.name ?? …` |
+| Jam fallback colors                                         | `@/lib/jam-palette`                                                                | a local random pick                         |
+| `/profile/$userId` links                                    | `profileSlug` / `profileLinkParams` from `@/lib/profile-links`                     | `urlStub ?? id` inline                      |
+
+**Monospace:** `font-mono` is reserved for the command-center surfaces,
+`Badge size="label"`, and `MicroLabel`. Everything else uses the sans and
+display faces — don't reintroduce it on headings, body copy, or links.
 
 **Dates:** jam dates are UTC everywhere. Any `toLocaleString` on a jam date
 passes `timeZone: "UTC"` — pairing a local month label with a

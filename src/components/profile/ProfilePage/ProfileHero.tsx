@@ -163,10 +163,7 @@ function AvailabilityPill({ availability }: { availability: ProfileAvailability 
   if (availability.state === "closed") return null;
   const open = availability.state === "open";
   return (
-    <Badge
-      variant={open ? "success" : "warning"}
-      className="gap-1.5 font-mono text-[10px] tracking-widest uppercase"
-    >
+    <Badge variant={open ? "success" : "warning"} size="label" className="gap-1.5 uppercase">
       <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
       {open ? "Available for work" : "Selectively open"}
     </Badge>

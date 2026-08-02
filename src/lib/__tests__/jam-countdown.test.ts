@@ -109,6 +109,16 @@ describe("formatJamShortDates", () => {
     expect(result).toMatch(/^[A-Za-z]+ 14 – [A-Za-z]+ 9$/);
   });
 
+  it("does not collapse a span that lands in the same month a year apart", () => {
+    // Perpetual "jams" (year-long communities) are common in the scrape;
+    // collapsing these read as a ten-day event.
+    const result = formatJamShortDates(
+      new Date("2026-09-11T00:00:00Z"),
+      new Date("2027-09-21T00:00:00Z"),
+    );
+    expect(result).toMatch(/^[A-Za-z]+ 11 – [A-Za-z]+ 21$/);
+  });
+
   it("labels the month in UTC, matching the UTC day numbers beside it", () => {
     // Regression: the month label used the viewer's local timezone while
     // the day numbers used getUTCDate(). West of UTC, 2026-05-01T02:00Z is

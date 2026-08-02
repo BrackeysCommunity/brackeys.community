@@ -113,7 +113,7 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
             {entry.title}
           </Text>
           {entry.pill ? (
-            <Badge variant="warning" className="font-mono text-[10px] tracking-widest uppercase">
+            <Badge variant="warning" size="label" className="uppercase">
               ⚐ {entry.pill}
             </Badge>
           ) : null}

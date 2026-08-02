@@ -4,7 +4,29 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { itchJams } from "@/db/schema";
-import type { JamEntry } from "@/lib/jam-store";
+
+/** A single itch.io jam submission, as returned by the jam entries feed. */
+export type JamEntry = {
+  created_at: string;
+  rating_count: number;
+  url: string;
+  game: {
+    cover_color?: string;
+    platforms: string[];
+    short_text?: string | null;
+    cover: string;
+    url: string;
+    user: {
+      url: string;
+      name: string;
+      id: number;
+    };
+    title: string;
+    id: number;
+  };
+  coolness: number;
+  id: number;
+};
 
 // Feb 22, 2026 at 5:00 AM CST = 11:00 AM UTC
 const JAM_DEADLINE = new Date("2026-02-22T11:00:00Z");

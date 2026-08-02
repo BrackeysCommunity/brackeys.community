@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MicroLabel } from "@/components/ui/typography";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import type { ContributionDay } from "@/lib/github";
 import { cn } from "@/lib/utils";
@@ -614,9 +615,9 @@ function SnakeFullscreenOverlay({
             <span className="font-mono text-[11px] font-bold tracking-widest text-success uppercase">
               Snake
             </span>
-            <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+            <MicroLabel as="span" className="uppercase">
               {totalContributions.toLocaleString()} contributions
-            </span>
+            </MicroLabel>
           </div>
           <Button
             variant="outline"
@@ -791,9 +792,9 @@ function SnakeDesktopModal({
             <div className="flex items-start justify-between gap-3 border-b border-muted/40 px-5 py-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-mono text-xs font-bold tracking-widest uppercase">Snake</span>
-                <span className="font-mono text-[10px] tracking-widest text-muted-foreground/70 uppercase">
+                <MicroLabel as="span" className="text-muted-foreground/70 uppercase">
                   Arrow keys or WASD · ESC to exit
-                </span>
+                </MicroLabel>
               </div>
               <button
                 type="button"

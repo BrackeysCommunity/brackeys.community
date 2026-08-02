@@ -15,10 +15,12 @@ vi.mock("@hugeicons/react", () => ({
   HugeiconsIcon: ({ icon }: { icon: string }) => <span data-testid={`icon-${icon}`} />,
 }));
 
+// Mirrors the component's icon imports — a missing key throws at render
+// rather than failing an assertion, so keep this in sync when icons change.
 vi.mock("@hugeicons/core-free-icons", () => ({
   Calendar03Icon: "calendar",
   ComputerTerminal01Icon: "terminal",
-  Shield01Icon: "shield",
+  Home01Icon: "home",
   UserGroupIcon: "user-group",
   UserIcon: "user",
 }));

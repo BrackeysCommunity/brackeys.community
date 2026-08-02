@@ -142,28 +142,26 @@ export function CollabPostDetail({
               </>
             ) : null}
             {post?.type ? (
-              <Badge
-                variant="secondary"
-                className="font-mono text-[10px] tracking-widest uppercase"
-              >
+              <Badge variant="secondary" size="label" className="uppercase">
                 {TYPE_LABELS[post.type] ?? post.type}
               </Badge>
             ) : null}
             {post?.featuredAt ? (
-              <Badge variant="warning" className="font-mono text-[10px] tracking-widest uppercase">
+              <Badge variant="warning" size="label" className="uppercase">
                 Featured
               </Badge>
             ) : null}
             {post ? (
               <Badge
                 variant={isClosed ? "destructive" : "success"}
-                className="font-mono text-[10px] tracking-widest uppercase"
+                size="label"
+                className="uppercase"
               >
                 {isClosed ? "Closed" : "Open"}
               </Badge>
             ) : null}
             {post?.isIndividual ? (
-              <Badge variant="outline" className="font-mono text-[10px] tracking-widest uppercase">
+              <Badge variant="outline" size="label" className="uppercase">
                 Individual
               </Badge>
             ) : null}
@@ -265,11 +263,7 @@ export function CollabPostDetail({
                 </Text>
                 <div className="flex flex-wrap gap-1.5">
                   {feedbackTypes.map((ft) => (
-                    <Badge
-                      key={ft}
-                      variant="outline"
-                      className="font-mono text-[10px] tracking-widest uppercase"
-                    >
+                    <Badge key={ft} variant="outline" size="label" className="uppercase">
                       {ft}
                     </Badge>
                   ))}
@@ -284,11 +278,7 @@ export function CollabPostDetail({
                 </Text>
                 <div className="flex flex-wrap gap-1.5">
                   {post.roles.map((r) => (
-                    <Badge
-                      key={r.id}
-                      variant="secondary"
-                      className="font-mono text-[10px] tracking-widest uppercase"
-                    >
+                    <Badge key={r.id} variant="secondary" size="label" className="uppercase">
                       {r.name}
                     </Badge>
                   ))}
@@ -383,9 +373,16 @@ export function CollabPostDetail({
                 username={post.author.discordUsername}
                 size={24}
               />
-              <span className="truncate font-mono text-xs tracking-widest text-muted-foreground uppercase group-hover:text-primary group-hover:underline">
+              <Text
+                as="span"
+                monospace
+                size="sm"
+                variant="muted"
+                ellipsis
+                className="tracking-widest uppercase group-hover:text-primary group-hover:underline"
+              >
                 @{post.author.discordUsername ?? "unknown"}
-              </span>
+              </Text>
             </Link>
           ) : (
             <Text size="xs" variant="muted" className="tracking-widest uppercase">

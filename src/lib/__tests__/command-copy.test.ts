@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { BotCommand } from "@/data/commands";
-
-import { buildCopyText } from "../CommandRow";
+import { buildCopyText } from "@/lib/command-copy";
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 

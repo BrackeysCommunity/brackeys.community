@@ -79,18 +79,12 @@ export function StepReview() {
               </Text>
               <div className="flex flex-wrap gap-1.5">
                 {v.type ? (
-                  <Badge
-                    variant="secondary"
-                    className="font-mono text-[10px] tracking-widest uppercase"
-                  >
+                  <Badge variant="secondary" size="label" className="uppercase">
                     {v.type}
                   </Badge>
                 ) : null}
                 {v.isIndividual ? (
-                  <Badge
-                    variant="outline"
-                    className="font-mono text-[10px] tracking-widest uppercase"
-                  >
+                  <Badge variant="outline" size="label" className="uppercase">
                     Individual
                   </Badge>
                 ) : null}
@@ -163,7 +157,7 @@ export function StepReview() {
             </Text>
           ) : (
             selectedRoles.map((r) => (
-              <Badge key={r.id} variant="secondary" className="font-mono tracking-widest uppercase">
+              <Badge key={r.id} variant="secondary" size="label" className="uppercase">
                 {r.name}
               </Badge>
             ))
@@ -175,7 +169,7 @@ export function StepReview() {
         <FieldRow label="FEEDBACK TYPES">
           <div className="flex flex-wrap gap-1.5">
             {feedbackTypes.map((ft) => (
-              <Badge key={ft} variant="secondary" className="font-mono tracking-widest uppercase">
+              <Badge key={ft} variant="secondary" size="label" className="uppercase">
                 {ft}
               </Badge>
             ))}
