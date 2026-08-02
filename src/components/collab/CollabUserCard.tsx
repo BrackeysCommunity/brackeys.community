@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
@@ -48,11 +49,7 @@ export function CollabUserCard({ user, skills }: CollabUserCardProps) {
         className="flex flex-col gap-2 p-3 transition-colors hover:bg-muted/10"
       >
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : null}
-          </div>
+          <UserAvatar avatarUrl={user.avatarUrl} username={user.discordUsername} size={36} />
           <div className="flex min-w-0 flex-1 flex-col">
             <Text as="span" size="sm" bold className="truncate text-foreground">
               {user.discordUsername ?? "Unknown"}
@@ -71,24 +68,17 @@ export function CollabUserCard({ user, skills }: CollabUserCardProps) {
 
         <div className="flex flex-wrap items-center gap-1">
           {user.availability ? (
-            <Badge variant="outline" className="font-mono text-[10px] tracking-widest">
+            <Badge variant="outline" size="label">
               {AVAILABILITY_LABELS[user.availability] ?? user.availability}
             </Badge>
           ) : null}
           {user.rateType ? (
-            <Badge
-              variant={user.rateType === "negotiable" ? "warning" : "success"}
-              className="font-mono text-[10px] tracking-widest"
-            >
+            <Badge variant={user.rateType === "negotiable" ? "warning" : "success"} size="label">
               {rate || (RATE_TYPE_LABELS[user.rateType] ?? user.rateType)}
             </Badge>
           ) : null}
           {(skills ?? []).slice(0, 3).map((skill) => (
-            <Badge
-              key={skill.skillId}
-              variant="outline"
-              className="font-mono text-[10px] tracking-widest uppercase"
-            >
+            <Badge key={skill.skillId} variant="outline" size="label" className="uppercase">
               {skill.name}
             </Badge>
           ))}

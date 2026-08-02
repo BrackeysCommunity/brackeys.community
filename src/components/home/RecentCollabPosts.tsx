@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { Chonk } from "@/components/ui/chonk";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { client } from "@/orpc/client";
@@ -86,8 +87,8 @@ export function RecentCollabPosts() {
       <div className="grid gap-3 md:grid-cols-3">
         {isLoading ? (
           Array.from({ length: POST_LIMIT }).map((_, i) => (
-            <Well key={i} className="h-36 animate-pulse" aria-hidden>
-              <span />
+            <Well key={i} className="p-0" aria-hidden>
+              <Skeleton className="h-36 w-full bg-muted/50" />
             </Well>
           ))
         ) : posts.length === 0 ? (

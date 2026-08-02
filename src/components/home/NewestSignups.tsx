@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { client } from "@/orpc/client";
@@ -56,8 +57,8 @@ export function NewestSignups() {
       <div className="grid gap-3 md:grid-cols-3">
         {isLoading ? (
           Array.from({ length: SIGNUP_LIMIT }).map((_, i) => (
-            <Well key={i} className="h-20 animate-pulse" aria-hidden>
-              <span />
+            <Well key={i} className="p-0" aria-hidden>
+              <Skeleton className="h-20 w-full bg-muted/50" />
             </Well>
           ))
         ) : users.length === 0 ? (

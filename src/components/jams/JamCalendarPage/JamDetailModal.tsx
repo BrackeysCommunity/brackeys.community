@@ -183,10 +183,7 @@ function ModalContent({
         >
           <div className="flex flex-col gap-3 px-5 pt-4 pb-5">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="font-mono text-[10px] tracking-widest uppercase"
-              >
+              <Badge variant="secondary" size="label" className="uppercase">
                 {hostName(jam)}
               </Badge>
               {jam.hashtag && (

@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { type CollabPostType, setCollabFilters } from "@/lib/collab-store";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -158,11 +159,11 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
                     params={profileLinkParams(user)}
                     className="group flex items-center gap-3 border border-muted/40 p-2.5 transition-colors hover:border-primary/50 hover:bg-muted/10"
                   >
-                    <span className="h-8 w-8 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
-                      {user.avatarUrl ? (
-                        <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
-                      ) : null}
-                    </span>
+                    <UserAvatar
+                      avatarUrl={user.avatarUrl}
+                      username={user.discordUsername}
+                      size={32}
+                    />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <Text as="span" size="sm" bold className="truncate text-foreground">
                         {user.discordUsername ?? "Unknown"}

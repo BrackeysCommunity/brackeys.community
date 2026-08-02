@@ -1,7 +1,9 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState } from "@/lib/jam-countdown";
+import { cn } from "@/lib/utils";
 
 import { type Density, type JamLike } from "./helpers";
 import { JamBanner } from "./JamBanner";
@@ -37,8 +39,8 @@ export function FeaturedJamCarousel({
   if (isLoading) {
     return (
       <Well>
-        <div
-          className={density === "compact" ? "h-64 animate-pulse" : "h-72 animate-pulse"}
+        <Skeleton
+          className={cn("w-full bg-muted/50", density === "compact" ? "h-64" : "h-72")}
           aria-hidden
         />
       </Well>

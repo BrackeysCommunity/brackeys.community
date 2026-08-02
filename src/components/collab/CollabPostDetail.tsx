@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
@@ -377,11 +378,11 @@ export function CollabPostDetail({
               params={profileLinkParams(post.author)}
               className="group flex min-w-0 items-center gap-2"
             >
-              <span className="h-6 w-6 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
-                {post.author.avatarUrl ? (
-                  <img src={post.author.avatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : null}
-              </span>
+              <UserAvatar
+                avatarUrl={post.author.avatarUrl}
+                username={post.author.discordUsername}
+                size={24}
+              />
               <span className="truncate font-mono text-xs tracking-widest text-muted-foreground uppercase group-hover:text-primary group-hover:underline">
                 @{post.author.discordUsername ?? "unknown"}
               </span>

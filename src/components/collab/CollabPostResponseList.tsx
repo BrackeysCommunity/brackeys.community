@@ -2,10 +2,10 @@ import { LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { client, orpc } from "@/orpc/client";
 
@@ -54,15 +54,11 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
         <Well key={resp.id} className="gap-2 p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <Avatar className="h-6 w-6 rounded-none border border-muted/40">
-                {resp.responderAvatar ? (
-                  <AvatarImage src={resp.responderAvatar} alt="" />
-                ) : (
-                  <AvatarFallback className="rounded-none bg-muted/40 font-mono text-[10px] font-bold">
-                    {(resp.responderUsername ?? "?")[0]?.toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </Avatar>
+              <UserAvatar
+                avatarUrl={resp.responderAvatar}
+                username={resp.responderUsername}
+                size={24}
+              />
               <Text size="xs" className="truncate">
                 {resp.responderUsername
                   ? `@${resp.responderUsername}`
@@ -71,7 +67,8 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
             </div>
             <Badge
               variant={STATUS_VARIANT[resp.status] ?? "outline"}
-              className="font-mono text-[10px] tracking-widest uppercase"
+              size="label"
+              className="uppercase"
             >
               {resp.status}
             </Badge>

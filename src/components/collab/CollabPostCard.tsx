@@ -105,21 +105,21 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
 
             <span className="flex flex-wrap items-center gap-1">
               {post.featuredAt ? (
-                <Badge variant="warning" className="gap-1 font-mono text-[10px] tracking-widest">
+                <Badge variant="warning" size="label" className="gap-1">
                   <HugeiconsIcon icon={StarIcon} size={10} />
                   FEATURED
                 </Badge>
               ) : null}
-              <Badge variant="secondary" className="font-mono text-[10px] tracking-widest">
+              <Badge variant="secondary" size="label">
                 {TYPE_LABELS[post.type] ?? post.type}
               </Badge>
               {post.compensationType ? (
-                <Badge variant="success" className="font-mono text-[10px] tracking-widest">
+                <Badge variant="success" size="label">
                   {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
                 </Badge>
               ) : null}
               {isClosed ? (
-                <Badge variant="destructive" className="font-mono text-[10px] tracking-widest">
+                <Badge variant="destructive" size="label">
                   CLOSED
                 </Badge>
               ) : null}
@@ -193,18 +193,18 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
 
           <span className="flex flex-wrap items-center gap-1">
             {post.featuredAt ? (
-              <Badge variant="warning" className="gap-1 font-mono text-[10px] tracking-widest">
+              <Badge variant="warning" size="label" className="gap-1">
                 <HugeiconsIcon icon={StarIcon} size={10} />
                 FEATURED
               </Badge>
             ) : null}
             {post.compensationType ? (
-              <Badge variant="success" className="font-mono text-[10px] tracking-widest">
+              <Badge variant="success" size="label">
                 {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
               </Badge>
             ) : null}
             {isClosed ? (
-              <Badge variant="destructive" className="font-mono text-[10px] tracking-widest">
+              <Badge variant="destructive" size="label">
                 CLOSED
               </Badge>
             ) : null}

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
 
@@ -116,20 +116,11 @@ export function NotificationRow({
         !n.readAt && "bg-primary/5",
       )}
     >
-      <Avatar
-        className={cn(
-          "shrink-0 rounded-none border border-muted/40",
-          isComfortable ? "h-9 w-9" : "h-7 w-7",
-        )}
-      >
-        {n.actorAvatarUrl ? (
-          <AvatarImage src={n.actorAvatarUrl} alt="" />
-        ) : (
-          <AvatarFallback className="rounded-none bg-muted/40 text-[10px] font-bold">
-            {(n.actorUsername ?? "?")[0]?.toUpperCase()}
-          </AvatarFallback>
-        )}
-      </Avatar>
+      <UserAvatar
+        avatarUrl={n.actorAvatarUrl}
+        username={n.actorUsername}
+        size={isComfortable ? 36 : 28}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className={cn("leading-snug text-foreground/90", isComfortable ? "text-sm" : "text-xs")}>
           {line}

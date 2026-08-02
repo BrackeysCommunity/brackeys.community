@@ -25,9 +25,17 @@ const badgeVariants = cva(
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      size: {
+        default: "",
+        /** The house micro-label voice. Spelled raw at ~40 call sites
+         * before this variant existed, so restyling labels meant a
+         * many-file diff. */
+        label: "font-mono text-[10px] tracking-widest",
+      },
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   },
 );
@@ -50,7 +58,7 @@ type BadgeProps = useRender.ComponentProps<"span"> &
     notchOpts?: NotchOpts | true;
   };
 
-function Badge({ className, variant = "default", notchOpts, render, ...props }: BadgeProps) {
+function Badge({ className, variant = "default", size, notchOpts, render, ...props }: BadgeProps) {
   const hasEmboss = variant !== "ghost" && variant !== "link";
 
   const badge = useRender({
@@ -58,7 +66,7 @@ function Badge({ className, variant = "default", notchOpts, render, ...props }: 
     props: mergeProps<"span">(
       {
         className: cn(
-          badgeVariants({ variant }),
+          badgeVariants({ variant, size }),
           hasEmboss && staticEmbossOverride,
           notchOpts && "!translate-y-0 !transform-none !border-0 !shadow-none",
           className,
