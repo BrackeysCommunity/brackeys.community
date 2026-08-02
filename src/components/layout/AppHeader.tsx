@@ -183,20 +183,22 @@ export function AppHeader() {
           )}
           <Button
             variant="outline"
-            size="sm"
+            size="icon-lg"
+            aria-label="Open command palette"
             onClick={() => openPalette(true)}
-            className="h-9 w-9 border-muted p-0 font-mono text-xs text-muted-foreground hover:border-primary hover:text-primary"
+            className="font-mono text-muted-foreground"
           >
             <HugeiconsIcon icon={ComputerTerminal01Icon} size={16} />
           </Button>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="icon-lg"
             data-testid="mobile-menu-toggle"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex h-9 w-9 items-center justify-center border border-muted bg-card/40 text-foreground transition-colors hover:border-primary hover:text-primary"
           >
             <HugeiconsIcon icon={mobileMenuOpen ? Cancel01Icon : Menu01Icon} size={18} />
-          </button>
+          </Button>
         </div>
       </header>
 

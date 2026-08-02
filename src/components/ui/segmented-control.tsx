@@ -31,7 +31,7 @@ const itemVariants = cva(
         xs: "h-6 min-w-6 px-2 text-[11px] [--chonk-lift-hover:2px] [--chonk-lift:1px]",
         sm: "h-7 min-w-7 px-2.5 text-xs",
         md: "h-8 min-w-8 px-3 text-xs",
-        lg: "h-14 min-w-14 px-3 text-xs [--chonk-lift-hover:4px] [--chonk-lift:3px] [&_svg:not([class*='size-'])]:size-[18px]",
+        lg: "h-16 min-w-16 px-3 text-xs [--chonk-lift-hover:4px] [--chonk-lift:3px] [&_svg:not([class*='size-'])]:size-5",
       },
       priority: {
         default: [

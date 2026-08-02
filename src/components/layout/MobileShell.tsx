@@ -5,16 +5,15 @@ import { useState } from "react";
 
 import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 
 // Header h-14 (3.5rem) + iOS notch / Android status bar.
 const HEADER_HEIGHT = "calc(3.5rem + env(safe-area-inset-top))";
-// Bottom nav island: 5 cells @ h-14 (3.5rem buttons) + 0.75rem outer padding
+// Bottom nav island: 5 cells @ h-16 (4rem buttons) + 0.75rem outer padding
 // + safe-area-inset-bottom. Plus a ~1rem visual buffer above the island so the
 // last bit of scrollable content doesn't sit flush against the nav.
-const BOTTOM_NAV_HEIGHT = "calc(5.5rem + env(safe-area-inset-bottom))";
+const BOTTOM_NAV_HEIGHT = "calc(6rem + env(safe-area-inset-bottom))";
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const { data: session } = authClient.useSession();
@@ -31,9 +30,9 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           height: HEADER_HEIGHT,
         }}
       >
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-1.5">
           <div
-            className="h-6 w-6"
+            className="h-7 w-7"
             style={{
               maskImage: "url(/brackeys-logo.svg)",
               maskSize: "contain",
@@ -47,7 +46,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
                 "linear-gradient(135deg, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple))",
             }}
           />
-          <span className="font-mono text-sm leading-none font-bold text-foreground">
+          <span className="font-mono text-base leading-none font-bold text-foreground">
             Brackeys
             <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
               Community
@@ -56,18 +55,15 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         {session?.user ? (
-          <div className="flex items-center gap-2">
-            <NotificationBell />
-            <Button
-              variant="outline"
-              size="icon-sm"
-              aria-label="Settings"
-              onClick={() => setSettingsOpen(true)}
-              className="font-mono"
-            >
-              <HugeiconsIcon icon={Settings02Icon} size={14} />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+            className="font-mono"
+          >
+            <HugeiconsIcon icon={Settings02Icon} size={16} />
+          </Button>
         ) : (
           <Button
             variant="default"
@@ -91,7 +87,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         }}
       >
         <div
-          className="flex w-full flex-col px-4 pt-16 selection:bg-primary selection:text-white"
+          className="flex w-full flex-col px-4 pt-4 selection:bg-primary selection:text-white"
           style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT} + 1rem)` }}
         >
           {children}

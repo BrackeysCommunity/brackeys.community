@@ -8,6 +8,7 @@ import {
   NotificationRow,
   type NotificationItem,
 } from "@/components/notifications/notification-utils";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { client, orpc } from "@/orpc/client";
 
@@ -73,11 +74,10 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        type="button"
         aria-label={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
-        className="relative flex h-9 w-9 items-center justify-center border border-muted bg-card/40 text-foreground transition-colors hover:border-primary hover:text-primary"
+        render={<Button variant="outline" size="icon-sm" className="relative font-mono" />}
       >
-        <HugeiconsIcon icon={Notification03Icon} size={16} />
+        <HugeiconsIcon icon={Notification03Icon} size={14} />
         {count > 0 && (
           <span
             data-testid="notification-bell-badge"
