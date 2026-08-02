@@ -29,7 +29,7 @@ export const Overview: Story = {
     return (
       <>
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Imports
           </Heading>
           <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -49,7 +49,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Wrapper Usage
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -94,7 +94,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Imperative API
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -147,7 +147,7 @@ if (confirmed) await deleteProject();`}
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Async Confirmation
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -172,7 +172,7 @@ if (confirmed) await deleteProject();`}
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Bypass Mode
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -199,7 +199,7 @@ if (confirmed) await deleteProject();`}
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Custom Labels
           </Heading>
           <div className="flex flex-col gap-6 border border-border bg-card p-8">
@@ -219,7 +219,7 @@ if (confirmed) await deleteProject();`}
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Accessibility
           </Heading>
           <div className="max-w-xl space-y-2">

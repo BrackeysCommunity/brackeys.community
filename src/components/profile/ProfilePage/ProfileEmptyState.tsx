@@ -35,7 +35,7 @@ export function ProfileEmptyState({ glyph, title, hint, cta, className }: Profil
       >
         {glyph}
       </span>
-      <Text monospace size="xs" variant="muted" bold className="tracking-widest uppercase">
+      <Text size="xs" variant="muted" bold className="tracking-widest uppercase">
         {title}
       </Text>
       <Text size="sm" variant="muted" className="max-w-[24rem]">

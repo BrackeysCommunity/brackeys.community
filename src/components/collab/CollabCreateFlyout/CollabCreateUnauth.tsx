@@ -14,18 +14,18 @@ export function CollabCreateUnauth() {
   return (
     <>
       <div className="flex shrink-0 flex-col gap-0.5 border-b border-muted/30 px-5 pt-4 pb-4">
-        <Heading as="h2" monospace className="text-lg tracking-widest uppercase">
+        <Heading as="h2" className="text-lg tracking-widest uppercase">
           POST A GIG.
         </Heading>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           AUTH REQUIRED
         </Text>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-        <Heading as="h3" monospace className="text-sm tracking-[0.2em] text-destructive uppercase">
+        <Heading as="h3" className="text-sm tracking-[0.2em] text-destructive uppercase">
           ACCESS DENIED
         </Heading>
-        <Text monospace size="xs" variant="muted" className="max-w-[260px]">
+        <Text size="xs" variant="muted" className="max-w-[260px]">
           Authenticate with Discord to post a gig, hobby project, playtest, or mentorship.
         </Text>
         <Button

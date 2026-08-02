@@ -43,7 +43,7 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Imports
         </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -63,7 +63,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Basic Usage
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -103,7 +103,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Row Layout
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -150,7 +150,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Textarea
         </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
@@ -175,7 +175,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Error State
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -202,7 +202,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Status Indicators
         </Heading>
         <div className="max-w-xl space-y-2">
@@ -224,7 +224,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Confirmation Dialogs
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -266,7 +266,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Accessibility
         </Heading>
         <div className="max-w-xl space-y-2">

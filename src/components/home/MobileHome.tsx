@@ -96,10 +96,10 @@ export function MobileHome() {
       <section className="flex flex-col gap-4">
         <header className="flex items-end justify-between gap-3">
           <div>
-            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="div" size="xs" variant="muted" className="tracking-widest">
               § 01
             </Text>
-            <Heading as="h2" size="2xl" monospace>
+            <Heading as="h2" size="2xl">
               JAMS
             </Heading>
           </div>
@@ -107,7 +107,6 @@ export function MobileHome() {
             href="https://itch.io/jams"
             target="_blank"
             rel="noopener noreferrer"
-            monospace
             bold
             variant="muted"
             className="text-[11px] tracking-widest"
@@ -124,7 +123,7 @@ export function MobileHome() {
         <div ref={upcomingRef} className="scroll-mt-20">
           <Well>
             <div className="flex items-center gap-2 border-b border-muted/30 px-3 py-2">
-              <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+              <Text size="xs" variant="muted" className="tracking-widest uppercase">
                 ◆ Soonest Upcoming
               </Text>
             </div>
@@ -133,7 +132,6 @@ export function MobileHome() {
             ) : upcoming.length === 0 ? (
               <Text
                 as="div"
-                monospace
                 size="sm"
                 variant="muted"
                 align="center"
@@ -155,17 +153,11 @@ export function MobileHome() {
                         className="flex items-center gap-3 px-3 py-3 transition-colors active:bg-muted/40"
                       >
                         <div className="w-10 shrink-0 text-center">
-                          <Text
-                            as="div"
-                            monospace
-                            size="xs"
-                            variant="muted"
-                            className="tracking-widest"
-                          >
+                          <Text as="div" size="xs" variant="muted" className="tracking-widest">
                             {start?.toLocaleString(undefined, { month: "short" }).toUpperCase() ??
                               "TBA"}
                           </Text>
-                          <Text as="div" monospace bold density="dense" className="text-lg">
+                          <Text as="div" bold density="dense" className="text-lg">
                             {start?.getUTCDate() ?? "—"}
                           </Text>
                         </div>
@@ -175,7 +167,6 @@ export function MobileHome() {
                           </Text>
                           <Text
                             as="div"
-                            monospace
                             size="xs"
                             variant="muted"
                             className="tracking-widest uppercase"
@@ -185,7 +176,7 @@ export function MobileHome() {
                               ` · ${durationDays(jam.startsAt, jam.endsAt)}`}
                           </Text>
                         </div>
-                        <Text monospace size="xs" variant="muted" className="tracking-widest">
+                        <Text size="xs" variant="muted" className="tracking-widest">
                           {counted ? `in ${counted.text}` : ""}
                         </Text>
                       </Link>

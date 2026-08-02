@@ -75,7 +75,7 @@ export const Overview: Story = {
     return (
       <>
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Imports
           </Heading>
           <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -100,7 +100,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Quick Start
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -167,7 +167,7 @@ const form = useFormConfig({
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Layouts
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -197,7 +197,7 @@ const form = useFormConfig({
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Field Groups
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -265,7 +265,7 @@ const form = useFormConfig({
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Notched Fields
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -301,7 +301,7 @@ const form = useFormConfig({
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             All Field Types
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -352,7 +352,7 @@ const form = useFormConfig({
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Accessibility
           </Heading>
           <div className="max-w-xl space-y-2">

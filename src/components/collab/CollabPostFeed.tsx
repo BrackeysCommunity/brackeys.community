@@ -99,12 +99,7 @@ export function CollabPostFeed({
       {hasNextPage ? (
         <div ref={sentinelRef} className="col-span-full flex justify-center py-4">
           {isFetchingNext ? (
-            <Text
-              monospace
-              size="xs"
-              variant="muted"
-              className="animate-pulse tracking-widest uppercase"
-            >
+            <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
               Loading more…
             </Text>
           ) : null}
@@ -122,10 +117,10 @@ export function CollabPostFeed({
 function FeedEmptyState({ filtered, isPeople }: { filtered: boolean; isPeople: boolean }) {
   return (
     <Well className="items-center justify-center gap-3 px-4 py-12 text-center">
-      <Text monospace variant="muted" className="text-4xl opacity-40">
+      <Text variant="muted" className="text-4xl opacity-40">
         [ ]
       </Text>
-      <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+      <Text size="xs" variant="muted" className="tracking-widest uppercase">
         {filtered
           ? "No results match your filters"
           : isPeople

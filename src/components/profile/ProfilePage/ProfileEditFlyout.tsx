@@ -247,10 +247,10 @@ function FlyoutHeader({
       ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
-          <Heading as="h2" monospace className="text-lg tracking-widest uppercase">
+          <Heading as="h2" className="text-lg tracking-widest uppercase">
             EDIT PROFILE
           </Heading>
-          <Text monospace size="xs" variant="muted" className="tracking-widest">
+          <Text size="xs" variant="muted" className="tracking-widest">
             @{profile.handle.toLowerCase()} · STEP {step}/4
           </Text>
         </div>
@@ -290,7 +290,6 @@ function Stepper({ step, onSelect }: { step: EditStep; onSelect: (s: EditStep) =
           >
             <Text
               as="span"
-              monospace
               size="xs"
               variant="muted"
               className={cn(
@@ -944,7 +943,7 @@ function DeleteAccountZone() {
 
   return (
     <Well className="mt-2 flex flex-col gap-2 border-destructive/40 px-3 py-2.5">
-      <Text monospace size="xs" variant="muted" className="tracking-widest">
+      <Text size="xs" variant="muted" className="tracking-widest">
         DANGER ZONE
       </Text>
       <Text size="sm" variant="muted">
@@ -1010,7 +1009,7 @@ function ProviderConnectButton({
           {icon}
         </div>
         <div className="flex min-w-0 flex-col">
-          <Text monospace size="xs" variant="muted" className="tracking-widest">
+          <Text size="xs" variant="muted" className="tracking-widest">
             {label.toUpperCase()}
           </Text>
           <Text size="sm" className="truncate">
@@ -1078,7 +1077,7 @@ function startItchOAuth(): void {
 function StepFrame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-5">
-      <Heading as="h3" monospace className="text-sm tracking-widest text-foreground uppercase">
+      <Heading as="h3" className="text-sm tracking-widest text-foreground uppercase">
         {title}
       </Heading>
       {children}
@@ -1107,7 +1106,7 @@ function FieldRow({
         </Label>
         <div className="flex items-center gap-2">
           {hint ? (
-            <Text monospace size="xs" variant="muted" className="text-right tracking-wide">
+            <Text size="xs" variant="muted" className="text-right tracking-wide">
               {hint}
             </Text>
           ) : null}
@@ -1116,7 +1115,7 @@ function FieldRow({
       </div>
       {children}
       {error ? (
-        <Text monospace size="xs" variant="danger" className="tracking-wide">
+        <Text size="xs" variant="danger" className="tracking-wide">
           {error}
         </Text>
       ) : null}

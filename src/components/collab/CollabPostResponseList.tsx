@@ -63,7 +63,7 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
                   </AvatarFallback>
                 )}
               </Avatar>
-              <Text monospace size="xs" className="truncate">
+              <Text size="xs" className="truncate">
                 {resp.responderUsername
                   ? `@${resp.responderUsername}`
                   : resp.responderId.slice(0, 8)}

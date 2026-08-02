@@ -82,7 +82,6 @@ export function JamBoard({
         {toolbar}
         <Text
           as="div"
-          monospace
           size="sm"
           variant="muted"
           align="center"
@@ -127,12 +126,7 @@ export function JamBoard({
                 count={shelf.ranked.length + shelf.tail.length}
               />
               {visible.length === 0 ? (
-                <Text
-                  monospace
-                  size="xs"
-                  variant="muted"
-                  className="px-1 tracking-widest uppercase"
-                >
+                <Text size="xs" variant="muted" className="px-1 tracking-widest uppercase">
                   Only small jams here —{" "}
                   <button
                     type="button"

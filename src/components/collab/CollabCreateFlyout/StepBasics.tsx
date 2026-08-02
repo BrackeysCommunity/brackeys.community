@@ -54,7 +54,6 @@ export function StepBasics() {
                     <div className="flex flex-col gap-0.5">
                       <Text
                         as="span"
-                        monospace
                         bold
                         size="xs"
                         className={cn(
@@ -64,7 +63,7 @@ export function StepBasics() {
                       >
                         {t.label}
                       </Text>
-                      <Text monospace size="xs" variant="muted">
+                      <Text size="xs" variant="muted">
                         {t.desc}
                       </Text>
                     </div>

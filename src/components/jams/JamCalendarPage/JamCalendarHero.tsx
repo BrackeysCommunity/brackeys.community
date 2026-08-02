@@ -55,7 +55,6 @@ export function JamCalendarHero({
       <div className="flex flex-col gap-3">
         <Heading
           as="h1"
-          monospace
           className="flex flex-wrap items-center text-[clamp(2.5rem,8vw,5rem)] leading-none tracking-tight"
         >
           <span>
@@ -113,19 +112,11 @@ export function JamCalendarHero({
               aria-label={`Jump to ${tile.label.toLowerCase()}`}
               className="flex min-w-28 cursor-pointer flex-col justify-between gap-2 px-4 py-3 text-left"
             >
-              <Text
-                as="div"
-                monospace
-                size="xs"
-                variant="muted"
-                density="dense"
-                className="tracking-widest"
-              >
+              <Text as="div" size="xs" variant="muted" density="dense" className="tracking-widest">
                 {tile.label}
               </Text>
               <Text
                 as="div"
-                monospace
                 bold
                 variant="accent"
                 density="dense"

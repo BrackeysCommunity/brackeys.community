@@ -31,17 +31,16 @@ export function NewestSignups() {
       <header className="flex flex-col gap-2">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="div" size="xs" variant="muted" className="tracking-widest">
               § 03
             </Text>
-            <Heading as="h2" monospace className="text-2xl md:text-3xl">
+            <Heading as="h2" className="text-2xl md:text-3xl">
               NEWEST SIGNUPS
             </Heading>
           </div>
           <Link
             as="router"
             to="/collab"
-            monospace
             bold
             variant="muted"
             className="shrink-0 text-[11px] tracking-widest whitespace-nowrap"
@@ -65,7 +64,6 @@ export function NewestSignups() {
           <Well variant="ghost" className="col-span-full">
             <Text
               as="div"
-              monospace
               size="sm"
               variant="muted"
               align="center"
@@ -84,7 +82,7 @@ export function NewestSignups() {
                   {u.avatarUrl ? (
                     <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <Text monospace bold size="md">
+                    <Text bold size="md">
                       {initialOf(handle)}
                     </Text>
                   )}
@@ -98,23 +96,11 @@ export function NewestSignups() {
                       NEW
                     </Text>
                   </div>
-                  <Text
-                    as="div"
-                    monospace
-                    size="xs"
-                    variant="muted"
-                    ellipsis
-                    className="tracking-widest"
-                  >
+                  <Text as="div" size="xs" variant="muted" ellipsis className="tracking-widest">
                     @{handle}
                   </Text>
                   {u.tagline && (
-                    <Text
-                      as="p"
-                      monospace
-                      variant="muted"
-                      className="mt-1 line-clamp-2 text-[11px]"
-                    >
+                    <Text as="p" variant="muted" className="mt-1 line-clamp-2 text-[11px]">
                       {u.tagline}
                     </Text>
                   )}
@@ -123,7 +109,6 @@ export function NewestSignups() {
                       {topSkills.map((s) => (
                         <Text
                           key={s}
-                          monospace
                           variant="muted"
                           className="border border-muted/40 px-1.5 py-0.5 text-[9px] tracking-widest uppercase"
                         >

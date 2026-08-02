@@ -45,7 +45,7 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
 
   if (success) {
     return (
-      <Text monospace size="xs" variant="success" className="tracking-widest uppercase">
+      <Text size="xs" variant="success" className="tracking-widest uppercase">
         Response sent.
       </Text>
     );
@@ -68,7 +68,7 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
         className="font-mono"
       />
       {error ? (
-        <Text monospace size="xs" variant="danger">
+        <Text size="xs" variant="danger">
           {error}
         </Text>
       ) : null}

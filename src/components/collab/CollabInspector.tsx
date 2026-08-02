@@ -86,25 +86,19 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
             }}
           />
           <div className="relative flex flex-col gap-1.5">
-            <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+            <Text size="xs" variant="muted" className="tracking-widest uppercase">
               board status
             </Text>
             <div className="flex items-baseline gap-2.5">
               <Text
                 as="span"
-                monospace
                 bold
                 density="dense"
                 className="text-5xl text-foreground tabular-nums"
               >
                 {total}
               </Text>
-              <Text
-                as="span"
-                monospace
-                size="xs"
-                className="tracking-widest text-primary uppercase"
-              >
+              <Text as="span" size="xs" className="tracking-widest text-primary uppercase">
                 {total === 1 ? "open role" : "open roles"}
               </Text>
             </div>
@@ -129,10 +123,10 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
                 className="group flex flex-col gap-1 py-1.5 text-left transition-colors outline-none hover:text-primary focus-visible:text-primary disabled:pointer-events-none disabled:opacity-40"
               >
                 <span className="flex items-baseline justify-between gap-3">
-                  <Text as="span" monospace size="xs" className="tracking-widest uppercase">
+                  <Text as="span" size="xs" className="tracking-widest uppercase">
                     {row.label}
                   </Text>
-                  <Text as="span" monospace bold size="sm" className="tabular-nums">
+                  <Text as="span" bold size="sm" className="tabular-nums">
                     {n}
                   </Text>
                 </span>
@@ -150,7 +144,6 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
         {people?.users?.length ? (
           <div className={cn("flex flex-col gap-3 py-4", pad)}>
             <Text
-              monospace
               size="xs"
               variant="muted"
               className="tracking-widest text-foreground/80 uppercase"

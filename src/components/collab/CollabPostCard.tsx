@@ -87,7 +87,6 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
             <span className="flex items-start gap-2">
               <Text
                 as="span"
-                monospace
                 bold
                 size="sm"
                 className="line-clamp-2 flex-1 tracking-wider text-foreground uppercase"
@@ -97,7 +96,6 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
               {pinned ? (
                 <Text
                   as="span"
-                  monospace
                   size="xs"
                   className="mt-0.5 shrink-0 tracking-widest text-warning uppercase"
                 >
@@ -128,13 +126,7 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
               ) : null}
             </span>
 
-            <Text
-              as="span"
-              monospace
-              size="xs"
-              variant="muted"
-              className="tracking-widest tabular-nums"
-            >
+            <Text as="span" size="xs" variant="muted" className="tracking-widest tabular-nums">
               {post.teamSize ? `${post.teamSize.toUpperCase()} · ` : ""}
               {timeAgo(post.createdAt)}
             </Text>
@@ -173,12 +165,7 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
           {post.primaryImageUrl ? <MediaCardImage src={post.primaryImageUrl} /> : <DotField />}
           <MediaCardScrim />
           <MediaCardFloatingBadge>
-            <Text
-              as="span"
-              monospace
-              size="xs"
-              className="tracking-widest text-foreground uppercase"
-            >
+            <Text as="span" size="xs" className="tracking-widest text-foreground uppercase">
               {TYPE_LABELS[post.type] ?? post.type}
             </Text>
           </MediaCardFloatingBadge>
@@ -188,7 +175,6 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
           <span className="flex items-start gap-2">
             <Text
               as="span"
-              monospace
               bold
               size="sm"
               className="line-clamp-2 flex-1 tracking-wider text-foreground uppercase"
@@ -198,7 +184,6 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
             {pinned ? (
               <Text
                 as="span"
-                monospace
                 size="xs"
                 className="mt-0.5 shrink-0 tracking-widest text-warning uppercase"
               >
@@ -228,7 +213,6 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
 
           <Text
             as="span"
-            monospace
             size="xs"
             variant="muted"
             className="mt-auto pt-1.5 tracking-widest tabular-nums"

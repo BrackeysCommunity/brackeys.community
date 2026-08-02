@@ -34,7 +34,7 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Imports
         </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -53,7 +53,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Variants
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -98,7 +98,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Sizes
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -137,7 +137,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Icons
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -183,7 +183,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Disabled Buttons
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -206,7 +206,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Icon-only Buttons
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -250,7 +250,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           All Variants x Sizes
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -261,27 +261,27 @@ export const Overview: Story = {
             <thead>
               <tr>
                 <th className="pr-6 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Variant
                   </Text>
                 </th>
                 <th className="pr-4 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     xs
                   </Text>
                 </th>
                 <th className="pr-4 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     sm
                   </Text>
                 </th>
                 <th className="pr-4 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     default
                   </Text>
                 </th>
                 <th className="pr-4 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     lg
                   </Text>
                 </th>
@@ -292,7 +292,7 @@ export const Overview: Story = {
                 (variant) => (
                   <tr key={variant} className="align-middle">
                     <td className="py-2 pr-6">
-                      <Text size="xs" variant="muted" monospace>
+                      <Text size="xs" variant="muted">
                         {variant}
                       </Text>
                     </td>
@@ -312,7 +312,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Notched Variant
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -382,7 +382,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Accessibility
         </Heading>
         <div className="max-w-xl space-y-2">

@@ -266,7 +266,7 @@ function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void 
         {link.monogram}
       </Chonk>
       <div className="flex min-w-0 flex-col">
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {link.label}
         </Text>
         <Text size="sm" className="truncate">

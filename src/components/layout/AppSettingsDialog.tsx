@@ -58,7 +58,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     )}
                   >
                     <Text
-                      monospace
                       size="xs"
                       className={cn(
                         "tracking-widest uppercase",
@@ -124,15 +123,11 @@ function SettingsBlock({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
-        <Heading
-          as="h3"
-          monospace
-          className="text-[11px] tracking-widest text-muted-foreground uppercase"
-        >
+        <Heading as="h3" className="text-[11px] tracking-widest text-muted-foreground uppercase">
           {label}
         </Heading>
         {hint ? (
-          <Text monospace size="xs" variant="muted" className="text-right tracking-wide">
+          <Text size="xs" variant="muted" className="text-right tracking-wide">
             {hint}
           </Text>
         ) : null}
@@ -160,7 +155,6 @@ function SettingsToggle({
       <div className="flex min-w-0 flex-col gap-0.5">
         <Heading
           as="h3"
-          monospace
           className="flex items-center gap-2 text-[11px] tracking-widest text-muted-foreground uppercase"
         >
           {icon}

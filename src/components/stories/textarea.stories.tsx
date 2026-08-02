@@ -26,7 +26,7 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Imports
         </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -45,7 +45,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Basic Usage
         </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
@@ -59,7 +59,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           With Field Label
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -85,7 +85,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Auto-grow
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -106,7 +106,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Disabled
         </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
@@ -122,7 +122,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Validation / Error State
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -148,7 +148,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Notched Variant
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -167,7 +167,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           With Fixed Height
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -190,7 +190,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Accessibility
         </Heading>
         <div className="max-w-xl space-y-2">

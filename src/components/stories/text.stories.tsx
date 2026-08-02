@@ -270,11 +270,11 @@ export const Overview: Story = {
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-col gap-1">
             <Text>1234567890 Regular</Text>
-            <Text monospace>1234567890 Monospace</Text>
+            <Text>1234567890 Monospace</Text>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
             {`<Text>1234567890 Regular</Text>
-<Text monospace>1234567890 Monospace</Text>`}
+<Text>1234567890 Monospace</Text>`}
           </pre>
         </div>
       </section>

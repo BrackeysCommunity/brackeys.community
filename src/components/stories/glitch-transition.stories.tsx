@@ -47,7 +47,7 @@ export const Overview: Story = {
     return (
       <>
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Imports
           </Heading>
           <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -66,7 +66,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Mount
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -88,7 +88,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Manual Trigger
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -119,7 +119,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             On Change (Page / Content Swap)
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -157,7 +157,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Hover
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -171,7 +171,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Continuous
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -186,7 +186,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Intensity Scale
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -209,7 +209,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Custom RGB Channels
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -240,7 +240,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Page-Level Frame
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -266,7 +266,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Props
           </Heading>
           <div className="max-w-2xl border border-border bg-card p-6 font-mono text-xs text-foreground">

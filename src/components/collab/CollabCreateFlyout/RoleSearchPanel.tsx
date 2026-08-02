@@ -42,7 +42,7 @@ export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelPro
   return (
     <FieldRow label={label} hint={`${roleIds.length} selected`}>
       {all.length === 0 ? (
-        <Text monospace size="xs" variant="muted">
+        <Text size="xs" variant="muted">
           No roles available.
         </Text>
       ) : (
@@ -52,7 +52,6 @@ export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelPro
               <div className="flex items-center gap-2">
                 <Text
                   as="span"
-                  monospace
                   size="xs"
                   variant="muted"
                   className="shrink-0 tracking-widest text-foreground/80 uppercase"

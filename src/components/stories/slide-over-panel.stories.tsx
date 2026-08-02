@@ -30,7 +30,7 @@ function PanelContents({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <div className="flex items-center justify-between">
-        <Heading as="h3" size="sm" monospace>
+        <Heading as="h3" size="sm">
           Panel Contents
         </Heading>
         <Button size="sm" variant="outline" onClick={onClose}>
@@ -42,7 +42,7 @@ function PanelContents({ onClose }: { onClose: () => void }) {
         renders on top of the app and is dismissed by user action.
       </Text>
       <div className="flex flex-col gap-2 border border-border p-3">
-        <Text size="xs" variant="muted" monospace>
+        <Text size="xs" variant="muted">
           Example field
         </Text>
         <div className="h-8 border border-border bg-input" />
@@ -72,7 +72,7 @@ export const Overview: Story = {
     return (
       <>
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Imports
           </Heading>
           <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -91,7 +91,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Basic Usage
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -117,7 +117,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Position
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -142,7 +142,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Skeleton UI
           </Heading>
           <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -178,7 +178,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Animating Panel Close
           </Heading>
           <Text as="p" size="xs" variant="muted" className="max-w-xl">

@@ -166,13 +166,11 @@ function DiscordContactNotice() {
   return (
     <FieldRow label="CONTACT" hint="auto · individual posts">
       <Well variant="ghost" className="gap-1 border-primary/30 bg-primary/5 p-3">
-        <Text monospace bold size="xs" className="tracking-widest text-primary uppercase">
+        <Text bold size="xs" className="tracking-widest text-primary uppercase">
           DISCORD DM
         </Text>
-        <Text monospace size="xs">
-          {username ? `@${username}` : "Loading…"}
-        </Text>
-        <Text monospace size="xs" variant="muted">
+        <Text size="xs">{username ? `@${username}` : "Loading…"}</Text>
+        <Text size="xs" variant="muted">
           Respondents will contact you via Discord DM.
         </Text>
       </Well>

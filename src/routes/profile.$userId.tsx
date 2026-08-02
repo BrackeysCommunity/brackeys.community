@@ -41,7 +41,7 @@ function ProfileById() {
 function ProfileLoadingState() {
   return (
     <div className="flex items-center justify-center py-24">
-      <Text monospace size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
+      <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
         Loading profile…
       </Text>
     </div>
@@ -51,7 +51,7 @@ function ProfileLoadingState() {
 function ProfileNotFoundState() {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+      <Text size="xs" variant="muted" className="tracking-widest uppercase">
         ✕ PROFILE NOT FOUND
       </Text>
       <Text size="sm" variant="muted">

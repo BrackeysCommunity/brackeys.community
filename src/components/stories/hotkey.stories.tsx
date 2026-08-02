@@ -24,7 +24,7 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Imports
         </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -45,7 +45,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Hotkey
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -82,7 +82,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Platform Mapping
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -94,17 +94,17 @@ export const Overview: Story = {
             <thead>
               <tr className="border-b border-border">
                 <th className="pr-6 pb-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Key name
                   </Text>
                 </th>
                 <th className="pr-6 pb-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Mac
                   </Text>
                 </th>
                 <th className="pb-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Other platforms
                   </Text>
                 </th>
@@ -136,7 +136,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Complex Shortcuts
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -172,7 +172,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Array Form
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -188,7 +188,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Kbd
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -215,7 +215,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Accessibility
         </Heading>
         <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">

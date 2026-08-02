@@ -40,7 +40,7 @@ export function FieldRow({ label, hint, error, action, children }: FieldRowProps
         </Label>
         <div className="flex items-center gap-2">
           {hint ? (
-            <Text monospace size="xs" variant="muted" className="text-right tracking-wide">
+            <Text size="xs" variant="muted" className="text-right tracking-wide">
               {hint}
             </Text>
           ) : null}
@@ -49,7 +49,7 @@ export function FieldRow({ label, hint, error, action, children }: FieldRowProps
       </div>
       {children}
       {error ? (
-        <Text monospace size="xs" variant="danger" className="tracking-wide">
+        <Text size="xs" variant="danger" className="tracking-wide">
           {error}
         </Text>
       ) : null}
@@ -61,7 +61,7 @@ export function FieldRow({ label, hint, error, action, children }: FieldRowProps
 
 export function CharCount({ current, max }: { current: number; max: number }) {
   return (
-    <Text monospace size="xs" variant="muted" className="tracking-wide tabular-nums">
+    <Text size="xs" variant="muted" className="tracking-wide tabular-nums">
       {current} / {max}
     </Text>
   );
@@ -190,7 +190,7 @@ export function CompensationField({
           }}
         />
       </div>
-      <Text as="p" monospace size="xs" variant="success" className="text-center tracking-wider">
+      <Text as="p" size="xs" variant="success" className="text-center tracking-wider">
         {formatCompensation(compensationType, currentMin, currentMax)}
       </Text>
     </FieldRow>

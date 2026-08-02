@@ -19,16 +19,16 @@ export function ShelfHeader({
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-muted/30 pb-2">
       <div className="flex flex-wrap items-baseline gap-3">
-        <Heading as="h2" monospace className="text-2xl tracking-tight">
+        <Heading as="h2" className="text-2xl tracking-tight">
           {title}
         </Heading>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {blurb}
         </Text>
       </div>
       {actions ??
         (count != null && (
-          <Text monospace size="xs" variant="muted" className="tracking-widest tabular-nums">
+          <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
             {count} JAM{count === 1 ? "" : "S"}
           </Text>
         ))}

@@ -107,17 +107,17 @@ export function StepReview() {
           )}
           <div className="flex flex-col gap-0.5">
             {v.projectName ? (
-              <Text monospace size="xs" variant="muted">
+              <Text size="xs" variant="muted">
                 {v.projectName}
               </Text>
             ) : null}
             {compDisplay ? (
-              <Text monospace size="xs" variant="success">
+              <Text size="xs" variant="success">
                 {compDisplay}
               </Text>
             ) : null}
             {v.platforms.length > 0 ? (
-              <Text monospace size="xs" variant="muted">
+              <Text size="xs" variant="muted">
                 {v.platforms.join(" · ")}
               </Text>
             ) : null}
@@ -145,11 +145,7 @@ export function StepReview() {
                     <span className="text-[10px]">·</span>
                   )}
                 </span>
-                <Text
-                  monospace
-                  size="xs"
-                  className={c.ok ? "text-foreground" : "text-muted-foreground"}
-                >
+                <Text size="xs" className={c.ok ? "text-foreground" : "text-muted-foreground"}>
                   {c.label}
                 </Text>
               </li>
@@ -161,7 +157,7 @@ export function StepReview() {
       <FieldRow label="ROLES / TOPICS">
         <div className="flex flex-wrap gap-1.5">
           {selectedRoles.length === 0 ? (
-            <Text monospace size="xs" variant="muted">
+            <Text size="xs" variant="muted">
               None selected.
             </Text>
           ) : (
@@ -187,7 +183,7 @@ export function StepReview() {
       ) : null}
 
       <FieldRow label="CONTACT">
-        <Text monospace size="xs">
+        <Text size="xs">
           {v.isIndividual
             ? "Discord DM (via your profile)"
             : v.contactMethod

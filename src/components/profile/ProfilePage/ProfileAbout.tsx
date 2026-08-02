@@ -48,13 +48,7 @@ export function ProfileAbout({
         )}
         {pinnedNote ? (
           <div className="flex items-start gap-3 border-t border-muted/30 pt-3">
-            <Text
-              as="span"
-              monospace
-              size="xs"
-              variant="muted"
-              className="shrink-0 tracking-widest"
-            >
+            <Text as="span" size="xs" variant="muted" className="shrink-0 tracking-widest">
               ↳ PINNED
             </Text>
             <Text size="sm" className="text-foreground/90">

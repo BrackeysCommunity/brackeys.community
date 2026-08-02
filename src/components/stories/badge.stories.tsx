@@ -23,7 +23,7 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Imports
         </Heading>
         <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -41,7 +41,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Variants
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -71,7 +71,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Static Emboss
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -88,7 +88,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Notched Variant
         </Heading>
         <Text as="p" size="xs" variant="muted">
@@ -117,7 +117,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Use Cases
         </Heading>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
@@ -143,7 +143,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           All Variants
         </Heading>
         <div className="overflow-x-auto border border-border bg-card p-8">
@@ -151,17 +151,17 @@ export const Overview: Story = {
             <thead>
               <tr>
                 <th className="pr-6 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Variant
                   </Text>
                 </th>
                 <th className="pr-4 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Normal
                   </Text>
                 </th>
                 <th className="pr-4 pb-4 text-left">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Notched
                   </Text>
                 </th>
@@ -172,7 +172,7 @@ export const Overview: Story = {
                 (variant) => (
                   <tr key={variant} className="align-middle">
                     <td className="py-2 pr-6">
-                      <Text size="xs" variant="muted" monospace>
+                      <Text size="xs" variant="muted">
                         {variant}
                       </Text>
                     </td>
@@ -193,7 +193,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Accessibility
         </Heading>
         <div className="max-w-xl space-y-2">

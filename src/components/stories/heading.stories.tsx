@@ -166,7 +166,7 @@ export const Overview: Story = {
             <Heading as="h3" size="lg" strikethrough>
               Strikethrough heading
             </Heading>
-            <Heading as="h3" size="lg" monospace>
+            <Heading as="h3" size="lg">
               Monospace heading
             </Heading>
             <Heading as="h3" size="lg" italic underline>
@@ -177,7 +177,7 @@ export const Overview: Story = {
             {`<Heading as="h3" italic>Italic</Heading>
 <Heading as="h3" underline>Underlined</Heading>
 <Heading as="h3" strikethrough>Strikethrough</Heading>
-<Heading as="h3" monospace>Monospace</Heading>
+<Heading as="h3">Monospace</Heading>
 <Heading as="h3" italic underline>Combined</Heading>`}
           </pre>
         </div>

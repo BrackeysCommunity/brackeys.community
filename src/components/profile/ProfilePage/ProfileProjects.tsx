@@ -335,7 +335,7 @@ function ProjectCard({
         ) : null}
       </div>
 
-      <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+      <Text size="xs" variant="muted" className="tracking-widest uppercase">
         {[project.jamName ?? project.kind, project.year].join(" · ")}
       </Text>
 

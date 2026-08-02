@@ -61,17 +61,16 @@ export function RecentCollabPosts() {
       <header className="flex flex-col gap-2">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="div" size="xs" variant="muted" className="tracking-widest">
               § 02
             </Text>
-            <Heading as="h2" monospace className="text-2xl md:text-3xl">
+            <Heading as="h2" className="text-2xl md:text-3xl">
               RECENT COLLAB POSTS
             </Heading>
           </div>
           <Link
             as="router"
             to="/collab"
-            monospace
             bold
             variant="muted"
             className="shrink-0 text-[11px] tracking-widest whitespace-nowrap"
@@ -95,7 +94,6 @@ export function RecentCollabPosts() {
           <Well variant="ghost" className="col-span-full">
             <Text
               as="div"
-              monospace
               size="sm"
               variant="muted"
               align="center"
@@ -115,22 +113,10 @@ export function RecentCollabPosts() {
                 className="group flex flex-col gap-3 p-4"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <Text
-                    monospace
-                    bold
-                    size="xs"
-                    variant="accent"
-                    className="tracking-widest uppercase"
-                  >
+                  <Text bold size="xs" variant="accent" className="tracking-widest uppercase">
                     {postKindLabel(post.type)}
                   </Text>
-                  <Text
-                    monospace
-                    bold
-                    size="xs"
-                    variant="muted"
-                    className="tracking-widest uppercase"
-                  >
+                  <Text bold size="xs" variant="muted" className="tracking-widest uppercase">
                     #{post.id}
                   </Text>
                 </div>
@@ -142,18 +128,18 @@ export function RecentCollabPosts() {
                   {post.title}
                 </Heading>
                 {post.description && (
-                  <Text as="p" monospace variant="muted" className="line-clamp-2 text-[11px]">
+                  <Text as="p" variant="muted" className="line-clamp-2 text-[11px]">
                     {post.description}
                   </Text>
                 )}
                 <div className="mt-auto flex flex-wrap gap-2">
                   {post.experienceLevel && (
-                    <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                    <Text size="xs" variant="muted" className="tracking-widest uppercase">
                       {post.experienceLevel}
                     </Text>
                   )}
                   {comp && (
-                    <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                    <Text size="xs" variant="muted" className="tracking-widest uppercase">
                       · {comp}
                     </Text>
                   )}

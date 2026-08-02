@@ -147,13 +147,13 @@ export function DayDetailContent({ day, buckets }: DayDetailContentProps) {
   return (
     <>
       <header className="flex flex-col gap-1 border-b border-muted/30 px-4 py-3">
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           ◆ DAY DETAIL
         </Text>
-        <Heading as="h3" size="lg" monospace className="tracking-tight">
+        <Heading as="h3" size="lg" className="tracking-tight">
           {dateLabel}
         </Heading>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {total} EVENT{total === 1 ? "" : "S"}
         </Text>
       </header>
@@ -161,7 +161,6 @@ export function DayDetailContent({ day, buckets }: DayDetailContentProps) {
       {total === 0 ? (
         <Text
           as="div"
-          monospace
           size="sm"
           variant="muted"
           align="center"
@@ -210,13 +209,13 @@ function DaySection({
   return (
     <section className="flex flex-col">
       <header className="flex items-center justify-between border-b border-muted/20 px-4 py-2">
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           <span aria-hidden className={`mr-1.5 ${tint}`}>
             {glyph}
           </span>
           {label}
         </Text>
-        <Text monospace size="xs" variant="muted" className="tracking-widest tabular-nums">
+        <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
           {jams.length}
         </Text>
       </header>
@@ -247,7 +246,7 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
-          <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+          <Text size="xs" variant="muted" className="tracking-widest uppercase">
             {jam.hosts[0]?.name ?? "COMMUNITY"}
             {jam.hashtag ? ` · ${jam.hashtag.toUpperCase()}` : ""}
           </Text>
@@ -255,7 +254,7 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
         <Text bold size="md" ellipsis>
           {jam.title}
         </Text>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {meta} · {signal.value.toLocaleString()} {signal.label.toLowerCase()}
         </Text>
       </div>

@@ -128,7 +128,7 @@ export function CollabPostDetail({
           {isLoading ? (
             <Skeleton className="h-[1.375rem] w-56" />
           ) : (
-            <Heading as="h2" monospace className="line-clamp-1 text-base tracking-widest uppercase">
+            <Heading as="h2" className="line-clamp-1 text-base tracking-widest uppercase">
               {post?.title ?? "POST NOT FOUND"}
             </Heading>
           )}
@@ -187,7 +187,7 @@ export function CollabPostDetail({
         {isLoading ? (
           <DetailSkeleton />
         ) : !post ? (
-          <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+          <Text size="xs" variant="muted" className="tracking-widest uppercase">
             This post does not exist or has been deleted.
           </Text>
         ) : (
@@ -260,7 +260,7 @@ export function CollabPostDetail({
 
             {feedbackTypes.length > 0 ? (
               <div className="flex flex-col gap-2">
-                <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                <Text size="xs" variant="muted" className="tracking-widest uppercase">
                   Feedback
                 </Text>
                 <div className="flex flex-wrap gap-1.5">
@@ -279,7 +279,7 @@ export function CollabPostDetail({
 
             {post.roles && post.roles.length > 0 ? (
               <div className="flex flex-col gap-2">
-                <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                <Text size="xs" variant="muted" className="tracking-widest uppercase">
                   Roles needed
                 </Text>
                 <div className="flex flex-wrap gap-1.5">
@@ -322,13 +322,13 @@ export function CollabPostDetail({
             {/* Owner: responses + actions */}
             {isOwner && post.responses ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
-                <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                <Text size="xs" variant="muted" className="tracking-widest uppercase">
                   Responses ({post.responses.length})
                 </Text>
                 {post.responses.length > 0 ? (
                   <CollabPostResponseList responses={post.responses} postId={postId} />
                 ) : (
-                  <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                  <Text size="xs" variant="muted" className="tracking-widest uppercase">
                     No responses yet.
                   </Text>
                 )}
@@ -338,7 +338,7 @@ export function CollabPostDetail({
             {/* Non-owner: respond */}
             {!isOwner && currentUserId && !isClosed ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
-                <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                <Text size="xs" variant="muted" className="tracking-widest uppercase">
                   Respond
                 </Text>
                 <CollabPostResponseForm postId={postId} />
@@ -388,7 +388,7 @@ export function CollabPostDetail({
               </span>
             </Link>
           ) : (
-            <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+            <Text size="xs" variant="muted" className="tracking-widest uppercase">
               By @unknown
             </Text>
           )}
@@ -524,13 +524,7 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-dashed border-muted/30 py-1.5 last:border-b-0">
-      <Text
-        as="span"
-        monospace
-        size="xs"
-        variant="muted"
-        className="shrink-0 tracking-widest uppercase"
-      >
+      <Text as="span" size="xs" variant="muted" className="shrink-0 tracking-widest uppercase">
         {label}
       </Text>
       <Text as="span" size="sm" align="right" className="min-w-0 text-foreground/90">
@@ -559,7 +553,7 @@ function ReportInline({
 }) {
   if (reportSuccess) {
     return (
-      <Text monospace size="xs" variant="success" className="tracking-widest uppercase">
+      <Text size="xs" variant="success" className="tracking-widest uppercase">
         Report submitted
       </Text>
     );

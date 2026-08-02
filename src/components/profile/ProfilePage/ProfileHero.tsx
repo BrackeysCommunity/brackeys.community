@@ -84,7 +84,6 @@ export function ProfileHero({
           <div className="flex flex-wrap items-center gap-3">
             <Heading
               as="h1"
-              monospace
               className={cn(
                 "leading-none tracking-tight text-foreground",
                 compact ? "text-3xl" : "text-4xl",
@@ -101,7 +100,7 @@ export function ProfileHero({
           ) : null}
           <MetaLine profile={profile} />
           {profile.oneLiner ? (
-            <Text monospace size="sm" variant="muted" className="max-w-prose tracking-wide">
+            <Text size="sm" variant="muted" className="max-w-prose tracking-wide">
               {profile.oneLiner}
             </Text>
           ) : null}
@@ -192,7 +191,7 @@ function MetaLine({ profile }: { profile: ProfileViewModel }) {
     `Member since ${joinedYear}`,
   ];
   return (
-    <Text monospace size="xs" variant="muted" className="tracking-widest">
+    <Text size="xs" variant="muted" className="tracking-widest">
       {parts.join("  ·  ")}
     </Text>
   );
@@ -236,10 +235,10 @@ function AvailabilityToggleCard({
         aria-label="Available for work"
       />
       <div className="flex min-w-0 flex-col">
-        <Text monospace size="xs" bold className={cn("tracking-widest", open && "text-success")}>
+        <Text size="xs" bold className={cn("tracking-widest", open && "text-success")}>
           AVAILABLE FOR WORK
         </Text>
-        <Text monospace size="xs" variant="muted" className="truncate tracking-wider">
+        <Text size="xs" variant="muted" className="truncate tracking-wider">
           {open
             ? ["Shown in the directory", commitment].filter(Boolean).join(" · ")
             : "Hidden from the directory"}

@@ -51,7 +51,6 @@ export function FeaturedJamCarousel({
       <Well>
         <Text
           as="div"
-          monospace
           size="sm"
           variant="muted"
           align="center"

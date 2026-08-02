@@ -240,10 +240,10 @@ function renderStep(tab: WizardTabId, type: WizardFormValues["type"]) {
 function CollabCreateHeader({ stepLabel }: { stepLabel: string }) {
   return (
     <div className="flex shrink-0 flex-col gap-0.5 border-b border-muted/30 px-5 pt-4 pb-4">
-      <Heading as="h2" monospace className="text-lg tracking-widest uppercase">
+      <Heading as="h2" className="text-lg tracking-widest uppercase">
         POST A GIG.
       </Heading>
-      <Text monospace size="xs" variant="muted" className="tracking-widest">
+      <Text size="xs" variant="muted" className="tracking-widest">
         {stepLabel}
       </Text>
     </div>

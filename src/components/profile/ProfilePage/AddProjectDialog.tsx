@@ -402,7 +402,7 @@ function CoverImageField({
             />
             <div className="pointer-events-none absolute inset-0 bg-background/40" />
             <div className="relative flex flex-col items-center gap-2">
-              <Text monospace size="xs" className="tracking-widest uppercase">
+              <Text size="xs" className="tracking-widest uppercase">
                 {file.name}
               </Text>
               <div className="flex items-center gap-2">
@@ -428,7 +428,7 @@ function CoverImageField({
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <HugeiconsIcon icon={Image01Icon} size={20} />
-            <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+            <Text size="xs" variant="muted" className="tracking-widest uppercase">
               {isDragActive ? "Drop the image" : "Drag an image or"}
             </Text>
             {!isDragActive ? (
@@ -443,7 +443,7 @@ function CoverImageField({
               </Button>
             ) : null}
             {error ? (
-              <Text monospace size="xs" variant="danger" className="tracking-widest">
+              <Text size="xs" variant="danger" className="tracking-widest">
                 {error}
               </Text>
             ) : null}
@@ -473,7 +473,7 @@ function FieldRow({
           {required ? <span className="ml-0.5 text-destructive">*</span> : null}
         </Label>
         {hint ? (
-          <Text monospace size="xs" variant="muted" className="text-right tracking-wide">
+          <Text size="xs" variant="muted" className="text-right tracking-wide">
             {hint}
           </Text>
         ) : null}

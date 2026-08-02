@@ -229,13 +229,7 @@ export function CollabFilterClearButton() {
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <Text
-        as="span"
-        monospace
-        size="xs"
-        variant="muted"
-        className="tracking-widest text-foreground/80"
-      >
+      <Text as="span" size="xs" variant="muted" className="tracking-widest text-foreground/80">
         {label}
       </Text>
       {children}

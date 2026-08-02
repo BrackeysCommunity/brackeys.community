@@ -33,13 +33,13 @@ export function CollabCreateFooter({
     <>
       {error ? (
         <div className="shrink-0 border-t border-destructive/30 bg-destructive/5 px-5 py-2">
-          <Text monospace size="xs" variant="danger">
+          <Text size="xs" variant="danger">
             {error}
           </Text>
         </div>
       ) : null}
       <div className="flex shrink-0 items-center justify-between gap-3 border-t border-muted/30 px-5 py-3">
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {isSubmitting ? "SUBMITTING…" : "⟢ AUTO-SAVED"}
         </Text>
         <div className="flex items-center gap-2">

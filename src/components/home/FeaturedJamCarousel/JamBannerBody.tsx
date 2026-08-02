@@ -62,10 +62,10 @@ export function JamBannerBody({
             exit={{ opacity: 0 }}
             transition={BODY_TRANSITION}
           >
-            <Heading as="h3" size={titleSize} monospace ellipsis className="leading-tight">
+            <Heading as="h3" size={titleSize} ellipsis className="leading-tight">
               {jam.title}
             </Heading>
-            <Text as="p" monospace variant="muted" className="text-[11px]">
+            <Text as="p" variant="muted" className="text-[11px]">
               {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "Dates TBA"}
               {!isCompact && jam.hosts[0] && ` · Hosts · ${jam.hosts[0].name}`}
             </Text>
@@ -79,7 +79,7 @@ export function JamBannerBody({
       <Well variant="ghost">
         <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-3 p-3">
           <div>
-            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="div" size="xs" variant="muted" className="tracking-widest">
               {state === "upcoming" ? "OPENS IN" : state === "ended" ? "ENDED" : "CLOSES IN"}
             </Text>
             <JamCountdown
@@ -90,7 +90,7 @@ export function JamBannerBody({
             />
           </div>
           <div>
-            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="div" size="xs" variant="muted" className="tracking-widest">
               JOINED
             </Text>
             <div className={`font-mono ${statValueClass} font-bold`}>
@@ -98,7 +98,7 @@ export function JamBannerBody({
             </div>
           </div>
           <div className="border-l border-muted/40 pl-4">
-            <Text as="div" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="div" size="xs" variant="muted" className="tracking-widest">
               ENTRIES
             </Text>
             <div className={`font-mono ${statValueClass} font-bold`}>

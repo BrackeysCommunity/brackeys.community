@@ -111,7 +111,6 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                   <TableCell colSpan={COLUMNS.length}>
                     <Text
                       as="div"
-                      monospace
                       size="sm"
                       variant="muted"
                       align="center"
@@ -167,7 +166,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
         </Well>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Text monospace size="xs" variant="muted" className="tracking-widest tabular-nums">
+          <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
             {data.total.toLocaleString()} ARCHIVED JAM{data.total === 1 ? "" : "S"}
           </Text>
           <div className="flex items-center gap-2">
@@ -191,7 +190,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                 NEXT ›
               </Button>
             </ButtonGroup>
-            <Text monospace size="xs" variant="muted" className="tracking-widest tabular-nums">
+            <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
               PAGE {state.page + 1}/{totalPages}
             </Text>
           </div>

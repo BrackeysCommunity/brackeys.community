@@ -68,7 +68,7 @@ export function CollabUserCard({ user, skills }: CollabUserCardProps) {
             <Text as="span" size="sm" bold className="truncate text-foreground">
               {user.discordUsername ?? "Unknown"}
             </Text>
-            <Text as="span" monospace size="xs" variant="muted" className="tracking-widest">
+            <Text as="span" size="xs" variant="muted" className="tracking-widest">
               {timeAgo(user.updatedAt)}
             </Text>
           </div>

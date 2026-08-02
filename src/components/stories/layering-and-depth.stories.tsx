@@ -71,7 +71,7 @@ export const Overview: Story = {
   render: () => (
     <>
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Philosophy
         </Heading>
         <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
@@ -83,7 +83,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Z-index Scale
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -95,17 +95,17 @@ export const Overview: Story = {
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Layer
                   </Text>
                 </th>
                 <th className="px-4 py-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Usage
                   </Text>
                 </th>
                 <th className="px-4 py-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Examples
                   </Text>
                 </th>
@@ -133,7 +133,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Stacking in Practice
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -143,21 +143,19 @@ export const Overview: Story = {
         <div className="relative flex h-60 w-full items-end justify-center overflow-hidden border border-border bg-card">
           <div className="absolute inset-x-6 top-24 bottom-6 border border-border bg-background">
             <div className="p-3">
-              <Text size="xs" variant="muted" monospace>
+              <Text size="xs" variant="muted">
                 z-0 · page content
               </Text>
             </div>
           </div>
           <div className="absolute top-20 left-14 h-28 w-56 border border-border bg-muted shadow-[2px_2px_0_0_var(--emboss-shadow)]">
             <div className="p-3">
-              <Text size="xs" monospace>
-                z-40 · SlideOverPanel
-              </Text>
+              <Text size="xs">z-40 · SlideOverPanel</Text>
             </div>
           </div>
           <div className="absolute top-10 right-14 h-24 w-52 border border-border bg-foreground text-background shadow-[2px_2px_0_0_color-mix(in_srgb,var(--foreground)_50%,black)]">
             <div className="p-3">
-              <Text size="xs" monospace className="text-background">
+              <Text size="xs" className="text-background">
                 z-50 · Dialog / Popover
               </Text>
             </div>
@@ -166,7 +164,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Emboss & Deboss
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -176,7 +174,7 @@ export const Overview: Story = {
         </Text>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-3 border border-border bg-card p-6">
-            <Text size="xs" variant="muted" monospace>
+            <Text size="xs" variant="muted">
               Emboss
             </Text>
             <div className="flex flex-wrap items-center gap-3">
@@ -190,7 +188,7 @@ export const Overview: Story = {
             </Text>
           </div>
           <div className="flex flex-col gap-3 border border-border bg-card p-6">
-            <Text size="xs" variant="muted" monospace>
+            <Text size="xs" variant="muted">
               Deboss
             </Text>
             <div className="flex flex-wrap items-center gap-3">
@@ -212,17 +210,17 @@ export const Overview: Story = {
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Utility
                   </Text>
                 </th>
                 <th className="px-4 py-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Role
                   </Text>
                 </th>
                 <th className="px-4 py-2">
-                  <Text size="xs" variant="muted" monospace>
+                  <Text size="xs" variant="muted">
                     Lift
                   </Text>
                 </th>
@@ -250,7 +248,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Tokens
         </Heading>
         <Text as="p" size="xs" variant="muted" className="max-w-xl">
@@ -287,7 +285,7 @@ export const Overview: Story = {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Heading as="h2" size="sm" monospace>
+        <Heading as="h2" size="sm">
           Guidelines
         </Heading>
         <div className="max-w-xl space-y-2">

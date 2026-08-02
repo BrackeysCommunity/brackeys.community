@@ -20,10 +20,10 @@ export function SignalStat({
         align === "end" ? "items-end" : "items-start",
       )}
     >
-      <Text monospace size="xs" variant="muted" className="tracking-widest">
+      <Text size="xs" variant="muted" className="tracking-widest">
         {signal.label}
       </Text>
-      <Text monospace bold size="md" className="tabular-nums">
+      <Text bold size="md" className="tabular-nums">
         {signal.value.toLocaleString()}
       </Text>
     </div>
@@ -47,11 +47,7 @@ export function CountStat({
   className?: string;
 }) {
   return (
-    <Text
-      monospace
-      size={size}
-      className={cn("tracking-widest whitespace-nowrap tabular-nums", className)}
-    >
+    <Text size={size} className={cn("tracking-widest whitespace-nowrap tabular-nums", className)}>
       <span className={bold ? "font-bold" : "font-medium"}>{value.toLocaleString()}</span>{" "}
       <span className="text-muted-foreground">{label}</span>
     </Text>

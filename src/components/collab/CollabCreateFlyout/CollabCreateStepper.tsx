@@ -48,7 +48,6 @@ export function CollabCreateStepper({ tabs, activeIndex, onSelect }: CollabCreat
           >
             <Text
               as="span"
-              monospace
               size="xs"
               variant="muted"
               className={cn(

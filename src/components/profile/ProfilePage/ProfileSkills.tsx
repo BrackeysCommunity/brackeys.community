@@ -50,7 +50,7 @@ export function ProfileSkillsSection({
           <SkillCloud skills={active} state="active" />
           {pending.length > 0 ? (
             <div className="flex flex-col gap-1.5 border-t border-muted/30 pt-3">
-              <Text monospace size="xs" variant="muted" className="tracking-widest">
+              <Text size="xs" variant="muted" className="tracking-widest">
                 PENDING REVIEW · {pending.length}
               </Text>
               <SkillCloud skills={pending} state="pending" />

@@ -24,18 +24,13 @@ export function CollabSectionHeader({ index, title, action, className }: CollabS
     <div className={cn("flex items-center gap-3", className)}>
       <Text
         as="span"
-        monospace
         size="xs"
         variant="muted"
         className="rounded bg-muted/40 px-1.5 py-0.5 tracking-widest tabular-nums"
       >
         §{index}
       </Text>
-      <Heading
-        as="h2"
-        monospace
-        className="text-base font-bold tracking-widest text-foreground uppercase"
-      >
+      <Heading as="h2" className="text-base font-bold tracking-widest text-foreground uppercase">
         {title}
       </Heading>
       <div aria-hidden className="flex-1 border-t border-dashed border-muted-foreground/30" />

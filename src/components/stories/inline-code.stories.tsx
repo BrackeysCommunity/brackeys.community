@@ -187,8 +187,8 @@ File paths: <InlineCode>/src/components/Button.tsx</InlineCode>`}
               tags)
             </li>
             <li>
-              <code className="text-primary">{"<Text monospace>"}</code>: Use for monospace text
-              that isn't necessarily code
+              <code className="text-primary">{"<Text>"}</code>: Use for monospace text that isn't
+              necessarily code
             </li>
             <li>
               <code className="text-primary">{"<MarkedText>"}</code>: Use for rendering markdown

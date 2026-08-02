@@ -38,7 +38,7 @@ export const Overview: Story = {
     return (
       <>
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Imports
           </Heading>
           <pre className="border border-border bg-card px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -57,7 +57,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Basic Usage
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -88,7 +88,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Sizes
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -117,7 +117,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Priorities
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -141,7 +141,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Icons
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -168,7 +168,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Disabled Items
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -186,7 +186,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Tooltips
           </Heading>
           <Text as="p" size="xs" variant="muted">
@@ -205,12 +205,12 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Usage Patterns
           </Heading>
           <div className="flex flex-col gap-6 border border-border bg-card p-8">
             <div className="flex flex-col gap-2">
-              <Text size="xs" variant="muted" monospace>
+              <Text size="xs" variant="muted">
                 View switcher
               </Text>
               <SegmentedControl value={view} onChange={setView}>
@@ -226,7 +226,7 @@ export const Overview: Story = {
               </SegmentedControl>
             </div>
             <div className="flex flex-col gap-2">
-              <Text size="xs" variant="muted" monospace>
+              <Text size="xs" variant="muted">
                 Time range
               </Text>
               <SegmentedControl value={range} onChange={setRange}>
@@ -237,7 +237,7 @@ export const Overview: Story = {
               </SegmentedControl>
             </div>
             <div className="flex flex-col gap-2">
-              <Text size="xs" variant="muted" monospace>
+              <Text size="xs" variant="muted">
                 Display mode
               </Text>
               <SegmentedControl size="sm" value={mode} onChange={setMode}>
@@ -250,7 +250,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             SegmentedControl vs Tabs vs Radio
           </Heading>
           <div className="max-w-xl space-y-3">
@@ -271,7 +271,7 @@ export const Overview: Story = {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Heading as="h2" size="sm" monospace>
+          <Heading as="h2" size="sm">
             Accessibility
           </Heading>
           <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">

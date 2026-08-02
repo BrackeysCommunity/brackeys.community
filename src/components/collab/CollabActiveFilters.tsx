@@ -86,16 +86,10 @@ export function CollabActiveFilters() {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-dashed border-muted-foreground/25 pb-3">
       <div className="flex items-baseline gap-2">
-        <Text
-          as="span"
-          monospace
-          bold
-          density="dense"
-          className="text-2xl text-foreground tabular-nums"
-        >
+        <Text as="span" bold density="dense" className="text-2xl text-foreground tabular-nums">
           {count ?? "—"}
         </Text>
-        <Text as="span" monospace size="xs" variant="muted" className="tracking-widest">
+        <Text as="span" size="xs" variant="muted" className="tracking-widest">
           {label}
         </Text>
       </div>

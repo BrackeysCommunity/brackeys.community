@@ -136,18 +136,13 @@ export function JamCalendarSpans({
               TODAY
             </Button>
           </ButtonGroup>
-          <Text monospace bold size="md" className="ml-2 tracking-widest">
+          <Text bold size="md" className="ml-2 tracking-widest">
             {monthLabel}
           </Text>
-          <Text monospace size="md" variant="muted" className="tracking-widest">
+          <Text size="md" variant="muted" className="tracking-widest">
             {monthStart.getUTCFullYear()}
           </Text>
-          <Text
-            monospace
-            size="xs"
-            variant="muted"
-            className="ml-auto hidden tracking-widest sm:block"
-          >
+          <Text size="xs" variant="muted" className="ml-auto hidden tracking-widest sm:block">
             BARS = TOP JAMS BY SIZE · CLICK A DAY FOR EVERYTHING
           </Text>
         </header>
@@ -157,7 +152,6 @@ export function JamCalendarSpans({
             <Text
               key={d}
               as="div"
-              monospace
               size="xs"
               variant="muted"
               className="px-1.5 py-1.5 text-[10px] tracking-widest uppercase"
@@ -270,7 +264,6 @@ function WeekRow({
               <span className="flex w-full items-baseline justify-between gap-1">
                 <Text
                   as="span"
-                  monospace
                   size={compact ? "xs" : "sm"}
                   density="dense"
                   bold={isToday}
@@ -281,7 +274,6 @@ function WeekRow({
                 {eventCount > 0 && (
                   <Text
                     as="span"
-                    monospace
                     size="xs"
                     variant="muted"
                     className="text-[9px] tracking-widest tabular-nums group-hover/day:text-foreground"

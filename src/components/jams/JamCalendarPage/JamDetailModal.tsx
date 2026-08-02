@@ -188,7 +188,7 @@ function ModalContent({
                 {jam.hosts[0]?.name ?? "COMMUNITY"}
               </Badge>
               {jam.hashtag && (
-                <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
+                <Text size="xs" variant="muted" className="tracking-widest uppercase">
                   {jam.hashtag.toUpperCase()}
                 </Text>
               )}
@@ -198,7 +198,7 @@ function ModalContent({
               {jam.title}
             </Heading>
 
-            <Text monospace size="xs" variant="muted" className="tracking-widest">
+            <Text size="xs" variant="muted" className="tracking-widest">
               {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "TBA"}
               {durationDays(jam.startsAt, jam.endsAt) &&
                 ` · ${durationDays(jam.startsAt, jam.endsAt)}`}
@@ -246,7 +246,7 @@ function JamStatsLine({ jam }: { jam: JamFromList }) {
   }
   if (parts.length === 0) return null;
   return (
-    <Text monospace size="xs" bold className="tracking-widest tabular-nums">
+    <Text size="xs" bold className="tracking-widest tabular-nums">
       {parts.join(" · ")}
     </Text>
   );

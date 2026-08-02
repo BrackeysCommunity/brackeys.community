@@ -66,7 +66,6 @@ function BestFinishCallout({ best }: { best: JamLogBest }) {
     >
       <Text
         as="div"
-        monospace
         bold
         density="dense"
         className="text-5xl leading-none tracking-tight text-warning tabular-nums"
@@ -74,13 +73,13 @@ function BestFinishCallout({ best }: { best: JamLogBest }) {
         #{best.rank}
       </Text>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           BEST FINISH
         </Text>
         <Text bold size="lg" className="truncate">
           {best.title}
         </Text>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {best.subtitle}
         </Text>
       </div>
@@ -101,10 +100,10 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
   return (
     <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
       <div className="flex flex-col items-start text-left">
-        <Text monospace bold density="dense" className="text-2xl leading-none tabular-nums">
+        <Text bold density="dense" className="text-2xl leading-none tabular-nums">
           {day.toString().padStart(2, "0")}
         </Text>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           {month} '{year}
         </Text>
       </div>
@@ -126,11 +125,11 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
         ) : null}
       </div>
       <div className="flex flex-col items-end leading-tight">
-        <Text monospace bold className="text-2xl tabular-nums">
+        <Text bold className="text-2xl tabular-nums">
           {entry.rank != null ? `#${entry.rank}` : "—"}
         </Text>
         {entry.totalEntries ? (
-          <Text monospace size="xs" variant="muted" className="tracking-widest tabular-nums">
+          <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
             /{entry.totalEntries}
           </Text>
         ) : null}

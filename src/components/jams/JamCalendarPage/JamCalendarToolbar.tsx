@@ -43,13 +43,7 @@ export function JamCalendarToolbar({
         {actions}
       </div>
       {counter && (
-        <Text
-          monospace
-          size="xs"
-          variant="muted"
-          align="right"
-          className="tracking-widest tabular-nums"
-        >
+        <Text size="xs" variant="muted" align="right" className="tracking-widest tabular-nums">
           {counter}
         </Text>
       )}

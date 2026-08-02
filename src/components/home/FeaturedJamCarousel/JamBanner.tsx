@@ -146,7 +146,6 @@ export function JamBanner({
 
             {!jam.bannerUrl && (
               <Text
-                monospace
                 bold
                 density="dense"
                 className={`absolute right-3 bottom-3 ${isCompact ? "text-3xl" : "text-5xl"} z-10 tracking-tighter text-foreground/40`}

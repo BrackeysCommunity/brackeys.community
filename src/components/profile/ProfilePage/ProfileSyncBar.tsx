@@ -69,17 +69,17 @@ export function ProfileSyncBar({ itch, isOwner, queryKey }: ProfileSyncBarProps)
             {itch.display}
           </a>
         ) : (
-          <Text monospace size="xs" variant="muted" className="truncate tracking-wider">
+          <Text size="xs" variant="muted" className="truncate tracking-wider">
             {itch.display}
           </Text>
         )}
       </div>
 
       <div className="flex shrink-0 flex-col items-end leading-tight">
-        <Text monospace bold density="dense" className="text-2xl tabular-nums">
+        <Text bold density="dense" className="text-2xl tabular-nums">
           {itch.gamesCount}
         </Text>
-        <Text monospace size="xs" variant="muted" className="tracking-widest">
+        <Text size="xs" variant="muted" className="tracking-widest">
           GAMES
         </Text>
       </div>

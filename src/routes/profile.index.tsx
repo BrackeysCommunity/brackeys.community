@@ -34,12 +34,7 @@ function ProfileIndex() {
   if (isPending) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Text
-          monospace
-          size="xs"
-          variant="muted"
-          className="animate-pulse tracking-widest uppercase"
-        >
+        <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
           Authenticating…
         </Text>
       </div>
@@ -50,7 +45,7 @@ function ProfileIndex() {
 
   return (
     <div className="flex items-center justify-center py-24">
-      <Text monospace size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
+      <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
         Redirecting to your profile…
       </Text>
     </div>
