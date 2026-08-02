@@ -26,7 +26,7 @@ export function CollabCreateUnauth() {
           ACCESS DENIED
         </Heading>
         <Text size="xs" variant="muted" className="max-w-[260px]">
-          Authenticate with Discord to post a gig, hobby project, playtest, or mentorship.
+          Authenticate with Discord to post paid work or a hobby project.
         </Text>
         <Button
           variant="outline"

@@ -26,6 +26,10 @@ interface CollabPostCardPost {
   compensationType?: string | null;
   teamSize?: string | null;
   primaryImageUrl?: string | null;
+  jam?: { jamId: number; title: string } | null;
+  /** How the viewer's own skills line up with the post's stack. Null for
+   *  signed-out viewers, the author, and posts with no stack. */
+  viewerOverlap?: { matched: string[]; total: number } | null;
 }
 
 interface CollabPostCardProps {
@@ -123,6 +127,8 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
                   CLOSED
                 </Badge>
               ) : null}
+              <JamBadge jam={post.jam} />
+              <MatchBadge overlap={post.viewerOverlap} />
             </span>
 
             <Text as="span" size="xs" variant="muted" className="tracking-widest tabular-nums">
@@ -133,6 +139,30 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
         </button>
       </Well>
     </motion.div>
+  );
+}
+
+/** The jam a post is recruiting for, when it named one. */
+function JamBadge({ jam }: { jam?: { jamId: number; title: string } | null }) {
+  if (!jam) return null;
+  return (
+    <Badge variant="warning" size="label" className="max-w-40 truncate">
+      {jam.title.toUpperCase()}
+    </Badge>
+  );
+}
+
+/**
+ * "You match 3/5" — the viewer's skills against the post's stack. Only
+ * meaningful once there's something to match, so a zero-overlap post
+ * stays quiet rather than advertising the mismatch.
+ */
+function MatchBadge({ overlap }: { overlap?: { matched: string[]; total: number } | null }) {
+  if (!overlap || overlap.total === 0 || overlap.matched.length === 0) return null;
+  return (
+    <Badge variant="outline" size="label" className="border-success/50 text-success">
+      {overlap.matched.length}/{overlap.total} MATCH
+    </Badge>
   );
 }
 
@@ -208,6 +238,8 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
                 CLOSED
               </Badge>
             ) : null}
+            <JamBadge jam={post.jam} />
+            <MatchBadge overlap={post.viewerOverlap} />
           </span>
 
           <Text

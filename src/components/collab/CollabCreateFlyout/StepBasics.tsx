@@ -4,17 +4,22 @@ import { Chonk } from "@/components/ui/chonk";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { updateWizardDraft } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
 
 import { FieldRow, TextAreaField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
-import { POST_TYPES, profanityCheck } from "./shared";
+import { JamPickerField } from "./JamPickerField";
+import { POST_TYPES, profanityCheck, projectLengthForJam } from "./shared";
+
+/** Where the title stops being scannable on a card, well short of the
+ *  200-char storage cap the input still enforces. */
+const TITLE_SOFT_LIMIT = 80;
 
 /**
- * Step 01 — pick a post type, write the headline + description, decide
- * whether to post as an individual or a team. Mirrors the wireframe's
- * `POST TYPE / POST TITLE / DESCRIPTION` ordering.
+ * Step 01 — pick a post type, write the headline + description, link a
+ * jam if there is one, and say whether you're recruiting solo or for a
+ * team. Mirrors the wireframe's `POST TYPE / POST TITLE / DESCRIPTION`
+ * ordering.
  */
 export function StepBasics() {
   const form = useWizardForm();
@@ -38,10 +43,7 @@ export function StepBasics() {
                       <button
                         type="button"
                         aria-pressed={active}
-                        onClick={() => {
-                          field.handleChange(t.value);
-                          updateWizardDraft({ type: t.value });
-                        }}
+                        onClick={() => field.handleChange(t.value)}
                       />
                     }
                     className="flex w-full flex-col items-stretch gap-2 p-3 text-left"
@@ -88,7 +90,11 @@ export function StepBasics() {
         {(field) => (
           <TextField
             label="POST TITLE *"
-            hint="be specific, people scan"
+            hint={
+              field.state.value.length > TITLE_SOFT_LIMIT
+                ? "long titles get truncated on cards"
+                : "be specific, people scan"
+            }
             value={field.state.value}
             onChange={field.handleChange}
             onBlur={field.handleBlur}
@@ -124,26 +130,43 @@ export function StepBasics() {
         )}
       </form.Field>
 
+      <form.Field name="jamId">
+        {(field) => (
+          <JamPickerField
+            value={field.state.value}
+            onChange={(jam) => {
+              field.handleChange(jam?.jamId);
+              // A jam's run length is the project's timeline. Only fill
+              // a blank — a user who already chose one meant it.
+              const derived = jam ? projectLengthForJam(jam.startsAt, jam.endsAt) : undefined;
+              if (derived && !form.state.values.projectLength) {
+                form.setFieldValue("projectLength", derived);
+              }
+            }}
+          />
+        )}
+      </form.Field>
+
       <form.Field name="type">
         {(typeField) =>
           typeField.state.value ? (
             <form.Field name="isIndividual">
               {(field) => (
                 <Well variant="ghost" className="gap-3 p-3">
-                  <FieldRow label="POSTING AS" hint={field.state.value ? "myself" : "a team"}>
+                  {/* Not an availability listing — that's the people lane.
+                      This is still a team-seeking post; the switch only
+                      says who's behind it. */}
+                  <FieldRow label="RECRUITING AS" hint={field.state.value ? "solo dev" : "a team"}>
                     <div className="flex items-center gap-3">
                       <Switch
                         id="collab-create-is-individual"
                         checked={field.state.value}
-                        onCheckedChange={(checked) => {
-                          field.handleChange(!!checked);
-                          updateWizardDraft({ isIndividual: !!checked });
-                        }}
+                        onCheckedChange={(checked) => field.handleChange(!!checked)}
                       />
                       <Text size="sm" variant="muted">
                         {field.state.value
-                          ? "Posting as myself — Discord DM is used for contact."
-                          : "Posting on behalf of a team — choose a contact method below."}
+                          ? "It's just me looking for collaborators."
+                          : "I'm posting on behalf of an existing team."}
                       </Text>
                     </div>
                   </FieldRow>

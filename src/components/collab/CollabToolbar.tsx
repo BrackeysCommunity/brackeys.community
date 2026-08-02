@@ -46,8 +46,6 @@ const TYPE_OPTIONS: Option[] = [
   { value: "all", label: "ALL" },
   { value: "paid", label: "PAID WORK" },
   { value: "hobby", label: "HOBBY" },
-  { value: "playtest", label: "PLAYTEST" },
-  { value: "mentor", label: "MENTOR" },
 ];
 
 const STATUS_OPTIONS: Option[] = [

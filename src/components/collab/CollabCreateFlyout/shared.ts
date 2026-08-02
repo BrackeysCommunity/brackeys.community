@@ -1,9 +1,4 @@
-import {
-  BriefcaseIcon,
-  GameController01Icon,
-  MultiplicationSignIcon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
+import { BriefcaseIcon, GameController01Icon } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 
@@ -41,30 +36,18 @@ export interface WizardTabDef {
   label: string;
 }
 
-export const DEFAULT_TABS: WizardTabDef[] = [
+/**
+ * One strip for every post type. Picking a type used to silently swap
+ * the wizard between a 4-step and a 3-step shape — and carry stale
+ * values across the swap, since the two shapes shared columns that meant
+ * different things in each.
+ */
+export const WIZARD_TABS: WizardTabDef[] = [
   { id: "basics", num: "01", label: "BASICS" },
   { id: "project", num: "02", label: "PROJECT" },
   { id: "roles", num: "03", label: "ROLES" },
   { id: "review", num: "04", label: "REVIEW" },
 ];
-
-export function getWizardTabs(type: CollabPostType | undefined): WizardTabDef[] {
-  if (type === "playtest") {
-    return [
-      { id: "basics", num: "01", label: "BASICS" },
-      { id: "project", num: "02", label: "PLAYTEST" },
-      { id: "review", num: "03", label: "REVIEW" },
-    ];
-  }
-  if (type === "mentor") {
-    return [
-      { id: "basics", num: "01", label: "BASICS" },
-      { id: "project", num: "02", label: "MENTORSHIP" },
-      { id: "review", num: "03", label: "REVIEW" },
-    ];
-  }
-  return DEFAULT_TABS;
-}
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -87,18 +70,6 @@ export const POST_TYPES: PostTypeOption[] = [
     label: "HOBBY",
     desc: "Passion, jam crews, rev-share.",
     icon: GameController01Icon,
-  },
-  {
-    value: "playtest",
-    label: "PLAYTEST",
-    desc: "Find testers for builds & demos.",
-    icon: MultiplicationSignIcon,
-  },
-  {
-    value: "mentor",
-    label: "MENTORSHIP",
-    desc: "Teach or learn from someone shipping.",
-    icon: UserGroupIcon,
   },
 ];
 
@@ -150,24 +121,6 @@ export const CONTACT_TYPE_OPTIONS: { value: CollabContactType; label: string }[]
   { value: "discord_server", label: "Server" },
   { value: "email", label: "Email" },
   { value: "other", label: "Other" },
-];
-
-export const FEEDBACK_TYPE_OPTIONS = [
-  "Gameplay",
-  "UX/UI",
-  "Bugs",
-  "Balance",
-  "Story",
-  "Performance",
-  "General",
-];
-
-export const PLAY_TIME_OPTIONS: { value: CollabProjectLength; label: string }[] = [
-  { value: "<1 week", label: "< 15 min" },
-  { value: "1-4 weeks", label: "15-30 min" },
-  { value: "1-3 months", label: "30-60 min" },
-  { value: "3-6 months", label: "1-2 hrs" },
-  { value: "6+ months", label: "2+ hrs" },
 ];
 
 export const CONTACT_PLACEHOLDERS: Record<CollabContactType, string> = {
@@ -234,6 +187,7 @@ export async function uploadCollabPostImage(file: File): Promise<UploadedImageRe
 
 export type WizardFormValues = {
   type: CollabPostType | undefined;
+  jamId: number | undefined;
   title: string;
   description: string;
   isIndividual: boolean;
@@ -250,8 +204,32 @@ export type WizardFormValues = {
   portfolioUrl: string;
   experience: string;
   roleIds: number[];
+  skillIds: number[];
   images: UploadedImage[];
 };
+
+// ── Jam-derived defaults ───────────────────────────────────────────────────
+
+/**
+ * A jam's run length as the closest timeline bucket, used to prefill
+ * TIMELINE when a jam is picked. A 48-hour jam is not a "3-6 months"
+ * project and the user shouldn't have to say so.
+ */
+export function projectLengthForJam(
+  startsAt: string | Date | null | undefined,
+  endsAt: string | Date | null | undefined,
+): CollabProjectLength | undefined {
+  if (!startsAt || !endsAt) return undefined;
+  const start = new Date(startsAt).getTime();
+  const end = new Date(endsAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return undefined;
+
+  const days = (end - start) / 86_400_000;
+  if (days <= 7) return "<1 week";
+  if (days <= 28) return "1-4 weeks";
+  if (days <= 92) return "1-3 months";
+  return "3-6 months";
+}
 
 // ── Step validation ────────────────────────────────────────────────────────
 
@@ -293,46 +271,54 @@ export function getStepValidationError(stepId: string, v: WizardFormValues): str
       }
       break;
     }
-    case "playtest": {
-      if (v.platforms.length === 0) return "Please select at least one platform.";
-      if (!v.projectLength) return "Please select estimated play time.";
-      if (!v.experienceLevel) return "Please select an experience level.";
-      let feedbackTypes: string[] = [];
-      try {
-        feedbackTypes = JSON.parse(v.experience || "[]");
-      } catch {
-        /* empty */
-      }
-      if (!Array.isArray(feedbackTypes) || feedbackTypes.length === 0)
-        return "Please select at least one feedback type.";
-      break;
-    }
-    case "mentor": {
-      if (v.roleIds.length === 0) return "Please select at least one topic.";
-      if (!v.projectLength) return "Please select your availability.";
-      if (!v.experienceLevel) return "Please select an experience level.";
-      if (!v.isIndividual) {
-        if (!v.contactType) return "Please select a contact type.";
-        if (!v.contactMethod.trim()) return "Please enter contact info.";
-      }
-      if (v.contactMethod) {
-        const contactCheck = profanityCheck(v.contactMethod, "Contact method");
-        if (contactCheck) return contactCheck;
-      }
-      break;
-    }
+    // Roles used to be a step you could walk straight through, which put
+    // posts on the board that the board's own role filter couldn't find.
     case "roles":
+      if (v.roleIds.length === 0) return "Please select at least one role.";
       break;
     case "review": {
-      if (!v.type) return "Post type is missing.";
-      if (!v.title.trim()) return "Title is missing.";
-      if (v.title.trim().length < 10) return "Title must be at least 10 characters.";
-      if (!v.description.trim()) return "Description is missing.";
-      if (v.description.trim().length < 30) return "Description must be at least 30 characters.";
-      break;
+      // The last gate before submit, so it re-runs every requirement
+      // rather than trusting that the user walked the steps in order.
+      const basics = getStepValidationError("basics", v);
+      if (basics) return basics;
+      const details = getStepValidationError("details", v);
+      if (details) return details;
+      return getStepValidationError("roles", v);
     }
   }
   return null;
+}
+
+/**
+ * The pre-flight checklist, in the order it renders. Every row is a real
+ * submit requirement, so "100%" and "the NEXT button works" mean the
+ * same thing — the old list mixed in a phantom timezone field and let
+ * roles auto-pass, then reported 86% on a perfectly valid post.
+ */
+export function getPreflightChecks(v: WizardFormValues): { label: string; ok: boolean }[] {
+  return [
+    { label: "Post type selected", ok: !!v.type },
+    { label: "Title is descriptive", ok: v.title.trim().length >= 10 },
+    { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30 },
+    { label: "Project named", ok: v.projectName.trim().length >= 3 },
+    { label: "At least one platform", ok: v.platforms.length > 0 },
+    {
+      label: "Team size, timeline, experience",
+      ok: !!v.teamSize && !!v.projectLength && !!v.experienceLevel,
+    },
+    { label: "At least one role", ok: v.roleIds.length > 0 },
+    {
+      label: "Compensation set",
+      ok:
+        v.type !== "paid" ||
+        (!!v.compensationType &&
+          (v.compensationType === "negotiable" || v.compensationMin !== undefined)),
+    },
+    {
+      label: "Contact method chosen",
+      ok: v.isIndividual || (!!v.contactType && !!v.contactMethod.trim()),
+    },
+  ];
 }
 
 // ── Form context types ─────────────────────────────────────────────────────

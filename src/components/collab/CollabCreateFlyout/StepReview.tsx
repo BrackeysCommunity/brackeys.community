@@ -8,54 +8,38 @@ import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { formatRate } from "@/lib/format-rate";
+import { formatJamShortDates } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";
 import { useWizardForm } from "./form-context";
-import { type AnyFormStore, CONTACT_TYPE_LABELS, POST_TYPES } from "./shared";
+import { type AnyFormStore, CONTACT_TYPE_LABELS, getPreflightChecks, POST_TYPES } from "./shared";
 
 /**
- * Step N — pre-flight checklist + compact post preview. Mirrors the
- * wireframe "29% complete · Pre-flight" panel.
+ * Step 04 — pre-flight checklist + compact post preview. The checklist
+ * mirrors the submit requirements exactly, so 100% and "NEXT works" are
+ * the same statement.
  */
 export function StepReview() {
   const form = useWizardForm();
   const v = useStore(form.store, (s: AnyFormStore) => s.values);
   const { data: roles } = useQuery({ ...orpc.listCollabRoles.queryOptions({ input: {} }) });
-  const selectedRoles = roles?.filter((r) => v.roleIds.includes(r.id)) ?? [];
+  const { data: allSkills } = useQuery({ ...orpc.listSkills.queryOptions({ input: {} }) });
+  const { data: jamData } = useQuery({
+    ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
+    enabled: v.jamId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  let feedbackTypes: string[] = [];
-  if (v.type === "playtest") {
-    try {
-      feedbackTypes = JSON.parse(v.experience || "[]");
-      if (!Array.isArray(feedbackTypes)) feedbackTypes = [];
-    } catch {
-      feedbackTypes = [];
-    }
-  }
+  const selectedRoles = roles?.filter((r) => v.roleIds.includes(r.id)) ?? [];
+  const selectedSkills = allSkills?.filter((s) => v.skillIds.includes(s.id)) ?? [];
+  const jam = jamData?.jams.find((j) => j.jamId === v.jamId) ?? null;
 
   const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
 
-  const checks: { label: string; ok: boolean }[] = [
-    { label: "Post type selected", ok: !!v.type },
-    { label: "Title is descriptive", ok: v.title.trim().length >= 10 },
-    { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30 },
-    {
-      label: "At least one role / topic",
-      ok:
-        v.type === "playtest"
-          ? feedbackTypes.length > 0
-          : v.roleIds.length > 0 || v.type === "mentor",
-    },
-    { label: "Compensation set", ok: v.type !== "paid" || !!v.compensationType },
-    { label: "Platforms / timezone", ok: v.platforms.length > 0 },
-    {
-      label: "Contact method chosen",
-      ok: v.isIndividual || (!!v.contactType && !!v.contactMethod.trim()),
-    },
-  ];
+  const checks = getPreflightChecks(v);
   const completed = checks.filter((c) => c.ok).length;
   const percent = Math.round((completed / checks.length) * 100);
 
@@ -85,7 +69,12 @@ export function StepReview() {
                 ) : null}
                 {v.isIndividual ? (
                   <Badge variant="outline" size="label" className="uppercase">
-                    Individual
+                    Solo dev
+                  </Badge>
+                ) : null}
+                {jam ? (
+                  <Badge variant="warning" size="label" className="uppercase">
+                    {jam.title}
                   </Badge>
                 ) : null}
               </div>
@@ -149,7 +138,16 @@ export function StepReview() {
         </Well>
       </FieldRow>
 
-      <FieldRow label="ROLES / TOPICS">
+      {jam ? (
+        <FieldRow label="JAM">
+          <Text size="sm">{jam.title}</Text>
+          <Text size="xs" variant="muted" className="tracking-widest">
+            {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "DATES TBA"}
+          </Text>
+        </FieldRow>
+      ) : null}
+
+      <FieldRow label="ROLES NEEDED">
         <div className="flex flex-wrap gap-1.5">
           {selectedRoles.length === 0 ? (
             <Text size="xs" variant="muted">
@@ -165,12 +163,12 @@ export function StepReview() {
         </div>
       </FieldRow>
 
-      {feedbackTypes.length > 0 ? (
-        <FieldRow label="FEEDBACK TYPES">
+      {selectedSkills.length > 0 ? (
+        <FieldRow label="TECH STACK">
           <div className="flex flex-wrap gap-1.5">
-            {feedbackTypes.map((ft) => (
-              <Badge key={ft} variant="secondary" size="label" className="uppercase">
-                {ft}
+            {selectedSkills.map((s) => (
+              <Badge key={s.id} variant="outline" size="label" className="uppercase">
+                {s.name}
               </Badge>
             ))}
           </div>
@@ -179,10 +177,10 @@ export function StepReview() {
 
       <FieldRow label="CONTACT">
         <Text size="xs">
-          {v.isIndividual
-            ? "Discord DM (via your profile)"
-            : v.contactMethod
-              ? `${v.contactType ? (CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType) + ": " : ""}${v.contactMethod}`
+          {v.contactMethod
+            ? `${v.contactType ? (CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType) + ": " : ""}${v.contactMethod}`
+            : v.isIndividual
+              ? "Discord DM (via your profile)"
               : "—"}
         </Text>
       </FieldRow>

@@ -2,7 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useMemo } from "react";
 
-import { collabFilterInput, collabStore } from "@/lib/collab-store";
+import { collabFilterInput, collabPeopleFilterInput, collabStore } from "@/lib/collab-store";
 import { client } from "@/orpc/client";
 
 const PAGE_SIZE = 20;
@@ -27,6 +27,7 @@ export function useCollabListing(currentUserId?: string | null) {
   const filters = useStore(collabStore, (s) => s.filters);
   const isPeople = filters.listingType === "people";
   const filterInput = collabFilterInput(filters);
+  const peopleInput = collabPeopleFilterInput(filters);
 
   const postsQuery = useInfiniteQuery({
     queryKey: ["listPosts", filterInput, filters.sortBy, filters.sortOrder],
@@ -48,10 +49,10 @@ export function useCollabListing(currentUserId?: string | null) {
   });
 
   const usersQuery = useInfiniteQuery({
-    queryKey: ["listAvailableUsers", filters.search, filters.sortBy, filters.sortOrder],
+    queryKey: ["listAvailableUsers", peopleInput, filters.sortBy, filters.sortOrder],
     queryFn: ({ pageParam = 0 }) =>
       client.listAvailableUsers({
-        search: filters.search || undefined,
+        ...peopleInput,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
         limit: PAGE_SIZE,

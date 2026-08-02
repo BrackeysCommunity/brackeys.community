@@ -108,6 +108,12 @@ export const developerProfiles = userSchema.table("developer_profiles", {
   rateType: text("rate_type"),
   rateMin: integer("rate_min"),
   rateMax: integer("rate_max"),
+  // The people lane is the individual-availability surface (there is no
+  // "I'm available" post type — a profile flag maintains itself, a post
+  // goes stale the moment its author finds work). These two carry what
+  // such a post would have said.
+  lookingFor: text("looking_for"),
+  collabPreference: text("collab_preference"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -461,13 +467,22 @@ export const collabPosts = collabSchema.table("collab_posts", {
   authorId: text("author_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
+  // Kept as text (not a pg enum) so the deferred playtest/mentor types
+  // return as pure additions. v1 writes only 'paid' | 'hobby'.
   type: text("type").notNull(),
-  subtype: text("subtype"),
+  // Optional link to the jam this post is recruiting for. Same hybrid-FK
+  // spirit as `profile_projects.jam_id` — cross-schema into itch.jams.
+  jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   projectName: text("project_name"),
+  // `compensation` is the legacy display string. New posts write the
+  // numbers below and render through `formatRate`; the column stays only
+  // so pre-v1 rows keep rendering.
   compensation: text("compensation"),
   compensationType: text("compensation_type"),
+  compensationMin: integer("compensation_min"),
+  compensationMax: integer("compensation_max"),
   teamSize: text("team_size"),
   projectLength: text("project_length"),
   platforms: text("platforms").array(),
@@ -489,15 +504,42 @@ export const collabRoles = collabSchema.table("collab_roles", {
   category: text("category"),
 });
 
-export const collabPostRoles = collabSchema.table("collab_post_roles", {
-  id: serial("id").primaryKey(),
-  postId: integer("post_id")
-    .notNull()
-    .references(() => collabPosts.id, { onDelete: "cascade" }),
-  roleId: integer("role_id")
-    .notNull()
-    .references(() => collabRoles.id, { onDelete: "cascade" }),
-});
+export const collabPostRoles = collabSchema.table(
+  "collab_post_roles",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => collabPosts.id, { onDelete: "cascade" }),
+    roleId: integer("role_id")
+      .notNull()
+      .references(() => collabRoles.id, { onDelete: "cascade" }),
+  },
+  (table) => [unique().on(table.postId, table.roleId)],
+);
+
+/**
+ * A post's tech stack, drawn from the same curated `user.skills`
+ * vocabulary the profiles use — one vocabulary, two link tables, so a
+ * responder's skills and a post's stack are comparable ids rather than
+ * strings that have to match by spelling.
+ *
+ * Distinct from `collab_post_roles`: a role is the seat being filled
+ * ("Pixel Artist"), a skill is what the project runs on ("Godot").
+ */
+export const collabPostSkills = collabSchema.table(
+  "collab_post_skills",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => collabPosts.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+  },
+  (table) => [unique().on(table.postId, table.skillId)],
+);
 
 export const collabResponses = collabSchema.table(
   "collab_responses",

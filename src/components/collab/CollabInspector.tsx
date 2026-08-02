@@ -20,6 +20,8 @@ interface CollabInspectorProps {
   currentUserId: string | null;
   /** Clears the selection, returning the pane to its idle state. */
   onClose: () => void;
+  /** Opens the create flyout in edit mode for the owner's own post. */
+  onEdit?: () => void;
   /** Sidebar width — single-column detail and tighter padding. */
   compact?: boolean;
 }
@@ -29,13 +31,20 @@ interface CollabInspectorProps {
  * selected it does real work instead of sitting empty — the board's
  * open counts and who's currently available.
  */
-export function CollabInspector({ postId, currentUserId, onClose, compact }: CollabInspectorProps) {
+export function CollabInspector({
+  postId,
+  currentUserId,
+  onClose,
+  onEdit,
+  compact,
+}: CollabInspectorProps) {
   if (postId === null) return <InspectorIdle compact={compact} />;
   return (
     <CollabPostDetail
       postId={postId}
       currentUserId={currentUserId}
       onClose={onClose}
+      onEdit={onEdit}
       compact={compact}
     />
   );
@@ -44,8 +53,6 @@ export function CollabInspector({ postId, currentUserId, onClose, compact }: Col
 const TYPE_ROWS: { value: CollabPostType; label: string }[] = [
   { value: "paid", label: "PAID WORK" },
   { value: "hobby", label: "HOBBY" },
-  { value: "playtest", label: "PLAYTEST" },
-  { value: "mentor", label: "MENTORSHIP" },
 ];
 
 /**

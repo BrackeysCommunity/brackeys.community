@@ -4,8 +4,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { Heading, Text } from "@/components/ui/typography";
-import { collabStore, resetWizard, setWizardStep, updateWizardDraft } from "@/lib/collab-store";
-import { formatRate } from "@/lib/format-rate";
+import {
+  collabStore,
+  resetWizard,
+  setWizardStep,
+  updateWizardDraft,
+  type UploadedImage,
+} from "@/lib/collab-store";
 import { client } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";
@@ -13,14 +18,12 @@ import { CollabCreateStepper } from "./CollabCreateStepper";
 import { WizardFormContext } from "./form-context";
 import {
   getStepValidationError,
-  getWizardTabs,
   uploadCollabPostImage,
+  WIZARD_TABS,
   type WizardFormValues,
   type WizardTabId,
 } from "./shared";
 import { StepBasics } from "./StepBasics";
-import { StepMentor } from "./StepMentor";
-import { StepPlaytest } from "./StepPlaytest";
 import { StepProject } from "./StepProject";
 import { StepReview } from "./StepReview";
 import { StepRoles } from "./StepRoles";
@@ -46,6 +49,13 @@ const STEP_VARIANTS = {
   }),
 };
 
+/**
+ * Images added during an edit land after whatever the post already has.
+ * Creation writes 0..n, so starting well past that keeps the existing
+ * cover image the cover image.
+ */
+const EDIT_IMAGE_SORT_BASE = 100;
+
 interface CollabCreateFormProps {
   onCreated: (postId: number) => void;
 }
@@ -55,93 +65,98 @@ interface CollabCreateFormProps {
  * instance, drives the visible tab strip, and renders the active
  * step's body inside a directional cross-fade that mirrors the
  * profile flyout's transition.
+ *
+ * Doubles as the edit form: when the store carries an `editingPostId`
+ * the same four steps submit through `updatePost` instead. That reuse
+ * is only possible because compensation, jam, and stack round-trip as
+ * structured values — the old formatted `"$25 - $75 /hr"` string could
+ * never repopulate the sliders.
  */
 export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
-  const { wizard } = useStore(collabStore);
+  // Selector subscriptions, not the whole store: the draft now updates
+  // on every keystroke (that's what makes it survivable across a
+  // reload), and re-rendering the entire wizard for each one would be
+  // paying for persistence with input latency.
+  const step = useStore(collabStore, (s) => s.wizard.step);
+  const editingPostId = useStore(collabStore, (s) => s.wizard.editingPostId);
+  const draftRestored = useStore(collabStore, (s) => s.wizard.draftRestored);
   const [error, setError] = useState<string | null>(null);
+  // Set when the post itself saved but its images didn't. Holds the live
+  // post id so retrying attaches to it rather than creating a second
+  // post — the old generic error left the user staring at a filled
+  // wizard with a live post behind it and no safe way forward.
+  const [imageRetryPostId, setImageRetryPostId] = useState<number | null>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Whatever the store held when this form mounted — a restored draft,
+  // an edit seeded from `getPost`, or an empty one. Whoever opened the
+  // flyout has already put it there; the form only reads it.
+  const [initialDraft] = useState(() => collabStore.state.wizard.draft);
+
   const form = useForm({
     defaultValues: {
-      type: wizard.draft.type,
-      title: wizard.draft.title,
-      description: wizard.draft.description,
-      isIndividual: wizard.draft.isIndividual,
-      projectName: wizard.draft.projectName,
-      platforms: wizard.draft.platforms,
-      teamSize: wizard.draft.teamSize,
-      projectLength: wizard.draft.projectLength,
-      experienceLevel: wizard.draft.experienceLevel,
-      compensationType: wizard.draft.compensationType,
-      compensationMin: wizard.draft.compensationMin,
-      compensationMax: wizard.draft.compensationMax,
-      contactType: wizard.draft.contactType,
-      contactMethod: wizard.draft.contactMethod,
-      portfolioUrl: wizard.draft.portfolioUrl,
-      experience: wizard.draft.experience,
-      roleIds: wizard.draft.roleIds,
-      images: wizard.draft.images,
+      type: initialDraft.type,
+      jamId: initialDraft.jamId,
+      title: initialDraft.title,
+      description: initialDraft.description,
+      isIndividual: initialDraft.isIndividual,
+      projectName: initialDraft.projectName,
+      platforms: initialDraft.platforms,
+      teamSize: initialDraft.teamSize,
+      projectLength: initialDraft.projectLength,
+      experienceLevel: initialDraft.experienceLevel,
+      compensationType: initialDraft.compensationType,
+      compensationMin: initialDraft.compensationMin,
+      compensationMax: initialDraft.compensationMax,
+      contactType: initialDraft.contactType,
+      contactMethod: initialDraft.contactMethod,
+      portfolioUrl: initialDraft.portfolioUrl,
+      experience: initialDraft.experience,
+      roleIds: initialDraft.roleIds,
+      skillIds: initialDraft.skillIds,
+      images: initialDraft.images,
     },
     onSubmit: async ({ value }) => {
       const v = value as WizardFormValues;
-      let portfolioUrl: string | undefined;
-      if (v.portfolioUrl.trim()) {
-        const url = v.portfolioUrl.trim();
-        portfolioUrl = /^https?:\/\//.test(url) ? url : `https://${url}`;
-      }
-      const compensation =
-        formatRate(v.compensationType, v.compensationMin, v.compensationMax) || undefined;
+      setError(null);
 
-      const post = await client.createPost({
-        type: v.type!,
-        title: v.title,
-        description: v.description,
-        projectName: v.projectName || undefined,
-        compensation,
-        compensationType: v.compensationType || undefined,
-        teamSize: v.teamSize || undefined,
-        projectLength: v.projectLength || undefined,
-        platforms: v.platforms.length > 0 ? v.platforms : undefined,
-        experience: v.experience || undefined,
-        experienceLevel: v.experienceLevel || undefined,
-        portfolioUrl,
-        contactMethod: v.isIndividual ? undefined : v.contactMethod || undefined,
-        contactType: v.isIndividual ? "discord_dm" : v.contactType || undefined,
-        isIndividual: v.isIndividual || undefined,
-        roleIds: v.roleIds.length > 0 ? v.roleIds : undefined,
-      });
-      // Images are uploaded at submit time so abandoned drafts don't
-      // leave orphan objects in MinIO. Upload all pending files in
-      // parallel, then attach the resulting keys to the post.
-      if (v.images.length > 0) {
-        const uploaded = await Promise.all(v.images.map((img) => uploadCollabPostImage(img.file)));
-        await Promise.all(
-          uploaded.map((rec, idx) =>
-            client.addPostImage({
-              postId: post.id,
-              strapiMediaId: rec.key,
-              url: rec.url,
-              alt: v.images[idx]?.alt,
-              sortOrder: idx,
-            }),
-          ),
-        );
+      // The post save and the image upload are separate failure domains,
+      // so they get separate try/catches — a failed upload must not read
+      // as "your post didn't save".
+      let postId: number;
+      try {
+        postId = await savePost(v, editingPostId);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save the post.");
+        return;
       }
+
+      if (v.images.length > 0) {
+        try {
+          await attachImages(postId, v.images, editingPostId !== null);
+        } catch {
+          setImageRetryPostId(postId);
+          setError("Your post is live, but the images didn't upload. Retry below.");
+          return;
+        }
+      }
+
       resetWizard();
-      onCreated(post.id);
+      onCreated(postId);
     },
   });
 
-  const formType = useStore(form.store, (s) => s.values.type);
-  const formIsIndividual = useStore(form.store, (s) => s.values.isIndividual);
+  // Mirror the live form values into the store, which is what gets
+  // persisted. Before this the draft lived only in memory, so a refresh,
+  // a tab close, or an auth redirect wiped a four-step form.
   useEffect(() => {
-    updateWizardDraft({ type: formType, isIndividual: formIsIndividual });
-  }, [formType, formIsIndividual]);
+    const sync = () => updateWizardDraft(form.state.values as WizardFormValues);
+    sync();
+    return form.store.subscribe(sync);
+  }, [form]);
 
-  const tabs = getWizardTabs(formType);
-  const activeIndex = Math.min(wizard.step, tabs.length - 1);
-  const currentTab: WizardTabId = tabs[activeIndex]!.id;
-  const isLastStep = activeIndex === tabs.length - 1;
+  const activeIndex = Math.min(step, WIZARD_TABS.length - 1);
+  const currentTab: WizardTabId = WIZARD_TABS[activeIndex]!.id;
+  const isLastStep = activeIndex === WIZARD_TABS.length - 1;
 
   // Track the previous step so the body's cross-fade can pick a
   // direction (forward vs. back). Same trick the profile flyout uses.
@@ -153,14 +168,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   }
   const direction = activeIndex >= previousIndex ? 1 : -1;
 
-  const validationStepId = (() => {
-    if (currentTab === "basics") return "basics";
-    if (currentTab === "review") return "review";
-    if (currentTab === "roles") return "roles";
-    if (formType === "playtest") return "playtest";
-    if (formType === "mentor") return "mentor";
-    return "details";
-  })();
+  const validationStepId = currentTab === "project" ? "details" : currentTab;
 
   const handleNext = () => {
     const validationError = getStepValidationError(
@@ -184,15 +192,39 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
     if (activeIndex > 0) setWizardStep(activeIndex - 1);
   };
 
+  const handleRetryImages = async () => {
+    if (imageRetryPostId === null) return;
+    const v = form.state.values as WizardFormValues;
+    try {
+      await attachImages(imageRetryPostId, v.images, editingPostId !== null);
+    } catch {
+      setError("The images still didn't upload. Try again, or continue without them.");
+      return;
+    }
+    const postId = imageRetryPostId;
+    setImageRetryPostId(null);
+    resetWizard();
+    onCreated(postId);
+  };
+
+  const handleSkipImages = () => {
+    const postId = imageRetryPostId;
+    setImageRetryPostId(null);
+    resetWizard();
+    if (postId !== null) onCreated(postId);
+  };
+
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
   return (
     <>
       <CollabCreateHeader
-        stepLabel={`STEP ${activeIndex + 1}/${tabs.length} · ${tabs[activeIndex]?.label}`}
+        title={editingPostId !== null ? "EDIT POST." : "POST A GIG."}
+        stepLabel={`STEP ${activeIndex + 1}/${WIZARD_TABS.length} · ${WIZARD_TABS[activeIndex]?.label}`}
+        restored={draftRestored && editingPostId === null}
       />
       <CollabCreateStepper
-        tabs={tabs}
+        tabs={WIZARD_TABS}
         activeIndex={activeIndex}
         onSelect={(i) => setWizardStep(i)}
       />
@@ -209,7 +241,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
             className="h-full overflow-y-auto px-5 py-5"
           >
             <WizardFormContext.Provider value={form}>
-              {renderStep(currentTab, formType)}
+              {renderStep(currentTab)}
             </WizardFormContext.Provider>
           </motion.div>
         </AnimatePresence>
@@ -219,6 +251,12 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
         isFirstStep={activeIndex === 0}
         isLastStep={isLastStep}
         isSubmitting={isSubmitting}
+        submitLabel={editingPostId !== null ? "SAVE CHANGES" : "SUBMIT"}
+        imageRetry={
+          imageRetryPostId !== null
+            ? { onRetry: () => void handleRetryImages(), onSkip: handleSkipImages }
+            : null
+        }
         onBack={handleBack}
         onNext={handleNext}
       />
@@ -226,26 +264,102 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   );
 }
 
-function renderStep(tab: WizardTabId, type: WizardFormValues["type"]) {
+/** Creates or updates the post, returning its id either way. */
+async function savePost(v: WizardFormValues, editingPostId: number | null): Promise<number> {
+  let portfolioUrl: string | undefined;
+  if (v.portfolioUrl.trim()) {
+    const url = v.portfolioUrl.trim();
+    portfolioUrl = /^https?:\/\//.test(url) ? url : `https://${url}`;
+  }
+
+  // Compensation goes over the wire as numbers now. It used to be
+  // flattened to a display string here and stored that way, which made
+  // it unfilterable, unsortable, and impossible to load back into the
+  // sliders — the single reason no edit flow could exist.
+  const payload = {
+    type: v.type!,
+    // `null` unlinks on edit; the create path treats both the same.
+    jamId: v.jamId ?? null,
+    title: v.title.trim(),
+    description: v.description.trim(),
+    projectName: v.projectName.trim(),
+    compensationType: v.compensationType,
+    compensationMin: v.compensationType === "negotiable" ? undefined : v.compensationMin,
+    compensationMax: v.compensationType === "negotiable" ? undefined : v.compensationMax,
+    teamSize: v.teamSize!,
+    projectLength: v.projectLength!,
+    platforms: v.platforms,
+    experience: v.experience || undefined,
+    experienceLevel: v.experienceLevel!,
+    portfolioUrl,
+    contactMethod: v.contactMethod || undefined,
+    contactType: v.contactType,
+    isIndividual: v.isIndividual || undefined,
+    roleIds: v.roleIds,
+    skillIds: v.skillIds.length > 0 ? v.skillIds : undefined,
+  };
+
+  if (editingPostId !== null) {
+    const updated = await client.updatePost({ postId: editingPostId, ...payload });
+    return updated.id;
+  }
+  const post = await client.createPost(payload);
+  return post.id;
+}
+
+/**
+ * Uploads the pending files and links them to the post. Images are held
+ * in memory until submit so abandoned drafts leave no orphan objects in
+ * MinIO; the cost is that this step can fail after the post is already
+ * live, which is why the caller keeps a retry path open.
+ */
+async function attachImages(postId: number, images: UploadedImage[], isEdit: boolean) {
+  const uploaded = await Promise.all(images.map((img) => uploadCollabPostImage(img.file)));
+  await Promise.all(
+    uploaded.map((rec, idx) =>
+      client.addPostImage({
+        postId,
+        strapiMediaId: rec.key,
+        url: rec.url,
+        alt: images[idx]?.alt,
+        sortOrder: isEdit ? EDIT_IMAGE_SORT_BASE + idx : idx,
+      }),
+    ),
+  );
+}
+
+function renderStep(tab: WizardTabId) {
   if (tab === "basics") return <StepBasics />;
   if (tab === "review") return <StepReview />;
   if (tab === "roles") return <StepRoles />;
-  // tab === "project" — body depends on post type
-  if (type === "playtest") return <StepPlaytest />;
-  if (type === "mentor") return <StepMentor />;
   return <StepProject />;
 }
 
 /** No close control — the drawer owns dismissal. */
-function CollabCreateHeader({ stepLabel }: { stepLabel: string }) {
+function CollabCreateHeader({
+  title,
+  stepLabel,
+  restored,
+}: {
+  title: string;
+  stepLabel: string;
+  restored: boolean;
+}) {
   return (
     <div className="flex shrink-0 flex-col gap-0.5 border-b border-muted/30 px-5 pt-4 pb-4">
       <Heading as="h2" className="text-lg tracking-widest uppercase">
-        POST A GIG.
+        {title}
       </Heading>
-      <Text size="xs" variant="muted" className="tracking-widest">
-        {stepLabel}
-      </Text>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <Text size="xs" variant="muted" className="tracking-widest">
+          {stepLabel}
+        </Text>
+        {restored ? (
+          <Text size="xs" variant="success" className="tracking-widest">
+            · DRAFT RESTORED
+          </Text>
+        ) : null}
+      </div>
     </div>
   );
 }

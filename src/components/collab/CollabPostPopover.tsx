@@ -9,6 +9,8 @@ interface CollabPostPopoverProps {
   /** Currently signed-in user id, or null when anonymous. */
   currentUserId: string | null;
   onClose: () => void;
+  /** Opens the create flyout in edit mode for the owner's own post. */
+  onEdit?: () => void;
 }
 
 /**
@@ -22,7 +24,12 @@ interface CollabPostPopoverProps {
  * the page lurching rather than as a transition. A drawer slides from
  * the edge and leaves the list visibly behind it.
  */
-export function CollabPostPopover({ postId, currentUserId, onClose }: CollabPostPopoverProps) {
+export function CollabPostPopover({
+  postId,
+  currentUserId,
+  onClose,
+  onEdit,
+}: CollabPostPopoverProps) {
   const isOpen = postId !== null;
   useReleaseFocusOnOpen(isOpen);
 
@@ -42,6 +49,7 @@ export function CollabPostPopover({ postId, currentUserId, onClose }: CollabPost
               postId={postId}
               currentUserId={currentUserId}
               onClose={onClose}
+              onEdit={onEdit}
               showClose={false}
               frameless
             />

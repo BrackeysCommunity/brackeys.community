@@ -734,6 +734,15 @@ const RATE_OPTIONS: { value: "hourly" | "fixed" | "negotiable"; label: string }[
   { value: "fixed", label: "Fixed" },
   { value: "negotiable", label: "Negotiable" },
 ];
+// The collab board's people lane *is* the availability listing — there
+// is no "I'm available" post type, because a post goes stale the moment
+// its author finds work and a profile flag doesn't. These two carry
+// what such a post would have said, and both are people-lane filters.
+const COLLAB_PREFERENCE_OPTIONS: { value: "paid" | "hobby" | "either"; label: string }[] = [
+  { value: "paid", label: "Paid work" },
+  { value: "hobby", label: "Hobby projects" },
+  { value: "either", label: "Either" },
+];
 
 function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
@@ -746,6 +755,10 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const [rateType, setRateType] = useState<string | null>(null);
   const [rateMin, setRateMin] = useState<string>("");
   const [rateMax, setRateMax] = useState<string>("");
+  const [lookingFor, setLookingFor] = useState<string>(profile.availability.lookingFor ?? "");
+  const [collabPreference, setCollabPreference] = useState<string | null>(
+    profile.availability.collabPreference,
+  );
 
   return (
     <StepFrame title="AVAILABILITY">
@@ -841,6 +854,43 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
             }}
           />
         </div>
+      </FieldRow>
+      <FieldRow label="OPEN TO" hint="filters you into the collab board's people lane">
+        <Select
+          value={collabPreference}
+          onValueChange={(v) => {
+            const next = typeof v === "string" ? v : null;
+            setCollabPreference(next);
+            update.mutate({
+              collabPreference: next as "paid" | "hobby" | "either" | null,
+            });
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="— select —">
+              {collabPreference
+                ? (COLLAB_PREFERENCE_OPTIONS.find((o) => o.value === collabPreference)?.label ??
+                  collabPreference)
+                : null}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {COLLAB_PREFERENCE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
+      <FieldRow label="LOOKING FOR" hint="one line, shown on your directory card">
+        <Input
+          value={lookingFor}
+          maxLength={280}
+          placeholder="e.g. Small jam teams that need a composer"
+          onChange={(e) => setLookingFor(e.target.value)}
+          onBlur={() => update.mutate({ lookingFor: lookingFor.trim() || null })}
+        />
       </FieldRow>
     </StepFrame>
   );

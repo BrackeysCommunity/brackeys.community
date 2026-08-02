@@ -82,6 +82,12 @@ export interface ProfileAvailability {
   rate: string | null;
   /** Mean response time, surfaced as `~4h`. */
   responseTime: string | null;
+  /** Short "what I'm looking for" blurb. The people lane is the
+   *  availability listing, so this is what an "I'm available" post would
+   *  have said — kept on the profile, where it stays current. */
+  lookingFor: string | null;
+  /** `paid` / `hobby` / `either` — filters the people lane. */
+  collabPreference: string | null;
   /** Display string ("UTC+0", "America/New_York"). */
   timezone: string | null;
 }

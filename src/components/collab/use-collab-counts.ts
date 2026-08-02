@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 
-import { collabFilterInput, collabStore } from "@/lib/collab-store";
+import { collabFilterInput, collabPeopleFilterInput, collabStore } from "@/lib/collab-store";
 import { client } from "@/orpc/client";
 
 /**
@@ -44,10 +44,10 @@ export function useCollabResultCount(): number | null {
   const isPeople = filters.listingType === "people";
   const { data: typeCounts } = useCollabTypeCounts();
 
+  const peopleInput = collabPeopleFilterInput(filters);
   const { data: peopleCount } = useQuery({
-    queryKey: ["collabPeopleCount", filters.search],
-    queryFn: () =>
-      client.listAvailableUsers({ search: filters.search || undefined, limit: 1, offset: 0 }),
+    queryKey: ["collabPeopleCount", peopleInput],
+    queryFn: () => client.listAvailableUsers({ ...peopleInput, limit: 1, offset: 0 }),
     staleTime: 15 * 1000,
     enabled: isPeople,
     placeholderData: (previous) => previous,

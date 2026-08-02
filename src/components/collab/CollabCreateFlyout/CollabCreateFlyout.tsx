@@ -11,7 +11,7 @@ import { CollabCreateUnauth } from "./CollabCreateUnauth";
 export interface CollabCreateFlyoutProps {
   open: boolean;
   onClose: () => void;
-  /** Called with the new post id once the create mutation resolves. */
+  /** Called with the post id once the create/update mutation resolves. */
   onCreated?: (postId: number) => void;
 }
 
@@ -43,7 +43,7 @@ export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFly
             describe the dialog for assistive tech. */}
         <DrawerTitle className="sr-only">Post a gig</DrawerTitle>
         <DrawerDescription className="sr-only">
-          Create a collaboration post: paid work, hobby project, playtest, or mentorship.
+          Create a collaboration post: paid work or a hobby project.
         </DrawerDescription>
 
         {isPending ? (
@@ -55,7 +55,10 @@ export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFly
         ) : !session?.user ? (
           <CollabCreateUnauth />
         ) : (
+          /* Keyed on `open` so each opening mounts a fresh form — that's
+             what re-runs the draft restore and re-seeds an edit. */
           <CollabCreateForm
+            key={open ? "open" : "closed"}
             onCreated={(id) => {
               onCreated?.(id);
               onClose();

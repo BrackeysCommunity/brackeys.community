@@ -1,12 +1,15 @@
+import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Toggle } from "@/components/ui/toggle";
 import { Text } from "@/components/ui/typography";
 import {
   type CollabCompensationType,
   type CollabExperienceLevel,
   type CollabPostType,
+  type CollabPreference,
   type CollabSortBy,
   type CollabSortOrder,
   type CollabStatus,
@@ -15,21 +18,22 @@ import {
   resetCollabFilters,
   setCollabFilters,
 } from "@/lib/collab-store";
+import { cn } from "@/lib/utils";
+import { orpc } from "@/orpc/client";
 
 import { useCollabResultCount, useCollabTypeCounts } from "./use-collab-counts";
 
 // SegmentedControl is single-select, so the optional filters use
 // sentinel "all" / "any" values and translate to/from `undefined` when
 // reading and writing the store.
-const TYPE_OPTIONS_ROW_1 = [
+const TYPE_OPTIONS = [
   { value: "all", label: "ALL" },
   { value: "paid", label: "PAID WORK" },
   { value: "hobby", label: "HOBBY" },
 ] as const;
-const TYPE_OPTIONS_ROW_2 = [
-  { value: "playtest", label: "PLAYTEST" },
-  { value: "mentor", label: "MENTOR" },
-] as const;
+
+/** Skill chips shown before the user narrows with search. */
+const VISIBLE_SKILL_CHIPS = 18;
 
 const STATUS_OPTIONS = [
   { value: "any", label: "ANY" },
@@ -42,6 +46,15 @@ const EXPERIENCE_OPTIONS = [
   { value: "beginner", label: "BEGINNER" },
   { value: "intermediate", label: "INTER." },
   { value: "experienced", label: "EXPERT" },
+] as const;
+
+// People lane: what kind of work someone is open to. Devs who said
+// "either" show up under both, so this narrows without excluding the
+// people most likely to say yes.
+const PREFERENCE_OPTIONS = [
+  { value: "all", label: "ANY" },
+  { value: "paid", label: "PAID" },
+  { value: "hobby", label: "HOBBY" },
 ] as const;
 
 const COMP_OPTIONS = [
@@ -93,22 +106,14 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
       {!isPeople ? (
         <>
           <FilterGroup label="POST TYPE">
-            {/* Two stacked SegmentedControls share the same selected value
-                (`filters.type ?? "all"`) — only one item is pressed across
-                both rows because the values are unique. Splitting like this
-                keeps each row's rounded ends intact instead of forcing the
-                single-row control to overflow on a narrow screen. */}
-            <PostTypeRow
-              value={filters.type ?? "all"}
-              options={TYPE_OPTIONS_ROW_1}
-              counts={counts}
-            />
-            <PostTypeRow
-              value={filters.type ?? "all"}
-              options={TYPE_OPTIONS_ROW_2}
-              counts={counts}
-            />
+            <PostTypeRow value={filters.type ?? "all"} options={TYPE_OPTIONS} counts={counts} />
           </FilterGroup>
+
+          {filters.jamId !== undefined ? (
+            <FilterGroup label="JAM">
+              <JamFilterChip jamId={filters.jamId} />
+            </FilterGroup>
+          ) : null}
 
           <FilterGroup label="STATUS">
             <SegmentedControl
@@ -164,7 +169,31 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
             </FilterGroup>
           ) : null}
         </>
-      ) : null}
+      ) : (
+        <FilterGroup label="OPEN TO">
+          <SegmentedControl
+            value={filters.collabPreference ?? "all"}
+            onChange={(v) =>
+              setCollabFilters({
+                collabPreference: v === "all" ? undefined : (v as CollabPreference),
+              })
+            }
+            size="sm"
+          >
+            {PREFERENCE_OPTIONS.map((p) => (
+              <SegmentedControl.Item key={p.value} value={p.value}>
+                {p.label}
+              </SegmentedControl.Item>
+            ))}
+          </SegmentedControl>
+        </FilterGroup>
+      )}
+
+      {/* Both lanes filter on the same skill vocabulary — "who knows
+          Godot" and "which projects run on Godot" are the same chips. */}
+      <FilterGroup label="TECH STACK">
+        <SkillFilterChips selected={filters.skillIds} />
+      </FilterGroup>
 
       <FilterGroup label="SORT BY">
         <SegmentedControl
@@ -223,6 +252,74 @@ export function CollabFilterClearButton() {
     >
       CLEAR
     </Button>
+  );
+}
+
+/**
+ * The jam constraint, when there is one. Not a picker: a jam filter
+ * always arrives from somewhere (a jam's "N team posts" link, a post's
+ * jam chip), so this only has to name it and let you drop it.
+ */
+function JamFilterChip({ jamId }: { jamId: number }) {
+  const { data } = useQuery({
+    ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const jam = data?.jams.find((j) => j.jamId === jamId);
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setCollabFilters({ jamId: undefined })}
+      className="self-start border-primary/50 tracking-widest text-primary"
+    >
+      {jam?.title ?? `JAM #${jamId}`} ×
+    </Button>
+  );
+}
+
+function SkillFilterChips({ selected }: { selected: number[] }) {
+  const { data } = useQuery({
+    ...orpc.listSkills.queryOptions({ input: {} }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const skills = data ?? [];
+  if (skills.length === 0) return null;
+
+  // Selected chips first so a long vocabulary never hides the active
+  // constraint below the fold.
+  const ordered = [
+    ...skills.filter((s) => selected.includes(s.id)),
+    ...skills.filter((s) => !selected.includes(s.id)).slice(0, VISIBLE_SKILL_CHIPS),
+  ];
+
+  const toggle = (id: number) =>
+    setCollabFilters({
+      skillIds: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id],
+    });
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {ordered.map((skill) => {
+        const active = selected.includes(skill.id);
+        return (
+          <Toggle
+            key={skill.id}
+            variant="outline"
+            size="sm"
+            pressed={active}
+            onPressedChange={() => toggle(skill.id)}
+            className={cn(
+              "rounded bg-background px-2.5 text-xs tracking-widest dark:bg-emboss-surface",
+              active && "border-primary/50 text-primary",
+            )}
+          >
+            {skill.name}
+          </Toggle>
+        );
+      })}
+    </div>
   );
 }
 

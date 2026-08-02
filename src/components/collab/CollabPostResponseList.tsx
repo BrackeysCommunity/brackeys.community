@@ -18,6 +18,9 @@ interface ResponseItem {
   createdAt: string | Date | null;
   responderUsername: string | null;
   responderAvatar: string | null;
+  /** This applicant's skills against the post's stack. Null when the
+   *  post didn't declare one. */
+  stackOverlap: { matched: string[]; missing: string[]; total: number } | null;
 }
 
 interface CollabPostResponseListProps {
@@ -73,6 +76,7 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
               {resp.status}
             </Badge>
           </div>
+          <StackOverlapLine overlap={resp.stackOverlap} />
           <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
             {resp.message}
           </Text>
@@ -110,6 +114,43 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
             </div>
           ) : null}
         </Well>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The applicant's profile skills measured against the post's declared
+ * stack. Turns triage from reading every paragraph into scanning chips —
+ * which is the whole reason a post's stack and a person's skills draw
+ * from one vocabulary instead of two.
+ */
+function StackOverlapLine({ overlap }: { overlap: ResponseItem["stackOverlap"] }) {
+  if (!overlap || overlap.total === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Text as="span" size="xs" variant="muted" className="tracking-widest uppercase">
+        {overlap.matched.length}/{overlap.total} stack
+      </Text>
+      {overlap.matched.map((name) => (
+        <Badge
+          key={name}
+          variant="outline"
+          size="label"
+          className="border-success/50 text-success uppercase"
+        >
+          {name}
+        </Badge>
+      ))}
+      {overlap.missing.map((name) => (
+        <Badge
+          key={name}
+          variant="outline"
+          size="label"
+          className="text-muted-foreground uppercase opacity-60"
+        >
+          {name}
+        </Badge>
       ))}
     </div>
   );

@@ -25,6 +25,8 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     commitment: "part-time",
     rate: "rate: negotiable",
     responseTime: "~4h",
+    lookingFor: null,
+    collabPreference: null,
     timezone: "UTC+0",
   },
   badges: [

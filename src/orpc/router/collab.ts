@@ -9,10 +9,12 @@ import {
   collabPosts,
   collabRoles,
   collabPostRoles,
+  collabPostSkills,
   collabResponses,
   collabPostImages,
   collabPostReports,
   developerProfiles,
+  itchJams,
   profileUrlStubs,
   userSkills,
   skills,
@@ -59,81 +61,228 @@ const projectLengthSchema = z.enum([
 const experienceLevelSchema = z.enum(["any", "beginner", "intermediate", "experienced"]);
 const contactTypeSchema = z.enum(["discord_dm", "discord_server", "email", "other"]);
 
+/**
+ * v1 ships paid + hobby only. Playtest and mentor are deferred, not
+ * deleted: `collab_posts.type` stays `text` and every consumer reads the
+ * value through lookup maps, so both return as pure additions here.
+ */
+const postTypeSchema = z.enum(["paid", "hobby"]);
+
+/** A post's stack is a shortlist, not a tag dump. */
+const MAX_POST_SKILLS = 10;
+
 // ── Post CRUD ────────────────────────────────────────────────────────────────
+
+/**
+ * The full post payload, shared by create and edit. Every constraint the
+ * wizard enforces client-side is expressed here too — before this, the
+ * RPC accepted `min(1)` titles and no roles at all, so a direct caller
+ * could create posts the board's own components don't expect to render.
+ */
+const postContentShape = {
+  type: postTypeSchema,
+  title: z.string().trim().min(10).max(200),
+  description: z.string().trim().min(30).max(5000),
+  projectName: z.string().trim().min(3).max(200),
+  // null unlinks on edit; undefined leaves the post jam-less on create.
+  jamId: z.number().int().positive().nullish(),
+  compensationType: compensationTypeSchema.optional(),
+  compensationMin: z.number().int().min(0).max(1_000_000).optional(),
+  compensationMax: z.number().int().min(0).max(1_000_000).optional(),
+  teamSize: teamSizeSchema,
+  projectLength: projectLengthSchema,
+  platforms: z.array(z.string().max(50)).min(1).max(20),
+  experience: z.string().max(1000).optional(),
+  experienceLevel: experienceLevelSchema,
+  portfolioUrl: z.url().max(500).optional().or(z.literal("")),
+  contactMethod: z.string().max(500).optional(),
+  contactType: contactTypeSchema.optional(),
+  isIndividual: z.boolean().optional(),
+  roleIds: z.array(z.number().int().positive()).min(1).max(20),
+  skillIds: z.array(z.number().int().positive()).max(MAX_POST_SKILLS).optional(),
+};
+
+/** The cross-field rules the wizard enforces, shared by create and edit. */
+function refinePostContent(
+  v: {
+    type: string;
+    compensationType?: string;
+    compensationMin?: number;
+    compensationMax?: number;
+    isIndividual?: boolean;
+    contactType?: string;
+    contactMethod?: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (v.type === "paid") {
+    if (!v.compensationType) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["compensationType"],
+        message: "Paid posts need a compensation type.",
+      });
+    } else if (v.compensationType !== "negotiable" && v.compensationMin === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["compensationMin"],
+        message: "Please provide a compensation range.",
+      });
+    }
+  }
+  if (
+    v.compensationMin !== undefined &&
+    v.compensationMax !== undefined &&
+    v.compensationMin > v.compensationMax
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["compensationMax"],
+      message: "Compensation maximum must be at least the minimum.",
+    });
+  }
+  // Solo posters fall back to a Discord DM (their profile handle is the
+  // contact), so only team posts must spell a channel out.
+  if (!v.isIndividual) {
+    if (!v.contactType) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["contactType"],
+        message: "Please choose a contact type.",
+      });
+    }
+    if (!v.contactMethod?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["contactMethod"],
+        message: "Please provide contact info.",
+      });
+    }
+  }
+}
+
+/**
+ * The full post payload. Every constraint the wizard enforces
+ * client-side is expressed here too — before this, the RPC accepted
+ * `min(1)` titles and no roles at all, so a direct caller could create
+ * posts the board's own components don't expect to render.
+ */
+export const postContentSchema = z.object(postContentShape).superRefine(refinePostContent);
+
+/**
+ * The same payload plus the post being edited. Spread from the shared
+ * shape rather than intersected with the schema above so the input stays
+ * a plain object — oRPC's OpenAPI generation reads it far better.
+ */
+const updatePostSchema = z
+  .object({ ...postContentShape, postId: z.number() })
+  .superRefine(refinePostContent);
+
+type PostContent = z.infer<typeof postContentSchema>;
+
+function checkPostProfanity(input: PostContent) {
+  checkProfanity(input.title, "Title");
+  checkProfanity(input.description, "Description");
+  checkProfanity(input.projectName, "Project name");
+  if (input.experience) checkProfanity(input.experience, "Experience");
+  if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
+}
+
+/** Ids the caller supplied but that don't exist, as a clean 400 rather
+ *  than the FK violation (a raw 500) the insert would otherwise throw. */
+async function resolveReferences(input: PostContent) {
+  const roleIds = [...new Set(input.roleIds)];
+  const skillIds = [...new Set(input.skillIds ?? [])];
+
+  const [foundRoles, foundSkills, jam] = await Promise.all([
+    db.select({ id: collabRoles.id }).from(collabRoles).where(inArray(collabRoles.id, roleIds)),
+    skillIds.length > 0
+      ? db.select({ id: skills.id }).from(skills).where(inArray(skills.id, skillIds))
+      : Promise.resolve([] as { id: number }[]),
+    input.jamId != null
+      ? db
+          .select({ jamId: itchJams.jamId, status: itchJams.status, endsAt: itchJams.endsAt })
+          .from(itchJams)
+          .where(eq(itchJams.jamId, input.jamId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+  ]);
+
+  if (foundRoles.length !== roleIds.length) {
+    throw new ORPCError("BAD_REQUEST", { message: "One or more roles no longer exist." });
+  }
+  if (foundSkills.length !== skillIds.length) {
+    throw new ORPCError("BAD_REQUEST", { message: "One or more stack entries no longer exist." });
+  }
+  if (input.jamId != null && !jam) {
+    throw new ORPCError("BAD_REQUEST", { message: "That jam no longer exists." });
+  }
+
+  // Linking a finished jam isn't an error — teams do post retrospectively
+  // and the jam link is still the right metadata — but the client should
+  // be able to say so.
+  const jamWarning =
+    jam && (jam.status === "over" || (jam.endsAt && jam.endsAt.getTime() < Date.now()))
+      ? "This jam has already ended."
+      : null;
+
+  return { roleIds, skillIds, jamWarning };
+}
+
+/** Columns of `collab_posts` the payload writes, minus the link tables. */
+function postColumns(input: PostContent) {
+  return {
+    type: input.type,
+    jamId: input.jamId ?? null,
+    title: input.title,
+    description: input.description,
+    projectName: input.projectName,
+    compensationType: input.compensationType ?? null,
+    compensationMin: input.compensationMin ?? null,
+    compensationMax: input.compensationMax ?? null,
+    teamSize: input.teamSize,
+    projectLength: input.projectLength,
+    platforms: input.platforms,
+    experience: input.experience ?? null,
+    experienceLevel: input.experienceLevel,
+    portfolioUrl: input.portfolioUrl || null,
+    contactMethod: input.contactMethod ?? null,
+    contactType: input.contactType ?? null,
+    isIndividual: input.isIndividual ?? false,
+  };
+}
 
 export const createPost = os
   .use(requireGuildMember)
-  .input(
-    z.object({
-      type: z.enum(["paid", "hobby", "playtest", "mentor"]),
-      title: z.string().min(1).max(200),
-      description: z.string().min(1).max(5000),
-      projectName: z.string().max(200).optional(),
-      compensation: z.string().max(500).optional(),
-      compensationType: compensationTypeSchema.optional(),
-      teamSize: teamSizeSchema.optional(),
-      projectLength: projectLengthSchema.optional(),
-      platforms: z.array(z.string()).optional(),
-      experience: z.string().max(1000).optional(),
-      experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
-      contactMethod: z.string().max(500).optional(),
-      contactType: contactTypeSchema.optional(),
-      isIndividual: z.boolean().optional(),
-      roleIds: z.array(z.number()).optional(),
-    }),
-  )
+  .input(postContentSchema)
   .handler(async ({ input, context }) => {
-    checkProfanity(input.title, "Title");
-    checkProfanity(input.description, "Description");
-    if (input.projectName) checkProfanity(input.projectName, "Project name");
-    if (input.compensation) checkProfanity(input.compensation, "Compensation");
-    if (input.experience) checkProfanity(input.experience, "Experience");
-    if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
-
-    const { roleIds, ...postData } = input;
+    checkPostProfanity(input);
+    const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
 
     const [post] = await db
       .insert(collabPosts)
       .values({
         authorId: context.user.id,
-        ...postData,
+        ...postColumns(input),
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
 
-    if (roleIds && roleIds.length > 0) {
+    await db.insert(collabPostRoles).values(roleIds.map((roleId) => ({ postId: post.id, roleId })));
+    if (skillIds.length > 0) {
       await db
-        .insert(collabPostRoles)
-        .values(roleIds.map((roleId) => ({ postId: post.id, roleId })));
+        .insert(collabPostSkills)
+        .values(skillIds.map((skillId) => ({ postId: post.id, skillId })));
     }
 
-    return post;
+    return { ...post, jamWarning };
   });
 
 export const updatePost = os
   .use(requireAuthWithPermissions)
-  .input(
-    z.object({
-      postId: z.number(),
-      title: z.string().min(1).max(200).optional(),
-      description: z.string().min(1).max(5000).optional(),
-      projectName: z.string().max(200).optional(),
-      compensation: z.string().max(500).optional(),
-      compensationType: compensationTypeSchema.optional(),
-      teamSize: teamSizeSchema.optional(),
-      projectLength: projectLengthSchema.optional(),
-      platforms: z.array(z.string()).optional(),
-      experience: z.string().max(1000).optional(),
-      experienceLevel: experienceLevelSchema.optional(),
-      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
-      contactMethod: z.string().max(500).optional(),
-      contactType: contactTypeSchema.optional(),
-      isIndividual: z.boolean().optional(),
-      roleIds: z.array(z.number()).optional(),
-    }),
-  )
+  .input(updatePostSchema)
   .handler(async ({ input, context }) => {
     const [post] = await db
       .select()
@@ -150,29 +299,34 @@ export const updatePost = os
       throw new ORPCError("FORBIDDEN", { message: "You can only edit your own posts." });
     }
 
-    if (input.title) checkProfanity(input.title, "Title");
-    if (input.description) checkProfanity(input.description, "Description");
-    if (input.projectName) checkProfanity(input.projectName, "Project name");
-    if (input.compensation) checkProfanity(input.compensation, "Compensation");
-    if (input.experience) checkProfanity(input.experience, "Experience");
-    if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
-
-    const { postId, roleIds, ...data } = input;
+    checkPostProfanity(input);
+    const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
+    const postId = input.postId;
 
     const [updated] = await db
       .update(collabPosts)
-      .set({ ...data, updatedAt: new Date() })
+      .set({
+        ...postColumns(input),
+        // The legacy display string can't round-trip through the sliders,
+        // so an edited post stops carrying one and renders from the
+        // numbers like every post created since v1.
+        compensation: null,
+        updatedAt: new Date(),
+      })
       .where(eq(collabPosts.id, postId))
       .returning();
 
-    if (roleIds !== undefined) {
-      await db.delete(collabPostRoles).where(eq(collabPostRoles.postId, postId));
-      if (roleIds.length > 0) {
-        await db.insert(collabPostRoles).values(roleIds.map((roleId) => ({ postId, roleId })));
-      }
+    // Roles and skills are replaced wholesale — the payload is the post's
+    // complete state, same as the columns above.
+    await db.delete(collabPostRoles).where(eq(collabPostRoles.postId, postId));
+    await db.insert(collabPostRoles).values(roleIds.map((roleId) => ({ postId, roleId })));
+
+    await db.delete(collabPostSkills).where(eq(collabPostSkills.postId, postId));
+    if (skillIds.length > 0) {
+      await db.insert(collabPostSkills).values(skillIds.map((skillId) => ({ postId, skillId })));
     }
 
-    return updated;
+    return { ...updated, jamWarning };
   });
 
 export const deletePost = os
@@ -277,12 +431,33 @@ export const getPost = os
 
     if (!post) return null;
 
-    const [roles, images, [responseCount]] = await Promise.all([
+    const [roles, postSkills, jam, images, [responseCount]] = await Promise.all([
       db
         .select({ id: collabRoles.id, name: collabRoles.name, category: collabRoles.category })
         .from(collabPostRoles)
         .innerJoin(collabRoles, eq(collabPostRoles.roleId, collabRoles.id))
         .where(eq(collabPostRoles.postId, input.postId)),
+      db
+        .select({ id: skills.id, name: skills.name, category: skills.category })
+        .from(collabPostSkills)
+        .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
+        .where(eq(collabPostSkills.postId, input.postId)),
+      post.jamId != null
+        ? db
+            .select({
+              jamId: itchJams.jamId,
+              title: itchJams.title,
+              slug: itchJams.slug,
+              startsAt: itchJams.startsAt,
+              endsAt: itchJams.endsAt,
+              status: itchJams.status,
+              bannerUrl: itchJams.bannerUrl,
+            })
+            .from(itchJams)
+            .where(eq(itchJams.jamId, post.jamId))
+            .limit(1)
+            .then((rows) => rows[0] ?? null)
+        : Promise.resolve(null),
       db
         .select()
         .from(collabPostImages)
@@ -335,11 +510,12 @@ export const getPost = os
           createdAt: Date | null;
           responderUsername: string | null;
           responderAvatar: string | null;
+          stackOverlap: StackOverlap | null;
         }[]
       | null = null;
 
     if (isOwner || (context.user && (await userIsStaff(context.user.id)))) {
-      responses = await db
+      const rows = await db
         .select({
           id: collabResponses.id,
           responderId: collabResponses.responderId,
@@ -354,6 +530,22 @@ export const getPost = os
         .leftJoin(developerProfiles, eq(collabResponses.responderId, developerProfiles.id))
         .where(eq(collabResponses.postId, input.postId))
         .orderBy(desc(collabResponses.createdAt));
+
+      // Applicant triage: which of the post's stack each responder
+      // already knows, so a long list is scannable as chips instead of
+      // paragraphs.
+      const skillsByResponder = await skillIdsByUser(rows.map((r) => r.responderId));
+      responses = rows.map((r) => ({
+        ...r,
+        stackOverlap: stackOverlap(postSkills, skillsByResponder.get(r.responderId)),
+      }));
+    }
+
+    // Match hint for a signed-in browser looking at someone else's post.
+    let viewerOverlap: StackOverlap | null = null;
+    if (context.user && !isOwner && postSkills.length > 0) {
+      const viewerSkills = await skillIdsByUser([context.user.id]);
+      viewerOverlap = stackOverlap(postSkills, viewerSkills.get(context.user.id));
     }
 
     // Re-presign each image's URL — `images.url` was generated at
@@ -369,13 +561,49 @@ export const getPost = os
     return {
       ...post,
       roles,
+      skills: postSkills,
+      jam,
       images: presignedImages,
       responseCount: responseCount?.count ?? 0,
       responses,
+      viewerOverlap,
       isOwner,
       author,
     };
   });
+
+/** How a person's skills line up with a post's stack. */
+export type StackOverlap = { matched: string[]; missing: string[]; total: number };
+
+function stackOverlap(
+  stack: { id: number; name: string }[],
+  userSkillIds: Set<number> | undefined,
+): StackOverlap {
+  const matched: string[] = [];
+  const missing: string[] = [];
+  for (const s of stack) {
+    (userSkillIds?.has(s.id) ? matched : missing).push(s.name);
+  }
+  return { matched, missing, total: stack.length };
+}
+
+async function skillIdsByUser(userIds: string[]): Promise<Map<string, Set<number>>> {
+  const unique = [...new Set(userIds)];
+  const byUser = new Map<string, Set<number>>();
+  if (unique.length === 0) return byUser;
+
+  const rows = await db
+    .select({ userId: userSkills.userId, skillId: userSkills.skillId })
+    .from(userSkills)
+    .where(inArray(userSkills.userId, unique));
+
+  for (const row of rows) {
+    const set = byUser.get(row.userId) ?? new Set<number>();
+    set.add(row.skillId);
+    byUser.set(row.userId, set);
+  }
+  return byUser;
+}
 
 async function userIsStaff(userId: string): Promise<boolean> {
   const [profile] = await db
@@ -389,6 +617,8 @@ async function userIsStaff(userId: string): Promise<boolean> {
 /** Filters that apply across types — the facets a count can vary over. */
 const postFacetSchema = {
   roleIds: z.array(z.number()).optional(),
+  skillIds: z.array(z.number()).optional(),
+  jamId: z.number().int().positive().optional(),
   status: z.enum(["recruiting", "party_full"]).optional(),
   search: z.string().optional(),
   experienceLevel: experienceLevelSchema.optional(),
@@ -398,7 +628,7 @@ const postFacetSchema = {
 
 const postFilterSchema = {
   ...postFacetSchema,
-  type: z.enum(["paid", "hobby", "playtest", "mentor"]).optional(),
+  type: postTypeSchema.optional(),
 };
 
 type PostFilterInput = {
@@ -434,12 +664,22 @@ function buildPostFilter(input: PostFilterInput) {
     );
     if (searchCondition) conditions.push(searchCondition);
   }
+  if (input.jamId) conditions.push(eq(collabPosts.jamId, input.jamId));
   if (input.roleIds && input.roleIds.length > 0) {
     const postIdsWithRoles = db
       .select({ postId: collabPostRoles.postId })
       .from(collabPostRoles)
       .where(inArray(collabPostRoles.roleId, input.roleIds));
     conditions.push(inArray(collabPosts.id, postIdsWithRoles));
+  }
+  // Same shape as roles: "uses any of these" rather than "uses all", so
+  // adding a second engine widens the board instead of emptying it.
+  if (input.skillIds && input.skillIds.length > 0) {
+    const postIdsWithSkills = db
+      .select({ postId: collabPostSkills.postId })
+      .from(collabPostSkills)
+      .where(inArray(collabPostSkills.skillId, input.skillIds));
+    conditions.push(inArray(collabPosts.id, postIdsWithSkills));
   }
 
   return conditions.length > 0 ? and(...conditions) : undefined;
@@ -461,15 +701,32 @@ export const countPostsByType = os
       .where(buildPostFilter(input))
       .groupBy(collabPosts.type);
 
-    const counts = { paid: 0, hobby: 0, playtest: 0, mentor: 0, all: 0 };
+    // `all` sums every row, including any pre-v1 playtest/mentor posts
+    // still on the board — the ALL tab shows what it says it shows even
+    // though those types no longer have a tab of their own.
+    const counts = { paid: 0, hobby: 0, all: 0 };
     for (const row of rows) {
       const n = Number(row.count);
       counts.all += n;
-      if (row.type && row.type in counts) {
-        counts[row.type as "paid" | "hobby" | "playtest" | "mentor"] = n;
-      }
+      if (row.type === "paid" || row.type === "hobby") counts[row.type] = n;
     }
     return counts;
+  });
+
+/**
+ * How many open team posts a jam has attracted. Drives the jam modal's
+ * "N TEAM POSTS" line, which only appears when the answer is non-zero —
+ * so it counts recruiting posts only; a wall of closed ones would
+ * advertise a dead end.
+ */
+export const countPostsForJam = os
+  .input(z.object({ jamId: z.number().int().positive() }))
+  .handler(async ({ input }) => {
+    const [row] = await db
+      .select({ count: count() })
+      .from(collabPosts)
+      .where(and(eq(collabPosts.jamId, input.jamId), eq(collabPosts.status, "recruiting")));
+    return { count: row?.count ?? 0 };
   });
 
 export const listPosts = os
@@ -483,7 +740,7 @@ export const listPosts = os
       offset: z.number().min(0).default(0),
     }),
   )
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     const query = db.select().from(collabPosts);
     const where = buildPostFilter(input);
 
@@ -535,11 +792,57 @@ export const listPosts = os
       }
     }
 
+    // Jam chips and stack chips for the whole page in one query each,
+    // plus the viewer's own skills once — the card's "you match 4/5"
+    // hint is a set intersection, not a per-row round trip.
+    const jamIds = [...new Set(posts.map((p) => p.jamId).filter((id): id is number => id != null))];
+    const [jamRows, skillRows, viewerSkills] = await Promise.all([
+      jamIds.length > 0
+        ? db
+            .select({
+              jamId: itchJams.jamId,
+              title: itchJams.title,
+              slug: itchJams.slug,
+              startsAt: itchJams.startsAt,
+              endsAt: itchJams.endsAt,
+              status: itchJams.status,
+            })
+            .from(itchJams)
+            .where(inArray(itchJams.jamId, jamIds))
+        : Promise.resolve([]),
+      postIds.length > 0
+        ? db
+            .select({ postId: collabPostSkills.postId, id: skills.id, name: skills.name })
+            .from(collabPostSkills)
+            .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
+            .where(inArray(collabPostSkills.postId, postIds))
+        : Promise.resolve([]),
+      context.user ? skillIdsByUser([context.user.id]) : Promise.resolve(null),
+    ]);
+
+    const jamById = new Map(jamRows.map((j) => [j.jamId, j]));
+    const skillsByPost = new Map<number, { id: number; name: string }[]>();
+    for (const row of skillRows) {
+      const list = skillsByPost.get(row.postId) ?? [];
+      list.push({ id: row.id, name: row.name });
+      skillsByPost.set(row.postId, list);
+    }
+    const viewerSkillIds = context.user ? viewerSkills?.get(context.user.id) : undefined;
+
     return {
-      posts: posts.map((p) => ({
-        ...p,
-        primaryImageUrl: primaryImagesByPostId.get(p.id) ?? null,
-      })),
+      posts: posts.map((p) => {
+        const postSkills = skillsByPost.get(p.id) ?? [];
+        return {
+          ...p,
+          primaryImageUrl: primaryImagesByPostId.get(p.id) ?? null,
+          jam: p.jamId != null ? (jamById.get(p.jamId) ?? null) : null,
+          skills: postSkills,
+          viewerOverlap:
+            context.user && p.authorId !== context.user.id && postSkills.length > 0
+              ? stackOverlap(postSkills, viewerSkillIds)
+              : null,
+        };
+      }),
       total: totalResult?.count ?? 0,
     };
   });
@@ -574,6 +877,13 @@ export const featurePost = os
 
 // ── Responses ────────────────────────────────────────────────────────────────
 
+const ALREADY_RESPONDED = "You've already responded to this post.";
+
+/** Postgres `unique_violation`. */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
+}
+
 export const respondToPost = os
   .use(requireGuildMember)
   .input(
@@ -606,6 +916,26 @@ export const respondToPost = os
       throw new ORPCError("BAD_REQUEST", { message: "You cannot respond to your own post." });
     }
 
+    // `collab_responses` is unique on (post_id, responder_id). Without a
+    // pre-check the second application surfaced as the raw DB error,
+    // which the response form rendered verbatim.
+    const [existing] = await db
+      .select({ id: collabResponses.id })
+      .from(collabResponses)
+      .where(
+        and(
+          eq(collabResponses.postId, input.postId),
+          eq(collabResponses.responderId, context.user.id),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new ORPCError("BAD_REQUEST", { message: ALREADY_RESPONDED });
+    }
+
+    // Two submits racing past the check above land here; map the unique
+    // violation to the same message rather than a 500.
     const [response] = await db
       .insert(collabResponses)
       .values({
@@ -614,7 +944,13 @@ export const respondToPost = os
         message: input.message,
         portfolioUrl: input.portfolioUrl,
       })
-      .returning();
+      .returning()
+      .catch((err: unknown) => {
+        if (isUniqueViolation(err)) {
+          throw new ORPCError("BAD_REQUEST", { message: ALREADY_RESPONDED });
+        }
+        throw err;
+      });
 
     await notify({
       userId: post.authorId,

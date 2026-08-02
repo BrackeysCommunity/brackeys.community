@@ -19,6 +19,8 @@ interface CollabUserCardProps {
     rateType: string | null;
     rateMin: number | null;
     rateMax: number | null;
+    lookingFor: string | null;
+    collabPreference: string | null;
     updatedAt: Date | string;
   };
   skills?: { skillId: number; name: string }[];
@@ -34,6 +36,12 @@ const RATE_TYPE_LABELS: Record<string, string> = {
   hourly: "HOURLY",
   fixed: "FIXED",
   negotiable: "NEGOTIABLE",
+};
+
+const PREFERENCE_LABELS: Record<string, string> = {
+  paid: "PAID",
+  hobby: "HOBBY",
+  either: "PAID OR HOBBY",
 };
 
 export function CollabUserCard({ user, skills }: CollabUserCardProps) {
@@ -66,10 +74,24 @@ export function CollabUserCard({ user, skills }: CollabUserCardProps) {
           </Text>
         ) : null}
 
+        {/* What this person is actually after — the line an "I'm
+            available" post would have carried, kept on the profile so it
+            can't go stale behind their back. */}
+        {user.lookingFor ? (
+          <Text size="xs" className="line-clamp-2 text-foreground/80 italic">
+            “{user.lookingFor}”
+          </Text>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-1">
           {user.availability ? (
             <Badge variant="outline" size="label">
               {AVAILABILITY_LABELS[user.availability] ?? user.availability}
+            </Badge>
+          ) : null}
+          {user.collabPreference ? (
+            <Badge variant="secondary" size="label">
+              {PREFERENCE_LABELS[user.collabPreference] ?? user.collabPreference}
             </Badge>
           ) : null}
           {user.rateType ? (

@@ -8,7 +8,6 @@ import { orpc } from "@/orpc/client";
 import { FieldRow } from "./fields";
 
 interface RoleSearchPanelProps {
-  /** "Roles needed" vs "Topics / Areas" — only the label differs. */
   label: string;
   /** Selected role ids — controlled. */
   roleIds: number[];
@@ -16,11 +15,14 @@ interface RoleSearchPanelProps {
 }
 
 /**
- * Role / topic picker shared by the ROLES step (paid+hobby) and the
- * MENTORSHIP step. Roles render grouped by their category (Programming,
- * Art, Audio, …) so the art disciplines read as one family instead of
- * scattering through a flat cloud. Uncategorised roles fall into an
- * "Other" bucket at the end.
+ * The seats a post is recruiting for. Roles render grouped by their
+ * category (Programming, Art, Audio, …) so the art disciplines read as
+ * one family instead of scattering through a flat cloud. Uncategorised
+ * roles fall into an "Other" bucket at the end.
+ *
+ * Deliberately kept free of tech: engines and languages belong in
+ * `SkillSearchPanel`, or "Godot" ends up governed in two vocabularies
+ * with two spellings.
  */
 export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelProps) {
   const { data: roles } = useQuery({ ...orpc.listCollabRoles.queryOptions({ input: {} }) });

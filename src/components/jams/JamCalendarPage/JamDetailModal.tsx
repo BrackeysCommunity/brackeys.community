@@ -1,3 +1,7 @@
+import { UserGroupIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "@tanstack/react-router";
 import DOMPurify from "dompurify";
 import { AnimatePresence, motion } from "framer-motion";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -5,6 +9,7 @@ import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Grainient } from "@/components/ui/grainient";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
@@ -12,8 +17,9 @@ import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
 import { cn } from "@/lib/utils";
+import { orpc } from "@/orpc/client";
 
-import type { JamFromList } from "./helpers";
+import { type JamFromList, jamPhase } from "./helpers";
 
 interface JamDetailModalProps {
   jam: JamFromList | null;
@@ -214,6 +220,8 @@ function ModalContent({
               </Text>
             )}
 
+            <JamTeamCta jam={jam} />
+
             <Link
               href={jamUrl(jam.slug)}
               target="_blank"
@@ -226,6 +234,53 @@ function ModalContent({
         </OverlayScrollbarsComponent>
       </motion.div>
     </motion.div>
+  );
+}
+
+/**
+ * The team-finding half of a jam page. Someone reading an upcoming jam's
+ * description is the single highest-intent teammate-seeker on the site,
+ * and until this existed the only thing the modal offered them was a
+ * link off to itch.io.
+ *
+ * Only shown while joining is still plausible — for an archived jam a
+ * "find a team" button is an invitation to waste time.
+ */
+function JamTeamCta({ jam }: { jam: JamFromList }) {
+  const phase = jamPhase(jam, new Date());
+  const open = phase === "upcoming" || phase === "running";
+
+  const { data } = useQuery({
+    ...orpc.countPostsForJam.queryOptions({ input: { jamId: jam.jamId } }),
+    staleTime: 60 * 1000,
+  });
+  const postCount = data?.count ?? 0;
+
+  if (!open && postCount === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-col items-start gap-1.5">
+      {open ? (
+        <Button
+          variant="default"
+          size="sm"
+          className="tracking-widest"
+          render={<RouterLink to="/collab" search={{ new: true, jam: jam.jamId }} />}
+        >
+          <HugeiconsIcon icon={UserGroupIcon} size={13} />
+          FIND A TEAM →
+        </Button>
+      ) : null}
+      {postCount > 0 ? (
+        <RouterLink
+          to="/collab"
+          search={{ jam: jam.jamId }}
+          className="text-xs tracking-widest text-primary uppercase hover:underline"
+        >
+          {postCount} team {postCount === 1 ? "post" : "posts"} for this jam →
+        </RouterLink>
+      ) : null}
+    </div>
   );
 }
 

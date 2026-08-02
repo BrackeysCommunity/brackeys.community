@@ -3,6 +3,7 @@ import {
   Delete02Icon,
   Flag01Icon,
   LinkSquare01Icon,
+  PencilEdit01Icon,
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -17,6 +18,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import {
+  draftFromPost,
+  isEditablePostType,
+  setCollabFilters,
+  startWizardEdit,
+} from "@/lib/collab-store";
+import { formatRate } from "@/lib/format-rate";
+import { formatJamShortDates } from "@/lib/jam-countdown";
 import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -54,6 +63,7 @@ export function CollabPostDetail({
   postId,
   currentUserId,
   onClose,
+  onEdit,
   compact,
   showClose = true,
   frameless,
@@ -61,6 +71,9 @@ export function CollabPostDetail({
   postId: number;
   currentUserId: string | null;
   onClose: () => void;
+  /** Opens the create flyout in edit mode. Omitted where no flyout is
+   *  mounted, in which case the EDIT action simply doesn't render. */
+  onEdit?: () => void;
   /** Sidebar width — stacks the detail grid and tightens the gutters. */
   compact?: boolean;
   /** The drawer turns this off: swiping down or tapping the scrim
@@ -105,16 +118,13 @@ export function CollabPostDetail({
   const isOwner = post?.isOwner ?? (!!currentUserId && post?.authorId === currentUserId);
   const isClosed = post?.status === "party_full";
 
-  // Parse playtest-feedback types from the catch-all `experience` field.
-  let feedbackTypes: string[] = [];
-  if (post?.type === "playtest" && post.experience) {
-    try {
-      const parsed: unknown = JSON.parse(post.experience);
-      if (Array.isArray(parsed)) feedbackTypes = parsed.filter((x) => typeof x === "string");
-    } catch {
-      /* empty */
-    }
-  }
+  // Posts created since v1 store the numbers and format here; the text
+  // column is what pre-v1 rows still carry.
+  const rateDisplay = post
+    ? formatRate(post.compensationType, post.compensationMin, post.compensationMax) ||
+      post.compensation ||
+      ""
+    : "";
 
   return (
     <DetailFrame frameless={frameless}>
@@ -162,7 +172,7 @@ export function CollabPostDetail({
             ) : null}
             {post?.isIndividual ? (
               <Badge variant="outline" size="label" className="uppercase">
-                Individual
+                Solo dev
               </Badge>
             ) : null}
           </div>
@@ -213,6 +223,35 @@ export function CollabPostDetail({
               </div>
             ) : null}
 
+            {post.jam ? (
+              <button
+                type="button"
+                onClick={() => setCollabFilters({ jamId: post.jam!.jamId })}
+                title="Show every post for this jam"
+                className="flex items-center gap-3 border border-warning/40 bg-warning/5 p-2.5 text-left transition-colors outline-none hover:bg-warning/10 focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {post.jam.bannerUrl ? (
+                  <img
+                    src={post.jam.bannerUrl}
+                    alt=""
+                    loading="lazy"
+                    className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
+                  />
+                ) : null}
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <Text as="span" size="xs" className="tracking-widest text-warning uppercase">
+                    For the jam
+                  </Text>
+                  <Text as="span" size="sm" bold ellipsis>
+                    {post.jam.title}
+                  </Text>
+                  <Text as="span" size="xs" variant="muted" className="tracking-widest">
+                    {formatJamShortDates(post.jam.startsAt, post.jam.endsAt) ?? "DATES TBA"}
+                  </Text>
+                </span>
+              </button>
+            ) : null}
+
             <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
               {post.description}
             </Text>
@@ -224,10 +263,7 @@ export function CollabPostDetail({
               ) : null}
               {post.teamSize ? <DetailRow label="TEAM" value={post.teamSize} /> : null}
               {post.projectLength ? (
-                <DetailRow
-                  label={post.type === "playtest" ? "PLAY TIME" : "TIMELINE"}
-                  value={post.projectLength}
-                />
+                <DetailRow label="TIMELINE" value={post.projectLength} />
               ) : null}
               {post.experienceLevel ? (
                 <DetailRow label="EXPERIENCE" value={post.experienceLevel} />
@@ -238,7 +274,7 @@ export function CollabPostDetail({
                   value={COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
                 />
               ) : null}
-              {post.compensation ? <DetailRow label="RATE" value={post.compensation} /> : null}
+              {rateDisplay ? <DetailRow label="RATE" value={rateDisplay} /> : null}
               {post.contactType || post.contactMethod ? (
                 <DetailRow
                   label="CONTACT"
@@ -256,18 +292,48 @@ export function CollabPostDetail({
               ) : null}
             </DetailGrid>
 
-            {feedbackTypes.length > 0 ? (
+            {post.skills.length > 0 ? (
               <div className="flex flex-col gap-2">
-                <Text size="xs" variant="muted" className="tracking-widest uppercase">
-                  Feedback
-                </Text>
-                <div className="flex flex-wrap gap-1.5">
-                  {feedbackTypes.map((ft) => (
-                    <Badge key={ft} variant="outline" size="label" className="uppercase">
-                      {ft}
-                    </Badge>
-                  ))}
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <Text size="xs" variant="muted" className="tracking-widest uppercase">
+                    Tech stack
+                  </Text>
+                  {/* The viewer's own skills against this stack. Shown
+                      only to signed-in non-owners — the author already
+                      knows what they picked. */}
+                  {post.viewerOverlap && post.viewerOverlap.matched.length > 0 ? (
+                    <Text size="xs" variant="success" className="tracking-widest uppercase">
+                      You match {post.viewerOverlap.matched.length}/{post.viewerOverlap.total}
+                    </Text>
+                  ) : null}
                 </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {post.skills.map((s) => {
+                    const matched = post.viewerOverlap?.matched.includes(s.name) ?? false;
+                    return (
+                      <Badge
+                        key={s.id}
+                        variant="outline"
+                        size="label"
+                        className={cn("uppercase", matched && "border-success/50 text-success")}
+                      >
+                        {s.name}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollabFilters({
+                      listingType: "people",
+                      skillIds: post.skills.map((s) => s.id),
+                    })
+                  }
+                  className="self-start text-xs tracking-widest text-primary uppercase hover:underline"
+                >
+                  Browse people with this stack →
+                </button>
               </div>
             ) : null}
 
@@ -286,7 +352,7 @@ export function CollabPostDetail({
               </div>
             ) : null}
 
-            {post.portfolioUrl && post.type !== "playtest" ? (
+            {post.portfolioUrl ? (
               <a
                 href={post.portfolioUrl}
                 target="_blank"
@@ -295,17 +361,6 @@ export function CollabPostDetail({
               >
                 <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
                 Portfolio
-              </a>
-            ) : null}
-            {post.portfolioUrl && post.type === "playtest" ? (
-              <a
-                href={post.portfolioUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-              >
-                <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
-                Game / Demo
               </a>
             ) : null}
 
@@ -392,6 +447,23 @@ export function CollabPostDetail({
           <div className="flex flex-wrap items-center gap-2">
             {isOwner ? (
               <>
+                {/* Before this the only correction available was delete
+                    and repost, which threw away every response. */}
+                {onEdit && isEditablePostType(post.type) ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      startWizardEdit(post.id, draftFromPost(post));
+                      onEdit();
+                    }}
+                    title="Edit this post"
+                    className="tracking-widest"
+                  >
+                    <HugeiconsIcon icon={PencilEdit01Icon} size={12} />
+                    EDIT
+                  </Button>
+                ) : null}
                 {/* Named after what it does to the post — a bare "CLOSE"
                     reads as dismissing the panel next to the header ×. */}
                 {isClosed ? (

@@ -1,13 +1,17 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { collabStore, resetCollabFilters, setCollabFilters } from "@/lib/collab-store";
+import { orpc } from "@/orpc/client";
 
 import { useCollabResultCount } from "./use-collab-counts";
 
+// Legacy playtest/mentor rows can still be on the board even though the
+// types are no longer offered, so their labels stay.
 const TYPE_LABELS: Record<string, string> = {
   paid: "PAID WORK",
   hobby: "HOBBY",
@@ -41,33 +45,72 @@ export function CollabActiveFilters() {
   const count = useCollabResultCount();
   const isPeople = filters.listingType === "people";
 
+  // Only fetched to name the ids the chips carry — both lists are small
+  // and already cached by the pickers that set these filters.
+  const { data: jamData } = useQuery({
+    ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
+    enabled: filters.jamId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: skillData } = useQuery({
+    ...orpc.listSkills.queryOptions({ input: {} }),
+    enabled: filters.skillIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Post-only constraints stay hidden on the people lane — they're still
+  // held in the store (switching lanes back restores them) but they
+  // aren't filtering anything you can currently see.
   const chips: { key: string; label: string; clear: () => void }[] = [];
-  if (filters.type) {
+  if (filters.type && !isPeople) {
     chips.push({
       key: "type",
       label: TYPE_LABELS[filters.type] ?? filters.type,
       clear: () => setCollabFilters({ type: undefined }),
     });
   }
-  if (filters.status) {
+  if (filters.collabPreference) {
+    chips.push({
+      key: "preference",
+      label: `OPEN TO ${filters.collabPreference.toUpperCase()}`,
+      clear: () => setCollabFilters({ collabPreference: undefined }),
+    });
+  }
+  if (filters.status && !isPeople) {
     chips.push({
       key: "status",
       label: STATUS_LABELS[filters.status] ?? filters.status,
       clear: () => setCollabFilters({ status: undefined }),
     });
   }
-  if (filters.experienceLevel && filters.experienceLevel !== "any") {
+  if (filters.experienceLevel && filters.experienceLevel !== "any" && !isPeople) {
     chips.push({
       key: "level",
       label: EXPERIENCE_LABELS[filters.experienceLevel] ?? filters.experienceLevel,
       clear: () => setCollabFilters({ experienceLevel: undefined }),
     });
   }
-  if (filters.compensationType) {
+  if (filters.compensationType && !isPeople) {
     chips.push({
       key: "comp",
       label: COMP_LABELS[filters.compensationType] ?? filters.compensationType,
       clear: () => setCollabFilters({ compensationType: undefined }),
+    });
+  }
+  if (filters.jamId !== undefined && !isPeople) {
+    const jam = jamData?.jams.find((j) => j.jamId === filters.jamId);
+    chips.push({
+      key: "jam",
+      label: (jam?.title ?? `JAM #${filters.jamId}`).toUpperCase(),
+      clear: () => setCollabFilters({ jamId: undefined }),
+    });
+  }
+  for (const skillId of filters.skillIds) {
+    const skill = skillData?.find((s) => s.id === skillId);
+    chips.push({
+      key: `skill-${skillId}`,
+      label: (skill?.name ?? `#${skillId}`).toUpperCase(),
+      clear: () => setCollabFilters({ skillIds: filters.skillIds.filter((id) => id !== skillId) }),
     });
   }
   if (filters.search) {

@@ -30,6 +30,8 @@ export interface RpcProfile {
     websiteUrl: string | null;
     availableForWork: boolean | null;
     availability: string | null;
+    lookingFor: string | null;
+    collabPreference: string | null;
     rateType: string | null;
     rateMin: number | null;
     rateMax: number | null;
@@ -216,6 +218,8 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
         }) || null,
       responseTime: null,
       timezone: null,
+      lookingFor: profile.lookingFor,
+      collabPreference: profile.collabPreference,
     },
     badges,
     stats: {

@@ -1,13 +1,19 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/typography";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
-import { collabStore, setCollabFilters } from "@/lib/collab-store";
+import {
+  beginWizardCreate,
+  collabStore,
+  resetWizard,
+  setCollabFilters,
+  updateWizardDraft,
+} from "@/lib/collab-store";
 
 import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
@@ -24,6 +30,11 @@ interface CollabSearch {
   /** The selected post. Drives the inspector pane on desktop and the
    *  detail overlay on narrow screens, so selection is shareable. */
   post?: number;
+  /** With `new`: the jam to preselect in the wizard. On its own: the
+   *  jam the board is filtered to. */
+  jam?: number;
+  /** Tech-stack filter, so a narrowed board is shareable. */
+  skills?: number[];
 }
 
 /** Matches the `lg` breakpoint that switches the board to two panes. */
@@ -76,26 +87,70 @@ export function CollabBrowsePage() {
   const { postIds } = useCollabListing(currentUserId);
 
   // Open the create flyout when arriving via /collab/new (which
-  // redirects here with `?new=1`). After consuming the flag we strip
-  // it from the URL so back-navigation doesn't loop.
+  // redirects here with `?new=1`), or via a jam's "FIND A TEAM" CTA
+  // (`?new=1&jam=<id>`), which additionally preselects that jam. After
+  // consuming the flags we strip them from the URL so back-navigation
+  // doesn't loop — `jam` means "preselect", not "filter", in this pair.
+  const jamForNewPost = search.new ? search.jam : undefined;
   useEffect(() => {
-    if (search.new) {
-      setCreateOpen(true);
-      navigate({ to: "/collab", search: {}, replace: true });
+    if (!search.new) return;
+    beginWizardCreate();
+    if (jamForNewPost !== undefined) updateWizardDraft({ jamId: jamForNewPost });
+    setCreateOpen(true);
+    navigate({ to: "/collab", search: {}, replace: true });
+  }, [search.new, jamForNewPost, navigate]);
+
+  // Board filters that live in the URL are read once, on arrival; from
+  // then on the store owns them and pushes back (below). Skipped when
+  // `new` is present, where `jam` addresses the wizard instead.
+  const hydratedFromUrl = useRef(false);
+  useEffect(() => {
+    if (hydratedFromUrl.current || search.new) return;
+    hydratedFromUrl.current = true;
+    if (search.jam !== undefined || (search.skills?.length ?? 0) > 0) {
+      setCollabFilters({ jamId: search.jam, skillIds: search.skills ?? [] });
     }
-  }, [search.new, navigate]);
+  }, [search.new, search.jam, search.skills]);
+
+  // …and the reverse: filter changes rewrite the URL so any narrowed
+  // board can be linked. `replace` because filtering is refinement, not
+  // navigation — Back should leave the board, not undo one chip.
+  const jamFilter = useStore(collabStore, (s) => s.filters.jamId);
+  const skillFilters = useStore(collabStore, (s) => s.filters.skillIds);
+  useEffect(() => {
+    if (!hydratedFromUrl.current) return;
+    navigate({
+      to: "/collab",
+      search: (prev: CollabSearch) => ({
+        ...prev,
+        jam: jamFilter,
+        skills: skillFilters.length > 0 ? skillFilters : undefined,
+      }),
+      replace: true,
+    });
+  }, [jamFilter, skillFilters, navigate]);
 
   // Selection lives in the URL so it survives reload, back/forward, and
   // sharing. Clicking pushes (back returns to the idle pane); walking
   // with the arrows replaces, so a long scan leaves one history entry.
+  // Both preserve the rest of the search so selecting a post inside a
+  // filtered board doesn't silently drop the filter.
   const selectPost = useCallback(
     (postId: number, replace = false) => {
-      navigate({ to: "/collab", search: { post: postId }, replace });
+      navigate({
+        to: "/collab",
+        search: (prev: CollabSearch) => ({ ...prev, post: postId }),
+        replace,
+      });
     },
     [navigate],
   );
   const clearSelection = useCallback(() => {
-    navigate({ to: "/collab", search: {}, replace: false });
+    navigate({
+      to: "/collab",
+      search: (prev: CollabSearch) => ({ ...prev, post: undefined }),
+      replace: false,
+    });
   }, [navigate]);
 
   // Global keyboard shortcuts:
@@ -154,6 +209,9 @@ export function CollabBrowsePage() {
       signInWithDiscord();
       return;
     }
+    // A fresh post, not a continuation of an edit the user backed out
+    // of — but any unfinished draft of their own comes back.
+    beginWizardCreate();
     setCreateOpen(true);
   };
 
@@ -194,6 +252,7 @@ export function CollabBrowsePage() {
                 postId={selectedPostId}
                 currentUserId={currentUserId}
                 onClose={clearSelection}
+                onEdit={() => setCreateOpen(true)}
                 compact
               />
             </aside>
@@ -223,9 +282,16 @@ export function CollabBrowsePage() {
         </div>
       )}
 
+      {/* Doubles as the edit surface: the detail panel seeds the wizard
+          store, then flips this open. */}
       <CollabCreateFlyout
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          // Backing out of an edit must not leave the store primed to
+          // overwrite that post the next time someone hits POST A GIG.
+          if (collabStore.state.wizard.editingPostId !== null) resetWizard();
+        }}
         onCreated={(postId) => selectPost(postId)}
       />
 
@@ -236,6 +302,7 @@ export function CollabBrowsePage() {
           postId={selectedPostId}
           currentUserId={currentUserId}
           onClose={clearSelection}
+          onEdit={() => setCreateOpen(true)}
         />
       ) : null}
 

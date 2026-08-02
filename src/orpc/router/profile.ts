@@ -273,6 +273,7 @@ export const getMyProfile = os
 
 const rateTypeSchema = z.enum(["hourly", "fixed", "negotiable"]);
 const availabilitySchema = z.enum(["full_time", "part_time", "limited"]);
+const collabPreferenceSchema = z.enum(["paid", "hobby", "either"]);
 
 export const updateProfile = os
   .use(requireAuth)
@@ -288,6 +289,10 @@ export const updateProfile = os
       rateType: rateTypeSchema.optional().nullable(),
       rateMin: z.number().int().min(0).optional().nullable(),
       rateMax: z.number().int().min(0).optional().nullable(),
+      // The people lane is the availability listing, so what an "I'm
+      // available" post would have said lives on the profile instead.
+      lookingFor: z.string().max(280).optional().nullable(),
+      collabPreference: collabPreferenceSchema.optional().nullable(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -682,6 +687,8 @@ export const listAvailableUsers = os
   .input(
     z.object({
       search: z.string().optional(),
+      skillIds: z.array(z.number().int().positive()).optional(),
+      collabPreference: collabPreferenceSchema.optional(),
       sortBy: z.enum(["updatedAt", "createdAt"]).default("updatedAt"),
       sortOrder: z.enum(["asc", "desc"]).default("desc"),
       limit: z.number().min(1).max(100).default(20),
@@ -698,6 +705,26 @@ export const listAvailableUsers = os
         ilike(developerProfiles.tagline, `%${escaped}%`),
       );
       if (searchCondition) conditions.push(searchCondition);
+    }
+
+    // Same subquery shape the collab board uses for post stacks, so a
+    // "who knows Godot" question reads the same on both lanes.
+    if (input.skillIds && input.skillIds.length > 0) {
+      const matchingUserIds = db
+        .select({ userId: userSkills.userId })
+        .from(userSkills)
+        .where(inArray(userSkills.skillId, input.skillIds));
+      conditions.push(inArray(developerProfiles.id, matchingUserIds));
+    }
+
+    // "either" is the accommodating answer, so it belongs in the results
+    // for both a paid search and a hobby one.
+    if (input.collabPreference) {
+      const pref = or(
+        eq(developerProfiles.collabPreference, input.collabPreference),
+        eq(developerProfiles.collabPreference, "either"),
+      );
+      if (pref) conditions.push(pref);
     }
 
     const where = and(...conditions);

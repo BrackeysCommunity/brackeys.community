@@ -4,6 +4,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatRate } from "@/lib/format-rate";
 import { client } from "@/orpc/client";
 
 const POST_LIMIT = 3;
@@ -26,7 +27,13 @@ function postKindLabel(type: string | null | undefined) {
 function compensationLabel(post: {
   compensationType?: string | null;
   compensation?: string | null;
+  compensationMin?: number | null;
+  compensationMax?: number | null;
 }) {
+  // Posts created since v1 carry numbers; `compensation` is the legacy
+  // display string pre-v1 rows still hold.
+  const rate = formatRate(post.compensationType, post.compensationMin, post.compensationMax);
+  if (rate) return rate;
   if (post.compensation) return post.compensation;
   switch (post.compensationType) {
     case "rev_share":
@@ -80,7 +87,7 @@ export function RecentCollabPosts() {
           </Link>
         </div>
         <Text as="p" size="md" variant="muted">
-          Latest roles, playtests, and mentorships off the collab board.
+          The latest roles off the collab board.
         </Text>
       </header>
 
