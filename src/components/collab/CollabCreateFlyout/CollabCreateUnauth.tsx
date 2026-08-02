@@ -12,7 +12,7 @@ interface CollabCreateUnauthProps {
 
 /**
  * Body shown when the flyout opens without an authenticated user — a
- * "// ACCESS DENIED" callout plus a Discord sign-in button.
+ * "ACCESS DENIED" callout plus a Discord sign-in button.
  */
 export function CollabCreateUnauth({ isTouch, onClose }: CollabCreateUnauthProps) {
   return (
@@ -43,7 +43,7 @@ export function CollabCreateUnauth({ isTouch, onClose }: CollabCreateUnauthProps
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
         <Heading as="h3" monospace className="text-sm tracking-[0.2em] text-destructive uppercase">
-          // ACCESS DENIED
+          ACCESS DENIED
         </Heading>
         <Text monospace size="xs" variant="muted" className="max-w-[260px]">
           Authenticate with Discord to post a gig, hobby project, playtest, or mentorship.

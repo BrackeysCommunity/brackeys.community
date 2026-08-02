@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import * as z from "zod";
 
@@ -717,6 +717,17 @@ export const listAvailableUsers = os
 
     // Fetch skills for all returned users
     const userIds = users.map((u) => u.id);
+
+    // Vanity stubs, so links can prefer `/profile/handle` over the raw id.
+    const stubRows =
+      userIds.length > 0
+        ? await db
+            .select({ profileId: profileUrlStubs.profileId, stub: profileUrlStubs.stub })
+            .from(profileUrlStubs)
+            .where(inArray(profileUrlStubs.profileId, userIds))
+        : [];
+    const stubByUser = new Map(stubRows.map((r) => [r.profileId, r.stub]));
+
     const allSkills =
       userIds.length > 0
         ? await db
@@ -744,6 +755,7 @@ export const listAvailableUsers = os
     return {
       users: users.map((u) => ({
         ...u,
+        urlStub: stubByUser.get(u.id) ?? null,
         skills: skillsByUser.get(u.id) ?? [],
       })),
       total: totalResult?.count ?? 0,

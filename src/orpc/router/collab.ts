@@ -13,6 +13,7 @@ import {
   collabPostImages,
   collabPostReports,
   developerProfiles,
+  profileUrlStubs,
   userSkills,
   skills,
 } from "@/db/schema";
@@ -295,6 +296,7 @@ export const getPost = os
 
     const [authorProfile] = await db
       .select({
+        id: developerProfiles.id,
         avatarUrl: developerProfiles.avatarUrl,
         discordUsername: developerProfiles.discordUsername,
         tagline: developerProfiles.tagline,
@@ -302,8 +304,11 @@ export const getPost = os
         githubUrl: developerProfiles.githubUrl,
         twitterUrl: developerProfiles.twitterUrl,
         websiteUrl: developerProfiles.websiteUrl,
+        // Vanity handle, so the byline can link to /profile/handle.
+        urlStub: profileUrlStubs.stub,
       })
       .from(developerProfiles)
+      .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
       .where(eq(developerProfiles.id, post.authorId))
       .limit(1);
 
@@ -381,17 +386,97 @@ async function userIsStaff(userId: string): Promise<boolean> {
   return isStaffMember(profile?.guildRoles ?? null);
 }
 
+/** Filters that apply across types — the facets a count can vary over. */
+const postFacetSchema = {
+  roleIds: z.array(z.number()).optional(),
+  status: z.enum(["recruiting", "party_full"]).optional(),
+  search: z.string().optional(),
+  experienceLevel: experienceLevelSchema.optional(),
+  compensationType: compensationTypeSchema.optional(),
+  isIndividual: z.boolean().optional(),
+};
+
+const postFilterSchema = {
+  ...postFacetSchema,
+  type: z.enum(["paid", "hobby", "playtest", "mentor"]).optional(),
+};
+
+type PostFilterInput = {
+  [K in keyof typeof postFilterSchema]?: z.infer<(typeof postFilterSchema)[K]>;
+};
+
+/**
+ * Shared WHERE builder for the board listing and its facet counts. Both
+ * go through this so a tab count can never disagree with the list it
+ * labels. Pass `{ ...input, type: undefined }` to count across types.
+ */
+function buildPostFilter(input: PostFilterInput) {
+  const conditions = [];
+
+  if (input.type) conditions.push(eq(collabPosts.type, input.type));
+  if (input.status) conditions.push(eq(collabPosts.status, input.status));
+  if (input.experienceLevel)
+    conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel));
+  if (input.compensationType)
+    conditions.push(eq(collabPosts.compensationType, input.compensationType));
+  if (input.isIndividual === true) {
+    conditions.push(eq(collabPosts.isIndividual, true));
+  } else if (input.isIndividual === false) {
+    conditions.push(
+      or(eq(collabPosts.isIndividual, false), sql`${collabPosts.isIndividual} IS NULL`),
+    );
+  }
+  if (input.search) {
+    const escaped = escapeLike(input.search);
+    const searchCondition = or(
+      ilike(collabPosts.title, `%${escaped}%`),
+      ilike(collabPosts.description, `%${escaped}%`),
+    );
+    if (searchCondition) conditions.push(searchCondition);
+  }
+  if (input.roleIds && input.roleIds.length > 0) {
+    const postIdsWithRoles = db
+      .select({ postId: collabPostRoles.postId })
+      .from(collabPostRoles)
+      .where(inArray(collabPostRoles.roleId, input.roleIds));
+    conditions.push(inArray(collabPosts.id, postIdsWithRoles));
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+/**
+ * Per-type post counts for the board's type tabs. Applies every filter
+ * *except* `type`, so each tab reports how many results picking it would
+ * yield under the filters already in force — that's what stops users
+ * clicking into an empty board.
+ */
+export const countPostsByType = os
+  .use(authMiddleware)
+  .input(z.object(postFacetSchema))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({ type: collabPosts.type, count: count() })
+      .from(collabPosts)
+      .where(buildPostFilter(input))
+      .groupBy(collabPosts.type);
+
+    const counts = { paid: 0, hobby: 0, playtest: 0, mentor: 0, all: 0 };
+    for (const row of rows) {
+      const n = Number(row.count);
+      counts.all += n;
+      if (row.type && row.type in counts) {
+        counts[row.type as "paid" | "hobby" | "playtest" | "mentor"] = n;
+      }
+    }
+    return counts;
+  });
+
 export const listPosts = os
   .use(authMiddleware)
   .input(
     z.object({
-      type: z.enum(["paid", "hobby", "playtest", "mentor"]).optional(),
-      roleIds: z.array(z.number()).optional(),
-      status: z.enum(["recruiting", "party_full"]).optional(),
-      search: z.string().optional(),
-      experienceLevel: experienceLevelSchema.optional(),
-      compensationType: compensationTypeSchema.optional(),
-      isIndividual: z.boolean().optional(),
+      ...postFilterSchema,
       sortBy: z.enum(["createdAt", "updatedAt"]).default("createdAt"),
       sortOrder: z.enum(["asc", "desc"]).default("desc"),
       limit: z.number().min(1).max(100).default(20),
@@ -399,41 +484,8 @@ export const listPosts = os
     }),
   )
   .handler(async ({ input }) => {
-    const conditions = [];
-
-    if (input.type) conditions.push(eq(collabPosts.type, input.type));
-    if (input.status) conditions.push(eq(collabPosts.status, input.status));
-    if (input.experienceLevel)
-      conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel));
-    if (input.compensationType)
-      conditions.push(eq(collabPosts.compensationType, input.compensationType));
-    if (input.isIndividual === true) {
-      conditions.push(eq(collabPosts.isIndividual, true));
-    } else if (input.isIndividual === false) {
-      conditions.push(
-        or(eq(collabPosts.isIndividual, false), sql`${collabPosts.isIndividual} IS NULL`),
-      );
-    }
-    if (input.search) {
-      const escaped = escapeLike(input.search);
-      const searchCondition = or(
-        ilike(collabPosts.title, `%${escaped}%`),
-        ilike(collabPosts.description, `%${escaped}%`),
-      );
-      if (searchCondition) conditions.push(searchCondition);
-    }
-
-    let query = db.select().from(collabPosts);
-
-    if (input.roleIds && input.roleIds.length > 0) {
-      const postIdsWithRoles = db
-        .select({ postId: collabPostRoles.postId })
-        .from(collabPostRoles)
-        .where(inArray(collabPostRoles.roleId, input.roleIds));
-      conditions.push(inArray(collabPosts.id, postIdsWithRoles));
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = db.select().from(collabPosts);
+    const where = buildPostFilter(input);
 
     const sortColumn = input.sortBy === "updatedAt" ? collabPosts.updatedAt : collabPosts.createdAt;
     const sortFn = input.sortOrder === "asc" ? asc : desc;

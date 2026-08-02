@@ -125,7 +125,7 @@ export function StepReview() {
         </Well>
       </FieldRow>
 
-      <FieldRow label="// PRE-FLIGHT" hint={`${percent}% complete`}>
+      <FieldRow label="PRE-FLIGHT" hint={`${percent}% complete`}>
         <Progress value={percent} className="h-1" />
         <Well variant="ghost" className="gap-0 p-0">
           <ul className="divide-y divide-dashed divide-muted/40">

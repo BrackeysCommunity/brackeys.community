@@ -1,5 +1,10 @@
 import { motion } from "framer-motion";
 
+import {
+  MediaCardFloatingBadge,
+  MediaCardScrim,
+  mediaCardClasses,
+} from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 
 import type { JamFromList } from "../helpers";
@@ -40,25 +45,18 @@ export function JamCard({
       layout={false}
       transition={ROW_CLOSE_TRANSITION}
       style={{ opacity: isSelected ? 0 : 1, borderRadius: 8 }}
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60"
+      className={`${mediaCardClasses.frame} cursor-pointer`}
     >
-      <div
-        className="relative h-40 w-full shrink-0 overflow-hidden"
-        style={{ backgroundColor: color }}
-      >
+      <div className={mediaCardClasses.media} style={{ backgroundColor: color }}>
         <JamBanner jam={jam} layoutKey={layoutKey} fit="contain" />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card/70 to-transparent"
-        />
+        <MediaCardScrim />
         {/* Over the art rather than in the text block — the count is a
-            glanceable badge, not part of the jam's description. Sits at
-            the bottom edge, where the scrim already darkens the art. */}
-        <div className="absolute bottom-2 left-2 rounded bg-background/75 px-1.5 py-0.5 backdrop-blur-sm">
+            glanceable badge, not part of the jam's description. */}
+        <MediaCardFloatingBadge>
           <SignalInline jam={jam} now={now} size="sm" />
-        </div>
+        </MediaCardFloatingBadge>
       </div>
-      <div className="flex flex-1 flex-col gap-1.5 px-3 pt-2.5 pb-2.5">
+      <div className={mediaCardClasses.body}>
         <Text bold size="lg" className="line-clamp-2 leading-snug">
           {jam.title}
         </Text>

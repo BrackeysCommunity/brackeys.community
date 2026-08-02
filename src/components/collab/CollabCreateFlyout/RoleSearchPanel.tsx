@@ -17,12 +17,22 @@ interface RoleSearchPanelProps {
 
 /**
  * Role / topic picker shared by the ROLES step (paid+hobby) and the
- * MENTORSHIP step. The role list is small enough to render the full
- * cloud inline as a checkbox grid — no search needed.
+ * MENTORSHIP step. Roles render grouped by their category (Programming,
+ * Art, Audio, …) so the art disciplines read as one family instead of
+ * scattering through a flat cloud. Uncategorised roles fall into an
+ * "Other" bucket at the end.
  */
 export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelProps) {
   const { data: roles } = useQuery({ ...orpc.listCollabRoles.queryOptions({ input: {} }) });
   const all = roles ?? [];
+
+  const groups = new Map<string, typeof all>();
+  for (const role of all) {
+    const key = role.category ?? "Other";
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(role);
+    else groups.set(key, [role]);
+  }
 
   const toggle = (roleId: number, checked: boolean) => {
     if (checked && !roleIds.includes(roleId)) onChange([...roleIds, roleId]);
@@ -36,25 +46,43 @@ export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelPro
           No roles available.
         </Text>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {all.map((role) => {
-            const id = `collab-role-${role.id}`;
-            const checked = roleIds.includes(role.id);
-            return (
-              <Label
-                key={role.id}
-                htmlFor={id}
-                className="flex cursor-pointer items-center gap-2 font-mono text-xs tracking-widest text-foreground uppercase"
-              >
-                <Checkbox
-                  id={id}
-                  checked={checked}
-                  onCheckedChange={(state) => toggle(role.id, state === true)}
-                />
-                {role.name}
-              </Label>
-            );
-          })}
+        <div className="flex flex-col gap-4">
+          {[...groups.entries()].map(([category, categoryRoles]) => (
+            <div key={category} className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Text
+                  as="span"
+                  monospace
+                  size="xs"
+                  variant="muted"
+                  className="shrink-0 tracking-widest text-foreground/80 uppercase"
+                >
+                  {category}
+                </Text>
+                <span aria-hidden className="h-px flex-1 bg-muted/40" />
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {categoryRoles.map((role) => {
+                  const id = `collab-role-${role.id}`;
+                  const checked = roleIds.includes(role.id);
+                  return (
+                    <Label
+                      key={role.id}
+                      htmlFor={id}
+                      className="flex cursor-pointer items-center gap-2 font-mono text-xs tracking-widest text-foreground uppercase"
+                    >
+                      <Checkbox
+                        id={id}
+                        checked={checked}
+                        onCheckedChange={(state) => toggle(role.id, state === true)}
+                      />
+                      {role.name}
+                    </Label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </FieldRow>

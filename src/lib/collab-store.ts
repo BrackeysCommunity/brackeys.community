@@ -2,6 +2,7 @@ import { Store } from "@tanstack/store";
 
 export type CollabPostType = "paid" | "hobby" | "playtest" | "mentor";
 export type CollabListingType = "posts" | "people";
+export type CollabLayout = "list" | "cards";
 export type CollabStatus = "recruiting" | "party_full";
 export type CollabSortBy = "createdAt" | "updatedAt";
 export type CollabSortOrder = "asc" | "desc";
@@ -103,6 +104,9 @@ export function getWizardSteps(draft: Pick<WizardDraft, "type">): WizardStepDef[
 
 type CollabState = {
   filters: CollabFilters;
+  /** How the feed renders — presentation, not a filter, so CLEAR ALL
+   *  and filter resets never touch it. */
+  layout: CollabLayout;
   pagination: CollabPagination;
   wizard: {
     step: number;
@@ -147,9 +151,14 @@ const defaultDraft: WizardDraft = {
 
 export const collabStore = new Store<CollabState>({
   filters: { ...defaultFilters },
+  layout: "list",
   pagination: { limit: 20, offset: 0 },
   wizard: { step: 0, draft: { ...defaultDraft } },
 });
+
+export function setCollabLayout(layout: CollabLayout) {
+  collabStore.setState((s) => ({ ...s, layout }));
+}
 
 export function setCollabFilters(partial: Partial<CollabFilters>) {
   collabStore.setState((s) => ({
@@ -159,24 +168,57 @@ export function setCollabFilters(partial: Partial<CollabFilters>) {
   }));
 }
 
+/**
+ * Clears every constraint but keeps the listing mode and sort order —
+ * those are navigation and presentation, not things "CLEAR ALL" should
+ * yank out from under the user.
+ */
 export function resetCollabFilters() {
   collabStore.setState((s) => ({
     ...s,
-    filters: { ...defaultFilters },
+    filters: {
+      ...defaultFilters,
+      listingType: s.filters.listingType,
+      sortBy: s.filters.sortBy,
+      sortOrder: s.filters.sortOrder,
+    },
     pagination: { ...s.pagination, offset: 0 },
   }));
 }
 
-/** Returns the number of active filter constraints (excluding sort). */
+/**
+ * Maps the UI filter state onto the shape `listPosts` /
+ * `countPostsByType` expect. The "any" experience sentinel is a UI
+ * affordance meaning *no constraint* — passed through verbatim it would
+ * match only posts whose stored level is literally "any", so it's
+ * dropped here rather than at each call site.
+ */
+export function collabFilterInput(filters: CollabFilters) {
+  return {
+    type: filters.type,
+    status: filters.status,
+    search: filters.search || undefined,
+    experienceLevel:
+      filters.experienceLevel && filters.experienceLevel !== "any"
+        ? filters.experienceLevel
+        : undefined,
+    compensationType: filters.compensationType,
+    isIndividual: filters.isIndividual,
+    roleIds: filters.roleIds.length > 0 ? filters.roleIds : undefined,
+  };
+}
+
+/** Returns the number of active filter constraints (excluding sort and
+ *  the posts/people listing mode, which is navigation, not a filter). */
 export function countActiveCollabFilters(filters: CollabFilters): number {
+  const input = collabFilterInput(filters);
   return [
-    filters.type,
-    filters.listingType,
-    filters.status,
-    filters.experienceLevel,
-    filters.compensationType,
-    filters.isIndividual !== undefined ? true : undefined,
-    filters.search,
+    input.type,
+    input.status,
+    input.experienceLevel,
+    input.compensationType,
+    input.isIndividual !== undefined ? true : undefined,
+    input.search,
   ].filter(Boolean).length;
 }
 

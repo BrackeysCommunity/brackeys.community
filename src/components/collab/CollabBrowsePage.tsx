@@ -1,69 +1,77 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/typography";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
-import {
-  collabStore,
-  countActiveCollabFilters,
-  resetCollabFilters,
-  setCollabFilters,
-} from "@/lib/collab-store";
-import { client } from "@/orpc/client";
+import { collabStore, setCollabFilters } from "@/lib/collab-store";
 
-import { CollabCreateCta } from "./CollabCreateCta";
+import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
-import { CollabFeaturedPerson } from "./CollabFeaturedPerson";
-import { COLLAB_SEARCH_INPUT_ID, CollabFilterPanel } from "./CollabFilterPanel";
-import { CollabHero } from "./CollabHero";
-import { CollabHotSkills } from "./CollabHotSkills";
-import { CollabListingToggle } from "./CollabListingToggle";
-import { CollabMobilePostPrompt } from "./CollabMobilePostPrompt";
-import { CollabMobileSearch } from "./CollabMobileSearch";
+import { CollabFilterPanel } from "./CollabFilterPanel";
+import { CollabInspector } from "./CollabInspector";
 import { CollabPostFeed } from "./CollabPostFeed";
 import { CollabPostPopover } from "./CollabPostPopover";
-import { CollabPulse } from "./CollabPulse";
-import { CollabQuickBoard } from "./CollabQuickBoard";
-import { AddSectionAction, CollabSectionHeader } from "./CollabSectionHeader";
+import { COLLAB_SEARCH_INPUT_ID, CollabToolbar } from "./CollabToolbar";
+import { useCollabListing } from "./use-collab-listing";
 
 interface CollabSearch {
   new?: boolean;
-  /** Drives the post detail popover — `?post=<id>` opens the popover
-   *  on mount so direct links land on the right post. */
+  /** The selected post. Drives the inspector pane on desktop and the
+   *  detail overlay on narrow screens, so selection is shareable. */
   post?: number;
 }
 
-// The right rail (PULSE / SKILLS / FEATURED) leans on data sources we
-// don't have backends for yet (real-time post counts per hour, skill
-// trend deltas, curated featured users). Keep it dark behind a local
-// boolean until the underlying APIs land — flip to `true` here to
-// preview the layout, or wire to an env / feature-flag service later.
-const SHOW_RIGHT_RAIL = false;
+/** Matches the `lg` breakpoint that switches the board to two panes. */
+const SPLIT_QUERY = "(min-width: 1024px)";
+
+function subscribeToSplit(onChange: () => void) {
+  const mql = window.matchMedia(SPLIT_QUERY);
+  mql.addEventListener("change", onChange);
+  return () => mql.removeEventListener("change", onChange);
+}
 
 /**
- * Top-level collab browser. Lays out a hero + quick board header, a
- * three-column body on desktop (filter rail / feed / right rail), and a
- * stacked single-column flow on mobile. The create flyout is owned at
- * this level so any of the CTAs can summon it.
+ * Whether the board has room for two panes. Picked in JS rather than
+ * with `lg:` visibility classes because the two layouts differ in more
+ * than visibility: only the split view mounts the inspector and answers
+ * to arrow-key selection, and only the stacked one mounts the drawer.
+ */
+function useIsSplitView() {
+  return useSyncExternalStore(
+    subscribeToSplit,
+    () => window.matchMedia(SPLIT_QUERY).matches,
+    () => false,
+  );
+}
+
+/**
+ * Top-level collab browser, laid out as a split view: a fixed-width
+ * list lane on the left, a persistent inspector on the right. Selecting
+ * a post loads it into the inspector rather than over the board, so you
+ * can walk the list and compare without losing your place.
+ *
+ * Below `lg` there isn't room for two panes, so the lane becomes the
+ * whole page and the same detail renders in an overlay instead.
  */
 export function CollabBrowsePage() {
   const { session, isPending } = useStore(authStore);
-  const isTouch = useIsTouchDevice();
   const navigate = useNavigate();
   const search = (useSearch({ strict: false }) as CollabSearch) ?? {};
+  const isSplit = useIsSplitView();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const filters = useStore(collabStore, (s) => s.filters);
-  const activeFilterCount = countActiveCollabFilters(filters);
+
+  const currentUserId = session?.user?.id ?? null;
+  const selectedPostId = typeof search.post === "number" ? search.post : null;
+
+  // Same query the lane renders, deduped by react-query — gives the
+  // page the ordered ids that arrow-key selection walks through.
+  const { postIds } = useCollabListing(currentUserId);
 
   // Open the create flyout when arriving via /collab/new (which
   // redirects here with `?new=1`). After consuming the flag we strip
@@ -75,22 +83,39 @@ export function CollabBrowsePage() {
     }
   }, [search.new, navigate]);
 
+  // Selection lives in the URL so it survives reload, back/forward, and
+  // sharing. Clicking pushes (back returns to the idle pane); walking
+  // with the arrows replaces, so a long scan leaves one history entry.
+  const selectPost = useCallback(
+    (postId: number, replace = false) => {
+      navigate({ to: "/collab", search: { post: postId }, replace });
+    },
+    [navigate],
+  );
+  const clearSelection = useCallback(() => {
+    navigate({ to: "/collab", search: {}, replace: false });
+  }, [navigate]);
+
   // Global keyboard shortcuts:
-  //   `/`   focuses the filter search input
-  //   `P`   toggles between the projects ↔ people listing
-  // Both are skipped while the user is typing inside an input/textarea
-  // or a contenteditable surface so they don't hijack normal typing.
+  //   `/`      focuses the lane's search input
+  //   `P`      toggles between the projects ↔ people listing
+  //   `↑` `↓`  walk the selection through the lane (split view only)
+  //   `Esc`    clears the selection
+  // All are skipped while typing in an input, textarea, or
+  // contenteditable so they don't hijack normal keys.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
-      const inEditable =
+      if (
         tag === "INPUT" ||
         tag === "TEXTAREA" ||
         tag === "SELECT" ||
-        target?.isContentEditable === true;
-      if (inEditable) return;
+        target?.isContentEditable === true
+      ) {
+        return;
+      }
 
       if (e.key === "/") {
         e.preventDefault();
@@ -101,33 +126,26 @@ export function CollabBrowsePage() {
         e.preventDefault();
         const next = collabStore.state.filters.listingType === "people" ? "posts" : "people";
         setCollabFilters({ listingType: next });
+        return;
+      }
+      if (e.key === "Escape" && selectedPostId !== null) {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+      // Arrow selection only makes sense where the inspector is visible;
+      // on narrow screens it would fire an overlay on every keypress.
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && isSplit && postIds.length > 0) {
+        e.preventDefault();
+        const current = selectedPostId === null ? -1 : postIds.indexOf(selectedPostId);
+        const delta = e.key === "ArrowDown" ? 1 : -1;
+        const next = current === -1 ? 0 : current + delta;
+        if (next >= 0 && next < postIds.length) selectPost(postIds[next], true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  const { data: counts } = useQuery({
-    queryKey: ["collabCounts"],
-    queryFn: async () => {
-      const [paid, hobby, playtest, mentor] = await Promise.all([
-        client.listPosts({ type: "paid", status: "recruiting", limit: 1 }),
-        client.listPosts({ type: "hobby", status: "recruiting", limit: 1 }),
-        client.listPosts({ type: "playtest", status: "recruiting", limit: 1 }),
-        client.listPosts({ type: "mentor", status: "recruiting", limit: 1 }),
-      ]);
-      return {
-        paid: paid.total ?? 0,
-        hobby: hobby.total ?? 0,
-        playtest: playtest.total ?? 0,
-        mentor: mentor.total ?? 0,
-      };
-    },
-    staleTime: 30 * 1000,
-  });
-
-  const totalRoles =
-    (counts?.paid ?? 0) + (counts?.hobby ?? 0) + (counts?.playtest ?? 0) + (counts?.mentor ?? 0);
+  }, [isSplit, postIds, selectedPostId, selectPost, clearSelection]);
 
   const handleCreate = () => {
     if (!isPending && !session?.user) {
@@ -137,125 +155,92 @@ export function CollabBrowsePage() {
     setCreateOpen(true);
   };
 
-  // The post detail popover is driven entirely by the `?post=<id>`
-  // search param so direct-links and back/forward navigation just work.
-  // `openPost` writes to the URL; `closePost` strips the param.
-  const openPost = (postId: number) => {
-    navigate({ to: "/collab", search: { post: postId }, replace: false });
-  };
-  const closePost = () => {
-    navigate({ to: "/collab", search: {}, replace: false });
-  };
-  const openPostId = typeof search.post === "number" ? search.post : null;
+  // The board itself gets the full-width controls; only the narrow
+  // stacked layout falls back to the filter sheet.
+  const lane = (
+    <>
+      <CollabToolbar
+        onOpenFilters={isSplit ? undefined : () => setFiltersOpen(true)}
+        authenticated={!!session?.user}
+        onCreate={handleCreate}
+      />
+      <CollabActiveFilters />
+    </>
+  );
 
   return (
-    <div className="flex flex-col gap-8 selection:bg-primary selection:text-white">
-      {/* Hero + quick board */}
-      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-end lg:gap-10">
-        <CollabHero />
-        <CollabQuickBoard
-          paid={counts?.paid ?? 0}
-          hobby={counts?.hobby ?? 0}
-          playtest={counts?.playtest ?? 0}
-          mentor={counts?.mentor ?? 0}
-          compact={isTouch}
-        />
-      </div>
+    <div className="flex flex-col gap-5 selection:bg-primary selection:text-white">
+      {isSplit ? (
+        <>
+          {/* The region is viewport-height so each pane scrolls on its
+              own — the lane keeps its scroll position while you walk
+              posts, which is the whole point of the layout. */}
+          <div className="grid h-[calc(100vh-15rem)] min-h-[520px] grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-6">
+            <section className="flex min-h-0 flex-col gap-3">
+              {lane}
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <CollabPostFeed
+                  currentUserId={currentUserId}
+                  selectedPostId={selectedPostId}
+                  onSelectPost={selectPost}
+                />
+              </div>
+            </section>
 
-      {/* Narrow viewport (mobile + thin desktop): single-column flow.
-          Driven by `lg:hidden` rather than `isTouch` so a non-touch
-          browser at < lg width still gets a usable layout instead of
-          a blank page. */}
-      <div className="flex flex-col gap-4 lg:hidden">
-        <CollabMobilePostPrompt onClick={handleCreate} />
-        <CollabMobileSearch onOpenFilters={() => setFiltersOpen(true)} />
-        <CollabListingToggle priority="primary" />
-        <CollabPostFeed currentUserId={session?.user?.id ?? null} onOpenPost={openPost} />
-      </div>
+            <aside className="flex min-h-0 flex-col">
+              <CollabInspector
+                postId={selectedPostId}
+                currentUserId={currentUserId}
+                onClose={clearSelection}
+                compact
+              />
+            </aside>
+          </div>
 
-      {/* Desktop: 3-column body composed of isolated sections — the
-          right rail collapses out when its flag is off. */}
-      <div
-        className={
-          SHOW_RIGHT_RAIL
-            ? "hidden lg:grid lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(220px,300px)] lg:gap-8"
-            : "hidden lg:grid lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] lg:gap-8"
-        }
-      >
-        <section className="flex flex-col gap-5">
-          {!isPending ? (
-            <CollabCreateCta authenticated={!!session?.user} onClick={handleCreate} />
-          ) : null}
-          <CollabSectionHeader
-            index="01"
-            title="FILTERS"
-            action={
-              activeFilterCount > 0 ? (
-                <>
-                  <Text
-                    as="span"
-                    monospace
-                    size="xs"
-                    variant="muted"
-                    className="tracking-widest tabular-nums"
-                  >
-                    {activeFilterCount} ACTIVE
-                  </Text>
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    aria-label="Clear all filters"
-                    onClick={resetCollabFilters}
-                    className="font-mono"
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={10} />
-                  </Button>
-                </>
-              ) : null
-            }
+          <div className="flex flex-wrap items-center gap-4">
+            <Text size="sm" variant="muted" className="flex items-center gap-1.5">
+              Press <Kbd>/</Kbd> to search.
+            </Text>
+            <Text size="sm" variant="muted" className="flex items-center gap-1.5">
+              Press <Kbd>P</Kbd> to toggle people view.
+            </Text>
+            <Text size="sm" variant="muted" className="flex items-center gap-1.5">
+              <Kbd>↑</Kbd> <Kbd>↓</Kbd> to walk posts.
+            </Text>
+          </div>
+        </>
+      ) : (
+        /* No room for two panes: the lane is the page, detail opens over it. */
+        <div className="flex flex-col gap-3">
+          {lane}
+          <CollabPostFeed
+            currentUserId={currentUserId}
+            selectedPostId={selectedPostId}
+            onSelectPost={selectPost}
           />
-          <CollabFilterPanel />
-        </section>
-
-        <section className="flex min-h-[60vh] flex-col gap-4">
-          <CollabSectionHeader
-            index="02"
-            title="BOARD"
-            action={<AddSectionAction onAdd={handleCreate} label="POST" />}
-          />
-          <CollabPostFeed currentUserId={session?.user?.id ?? null} onOpenPost={openPost} />
-        </section>
-
-        {SHOW_RIGHT_RAIL ? (
-          <section className="flex flex-col gap-5">
-            <CollabSectionHeader index="A" title="PULSE" />
-            <CollabPulse posts={totalRoles} />
-            <CollabSectionHeader index="B" title="SKILLS" />
-            <CollabHotSkills />
-            <CollabSectionHeader index="C" title="FEATURED" />
-            <CollabFeaturedPerson />
-          </section>
-        ) : null}
-      </div>
+        </div>
+      )}
 
       <CollabCreateFlyout
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(postId) => {
-          openPost(postId);
-        }}
+        onCreated={(postId) => selectPost(postId)}
       />
 
-      <CollabPostPopover
-        postId={openPostId}
-        currentUserId={session?.user?.id ?? null}
-        onClose={closePost}
-      />
+      {/* The drawer is the narrow-screen counterpart to the inspector,
+          so it must not also mount behind the split view. */}
+      {!isSplit ? (
+        <CollabPostPopover
+          postId={selectedPostId}
+          currentUserId={currentUserId}
+          onClose={clearSelection}
+        />
+      ) : null}
 
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl">
           <SheetHeader>
-            <SheetTitle className="font-mono tracking-widest uppercase">// FILTERS</SheetTitle>
+            <SheetTitle className="font-mono tracking-widest uppercase">Filters</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             <CollabFilterPanel onDone={() => setFiltersOpen(false)} />
