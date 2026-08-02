@@ -9,8 +9,12 @@ import type { JamFromList } from "../helpers";
 import { FeaturedCard } from "./FeaturedCard";
 import { ShelfHeader } from "./ShelfHeader";
 
-/** Width of the fade at each end of the rail. */
-const FADE = "3rem";
+/**
+ * Width of the fade at each end of the rail — a CSS variable set per
+ * breakpoint on the scroller so the fade covers exactly the bleed
+ * gutter and never eats into the snapped cards.
+ */
+const FADE = "var(--shelf-fade)";
 
 /**
  * The featured shelf: a horizontal snap carousel, the only one on the
@@ -83,7 +87,7 @@ export function FeaturedShelf({
       />
       <div
         ref={scrollerRef}
-        className="-mx-4 flex snap-x scroll-pl-4 gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:scroll-pl-6 sm:px-6 lg:-mx-10 lg:scroll-pl-10 lg:px-10 xl:-mx-14 xl:scroll-pl-14 xl:px-14 [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 flex snap-x scroll-pl-4 gap-3 overflow-x-auto px-4 pb-1 [--shelf-fade:1rem] [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:scroll-pl-6 sm:px-6 sm:[--shelf-fade:1.5rem] lg:-mx-10 lg:scroll-pl-10 lg:px-10 lg:[--shelf-fade:2.5rem] xl:-mx-14 xl:scroll-pl-14 xl:px-14 xl:[--shelf-fade:3.5rem] [&::-webkit-scrollbar]:hidden"
         style={{ maskImage, WebkitMaskImage: maskImage }}
       >
         {jams.map((jam) => {
