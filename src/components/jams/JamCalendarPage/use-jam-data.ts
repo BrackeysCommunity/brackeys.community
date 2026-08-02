@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import { client } from "@/orpc/client";
 
+import { buildBoard } from "./board/build-board";
 import {
   bucketJamsByDay,
   type DayBuckets,
@@ -29,6 +30,15 @@ export interface BoardData {
   totalTracked: number;
 }
 
+function countShelves(jams: JamFromList[], now: Date): Record<ShelfKind, number> {
+  const counts: Record<ShelfKind, number> = { live: 0, upcoming: 0, voting: 0, ongoing: 0 };
+  for (const jam of jams) {
+    const shelf = jamShelf(jam, now);
+    if (shelf !== "archive") counts[shelf] += 1;
+  }
+  return counts;
+}
+
 /** The discovery board's working set: every jam with a future event. */
 export function useBoardJams(now: Date, search: string): BoardData {
   const { data, isLoading } = useQuery({
@@ -40,14 +50,7 @@ export function useBoardJams(now: Date, search: string): BoardData {
   const all = useMemo(() => data?.jams ?? [], [data]);
   const jams = useMemo(() => all.filter((j) => jamMatchesSearch(j, search)), [all, search]);
 
-  const shelfCounts = useMemo(() => {
-    const counts: Record<ShelfKind, number> = { live: 0, upcoming: 0, voting: 0, ongoing: 0 };
-    for (const jam of all) {
-      const shelf = jamShelf(jam, now);
-      if (shelf !== "archive") counts[shelf] += 1;
-    }
-    return counts;
-  }, [all, now]);
+  const shelfCounts = useMemo(() => countShelves(all, now), [all, now]);
 
   return {
     isLoading,
@@ -56,6 +59,46 @@ export function useBoardJams(now: Date, search: string): BoardData {
     totalAll: all.length,
     totalTracked: data?.trackedTotal ?? all.length,
   };
+}
+
+export interface HomeJamsData {
+  isLoading: boolean;
+  /** The board's featured tier — signal-ranked live + upcoming, Brackeys
+   * jams force-included. Drives the home carousel. */
+  featured: JamFromList[];
+  /** The board's ranked upcoming shelf (signal ≥ threshold, featured and
+   * perpetual pseudo-jams excluded), soonest first. */
+  upcoming: JamFromList[];
+  liveCount: number;
+  upcomingCount: number;
+}
+
+/**
+ * The home page's § JAMS section. Shares the board query (same key) so
+ * the landing section promotes exactly what the jam board's featured
+ * rail and upcoming shelf show, instead of a raw soonest-first list
+ * that surfaces zero-signal jams.
+ */
+export function useHomeJams(now: number): HomeJamsData {
+  const { data, isLoading } = useQuery({
+    queryKey: ["list-jams", "board", BOARD_LIMIT],
+    queryFn: () => client.listJams({ filter: "board", limit: BOARD_LIMIT }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const all = useMemo(() => data?.jams ?? [], [data]);
+  return useMemo(() => {
+    const nowDate = new Date(now);
+    const { featured, shelves } = buildBoard(all, nowDate, "soonest");
+    const counts = countShelves(all, nowDate);
+    return {
+      isLoading,
+      featured,
+      upcoming: shelves.upcoming.ranked,
+      liveCount: counts.live,
+      upcomingCount: counts.upcoming,
+    };
+  }, [all, now, isLoading]);
 }
 
 export interface CalendarData {

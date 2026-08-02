@@ -5,7 +5,6 @@ import {
   PaintBucketIcon,
   ToolsIcon,
 } from "@hugeicons/core-free-icons";
-import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 
 import { CyclingWord } from "@/components/home/CyclingWord";
@@ -14,15 +13,14 @@ import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
+import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Heading, Link, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
-import { client } from "@/orpc/client";
 
-const FEATURED_LIMIT = 10;
 const UPCOMING_LIMIT = 4;
 
 function jamUrl(slug: string) {
@@ -42,32 +40,19 @@ export function MobileHome() {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const { data: liveData, isLoading: liveLoading } = useQuery({
-    queryKey: ["list-jams", "live", "popularity", FEATURED_LIMIT],
-    queryFn: () => client.listJams({ filter: "live", sortBy: "popularity", limit: FEATURED_LIMIT }),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: upcomingData, isLoading: upcomingLoading } = useQuery({
-    queryKey: ["list-jams", "upcoming", "soonest", UPCOMING_LIMIT],
-    queryFn: () =>
-      client.listJams({ filter: "upcoming", sortBy: "soonest", limit: UPCOMING_LIMIT }),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const liveJams = liveData?.jams ?? [];
-  const upcoming = upcomingData?.jams ?? [];
+  const { isLoading, featured, upcoming: upcomingAll, liveCount, upcomingCount } = useHomeJams(now);
+  const upcoming = upcomingAll.slice(0, UPCOMING_LIMIT);
 
   const navTiles: ShortcutTile[] = [
     {
       label: "HOT JAMS",
-      stat: liveLoading ? "—" : String(liveJams.length),
+      stat: isLoading ? "—" : String(liveCount),
       icon: FireIcon,
       onClick: () => scrollToRef(featuredRef),
     },
     {
       label: "UPCOMING",
-      stat: upcomingLoading ? "—" : String(upcoming.length),
+      stat: isLoading ? "—" : String(upcomingCount),
       icon: Calendar03Icon,
       onClick: () => scrollToRef(upcomingRef),
     },
@@ -132,7 +117,7 @@ export function MobileHome() {
         </header>
 
         <div ref={featuredRef} className="scroll-mt-20">
-          <FeaturedJamCarousel jams={liveJams} isLoading={liveLoading} density="compact" />
+          <FeaturedJamCarousel jams={featured} isLoading={isLoading} density="compact" />
         </div>
 
         {/* Soonest upcoming */}
@@ -143,7 +128,7 @@ export function MobileHome() {
                 ◆ Soonest Upcoming
               </Text>
             </div>
-            {upcomingLoading ? (
+            {isLoading ? (
               <div className="h-40 animate-pulse" aria-hidden />
             ) : upcoming.length === 0 ? (
               <Text

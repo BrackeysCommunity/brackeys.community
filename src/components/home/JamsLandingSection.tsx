@@ -1,15 +1,13 @@
 import { ArrowRight02Icon, Calendar03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
 
 import { FeaturedJamCarousel } from "@/components/home/FeaturedJamCarousel";
+import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Chonk } from "@/components/ui/chonk";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { durationDays, effectiveJamState, formatCountdown } from "@/lib/jam-countdown";
-import { client } from "@/orpc/client";
 
-const FEATURED_LIMIT = 10;
 const UPCOMING_LIMIT = 6;
 
 function jamUrl(slug: string) {
@@ -20,21 +18,8 @@ export function JamsLandingSection() {
   const now = useDateNow();
   const nowDate = new Date(now);
 
-  const { data: liveData, isLoading: liveLoading } = useQuery({
-    queryKey: ["list-jams", "live", "popularity", FEATURED_LIMIT],
-    queryFn: () => client.listJams({ filter: "live", sortBy: "popularity", limit: FEATURED_LIMIT }),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: upcomingData, isLoading: upcomingLoading } = useQuery({
-    queryKey: ["list-jams", "upcoming", "soonest", UPCOMING_LIMIT],
-    queryFn: () =>
-      client.listJams({ filter: "upcoming", sortBy: "soonest", limit: UPCOMING_LIMIT }),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const liveJams = liveData?.jams ?? [];
-  const upcoming = upcomingData?.jams ?? [];
+  const { isLoading, featured, upcoming: upcomingAll, liveCount, upcomingCount } = useHomeJams(now);
+  const upcoming = upcomingAll.slice(0, UPCOMING_LIMIT);
 
   return (
     <section className="flex flex-col gap-4">
@@ -43,7 +28,7 @@ export function JamsLandingSection() {
           <div className="font-mono text-[10px] tracking-widest text-muted-foreground">§ 01</div>
           <h2 className="font-mono text-3xl font-bold tracking-tight">JAMS</h2>
           <p className="mt-1 font-sans text-sm text-muted-foreground">
-            Tracking {liveJams.length} live and {upcoming.length} upcoming jams across itch.io.
+            Tracking {liveCount} live and {upcomingCount} upcoming jams across itch.io.
           </p>
         </div>
         <Chonk
@@ -66,7 +51,7 @@ export function JamsLandingSection() {
       </header>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <FeaturedJamCarousel jams={liveJams} isLoading={liveLoading} density="comfortable" />
+        <FeaturedJamCarousel jams={featured} isLoading={isLoading} density="comfortable" />
 
         <Well>
           <div className="flex items-center justify-between gap-2 border-b border-muted/30 px-3 py-2 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
@@ -80,7 +65,7 @@ export function JamsLandingSection() {
               View all
             </a>
           </div>
-          {upcomingLoading ? (
+          {isLoading ? (
             <div className="h-64 animate-pulse" aria-hidden />
           ) : upcoming.length === 0 ? (
             <div className="p-6 text-center font-mono text-xs tracking-widest text-muted-foreground uppercase">
