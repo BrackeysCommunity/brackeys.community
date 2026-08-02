@@ -227,9 +227,8 @@ function startItchOAuth(): void {
     toast.error("itch.io integration is not configured");
     return;
   }
-  // Same flow shape `ProfileEditForm` uses — kept inline here so the
-  // section is self-contained and the redesigned page can stand on
-  // its own without depending on the legacy form's helpers.
+  // Kept inline so the section is self-contained: the OAuth redirect
+  // dance is short enough that a shared helper would only add indirection.
   const productionOrigin = env.VITE_OAUTH_PROXY_ORIGIN;
   const currentOrigin = window.location.origin;
   const isPreview = productionOrigin && currentOrigin !== productionOrigin;
