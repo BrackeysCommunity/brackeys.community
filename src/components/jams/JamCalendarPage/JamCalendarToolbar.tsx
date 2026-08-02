@@ -38,7 +38,7 @@ export function JamCalendarToolbar({
           autoComplete="off"
           size="default"
           containerClassName="h-10 min-w-64 flex-1"
-          className="font-mono text-[11px] tracking-widest"
+          className="text-[11px] tracking-widest"
         />
         {actions}
       </div>

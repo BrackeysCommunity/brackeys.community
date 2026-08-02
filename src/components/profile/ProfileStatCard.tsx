@@ -41,9 +41,7 @@ export function ProfileStatCard({ index, label, value, icon }: ProfileStatCardPr
           <span className="font-mono text-2xl leading-none font-bold tracking-tight text-foreground group-hover:text-primary">
             {value}
           </span>
-          <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-            {label}
-          </span>
+          <span className="text-xs tracking-widest text-muted-foreground uppercase">{label}</span>
         </div>
       </div>
     </motion.div>

@@ -175,11 +175,11 @@ export function Sidebar() {
 
           {/* Card header */}
           <div className="flex items-center justify-between border-b border-muted/60 bg-card/40 px-4 py-2.5">
-            <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
+            <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
               2026.1
             </span>
             {isDeadlinePassed ? (
-              <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground">
+              <span className="text-xs font-bold tracking-widest text-muted-foreground">
                 JAM ENDED
               </span>
             ) : (
@@ -188,7 +188,7 @@ export function Sidebar() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
                 </span>
-                <span className="animate-pulse font-mono text-xs font-bold tracking-widest text-destructive">
+                <span className="animate-pulse text-xs font-bold tracking-widest text-destructive">
                   LIVE JAM
                 </span>
               </div>
@@ -199,7 +199,7 @@ export function Sidebar() {
           <div className="flex flex-col items-center justify-center gap-1.5 border-b border-muted/60 px-5 py-5 text-center">
             {isDeadlinePassed ? (
               <>
-                <h3 className="font-mono text-sm tracking-[0.2em] text-muted-foreground uppercase">
+                <h3 className="text-sm tracking-[0.2em] text-muted-foreground uppercase">
                   {"// Deadline"}
                 </h3>
                 <p className="font-mono text-4xl font-bold tracking-tight text-muted-foreground tabular-nums">
@@ -211,13 +211,13 @@ export function Sidebar() {
               </>
             ) : (
               <>
-                <h3 className="font-mono text-sm tracking-[0.2em] text-destructive uppercase">
+                <h3 className="text-sm tracking-[0.2em] text-destructive uppercase">
                   {"// Deadline"}
                 </h3>
                 <p className="font-mono text-6xl font-bold tracking-tight text-foreground tabular-nums">
                   {countdownStr}
                 </p>
-                <p className="text-md font-mono tracking-[0.2em] text-muted-foreground uppercase">
+                <p className="text-md tracking-[0.2em] text-muted-foreground uppercase">
                   Remaining
                 </p>
                 <p className="text-md mt-0.5 font-mono text-muted-foreground/40">
@@ -230,7 +230,7 @@ export function Sidebar() {
           {/* Jam stats */}
           <div className="grid grid-cols-2 divide-x divide-muted/60 border-b border-muted/60">
             <div className="flex flex-col items-center gap-0.5 px-2 py-3">
-              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <span className="text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 {isDeadlinePassed ? "Ratings" : "Joined"}
               </span>
               <span
@@ -243,7 +243,7 @@ export function Sidebar() {
               </span>
             </div>
             <div className="flex flex-col items-center gap-0.5 px-2 py-3">
-              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+              <span className="text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
                 Entries
               </span>
               <span
@@ -288,7 +288,7 @@ export function Sidebar() {
               href="https://discord.gg/brackeys"
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "w-full justify-between border-brackeys-yellow/40 font-mono text-[10px] font-bold tracking-widest text-brackeys-yellow uppercase hover:border-brackeys-yellow hover:bg-brackeys-yellow/10",
+                "w-full justify-between border-brackeys-yellow/40 text-[10px] font-bold tracking-widest text-brackeys-yellow uppercase hover:border-brackeys-yellow hover:bg-brackeys-yellow/10",
               )}
             >
               Discord
@@ -300,7 +300,7 @@ export function Sidebar() {
                 onClick={() => setJamView(isSubmissionsView ? "jam" : "submissions")}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "w-full justify-between font-mono text-[10px] font-bold tracking-widest uppercase transition-colors duration-150",
+                  "w-full justify-between text-[10px] font-bold tracking-widest uppercase transition-colors duration-150",
                   isSubmissionsView
                     ? "border-brackeys-yellow/80 bg-brackeys-yellow/10 text-brackeys-yellow hover:bg-brackeys-yellow/20"
                     : "border-brackeys-yellow/40 text-brackeys-yellow hover:border-brackeys-yellow hover:bg-brackeys-yellow/10",

@@ -65,7 +65,7 @@ export function SiteFooter() {
                   "linear-gradient(135deg, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple))",
               }}
             />
-            <span className="font-mono text-sm font-bold text-foreground">
+            <span className="font-display text-sm font-bold text-foreground">
               Brackeys
               <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
                 Community
@@ -76,7 +76,7 @@ export function SiteFooter() {
             A guild for indie game devs. Built, maintained, and moderated by the Brackeys community
             since 2012.
           </p>
-          <div className="mt-2 flex items-center gap-1.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+          <div className="mt-2 flex items-center gap-1.5 text-[10px] tracking-widest text-muted-foreground uppercase">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             All systems nominal
           </div>
@@ -84,7 +84,7 @@ export function SiteFooter() {
 
         {COLUMNS.map((col) => (
           <div key={col.label} className="flex flex-col gap-3">
-            <div className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+            <div className="text-[10px] tracking-widest text-muted-foreground uppercase">
               § {col.label}
             </div>
             <ul className="flex flex-col gap-2">
@@ -117,7 +117,7 @@ export function SiteFooter() {
         ))}
       </div>
 
-      <div className="mx-auto mt-12 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-muted/30 pt-4 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+      <div className="mx-auto mt-12 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-muted/30 pt-4 text-[10px] tracking-widest text-muted-foreground uppercase">
         <span>◇ Brackeys Community · Est. 2012</span>
         <span>v{__APP_VERSION__} · made by the community</span>
       </div>

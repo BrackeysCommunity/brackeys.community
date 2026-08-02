@@ -91,11 +91,11 @@ export function ProfileAvailabilitySection({
                 />
               }
             >
-              <span className="font-mono tracking-widest">PING FOR WORK</span>
+              <span className="tracking-widest">PING FOR WORK</span>
             </Button>
           ) : null}
           <Button variant="outline" size="sm" render={<Link to="/collab" />}>
-            <span className="font-mono tracking-widest">SEE COLLAB POSTS</span>
+            <span className="tracking-widest">SEE COLLAB POSTS</span>
             <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} />
           </Button>
         </div>

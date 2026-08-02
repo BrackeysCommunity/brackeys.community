@@ -48,7 +48,7 @@ export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFly
 
         {isPending ? (
           <div className="flex flex-1 items-center justify-center p-6">
-            <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
               Authenticating…
             </span>
           </div>

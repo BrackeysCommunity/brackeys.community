@@ -59,13 +59,11 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
         placeholder="Write your application message…"
         rows={4}
         maxLength={2000}
-        className="font-mono"
       />
       <Input
         value={portfolioUrl}
         onChange={(e) => setPortfolioUrl(e.target.value)}
         placeholder="Portfolio URL (optional)"
-        className="font-mono"
       />
       {error ? (
         <Text size="xs" variant="danger">
@@ -77,7 +75,7 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
         size="sm"
         onClick={() => respondMutation.mutate()}
         disabled={!message.trim() || respondMutation.isPending}
-        className="font-mono tracking-widest"
+        className="tracking-widest"
       >
         <HugeiconsIcon icon={Sent02Icon} size={12} />
         {respondMutation.isPending ? "SENDING…" : "SEND RESPONSE"}

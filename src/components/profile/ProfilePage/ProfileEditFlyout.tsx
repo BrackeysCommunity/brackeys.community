@@ -254,13 +254,7 @@ function FlyoutHeader({
             @{profile.handle.toLowerCase()} · STEP {step}/4
           </Text>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close"
-          onClick={onClose}
-          className="font-mono"
-        >
+        <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
           <HugeiconsIcon icon={Cancel01Icon} size={14} />
         </Button>
       </div>
@@ -299,7 +293,7 @@ function Stepper({ step, onSelect }: { step: EditStep; onSelect: (s: EditStep) =
             >
               {s.step.toString().padStart(2, "0")}
             </Text>
-            <span className="font-mono text-[10px] tracking-widest">{s.title}</span>
+            <span className="text-[10px] tracking-widest">{s.title}</span>
           </button>
         );
       })}
@@ -334,18 +328,13 @@ function FlyoutFooter({
             variant="outline"
             size="sm"
             onClick={() => onStepChange((step - 1) as EditStep)}
-            className="font-mono tracking-widest"
+            className="tracking-widest"
           >
             ← BACK
           </Button>
         ) : null}
         {isLast ? (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onClose}
-            className="font-mono tracking-widest"
-          >
+          <Button variant="default" size="sm" onClick={onClose} className="tracking-widest">
             DONE
           </Button>
         ) : (
@@ -353,7 +342,7 @@ function FlyoutFooter({
             variant="default"
             size="sm"
             onClick={() => onStepChange((step + 1) as EditStep)}
-            className="font-mono tracking-widest"
+            className="tracking-widest"
           >
             NEXT →
           </Button>
@@ -366,7 +355,7 @@ function FlyoutFooter({
 function SaveStatusIndicator({ status }: { status: SaveStatus }) {
   if (status === "saving") {
     return (
-      <span className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+      <span className="inline-flex items-center gap-1.5 text-xs tracking-widest text-muted-foreground uppercase">
         <Spinner className="size-3" />
         SAVING…
       </span>
@@ -374,7 +363,7 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest text-success uppercase">
+      <span className="inline-flex items-center gap-1.5 text-xs tracking-widest text-success uppercase">
         <HugeiconsIcon icon={CheckmarkCircle02Icon} size={12} />
         SAVED
       </span>
@@ -382,13 +371,13 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
   }
   if (status === "error") {
     return (
-      <span className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest text-destructive uppercase">
+      <span className="inline-flex items-center gap-1.5 text-xs tracking-widest text-destructive uppercase">
         SAVE FAILED — RETRY
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground/60 uppercase">
+    <span className="inline-flex items-center gap-1.5 text-xs tracking-widest text-muted-foreground/60 uppercase">
       ⟢ AUTO-SAVE
     </span>
   );
@@ -432,7 +421,7 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
   return (
     <StepFrame title="IDENTITY">
       <FieldRow label="DISPLAY NAME" hint="comes from your discord profile">
-        <Input value={profile.name} disabled className="font-mono" />
+        <Input value={profile.name} disabled />
       </FieldRow>
       <FieldRow label="TAG / ROLE" hint="shows under your name in the hero">
         <Input
@@ -443,7 +432,6 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
             debouncedSaveTagline(v);
           }}
           placeholder="dev, designer, etc."
-          className="font-mono"
         />
       </FieldRow>
       <FieldRow
@@ -465,7 +453,6 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
               setStub_(v);
               if (v.length >= 3) debouncedSaveStub(v);
             }}
-            className="font-mono"
           />
         </div>
       </FieldRow>
@@ -490,7 +477,7 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
             variant="outline"
             size="xs"
             onClick={() => setPreview((p) => !p)}
-            className="font-mono tracking-widest"
+            className="tracking-widest"
           >
             <HugeiconsIcon icon={preview ? ViewOffSlashIcon : ViewIcon} size={12} />
             {preview ? "EDIT" : "PREVIEW"}
@@ -517,7 +504,7 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
               debouncedSaveBio(v);
             }}
             placeholder="game-adjacent dev who…"
-            className="min-h-32 font-mono"
+            className="min-h-32"
           />
         )}
       </FieldRow>
@@ -692,7 +679,7 @@ function SkillSearch({
         }}
         onFocus={() => trimmed && setOpen(true)}
         placeholder="+ add skill"
-        className="w-32 rounded-md border border-dashed border-muted-foreground/40 bg-transparent px-2 py-0.5 font-mono text-[11px] tracking-widest text-foreground placeholder:text-muted-foreground/60 focus:border-accent/60 focus:outline-none"
+        className="w-32 rounded-md border border-dashed border-muted-foreground/40 bg-transparent px-2 py-0.5 text-[11px] tracking-widest text-foreground placeholder:text-muted-foreground/60 focus:border-accent/60 focus:outline-none"
       />
       {open && trimmed ? (
         <div className="absolute top-full left-0 z-50 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-muted/60 bg-card shadow-lg">
@@ -705,7 +692,7 @@ function SkillSearch({
                 setSearch("");
                 setOpen(false);
               }}
-              className="block w-full px-2 py-1.5 text-left font-mono text-[11px] tracking-widest text-foreground uppercase hover:bg-accent/10 hover:text-accent"
+              className="block w-full px-2 py-1.5 text-left text-[11px] tracking-widest text-foreground uppercase hover:bg-accent/10 hover:text-accent"
             >
               {skill.name}
               {skill.category ? (
@@ -721,7 +708,7 @@ function SkillSearch({
                 setSearch("");
                 setOpen(false);
               }}
-              className="block w-full border-t border-muted/30 px-2 py-1.5 text-left font-mono text-[11px] tracking-widest text-warning uppercase hover:bg-warning/10"
+              className="block w-full border-t border-muted/30 px-2 py-1.5 text-left text-[11px] tracking-widest text-warning uppercase hover:bg-warning/10"
             >
               REQUEST &apos;{trimmed}&apos;
             </button>
@@ -955,7 +942,7 @@ function DeleteAccountZone() {
           variant={armed ? "destructive" : "outline"}
           size="sm"
           disabled={sending}
-          className="font-mono tracking-widest"
+          className="tracking-widest"
           onClick={() => {
             if (!armed) {
               setArmed(true);
@@ -976,7 +963,7 @@ function DeleteAccountZone() {
           <Button
             variant="ghost"
             size="sm"
-            className="font-mono tracking-widest"
+            className="tracking-widest"
             onClick={() => setArmed(false)}
           >
             CANCEL
@@ -1022,7 +1009,7 @@ function ProviderConnectButton({
         size="sm"
         onClick={onClick}
         disabled={disabled || loading}
-        className="font-mono tracking-widest"
+        className="tracking-widest"
       >
         {loading ? <Spinner className="size-3" /> : connectedTo ? "RECONNECT" : "CONNECT"}
       </Button>
@@ -1101,7 +1088,7 @@ function FieldRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+        <Label className="text-[11px] tracking-widest text-muted-foreground uppercase">
           {label}
         </Label>
         <div className="flex items-center gap-2">

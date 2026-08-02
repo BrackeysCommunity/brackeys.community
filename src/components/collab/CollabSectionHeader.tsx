@@ -43,7 +43,7 @@ export function CollabSectionHeader({ index, title, action, className }: CollabS
 
 export function AddSectionAction({ onAdd, label = "ADD" }: { onAdd: () => void; label?: string }) {
   return (
-    <Button variant="outline" size="xs" onClick={onAdd} className="font-mono tracking-widest">
+    <Button variant="outline" size="xs" onClick={onAdd} className="tracking-widest">
       <HugeiconsIcon icon={Add01Icon} size={12} />
       {label}
     </Button>
@@ -52,7 +52,7 @@ export function AddSectionAction({ onAdd, label = "ADD" }: { onAdd: () => void; 
 
 export function ViewAllAction({ onClick }: { onClick?: () => void }) {
   return (
-    <Button variant="outline" size="xs" onClick={onClick} className="font-mono tracking-widest">
+    <Button variant="outline" size="xs" onClick={onClick} className="tracking-widest">
       VIEW ALL
       <HugeiconsIcon icon={ArrowRight01Icon} size={12} />
     </Button>

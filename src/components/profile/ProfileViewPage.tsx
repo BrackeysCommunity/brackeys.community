@@ -97,7 +97,7 @@ export function ProfileViewPage() {
   return (
     <>
       {/* Status bar */}
-      <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
+      <div className="mb-4 flex items-center gap-2 text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{">"}</span>
         {isLoading ? "LOADING..." : profileData ? "PROFILE LOADED" : "NOT FOUND"}
         <span className="mx-2 text-primary">{"//"}</span>
@@ -114,7 +114,7 @@ export function ProfileViewPage() {
 
       {/* Heading block */}
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           {isLoading ? (
             <span className="animate-pulse text-muted-foreground">...</span>
           ) : profileData ? (

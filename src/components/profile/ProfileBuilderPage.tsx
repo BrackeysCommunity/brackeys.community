@@ -31,15 +31,15 @@ function DiscordSignInCTA() {
           className="group flex h-24 min-w-[280px] flex-col justify-between border-2 border-primary bg-card p-4 text-left transition-all duration-100 hover:-translate-y-1 hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none"
         >
           <div className="flex justify-between">
-            <span className="font-mono text-xs text-primary">AUTHENTICATE</span>
+            <span className="text-xs text-primary">AUTHENTICATE</span>
             <HugeiconsIcon icon={Login01Icon} size={20} className="text-primary" />
           </div>
-          <div className="font-mono text-2xl leading-none font-bold tracking-tight whitespace-pre-line text-primary">
+          <div className="font-display text-2xl leading-none font-bold tracking-tight whitespace-pre-line text-primary">
             {"SIGN IN\nW/ DISCORD"}
           </div>
         </button>
       </motion.div>
-      <p className="mt-4 font-mono text-xs tracking-wider text-muted-foreground">
+      <p className="mt-4 text-xs tracking-wider text-muted-foreground">
         {"> SIGN IN TO VIEW AND EDIT YOUR PROFILE"}
       </p>
     </div>
@@ -59,7 +59,7 @@ export function ProfileBuilderPage() {
   if (isPending) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
+        <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
           Authenticating...
         </span>
       </div>
@@ -69,7 +69,7 @@ export function ProfileBuilderPage() {
   if (session?.user) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
+        <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
           Redirecting to your profile...
         </span>
       </div>
@@ -78,13 +78,13 @@ export function ProfileBuilderPage() {
 
   return (
     <>
-      <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
+      <div className="mb-4 flex items-center gap-2 text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{">"}</span>
         AUTHENTICATION REQUIRED
       </div>
 
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           DEV
           <br />
           <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">

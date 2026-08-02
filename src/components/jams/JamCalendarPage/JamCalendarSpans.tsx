@@ -131,7 +131,7 @@ export function JamCalendarSpans({
               size="sm"
               onClick={onJumpToday}
               aria-label="Jump to current month"
-              className="px-2.5 font-mono text-[11px] tracking-widest"
+              className="px-2.5 text-[11px] tracking-widest"
             >
               TODAY
             </Button>

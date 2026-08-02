@@ -103,7 +103,7 @@ export function LiveFeed({ className }: { className?: string }) {
   return (
     <Well notchOpts={{ size: 16 }} className={cn(className)}>
       <div className="mt-1 flex items-center justify-between border-b border-muted/40 bg-muted/50 px-4 py-2.5">
-        <span className="flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+        <span className="flex items-center gap-2 text-xs tracking-widest text-muted-foreground uppercase">
           <span className="relative inline-flex h-1.5 w-1.5">
             <span className="absolute inset-0 animate-ping rounded-full bg-destructive opacity-75" />
             <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-destructive" />

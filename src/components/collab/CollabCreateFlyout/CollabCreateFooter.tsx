@@ -44,12 +44,7 @@ export function CollabCreateFooter({
         </Text>
         <div className="flex items-center gap-2">
           {!isFirstStep ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBack}
-              className="font-mono tracking-widest"
-            >
+            <Button variant="outline" size="sm" onClick={onBack} className="tracking-widest">
               <HugeiconsIcon icon={ArrowLeft01Icon} size={12} />
               BACK
             </Button>
@@ -59,7 +54,7 @@ export function CollabCreateFooter({
             size="sm"
             onClick={onNext}
             disabled={isSubmitting}
-            className="font-mono tracking-widest"
+            className="tracking-widest"
           >
             {isLastStep ? (isSubmitting ? "SUBMITTING…" : "SUBMIT") : "NEXT"}
             <HugeiconsIcon icon={isLastStep ? Tick01Icon : ArrowRight01Icon} size={12} />

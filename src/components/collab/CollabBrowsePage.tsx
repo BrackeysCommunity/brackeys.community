@@ -248,7 +248,7 @@ export function CollabBrowsePage() {
           </DrawerDescription>
           <div className="flex min-h-0 flex-1 flex-col pt-3 pb-[env(safe-area-inset-bottom)]">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-muted/40 py-3 pr-3 pl-5">
-              <DrawerTitle className="font-mono text-base tracking-widest text-foreground uppercase">
+              <DrawerTitle className="text-base tracking-widest text-foreground uppercase">
                 Filters
               </DrawerTitle>
               <CollabFilterClearButton />

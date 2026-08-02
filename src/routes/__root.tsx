@@ -82,7 +82,7 @@ function RouteErrorBoundary({ error }: { error: Error }) {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="border border-primary/40 px-4 py-2 font-mono text-xs tracking-widest text-primary uppercase transition-colors hover:bg-primary/10"
+          className="border border-primary/40 px-4 py-2 text-xs tracking-widest text-primary uppercase transition-colors hover:bg-primary/10"
         >
           Reload
         </button>
@@ -94,7 +94,7 @@ function RouteErrorBoundary({ error }: { error: Error }) {
 function RoutePendingFallback() {
   return (
     <div className="flex flex-1 items-center justify-center p-12">
-      <span className="animate-pulse font-mono text-xs tracking-widest text-muted-foreground uppercase">
+      <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
         Loading...
       </span>
     </div>
@@ -138,7 +138,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
           <a
             href="#main-content"
-            className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
+            className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
           >
             Skip to content
           </a>

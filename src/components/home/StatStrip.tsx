@@ -20,9 +20,7 @@ export function StatCell({ value, label, accent, className }: StatCellProps) {
         {value}
         {accent}
       </span>
-      <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-        {label}
-      </span>
+      <span className="text-[10px] tracking-widest text-muted-foreground uppercase">{label}</span>
     </div>
   );
 }

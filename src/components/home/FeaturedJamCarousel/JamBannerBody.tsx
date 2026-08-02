@@ -86,14 +86,14 @@ export function JamBannerBody({
               target={state === "upcoming" ? jam.startsAt : jam.endsAt}
               now={now}
               ended={state === "ended"}
-              className={`font-mono ${statValueClass} font-bold whitespace-nowrap text-primary`}
+              className={`${statValueClass} font-bold whitespace-nowrap text-primary`}
             />
           </div>
           <div>
             <Text as="div" size="xs" variant="muted" className="tracking-widest">
               JOINED
             </Text>
-            <div className={`font-mono ${statValueClass} font-bold`}>
+            <div className={`${statValueClass} font-bold`}>
               <CountUp to={jam.joinedCount ?? 0} duration={0.4} separator="," />
             </div>
           </div>
@@ -101,7 +101,7 @@ export function JamBannerBody({
             <Text as="div" size="xs" variant="muted" className="tracking-widest">
               ENTRIES
             </Text>
-            <div className={`font-mono ${statValueClass} font-bold`}>
+            <div className={`${statValueClass} font-bold`}>
               <CountUp to={jam.entriesCount ?? 0} duration={0.4} separator="," />
             </div>
           </div>
@@ -120,7 +120,7 @@ export function JamBannerBody({
               aria-label="Open jam"
             />
           }
-          className="flex flex-1 items-center justify-center gap-2 px-4 py-2.5 font-mono text-xs font-bold tracking-widest"
+          className="flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold tracking-widest"
         >
           <HugeiconsIcon icon={FlashIcon} size={14} />
           OPEN JAM

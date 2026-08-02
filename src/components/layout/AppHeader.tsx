@@ -101,7 +101,7 @@ export function AppHeader() {
                 ease: "linear",
               }}
             />
-            <span className="leading-wide hidden font-mono text-xl font-bold text-foreground sm:inline">
+            <span className="leading-wide hidden font-display text-xl font-bold text-foreground sm:inline">
               Brackeys
               <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
                 Community
@@ -112,7 +112,7 @@ export function AppHeader() {
 
         {/* Desktop nav */}
         <div className="pointer-events-auto hidden items-center gap-6 lg:flex">
-          <nav className="flex items-center gap-6 font-mono text-sm font-bold tracking-widest">
+          <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
             <MagneticLink>
               <Link
                 data-cursor-no-drift
@@ -150,7 +150,7 @@ export function AppHeader() {
             isMagnetic
             data-cursor-no-drift
             onClick={() => openPalette(true)}
-            className="gap-2 border-muted font-mono text-xs text-muted-foreground shadow-[2px_2px_0px_var(--color-primary)] hover:border-primary hover:text-primary"
+            className="gap-2 border-muted text-xs text-muted-foreground shadow-[2px_2px_0px_var(--color-primary)] hover:border-primary hover:text-primary"
           >
             <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} />
             <Hotkey value="command+k" className="hidden opacity-60 xl:inline-flex" />
@@ -165,7 +165,7 @@ export function AppHeader() {
             <Button
               variant="default"
               isMagnetic
-              className="px-5 font-mono text-xs font-bold tracking-widest"
+              className="px-5 text-xs font-bold tracking-widest"
               data-cursor-no-drift
               onClick={() => signInWithDiscord()}
             >
@@ -177,7 +177,7 @@ export function AppHeader() {
         {/* Mobile page title + menu button */}
         <div className="pointer-events-auto flex items-center gap-3 lg:hidden">
           {mobileTitle && (
-            <span className="font-mono text-xs font-bold tracking-widest text-foreground/70 uppercase">
+            <span className="text-xs font-bold tracking-widest text-foreground/70 uppercase">
               {mobileTitle}
             </span>
           )}
@@ -186,7 +186,7 @@ export function AppHeader() {
             size="icon-lg"
             aria-label="Open command palette"
             onClick={() => openPalette(true)}
-            className="font-mono text-muted-foreground"
+            className="text-muted-foreground"
           >
             <HugeiconsIcon icon={ComputerTerminal01Icon} size={16} />
           </Button>
@@ -216,14 +216,14 @@ export function AppHeader() {
               <Link
                 to="/command-center"
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 font-mono text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 COMMANDS
               </Link>
               <Link
                 to="/collab"
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 font-mono text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 COLLAB
               </Link>
@@ -232,7 +232,7 @@ export function AppHeader() {
                 to={profileSlug ? "/profile/$userId" : "/profile"}
                 {...(profileSlug ? { params: { userId: profileSlug } } : {})}
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 font-mono text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 PROFILE
               </Link>
@@ -243,7 +243,7 @@ export function AppHeader() {
                   <Button
                     variant="default"
                     size="sm"
-                    className="font-mono text-xs font-bold tracking-widest"
+                    className="text-xs font-bold tracking-widest"
                     onClick={() => {
                       void signInWithDiscord({
                         fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },

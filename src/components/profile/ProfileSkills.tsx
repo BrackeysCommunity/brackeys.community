@@ -32,7 +32,7 @@ export function ProfileSkills({ skills, className }: ProfileSkillsProps) {
       {hasCategories ? (
         Array.from(grouped.entries()).map(([category, catSkills]) => (
           <div key={category}>
-            <span className="mb-1.5 block font-mono text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase">
+            <span className="mb-1.5 block text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase">
               {category}
             </span>
             <SkillTagList skills={catSkills} />

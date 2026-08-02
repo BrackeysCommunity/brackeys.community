@@ -100,7 +100,7 @@ function EditSection({
   return (
     <div className={cn("group/section", className)}>
       <div className="flex items-center justify-between border-b border-muted/30 px-4 py-2">
-        <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
+        <span className="text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
           {label}
         </span>
         {complete !== undefined && (
@@ -263,7 +263,7 @@ function LinkedAccountRow({
             className="text-muted-foreground/30 transition-colors group-hover/link-btn:text-primary/50"
           />
         )}
-        <span className="font-mono text-[10px] tracking-wider text-muted-foreground/40 transition-colors group-hover/link-btn:text-foreground/60">
+        <span className="text-[10px] tracking-wider text-muted-foreground/40 transition-colors group-hover/link-btn:text-foreground/60">
           {linking ? `Redirecting to ${providerLabel}...` : `Link ${providerLabel} account`}
         </span>
       </button>
@@ -668,7 +668,7 @@ export function ProfileEditForm({
               onChange={(e) => handleFieldChange("tagline", e.target.value, setTagline)}
               placeholder="What do you do? e.g. 'Unity developer & pixel art enthusiast'"
               maxLength={120}
-              className="w-full border-b border-muted/15 bg-transparent pb-1.5 font-mono text-sm text-foreground placeholder-muted-foreground/20 transition-colors outline-none hover:border-muted/40 focus:border-primary/40"
+              className="w-full border-b border-muted/15 bg-transparent pb-1.5 text-sm text-foreground placeholder-muted-foreground/20 transition-colors outline-none hover:border-muted/40 focus:border-primary/40"
             />
           </MagneticField>
           <div className="flex justify-end">
@@ -686,7 +686,7 @@ export function ProfileEditForm({
               placeholder="Tell the community about yourself, your experience, what you're working on..."
               rows={4}
               maxLength={500}
-              className="w-full resize-none border border-muted/15 bg-muted/5 p-2.5 font-mono text-xs leading-relaxed text-foreground placeholder-muted-foreground/20 transition-all outline-none hover:border-muted/40 hover:bg-muted/10 focus:border-primary/40"
+              className="w-full resize-none border border-muted/15 bg-muted/5 p-2.5 text-xs leading-relaxed text-foreground placeholder-muted-foreground/20 transition-all outline-none hover:border-muted/40 hover:bg-muted/10 focus:border-primary/40"
             />
           </MagneticField>
           <div className="flex justify-end">
@@ -699,7 +699,7 @@ export function ProfileEditForm({
         <div className="border-b border-muted/30 px-4 py-3">
           {visibleSkills.length === 0 && visiblePendingRequests.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-2">
-              <p className="font-mono text-[10px] tracking-wider text-muted-foreground/30">
+              <p className="text-[10px] tracking-wider text-muted-foreground/30">
                 No skills added yet
               </p>
               <SkillAutocomplete
@@ -764,7 +764,7 @@ export function ProfileEditForm({
                   : "border-muted/15 bg-muted/5 hover:border-muted/40",
               )}
             >
-              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
+              <span className="text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase">
                 Available for hire
               </span>
               <div
@@ -787,7 +787,7 @@ export function ProfileEditForm({
             <div className="space-y-3">
               {/* Availability type */}
               <div className="space-y-1.5">
-                <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+                <span className="text-[10px] tracking-widest text-muted-foreground/40 uppercase">
                   Availability
                 </span>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -806,7 +806,7 @@ export function ProfileEditForm({
                         updateProfile({ availability: value });
                       }}
                       className={cn(
-                        "border px-2 py-1.5 text-center font-mono text-[10px] font-bold tracking-widest uppercase transition-all",
+                        "border px-2 py-1.5 text-center text-[10px] font-bold tracking-widest uppercase transition-all",
                         availability === value
                           ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-500"
                           : "border-muted/15 bg-muted/5 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
@@ -820,7 +820,7 @@ export function ProfileEditForm({
 
               {/* Rate type */}
               <div className="space-y-1.5">
-                <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+                <span className="text-[10px] tracking-widest text-muted-foreground/40 uppercase">
                   Rate Type
                 </span>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -849,7 +849,7 @@ export function ProfileEditForm({
                         }
                       }}
                       className={cn(
-                        "border px-2 py-1.5 text-center font-mono text-[10px] font-bold tracking-widest uppercase transition-all",
+                        "border px-2 py-1.5 text-center text-[10px] font-bold tracking-widest uppercase transition-all",
                         rateType === value
                           ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-500"
                           : "border-muted/15 bg-muted/5 text-muted-foreground/40 hover:border-muted/40 hover:text-muted-foreground/60",
@@ -864,7 +864,7 @@ export function ProfileEditForm({
               {/* Rate range (only for hourly/fixed) */}
               {rateType && rateType !== "negotiable" && (
                 <div className="space-y-1.5">
-                  <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+                  <span className="text-[10px] tracking-widest text-muted-foreground/40 uppercase">
                     Rate Range ($)
                   </span>
                   <div className="grid grid-cols-2 gap-2">
@@ -929,11 +929,9 @@ export function ProfileEditForm({
           </MagneticField>
           <div className="flex items-center justify-between">
             <div>
-              {urlStubError && (
-                <p className="font-mono text-[10px] text-destructive">{urlStubError}</p>
-              )}
+              {urlStubError && <p className="text-[10px] text-destructive">{urlStubError}</p>}
               {!urlStubError && urlStub.length >= 3 && initialUrlStub === urlStub && (
-                <p className="font-mono text-[10px] text-green-500">Saved</p>
+                <p className="text-[10px] text-green-500">Saved</p>
               )}
             </div>
             <CharCount current={urlStub.length} min={3} max={32} />
@@ -968,7 +966,7 @@ export function ProfileEditForm({
                   type="button"
                   onClick={() => importItchIoGamesMutation.mutate()}
                   disabled={importItchIoGamesMutation.isPending}
-                  className="px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/50 transition-colors hover:bg-muted/10 hover:text-primary/80 disabled:opacity-50"
+                  className="px-1.5 py-0.5 text-[10px] text-muted-foreground/50 transition-colors hover:bg-muted/10 hover:text-primary/80 disabled:opacity-50"
                 >
                   {importItchIoGamesMutation.isPending ? "Importing..." : "Import games"}
                 </button>
@@ -993,7 +991,7 @@ export function ProfileEditForm({
         <div className="space-y-2 border-b border-muted/30 px-4 py-3">
           {visibleProjects.length === 0 ? (
             <div className="py-2 text-center">
-              <p className="mb-2 font-mono text-[10px] tracking-wider text-muted-foreground/30">
+              <p className="mb-2 text-[10px] tracking-wider text-muted-foreground/30">
                 Showcase your work and jam history
               </p>
               <div className="space-y-2">

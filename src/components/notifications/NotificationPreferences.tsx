@@ -57,7 +57,7 @@ export function NotificationPreferences() {
 
   if (isLoading || !data) {
     return (
-      <div className="border border-muted/30 bg-card/40 px-4 py-12 text-center font-mono text-xs text-muted-foreground">
+      <div className="border border-muted/30 bg-card/40 px-4 py-12 text-center text-xs text-muted-foreground">
         Loading preferences…
       </div>
     );
@@ -67,13 +67,13 @@ export function NotificationPreferences() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="font-mono text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground">
         Choose how you hear about each kind of activity. <strong>In-app</strong> shows in the bell
         and inbox. <strong>Email</strong> sends a transactional email (suppressed while you're
         actively online). <strong>Digest</strong> bundles into a weekly Monday email.
       </p>
       <div className="border border-muted/30 bg-card/40">
-        <div className="grid grid-cols-[1fr_repeat(3,minmax(0,5rem))] gap-2 border-b border-muted/40 px-4 py-2 font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        <div className="grid grid-cols-[1fr_repeat(3,minmax(0,5rem))] gap-2 border-b border-muted/40 px-4 py-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
           <span>Event</span>
           {CHANNEL_LABELS.map((c) => (
             <span key={c.key} className="text-center">

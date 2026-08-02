@@ -132,7 +132,7 @@ function FeedEmptyState({ filtered, isPeople }: { filtered: boolean; isPeople: b
           variant="outline"
           size="sm"
           onClick={resetCollabFilters}
-          className="font-mono tracking-widest"
+          className="tracking-widest"
         >
           CLEAR ALL FILTERS
         </Button>

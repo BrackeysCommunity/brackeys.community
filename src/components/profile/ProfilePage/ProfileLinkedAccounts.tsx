@@ -154,7 +154,7 @@ function AddProviderMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="xs" className="font-mono tracking-widest">
+          <Button variant="outline" size="xs" className="tracking-widest">
             <HugeiconsIcon icon={Add01Icon} size={12} />
             ADD
           </Button>
@@ -168,7 +168,7 @@ function AddProviderMenu({
               void linkGithub().finally(() => setLinking(null));
             }}
             disabled={linking === "github"}
-            className="font-mono text-xs tracking-widest uppercase"
+            className="text-xs tracking-widest uppercase"
           >
             <HugeiconsIcon icon={GithubIcon} size={14} />
             {linking === "github" ? "Connecting…" : "GitHub"}
@@ -185,16 +185,13 @@ function AddProviderMenu({
               }
             }}
             disabled={linking === "itchio"}
-            className="font-mono text-xs tracking-widest uppercase"
+            className="text-xs tracking-widest uppercase"
           >
             <span className="inline-flex h-3.5 w-3.5 items-center justify-center font-bold">⌑</span>
             itch.io
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          onClick={onManual}
-          className="font-mono text-xs tracking-widest uppercase"
-        >
+        <DropdownMenuItem onClick={onManual} className="text-xs tracking-widest uppercase">
           <HugeiconsIcon icon={Link01Icon} size={14} />
           Custom URL
         </DropdownMenuItem>

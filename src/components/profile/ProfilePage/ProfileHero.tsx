@@ -271,12 +271,12 @@ function ActionRow({
       {isOwner ? (
         <Button variant="outline" size="sm" onClick={onEditProfile}>
           <HugeiconsIcon icon={Edit02Icon} size={14} />
-          <span className="font-mono tracking-widest">EDIT</span>
+          <span className="tracking-widest">EDIT</span>
         </Button>
       ) : null}
       <Button variant="outline" size="sm" onClick={onShare} aria-label="Share profile">
         <HugeiconsIcon icon={Share05Icon} size={14} />
-        {isOwner ? null : <span className="font-mono tracking-widest">SHARE</span>}
+        {isOwner ? null : <span className="tracking-widest">SHARE</span>}
       </Button>
     </div>
   );

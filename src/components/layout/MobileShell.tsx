@@ -46,7 +46,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
                 "linear-gradient(135deg, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple))",
             }}
           />
-          <span className="font-mono text-base leading-none font-bold text-foreground">
+          <span className="font-display text-base leading-none font-bold text-foreground">
             Brackeys
             <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
               Community
@@ -60,7 +60,6 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
             size="icon-lg"
             aria-label="Settings"
             onClick={() => setSettingsOpen(true)}
-            className="font-mono"
           >
             <HugeiconsIcon icon={Settings02Icon} size={16} />
           </Button>
@@ -68,7 +67,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           <Button
             variant="default"
             size="sm"
-            className="px-4 font-mono text-xs font-bold tracking-widest"
+            className="px-4 text-xs font-bold tracking-widest"
             onClick={() => signInWithDiscord()}
           >
             LOGIN

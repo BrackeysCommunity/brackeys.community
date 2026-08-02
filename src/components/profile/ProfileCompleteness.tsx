@@ -74,7 +74,7 @@ export function ProfileCompletenessCard({ items }: { items: CompletenessItem[] }
 
   const header = (
     <div className="flex items-center justify-between">
-      <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground uppercase">
+      <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
         Completeness
       </span>
       <div className="flex items-center gap-2">
@@ -130,7 +130,7 @@ export function ProfileCompletenessCard({ items }: { items: CompletenessItem[] }
                 </div>
                 <span
                   className={cn(
-                    "font-mono text-[10px] tracking-widest uppercase transition-colors duration-200",
+                    "text-[10px] tracking-widest uppercase transition-colors duration-200",
                     labelStyles[item.status],
                   )}
                 >
@@ -150,7 +150,7 @@ export function ProfileCompletenessMini({ items }: { items: CompletenessItem[] }
   return (
     <div className="space-y-1.5 border-b border-muted/30 px-4 py-3">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
+        <span className="text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase">
           Completeness
         </span>
         <span className="font-mono text-[10px] text-primary">

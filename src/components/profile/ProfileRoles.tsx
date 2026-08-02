@@ -37,7 +37,7 @@ export function ProfileRoles({ roles, className }: ProfileRolesProps) {
           <span
             key={role}
             className={cn(
-              "inline-flex items-center px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest uppercase transition-colors",
+              "inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase transition-colors",
               style.border,
               style.text,
               style.bg,

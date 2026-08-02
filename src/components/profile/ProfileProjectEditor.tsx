@@ -38,7 +38,7 @@ const fieldSpring = {
   mass: 0.1,
 } as const;
 const inputCls =
-  "w-full bg-transparent border border-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors";
+  "w-full bg-transparent border border-muted/20 px-2.5 py-1.5 text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors";
 const dropzoneAccept = Object.fromEntries(
   PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES.map((mimeType) => [mimeType, []]),
 );
@@ -235,7 +235,7 @@ export function EditableProjectCard({
         </div>
 
         {project.description && (
-          <p className="line-clamp-2 font-mono text-[10px] leading-relaxed text-muted-foreground/60">
+          <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/60">
             {project.description}
           </p>
         )}
@@ -453,14 +453,14 @@ function InlineProjectEditForm({
         className={inputCls}
       />
 
-      {uploadError && <p className="font-mono text-[10px] text-destructive">{uploadError}</p>}
+      {uploadError && <p className="text-[10px] text-destructive">{uploadError}</p>}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={isUploading || !title.trim()}
-          className="flex flex-1 items-center justify-center gap-1.5 border border-primary/30 bg-primary/15 py-1.5 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25 disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-1.5 border border-primary/30 bg-primary/15 py-1.5 text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25 disabled:opacity-50"
         >
           <HugeiconsIcon icon={Tick01Icon} size={10} />
           {isUploading ? "Saving..." : "Save"}
@@ -468,7 +468,7 @@ function InlineProjectEditForm({
         <button
           type="button"
           onClick={onCancel}
-          className="flex flex-1 items-center justify-center gap-1.5 border border-muted/20 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
+          className="flex flex-1 items-center justify-center gap-1.5 border border-muted/20 py-1.5 text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={10} />
           Cancel
@@ -625,7 +625,7 @@ export function AddProjectForm({
         transition={fieldSpring}
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-1.5 border border-dashed border-muted/25 py-3 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-primary/40 hover:text-primary"
+        className="flex w-full items-center justify-center gap-1.5 border border-dashed border-muted/25 py-3 text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-primary/40 hover:text-primary"
       >
         <HugeiconsIcon icon={Add01Icon} size={10} />
         Add Project
@@ -669,7 +669,7 @@ export function AddProjectForm({
           ) : (
             <span className="flex flex-col items-center gap-0.5">
               <HugeiconsIcon icon={Image01Icon} size={16} className="text-muted-foreground/30" />
-              <span className="font-mono text-[7px] text-muted-foreground/25 uppercase">Image</span>
+              <span className="text-[7px] text-muted-foreground/25 uppercase">Image</span>
             </span>
           )}
         </button>
@@ -738,21 +738,21 @@ export function AddProjectForm({
         className={inputCls}
       />
 
-      {uploadError && <p className="font-mono text-[10px] text-destructive">{uploadError}</p>}
+      {uploadError && <p className="text-[10px] text-destructive">{uploadError}</p>}
 
       <div className="flex gap-2 pt-1">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={isUploading || !title.trim()}
-          className="flex-1 border border-primary/30 bg-primary/15 py-1.5 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25 disabled:opacity-50"
+          className="flex-1 border border-primary/30 bg-primary/15 py-1.5 text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25 disabled:opacity-50"
         >
           {isUploading ? "Saving..." : "Save"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 border border-muted/20 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
+          className="flex-1 border border-muted/20 py-1.5 text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
         >
           Cancel
         </button>

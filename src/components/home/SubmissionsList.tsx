@@ -92,7 +92,7 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className={`flex shrink-0 items-center gap-1 border bg-black px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground uppercase transition-all duration-150 hover:text-white ${
+          className={`flex shrink-0 items-center gap-1 border bg-black px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase transition-all duration-150 hover:text-white ${
             expanded
               ? "border-primary/40 opacity-100 hover:border-primary"
               : "pointer-events-none border-muted opacity-0"
@@ -109,7 +109,7 @@ function SubmissionCard({ entry }: { entry: JamEntry }) {
           expanded ? "mt-2 max-h-24 opacity-100" : "mt-0 max-h-0 opacity-0"
         }`}
       >
-        <p className="max-h-20 overflow-y-auto pr-1 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+        <p className="max-h-20 overflow-y-auto pr-1 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
           {entry.game.short_text || (
             <span className="text-muted-foreground/30 italic">No description provided.</span>
           )}
@@ -141,7 +141,7 @@ export function SubmissionsList({ entries }: { entries: JamEntry[] }) {
   if (entries.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
-        <span className="font-mono text-xs tracking-widest uppercase">No entries yet</span>
+        <span className="text-xs tracking-widest uppercase">No entries yet</span>
       </div>
     );
   }

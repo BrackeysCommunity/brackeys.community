@@ -214,7 +214,7 @@ export function AddProjectDialog({
             <ToggleGroupItem
               key={value}
               value={value}
-              className="bg-card! px-3 font-mono text-[11px] tracking-widest uppercase"
+              className="bg-card! px-3 text-[11px] tracking-widest uppercase"
             >
               {PROFILE_PROJECT_TYPE_LABELS[value]}
             </ToggleGroupItem>
@@ -236,7 +236,7 @@ export function AddProjectDialog({
               <ToggleGroupItem
                 key={value}
                 value={value}
-                className="bg-card! px-3 font-mono text-[11px] tracking-widest uppercase"
+                className="bg-card! px-3 text-[11px] tracking-widest uppercase"
               >
                 {PROFILE_PROJECT_SUBTYPE_LABELS[value]}
               </ToggleGroupItem>
@@ -269,7 +269,7 @@ export function AddProjectDialog({
           variant="outline"
           size="sm"
           onClick={() => onOpenChange(false)}
-          className="font-mono tracking-widest"
+          className="tracking-widest"
         >
           CANCEL
         </Button>
@@ -278,7 +278,7 @@ export function AddProjectDialog({
           size="sm"
           disabled={!title.trim() || submitting}
           onClick={() => void handleSubmit()}
-          className="font-mono tracking-widest"
+          className="tracking-widest"
         >
           {submitting ? "SAVING…" : isEditing ? "SAVE CHANGES" : "ADD PROJECT"}
         </Button>
@@ -295,7 +295,7 @@ export function AddProjectDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-mono tracking-widest uppercase">
+            <DialogTitle className="tracking-widest uppercase">
               {isEditing ? "Edit project" : "Add project"}
             </DialogTitle>
             <DialogDescription>
@@ -316,7 +316,7 @@ export function AddProjectDialog({
         className="w-[28rem] max-w-[100vw] overflow-y-auto sm:max-w-[28rem]"
       >
         <SheetHeader className="border-b border-muted/30 pb-4">
-          <SheetTitle className="font-mono tracking-widest uppercase">
+          <SheetTitle className="tracking-widest uppercase">
             {isEditing ? "Edit project" : "Add project"}
           </SheetTitle>
           <SheetDescription>
@@ -381,9 +381,7 @@ function CoverImageField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
-        COVER
-      </Label>
+      <Label className="text-[11px] tracking-widest text-muted-foreground uppercase">COVER</Label>
       <Well
         {...getRootProps({
           className: cn(
@@ -410,16 +408,11 @@ function CoverImageField({
                   variant="outline"
                   size="xs"
                   onClick={openFilePicker}
-                  className="font-mono tracking-widest"
+                  className="tracking-widest"
                 >
                   Replace
                 </Button>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={onClear}
-                  className="font-mono tracking-widest"
-                >
+                <Button variant="outline" size="xs" onClick={onClear} className="tracking-widest">
                   Remove
                 </Button>
               </div>
@@ -436,7 +429,7 @@ function CoverImageField({
                 variant="outline"
                 size="xs"
                 onClick={openFilePicker}
-                className="font-mono tracking-widest"
+                className="tracking-widest"
               >
                 <HugeiconsIcon icon={Add01Icon} size={12} />
                 Choose file
@@ -468,7 +461,7 @@ function FieldRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <Label className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+        <Label className="text-[11px] tracking-widest text-muted-foreground uppercase">
           {label}
           {required ? <span className="ml-0.5 text-destructive">*</span> : null}
         </Label>

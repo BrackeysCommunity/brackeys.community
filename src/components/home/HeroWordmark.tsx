@@ -12,7 +12,7 @@ export function HeroWordmark({ primary, secondary, noPunctuation, className }: H
   return (
     <h1
       className={cn(
-        "flex flex-col font-mono leading-[0.9] font-bold tracking-tighter",
+        "flex flex-col font-display leading-[0.9] font-bold tracking-tighter",
         "text-[clamp(2.5rem,9vw,7rem)]",
         className,
       )}

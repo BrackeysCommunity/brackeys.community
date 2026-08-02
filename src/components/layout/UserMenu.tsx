@@ -52,7 +52,7 @@ export function UserMenu({ user }: UserMenuProps) {
                 variant="surface"
                 size="sm"
                 render={<button type="button" />}
-                className="items-center gap-2 px-3 py-1.5 font-mono text-xs font-bold tracking-widest"
+                className="items-center gap-2 px-3 py-1.5 text-xs font-bold tracking-widest"
               />
             }
           >
@@ -73,14 +73,14 @@ export function UserMenu({ user }: UserMenuProps) {
           className="min-w-[180px] border border-muted bg-background/95 p-1 backdrop-blur-md"
         >
           <DropdownMenuItem
-            className="font-mono text-xs font-bold tracking-widest uppercase"
+            className="text-xs font-bold tracking-widest uppercase"
             render={<Link to="/profile" />}
           >
             <HugeiconsIcon icon={UserIcon} size={14} />
             MY PROFILE
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="font-mono text-xs font-bold tracking-widest uppercase"
+            className="text-xs font-bold tracking-widest uppercase"
             render={
               <Link
                 data-testid="view-public-link"
@@ -93,7 +93,7 @@ export function UserMenu({ user }: UserMenuProps) {
             VIEW PUBLIC
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="font-mono text-xs font-bold tracking-widest uppercase"
+            className="text-xs font-bold tracking-widest uppercase"
             onClick={() => setSettingsOpen(true)}
           >
             <HugeiconsIcon icon={Settings02Icon} size={14} />
@@ -101,7 +101,7 @@ export function UserMenu({ user }: UserMenuProps) {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="font-mono text-xs font-bold tracking-widest text-destructive uppercase"
+            className="text-xs font-bold tracking-widest text-destructive uppercase"
             onClick={async () => {
               await authClient.signOut({
                 fetchOptions: {

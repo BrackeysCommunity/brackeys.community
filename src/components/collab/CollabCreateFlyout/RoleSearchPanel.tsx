@@ -68,7 +68,7 @@ export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelPro
                     <Label
                       key={role.id}
                       htmlFor={id}
-                      className="flex cursor-pointer items-center gap-2 font-mono text-xs tracking-widest text-foreground uppercase"
+                      className="flex cursor-pointer items-center gap-2 text-xs tracking-widest text-foreground uppercase"
                     >
                       <Checkbox
                         id={id}

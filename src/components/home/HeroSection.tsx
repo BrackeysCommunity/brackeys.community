@@ -49,7 +49,7 @@ function NavCard({ item }: { item: NavItem }) {
             className="text-muted-foreground group-hover:text-primary"
           />
         </div>
-        <div className="font-mono text-2xl leading-none font-bold tracking-tight whitespace-pre-line text-foreground group-hover:text-primary">
+        <div className="font-display text-2xl leading-none font-bold tracking-tight whitespace-pre-line text-foreground group-hover:text-primary">
           {item.label}
         </div>
       </Link>
@@ -66,7 +66,7 @@ const NAV_ITEMS = [
 export function HeroSection() {
   return (
     <div className="flex h-full w-full flex-col justify-center">
-      <div className="mb-4 flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground">
+      <div className="mb-4 flex items-center gap-2 text-xs tracking-widest text-muted-foreground">
         <span className="text-primary">{">"}</span>
         {"SYSTEM READY"}
         <span className="mx-2 text-primary">{"//"}</span>
@@ -76,7 +76,7 @@ export function HeroSection() {
       </div>
 
       <div className="flex flex-col justify-center">
-        <h1 className="font-mono text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5.5vw,7rem)] leading-[0.85] font-bold tracking-tighter text-foreground">
           <CyclingWord />
           <br />
           <span className="text-transparent transition-colors duration-300 [-webkit-text-stroke:1px_var(--color-primary)] hover:text-primary">

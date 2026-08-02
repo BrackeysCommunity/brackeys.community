@@ -175,7 +175,6 @@ export function CollabPostDetail({
             aria-label="Close panel"
             title="Close panel"
             onClick={onClose}
-            className="font-mono"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={14} />
           </Button>
@@ -301,7 +300,7 @@ export function CollabPostDetail({
                 href={post.portfolioUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
               >
                 <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
                 Portfolio
@@ -312,7 +311,7 @@ export function CollabPostDetail({
                 href={post.portfolioUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
               >
                 <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
                 Game / Demo
@@ -404,7 +403,7 @@ export function CollabPostDetail({
                     onClick={() => reopenMutation.mutate()}
                     disabled={reopenMutation.isPending}
                     title="Reopen this post for applications"
-                    className="font-mono tracking-widest"
+                    className="tracking-widest"
                   >
                     <HugeiconsIcon icon={Tick01Icon} size={12} />
                     REOPEN POST
@@ -416,7 +415,7 @@ export function CollabPostDetail({
                     onClick={() => closeMutation.mutate()}
                     disabled={closeMutation.isPending}
                     title="Mark this post as no longer recruiting"
-                    className="font-mono tracking-widest"
+                    className="tracking-widest"
                   >
                     <HugeiconsIcon icon={Cancel01Icon} size={12} />
                     CLOSE RECRUITING
@@ -434,7 +433,7 @@ export function CollabPostDetail({
                     }
                   }}
                   disabled={deleteMutation.isPending}
-                  className="font-mono tracking-widest"
+                  className="tracking-widest"
                 >
                   <HugeiconsIcon icon={Delete02Icon} size={12} />
                   DELETE
@@ -567,14 +566,14 @@ function ReportInline({
           onChange={(e) => setReportReason(e.target.value)}
           placeholder="Reason"
           maxLength={500}
-          className="rounded border border-muted/50 bg-background px-2 py-1 font-mono text-xs text-foreground placeholder-muted-foreground/40 outline-none focus:border-primary/50 dark:bg-emboss-surface"
+          className="rounded border border-muted/50 bg-background px-2 py-1 text-xs text-foreground placeholder-muted-foreground/40 outline-none focus:border-primary/50 dark:bg-emboss-surface"
         />
         <Button
           variant="destructive"
           size="sm"
           onClick={onSubmit}
           disabled={!reportReason.trim() || pending}
-          className="font-mono tracking-widest"
+          className="tracking-widest"
         >
           REPORT
         </Button>
@@ -585,7 +584,7 @@ function ReportInline({
             setShowReport(false);
             setReportReason("");
           }}
-          className="font-mono tracking-widest"
+          className="tracking-widest"
         >
           CANCEL
         </Button>
@@ -597,7 +596,7 @@ function ReportInline({
       variant="outline"
       size="sm"
       onClick={() => setShowReport(true)}
-      className="font-mono tracking-widest"
+      className="tracking-widest"
     >
       <HugeiconsIcon icon={Flag01Icon} size={12} />
       REPORT

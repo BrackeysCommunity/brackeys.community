@@ -103,7 +103,7 @@ export function CollabActiveFilters() {
               size="xs"
               onClick={chip.clear}
               aria-label={`Remove filter ${chip.label}`}
-              className="border-primary/50 font-mono tracking-widest text-primary"
+              className="border-primary/50 tracking-widest text-primary"
             >
               {chip.label}
               <HugeiconsIcon icon={Cancel01Icon} size={10} />
@@ -113,7 +113,7 @@ export function CollabActiveFilters() {
             variant="ghost"
             size="xs"
             onClick={resetCollabFilters}
-            className="font-mono tracking-widest text-muted-foreground"
+            className="tracking-widest text-muted-foreground"
           >
             CLEAR ALL
           </Button>

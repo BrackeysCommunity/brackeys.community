@@ -193,7 +193,7 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
           variant="default"
           size="lg"
           onClick={onDone}
-          className="h-12 w-full font-mono text-sm tracking-widest"
+          className="h-12 w-full text-sm tracking-widest"
         >
           {resultCount === null
             ? "SHOW RESULTS"
@@ -219,7 +219,7 @@ export function CollabFilterClearButton() {
       size="sm"
       onClick={resetCollabFilters}
       disabled={active === 0}
-      className="font-mono tracking-widest text-muted-foreground"
+      className="tracking-widest text-muted-foreground"
     >
       CLEAR
     </Button>

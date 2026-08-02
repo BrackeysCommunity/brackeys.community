@@ -35,7 +35,7 @@ function NotificationsRoute() {
             type="button"
             onClick={() => setView(v)}
             className={cn(
-              "border-b-2 px-3 py-1.5 font-mono text-[10px] font-bold tracking-widest uppercase transition-colors",
+              "border-b-2 px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase transition-colors",
               view === v
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground",

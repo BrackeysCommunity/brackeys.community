@@ -7,7 +7,7 @@ import { useMagnetic } from "@/lib/hooks/use-cursor";
 
 const fieldSpring = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 const inputCls =
-  "w-full bg-transparent border border-muted/20 px-2.5 py-1.5 font-mono text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors";
+  "w-full bg-transparent border border-muted/20 px-2.5 py-1.5 text-xs text-foreground placeholder-muted-foreground/25 outline-none focus:border-primary/40 transition-colors";
 
 export function EditableJamEntry({
   jam,
@@ -86,7 +86,7 @@ export function AddJamForm({
         transition={fieldSpring}
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-1.5 border border-dashed border-muted/25 py-3 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-primary/40 hover:text-primary"
+        className="flex w-full items-center justify-center gap-1.5 border border-dashed border-muted/25 py-3 text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-primary/40 hover:text-primary"
       >
         <HugeiconsIcon icon={Add01Icon} size={10} />
         Add Jam Entry
@@ -121,14 +121,14 @@ export function AddJamForm({
         <button
           type="button"
           onClick={handleSubmit}
-          className="flex-1 border border-primary/30 bg-primary/15 py-1.5 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25"
+          className="flex-1 border border-primary/30 bg-primary/15 py-1.5 text-[10px] tracking-widest text-primary uppercase transition-colors hover:bg-primary/25"
         >
           Save
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 border border-muted/20 py-1.5 font-mono text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
+          className="flex-1 border border-muted/20 py-1.5 text-[10px] tracking-widest text-muted-foreground/50 uppercase transition-colors hover:border-muted/40"
         >
           Cancel
         </button>

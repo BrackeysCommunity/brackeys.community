@@ -116,7 +116,7 @@ export function SkillAutocomplete({
             if (search.trim()) setShowDropdown(true);
           }}
           placeholder="+ Add skill..."
-          className="w-28 border border-dashed border-muted/40 bg-transparent px-2 py-0.5 font-mono text-[10px] text-muted-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
+          className="w-28 border border-dashed border-muted/40 bg-transparent px-2 py-0.5 text-[10px] text-muted-foreground placeholder-muted-foreground/30 transition-colors outline-none focus:border-primary/50"
         />
         {showDropdown && search.trim() && (
           <div className="absolute top-full left-0 z-50 mt-1 max-h-40 w-48 overflow-y-auto border border-muted/60 bg-card shadow-lg">
@@ -129,7 +129,7 @@ export function SkillAutocomplete({
                   setSearch("");
                   setShowDropdown(false);
                 }}
-                className="w-full px-2 py-1.5 text-left font-mono text-[10px] tracking-wider text-foreground uppercase transition-colors hover:bg-primary/10 hover:text-primary"
+                className="w-full px-2 py-1.5 text-left text-[10px] tracking-wider text-foreground uppercase transition-colors hover:bg-primary/10 hover:text-primary"
               >
                 {skill.name}
                 {skill.category && (
@@ -145,13 +145,13 @@ export function SkillAutocomplete({
                   setSearch("");
                   setShowDropdown(false);
                 }}
-                className="w-full border-t border-muted/30 px-2 py-1.5 text-left font-mono text-[10px] tracking-wider text-brackeys-yellow uppercase transition-colors hover:bg-brackeys-yellow/10"
+                className="w-full border-t border-muted/30 px-2 py-1.5 text-left text-[10px] tracking-wider text-brackeys-yellow uppercase transition-colors hover:bg-brackeys-yellow/10"
               >
                 Request &apos;{search.trim()}&apos;
               </button>
             )}
             {skillResults?.length === 0 && hasExactMatch && (
-              <div className="px-2 py-1.5 font-mono text-[10px] text-muted-foreground/50">
+              <div className="px-2 py-1.5 text-[10px] text-muted-foreground/50">
                 No skills found
               </div>
             )}

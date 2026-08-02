@@ -98,7 +98,7 @@ function SidebarSection({
 }) {
   return (
     <div className={cn("border-b border-muted/40 px-5 py-4", className)}>
-      <h4 className="mb-3 font-mono text-[10px] font-bold tracking-[0.15em] text-muted-foreground/50 uppercase">
+      <h4 className="mb-3 text-[10px] font-bold tracking-[0.15em] text-muted-foreground/50 uppercase">
         {label}
         {count !== undefined && <span className="ml-1.5 text-muted-foreground/25">({count})</span>}
       </h4>
@@ -158,7 +158,7 @@ export function ProfileViewSidebar({
           <button
             type="button"
             onClick={() => onToggleEdit(true)}
-            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase transition-colors hover:text-primary"
+            className="flex items-center gap-1 text-[10px] tracking-widest text-muted-foreground/40 uppercase transition-colors hover:text-primary"
           >
             <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
             EDIT
@@ -168,7 +168,7 @@ export function ProfileViewSidebar({
           <button
             type="button"
             onClick={() => onToggleEdit(false)}
-            className="flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:text-primary/70"
+            className="flex items-center gap-1 text-[10px] tracking-widest text-primary uppercase transition-colors hover:text-primary/70"
           >
             <HugeiconsIcon icon={Tick01Icon} size={10} />
             DONE
@@ -195,7 +195,7 @@ export function ProfileViewSidebar({
 
   const editFooter = (
     <div className="flex items-center justify-center px-4 py-3">
-      <span className="font-mono text-[10px] tracking-widest text-muted-foreground/40 uppercase">
+      <span className="text-[10px] tracking-widest text-muted-foreground/40 uppercase">
         Auto-saving changes
       </span>
     </div>
@@ -375,10 +375,10 @@ function NotFoundState() {
             <span className="font-mono text-2xl text-muted-foreground/30">?</span>
           </div>
           <div className="space-y-1.5 text-center">
-            <p className="font-mono text-sm font-bold tracking-widest text-destructive/80 uppercase">
+            <p className="text-sm font-bold tracking-widest text-destructive/80 uppercase">
               Profile Not Found
             </p>
-            <p className="max-w-[200px] font-mono text-xs text-muted-foreground/50">
+            <p className="max-w-[200px] text-xs text-muted-foreground/50">
               This user hasn&apos;t set up their profile yet, or the link may be incorrect.
             </p>
           </div>

@@ -52,7 +52,7 @@ export function ProfileActivitySection({
             href={`https://github.com/${githubUsername}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors hover:text-foreground"
+            className="text-xs tracking-widest text-muted-foreground uppercase transition-colors hover:text-foreground"
           >
             @{githubUsername}
           </a>

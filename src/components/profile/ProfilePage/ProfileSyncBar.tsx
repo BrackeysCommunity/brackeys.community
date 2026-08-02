@@ -92,9 +92,7 @@ export function ProfileSyncBar({ itch, isOwner, queryKey }: ProfileSyncBarProps)
         className="shrink-0"
       >
         <HugeiconsIcon icon={RefreshIcon} size={14} />
-        <span className="font-mono tracking-widest">
-          {resync.isPending ? "SYNCING…" : "RESYNC"}
-        </span>
+        <span className="tracking-widest">{resync.isPending ? "SYNCING…" : "RESYNC"}</span>
       </Button>
     </Well>
   );

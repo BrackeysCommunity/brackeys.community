@@ -31,7 +31,7 @@ export function ProfileEmptyState({ glyph, title, hint, cta, className }: Profil
     >
       <span
         aria-hidden
-        className="font-mono text-5xl leading-none font-bold tracking-tight text-transparent [-webkit-text-stroke:2px_var(--muted-foreground)]"
+        className="font-display text-5xl leading-none font-bold tracking-tight text-transparent [-webkit-text-stroke:2px_var(--muted-foreground)]"
       >
         {glyph}
       </span>
@@ -43,7 +43,7 @@ export function ProfileEmptyState({ glyph, title, hint, cta, className }: Profil
       </Text>
       {cta ? (
         <Button variant="outline" size="sm" onClick={cta.onClick} className="mt-1">
-          <span className="font-mono tracking-widest">{cta.label}</span>
+          <span className="tracking-widest">{cta.label}</span>
         </Button>
       ) : null}
     </div>

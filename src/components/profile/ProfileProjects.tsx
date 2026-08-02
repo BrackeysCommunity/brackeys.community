@@ -86,7 +86,7 @@ export function ProfileProjects({ projects, className, showFilters = true }: Pro
 
       {filteredProjects.length === 0 ? (
         <div className="border border-dashed border-muted/25 px-3 py-4 text-center">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/40 uppercase">
+          <p className="text-[10px] tracking-[0.18em] text-muted-foreground/40 uppercase">
             No{" "}
             {activeFilter === "all"
               ? "projects"
@@ -146,7 +146,7 @@ function ProjectCard({ project }: { project: Project }) {
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h5 className="font-mono text-xs font-bold tracking-widest text-foreground uppercase transition-colors group-hover:text-primary">
+            <h5 className="text-xs font-bold tracking-widest text-foreground uppercase transition-colors group-hover:text-primary">
               {project.pinned && (
                 <span className="mr-1.5 text-brackeys-yellow" title="Pinned">
                   *

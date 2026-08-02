@@ -81,7 +81,7 @@ function ItchIoCallbackPage() {
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="space-y-3 text-center">
         <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="font-mono text-sm text-muted-foreground">Linking your itch.io account...</p>
+        <p className="text-sm text-muted-foreground">Linking your itch.io account...</p>
       </div>
     </div>
   );

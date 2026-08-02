@@ -52,7 +52,7 @@ export function ProfileSectionHeader({
 /** `EDIT §` action — jumps the edit flyout to this section's step. */
 export function EditSectionAction({ onEdit }: { onEdit: () => void }) {
   return (
-    <Button variant="outline" size="xs" onClick={onEdit} className="font-mono tracking-widest">
+    <Button variant="outline" size="xs" onClick={onEdit} className="tracking-widest">
       <HugeiconsIcon icon={Edit02Icon} size={12} />
       EDIT
     </Button>
@@ -63,7 +63,7 @@ export function EditSectionAction({ onEdit }: { onEdit: () => void }) {
  * inline create (PROJECTS, LINKS, SKILLS). */
 export function AddSectionAction({ onAdd, label = "ADD" }: { onAdd: () => void; label?: string }) {
   return (
-    <Button variant="outline" size="xs" onClick={onAdd} className="font-mono tracking-widest">
+    <Button variant="outline" size="xs" onClick={onAdd} className="tracking-widest">
       <HugeiconsIcon icon={Add01Icon} size={12} />
       {label}
     </Button>
@@ -73,7 +73,7 @@ export function AddSectionAction({ onAdd, label = "ADD" }: { onAdd: () => void; 
 /** "VIEW ALL →" used by sections that open into a longer index. */
 export function ViewAllAction({ onClick }: { onClick?: () => void }) {
   return (
-    <Button variant="outline" size="xs" onClick={onClick} className="font-mono tracking-widest">
+    <Button variant="outline" size="xs" onClick={onClick} className="tracking-widest">
       VIEW ALL
       <HugeiconsIcon icon={ArrowRight01Icon} size={12} />
     </Button>

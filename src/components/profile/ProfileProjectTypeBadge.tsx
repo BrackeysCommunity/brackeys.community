@@ -31,7 +31,7 @@ export function ProfileProjectTypeBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center border px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.18em] uppercase",
+        "inline-flex items-center border px-1.5 py-0.5 text-[9px] font-bold tracking-[0.18em] uppercase",
         typeStyles[type],
         className,
       )}

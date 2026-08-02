@@ -85,7 +85,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                         type="button"
                         onClick={() => toggleSort(col.key!)}
                         className={cn(
-                          "cursor-pointer font-mono text-[10px] tracking-widest uppercase transition-colors hover:text-foreground",
+                          "cursor-pointer text-[10px] tracking-widest uppercase transition-colors hover:text-foreground",
                           state.sortBy === col.key ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
@@ -97,7 +97,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                         )}
                       </button>
                     ) : (
-                      <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                      <span className="text-[10px] tracking-widest text-muted-foreground uppercase">
                         {col.label}
                       </span>
                     )}
@@ -176,7 +176,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                 size="sm"
                 disabled={state.page === 0}
                 onClick={() => onStateChange({ page: state.page - 1 })}
-                className="px-2.5 font-mono text-[11px] tracking-widest"
+                className="px-2.5 text-[11px] tracking-widest"
               >
                 ‹ PREV
               </Button>
@@ -185,7 +185,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                 size="sm"
                 disabled={state.page >= totalPages - 1}
                 onClick={() => onStateChange({ page: state.page + 1 })}
-                className="px-2.5 font-mono text-[11px] tracking-widest"
+                className="px-2.5 text-[11px] tracking-widest"
               >
                 NEXT ›
               </Button>

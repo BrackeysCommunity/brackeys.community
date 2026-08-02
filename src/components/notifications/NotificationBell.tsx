@@ -75,7 +75,7 @@ export function NotificationBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
-        render={<Button variant="outline" size="icon-sm" className="relative font-mono" />}
+        render={<Button variant="outline" size="icon-sm" className="relative" />}
       >
         <HugeiconsIcon icon={Notification03Icon} size={14} />
         {count > 0 && (
@@ -89,14 +89,14 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
         <div className="flex items-center justify-between border-b border-muted/40 px-3 py-2">
-          <span className="font-mono text-[10px] font-bold tracking-widest text-foreground/70 uppercase">
+          <span className="text-[10px] font-bold tracking-widest text-foreground/70 uppercase">
             Notifications
           </span>
           {count > 0 && (
             <button
               type="button"
               onClick={() => markAllReadMutate({})}
-              className="font-mono text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
+              className="text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
             >
               Mark all read
             </button>
@@ -105,11 +105,9 @@ export function NotificationBell() {
 
         <div className="max-h-96 overflow-y-auto">
           {list.isLoading ? (
-            <div className="px-3 py-6 text-center font-mono text-xs text-muted-foreground">
-              Loading…
-            </div>
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">Loading…</div>
           ) : items.length === 0 ? (
-            <div className="px-3 py-6 text-center font-mono text-xs text-muted-foreground">
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
               You're all caught up.
             </div>
           ) : (
@@ -123,7 +121,7 @@ export function NotificationBell() {
           <Link
             to="/notifications"
             onClick={() => setOpen(false)}
-            className="font-mono text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
+            className="text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
           >
             See all
           </Link>

@@ -98,7 +98,7 @@ function TabButton({ tab, isActive, onSelect, ref }: TabButtonProps) {
       )}
     >
       <HugeiconsIcon icon={tab.icon} size={18} />
-      <span className="font-mono text-[10px] tracking-widest">{tab.label}</span>
+      <span className="text-[10px] tracking-widest">{tab.label}</span>
     </button>
   );
 }

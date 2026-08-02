@@ -150,7 +150,7 @@ export function JamBoard({
                 <button
                   type="button"
                   onClick={() => setExpanded((e) => ({ ...e, [meta.kind]: true }))}
-                  className="cursor-pointer self-start rounded-md border border-muted/30 bg-card px-3 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground transition-colors hover:border-muted/60 hover:text-foreground"
+                  className="cursor-pointer self-start rounded-md border border-muted/30 bg-card px-3 py-1.5 text-[11px] tracking-widest text-muted-foreground transition-colors hover:border-muted/60 hover:text-foreground"
                 >
                   + {hidden} MORE SMALL JAM{hidden === 1 ? "" : "S"}
                 </button>

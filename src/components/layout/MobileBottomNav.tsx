@@ -44,7 +44,7 @@ function TabBody({ icon, label, avatarUrl, showDot }: NavTabBody) {
           />
         )}
       </span>
-      <span className="font-mono text-xs font-bold tracking-widest">{label}</span>
+      <span className="text-xs font-bold tracking-widest">{label}</span>
     </span>
   );
 }

@@ -33,7 +33,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-mono tracking-widest uppercase">Settings</DialogTitle>
+          <DialogTitle className="tracking-widest uppercase">Settings</DialogTitle>
           <DialogDescription>
             Personalize the Brackeys community shell — pick a theme, opt out of decorative motion,
             or mute audio cues. Changes save instantly.
@@ -101,7 +101,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
             variant="outline"
             size="sm"
             onClick={() => onOpenChange(false)}
-            className="font-mono tracking-widest"
+            className="tracking-widest"
           >
             DONE
           </Button>

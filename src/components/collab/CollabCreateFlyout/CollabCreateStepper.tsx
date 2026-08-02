@@ -57,7 +57,7 @@ export function CollabCreateStepper({ tabs, activeIndex, onSelect }: CollabCreat
             >
               {tab.num}
             </Text>
-            <span className="font-mono text-[10px] tracking-widest">{tab.label}</span>
+            <span className="text-[10px] tracking-widest">{tab.label}</span>
           </button>
         );
       })}

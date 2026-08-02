@@ -87,14 +87,12 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="font-mono text-sm font-bold tracking-widest text-foreground uppercase">
-          Inbox
-        </h1>
+        <h1 className="text-sm font-bold tracking-widest text-foreground uppercase">Inbox</h1>
         <Button
           variant="outline"
           size="sm"
           onClick={() => markAllReadMutate()}
-          className="font-mono text-[10px] tracking-wider"
+          className="text-[10px] tracking-wider"
         >
           Mark all read
         </Button>
@@ -107,7 +105,7 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
             type="button"
             onClick={() => onFilterChange(f.value)}
             className={cn(
-              "border px-3 py-1 font-mono text-[10px] font-bold tracking-widest uppercase transition-colors",
+              "border px-3 py-1 text-[10px] font-bold tracking-widest uppercase transition-colors",
               filter === f.value
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground",
@@ -120,15 +118,13 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
 
       <div className="border border-muted/30 bg-card/40">
         {isLoading ? (
-          <div className="px-4 py-10 text-center font-mono text-xs text-muted-foreground">
-            Loading…
-          </div>
+          <div className="px-4 py-10 text-center text-xs text-muted-foreground">Loading…</div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
-            <p className="font-mono text-sm text-foreground/80">
+            <p className="text-sm text-foreground/80">
               {filter === "unread" ? "Nothing unread." : "No notifications yet."}
             </p>
-            <p className="font-mono text-[10px] text-muted-foreground">
+            <p className="text-[10px] text-muted-foreground">
               You'll see activity from collab posts and staff actions here.
             </p>
           </div>
@@ -139,7 +135,7 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
 
       <div ref={sentinelRef} className="h-8" aria-hidden />
       {isFetchingNextPage && (
-        <p className="text-center font-mono text-[10px] text-muted-foreground">Loading more…</p>
+        <p className="text-center text-[10px] text-muted-foreground">Loading more…</p>
       )}
     </div>
   );

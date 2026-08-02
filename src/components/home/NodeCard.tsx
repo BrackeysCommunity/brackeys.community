@@ -103,7 +103,7 @@ export function NodeCard(props: NodeCardProps) {
       <div className="flex shrink-0 items-start justify-between">
         <span
           className={cn(
-            "font-mono text-xs tracking-widest transition-colors",
+            "text-xs tracking-widest transition-colors",
             active ? "text-accent" : "text-muted-foreground group-hover/node:text-accent",
           )}
         >
@@ -128,7 +128,7 @@ export function NodeCard(props: NodeCardProps) {
             paddingTop: revealed ? "0.5rem" : "1.5rem",
           }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
-          className="origin-top-left font-mono leading-[0.95] font-bold tracking-tight whitespace-pre-line text-foreground"
+          className="origin-top-left font-display leading-[0.95] font-bold tracking-tight whitespace-pre-line text-foreground"
         >
           {title}
         </motion.div>
@@ -162,13 +162,13 @@ export function NodeCard(props: NodeCardProps) {
           <span className="font-mono text-3xl font-bold tracking-tight text-accent tabular-nums">
             {stat}
           </span>
-          <span className="mt-1 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+          <span className="mt-1 text-[10px] tracking-widest text-muted-foreground uppercase">
             {statLabel}
           </span>
         </div>
         <span
           className={cn(
-            "flex items-center gap-1 font-mono text-xs tracking-widest uppercase transition-colors",
+            "flex items-center gap-1 text-xs tracking-widest uppercase transition-colors",
             active ? "text-accent" : "text-muted-foreground group-hover/node:text-accent",
           )}
         >
@@ -199,7 +199,7 @@ export function NodeCardTagRow({ tags }: { tags: string[] }) {
       {tags.map((t) => (
         <span
           key={t}
-          className="border border-muted/60 bg-muted/70 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase"
+          className="border border-muted/60 bg-muted/70 px-2 py-0.5 text-[10px] tracking-widest text-muted-foreground uppercase"
         >
           {t}
         </span>
@@ -210,7 +210,7 @@ export function NodeCardTagRow({ tags }: { tags: string[] }) {
 
 export function NodeCardCommandList({ commands }: { commands: string[] }) {
   return (
-    <ul className="flex flex-col gap-1 font-mono text-xs text-muted-foreground">
+    <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
       {commands.map((c) => (
         <li key={c} className="flex items-center gap-2">
           <span className="text-accent">{">"}</span>

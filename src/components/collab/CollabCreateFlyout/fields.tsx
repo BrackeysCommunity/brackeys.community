@@ -35,7 +35,7 @@ export function FieldRow({ label, hint, error, action, children }: FieldRowProps
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+        <Label className="text-[11px] tracking-widest text-muted-foreground uppercase">
           {label}
         </Label>
         <div className="flex items-center gap-2">
@@ -128,7 +128,7 @@ export function MultiChipField({ label, value, onChange, options }: MultiChipFie
               pressed={active}
               onPressedChange={() => toggleOne(opt)}
               className={cn(
-                "rounded bg-background px-2.5 font-mono text-xs tracking-widest dark:bg-emboss-surface",
+                "rounded bg-background px-2.5 text-xs tracking-widest dark:bg-emboss-surface",
                 active && "text-primary",
               )}
             >
@@ -233,7 +233,6 @@ export function TextField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
-        className="font-mono"
       />
     </FieldRow>
   );
@@ -268,7 +267,7 @@ export function TextAreaField({
         placeholder={placeholder}
         maxLength={maxLength}
         rows={rows}
-        className="min-h-32 resize-none font-mono"
+        className="min-h-32 resize-none"
       />
     </FieldRow>
   );
@@ -334,7 +333,7 @@ export function ImageUploader({ images, onAdd, onRemove }: ImageUploaderProps) {
         size="sm"
         onClick={() => inputRef.current?.click()}
         disabled={images.length >= 5}
-        className="w-full font-mono tracking-widest"
+        className="w-full tracking-widest"
       >
         <HugeiconsIcon icon={Image01Icon} size={13} />
         {images.length >= 5 ? "MAX 5 IMAGES" : "ADD IMAGE"}

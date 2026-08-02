@@ -9,7 +9,7 @@ export function SectionRule({ label, className }: SectionRuleProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 font-mono text-xs tracking-widest text-muted-foreground uppercase",
+        "flex items-center gap-3 text-xs tracking-widest text-muted-foreground uppercase",
         className,
       )}
     >

@@ -26,7 +26,7 @@ export function JamsLandingSection() {
       <header className="flex items-end justify-between gap-3">
         <div>
           <div className="font-mono text-[10px] tracking-widest text-muted-foreground">§ 01</div>
-          <h2 className="font-mono text-3xl font-bold tracking-tight">JAMS</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight">JAMS</h2>
           <p className="mt-1 font-sans text-sm text-muted-foreground">
             Tracking {liveCount} live and {upcomingCount} upcoming jams across itch.io.
           </p>
@@ -42,7 +42,7 @@ export function JamsLandingSection() {
               aria-label="Full calendar"
             />
           }
-          className="flex items-center gap-2 px-3 py-2 font-mono text-[11px] font-bold tracking-widest text-muted-foreground hover:text-primary"
+          className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold tracking-widest text-muted-foreground hover:text-primary"
         >
           <HugeiconsIcon icon={Calendar03Icon} size={14} />
           FULL CALENDAR
@@ -54,7 +54,7 @@ export function JamsLandingSection() {
         <FeaturedJamCarousel jams={featured} isLoading={isLoading} density="comfortable" />
 
         <Well>
-          <div className="flex items-center justify-between gap-2 border-b border-muted/30 px-3 py-2 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+          <div className="flex items-center justify-between gap-2 border-b border-muted/30 px-3 py-2 text-[10px] tracking-widest text-muted-foreground uppercase">
             <span>◆ Soonest Upcoming</span>
             <a
               href="https://itch.io/jams"
@@ -68,7 +68,7 @@ export function JamsLandingSection() {
           {isLoading ? (
             <div className="h-64 animate-pulse" aria-hidden />
           ) : upcoming.length === 0 ? (
-            <div className="p-6 text-center font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            <div className="p-6 text-center text-xs tracking-widest text-muted-foreground uppercase">
               No upcoming jams
             </div>
           ) : (
@@ -96,7 +96,7 @@ export function JamsLandingSection() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-sans text-sm font-bold">{jam.title}</div>
-                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                        <div className="text-[10px] tracking-widest text-muted-foreground uppercase">
                           {jam.hosts[0]?.name ?? "COMMUNITY"}
                           {durationDays(jam.startsAt, jam.endsAt) &&
                             ` · ${durationDays(jam.startsAt, jam.endsAt)}`}

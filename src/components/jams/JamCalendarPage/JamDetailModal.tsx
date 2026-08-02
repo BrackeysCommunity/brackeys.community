@@ -219,7 +219,7 @@ function ModalContent({
               href={jamUrl(jam.slug)}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-3 self-start font-mono text-xs tracking-widest uppercase"
+              className="mt-3 self-start text-xs tracking-widest uppercase"
             >
               View on itch.io →
             </Link>

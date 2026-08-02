@@ -112,7 +112,7 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
           onClick={onCreate}
           variant="default"
           size="lg"
-          className="h-10 shrink-0 font-mono tracking-widest"
+          className="h-10 shrink-0 tracking-widest"
         >
           <HugeiconsIcon icon={authenticated ? Add01Icon : Login01Icon} size={14} />
           <span className="hidden sm:inline">
@@ -125,12 +125,7 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
       {/* Line 2 — facets on the left, listing mode + display on the right. */}
       <div className="flex flex-wrap items-center gap-2">
         {onOpenFilters ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenFilters}
-            className="font-mono tracking-widest"
-          >
+          <Button variant="outline" size="sm" onClick={onOpenFilters} className="tracking-widest">
             FILTERS
           </Button>
         ) : !isPeople ? (
@@ -189,14 +184,14 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
             <SegmentedControl.Item
               value="posts"
               icon={<HugeiconsIcon icon={CubeIcon} />}
-              className="font-mono tracking-widest"
+              className="tracking-widest"
             >
               PROJECTS
             </SegmentedControl.Item>
             <SegmentedControl.Item
               value="people"
               icon={<HugeiconsIcon icon={UserGroupIcon} />}
-              className="font-mono tracking-widest"
+              className="tracking-widest"
             >
               PEOPLE
             </SegmentedControl.Item>
@@ -231,7 +226,7 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
                     key={option.value}
                     value={option.value}
                     closeOnClick
-                    className="font-mono tracking-widest"
+                    className="tracking-widest"
                   >
                     {option.label}
                   </DropdownMenuRadioItem>
@@ -291,7 +286,7 @@ export function CollabSearchInput({ className }: { className?: string }) {
       autoComplete="off"
       size="default"
       containerClassName={cn("dark:bg-emboss-surface!", className)}
-      className="font-mono text-[11px] tracking-widest"
+      className="text-[11px] tracking-widest"
     />
   );
 }
@@ -314,10 +309,7 @@ function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
           <Button
             variant="outline"
             size="sm"
-            className={cn(
-              "font-mono tracking-widest",
-              isConstrained && "border-primary text-primary",
-            )}
+            className={cn("tracking-widest", isConstrained && "border-primary text-primary")}
           />
         }
       >
@@ -332,7 +324,7 @@ function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
               value={option.value}
               closeOnClick
               disabled={option.count === 0 && option.value !== value && option.value !== "all"}
-              className="justify-between gap-4 font-mono tracking-widest"
+              className="justify-between gap-4 tracking-widest"
             >
               {option.label}
               {option.count !== undefined ? (

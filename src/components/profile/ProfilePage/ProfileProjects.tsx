@@ -300,7 +300,7 @@ function ProjectCard({
           <GradientBanner seed={project.id} className="absolute inset-0 flex">
             <span
               aria-hidden
-              className="relative m-auto line-clamp-2 px-4 text-center font-mono text-sm font-bold tracking-[0.25em] text-white/90 uppercase [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]"
+              className="relative m-auto line-clamp-2 px-4 text-center text-sm font-bold tracking-[0.25em] text-white/90 uppercase [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]"
             >
               {project.title}
             </span>
@@ -327,7 +327,7 @@ function ProjectCard({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${project.title}`}
-            className="relative z-10 inline-flex shrink-0 items-center gap-1 font-mono text-xs tracking-widest text-muted-foreground uppercase transition-colors group-hover:text-foreground hover:text-foreground"
+            className="relative z-10 inline-flex shrink-0 items-center gap-1 text-xs tracking-widest text-muted-foreground uppercase transition-colors group-hover:text-foreground hover:text-foreground"
           >
             OPEN
             <HugeiconsIcon icon={ArrowUpRight01Icon} size={12} />

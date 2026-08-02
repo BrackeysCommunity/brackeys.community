@@ -84,7 +84,7 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
               href={resp.portfolioUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+              className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
             >
               <HugeiconsIcon icon={LinkSquare01Icon} size={11} />
               Portfolio
@@ -97,7 +97,7 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
                 size="xs"
                 onClick={() => updateStatus.mutate({ responseId: resp.id, status: "accepted" })}
                 disabled={updateStatus.isPending}
-                className="font-mono tracking-widest"
+                className="tracking-widest"
               >
                 ACCEPT
               </Button>
@@ -106,7 +106,7 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
                 size="xs"
                 onClick={() => updateStatus.mutate({ responseId: resp.id, status: "declined" })}
                 disabled={updateStatus.isPending}
-                className="font-mono tracking-widest"
+                className="tracking-widest"
               >
                 DECLINE
               </Button>
