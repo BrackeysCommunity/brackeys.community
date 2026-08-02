@@ -11,6 +11,7 @@ import {
   type CollabSortOrder,
   type CollabStatus,
   collabStore,
+  countActiveCollabFilters,
   resetCollabFilters,
   setCollabFilters,
 } from "@/lib/collab-store";
@@ -185,29 +186,43 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
         </SegmentedControl>
       </FilterGroup>
 
+      {/* CLEAR lives up in the drawer header beside the title; this row
+          is the confirm alone, sized as the panel's primary action. */}
       {onDone ? (
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetCollabFilters}
-            className="font-mono tracking-widest"
-          >
-            CLEAR
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onDone}
-            className="flex-1 font-mono tracking-widest"
-          >
-            {resultCount === null
-              ? "SHOW RESULTS"
-              : `SHOW ${resultCount} ${isPeople ? "DEV" : "POST"}${resultCount === 1 ? "" : "S"}`}
-          </Button>
-        </div>
+        <Button
+          variant="default"
+          size="lg"
+          onClick={onDone}
+          className="h-12 w-full font-mono text-sm tracking-widest"
+        >
+          {resultCount === null
+            ? "SHOW RESULTS"
+            : `SHOW ${resultCount} ${isPeople ? "DEV" : "POST"}${resultCount === 1 ? "" : "S"}`}
+        </Button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * CLEAR ALL for the filter drawer's header. Subscribes on its own so
+ * the page hosting the drawer doesn't re-render on every filter change,
+ * and greys out when there's nothing to clear.
+ */
+export function CollabFilterClearButton() {
+  const filters = useStore(collabStore, (s) => s.filters);
+  const active = countActiveCollabFilters(filters);
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={resetCollabFilters}
+      disabled={active === 0}
+      className="font-mono tracking-widest text-muted-foreground"
+    >
+      CLEAR
+    </Button>
   );
 }
 

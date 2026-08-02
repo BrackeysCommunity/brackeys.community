@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MediaCardImage } from "@/components/ui/media-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ export function CollabPostDetail({
   onClose,
   compact,
   showClose = true,
+  frameless,
 }: {
   postId: number;
   currentUserId: string | null;
@@ -63,6 +65,9 @@ export function CollabPostDetail({
   /** The drawer turns this off: swiping down or tapping the scrim
    *  already closes it, so an × would be a third way to do one thing. */
   showClose?: boolean;
+  /** Drops the panel's own frame — the drawer is already the surface,
+   *  so a `Well` inside it would draw a second container. */
+  frameless?: boolean;
 }) {
   const queryClient = useQueryClient();
   const queryOptions = orpc.getPost.queryOptions({ input: { postId } });
@@ -111,7 +116,7 @@ export function CollabPostDetail({
   }
 
   return (
-    <Well className="flex h-full min-h-0 flex-col gap-0 overflow-hidden p-0">
+    <DetailFrame frameless={frameless}>
       {/* Header */}
       <div
         className={cn(
@@ -120,10 +125,21 @@ export function CollabPostDetail({
         )}
       >
         <div className="flex min-w-0 flex-col gap-0.5">
-          <Heading as="h2" monospace className="line-clamp-1 text-base tracking-widest uppercase">
-            {post?.title ?? (isLoading ? "LOADING…" : "POST NOT FOUND")}
-          </Heading>
+          {isLoading ? (
+            <Skeleton className="h-[1.375rem] w-56" />
+          ) : (
+            <Heading as="h2" monospace className="line-clamp-1 text-base tracking-widest uppercase">
+              {post?.title ?? "POST NOT FOUND"}
+            </Heading>
+          )}
           <div className="flex flex-wrap gap-1">
+            {/* Two pills, matching the type + status badges below. */}
+            {isLoading ? (
+              <>
+                <Skeleton className="h-[18px] w-20" />
+                <Skeleton className="h-[18px] w-14" />
+              </>
+            ) : null}
             {post?.type ? (
               <Badge
                 variant="secondary"
@@ -169,9 +185,7 @@ export function CollabPostDetail({
       {/* Body */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto py-4", compact ? "px-4" : "px-5")}>
         {isLoading ? (
-          <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
-            Loading post…
-          </Text>
+          <DetailSkeleton />
         ) : !post ? (
           <Text monospace size="xs" variant="muted" className="tracking-widest uppercase">
             This post does not exist or has been deleted.
@@ -334,7 +348,23 @@ export function CollabPostDetail({
         )}
       </div>
 
-      {/* Footer actions */}
+      {/* Footer actions. The skeleton keeps the bar so the panel doesn't
+          grow a whole row taller the moment the post lands. */}
+      {isLoading ? (
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-between gap-2 border-t border-muted/40 py-3",
+            compact ? "px-4" : "px-5",
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-6" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+          <Skeleton className="h-7 w-28" />
+        </div>
+      ) : null}
+
       {post ? (
         <div
           className={cn(
@@ -424,7 +454,59 @@ export function CollabPostDetail({
           </div>
         </div>
       ) : null}
-    </Well>
+    </DetailFrame>
+  );
+}
+
+/**
+ * The panel's own surface. Omitted in the drawer, which already draws
+ * one — nesting a second frame inside it just adds an inner border.
+ */
+function DetailFrame({ frameless, children }: { frameless?: boolean; children: React.ReactNode }) {
+  if (frameless) {
+    return <div className="flex h-full min-h-0 flex-col overflow-hidden">{children}</div>;
+  }
+  return <Well className="flex h-full min-h-0 flex-col gap-0 overflow-hidden p-0">{children}</Well>;
+}
+
+/**
+ * Placeholder that traces the loaded panel: hero, thumb strip, blurb,
+ * then the spec sheet on the same dashed rhythm the real rows use, so
+ * nothing shifts vertically when the data arrives.
+ */
+const SKELETON_ROWS = [
+  ["w-16", "w-20"],
+  ["w-20", "w-8"],
+  ["w-12", "w-12"],
+  ["w-20", "w-16"],
+  ["w-24", "w-10"],
+  ["w-12", "w-14"],
+  ["w-12", "w-24"],
+  ["w-20", "w-28"],
+] as const;
+
+function DetailSkeleton() {
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-16 w-16" />
+      </div>
+
+      <Skeleton className="h-5 w-3/4" />
+
+      <div className="flex flex-col">
+        {SKELETON_ROWS.map(([label, value], i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between gap-4 border-b border-dashed border-muted/30 py-2 last:border-b-0"
+          >
+            <Skeleton className={cn("h-3", label)} />
+            <Skeleton className={cn("h-3.5", value)} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

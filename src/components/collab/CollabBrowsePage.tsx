@@ -2,8 +2,8 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Kbd } from "@/components/ui/kbd";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/typography";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
@@ -11,12 +11,13 @@ import { collabStore, setCollabFilters } from "@/lib/collab-store";
 
 import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
-import { CollabFilterPanel } from "./CollabFilterPanel";
+import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel";
 import { CollabInspector } from "./CollabInspector";
 import { CollabPostFeed } from "./CollabPostFeed";
 import { CollabPostPopover } from "./CollabPostPopover";
 import { COLLAB_SEARCH_INPUT_ID, CollabToolbar } from "./CollabToolbar";
 import { useCollabListing } from "./use-collab-listing";
+import { useReleaseFocusOnOpen } from "./use-release-focus";
 
 interface CollabSearch {
   new?: boolean;
@@ -65,6 +66,7 @@ export function CollabBrowsePage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  useReleaseFocusOnOpen(filtersOpen);
 
   const currentUserId = session?.user?.id ?? null;
   const selectedPostId = typeof search.post === "number" ? search.post : null;
@@ -237,16 +239,26 @@ export function CollabBrowsePage() {
         />
       ) : null}
 
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl">
-          <SheetHeader>
-            <SheetTitle className="font-mono tracking-widest uppercase">Filters</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            <CollabFilterPanel onDone={() => setFiltersOpen(false)} />
+      {/* Same drawer as the post detail — one overlay idiom on mobile,
+          dismissed the same way (swipe, scrim, or the panel's own CTA). */}
+      <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DrawerContent className="max-h-[88vh] p-0">
+          <DrawerDescription className="sr-only">
+            Narrow the board by type, status, experience level, and sort order.
+          </DrawerDescription>
+          <div className="flex min-h-0 flex-1 flex-col pt-3 pb-[env(safe-area-inset-bottom)]">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-muted/40 py-3 pr-3 pl-5">
+              <DrawerTitle className="font-mono text-base tracking-widest text-foreground uppercase">
+                Filters
+              </DrawerTitle>
+              <CollabFilterClearButton />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <CollabFilterPanel onDone={() => setFiltersOpen(false)} />
+            </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

@@ -69,16 +69,20 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
   return (
     <Well className="h-full min-h-0 gap-0 overflow-y-auto p-0">
       <div className="flex min-h-full flex-col">
-        {/* Masthead — the one number that matters, over a dot field. */}
+        {/* Masthead — the one number that matters, over a graph-paper grid. */}
         <div className={cn("relative overflow-hidden border-b border-muted/40 py-6", pad)}>
+          {/* Masked so the ruling fades out before the section edge —
+              it frames the headline instead of ending on a hard line. */}
           <div
             aria-hidden
             className="absolute inset-0"
             style={{
               backgroundImage:
-                "radial-gradient(circle, var(--color-muted-foreground) 1px, transparent 1px)",
-              backgroundSize: "10px 10px",
-              opacity: 0.12,
+                "linear-gradient(to right, var(--color-muted-foreground) 1px, transparent 1px), linear-gradient(to bottom, var(--color-muted-foreground) 1px, transparent 1px)",
+              backgroundSize: "18px 18px",
+              opacity: 0.1,
+              maskImage: "linear-gradient(to bottom, #000 0%, transparent 85%)",
+              WebkitMaskImage: "linear-gradient(to bottom, #000 0%, transparent 85%)",
             }}
           />
           <div className="relative flex flex-col gap-1.5">

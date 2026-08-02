@@ -1,11 +1,8 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useForm } from "@tanstack/react-form";
 import { useStore } from "@tanstack/react-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
 import { collabStore, resetWizard, setWizardStep, updateWizardDraft } from "@/lib/collab-store";
 import { client } from "@/orpc/client";
@@ -50,8 +47,6 @@ const STEP_VARIANTS = {
 };
 
 interface CollabCreateFormProps {
-  isTouch: boolean;
-  onClose: () => void;
   onCreated: (postId: number) => void;
 }
 
@@ -61,7 +56,7 @@ interface CollabCreateFormProps {
  * step's body inside a directional cross-fade that mirrors the
  * profile flyout's transition.
  */
-export function CollabCreateForm({ isTouch, onClose, onCreated }: CollabCreateFormProps) {
+export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   const { wizard } = useStore(collabStore);
   const [error, setError] = useState<string | null>(null);
 
@@ -194,8 +189,6 @@ export function CollabCreateForm({ isTouch, onClose, onCreated }: CollabCreateFo
   return (
     <>
       <CollabCreateHeader
-        isTouch={isTouch}
-        onClose={onClose}
         stepLabel={`STEP ${activeIndex + 1}/${tabs.length} · ${tabs[activeIndex]?.label}`}
       />
       <CollabCreateStepper
@@ -243,39 +236,16 @@ function renderStep(tab: WizardTabId, type: WizardFormValues["type"]) {
   return <StepProject />;
 }
 
-function CollabCreateHeader({
-  isTouch,
-  onClose,
-  stepLabel,
-}: {
-  isTouch: boolean;
-  onClose: () => void;
-  stepLabel: string;
-}) {
+/** No close control — the drawer owns dismissal. */
+function CollabCreateHeader({ stepLabel }: { stepLabel: string }) {
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-b border-muted/30 px-5 pt-5 pb-4">
-      {isTouch ? (
-        <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-muted-foreground/30" />
-      ) : null}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <Heading as="h2" monospace className="text-lg tracking-widest uppercase">
-            POST A GIG.
-          </Heading>
-          <Text monospace size="xs" variant="muted" className="tracking-widest">
-            {stepLabel}
-          </Text>
-        </div>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Close"
-          onClick={onClose}
-          className="font-mono"
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={14} />
-        </Button>
-      </div>
+    <div className="flex shrink-0 flex-col gap-0.5 border-b border-muted/30 px-5 pt-4 pb-4">
+      <Heading as="h2" monospace className="text-lg tracking-widest uppercase">
+        POST A GIG.
+      </Heading>
+      <Text monospace size="xs" variant="muted" className="tracking-widest">
+        {stepLabel}
+      </Text>
     </div>
   );
 }

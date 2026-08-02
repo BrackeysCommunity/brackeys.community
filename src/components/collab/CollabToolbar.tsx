@@ -145,7 +145,6 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
               onChange={(v) =>
                 setCollabFilters({ type: v === "all" ? undefined : (v as CollabPostType) })
               }
-              alwaysShowValue
             />
             <FilterMenu
               label="STATUS"
@@ -302,14 +301,11 @@ interface FilterMenuProps {
   options: (Option & { count?: number })[];
   value: string;
   onChange: (value: string) => void;
-  /** Type always names its current choice; filters only when constrained. */
-  alwaysShowValue?: boolean;
 }
 
-function FilterMenu({ label, options, value, onChange, alwaysShowValue }: FilterMenuProps) {
+function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
   const isConstrained = value !== options[0]?.value;
   const selected = options.find((o) => o.value === value);
-  const showValue = (isConstrained || alwaysShowValue) && selected;
 
   return (
     <DropdownMenu>
@@ -325,7 +321,7 @@ function FilterMenu({ label, options, value, onChange, alwaysShowValue }: Filter
           />
         }
       >
-        {showValue ? `${label}: ${selected.label}` : label}
+        {isConstrained && selected ? selected.label : label}
         <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-44 p-1">
