@@ -6,16 +6,22 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectMultiTrigger,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { Toggle } from "@/components/ui/toggle";
-import { Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { cn } from "@/lib/utils";
 
-import { COMP_SLIDER_CONFIG } from "./shared";
+import { COMP_SLIDER_CONFIG, type CompSliderConfig } from "./shared";
 
 // ── FieldRow ───────────────────────────────────────────────────────────────
 
@@ -68,76 +74,81 @@ export function CharCount({ current, max }: { current: number; max: number }) {
   );
 }
 
-// ── Single-select segmented chips ──────────────────────────────────────────
+// ── Single-select dropdown ─────────────────────────────────────────────────
 
-interface SegmentedFieldProps<T extends string> {
+interface SelectFieldProps<T extends string> {
   label: string;
   value: T | undefined;
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
+  placeholder?: string;
 }
 
-export function SegmentedField<T extends string>({
+export function SelectField<T extends string>({
   label,
   value,
   onChange,
   options,
-}: SegmentedFieldProps<T>) {
+  placeholder,
+}: SelectFieldProps<T>) {
   return (
     <FieldRow label={label}>
-      <SegmentedControl
-        value={value ?? ""}
-        onChange={(v) => onChange(v as T)}
-        size="sm"
-        priority="primary"
-        className="flex-wrap"
-      >
-        {options.map((opt) => (
-          <SegmentedControl.Item key={opt.value} value={opt.value}>
-            {opt.label}
-          </SegmentedControl.Item>
-        ))}
-      </SegmentedControl>
+      <Select value={value ?? null} onValueChange={(v) => onChange(v as T)}>
+        <SelectTrigger className="w-full">
+          {/* Resolved from `options` rather than left to Base UI, which
+              reads labels off the mounted `SelectItem`s — those only
+              exist once the popup has been opened, so an untouched or
+              restored value renders as the raw enum (`rev_share`). */}
+          <SelectValue placeholder={placeholder ?? "Select…"}>
+            {value ? (options.find((o) => o.value === value)?.label ?? value) : null}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </FieldRow>
   );
 }
 
-// ── Multi-select chip cloud ────────────────────────────────────────────────
+// ── Multi-select dropdown with badges ──────────────────────────────────────
 
-interface MultiChipFieldProps {
+interface MultiSelectFieldProps {
   label: string;
   value: string[];
   onChange: (value: string[]) => void;
   options: string[];
+  placeholder?: string;
 }
 
-export function MultiChipField({ label, value, onChange, options }: MultiChipFieldProps) {
-  const toggleOne = (item: string) => {
-    if (value.includes(item)) onChange(value.filter((v) => v !== item));
-    else onChange([...value, item]);
-  };
+export function MultiSelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+}: MultiSelectFieldProps) {
   return (
     <FieldRow label={label}>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => {
-          const active = value.includes(opt);
-          return (
-            <Toggle
-              key={opt}
-              variant="outline"
-              size="sm"
-              pressed={active}
-              onPressedChange={() => toggleOne(opt)}
-              className={cn(
-                "rounded bg-background px-2.5 text-xs tracking-widest dark:bg-emboss-surface",
-                active && "text-primary",
-              )}
-            >
+      <Select multiple value={value} onValueChange={(v) => onChange(v as string[])}>
+        <SelectMultiTrigger
+          selectedLabels={value.map((v) => ({ value: v, label: v }))}
+          onRemove={(val) => onChange(value.filter((v) => v !== val))}
+          onClear={() => onChange([])}
+          placeholder={placeholder ?? "Select…"}
+        />
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt} value={opt}>
               {opt}
-            </Toggle>
-          );
-        })}
-      </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </FieldRow>
   );
 }
@@ -166,15 +177,31 @@ export function CompensationField({
     onMinRef.current = onMinChange;
     onMaxRef.current = onMaxChange;
   });
+
+  // A range only means anything in its own type's units: carrying a
+  // fixed-price 500–5000 across to rev share renders "500% - 5000%" and
+  // pins both thumbs off the end of a 5–100 track. Re-seed whenever the
+  // type changes, or when the stored pair can't be expressed on this
+  // track at all — which is also how a stale draft or a remount after a
+  // detour through "negotiable" gets straightened out.
+  const lastTypeRef = useRef(compensationType);
+  const onTrack = (v: number | undefined, cfg: CompSliderConfig) =>
+    v !== undefined && v >= cfg.min && v <= cfg.max;
   useEffect(() => {
     if (!config) return;
-    if (min === undefined) onMinRef.current(config.defaultMin);
-    if (max === undefined) onMaxRef.current(config.defaultMax);
-  }, [config, min, max]);
+    const typeChanged = lastTypeRef.current !== compensationType;
+    lastTypeRef.current = compensationType;
+    if (typeChanged || !onTrack(min, config) || !onTrack(max, config)) {
+      onMinRef.current(config.defaultMin);
+      onMaxRef.current(config.defaultMax);
+    }
+  }, [config, compensationType, min, max]);
 
   if (!config) return null;
-  const currentMin = min ?? config.defaultMin;
-  const currentMax = max ?? config.defaultMax;
+  // Same test for display, so a carried-over pair never gets one frame
+  // to render as nonsense before the effect above re-seeds it.
+  const currentMin = onTrack(min, config) ? min! : config.defaultMin;
+  const currentMax = onTrack(max, config) ? max! : config.defaultMax;
   return (
     <FieldRow label="RATE RANGE">
       <div className="px-1">
@@ -274,6 +301,46 @@ export function TextAreaField({
   );
 }
 
+// ── Add-image card ─────────────────────────────────────────────────────────
+
+interface AddImageCardProps {
+  onClick: () => void;
+  disabled?: boolean;
+  label?: string;
+  className?: string;
+}
+
+/**
+ * The dashed drop-target-styled card both image pickers open the file
+ * dialog from — same voice as the profile page's dashed empty states.
+ */
+export function AddImageCard({
+  onClick,
+  disabled,
+  label = "ADD IMAGE",
+  className,
+}: AddImageCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded border border-dashed border-muted-foreground/40 bg-muted/10 text-muted-foreground",
+        "transition-colors outline-none hover:border-primary/50 hover:text-foreground",
+        "focus-visible:ring-1 focus-visible:ring-ring",
+        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-muted-foreground/40 disabled:hover:text-muted-foreground",
+        className,
+      )}
+    >
+      <HugeiconsIcon icon={Image01Icon} size={20} />
+      <MicroLabel as="span" variant="inherit">
+        {label}
+      </MicroLabel>
+    </button>
+  );
+}
+
 // ── Image uploader ─────────────────────────────────────────────────────────
 
 interface ImageUploaderProps {
@@ -328,17 +395,11 @@ export function ImageUploader({ images, onAdd, onRemove }: ImageUploaderProps) {
           ))}
         </div>
       ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
+      <AddImageCard
         onClick={() => inputRef.current?.click()}
         disabled={images.length >= 5}
-        className="w-full tracking-widest"
-      >
-        <HugeiconsIcon icon={Image01Icon} size={13} />
-        {images.length >= 5 ? "MAX 5 IMAGES" : "ADD IMAGE"}
-      </Button>
+        label={images.length >= 5 ? "MAX 5 IMAGES" : "ADD IMAGE"}
+      />
       <input
         ref={inputRef}
         type="file"

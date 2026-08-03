@@ -21,7 +21,10 @@ import {
   userSkills,
 } from "@/db/schema";
 import { notify } from "@/lib/notifications";
-import { getProfileProjectImageUrl } from "@/lib/profile-project-image-storage";
+import {
+  getProfileProjectImageUrl,
+  resolveTeamAvatarUrl,
+} from "@/lib/profile-project-image-storage";
 import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
 import { authMiddleware, requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
 
@@ -445,6 +448,7 @@ export const getTeam = os
 
     return {
       ...team,
+      avatarUrl: await resolveTeamAvatarUrl(team),
       members: memberRows,
       skills: skillRows,
       projects: await Promise.all(
@@ -469,12 +473,13 @@ export const listMyTeams = os
   .use(requireAuth)
   .input(z.object({}))
   .handler(async ({ context }) => {
-    return db
+    const rows = await db
       .select({
         id: teams.id,
         slug: teams.slug,
         name: teams.name,
         avatarUrl: teams.avatarUrl,
+        avatarKey: teams.avatarKey,
         status: teams.status,
         role: teamMembers.role,
       })
@@ -482,24 +487,37 @@ export const listMyTeams = os
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
       .where(and(eq(teamMembers.userId, context.user.id), eq(teams.status, "active")))
       .orderBy(asc(teams.name));
+    return Promise.all(
+      rows.map(async ({ avatarKey: _avatarKey, ...row }) => ({
+        ...row,
+        avatarUrl: await resolveTeamAvatarUrl({ avatarKey: _avatarKey, avatarUrl: row.avatarUrl }),
+      })),
+    );
   });
 
 /** Active teams a profile belongs to — the profile page's TEAMS strip. */
 export const listUserTeams = os
   .input(z.object({ userId: z.string() }))
   .handler(async ({ input }) => {
-    return db
+    const rows = await db
       .select({
         id: teams.id,
         slug: teams.slug,
         name: teams.name,
         avatarUrl: teams.avatarUrl,
+        avatarKey: teams.avatarKey,
         role: teamMembers.role,
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
       .where(and(eq(teamMembers.userId, input.userId), eq(teams.status, "active")))
       .orderBy(asc(teams.name));
+    return Promise.all(
+      rows.map(async ({ avatarKey: _avatarKey, ...row }) => ({
+        ...row,
+        avatarUrl: await resolveTeamAvatarUrl({ avatarKey: _avatarKey, avatarUrl: row.avatarUrl }),
+      })),
+    );
   });
 
 // ── Roster ───────────────────────────────────────────────────────────────────

@@ -19,7 +19,9 @@ import { WizardFormContext } from "./form-context";
 import {
   getStepValidationError,
   uploadCollabPostImage,
+  uploadTeamAvatarImage,
   WIZARD_TABS,
+  type StepValidationOpts,
   type WizardFormValues,
   type WizardTabId,
 } from "./shared";
@@ -27,6 +29,7 @@ import { StepBasics } from "./StepBasics";
 import { StepProject } from "./StepProject";
 import { StepReview } from "./StepReview";
 import { StepRoles } from "./StepRoles";
+import { StepTeam } from "./StepTeam";
 
 // Step body cross-fade matches the profile flyout: a short ease-out on
 // opacity/scale plus a directional x nudge so 1→2 enters from the
@@ -97,6 +100,9 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       type: initialDraft.type,
       jamId: initialDraft.jamId,
       teamId: initialDraft.teamId,
+      newTeamName: initialDraft.newTeamName,
+      newTeamDescription: initialDraft.newTeamDescription,
+      newTeamImage: initialDraft.newTeamImage,
       title: initialDraft.title,
       description: initialDraft.description,
       isIndividual: initialDraft.isIndividual,
@@ -120,12 +126,27 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       const v = value as WizardFormValues;
       setError(null);
 
+      // The TEAM step's quick-create runs first, and the fresh id is
+      // written back into the form — if the post save below fails, the
+      // retry links the team that already exists instead of minting a
+      // duplicate.
+      let teamId = v.teamId;
+      if (!v.isIndividual && teamId === undefined && v.newTeamName.trim().length >= 2) {
+        try {
+          teamId = await createDraftTeam(v);
+          form.setFieldValue("teamId", teamId);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not create the team.");
+          return;
+        }
+      }
+
       // The post save and the image upload are separate failure domains,
       // so they get separate try/catches — a failed upload must not read
       // as "your post didn't save".
       let postId: number;
       try {
-        postId = await savePost(v, editingPostId);
+        postId = await savePost({ ...v, teamId }, editingPostId);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not save the post.");
         return;
@@ -170,11 +191,14 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   const direction = activeIndex >= previousIndex ? 1 : -1;
 
   const validationStepId = currentTab === "project" ? "details" : currentTab;
+  const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
+  const validationOpts: StepValidationOpts = { legacyUnlinkedEdit: editingLegacyUnlinked };
 
   const handleNext = () => {
     const validationError = getStepValidationError(
       validationStepId,
       form.state.values as WizardFormValues,
+      validationOpts,
     );
     if (validationError) {
       setError(validationError);
@@ -241,6 +265,19 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
             transition={STEP_BODY_TRANSITION}
             className="h-full overflow-y-auto px-5 py-5"
           >
+            {/* Intro prose, not a label: sized above the 11px field
+                labels and given room to breathe, so it reads as the
+                step's preamble rather than a caption on the first field. */}
+            <Text
+              as="p"
+              size="md"
+              variant="muted"
+              density="comfortable"
+              textWrap="pretty"
+              className="mb-6"
+            >
+              {WIZARD_TABS[activeIndex]?.desc}
+            </Text>
             <WizardFormContext.Provider value={form}>
               {renderStep(currentTab)}
             </WizardFormContext.Provider>
@@ -263,6 +300,27 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       />
     </>
   );
+}
+
+/**
+ * Creates the TEAM step's quick-create team and uploads its avatar,
+ * returning the new id. The avatar is best-effort: the team and post
+ * are the deliverables, and a failed image can be re-added from the
+ * team page later.
+ */
+async function createDraftTeam(v: WizardFormValues): Promise<string> {
+  const team = await client.createTeam({
+    name: v.newTeamName.trim(),
+    tagline: v.newTeamDescription.trim() || undefined,
+  });
+  if (v.newTeamImage) {
+    try {
+      await uploadTeamAvatarImage(team.id, v.newTeamImage.file);
+    } catch (err) {
+      console.error("Team avatar upload failed", err);
+    }
+  }
+  return team.id;
 }
 
 /** Creates or updates the post, returning its id either way. */
@@ -333,6 +391,7 @@ async function attachImages(postId: number, images: UploadedImage[], isEdit: boo
 
 function renderStep(tab: WizardTabId) {
   if (tab === "basics") return <StepBasics />;
+  if (tab === "team") return <StepTeam />;
   if (tab === "review") return <StepReview />;
   if (tab === "roles") return <StepRoles />;
   return <StepProject />;

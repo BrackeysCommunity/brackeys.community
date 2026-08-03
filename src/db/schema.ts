@@ -501,8 +501,16 @@ export const collabPosts = collabSchema.table("collab_posts", {
   contactMethod: text("contact_method"),
   contactType: text("contact_type"),
   isIndividual: boolean("is_individual").default(false),
+  // 'recruiting' | 'party_full' | 'expired' (text, pure additions).
   status: text("status").notNull().default("recruiting"),
   featuredAt: timestamp("featured_at"),
+  // Lifecycle: when the sweep auto-closes a still-recruiting post.
+  // Jam-linked posts default to the jam's end + 3 days, others +45d;
+  // reopen/extend push it out. NULL only on pre-v2 closed rows.
+  expiresAt: timestamp("expires_at"),
+  // Stamp for the "closes in 3 days — still looking?" nudge, so the
+  // sweep stays idempotent across re-runs.
+  expiryNotifiedAt: timestamp("expiry_notified_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -627,6 +635,11 @@ export const teams = teamSchema.table("teams", {
   // stops being pickable in the wizard. Text, not a pg enum, so future
   // states are pure additions.
   status: text("status").notNull().default("active"),
+  // Bumped by touchTeamActivity on post/member/project/settings events;
+  // the lifecycle sweep reads it to find quiet never-shipped teams.
+  lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+  // Stamp for the auto-archive warning; activity since clears it.
+  archiveWarnedAt: timestamp("archive_warned_at"),
   createdBy: text("created_by")
     .notNull()
     .references(() => user.id),
@@ -729,9 +742,48 @@ export const teamProjects = teamSchema.table("team_projects", {
   submissionUrl: text("submission_url"),
   result: text("result"),
   participatedAt: timestamp("participated_at"),
+  // Honest ship date, owner-editable; ordering + "shipped in 2026".
+  releasedAt: timestamp("released_at"),
   addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+/**
+ * Who made this game — historical, editable rows, distinct from the
+ * roster. Seeded from `team_members` when a project lands, then owned by
+ * the credit CRUD endpoints alone: roster churn (leave, removal, account
+ * deletion) never mutates a shipped credit. `display_name` always
+ * survives; `profile_id` is the optional live link, and free-text rows
+ * cover contributors who were never on the platform.
+ */
+export const teamProjectCredits = teamSchema.table(
+  "team_project_credits",
+  {
+    id: serial("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => teamProjects.id, { onDelete: "cascade" }),
+    // set null, NOT cascade: a deleted account keeps its name in the
+    // credits; only the link dies.
+    profileId: text("profile_id").references(() => developerProfiles.id, {
+      onDelete: "set null",
+    }),
+    displayName: text("display_name").notNull(),
+    // "Composer", "Pixel art" — free text, same self-description rule as
+    // team_members.title.
+    role: text("role"),
+    sortOrder: integer("sort_order").default(0),
+    addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // One credit row per profile per project; free-text rows are exempt.
+    uniqueIndex("team_project_credits_profile_unique")
+      .on(table.projectId, table.profileId)
+      .where(sql`${table.profileId} IS NOT NULL`),
+  ],
+);
 
 // ── itch.io scraped data (itch schema) ───────────────────────────────────────
 

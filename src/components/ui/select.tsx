@@ -12,6 +12,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { usePortalContainer } from "@/components/ui/portal-container";
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
@@ -112,26 +113,41 @@ function SelectContent({
   sideOffset = 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  alignItemWithTrigger,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
   >) {
+  // Inside a focus-trapping surface (the drawer) the popup must live in
+  // that surface's subtree, or the trap closes it on open. `null` falls
+  // back to Base UI's default <body> portal.
+  const portalContainer = usePortalContainer();
+
+  // Base UI's align-with-trigger mode drops floating-ui's computed
+  // offsets and positions the popup with a bare `position: fixed` plus
+  // viewport coordinates. That only holds while the popup is a child of
+  // <body>: portaled into a drawer it sits under vaul's `transform`,
+  // which makes `fixed` resolve against the drawer's box instead of the
+  // viewport and throws the popup off-screen (still focusable, just not
+  // visible). Standard anchored positioning goes through floating-ui,
+  // which handles a transformed offset parent correctly.
+  const alignWithTrigger = portalContainer ? false : (alignItemWithTrigger ?? true);
+
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={portalContainer ?? undefined}>
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}
         align={align}
         alignOffset={alignOffset}
-        alignItemWithTrigger={alignItemWithTrigger}
+        alignItemWithTrigger={alignWithTrigger}
         className="isolate z-50"
       >
         <SelectPrimitive.Popup
           data-slot="select-content"
-          data-align-trigger={alignItemWithTrigger}
+          data-align-trigger={alignWithTrigger}
           className={cn(
             "bg-popover text-popover-foreground data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
             "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded shadow-md ring-1 ring-foreground/10 duration-100",

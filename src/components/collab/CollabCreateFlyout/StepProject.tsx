@@ -6,8 +6,8 @@ import { ContactFields } from "./ContactFields";
 import {
   CompensationField,
   ImageUploader,
-  MultiChipField,
-  SegmentedField,
+  MultiSelectField,
+  SelectField,
   TextField,
 } from "./fields";
 import { useWizardForm } from "./form-context";
@@ -20,22 +20,37 @@ import {
   profanityCheck,
   type AnyFormStore,
 } from "./shared";
-import { SkillSearchPanel } from "./SkillSearchPanel";
 
 /**
- * Step 02 — project meta, tech stack, compensation (paid only), and
- * contact method. The wizard form already drives all of these inputs;
- * this step just composes the fields.
+ * Step 03 — project meta, compensation (paid only), and contact method.
+ * The wizard form already drives all of these inputs; this step just
+ * composes the fields. Tech stack lives with roles in step 04: both
+ * answer "who am I looking for", and both are what the board filters on.
  */
 export function StepProject() {
   const form = useWizardForm();
   const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type);
   const isIndividual = useStore(form.store, (s: AnyFormStore) => s.values.isIndividual);
   const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType);
-  const skillIds = useStore(form.store, (s: AnyFormStore) => s.values.skillIds);
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Images lead — the visual sell is the first thing a card shows,
+          so it's the first thing the step asks for. */}
+      <form.Field name="images">
+        {(field) => (
+          <ImageUploader
+            images={field.state.value}
+            onAdd={(img) => field.handleChange([...field.state.value, img])}
+            onRemove={(idx) =>
+              field.handleChange(
+                field.state.value.filter((_: UploadedImage, i: number) => i !== idx),
+              )
+            }
+          />
+        )}
+      </form.Field>
+
       <form.Field
         name="projectName"
         validators={{
@@ -62,66 +77,48 @@ export function StepProject() {
 
       <form.Field name="platforms">
         {(field) => (
-          <MultiChipField
+          <MultiSelectField
             label="PLATFORMS *"
             value={field.state.value}
             onChange={field.handleChange}
             options={PLATFORM_OPTIONS}
+            placeholder="Pick your platforms…"
           />
         )}
       </form.Field>
 
       <form.Field name="teamSize">
         {(field) => (
-          <SegmentedField
+          <SelectField
             label="TEAM SIZE *"
             value={field.state.value}
             onChange={field.handleChange}
             options={TEAM_SIZE_OPTIONS}
+            placeholder="How many of you…"
           />
         )}
       </form.Field>
 
       <form.Field name="projectLength">
         {(field) => (
-          <SegmentedField
+          <SelectField
             label="TIMELINE *"
             value={field.state.value}
             onChange={field.handleChange}
             options={PROJECT_LENGTH_OPTIONS}
+            placeholder="How long it'll run…"
           />
         )}
       </form.Field>
 
       <form.Field name="experienceLevel">
         {(field) => (
-          <SegmentedField
+          <SelectField
             label="EXPERIENCE LEVEL *"
             value={field.state.value}
             onChange={field.handleChange}
             options={EXPERIENCE_LEVEL_OPTIONS}
-          />
-        )}
-      </form.Field>
-
-      {/* Stack, not roles — "what would I be working in" rather than
-          "which seat am I filling". Step 03 asks the other question. */}
-      <SkillSearchPanel
-        skillIds={skillIds}
-        onChange={(ids) => form.setFieldValue("skillIds", ids)}
-        offerMySkills={isIndividual}
-      />
-
-      <form.Field name="images">
-        {(field) => (
-          <ImageUploader
-            images={field.state.value}
-            onAdd={(img) => field.handleChange([...field.state.value, img])}
-            onRemove={(idx) =>
-              field.handleChange(
-                field.state.value.filter((_: UploadedImage, i: number) => i !== idx),
-              )
-            }
+            placeholder="Who should apply…"
           />
         )}
       </form.Field>
@@ -130,11 +127,12 @@ export function StepProject() {
         <>
           <form.Field name="compensationType">
             {(field) => (
-              <SegmentedField
+              <SelectField
                 label="COMPENSATION TYPE *"
                 value={field.state.value}
                 onChange={field.handleChange}
                 options={COMPENSATION_TYPE_OPTIONS}
+                placeholder="How you're paying…"
               />
             )}
           </form.Field>

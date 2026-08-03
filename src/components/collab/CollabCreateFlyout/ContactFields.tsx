@@ -5,7 +5,7 @@ import { Text } from "@/components/ui/typography";
 import type { CollabContactType } from "@/lib/collab-store";
 import { orpc } from "@/orpc/client";
 
-import { SegmentedField, TextField } from "./fields";
+import { SelectField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
 import { CONTACT_PLACEHOLDERS, CONTACT_TYPE_OPTIONS, profanityCheck } from "./shared";
 
@@ -40,11 +40,12 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
     <>
       <form.Field name="contactType">
         {(field) => (
-          <SegmentedField
+          <SelectField
             label="CONTACT TYPE *"
             value={field.state.value}
             onChange={field.handleChange}
             options={CONTACT_TYPE_OPTIONS}
+            placeholder="How to reach you…"
           />
         )}
       </form.Field>

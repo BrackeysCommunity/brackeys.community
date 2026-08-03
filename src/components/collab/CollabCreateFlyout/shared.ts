@@ -26,27 +26,56 @@ export function profanityCheck(value: string, fieldName: string): string | undef
   return undefined;
 }
 
-// ── Wizard step ids exposed to the user-facing 4-tab strip ─────────────────
+// ── Wizard step ids exposed to the user-facing 5-tab strip ─────────────────
 
-export type WizardTabId = "basics" | "project" | "roles" | "review";
+export type WizardTabId = "basics" | "team" | "project" | "roles" | "review";
 
 export interface WizardTabDef {
   id: WizardTabId;
   num: string;
   label: string;
+  /** One-line intro rendered at the top of the step body. */
+  desc: string;
 }
 
 /**
  * One strip for every post type. Picking a type used to silently swap
  * the wizard between a 4-step and a 3-step shape — and carry stale
  * values across the swap, since the two shapes shared columns that meant
- * different things in each.
+ * different things in each. TEAM keeps the invariant: solo posts see it
+ * too, reduced to the RECRUITING AS switch.
  */
 export const WIZARD_TABS: WizardTabDef[] = [
-  { id: "basics", num: "01", label: "BASICS" },
-  { id: "project", num: "02", label: "PROJECT" },
-  { id: "roles", num: "03", label: "ROLES" },
-  { id: "review", num: "04", label: "REVIEW" },
+  {
+    id: "basics",
+    num: "01",
+    label: "BASICS",
+    desc: "The pitch — what kind of post this is and the headline people scan on the board.",
+  },
+  {
+    id: "team",
+    num: "02",
+    label: "TEAM",
+    desc: "Who's behind the post — just you, or a team with a page people can join.",
+  },
+  {
+    id: "project",
+    num: "03",
+    label: "PROJECT",
+    desc: "The project itself — show it off, scope the work, and say how to reach you.",
+  },
+  {
+    id: "roles",
+    num: "04",
+    label: "ROLES",
+    desc: "Who you're looking for — the seats you're filling and the stack they'd work in, so the right people can filter their way to you.",
+  },
+  {
+    id: "review",
+    num: "05",
+    label: "REVIEW",
+    desc: "One last look at how it reads before it goes live.",
+  },
 ];
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -183,12 +212,40 @@ export async function uploadCollabPostImage(file: File): Promise<UploadedImageRe
   return (await response.json()) as UploadedImageRecord;
 }
 
+/**
+ * Upload a team avatar to `/api/team/avatar` (owner-only, team-scoped
+ * key). Called at submit right after a TEAM-step quick-create — the
+ * file lives in-memory as `UploadedImage.file` until then, same as
+ * post images.
+ */
+export async function uploadTeamAvatarImage(
+  teamId: string,
+  file: File,
+): Promise<UploadedImageRecord> {
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("teamId", teamId);
+
+  const response = await fetch("/api/team/avatar", {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(err?.message ?? "Avatar upload failed.");
+  }
+  return (await response.json()) as UploadedImageRecord;
+}
+
 // ── Form values ────────────────────────────────────────────────────────────
 
 export type WizardFormValues = {
   type: CollabPostType | undefined;
   jamId: number | undefined;
   teamId: string | undefined;
+  newTeamName: string;
+  newTeamDescription: string;
+  newTeamImage: UploadedImage | null;
   title: string;
   description: string;
   isIndividual: boolean;
@@ -234,7 +291,21 @@ export function projectLengthForJam(
 
 // ── Step validation ────────────────────────────────────────────────────────
 
-export function getStepValidationError(stepId: string, v: WizardFormValues): string | null {
+/** Server caps for the TEAM step's quick-create form (`teamContentShape`). */
+export const TEAM_NAME_MAX = 100;
+export const TEAM_DESCRIPTION_MAX = 200;
+
+export interface StepValidationOpts {
+  /** Editing a pre-v2 unlinked team post — it may save without a team,
+   *  so the TEAM step only validates what the user actually typed. */
+  legacyUnlinkedEdit?: boolean;
+}
+
+export function getStepValidationError(
+  stepId: string,
+  v: WizardFormValues,
+  opts: StepValidationOpts = {},
+): string | null {
   switch (stepId) {
     case "basics": {
       if (!v.type) return "Please select a post type.";
@@ -246,6 +317,22 @@ export function getStepValidationError(stepId: string, v: WizardFormValues): str
       if (titleCheck) return titleCheck;
       const descCheck = profanityCheck(v.description, "Description");
       if (descCheck) return descCheck;
+      break;
+    }
+    case "team": {
+      // Solo posts and posts linked to an existing team pass; the
+      // new-team form is what needs checking.
+      if (v.isIndividual || v.teamId !== undefined) break;
+      const name = v.newTeamName.trim();
+      if (name.length === 0) {
+        if (opts.legacyUnlinkedEdit) break;
+        return "Pick or create your team page.";
+      }
+      if (name.length < 2) return "Team name must be at least 2 characters.";
+      const teamNameCheck = profanityCheck(v.newTeamName, "Team name");
+      if (teamNameCheck) return teamNameCheck;
+      const teamDescCheck = profanityCheck(v.newTeamDescription, "Team description");
+      if (teamDescCheck) return teamDescCheck;
       break;
     }
     case "details": {
@@ -280,11 +367,13 @@ export function getStepValidationError(stepId: string, v: WizardFormValues): str
     case "review": {
       // The last gate before submit, so it re-runs every requirement
       // rather than trusting that the user walked the steps in order.
-      const basics = getStepValidationError("basics", v);
+      const basics = getStepValidationError("basics", v, opts);
       if (basics) return basics;
-      const details = getStepValidationError("details", v);
+      const team = getStepValidationError("team", v, opts);
+      if (team) return team;
+      const details = getStepValidationError("details", v, opts);
       if (details) return details;
-      return getStepValidationError("roles", v);
+      return getStepValidationError("roles", v, opts);
     }
   }
   return null;
@@ -296,11 +385,18 @@ export function getStepValidationError(stepId: string, v: WizardFormValues): str
  * same thing — the old list mixed in a phantom timezone field and let
  * roles auto-pass, then reported 86% on a perfectly valid post.
  */
-export function getPreflightChecks(v: WizardFormValues): { label: string; ok: boolean }[] {
+export function getPreflightChecks(
+  v: WizardFormValues,
+  opts: StepValidationOpts = {},
+): { label: string; ok: boolean }[] {
   return [
     { label: "Post type selected", ok: !!v.type },
     { label: "Title is descriptive", ok: v.title.trim().length >= 10 },
     { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30 },
+    {
+      label: "Team page picked or named",
+      ok: getStepValidationError("team", v, opts) === null,
+    },
     { label: "Project named", ok: v.projectName.trim().length >= 3 },
     { label: "At least one platform", ok: v.platforms.length > 0 },
     {

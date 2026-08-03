@@ -23,7 +23,10 @@ import {
 } from "@/db/schema";
 import { isStaffMember } from "@/lib/discord";
 import { notify } from "@/lib/notifications";
-import { getProfileProjectImageUrl } from "@/lib/profile-project-image-storage";
+import {
+  getProfileProjectImageUrl,
+  resolveTeamAvatarUrl,
+} from "@/lib/profile-project-image-storage";
 import {
   authMiddleware,
   requireAuth,
@@ -88,9 +91,10 @@ const postContentShape = {
   projectName: z.string().trim().min(3).max(200),
   // null unlinks on edit; undefined leaves the post jam-less on create.
   jamId: z.number().int().positive().nullish(),
-  // The named team behind the post; null unlinks on edit. Optional even
-  // for team posts — crews without an entity keep the legacy unlinked
-  // state rather than being forced through team creation mid-wizard.
+  // The named team behind the post; null unlinks on edit. Nullish in
+  // the shape, but team posts must link one — enforced in
+  // `assertTeamRequired`, handler-level because the legacy escape hatch
+  // needs the stored row, which a zod refine can't see.
   teamId: z.string().nullish(),
   compensationType: compensationTypeSchema.optional(),
   compensationMin: z.number().int().min(0).max(1_000_000).optional(),
@@ -245,6 +249,24 @@ async function resolveReferences(input: PostContent) {
 }
 
 /**
+ * v2: a team post must name its team — the accept → invite loop and
+ * `/teams` discovery both hang off the link. One escape hatch: a legacy
+ * pre-v2 unlinked team post may be *edited* without linking (an old
+ * post's typo fix must not demand a team), but creates never exempt and
+ * flipping a solo post to a team post always requires the link.
+ */
+export function assertTeamRequired(
+  input: { isIndividual?: boolean; teamId?: string | null },
+  existing?: { isIndividual: boolean | null; teamId: string | null },
+) {
+  if (input.isIndividual || input.teamId != null) return;
+  if (existing && !existing.isIndividual && existing.teamId === null) return;
+  throw new ORPCError("BAD_REQUEST", {
+    message: "Team posts need a team page — pick or create one.",
+  });
+}
+
+/**
  * A post may only be pinned to a team its *author* belongs to (checked
  * against the author, not the caller, so a staff edit doesn't trip over
  * a membership the staffer doesn't have), and never to an archived one.
@@ -300,6 +322,7 @@ export const createPost = os
   .input(postContentSchema)
   .handler(async ({ input, context }) => {
     checkPostProfanity(input);
+    assertTeamRequired(input);
     const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
     if (input.teamId != null) {
       await assertTeamLinkable(input.teamId, context.user.id);
@@ -345,6 +368,7 @@ export const updatePost = os
     }
 
     checkPostProfanity(input);
+    assertTeamRequired(input, post);
     const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
     // Only a *changed* link needs re-verifying — an author who has since
     // left the team (or a staff edit) can still save with the existing
@@ -378,6 +402,44 @@ export const updatePost = os
     }
 
     return { ...updated, jamWarning };
+  });
+
+/**
+ * Sets just the team link on a legacy unlinked post. Exists so the
+ * accept-time fix (§3.2 of the v2 plan) is one call — `updatePost`
+ * requires the full payload and would force the client to reconstruct
+ * it for what is a single-FK change.
+ */
+export const linkPostTeam = os
+  .use(requireAuth)
+  .input(z.object({ postId: z.number(), teamId: z.string() }))
+  .handler(async ({ input, context }) => {
+    const [post] = await db
+      .select()
+      .from(collabPosts)
+      .where(eq(collabPosts.id, input.postId))
+      .limit(1);
+
+    if (!post) {
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+    }
+    if (post.authorId !== context.user.id) {
+      throw new ORPCError("FORBIDDEN", { message: "You can only link your own posts." });
+    }
+    if (post.isIndividual) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "A solo post cannot also be linked to a team.",
+      });
+    }
+    await assertTeamLinkable(input.teamId, post.authorId);
+
+    const [updated] = await db
+      .update(collabPosts)
+      .set({ teamId: input.teamId, updatedAt: new Date() })
+      .where(eq(collabPosts.id, input.postId))
+      .returning();
+
+    return updated;
   });
 
 export const deletePost = os
@@ -516,12 +578,20 @@ export const getPost = os
               slug: teams.slug,
               name: teams.name,
               avatarUrl: teams.avatarUrl,
+              avatarKey: teams.avatarKey,
               status: teams.status,
             })
             .from(teams)
             .where(eq(teams.id, post.teamId))
             .limit(1)
-            .then((rows) => rows[0] ?? null)
+            .then(async (rows) => {
+              if (!rows[0]) return null;
+              const { avatarKey, ...row } = rows[0];
+              return {
+                ...row,
+                avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl: row.avatarUrl }),
+              };
+            })
         : Promise.resolve(null),
       db
         .select()
@@ -888,9 +958,18 @@ export const listPosts = os
               slug: teams.slug,
               name: teams.name,
               avatarUrl: teams.avatarUrl,
+              avatarKey: teams.avatarKey,
             })
             .from(teams)
             .where(inArray(teams.id, teamIds))
+            .then((rows) =>
+              Promise.all(
+                rows.map(async ({ avatarKey, ...row }) => ({
+                  ...row,
+                  avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl: row.avatarUrl }),
+                })),
+              ),
+            )
         : Promise.resolve([]),
       postIds.length > 0
         ? db
@@ -1105,6 +1184,16 @@ export const updateResponseStatus = os
     if (!isOwner && !context.isStaff) {
       throw new ORPCError("FORBIDDEN", {
         message: "Only the post owner or staff can manage responses.",
+      });
+    }
+
+    // Accepting onto a team post without a team is a notification
+    // dead-end — the accept → invite handoff has nowhere to point. The
+    // client renders an inline link-or-create flow on this error, then
+    // retries via `linkPostTeam`.
+    if (input.status === "accepted" && post && !post.isIndividual && post.teamId === null) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Link your team page before accepting — accepted members get invited to it.",
       });
     }
 

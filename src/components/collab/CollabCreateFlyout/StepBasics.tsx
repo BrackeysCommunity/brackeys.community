@@ -1,26 +1,23 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Chonk } from "@/components/ui/chonk";
-import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
-import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
 
 import { FieldRow, TextAreaField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
 import { JamPickerField } from "./JamPickerField";
 import { POST_TYPES, profanityCheck, projectLengthForJam } from "./shared";
-import { TeamPickerField } from "./TeamPickerField";
 
 /** Where the title stops being scannable on a card, well short of the
  *  200-char storage cap the input still enforces. */
 const TITLE_SOFT_LIMIT = 80;
 
 /**
- * Step 01 — pick a post type, write the headline + description, link a
- * jam if there is one, and say whether you're recruiting solo or for a
- * team. Mirrors the wireframe's `POST TYPE / POST TITLE / DESCRIPTION`
- * ordering.
+ * Step 01 — pick a post type, write the headline + description, and
+ * link a jam if there is one. Solo-vs-team moved to the TEAM step with
+ * the rest of the team decisions. Mirrors the wireframe's
+ * `POST TYPE / POST TITLE / DESCRIPTION` ordering.
  */
 export function StepBasics() {
   const form = useWizardForm();
@@ -146,50 +143,6 @@ export function StepBasics() {
             }}
           />
         )}
-      </form.Field>
-
-      <form.Field name="type">
-        {(typeField) =>
-          typeField.state.value ? (
-            <form.Field name="isIndividual">
-              {(field) => (
-                <Well variant="ghost" className="gap-3 p-3">
-                  {/* Not an availability listing — that's the people lane.
-                      This is still a team-seeking post; the switch only
-                      says who's behind it. */}
-                  <FieldRow label="RECRUITING AS" hint={field.state.value ? "solo dev" : "a team"}>
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        id="collab-create-is-individual"
-                        checked={field.state.value}
-                        onCheckedChange={(checked) => {
-                          field.handleChange(!!checked);
-                          // A solo post can't also be a team's post.
-                          if (checked) form.setFieldValue("teamId", undefined);
-                        }}
-                      />
-                      <Text size="sm" variant="muted">
-                        {field.state.value
-                          ? "It's just me looking for collaborators."
-                          : "I'm posting on behalf of an existing team."}
-                      </Text>
-                    </div>
-                  </FieldRow>
-                  {!field.state.value ? (
-                    <form.Field name="teamId">
-                      {(teamField) => (
-                        <TeamPickerField
-                          value={teamField.state.value}
-                          onChange={(teamId) => teamField.handleChange(teamId)}
-                        />
-                      )}
-                    </form.Field>
-                  ) : null}
-                </Well>
-              )}
-            </form.Field>
-          ) : null
-        }
       </form.Field>
     </div>
   );

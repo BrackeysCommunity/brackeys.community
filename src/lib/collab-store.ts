@@ -75,6 +75,12 @@ export type WizardDraft = {
   jamId: number | undefined;
   /** The named team behind a team post; undefined = unlinked. */
   teamId: string | undefined;
+  /** The TEAM step's quick-create form. Only read when `teamId` is
+   *  unset — the team row is created at submit time, like images, so
+   *  abandoned drafts mint no junk teams. */
+  newTeamName: string;
+  newTeamDescription: string;
+  newTeamImage: UploadedImage | null;
   title: string;
   description: string;
   projectName: string;
@@ -105,9 +111,10 @@ export type WizardStepDef = { id: string; num: string; label: string };
  */
 export const WIZARD_STEPS: WizardStepDef[] = [
   { id: "basics", num: "01", label: "TYPE & BASICS" },
-  { id: "details", num: "02", label: "PROJECT DETAILS" },
-  { id: "roles", num: "03", label: "ROLES NEEDED" },
-  { id: "review", num: "04", label: "REVIEW" },
+  { id: "team", num: "02", label: "TEAM" },
+  { id: "details", num: "03", label: "PROJECT DETAILS" },
+  { id: "roles", num: "04", label: "ROLES NEEDED" },
+  { id: "review", num: "05", label: "REVIEW" },
 ];
 
 export function getWizardSteps(): WizardStepDef[] {
@@ -127,6 +134,10 @@ type CollabState = {
      *  creating one — submit routes to `updatePost` and the draft is
      *  seeded from the server instead of restored from storage. */
     editingPostId: number | null;
+    /** The post being edited was a pre-v2 unlinked team post. Those may
+     *  save without a team (the server exempts them); the TEAM step's
+     *  validation needs the *seeded* state, not the live draft. */
+    editingLegacyUnlinked: boolean;
     /** The open draft came back from storage. Surfaced in the header so
      *  a form that refills itself says so. */
     draftRestored: boolean;
@@ -154,6 +165,9 @@ const defaultDraft: WizardDraft = {
   type: undefined,
   jamId: undefined,
   teamId: undefined,
+  newTeamName: "",
+  newTeamDescription: "",
+  newTeamImage: null,
   title: "",
   description: "",
   projectName: "",
@@ -178,7 +192,13 @@ export const collabStore = new Store<CollabState>({
   filters: { ...defaultFilters },
   layout: "list",
   pagination: { limit: 20, offset: 0 },
-  wizard: { step: 0, draft: { ...defaultDraft }, editingPostId: null, draftRestored: false },
+  wizard: {
+    step: 0,
+    draft: { ...defaultDraft },
+    editingPostId: null,
+    editingLegacyUnlinked: false,
+    draftRestored: false,
+  },
 });
 
 export function setCollabLayout(layout: CollabLayout) {
@@ -303,7 +323,13 @@ export function updateWizardDraft(partial: Partial<WizardDraft>) {
 export function resetWizard() {
   collabStore.setState((s) => ({
     ...s,
-    wizard: { step: 0, draft: { ...defaultDraft }, editingPostId: null, draftRestored: false },
+    wizard: {
+      step: 0,
+      draft: { ...defaultDraft },
+      editingPostId: null,
+      editingLegacyUnlinked: false,
+      draftRestored: false,
+    },
   }));
   clearPersistedWizardDraft();
 }
@@ -317,7 +343,13 @@ export function resetWizard() {
 export function beginWizardCreate() {
   collabStore.setState((s) => ({
     ...s,
-    wizard: { step: 0, draft: { ...defaultDraft }, editingPostId: null, draftRestored: false },
+    wizard: {
+      step: 0,
+      draft: { ...defaultDraft },
+      editingPostId: null,
+      editingLegacyUnlinked: false,
+      draftRestored: false,
+    },
   }));
   restorePersistedWizardDraft();
 }
@@ -326,7 +358,13 @@ export function beginWizardCreate() {
 export function startWizardEdit(postId: number, draft: WizardDraft) {
   collabStore.setState((s) => ({
     ...s,
-    wizard: { step: 0, draft, editingPostId: postId, draftRestored: false },
+    wizard: {
+      step: 0,
+      draft,
+      editingPostId: postId,
+      editingLegacyUnlinked: !draft.isIndividual && draft.teamId === undefined,
+      draftRestored: false,
+    },
   }));
 }
 
@@ -387,6 +425,9 @@ export function draftFromPost(post: EditableCollabPost): WizardDraft {
     skillIds: post.skills.map((s) => s.id),
     // Images already live on the post; the uploader only adds more.
     images: [],
+    newTeamName: "",
+    newTeamDescription: "",
+    newTeamImage: null,
   };
 }
 
@@ -402,14 +443,14 @@ const DRAFT_STORAGE_KEY = "brackeys:collab-wizard-draft:v1";
 /**
  * Everything in the draft except the picked images — `File` objects
  * don't serialise, and re-uploading bytes the browser no longer holds
- * isn't possible anyway, so images are the one thing a restored draft
- * asks the user to re-pick.
+ * isn't possible anyway, so images (and the team avatar) are the things
+ * a restored draft asks the user to re-pick.
  */
-type PersistedDraft = Omit<WizardDraft, "images">;
+type PersistedDraft = Omit<WizardDraft, "images" | "newTeamImage">;
 
 function persistWizardDraft(draft: WizardDraft) {
   if (typeof window === "undefined") return;
-  const { images: _images, ...rest } = draft;
+  const { images: _images, newTeamImage: _newTeamImage, ...rest } = draft;
   try {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(rest));
   } catch {
@@ -463,7 +504,7 @@ function restorePersistedWizardDraft(): boolean {
   // Spread over the defaults rather than trusting the stored shape — a
   // draft written by an older build is missing whatever fields the
   // wizard has grown since.
-  const draft: WizardDraft = { ...defaultDraft, ...stored, images: [] };
+  const draft: WizardDraft = { ...defaultDraft, ...stored, images: [], newTeamImage: null };
   if (!isDraftMeaningful(draft)) {
     clearPersistedWizardDraft();
     return false;
@@ -471,7 +512,13 @@ function restorePersistedWizardDraft(): boolean {
 
   collabStore.setState((s) => ({
     ...s,
-    wizard: { step: 0, draft, editingPostId: null, draftRestored: true },
+    wizard: {
+      step: 0,
+      draft,
+      editingPostId: null,
+      editingLegacyUnlinked: false,
+      draftRestored: true,
+    },
   }));
   return true;
 }

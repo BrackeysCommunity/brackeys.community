@@ -395,6 +395,7 @@ export function CollabPostDetail({
                     responses={post.responses}
                     postId={postId}
                     team={post.team}
+                    needsTeamLink={!post.isIndividual && !post.team}
                   />
                 ) : (
                   <Text size="xs" variant="muted" className="tracking-widest uppercase">

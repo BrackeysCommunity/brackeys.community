@@ -80,12 +80,13 @@ export async function getProfileProjectImageUrls(
   return Promise.all(objectKeys.map((key) => getProfileProjectImageUrl(key)));
 }
 
-export async function uploadProfileProjectImageToStorage({
+/** Shared validate + put + presign for any image object this app stores. */
+export async function uploadImageToStorage({
   file,
-  userId,
+  objectKey,
 }: {
   file: File;
-  userId: string;
+  objectKey: string;
 }): Promise<UploadedProfileProjectImage> {
   if (!isAllowedProfileProjectImageType(file.type)) {
     throw new ProfileProjectImageUploadError("Unsupported image type. Use PNG, JPG, WEBP, or GIF.");
@@ -97,13 +98,9 @@ export async function uploadProfileProjectImageToStorage({
 
   const bucket = env.MINIO_BUCKET;
   if (!bucket) {
-    throw new ProfileProjectImageUploadError(
-      "MINIO_BUCKET is required for profile image uploads.",
-      500,
-    );
+    throw new ProfileProjectImageUploadError("MINIO_BUCKET is required for image uploads.", 500);
   }
 
-  const objectKey = buildProfileProjectImageObjectKey(userId, file.name);
   const buffer = Buffer.from(await file.arrayBuffer());
 
   await getMinioClient().putObject(bucket, objectKey, buffer, buffer.byteLength, {
@@ -113,7 +110,7 @@ export async function uploadProfileProjectImageToStorage({
   const url = await getProfileProjectImageUrl(objectKey);
   if (!url) {
     throw new ProfileProjectImageUploadError(
-      "Profile image URL could not be resolved from MinIO configuration.",
+      "Image URL could not be resolved from MinIO configuration.",
       500,
     );
   }
@@ -125,6 +122,32 @@ export async function uploadProfileProjectImageToStorage({
     mimeType: file.type,
     sizeBytes: file.size,
   };
+}
+
+export async function uploadProfileProjectImageToStorage({
+  file,
+  userId,
+}: {
+  file: File;
+  userId: string;
+}): Promise<UploadedProfileProjectImage> {
+  return uploadImageToStorage({
+    file,
+    objectKey: buildProfileProjectImageObjectKey(userId, file.name),
+  });
+}
+
+/**
+ * A team row's display avatar: an uploaded key presigns fresh at read
+ * time (same as `serializeTeamProject`); the stored URL is the fallback
+ * for external/legacy values.
+ */
+export async function resolveTeamAvatarUrl(team: {
+  avatarKey: string | null;
+  avatarUrl: string | null;
+}): Promise<string | null> {
+  const presigned = await getProfileProjectImageUrl(team.avatarKey);
+  return presigned ?? team.avatarUrl;
 }
 
 export async function removeProfileProjectImageFromStorage(objectKey: string | null | undefined) {

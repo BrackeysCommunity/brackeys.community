@@ -35,6 +35,15 @@ export function buildProfileProjectImageObjectKey(userId: string, filename: stri
   return `${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/${nanoid()}-${sanitizedFilename}`;
 }
 
+/** Team avatars live in their own key namespace, scoped by team id;
+ *  write access is a membership check, not a key-prefix check. */
+export const TEAM_AVATAR_IMAGE_PREFIX = "team-avatars";
+
+export function buildTeamAvatarObjectKey(teamId: string, filename: string) {
+  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
+  return `${TEAM_AVATAR_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
+}
+
 export function isOwnedProfileProjectImageKey(userId: string, key: string) {
   return key.startsWith(`${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/`);
 }

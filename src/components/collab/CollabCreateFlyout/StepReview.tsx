@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { collabStore } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
@@ -36,15 +37,20 @@ export function StepReview() {
     enabled: v.teamId !== undefined,
   });
 
+  const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
+
   const selectedRoles = roles?.filter((r) => v.roleIds.includes(r.id)) ?? [];
   const selectedSkills = allSkills?.filter((s) => v.skillIds.includes(s.id)) ?? [];
   const jam = jamData?.jams.find((j) => j.jamId === v.jamId) ?? null;
   const team = myTeams?.find((t) => t.id === v.teamId) ?? null;
+  // The TEAM step's quick-create — the team doesn't exist yet, so the
+  // review renders the name the submit will mint.
+  const pendingTeamName = !v.isIndividual && v.teamId === undefined ? v.newTeamName.trim() : "";
 
   const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
 
-  const checks = getPreflightChecks(v);
+  const checks = getPreflightChecks(v, { legacyUnlinkedEdit: editingLegacyUnlinked });
   const completed = checks.filter((c) => c.ok).length;
   const percent = Math.round((completed / checks.length) * 100);
 
@@ -80,6 +86,10 @@ export function StepReview() {
                 {team ? (
                   <Badge variant="outline" size="label" className="uppercase">
                     {team.name}
+                  </Badge>
+                ) : pendingTeamName ? (
+                  <Badge variant="outline" size="label" className="uppercase">
+                    {pendingTeamName}
                   </Badge>
                 ) : null}
                 {jam ? (
@@ -162,6 +172,13 @@ export function StepReview() {
           <Text size="sm">{team.name}</Text>
           <Text size="xs" variant="muted" className="tracking-widest uppercase">
             Post will appear on the team's page
+          </Text>
+        </FieldRow>
+      ) : pendingTeamName ? (
+        <FieldRow label="TEAM PAGE" hint="new">
+          <Text size="sm">{pendingTeamName}</Text>
+          <Text size="xs" variant="muted" className="tracking-widest uppercase">
+            Created with this post
           </Text>
         </FieldRow>
       ) : null}

@@ -14,10 +14,10 @@ import { client, orpc } from "@/orpc/client";
 import { FieldRow } from "./fields";
 
 /**
- * Links a team post to its named team. Backed by `listMyTeams`; a
- * one-field quick-create keeps the wizard from becoming a detour for
- * crews that don't have a page yet. Linking is optional — an unlinked
- * team post is the legacy state and still renders everywhere.
+ * Pick-or-quick-create a team, backed by `listMyTeams`. Since the
+ * wizard grew a dedicated TEAM step this renders only in the
+ * accept-time link flow for legacy unlinked posts
+ * (`CollabPostResponseList`) — new team posts link at create.
  */
 export function TeamPickerField({
   value,
@@ -49,7 +49,7 @@ export function TeamPickerField({
   // the jam picker above it.
   if (value !== undefined) {
     return (
-      <FieldRow label="TEAM PAGE" hint="optional">
+      <FieldRow label="TEAM PAGE">
         <Well variant="ghost" className="flex-row items-center gap-3 border-primary/30 p-2.5">
           <UserAvatar avatarUrl={selected?.avatarUrl ?? null} username={selected?.name} size={32} />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -75,7 +75,7 @@ export function TeamPickerField({
   }
 
   return (
-    <FieldRow label="TEAM PAGE" hint="optional · links the post to your team's page">
+    <FieldRow label="TEAM PAGE" hint="pick or create the team behind this post">
       {isLoading ? null : (
         <div className="flex flex-col gap-1.5">
           {(myTeams ?? []).map((team) => (

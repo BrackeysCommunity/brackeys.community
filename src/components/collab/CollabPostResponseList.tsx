@@ -10,6 +10,8 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { client, orpc } from "@/orpc/client";
 
+import { TeamPickerField } from "./CollabCreateFlyout/TeamPickerField";
+
 interface ResponseItem {
   id: number;
   responderId: string;
@@ -30,6 +32,10 @@ interface CollabPostResponseListProps {
   /** The named team behind the post, when there is one — unlocks the
    *  accept → "invite to the team" handoff on accepted rows. */
   team?: { id: string; name: string } | null;
+  /** A legacy team post with no linked team. Accepting is server-gated
+   *  until one is linked, so ACCEPT opens an inline link-or-create flow
+   *  instead of firing a doomed request. */
+  needsTeamLink?: boolean;
 }
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
@@ -43,16 +49,49 @@ const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
  * (debossed) carrying the responder's avatar + handle, message, and
  * optional accept/decline actions for pending entries.
  */
-export function CollabPostResponseList({ responses, postId, team }: CollabPostResponseListProps) {
+export function CollabPostResponseList({
+  responses,
+  postId,
+  team,
+  needsTeamLink = false,
+}: CollabPostResponseListProps) {
   const queryClient = useQueryClient();
+  const invalidatePost = () =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
+    });
 
+  const [statusError, setStatusError] = useState<string | null>(null);
   const updateStatus = useMutation({
     mutationFn: ({ responseId, status }: { responseId: number; status: "accepted" | "declined" }) =>
       client.updateResponseStatus({ responseId, status }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
-      }),
+    onSuccess: () => {
+      setStatusError(null);
+      void invalidatePost();
+    },
+    // The server's accept gate (unlinked team post) lands here if the
+    // inline flow was somehow skipped — surface it rather than failing
+    // silently.
+    onError: (err) =>
+      setStatusError(err instanceof Error ? err.message : "Could not update the response."),
+  });
+
+  // §3.2 accept-time fix for legacy unlinked posts: pick or create the
+  // team right here, link it, then finish the accept — one flow, no
+  // page hopping.
+  const [linkPromptResponseId, setLinkPromptResponseId] = useState<number | null>(null);
+  const linkAndAccept = useMutation({
+    mutationFn: async ({ teamId, responseId }: { teamId: string; responseId: number }) => {
+      await client.linkPostTeam({ postId, teamId });
+      await client.updateResponseStatus({ responseId, status: "accepted" });
+    },
+    onSuccess: () => {
+      setLinkPromptResponseId(null);
+      setStatusError(null);
+      void invalidatePost();
+    },
+    onError: (err) =>
+      setStatusError(err instanceof Error ? err.message : "Could not link the team."),
   });
 
   // Accepting is a decision to work together; joining the team page is
@@ -116,25 +155,59 @@ export function CollabPostResponseList({ responses, postId, team }: CollabPostRe
             </a>
           ) : null}
           {resp.status === "pending" ? (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => updateStatus.mutate({ responseId: resp.id, status: "accepted" })}
-                disabled={updateStatus.isPending}
-                className="tracking-widest"
-              >
-                ACCEPT
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => updateStatus.mutate({ responseId: resp.id, status: "declined" })}
-                disabled={updateStatus.isPending}
-                className="tracking-widest"
-              >
-                DECLINE
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() =>
+                    needsTeamLink
+                      ? setLinkPromptResponseId(resp.id)
+                      : updateStatus.mutate({ responseId: resp.id, status: "accepted" })
+                  }
+                  disabled={updateStatus.isPending || linkAndAccept.isPending}
+                  className="tracking-widest"
+                >
+                  ACCEPT
+                </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => updateStatus.mutate({ responseId: resp.id, status: "declined" })}
+                  disabled={updateStatus.isPending || linkAndAccept.isPending}
+                  className="tracking-widest"
+                >
+                  DECLINE
+                </Button>
+              </div>
+              {linkPromptResponseId === resp.id ? (
+                <Well variant="ghost" className="gap-2 border-warning/40 p-3">
+                  <Text size="xs" variant="muted">
+                    Link your team page before accepting — accepted members get invited to it.
+                  </Text>
+                  <TeamPickerField
+                    value={undefined}
+                    onChange={(teamId) => {
+                      if (teamId) linkAndAccept.mutate({ teamId, responseId: resp.id });
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setLinkPromptResponseId(null)}
+                    className="self-start tracking-widest"
+                  >
+                    CANCEL
+                  </Button>
+                </Well>
+              ) : null}
+              {statusError &&
+              (linkPromptResponseId === resp.id ||
+                updateStatus.variables?.responseId === resp.id) ? (
+                <Text size="xs" className="text-destructive">
+                  {statusError}
+                </Text>
+              ) : null}
             </div>
           ) : null}
           {resp.status === "accepted" && team ? (

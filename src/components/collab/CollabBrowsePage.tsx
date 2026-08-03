@@ -239,7 +239,7 @@ export function CollabBrowsePage() {
           {/* The region is viewport-height so each pane scrolls on its
               own — the lane keeps its scroll position while you walk
               posts, which is the whole point of the layout. */}
-          <div className="grid h-[calc(100vh-15rem)] min-h-[520px] grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-6">
+          <div className="grid h-[calc(100vh-15rem)] min-h-130 grid-cols-[minmax(0,1fr)_minmax(360px,360px)] gap-6">
             <section className="flex min-h-0 flex-col gap-3">
               {lane}
               <div className="min-h-0 flex-1 overflow-y-auto pr-1">

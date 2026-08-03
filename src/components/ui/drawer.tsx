@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
+import { PortalContainerProvider } from "@/components/ui/portal-container";
 import { cn } from "@/lib/utils";
 
 function Drawer({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
@@ -42,6 +43,11 @@ function DrawerContent({
   children,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+  // Popups opened from inside the drawer portal into this element
+  // instead of <body> — the drawer is a focus-trapping dialog, and a
+  // popup outside the trap loses focus (and closes) the moment it opens.
+  const [popupContainer, setPopupContainer] = React.useState<HTMLDivElement | null>(null);
+
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay />
@@ -54,7 +60,12 @@ function DrawerContent({
         {...props}
       >
         <div className="mx-auto mt-4 hidden h-1 w-[100px] shrink-0 rounded-none bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
-        {children}
+        <PortalContainerProvider value={popupContainer}>{children}</PortalContainerProvider>
+        {/* Popups live here rather than at <body>. `no-drag` because a
+            left/right drawer treats every pointerdown inside it as a
+            swipe, which would drag the drawer while the user is
+            scrolling or dragging across a popup's options. */}
+        <div ref={setPopupContainer} data-vaul-no-drag />
       </DrawerPrimitive.Content>
     </DrawerPortal>
   );

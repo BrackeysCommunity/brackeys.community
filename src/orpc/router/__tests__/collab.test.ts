@@ -14,7 +14,7 @@ import {
   isEditablePostType,
 } from "@/lib/collab-store";
 import router from "@/orpc/router";
-import { postContentSchema } from "@/orpc/router/collab";
+import { assertTeamRequired, postContentSchema } from "@/orpc/router/collab";
 
 /** A payload that satisfies every requirement, for tests to break one at a time. */
 function validPost(overrides: Record<string, unknown> = {}) {
@@ -148,6 +148,35 @@ describe("createPost / updatePost input schema", () => {
   });
 });
 
+// ── Required linkage (v2): solo/team × linked/legacy × create/edit ────
+
+describe("assertTeamRequired", () => {
+  const linked = { isIndividual: false, teamId: "t1" };
+  const legacyUnlinked = { isIndividual: false, teamId: null };
+  const solo = { isIndividual: true, teamId: null };
+
+  it("lets solo posts and linked team posts through", () => {
+    expect(() => assertTeamRequired({ isIndividual: true })).not.toThrow();
+    expect(() => assertTeamRequired({ teamId: "t1" })).not.toThrow();
+  });
+
+  it("rejects creating an unlinked team post", () => {
+    expect(() => assertTeamRequired({})).toThrow(/team page/i);
+    expect(() => assertTeamRequired({ isIndividual: false, teamId: null })).toThrow(/team page/i);
+  });
+
+  it("exempts editing a legacy unlinked team post", () => {
+    expect(() => assertTeamRequired({ teamId: null }, legacyUnlinked)).not.toThrow();
+  });
+
+  it("won't let an edit unlink a linked post or flip solo→team without a link", () => {
+    expect(() => assertTeamRequired({ teamId: null }, linked)).toThrow(/team page/i);
+    expect(() => assertTeamRequired({ isIndividual: false, teamId: null }, solo)).toThrow(
+      /team page/i,
+    );
+  });
+});
+
 // ── Client-side gate agrees with the server's ─────────────────────────
 
 /** The wizard values matching `validPost()`. */
@@ -156,6 +185,10 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
     type: "hobby",
     jamId: undefined,
     teamId: undefined,
+    // The TEAM step's default path: quick-create at submit.
+    newTeamName: "Night Shift Crew",
+    newTeamDescription: "",
+    newTeamImage: null,
     title: "Pixel artist for a PSX horror RPG",
     description: "A short atmospheric horror RPG in the PSX style. Looking for a pixel artist.",
     isIndividual: false,
@@ -182,9 +215,57 @@ describe("wizard step validation", () => {
   it("passes a complete draft at every step", () => {
     const v = validWizardValues();
     expect(getStepValidationError("basics", v)).toBeNull();
+    expect(getStepValidationError("team", v)).toBeNull();
     expect(getStepValidationError("details", v)).toBeNull();
     expect(getStepValidationError("roles", v)).toBeNull();
     expect(getStepValidationError("review", v)).toBeNull();
+  });
+
+  // ── TEAM step (solo / existing pick / new-team form) ────────────────
+
+  it("passes the team step for solo posts with nothing picked", () => {
+    expect(
+      getStepValidationError("team", validWizardValues({ isIndividual: true, newTeamName: "" })),
+    ).toBeNull();
+  });
+
+  it("passes the team step when an existing team is linked", () => {
+    expect(
+      getStepValidationError("team", validWizardValues({ teamId: "t1", newTeamName: "" })),
+    ).toBeNull();
+  });
+
+  it("requires a team post to pick or name a team", () => {
+    expect(getStepValidationError("team", validWizardValues({ newTeamName: "" }))).not.toBeNull();
+    expect(getStepValidationError("team", validWizardValues({ newTeamName: "x" }))).not.toBeNull();
+  });
+
+  it("profanity-checks the new-team name and description", () => {
+    expect(getStepValidationError("team", validWizardValues({ newTeamName: "shit" }))).toMatch(
+      /inappropriate/,
+    );
+    expect(
+      getStepValidationError("team", validWizardValues({ newTeamDescription: "shit" })),
+    ).toMatch(/inappropriate/);
+  });
+
+  it("exempts a legacy unlinked edit — but still validates a typed name", () => {
+    const legacy = { legacyUnlinkedEdit: true };
+    expect(
+      getStepValidationError("team", validWizardValues({ newTeamName: "" }), legacy),
+    ).toBeNull();
+    expect(
+      getStepValidationError("team", validWizardValues({ newTeamName: "x" }), legacy),
+    ).not.toBeNull();
+  });
+
+  it("re-checks the team step at review", () => {
+    expect(getStepValidationError("review", validWizardValues({ newTeamName: "" }))).not.toBeNull();
+    expect(
+      getStepValidationError("review", validWizardValues({ newTeamName: "" }), {
+        legacyUnlinkedEdit: true,
+      }),
+    ).toBeNull();
   });
 
   it("requires at least one role — the step used to be silently optional", () => {
@@ -224,6 +305,7 @@ describe("pre-flight checklist", () => {
       { projectName: "" },
       { title: "short" },
       { contactMethod: "" },
+      { newTeamName: "" },
     ] satisfies Partial<WizardFormValues>[]) {
       const v = validWizardValues(partial);
       expect(getPreflightChecks(v).every((c) => c.ok)).toBe(false);
