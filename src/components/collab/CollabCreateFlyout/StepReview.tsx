@@ -31,10 +31,15 @@ export function StepReview() {
     enabled: v.jamId !== undefined,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: myTeams } = useQuery({
+    ...orpc.listMyTeams.queryOptions({ input: {} }),
+    enabled: v.teamId !== undefined,
+  });
 
   const selectedRoles = roles?.filter((r) => v.roleIds.includes(r.id)) ?? [];
   const selectedSkills = allSkills?.filter((s) => v.skillIds.includes(s.id)) ?? [];
   const jam = jamData?.jams.find((j) => j.jamId === v.jamId) ?? null;
+  const team = myTeams?.find((t) => t.id === v.teamId) ?? null;
 
   const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
@@ -70,6 +75,11 @@ export function StepReview() {
                 {v.isIndividual ? (
                   <Badge variant="outline" size="label" className="uppercase">
                     Solo dev
+                  </Badge>
+                ) : null}
+                {team ? (
+                  <Badge variant="outline" size="label" className="uppercase">
+                    {team.name}
                   </Badge>
                 ) : null}
                 {jam ? (
@@ -143,6 +153,15 @@ export function StepReview() {
           <Text size="sm">{jam.title}</Text>
           <Text size="xs" variant="muted" className="tracking-widest">
             {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "DATES TBA"}
+          </Text>
+        </FieldRow>
+      ) : null}
+
+      {team ? (
+        <FieldRow label="TEAM PAGE">
+          <Text size="sm">{team.name}</Text>
+          <Text size="xs" variant="muted" className="tracking-widest uppercase">
+            Post will appear on the team's page
           </Text>
         </FieldRow>
       ) : null}

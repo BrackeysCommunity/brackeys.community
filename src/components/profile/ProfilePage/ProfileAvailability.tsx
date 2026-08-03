@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
-import { Heading } from "@/components/ui/typography";
+import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,12 @@ const STATE_LABEL: Record<ProfileAvailabilityModel["state"], string> = {
   open: "Open to hire",
   selective: "Selectively open",
   closed: "Not currently hiring",
+};
+
+const COLLAB_PREFERENCE_LABEL: Record<string, string> = {
+  paid: "Paid work",
+  hobby: "Hobby projects",
+  either: "Paid or hobby",
 };
 
 /**
@@ -66,9 +72,24 @@ export function ProfileAvailabilitySection({
           </Heading>
         </div>
 
+        {/* The collab board's people lane is the availability listing,
+            and this is the line it shows — so it belongs here too, where
+            its author can see what everyone else does. */}
+        {availability.lookingFor ? (
+          <Text size="sm" className="text-foreground/90 italic">
+            “{availability.lookingFor}”
+          </Text>
+        ) : null}
+
         <div className="flex flex-col gap-2.5">
           <DetailRow label="Rate" value={availability.rate ?? "—"} />
           <DetailRow label="Capacity" value={formatCommitment(availability.commitment) ?? "—"} />
+          {availability.collabPreference ? (
+            <DetailRow
+              label="Open to"
+              value={COLLAB_PREFERENCE_LABEL[availability.collabPreference] ?? "—"}
+            />
+          ) : null}
           {availability.responseTime ? (
             <DetailRow label="Response time" value={availability.responseTime} />
           ) : null}
@@ -82,6 +103,9 @@ export function ProfileAvailabilitySection({
             <Button
               variant="default"
               size="sm"
+              // Both of these render anchors, not buttons — without this
+              // Base UI logs a semantics warning on every profile view.
+              nativeButton={false}
               render={
                 <a
                   href={contactHref}
@@ -94,7 +118,7 @@ export function ProfileAvailabilitySection({
               <span className="tracking-widest">PING FOR WORK</span>
             </Button>
           ) : null}
-          <Button variant="outline" size="sm" render={<Link to="/collab" />}>
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/collab" />}>
             <span className="tracking-widest">SEE COLLAB POSTS</span>
             <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} />
           </Button>

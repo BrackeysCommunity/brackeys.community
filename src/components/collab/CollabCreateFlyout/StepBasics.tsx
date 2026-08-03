@@ -10,6 +10,7 @@ import { FieldRow, TextAreaField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
 import { JamPickerField } from "./JamPickerField";
 import { POST_TYPES, profanityCheck, projectLengthForJam } from "./shared";
+import { TeamPickerField } from "./TeamPickerField";
 
 /** Where the title stops being scannable on a card, well short of the
  *  200-char storage cap the input still enforces. */
@@ -161,7 +162,11 @@ export function StepBasics() {
                       <Switch
                         id="collab-create-is-individual"
                         checked={field.state.value}
-                        onCheckedChange={(checked) => field.handleChange(!!checked)}
+                        onCheckedChange={(checked) => {
+                          field.handleChange(!!checked);
+                          // A solo post can't also be a team's post.
+                          if (checked) form.setFieldValue("teamId", undefined);
+                        }}
                       />
                       <Text size="sm" variant="muted">
                         {field.state.value
@@ -170,6 +175,16 @@ export function StepBasics() {
                       </Text>
                     </div>
                   </FieldRow>
+                  {!field.state.value ? (
+                    <form.Field name="teamId">
+                      {(teamField) => (
+                        <TeamPickerField
+                          value={teamField.state.value}
+                          onChange={(teamId) => teamField.handleChange(teamId)}
+                        />
+                      )}
+                    </form.Field>
+                  ) : null}
                 </Well>
               )}
             </form.Field>

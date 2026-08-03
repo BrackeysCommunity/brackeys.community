@@ -265,6 +265,9 @@ function JamTeamCta({ jam }: { jam: JamFromList }) {
           variant="default"
           size="sm"
           className="tracking-widest"
+          // Renders an <a>, not a <button> — Base UI needs telling, or it
+          // warns about losing native button semantics.
+          nativeButton={false}
           render={<RouterLink to="/collab" search={{ new: true, jam: jam.jamId }} />}
         >
           <HugeiconsIcon icon={UserGroupIcon} size={13} />

@@ -188,6 +188,7 @@ export async function uploadCollabPostImage(file: File): Promise<UploadedImageRe
 export type WizardFormValues = {
   type: CollabPostType | undefined;
   jamId: number | undefined;
+  teamId: string | undefined;
   title: string;
   description: string;
   isIndividual: boolean;

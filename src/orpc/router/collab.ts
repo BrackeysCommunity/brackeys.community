@@ -16,6 +16,8 @@ import {
   developerProfiles,
   itchJams,
   profileUrlStubs,
+  teamMembers,
+  teams,
   userSkills,
   skills,
 } from "@/db/schema";
@@ -86,6 +88,10 @@ const postContentShape = {
   projectName: z.string().trim().min(3).max(200),
   // null unlinks on edit; undefined leaves the post jam-less on create.
   jamId: z.number().int().positive().nullish(),
+  // The named team behind the post; null unlinks on edit. Optional even
+  // for team posts — crews without an entity keep the legacy unlinked
+  // state rather than being forced through team creation mid-wizard.
+  teamId: z.string().nullish(),
   compensationType: compensationTypeSchema.optional(),
   compensationMin: z.number().int().min(0).max(1_000_000).optional(),
   compensationMax: z.number().int().min(0).max(1_000_000).optional(),
@@ -110,11 +116,19 @@ function refinePostContent(
     compensationMin?: number;
     compensationMax?: number;
     isIndividual?: boolean;
+    teamId?: string | null;
     contactType?: string;
     contactMethod?: string;
   },
   ctx: z.RefinementCtx,
 ) {
+  if (v.isIndividual && v.teamId != null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["teamId"],
+      message: "A solo post cannot also be linked to a team.",
+    });
+  }
   if (v.type === "paid") {
     if (!v.compensationType) {
       ctx.addIssue({
@@ -230,11 +244,39 @@ async function resolveReferences(input: PostContent) {
   return { roleIds, skillIds, jamWarning };
 }
 
+/**
+ * A post may only be pinned to a team its *author* belongs to (checked
+ * against the author, not the caller, so a staff edit doesn't trip over
+ * a membership the staffer doesn't have), and never to an archived one.
+ */
+async function assertTeamLinkable(teamId: string, authorId: string) {
+  const [team] = await db
+    .select({ id: teams.id, status: teams.status })
+    .from(teams)
+    .where(eq(teams.id, teamId))
+    .limit(1);
+  if (!team) {
+    throw new ORPCError("BAD_REQUEST", { message: "That team no longer exists." });
+  }
+  if (team.status !== "active") {
+    throw new ORPCError("BAD_REQUEST", { message: "That team has been archived." });
+  }
+  const [membership] = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, authorId)))
+    .limit(1);
+  if (!membership) {
+    throw new ORPCError("FORBIDDEN", { message: "The author is not a member of that team." });
+  }
+}
+
 /** Columns of `collab_posts` the payload writes, minus the link tables. */
 function postColumns(input: PostContent) {
   return {
     type: input.type,
     jamId: input.jamId ?? null,
+    teamId: input.teamId ?? null,
     title: input.title,
     description: input.description,
     projectName: input.projectName,
@@ -259,6 +301,9 @@ export const createPost = os
   .handler(async ({ input, context }) => {
     checkPostProfanity(input);
     const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
+    if (input.teamId != null) {
+      await assertTeamLinkable(input.teamId, context.user.id);
+    }
 
     const [post] = await db
       .insert(collabPosts)
@@ -301,6 +346,12 @@ export const updatePost = os
 
     checkPostProfanity(input);
     const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
+    // Only a *changed* link needs re-verifying — an author who has since
+    // left the team (or a staff edit) can still save with the existing
+    // link intact.
+    if (input.teamId != null && input.teamId !== post.teamId) {
+      await assertTeamLinkable(input.teamId, post.authorId);
+    }
     const postId = input.postId;
 
     const [updated] = await db
@@ -431,7 +482,7 @@ export const getPost = os
 
     if (!post) return null;
 
-    const [roles, postSkills, jam, images, [responseCount]] = await Promise.all([
+    const [roles, postSkills, jam, team, images, [responseCount]] = await Promise.all([
       db
         .select({ id: collabRoles.id, name: collabRoles.name, category: collabRoles.category })
         .from(collabPostRoles)
@@ -455,6 +506,20 @@ export const getPost = os
             })
             .from(itchJams)
             .where(eq(itchJams.jamId, post.jamId))
+            .limit(1)
+            .then((rows) => rows[0] ?? null)
+        : Promise.resolve(null),
+      post.teamId != null
+        ? db
+            .select({
+              id: teams.id,
+              slug: teams.slug,
+              name: teams.name,
+              avatarUrl: teams.avatarUrl,
+              status: teams.status,
+            })
+            .from(teams)
+            .where(eq(teams.id, post.teamId))
             .limit(1)
             .then((rows) => rows[0] ?? null)
         : Promise.resolve(null),
@@ -563,6 +628,7 @@ export const getPost = os
       roles,
       skills: postSkills,
       jam,
+      team,
       images: presignedImages,
       responseCount: responseCount?.count ?? 0,
       responses,
@@ -619,6 +685,7 @@ const postFacetSchema = {
   roleIds: z.array(z.number()).optional(),
   skillIds: z.array(z.number()).optional(),
   jamId: z.number().int().positive().optional(),
+  teamId: z.string().optional(),
   status: z.enum(["recruiting", "party_full"]).optional(),
   search: z.string().optional(),
   experienceLevel: experienceLevelSchema.optional(),
@@ -665,6 +732,7 @@ function buildPostFilter(input: PostFilterInput) {
     if (searchCondition) conditions.push(searchCondition);
   }
   if (input.jamId) conditions.push(eq(collabPosts.jamId, input.jamId));
+  if (input.teamId) conditions.push(eq(collabPosts.teamId, input.teamId));
   if (input.roleIds && input.roleIds.length > 0) {
     const postIdsWithRoles = db
       .select({ postId: collabPostRoles.postId })
@@ -796,7 +864,10 @@ export const listPosts = os
     // plus the viewer's own skills once — the card's "you match 4/5"
     // hint is a set intersection, not a per-row round trip.
     const jamIds = [...new Set(posts.map((p) => p.jamId).filter((id): id is number => id != null))];
-    const [jamRows, skillRows, viewerSkills] = await Promise.all([
+    const teamIds = [
+      ...new Set(posts.map((p) => p.teamId).filter((id): id is string => id != null)),
+    ];
+    const [jamRows, teamRows, skillRows, viewerSkills] = await Promise.all([
       jamIds.length > 0
         ? db
             .select({
@@ -810,6 +881,17 @@ export const listPosts = os
             .from(itchJams)
             .where(inArray(itchJams.jamId, jamIds))
         : Promise.resolve([]),
+      teamIds.length > 0
+        ? db
+            .select({
+              id: teams.id,
+              slug: teams.slug,
+              name: teams.name,
+              avatarUrl: teams.avatarUrl,
+            })
+            .from(teams)
+            .where(inArray(teams.id, teamIds))
+        : Promise.resolve([]),
       postIds.length > 0
         ? db
             .select({ postId: collabPostSkills.postId, id: skills.id, name: skills.name })
@@ -821,6 +903,7 @@ export const listPosts = os
     ]);
 
     const jamById = new Map(jamRows.map((j) => [j.jamId, j]));
+    const teamById = new Map(teamRows.map((t) => [t.id, t]));
     const skillsByPost = new Map<number, { id: number; name: string }[]>();
     for (const row of skillRows) {
       const list = skillsByPost.get(row.postId) ?? [];
@@ -836,6 +919,7 @@ export const listPosts = os
           ...p,
           primaryImageUrl: primaryImagesByPostId.get(p.id) ?? null,
           jam: p.jamId != null ? (jamById.get(p.jamId) ?? null) : null,
+          team: p.teamId != null ? (teamById.get(p.teamId) ?? null) : null,
           skills: postSkills,
           viewerOverlap:
             context.user && p.authorId !== context.user.id && postSkills.length > 0

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as JamsRouteImport } from './routes/jams'
@@ -16,10 +17,12 @@ import { Route as GameRouteImport } from './routes/game'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TeamsIndexRouteImport } from './routes/teams.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
+import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as ProfilePreviewRouteImport } from './routes/profile.preview'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
@@ -35,6 +38,11 @@ import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifica
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
+const TeamsRoute = TeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -70,6 +78,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamsIndexRoute = TeamsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => TeamsRoute,
+} as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -89,6 +102,11 @@ const CollabIndexRoute = CollabIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => CollabRoute,
+} as any)
+const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
+  id: '/$teamId',
+  path: '/$teamId',
+  getParentRoute: () => TeamsRoute,
 } as any)
 const ProfilePreviewRoute = ProfilePreviewRouteImport.update({
   id: '/preview',
@@ -169,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/jams': typeof JamsRouteWithChildren
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/teams': typeof TeamsRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
@@ -177,10 +196,12 @@ export interface FileRoutesByFullPath {
   '/jams/calendar': typeof JamsCalendarRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
@@ -200,10 +221,12 @@ export interface FileRoutesByTo {
   '/jams/calendar': typeof JamsCalendarRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
   '/jams': typeof JamsIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/teams': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
@@ -220,6 +243,7 @@ export interface FileRoutesById {
   '/jams': typeof JamsRouteWithChildren
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/teams': typeof TeamsRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
@@ -228,10 +252,12 @@ export interface FileRoutesById {
   '/jams/calendar': typeof JamsCalendarRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
@@ -249,6 +275,7 @@ export interface FileRouteTypes {
     | '/jams'
     | '/notifications'
     | '/profile'
+    | '/teams'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
@@ -257,10 +284,12 @@ export interface FileRouteTypes {
     | '/jams/calendar'
     | '/profile/$userId'
     | '/profile/preview'
+    | '/teams/$teamId'
     | '/collab/'
     | '/game/'
     | '/jams/'
     | '/profile/'
+    | '/teams/'
     | '/api/auth/$'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
@@ -280,10 +309,12 @@ export interface FileRouteTypes {
     | '/jams/calendar'
     | '/profile/$userId'
     | '/profile/preview'
+    | '/teams/$teamId'
     | '/collab'
     | '/game'
     | '/jams'
     | '/profile'
+    | '/teams'
     | '/api/auth/$'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
@@ -299,6 +330,7 @@ export interface FileRouteTypes {
     | '/jams'
     | '/notifications'
     | '/profile'
+    | '/teams'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
@@ -307,10 +339,12 @@ export interface FileRouteTypes {
     | '/jams/calendar'
     | '/profile/$userId'
     | '/profile/preview'
+    | '/teams/$teamId'
     | '/collab/'
     | '/game/'
     | '/jams/'
     | '/profile/'
+    | '/teams/'
     | '/api/auth/$'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
@@ -327,6 +361,7 @@ export interface RootRouteChildren {
   JamsRoute: typeof JamsRouteWithChildren
   NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRouteWithChildren
+  TeamsRoute: typeof TeamsRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
@@ -338,6 +373,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/teams': {
+      id: '/teams'
+      path: '/teams'
+      fullPath: '/teams'
+      preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -387,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/teams/': {
+      id: '/teams/'
+      path: '/'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof TeamsIndexRouteImport
+      parentRoute: typeof TeamsRoute
+    }
     '/profile/': {
       id: '/profile/'
       path: '/'
@@ -414,6 +463,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/collab/'
       preLoaderRoute: typeof CollabIndexRouteImport
       parentRoute: typeof CollabRoute
+    }
+    '/teams/$teamId': {
+      id: '/teams/$teamId'
+      path: '/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof TeamsTeamIdRouteImport
+      parentRoute: typeof TeamsRoute
     }
     '/profile/preview': {
       id: '/profile/preview'
@@ -572,6 +628,18 @@ const ProfileRouteChildren: ProfileRouteChildren = {
 const ProfileRouteWithChildren =
   ProfileRoute._addFileChildren(ProfileRouteChildren)
 
+interface TeamsRouteChildren {
+  TeamsTeamIdRoute: typeof TeamsTeamIdRoute
+  TeamsIndexRoute: typeof TeamsIndexRoute
+}
+
+const TeamsRouteChildren: TeamsRouteChildren = {
+  TeamsTeamIdRoute: TeamsTeamIdRoute,
+  TeamsIndexRoute: TeamsIndexRoute,
+}
+
+const TeamsRouteWithChildren = TeamsRoute._addFileChildren(TeamsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CollabRoute: CollabRouteWithChildren,
@@ -580,6 +648,7 @@ const rootRouteChildren: RootRouteChildren = {
   JamsRoute: JamsRouteWithChildren,
   NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRouteWithChildren,
+  TeamsRoute: TeamsRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,

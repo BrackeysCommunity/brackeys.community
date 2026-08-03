@@ -12,12 +12,13 @@ import { client, orpc } from "@/orpc/client";
 
 const PAGE_SIZE = 20;
 
-export type InboxFilter = "all" | "unread" | "collab" | "system";
+export type InboxFilter = "all" | "unread" | "collab" | "teams" | "system";
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
   { value: "collab", label: "Collab" },
+  { value: "teams", label: "Teams" },
   { value: "system", label: "System" },
 ];
 
@@ -65,6 +66,7 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
   const items = useMemo(() => {
     const flat = (pages?.pages ?? []).flatMap((p) => p.items) as NotificationItem[];
     if (filter === "collab") return flat.filter((n) => categoryOf(n.type) === "collab");
+    if (filter === "teams") return flat.filter((n) => categoryOf(n.type) === "teams");
     if (filter === "system") return flat.filter((n) => categoryOf(n.type) === "system");
     return flat;
   }, [pages, filter]);

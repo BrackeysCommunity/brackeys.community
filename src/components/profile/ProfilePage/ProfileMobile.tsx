@@ -11,6 +11,7 @@ import { ProfileProjectsSection } from "./ProfileProjects";
 import { ProfileSkillsSection } from "./ProfileSkills";
 import { ProfileStandingSection } from "./ProfileStanding";
 import { ProfileSyncBar } from "./ProfileSyncBar";
+import { ProfileTeamsSection } from "./ProfileTeams";
 import type { ProfileLayoutProps } from "./shared-types";
 
 /**
@@ -53,8 +54,9 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               onEdit={() => openEdit(3)}
             />
             <ProfileStandingSection index="03" badges={profile.badges} stats={profile.stats} />
+            <ProfileTeamsSection index="04" profileId={profile.profileId} />
             <ProfileLinkedAccountsSection
-              index="04"
+              index="05"
               links={profile.links}
               isOwner={isOwner}
               onEdit={() => openEdit(4)}

@@ -15,6 +15,9 @@ export function renderNotificationText(input: {
   const postTitle = (input.data.postTitle as string | undefined) ?? "your post";
   const postId = input.data.postId as number | undefined;
   const href = postId ? `/collab/${postId}` : null;
+  const teamName = (input.data.teamName as string | undefined) ?? "a team";
+  const teamSlug = input.data.teamSlug as string | undefined;
+  const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
 
   switch (input.type) {
     case "collab_response_received":
@@ -27,6 +30,14 @@ export function renderNotificationText(input: {
       return { headline: `Your post "${postTitle}" was featured`, href };
     case "collab_post_closed_by_staff":
       return { headline: `Staff closed your post "${postTitle}"`, href };
+    case "team_invite_received":
+      return { headline: `${actor} invited you to join ${teamName}`, href: teamHref };
+    case "team_invite_accepted":
+      return { headline: `${actor} joined ${teamName}`, href: teamHref };
+    case "team_invite_declined":
+      return { headline: `${actor} declined your invite to ${teamName}`, href: teamHref };
+    case "team_member_removed":
+      return { headline: `You were removed from ${teamName}`, href: teamHref };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -38,6 +49,10 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   collab_response_declined: "Collab — your response was declined",
   collab_post_featured: "Collab — your post was featured",
   collab_post_closed_by_staff: "Collab — staff closed your post",
+  team_invite_received: "Teams — you were invited to a team",
+  team_invite_accepted: "Teams — someone accepted your invite",
+  team_invite_declined: "Teams — someone declined your invite",
+  team_member_removed: "Teams — you were removed from a team",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -46,6 +61,10 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "collab_response_declined",
   "collab_post_featured",
   "collab_post_closed_by_staff",
+  "team_invite_received",
+  "team_invite_accepted",
+  "team_invite_declined",
+  "team_member_removed",
 ];
 
 /**
@@ -63,6 +82,11 @@ export const NOTIFICATION_DEFAULTS: Record<
   collab_response_declined: { inApp: true, email: false, digest: false },
   collab_post_featured: { inApp: true, email: true, digest: false },
   collab_post_closed_by_staff: { inApp: true, email: true, digest: false },
+  team_invite_received: { inApp: true, email: true, digest: false },
+  team_invite_accepted: { inApp: true, email: true, digest: false },
+  // Low-signal outcomes: in-app only, same reasoning as declined responses.
+  team_invite_declined: { inApp: true, email: false, digest: false },
+  team_member_removed: { inApp: true, email: false, digest: false },
 };
 
 /**
@@ -77,4 +101,6 @@ export const EMAIL_IMMEDIATE: ReadonlySet<NotificationType> = new Set([
   "collab_response_accepted",
   "collab_post_featured",
   "collab_post_closed_by_staff",
+  "team_invite_received",
+  "team_invite_accepted",
 ]);

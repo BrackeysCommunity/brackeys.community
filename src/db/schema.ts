@@ -22,6 +22,7 @@ export const authSchema = pgSchema("auth");
 export const userSchema = pgSchema("user");
 export const hammerSchema = pgSchema("hammer");
 export const collabSchema = pgSchema("collab");
+export const teamSchema = pgSchema("team");
 export const itchSchema = pgSchema("itch");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
@@ -244,9 +245,13 @@ export type NotificationType =
   | "collab_response_accepted"
   | "collab_response_declined"
   | "collab_post_featured"
-  | "collab_post_closed_by_staff";
+  | "collab_post_closed_by_staff"
+  | "team_invite_received"
+  | "team_invite_accepted"
+  | "team_invite_declined"
+  | "team_member_removed";
 
-export type NotificationEntityType = "collab_post" | "collab_response";
+export type NotificationEntityType = "collab_post" | "collab_response" | "team" | "team_invite";
 
 export const notifications = userSchema.table(
   "notifications",
@@ -473,6 +478,10 @@ export const collabPosts = collabSchema.table("collab_posts", {
   // Optional link to the jam this post is recruiting for. Same hybrid-FK
   // spirit as `profile_projects.jam_id` — cross-schema into itch.jams.
   jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
+  // The named team behind the post. NULL + isIndividual=false is the
+  // legacy "an unnamed team" state every pre-teams row is in — a deleted
+  // team degrades its posts back to that state rather than deleting them.
+  teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   projectName: text("project_name"),
@@ -581,6 +590,147 @@ export const collabPostReports = collabSchema.table("collab_post_reports", {
     .references(() => user.id, { onDelete: "cascade" }),
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── Teams (team schema) ──────────────────────────────────────────────────────
+
+/**
+ * A named team — the entity behind "I'm posting on behalf of an existing
+ * team". Spans profile-like identity (page, showcase) and collab
+ * recruiting (posts carry `team_id`), so it gets its own schema.
+ *
+ * A team's stack is *derived* from its members' `user_skills` at read
+ * time — there is deliberately no team_skills table to drift from the
+ * roster it describes.
+ */
+export const teams = teamSchema.table("teams", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  // URL handle, baked in from birth (unlike profiles, which retrofitted
+  // stubs via a side table). Generated from the name at creation,
+  // owner-editable via setTeamSlug.
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  tagline: text("tagline"),
+  bio: text("bio"),
+  avatarUrl: text("avatar_url"),
+  avatarKey: text("avatar_key"),
+  bannerUrl: text("banner_url"),
+  bannerKey: text("banner_key"),
+  websiteUrl: text("website_url"),
+  itchUrl: text("itch_url"),
+  // Team-level parallel of developerProfiles.availableForWork — "we're
+  // recruiting" persists between posts.
+  recruiting: boolean("recruiting").notNull().default(false),
+  // 'active' | 'archived'. Archived pages stay up read-only; the team
+  // stops being pickable in the wizard. Text, not a pg enum, so future
+  // states are pure additions.
+  status: text("status").notNull().default("active"),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const teamMembers = teamSchema.table(
+  "team_members",
+  {
+    id: serial("id").primaryKey(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    // 'owner' | 'member'. Text so 'admin' can slot in later the same way
+    // deferred post types return as pure additions.
+    role: text("role").notNull().default("member"),
+    // Craft label shown on the roster ("Composer", "Pixel art"). Free
+    // text, NOT a collabRoles FK — roles are seats being hired; this is
+    // self-description.
+    title: text("title"),
+    sortOrder: integer("sort_order").default(0),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.teamId, table.userId)],
+);
+
+export const teamInvites = teamSchema.table(
+  "team_invites",
+  {
+    id: serial("id").primaryKey(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    inviteeId: text("invitee_id")
+      .notNull()
+      .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    invitedBy: text("invited_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Provenance when the invite came from accepting a collab response —
+    // the accept → invite handoff.
+    sourceResponseId: integer("source_response_id").references(() => collabResponses.id, {
+      onDelete: "set null",
+    }),
+    // 'pending' | 'accepted' | 'declined' | 'revoked'
+    status: text("status").notNull().default("pending"),
+    message: text("message"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    respondedAt: timestamp("responded_at"),
+  },
+  (table) => [
+    // One live invite per person per team; settled invites stay as history.
+    uniqueIndex("team_invites_pending_unique")
+      .on(table.teamId, table.inviteeId)
+      .where(sql`${table.status} = 'pending'`),
+  ],
+);
+
+/**
+ * A team's showcase. Owned by the team, not linked to members'
+ * `profile_projects` rows — roster churn must not strip the page, and
+ * edit rights belong to the team, not whichever member's copy it was.
+ * `source_profile_project_id` records provenance when a row was imported
+ * from a member's profile.
+ *
+ * Rows with `jam_id` double as the team's jam log, same hybrid-FK
+ * pattern as `profile_projects` (free-text jamName/jamUrl for off-itch
+ * jams; read paths coalesce text over join).
+ */
+export const teamProjects = teamSchema.table("team_projects", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  type: profileProjectTypeEnum("type").notNull().default("game"),
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url"),
+  imageUrl: text("image_url"),
+  imageKey: text("image_key"),
+  imageFilename: text("image_filename"),
+  imageMimeType: text("image_mime_type"),
+  imageSizeBytes: integer("image_size_bytes"),
+  pinned: boolean("pinned").default(false),
+  sortOrder: integer("sort_order").default(0),
+  source: profileProjectSourceEnum("source").notNull().default("manual"),
+  sourceId: text("source_id"),
+  sourceProfileProjectId: text("source_profile_project_id").references(() => profileProjects.id, {
+    onDelete: "set null",
+  }),
+  jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
+  jamName: text("jam_name"),
+  jamUrl: text("jam_url"),
+  submissionUrl: text("submission_url"),
+  result: text("result"),
+  participatedAt: timestamp("participated_at"),
+  addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // ── itch.io scraped data (itch schema) ───────────────────────────────────────

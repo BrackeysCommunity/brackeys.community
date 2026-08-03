@@ -49,6 +49,8 @@ type CollabFilters = {
    *  the projects lane and people on the people lane. */
   skillIds: number[];
   jamId: number | undefined;
+  /** One team's posts — set from a team page's "see all" link. */
+  teamId: string | undefined;
   status: CollabStatus | undefined;
   search: string;
   sortBy: CollabSortBy;
@@ -71,6 +73,8 @@ type CollabPagination = {
 export type WizardDraft = {
   type: CollabPostType | undefined;
   jamId: number | undefined;
+  /** The named team behind a team post; undefined = unlinked. */
+  teamId: string | undefined;
   title: string;
   description: string;
   projectName: string;
@@ -135,6 +139,7 @@ const defaultFilters: CollabFilters = {
   roleIds: [],
   skillIds: [],
   jamId: undefined,
+  teamId: undefined,
   status: undefined,
   search: "",
   sortBy: "createdAt",
@@ -148,6 +153,7 @@ const defaultFilters: CollabFilters = {
 const defaultDraft: WizardDraft = {
   type: undefined,
   jamId: undefined,
+  teamId: undefined,
   title: "",
   description: "",
   projectName: "",
@@ -226,6 +232,7 @@ export function collabFilterInput(filters: CollabFilters) {
     roleIds: filters.roleIds.length > 0 ? filters.roleIds : undefined,
     skillIds: filters.skillIds.length > 0 ? filters.skillIds : undefined,
     jamId: filters.jamId,
+    teamId: filters.teamId,
   };
 }
 
@@ -260,6 +267,7 @@ export function countActiveCollabFilters(filters: CollabFilters): number {
     input.roleIds,
     input.skillIds,
     input.jamId,
+    input.teamId,
   ].filter(Boolean).length;
 }
 
@@ -326,6 +334,7 @@ export function startWizardEdit(postId: number, draft: WizardDraft) {
 export type EditableCollabPost = {
   type: string;
   jamId: number | null;
+  teamId: string | null;
   title: string;
   description: string;
   projectName: string | null;
@@ -358,6 +367,7 @@ export function draftFromPost(post: EditableCollabPost): WizardDraft {
   return {
     type: post.type as CollabPostType,
     jamId: post.jamId ?? undefined,
+    teamId: post.teamId ?? undefined,
     title: post.title,
     description: post.description,
     projectName: post.projectName ?? "",

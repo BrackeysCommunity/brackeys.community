@@ -59,9 +59,12 @@ export function AppHeader() {
   const PAGE_TITLES: Record<string, string> = {
     "/command-center": "COMMANDS",
     "/collab": "COLLAB",
+    "/teams": "TEAMS",
     "/profile": "PROFILE",
   };
-  const mobileTitle = PAGE_TITLES[pathname] ?? (pathname.startsWith("/collab/") ? "COLLAB" : null);
+  const mobileTitle =
+    PAGE_TITLES[pathname] ??
+    (pathname.startsWith("/collab/") ? "COLLAB" : pathname.startsWith("/teams/") ? "TEAMS" : null);
 
   useEffect(() => {
     setAuthSession(session ?? null);
@@ -135,6 +138,15 @@ export function AppHeader() {
                 to="/collab"
               >
                 COLLAB
+              </Link>
+            </MagneticLink>
+            <MagneticLink>
+              <Link
+                data-cursor-no-drift
+                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
+                to="/teams"
+              >
+                TEAMS
               </Link>
             </MagneticLink>
             <MagneticLink>
@@ -232,6 +244,13 @@ export function AppHeader() {
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 COLLAB
+              </Link>
+              <Link
+                to="/teams"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+              >
+                TEAMS
               </Link>
               <Link
                 data-testid="mobile-profile-link"

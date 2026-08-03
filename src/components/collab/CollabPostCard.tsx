@@ -27,6 +27,7 @@ interface CollabPostCardPost {
   teamSize?: string | null;
   primaryImageUrl?: string | null;
   jam?: { jamId: number; title: string } | null;
+  team?: { id: string; slug: string; name: string } | null;
   /** How the viewer's own skills line up with the post's stack. Null for
    *  signed-out viewers, the author, and posts with no stack. */
   viewerOverlap?: { matched: string[]; total: number } | null;
@@ -128,6 +129,7 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
                 </Badge>
               ) : null}
               <JamBadge jam={post.jam} />
+              <TeamBadge team={post.team} />
               <MatchBadge overlap={post.viewerOverlap} />
             </span>
 
@@ -148,6 +150,16 @@ function JamBadge({ jam }: { jam?: { jamId: number; title: string } | null }) {
   return (
     <Badge variant="warning" size="label" className="max-w-40 truncate">
       {jam.title.toUpperCase()}
+    </Badge>
+  );
+}
+
+/** The named team behind the post, when it has a page. */
+function TeamBadge({ team }: { team?: { id: string; name: string } | null }) {
+  if (!team) return null;
+  return (
+    <Badge variant="outline" size="label" className="max-w-40 truncate">
+      {team.name.toUpperCase()}
     </Badge>
   );
 }
@@ -239,6 +251,7 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
               </Badge>
             ) : null}
             <JamBadge jam={post.jam} />
+            <TeamBadge team={post.team} />
             <MatchBadge overlap={post.viewerOverlap} />
           </span>
 

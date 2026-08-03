@@ -96,6 +96,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
     defaultValues: {
       type: initialDraft.type,
       jamId: initialDraft.jamId,
+      teamId: initialDraft.teamId,
       title: initialDraft.title,
       description: initialDraft.description,
       isIndividual: initialDraft.isIndividual,
@@ -280,6 +281,8 @@ async function savePost(v: WizardFormValues, editingPostId: number | null): Prom
     type: v.type!,
     // `null` unlinks on edit; the create path treats both the same.
     jamId: v.jamId ?? null,
+    // Guarded against a stale pick surviving a flip to solo.
+    teamId: v.isIndividual ? null : (v.teamId ?? null),
     title: v.title.trim(),
     description: v.description.trim(),
     projectName: v.projectName.trim(),

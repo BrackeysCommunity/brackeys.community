@@ -1,6 +1,7 @@
 import { LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,9 @@ interface ResponseItem {
 interface CollabPostResponseListProps {
   responses: ResponseItem[];
   postId: number;
+  /** The named team behind the post, when there is one — unlocks the
+   *  accept → "invite to the team" handoff on accepted rows. */
+  team?: { id: string; name: string } | null;
 }
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
@@ -39,7 +43,7 @@ const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
  * (debossed) carrying the responder's avatar + handle, message, and
  * optional accept/decline actions for pending entries.
  */
-export function CollabPostResponseList({ responses, postId }: CollabPostResponseListProps) {
+export function CollabPostResponseList({ responses, postId, team }: CollabPostResponseListProps) {
   const queryClient = useQueryClient();
 
   const updateStatus = useMutation({
@@ -49,6 +53,26 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
       queryClient.invalidateQueries({
         queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
       }),
+  });
+
+  // Accepting is a decision to work together; joining the team page is
+  // the destination that makes it real. One click, but explicit — teams
+  // may accept-to-talk before committing a roster spot.
+  const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const invite = useMutation({
+    mutationFn: (resp: ResponseItem) =>
+      client.inviteToTeam({
+        teamId: team!.id,
+        inviteeId: resp.responderId,
+        sourceResponseId: resp.id,
+      }),
+    onSuccess: (_data, resp) => {
+      setInvitedIds((prev) => new Set(prev).add(resp.id));
+      setInviteError(null);
+    },
+    onError: (err) =>
+      setInviteError(err instanceof Error ? err.message : "Could not send the invite."),
   });
 
   return (
@@ -112,6 +136,30 @@ export function CollabPostResponseList({ responses, postId }: CollabPostResponse
                 DECLINE
               </Button>
             </div>
+          ) : null}
+          {resp.status === "accepted" && team ? (
+            invitedIds.has(resp.id) ? (
+              <Text size="xs" variant="success" className="tracking-widest uppercase">
+                Invited to {team.name}
+              </Text>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => invite.mutate(resp)}
+                  disabled={invite.isPending}
+                  className="self-start tracking-widest"
+                >
+                  INVITE TO {team.name.toUpperCase()}
+                </Button>
+                {inviteError && invite.variables?.id === resp.id ? (
+                  <Text size="xs" className="text-destructive">
+                    {inviteError}
+                  </Text>
+                ) : null}
+              </div>
+            )
           ) : null}
         </Well>
       ))}

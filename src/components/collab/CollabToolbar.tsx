@@ -9,12 +9,14 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -26,6 +28,7 @@ import {
   type CollabCompensationType,
   type CollabExperienceLevel,
   type CollabPostType,
+  type CollabPreference,
   type CollabSortBy,
   type CollabSortOrder,
   type CollabStatus,
@@ -34,6 +37,7 @@ import {
   setCollabLayout,
 } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
+import { orpc } from "@/orpc/client";
 
 import { useCollabTypeCounts } from "./use-collab-counts";
 
@@ -67,6 +71,13 @@ const COMP_OPTIONS: Option[] = [
   { value: "fixed", label: "FIXED" },
   { value: "rev_share", label: "REV SHARE" },
   { value: "negotiable", label: "NEGOTIABLE" },
+];
+
+/** People lane: "either" answers both, so it isn't its own choice. */
+const PREFERENCE_OPTIONS: Option[] = [
+  { value: "all", label: "ANY WORK" },
+  { value: "paid", label: "OPEN TO PAID" },
+  { value: "hobby", label: "OPEN TO HOBBY" },
 ];
 
 /** Sort presets pair a column with a direction — one choice, no
@@ -169,8 +180,25 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
                 }
               />
             ) : null}
+            <StackFilterMenu selected={filters.skillIds} />
           </>
-        ) : null}
+        ) : (
+          /* The people lane had no facets at all on desktop — the only
+             way to narrow it was the search box. */
+          <>
+            <FilterMenu
+              label="OPEN TO"
+              options={PREFERENCE_OPTIONS}
+              value={filters.collabPreference ?? "all"}
+              onChange={(v) =>
+                setCollabFilters({
+                  collabPreference: v === "all" ? undefined : (v as CollabPreference),
+                })
+              }
+            />
+            <StackFilterMenu selected={filters.skillIds} />
+          </>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <SegmentedControl
@@ -286,6 +314,66 @@ export function CollabSearchInput({ className }: { className?: string }) {
       containerClassName={cn("dark:bg-emboss-surface!", className)}
       className="text-[11px] tracking-widest"
     />
+  );
+}
+
+/**
+ * Tech stack, on both lanes — "which projects run on Godot" and "who
+ * knows Godot" are the same question asked of the same vocabulary, so
+ * they get the same control. Multi-select, hence a checkbox menu rather
+ * than the radio `FilterMenu` the single-choice facets use.
+ *
+ * Renders nothing while the skills table is empty, which is the honest
+ * state until the vocabulary is seeded — an always-empty menu button
+ * just advertises a dead end.
+ */
+function StackFilterMenu({ selected }: { selected: number[] }) {
+  const { data } = useQuery({
+    ...orpc.listSkills.queryOptions({ input: {} }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const skills = data ?? [];
+  if (skills.length === 0) return null;
+
+  const toggle = (id: number) =>
+    setCollabFilters({
+      skillIds: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id],
+    });
+
+  const label =
+    selected.length === 0
+      ? "STACK"
+      : selected.length === 1
+        ? (skills.find((s) => s.id === selected[0])?.name.toUpperCase() ?? "STACK")
+        : `STACK · ${selected.length}`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("tracking-widest", selected.length > 0 && "border-primary text-primary")}
+          />
+        }
+      >
+        {label}
+        <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-48 overflow-y-auto p-1">
+        {skills.map((skill) => (
+          <DropdownMenuCheckboxItem
+            key={skill.id}
+            checked={selected.includes(skill.id)}
+            onCheckedChange={() => toggle(skill.id)}
+            className="tracking-widest"
+          >
+            {skill.name}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

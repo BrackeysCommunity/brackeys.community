@@ -26,8 +26,17 @@ const COLLAB_TYPES = new Set([
   "collab_post_closed_by_staff",
 ]);
 
-export function categoryOf(type: string): "collab" | "system" {
-  return COLLAB_TYPES.has(type) ? "collab" : "system";
+const TEAM_TYPES = new Set([
+  "team_invite_received",
+  "team_invite_accepted",
+  "team_invite_declined",
+  "team_member_removed",
+]);
+
+export function categoryOf(type: string): "collab" | "teams" | "system" {
+  if (COLLAB_TYPES.has(type)) return "collab";
+  if (TEAM_TYPES.has(type)) return "teams";
+  return "system";
 }
 
 export function renderCopy(n: NotificationItem): {
@@ -38,6 +47,10 @@ export function renderCopy(n: NotificationItem): {
   const postTitle = (n.data.postTitle as string | undefined) ?? "your post";
   const postId = n.data.postId as number | undefined;
   const href = postId ? `/collab/${postId}` : null;
+  const teamName = (n.data.teamName as string | undefined) ?? "a team";
+  const teamSlug = n.data.teamSlug as string | undefined;
+  const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
+  const teamEm = <em className="font-medium not-italic">{teamName}</em>;
 
   switch (n.type) {
     case "collab_response_received":
@@ -86,6 +99,38 @@ export function renderCopy(n: NotificationItem): {
           </>
         ),
         href,
+      };
+    case "team_invite_received":
+      return {
+        line: (
+          <>
+            {actor} invited you to join {teamEm}
+          </>
+        ),
+        href: teamHref,
+      };
+    case "team_invite_accepted":
+      return {
+        line: (
+          <>
+            {actor} joined {teamEm}
+          </>
+        ),
+        href: teamHref,
+      };
+    case "team_invite_declined":
+      return {
+        line: (
+          <>
+            {actor} declined your invite to {teamEm}
+          </>
+        ),
+        href: teamHref,
+      };
+    case "team_member_removed":
+      return {
+        line: <>You were removed from {teamEm}</>,
+        href: teamHref,
       };
     default:
       return { line: <>You have a new notification</>, href };

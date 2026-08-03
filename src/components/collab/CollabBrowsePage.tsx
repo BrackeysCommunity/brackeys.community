@@ -35,6 +35,8 @@ interface CollabSearch {
   jam?: number;
   /** Tech-stack filter, so a narrowed board is shareable. */
   skills?: number[];
+  /** One team's posts — set by a team page's "see all" link. */
+  team?: string;
 }
 
 /** Matches the `lg` breakpoint that switches the board to two panes. */
@@ -107,15 +109,16 @@ export function CollabBrowsePage() {
   useEffect(() => {
     if (hydratedFromUrl.current || search.new) return;
     hydratedFromUrl.current = true;
-    if (search.jam !== undefined || (search.skills?.length ?? 0) > 0) {
-      setCollabFilters({ jamId: search.jam, skillIds: search.skills ?? [] });
+    if (search.jam !== undefined || search.team !== undefined || (search.skills?.length ?? 0) > 0) {
+      setCollabFilters({ jamId: search.jam, teamId: search.team, skillIds: search.skills ?? [] });
     }
-  }, [search.new, search.jam, search.skills]);
+  }, [search.new, search.jam, search.team, search.skills]);
 
   // …and the reverse: filter changes rewrite the URL so any narrowed
   // board can be linked. `replace` because filtering is refinement, not
   // navigation — Back should leave the board, not undo one chip.
   const jamFilter = useStore(collabStore, (s) => s.filters.jamId);
+  const teamFilter = useStore(collabStore, (s) => s.filters.teamId);
   const skillFilters = useStore(collabStore, (s) => s.filters.skillIds);
   useEffect(() => {
     if (!hydratedFromUrl.current) return;
@@ -124,11 +127,12 @@ export function CollabBrowsePage() {
       search: (prev: CollabSearch) => ({
         ...prev,
         jam: jamFilter,
+        team: teamFilter,
         skills: skillFilters.length > 0 ? skillFilters : undefined,
       }),
       replace: true,
     });
-  }, [jamFilter, skillFilters, navigate]);
+  }, [jamFilter, teamFilter, skillFilters, navigate]);
 
   // Selection lives in the URL so it survives reload, back/forward, and
   // sharing. Clicking pushes (back returns to the idle pane); walking

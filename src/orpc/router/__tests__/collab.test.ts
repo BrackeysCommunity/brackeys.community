@@ -155,6 +155,7 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
   return {
     type: "hobby",
     jamId: undefined,
+    teamId: undefined,
     title: "Pixel artist for a PSX horror RPG",
     description: "A short atmospheric horror RPG in the PSX style. Looking for a pixel artist.",
     isIndividual: false,
@@ -259,6 +260,7 @@ describe("draftFromPost", () => {
   const post = {
     type: "paid",
     jamId: 7,
+    teamId: null,
     title: "Composer for a roguelike",
     description: "Looking for a composer for a fast, punchy roguelike soundtrack.",
     projectName: "Nine Lives",
@@ -336,6 +338,7 @@ describe("board filter input", () => {
     roleIds: [],
     skillIds: [],
     jamId: undefined,
+    teamId: undefined,
     status: undefined,
     search: "",
     sortBy: "createdAt" as const,

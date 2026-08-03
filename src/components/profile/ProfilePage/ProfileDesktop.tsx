@@ -8,6 +8,7 @@ import { ProfileProjectsSection } from "./ProfileProjects";
 import { ProfileSkillsSection } from "./ProfileSkills";
 import { ProfileStandingSection } from "./ProfileStanding";
 import { ProfileSyncBar } from "./ProfileSyncBar";
+import { ProfileTeamsSection } from "./ProfileTeams";
 import type { ProfileLayoutProps } from "./shared-types";
 
 /**
@@ -72,8 +73,9 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             isOwner={isOwner}
             onEdit={() => openEdit(2)}
           />
+          <ProfileTeamsSection index="E" profileId={profile.profileId} />
           <ProfileLinkedAccountsSection
-            index="E"
+            index="F"
             links={profile.links}
             isOwner={isOwner}
             onEdit={() => openEdit(4)}

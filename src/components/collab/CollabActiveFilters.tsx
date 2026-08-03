@@ -57,6 +57,11 @@ export function CollabActiveFilters() {
     enabled: filters.skillIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: teamData } = useQuery({
+    ...orpc.getTeam.queryOptions({ input: { teamId: filters.teamId ?? "" } }),
+    enabled: filters.teamId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Post-only constraints stay hidden on the people lane — they're still
   // held in the store (switching lanes back restores them) but they
@@ -103,6 +108,13 @@ export function CollabActiveFilters() {
       key: "jam",
       label: (jam?.title ?? `JAM #${filters.jamId}`).toUpperCase(),
       clear: () => setCollabFilters({ jamId: undefined }),
+    });
+  }
+  if (filters.teamId !== undefined && !isPeople) {
+    chips.push({
+      key: "team",
+      label: `TEAM: ${(teamData?.name ?? "…").toUpperCase()}`,
+      clear: () => setCollabFilters({ teamId: undefined }),
     });
   }
   for (const skillId of filters.skillIds) {

@@ -12,11 +12,14 @@ import { CollabBrowsePage } from "@/components/collab/CollabBrowsePage";
 //                  preselects that jam in the wizard (the jam modal's
 //                  "FIND A TEAM" CTA sends both)
 //   `?skills=…`    tech-stack filter, so a narrowed board is shareable
+//   `?team=<id>`   filters the board to one team's posts (set by the
+//                  team page's "see all" link)
 const searchSchema = z.object({
   new: z.boolean().optional(),
   post: z.coerce.number().int().positive().optional(),
   jam: z.coerce.number().int().positive().optional(),
   skills: z.array(z.coerce.number().int().positive()).optional(),
+  team: z.string().optional(),
 });
 
 export const Route = createFileRoute("/collab/")({

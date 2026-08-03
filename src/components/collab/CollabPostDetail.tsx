@@ -27,6 +27,7 @@ import {
 import { formatRate } from "@/lib/format-rate";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { profileLinkParams } from "@/lib/profile-links";
+import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -223,6 +224,25 @@ export function CollabPostDetail({
               </div>
             ) : null}
 
+            {post.team ? (
+              <Link
+                to="/teams/$teamId"
+                params={teamLinkParams(post.team)}
+                title="View the team's page"
+                className="flex items-center gap-3 border border-muted/40 bg-muted/5 p-2.5 text-left transition-colors outline-none hover:bg-muted/15 focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <UserAvatar avatarUrl={post.team.avatarUrl} username={post.team.name} size={40} />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <Text as="span" size="xs" variant="muted" className="tracking-widest uppercase">
+                    Posted by the team
+                  </Text>
+                  <Text as="span" size="sm" bold ellipsis>
+                    {post.team.name}
+                  </Text>
+                </span>
+              </Link>
+            ) : null}
+
             {post.jam ? (
               <button
                 type="button"
@@ -371,7 +391,11 @@ export function CollabPostDetail({
                   Responses ({post.responses.length})
                 </Text>
                 {post.responses.length > 0 ? (
-                  <CollabPostResponseList responses={post.responses} postId={postId} />
+                  <CollabPostResponseList
+                    responses={post.responses}
+                    postId={postId}
+                    team={post.team}
+                  />
                 ) : (
                   <Text size="xs" variant="muted" className="tracking-widest uppercase">
                     No responses yet.
