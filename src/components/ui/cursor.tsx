@@ -1,4 +1,12 @@
-import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from "framer-motion";
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useAnimation,
+  useMotionValue,
+  useSpring,
+  type AnimationPlaybackControls,
+} from "framer-motion";
 import * as React from "react";
 
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
@@ -26,8 +34,22 @@ const PRESSED_POS: Array<{ x: number; y: number }> = [
   { x: -CORNER, y: 0 },
 ];
 
-const CURSOR_SPRING = { damping: 20, stiffness: 1500, mass: 0.05 };
-const CORNER_SPRING = { stiffness: 400, damping: 30, mass: 0.08 };
+// While the frame wraps a target, its on-screen position is the cursor spring
+// plus the corner spring: the corners are measured *relative* to where the
+// cursor spring currently is, so whatever the cursor spring has left to travel
+// shows up as slack in the frame. Both have to be tight for the frame to sit
+// still on the button, which is why these two move together.
+const CURSOR_SPRING = { damping: 26, stiffness: 3000, mass: 0.045 };
+// Overdamped on purpose (no overshoot); settle time is roughly
+// damping/stiffness, so raising stiffness shortens the trail without changing
+// its shape. 30/400 = 75ms read as the frame coming loose from the button;
+// 42/6000 = 7ms holds the edge. Release is no longer this spring's job —
+// see CORNER_RELEASE — so tracking can be stiff without the frame snapping
+// home the instant you leave.
+const CORNER_SPRING = { stiffness: 6000, damping: 42, mass: 0.05 };
+// Leaving a target is the one moment the frame should take its time: it
+// travels from the button's corners back to the idle cluster at the pointer.
+const CORNER_RELEASE = { duration: 0.28, ease: [0.22, 1, 0.36, 1] } as const;
 const FADE_TRANSITION = { duration: 0.15, ease: "easeInOut" } as const;
 
 const CORNER_BORDERS = [
@@ -105,20 +127,46 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     };
   }, [isMobile, mouseX, mouseY]);
 
-  // Snap idle corners between normal and pressed positions
+  // Corner tweens that run on release. Tracked so a re-hover (or a press)
+  // mid-flight can cancel them instead of fighting them frame by frame.
+  const releaseAnimsRef = React.useRef<AnimationPlaybackControls[]>([]);
+  const stopRelease = React.useCallback(() => {
+    releaseAnimsRef.current.forEach((a) => a.stop());
+    releaseAnimsRef.current = [];
+  }, []);
+  const wasMagneticRef = React.useRef(false);
+
+  // Snap idle corners between normal and pressed positions — except on the way
+  // out of a magnetic target, where the corners ease home. The tween drives the
+  // spring *source*, so the (stiff) corner spring follows it rather than
+  // overriding it, and the two never disagree about where the corner is.
   const idlePressed = isPressed && !isMagnetic;
   React.useEffect(() => {
     if (isMagnetic) return;
+    stopRelease();
+
     const pos = idlePressed ? PRESSED_POS : IDLE_POS;
-    c0x.set(pos[0].x);
-    c0y.set(pos[0].y);
-    c1x.set(pos[1].x);
-    c1y.set(pos[1].y);
-    c2x.set(pos[2].x);
-    c2y.set(pos[2].y);
-    c3x.set(pos[3].x);
-    c3y.set(pos[3].y);
-  }, [idlePressed, isMagnetic, c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y]);
+    const releasing = wasMagneticRef.current && !idlePressed;
+    wasMagneticRef.current = false;
+
+    const values = [c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y];
+    const targets = [
+      pos[0].x,
+      pos[0].y,
+      pos[1].x,
+      pos[1].y,
+      pos[2].x,
+      pos[2].y,
+      pos[3].x,
+      pos[3].y,
+    ];
+
+    if (releasing) {
+      releaseAnimsRef.current = values.map((v, i) => animate(v, targets[i], CORNER_RELEASE));
+      return;
+    }
+    values.forEach((v, i) => v.set(targets[i]));
+  }, [idlePressed, isMagnetic, stopRelease, c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y]);
 
   const startSpin = React.useCallback(() => {
     if (isSpinRef.current) return;
@@ -133,6 +181,11 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     if (isMobile) return;
 
     if (isMagnetic && cursorState.targetElement) {
+      // Re-hovered before the release tween finished — drop it and take the
+      // corners back under the spring.
+      stopRelease();
+      wasMagneticRef.current = true;
+
       if (spinTimeoutRef.current) {
         clearTimeout(spinTimeoutRef.current);
         spinTimeoutRef.current = null;
@@ -210,30 +263,23 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
 
       updateCorners();
 
-      let rafId: number;
-      if (noDrift) {
-        const tick = () => {
-          updateCorners();
-          rafId = requestAnimationFrame(tick);
-        };
+      // Re-measure every frame rather than only when the pointer moves. A
+      // chonk button drops by its lift height on press and rises on hover,
+      // and both transitions run with the pointer sitting still — sampling on
+      // pointer movement alone left the frame floating at the raised position
+      // through the whole click. This also subsumes the spring's own motion,
+      // since updateCorners reads springX/springY as it goes.
+      let rafId = requestAnimationFrame(function tick() {
+        updateCorners();
         rafId = requestAnimationFrame(tick);
-      }
-
-      const unsubX = springX.on("change", updateCorners);
-      const unsubY = springY.on("change", updateCorners);
+      });
 
       return () => {
-        unsubX();
-        unsubY();
-        if (noDrift) cancelAnimationFrame(rafId);
-        c0x.set(IDLE_POS[0].x);
-        c0y.set(IDLE_POS[0].y);
-        c1x.set(IDLE_POS[1].x);
-        c1y.set(IDLE_POS[1].y);
-        c2x.set(IDLE_POS[2].x);
-        c2y.set(IDLE_POS[2].y);
-        c3x.set(IDLE_POS[3].x);
-        c3y.set(IDLE_POS[3].y);
+        cancelAnimationFrame(rafId);
+        // Deliberately no corner reset here: on a release the idle effect
+        // eases them home (resetting first would leave that tween nothing to
+        // travel), and on a target change the branch above re-measures them
+        // in the same pass.
         spinTimeoutRef.current = setTimeout(startSpin, 50);
       };
     }
@@ -247,6 +293,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     cursorState.noDrift,
     isMobile,
     startSpin,
+    stopRelease,
     spinControls,
     springX,
     springY,

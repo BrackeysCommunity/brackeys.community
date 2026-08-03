@@ -55,6 +55,10 @@ const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0
 type ButtonProps = ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
     isMagnetic?: boolean;
+    /** How far the button slides toward the pointer, as a fraction of the
+     * pointer's offset from its center. Turn this down where the button
+     * should stay planted and only the cursor frame should move. */
+    magneticStrength?: number;
     notchOpts?: NotchOpts | true;
     wrapperClassName?: string;
   };
@@ -64,11 +68,12 @@ function Button({
   variant = "default",
   size = "default",
   isMagnetic,
+  magneticStrength = 0.2,
   notchOpts,
   wrapperClassName,
   ...props
 }: ButtonProps) {
-  const { ref, position } = useMagnetic(0.2);
+  const { ref, position } = useMagnetic(magneticStrength);
 
   // ── Notched variant ──────────────────────────────────────────────
   if (notchOpts) {

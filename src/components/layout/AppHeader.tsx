@@ -1,14 +1,14 @@
-import { Cancel01Icon, ComputerTerminal01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
+import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
-import { Hotkey } from "@/components/ui/hotkey";
 import {
   activeUserStore,
   clearActiveUserProfile,
@@ -16,8 +16,7 @@ import {
 } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
-import { useCommandPalette } from "@/lib/hooks/use-command-palette";
-import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 import { profileSlug } from "@/lib/profile-links";
 
 const springTransition = {
@@ -28,7 +27,7 @@ const springTransition = {
 } as const;
 
 function MagneticLink({ children, className }: { children: React.ReactNode; className?: string }) {
-  const { ref, position } = useMagnetic(0.2);
+  const { ref, position } = useMagnetic(HEADER_MAGNET_STRENGTH);
   return (
     <motion.div
       ref={ref as React.RefObject<HTMLDivElement>}
@@ -45,7 +44,6 @@ function MagneticLink({ children, className }: { children: React.ReactNode; clas
 
 export function AppHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { setOpen: openPalette } = useCommandPalette();
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
@@ -78,7 +76,10 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-start justify-between px-4 pt-4 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-32 before:bg-gradient-to-b before:from-background before:via-background/70 before:to-transparent before:content-[''] sm:px-6 sm:pt-5 lg:px-10">
+      {/* The scrim only has to cover the bar itself (~56px on desktop) plus a
+          short fade-out; the mobile menu overlay is taller, so the fade stays
+          deeper below `lg`. */}
+      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-start justify-between px-4 pt-4 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-32 before:bg-gradient-to-b before:from-background before:via-background/70 before:to-transparent before:content-[''] sm:px-6 sm:pt-5 lg:px-10 lg:before:h-20">
         {/* Logo */}
         <MagneticLink className="pointer-events-auto shrink-0">
           <Link to="/" className="flex items-center gap-2">
@@ -124,16 +125,6 @@ export function AppHeader() {
           <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
             <MagneticLink>
               <Link
-                data-cursor-no-drift
-                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to="/command-center"
-              >
-                COMMANDS
-              </Link>
-            </MagneticLink>
-            <MagneticLink>
-              <Link
-                data-cursor-no-drift
                 className="px-2 py-1 text-foreground transition-colors hover:text-primary"
                 to="/collab"
               >
@@ -142,7 +133,6 @@ export function AppHeader() {
             </MagneticLink>
             <MagneticLink>
               <Link
-                data-cursor-no-drift
                 className="px-2 py-1 text-foreground transition-colors hover:text-primary"
                 to="/teams"
               >
@@ -152,7 +142,6 @@ export function AppHeader() {
             <MagneticLink>
               <Link
                 data-testid="desktop-profile-link"
-                data-cursor-no-drift
                 className="px-2 py-1 text-foreground transition-colors hover:text-primary"
                 to={ownProfileSlug ? "/profile/$userId" : "/profile"}
                 {...(ownProfileSlug ? { params: { userId: ownProfileSlug } } : {})}
@@ -162,29 +151,20 @@ export function AppHeader() {
             </MagneticLink>
           </nav>
 
-          <Button
-            variant="outline"
-            size="sm"
-            isMagnetic
-            data-cursor-no-drift
-            onClick={() => openPalette(true)}
-            className="gap-2 border-muted text-xs text-muted-foreground shadow-[2px_2px_0px_var(--color-primary)] hover:border-primary hover:text-primary"
-          >
-            <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} />
-            <Hotkey value="command+k" className="hidden opacity-60 xl:inline-flex" />
-          </Button>
-
           {session?.user ? (
-            <>
+            // Tighter than the nav's gap-6 — these three read as one control
+            // cluster rather than three more nav destinations.
+            <div className="flex items-center gap-2">
+              <SettingsMenu />
               <NotificationBell />
               <UserMenu user={session.user} />
-            </>
+            </div>
           ) : (
             <Button
               variant="default"
               isMagnetic
+              magneticStrength={HEADER_MAGNET_STRENGTH}
               className="px-5 text-xs font-bold tracking-widest"
-              data-cursor-no-drift
               onClick={() => signInWithDiscord()}
             >
               LOGIN
@@ -199,15 +179,6 @@ export function AppHeader() {
               {mobileTitle}
             </span>
           )}
-          <Button
-            variant="outline"
-            size="icon-lg"
-            aria-label="Open command palette"
-            onClick={() => openPalette(true)}
-            className="text-muted-foreground"
-          >
-            <HugeiconsIcon icon={ComputerTerminal01Icon} size={16} />
-          </Button>
           <Button
             variant="outline"
             size="icon-lg"
@@ -231,13 +202,6 @@ export function AppHeader() {
             className="pointer-events-auto fixed inset-x-0 top-[57px] z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
           >
             <nav className="flex flex-col gap-1 p-4">
-              <Link
-                to="/command-center"
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
-              >
-                COMMANDS
-              </Link>
               <Link
                 to="/collab"
                 onClick={() => setMobileMenuOpen(false)}

@@ -6,6 +6,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Elides the middle of a string so both ends stay readable —
+ * `truncateMiddle("ludicrously_long_handle", 16)` → `"ludicro…_handle"`.
+ *
+ * Use where the head and the tail both carry identity (usernames, slugs);
+ * a plain `truncate` drops the tail, which is often the distinguishing part.
+ *
+ * @param value - String to elide.
+ * @param max - Maximum length of the result, ellipsis included.
+ */
+export function truncateMiddle(value: string, max = 24) {
+  if (max < 2 || value.length <= max) return value;
+  const keep = max - 1; // one char goes to the ellipsis
+  const head = Math.ceil(keep / 2);
+  const tail = keep - head;
+  return `${value.slice(0, head)}…${tail > 0 ? value.slice(value.length - tail) : ""}`;
+}
+
+/**
  * Reads a CSS custom property from the document root.
  *
  * Accepts either a bare name or one already prefixed with `--` and always

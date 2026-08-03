@@ -71,6 +71,10 @@ vi.mock("@/components/layout/UserMenu", () => ({
   UserMenu: () => <div data-testid="user-menu" />,
 }));
 
+vi.mock("@/components/layout/SettingsMenu", () => ({
+  SettingsMenu: () => <div data-testid="settings-menu" />,
+}));
+
 vi.mock("@/components/notifications/NotificationBell", () => ({
   NotificationBell: () => <div data-testid="notification-bell" />,
 }));
@@ -80,12 +84,6 @@ vi.mock("@/components/ui/button", () => ({
     <button type="button" {...rest}>
       {children}
     </button>
-  ),
-}));
-
-vi.mock("@/components/ui/hotkey", () => ({
-  Hotkey: ({ value }: { value: string | string[] }) => (
-    <kbd>{Array.isArray(value) ? value[0] : value}</kbd>
   ),
 }));
 
@@ -109,11 +107,8 @@ vi.mock("@/lib/active-user-store", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/hooks/use-command-palette", () => ({
-  useCommandPalette: () => ({ setOpen: vi.fn() }),
-}));
-
 vi.mock("@/lib/hooks/use-cursor", () => ({
+  HEADER_MAGNET_STRENGTH: 0.05,
   useMagnetic: () => ({
     ref: { current: null },
     position: { x: 0, y: 0 },

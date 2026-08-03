@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 import * as z from "zod";
 
@@ -468,7 +468,100 @@ export const getTeam = os
     };
   });
 
-/** Active teams the caller belongs to — the wizard picker's source. */
+/** Faces and stack chips a directory card can show before it gets busy. */
+const CARD_AVATARS = 5;
+const CARD_SKILLS = 3;
+
+/**
+ * Everything a directory card shows beyond the team row itself: roster
+ * faces, ship count, open posts, and the stack derived from the roster.
+ * Four queries batched on the page's ids — the same no-N+1 shape
+ * `listPosts` uses — shared so the viewer's own teams and the public
+ * listing return one card shape rather than two near-identical ones.
+ */
+async function withTeamCardExtras<
+  T extends { id: string; avatarUrl: string | null; avatarKey: string | null },
+>(rows: T[]) {
+  const teamIds = rows.map((r) => r.id);
+  if (teamIds.length === 0) return [];
+
+  const [memberRows, projectCounts, openPostCounts, skillRows] = await Promise.all([
+    // Rosters come back whole rather than as a count plus a capped
+    // faces query — jam crews are small, and one pass answers both.
+    db
+      .select({
+        teamId: teamMembers.teamId,
+        userId: teamMembers.userId,
+        role: teamMembers.role,
+        username: developerProfiles.discordUsername,
+        avatarUrl: developerProfiles.avatarUrl,
+      })
+      .from(teamMembers)
+      .innerJoin(developerProfiles, eq(teamMembers.userId, developerProfiles.id))
+      .where(inArray(teamMembers.teamId, teamIds))
+      .orderBy(asc(teamMembers.sortOrder), asc(teamMembers.joinedAt)),
+    db
+      .select({ teamId: teamProjects.teamId, count: count() })
+      .from(teamProjects)
+      .where(inArray(teamProjects.teamId, teamIds))
+      .groupBy(teamProjects.teamId),
+    db
+      .select({ teamId: collabPosts.teamId, count: count() })
+      .from(collabPosts)
+      .where(and(inArray(collabPosts.teamId, teamIds), eq(collabPosts.status, "recruiting")))
+      .groupBy(collabPosts.teamId),
+    db
+      .select({
+        teamId: teamMembers.teamId,
+        id: skills.id,
+        name: skills.name,
+        memberCount: count(),
+      })
+      .from(teamMembers)
+      .innerJoin(userSkills, eq(userSkills.userId, teamMembers.userId))
+      .innerJoin(skills, eq(userSkills.skillId, skills.id))
+      .where(inArray(teamMembers.teamId, teamIds))
+      .groupBy(teamMembers.teamId, skills.id, skills.name)
+      .orderBy(desc(count()), asc(skills.name)),
+  ]);
+
+  const membersByTeam = new Map<string, typeof memberRows>();
+  for (const row of memberRows) {
+    const list = membersByTeam.get(row.teamId) ?? [];
+    list.push(row);
+    membersByTeam.set(row.teamId, list);
+  }
+  const skillsByTeam = new Map<string, { id: number; name: string }[]>();
+  for (const row of skillRows) {
+    const list = skillsByTeam.get(row.teamId) ?? [];
+    if (list.length < CARD_SKILLS) list.push({ id: row.id, name: row.name });
+    skillsByTeam.set(row.teamId, list);
+  }
+  const projectCountByTeam = new Map(projectCounts.map((r) => [r.teamId, r.count]));
+  const openPostCountByTeam = new Map(openPostCounts.map((r) => [r.teamId!, r.count]));
+
+  return Promise.all(
+    rows.map(async ({ avatarKey, ...row }) => {
+      const members = membersByTeam.get(row.id) ?? [];
+      return {
+        ...row,
+        avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl: row.avatarUrl }),
+        memberCount: members.length,
+        members: members.slice(0, CARD_AVATARS).map(({ teamId: _teamId, ...m }) => m),
+        projectCount: projectCountByTeam.get(row.id) ?? 0,
+        openPostCount: openPostCountByTeam.get(row.id) ?? 0,
+        skills: skillsByTeam.get(row.id) ?? [],
+      };
+    }),
+  );
+}
+
+/**
+ * Active teams the caller belongs to — the wizard picker's source, and
+ * the `/teams` shelf's. Returns the full card payload so the shelf can
+ * render the same tile as the directory below it; the picker just reads
+ * the identity fields off the front of it.
+ */
 export const listMyTeams = os
   .use(requireAuth)
   .input(z.object({}))
@@ -478,8 +571,10 @@ export const listMyTeams = os
         id: teams.id,
         slug: teams.slug,
         name: teams.name,
+        tagline: teams.tagline,
         avatarUrl: teams.avatarUrl,
         avatarKey: teams.avatarKey,
+        recruiting: teams.recruiting,
         status: teams.status,
         role: teamMembers.role,
       })
@@ -487,12 +582,90 @@ export const listMyTeams = os
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
       .where(and(eq(teamMembers.userId, context.user.id), eq(teams.status, "active")))
       .orderBy(asc(teams.name));
-    return Promise.all(
-      rows.map(async ({ avatarKey: _avatarKey, ...row }) => ({
-        ...row,
-        avatarUrl: await resolveTeamAvatarUrl({ avatarKey: _avatarKey, avatarUrl: row.avatarUrl }),
-      })),
-    );
+    return withTeamCardExtras(rows);
+  });
+
+/**
+ * The public directory behind `/teams`. Recruiting teams lead by
+ * default — an open crew is what a visitor came for — with most
+ * recently active as the tiebreak.
+ *
+ * Card extras are four batched queries keyed on the page's ids, the
+ * same no-N+1 shape `listPosts` uses for its jam/team/skill chips.
+ */
+export const listTeams = os
+  .input(
+    z.object({
+      search: z.string().trim().max(100).optional(),
+      /** Derived from the roster's skills — a team has no stack of its own. */
+      skillIds: z.array(z.number().int().positive()).optional(),
+      recruiting: z.boolean().optional(),
+      hasShipped: z.boolean().optional(),
+      sort: z.enum(["active", "shipped", "newest"]).default("active"),
+      limit: z.number().min(1).max(50).default(24),
+      offset: z.number().min(0).default(0),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const conditions = [eq(teams.status, "active")];
+    if (input.search) {
+      const pattern = `%${escapeLike(input.search)}%`;
+      conditions.push(or(ilike(teams.name, pattern), ilike(teams.tagline, pattern))!);
+    }
+    if (input.recruiting) conditions.push(eq(teams.recruiting, true));
+    if (input.hasShipped) {
+      conditions.push(
+        sql`exists (select 1 from ${teamProjects} where ${teamProjects.teamId} = ${teams.id})`,
+      );
+    }
+    if (input.skillIds && input.skillIds.length > 0) {
+      conditions.push(
+        sql`exists (
+          select 1 from ${teamMembers}
+          join ${userSkills} on ${userSkills.userId} = ${teamMembers.userId}
+          where ${teamMembers.teamId} = ${teams.id}
+            and ${inArray(userSkills.skillId, input.skillIds)}
+        )`,
+      );
+    }
+    const where = and(...conditions);
+
+    // Ship date falls back to when the row landed: `released_at` is
+    // owner-entered and mostly null on older showcase entries, and a
+    // "recently shipped" sort that hides them isn't the honest answer.
+    const lastShipped = sql`(
+      select max(coalesce(${teamProjects.releasedAt}, ${teamProjects.createdAt}))
+      from ${teamProjects} where ${teamProjects.teamId} = ${teams.id}
+    )`;
+    const orderBy =
+      input.sort === "newest"
+        ? [desc(teams.createdAt)]
+        : input.sort === "shipped"
+          ? [sql`${lastShipped} desc nulls last`, desc(teams.lastActivityAt)]
+          : [desc(teams.recruiting), desc(teams.lastActivityAt)];
+
+    const [rows, [totals]] = await Promise.all([
+      db
+        .select({
+          id: teams.id,
+          slug: teams.slug,
+          name: teams.name,
+          tagline: teams.tagline,
+          avatarUrl: teams.avatarUrl,
+          avatarKey: teams.avatarKey,
+          recruiting: teams.recruiting,
+          createdAt: teams.createdAt,
+          lastActivityAt: teams.lastActivityAt,
+        })
+        .from(teams)
+        .where(where)
+        .orderBy(...orderBy)
+        .limit(input.limit)
+        .offset(input.offset),
+      db.select({ count: count() }).from(teams).where(where),
+    ]);
+
+    return { teams: await withTeamCardExtras(rows), total: totals?.count ?? 0 };
   });
 
 /** Active teams a profile belongs to — the profile page's TEAMS strip. */

@@ -71,6 +71,8 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
       }
       return <div>{children}</div>;
     },
+    DropdownMenuGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuSeparator: () => <hr />,
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
       <button type="button">{children}</button>
@@ -87,6 +89,7 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 vi.mock("@/lib/hooks/use-cursor", () => ({
+  HEADER_MAGNET_STRENGTH: 0.05,
   useMagnetic: () => ({
     ref: { current: null },
     position: { x: 0, y: 0 },

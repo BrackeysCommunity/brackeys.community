@@ -29,17 +29,23 @@ export function UserAvatar({
   shape = "square",
   className,
 }: UserAvatarProps) {
-  const rounding = shape === "square" ? "rounded-none" : "rounded-full";
+  const square = shape === "square";
+  const rounding = square ? "rounded-none" : "rounded-full";
   const initial = (username?.trim()[0] ?? "?").toUpperCase();
 
   return (
     <Avatar
-      className={cn("shrink-0 border border-muted/40", rounding, className)}
+      // The primitive draws its own hairline frame via `after:`, so there is
+      // no second border here — two stacked frames read as a box around the
+      // avatar rather than an edge on it. The frame follows the shape: the
+      // primitive's `after:` is round by default, which put a circle outline
+      // around every square avatar.
+      className={cn("shrink-0", rounding, square && "after:rounded-none", className)}
       style={{ width: size, height: size }}
     >
       {avatarUrl ? <AvatarImage src={avatarUrl} alt="" className={rounding} /> : null}
       <AvatarFallback
-        className={cn("bg-muted/30 font-bold text-muted-foreground", rounding)}
+        className={cn("bg-muted font-bold text-muted-foreground", rounding)}
         // Keep the initial proportional to the frame rather than stepping
         // through text-size classes at every call site.
         style={{ fontSize: Math.max(10, Math.round(size * 0.4)) }}

@@ -2,24 +2,25 @@ import { Logout03Icon, Settings02Icon, Share01Icon, UserIcon } from "@hugeicons/
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
-import { Chonk } from "@/components/ui/chonk";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
-import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { HEADER_MAGNET_STRENGTH } from "@/lib/hooks/use-cursor";
 import { profileLinkParams } from "@/lib/profile-links";
-
-const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
+import { truncateMiddle } from "@/lib/utils";
 
 interface UserMenuProps {
   user: {
@@ -30,7 +31,6 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ user }: UserMenuProps) {
-  const { ref, position } = useMagnetic(0.2);
   const navigate = useNavigate();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
@@ -39,63 +39,68 @@ export function UserMenu({ user }: UserMenuProps) {
   return (
     <>
       <DropdownMenu>
-        <motion.div
-          ref={ref as React.RefObject<HTMLDivElement>}
-          data-magnetic
-          data-cursor-no-drift
-          animate={{ x: position.x, y: position.y }}
-          transition={springTransition}
-          className="relative z-10 inline-flex"
+        {/* Same button as the settings cog and the bell — same variant, same
+            size, so the emboss depth matches; only the padding comes off, to
+            let the avatar run to the border. */}
+        <DropdownMenuTrigger
+          aria-label="Account menu"
+          render={
+            <Button
+              variant="outline"
+              size="icon-lg"
+              isMagnetic
+              magneticStrength={HEADER_MAGNET_STRENGTH}
+              className="overflow-hidden p-0"
+            />
+          }
         >
-          <DropdownMenuTrigger
-            render={
-              <Chonk
-                variant="surface"
-                size="sm"
-                render={<button type="button" />}
-                className="items-center gap-2 px-3 py-1.5 text-xs font-bold tracking-widest"
-              />
-            }
-          >
-            {user.image ? (
-              <img src={user.image} alt="" className="h-6 w-6 rounded-full" />
-            ) : (
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-                <HugeiconsIcon icon={UserIcon} size={14} />
-              </div>
-            )}
-            <span className="max-w-[100px] truncate uppercase">{user.name ?? "USER"}</span>
-          </DropdownMenuTrigger>
-        </motion.div>
+          <UserAvatar
+            avatarUrl={user.image}
+            username={user.name}
+            // 34px + the button's 1px border each side fills the 36px frame.
+            size={34}
+            // The button already draws the frame — the avatar's own hairline
+            // would read as a second border inside it.
+            className="rounded-none after:hidden"
+          />
+        </DropdownMenuTrigger>
 
         <DropdownMenuContent
           align="end"
           sideOffset={8}
           className="min-w-[180px] border border-muted bg-background/95 p-1 backdrop-blur-md"
         >
-          <DropdownMenuItem
-            className="text-xs font-bold tracking-widest uppercase"
-            render={<Link to="/profile" />}
-          >
-            <HugeiconsIcon icon={UserIcon} size={14} />
-            MY PROFILE
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-xs font-bold tracking-widest uppercase"
-            render={
-              <Link data-testid="view-public-link" to="/profile/$userId" params={profileParams} />
-            }
-          >
-            <HugeiconsIcon icon={Share01Icon} size={14} />
-            VIEW PUBLIC
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-xs font-bold tracking-widest uppercase"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <HugeiconsIcon icon={Settings02Icon} size={14} />
-            SETTINGS
-          </DropdownMenuItem>
+          {/* The name row is a group label, not an item — it takes no focus
+              and no hover. base-ui requires it to sit inside a Group, which
+              it then labels. */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="border-b border-muted/40 text-xs font-bold tracking-widest text-foreground uppercase">
+              {truncateMiddle(user.name ?? "USER", 18)}
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              className="text-xs font-bold tracking-widest uppercase"
+              render={<Link to="/profile" />}
+            >
+              <HugeiconsIcon icon={UserIcon} size={14} />
+              MY PROFILE
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-xs font-bold tracking-widest uppercase"
+              render={
+                <Link data-testid="view-public-link" to="/profile/$userId" params={profileParams} />
+              }
+            >
+              <HugeiconsIcon icon={Share01Icon} size={14} />
+              VIEW PUBLIC
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-xs font-bold tracking-widest uppercase"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <HugeiconsIcon icon={Settings02Icon} size={14} />
+              SETTINGS
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-xs font-bold tracking-widest text-destructive uppercase"

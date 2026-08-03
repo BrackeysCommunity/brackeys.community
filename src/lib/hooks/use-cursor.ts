@@ -107,13 +107,26 @@ export function useCursorState() {
   return state;
 }
 
+/**
+ * Magnetic pull for the fixed header chrome: none.
+ *
+ * The default 0.2 slides a target toward the pointer, which in a bar pinned
+ * over scrolling content reads as the header itself shifting. Header targets
+ * stay exactly where they are and let the cursor's own corner frame do the
+ * moving — they keep `data-magnetic` (that is what the frame latches onto)
+ * and stay off `data-cursor-no-drift`, so the frame is still free to trail.
+ */
+export const HEADER_MAGNET_STRENGTH = 0;
+
 export function useMagnetic(strength = 0.2) {
   const ref = useRef<HTMLElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!ref.current) return;
+      // A zero-strength target never moves, so skip the per-move measuring
+      // entirely rather than writing the same {0, 0} on every event.
+      if (strength === 0 || !ref.current) return;
 
       const { left, top, width, height } = ref.current.getBoundingClientRect();
       const centerX = left + width / 2;

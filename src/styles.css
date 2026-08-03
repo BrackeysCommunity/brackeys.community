@@ -309,6 +309,15 @@
     transition-duration: 50ms;
   }
 
+  /* Toggle buttons stay depressed while on — overrides hover. Without this a
+     selected filter springs back up under the cursor, which reads as
+     "not selected" on exactly the control the pointer is asking about. */
+  .chonk-emboss[aria-pressed="true"],
+  .chonk-emboss[aria-pressed="true"]:hover {
+    --chonk-y: 0px !important;
+    transition-duration: 50ms;
+  }
+
   /* Emboss for floating panels (dropdown, popover) — independent hover, not affected by trigger */
   .chonk-emboss-panel {
     --chonk-lift: 2px;
