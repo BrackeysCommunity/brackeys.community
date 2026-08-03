@@ -228,6 +228,37 @@
   initial-value: 0px;
 }
 
+/*
+ * @property --app-header-shift
+ *
+ * How far a sticky surface should move up to reclaim the band the app header
+ * has vacated: 0 while the bar is out, negative its height once it has slid
+ * away (see `use-hide-on-scroll-down`). Sticky surfaces park at
+ * `top: var(--app-header-shift)`.
+ *
+ * It's a shift rather than an absolute inset because `top: 0` already means
+ * "just under the header" inside the main scroller — sticky offsets resolve
+ * against the scroll container's content box, and the shell's `pt-14` is what
+ * puts that box below the bar. So the resting value is 0, and only the header
+ * going away moves anything.
+ *
+ * Registered as a <length> so the browser interpolates it: one transition on
+ * :root animates every sticky surface in step with the header, instead of each
+ * one running its own `top` transition and drifting out of sync.
+ *
+ * Scrollers whose header inset lives *outside* them (MobileShell, the sidebar
+ * layout's left column) have no band to reclaim, and pin it to 0px inline.
+ */
+@property --app-header-shift {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+:root {
+  transition: --app-header-shift 300ms ease-in-out;
+}
+
 @layer utilities {
   .chonk-emboss {
     --chonk-lift: 2px;

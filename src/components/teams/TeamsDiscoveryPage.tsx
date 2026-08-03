@@ -27,6 +27,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
@@ -295,22 +296,9 @@ function TeamsHero({ authenticated, onStart }: { authenticated: boolean; onStart
       // dimmer panel behind the first.
       surfaceClassName="bg-card bg-linear-to-br from-primary/12 via-card to-card backdrop-blur-none"
     >
-      {/* Graph paper, ruled and masked so it fades out toward the bottom
-          left — heaviest behind the headline's shoulder, gone by the time
-          it reaches the copy. Same ruling as the collab inspector's
-          masthead. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, var(--color-muted-foreground) 1px, transparent 1px), linear-gradient(to bottom, var(--color-muted-foreground) 1px, transparent 1px)",
-          backgroundSize: "18px 18px",
-          opacity: 0.1,
-          maskImage: "linear-gradient(to bottom left, #000 0%, transparent 85%)",
-          WebkitMaskImage: "linear-gradient(to bottom left, #000 0%, transparent 85%)",
-        }}
-      />
+      {/* Heaviest behind the headline's shoulder, gone by the time it
+          reaches the copy. */}
+      <GraphPaper fade="bottom-left" />
       <div className="relative flex flex-wrap items-end justify-between gap-6 p-6">
         <div className="flex max-w-prose min-w-64 flex-col gap-2">
           <MicroLabel>TEAM DIRECTORY</MicroLabel>

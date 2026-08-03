@@ -54,7 +54,7 @@ export function CommandTerminal({
       className={cn("flex max-h-[calc(100dvh-10rem)] flex-col", className)}
     >
       {/* Title bar */}
-      <div className="mt-1 flex shrink-0 items-center justify-between border-b border-muted/40 bg-muted/50 px-4 py-2.5">
+      <div className="flex shrink-0 items-center justify-between border-b border-muted/40 bg-muted/50 px-4 py-2.5">
         <span className="flex items-center gap-2 font-mono text-xs tracking-widest text-muted-foreground uppercase">
           <HugeiconsIcon icon={ComputerTerminal01Icon} size={12} className="text-brackeys-yellow" />
           ROOT@BRACKEYS-SERVER:~

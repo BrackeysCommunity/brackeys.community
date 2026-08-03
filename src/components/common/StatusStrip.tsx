@@ -40,7 +40,7 @@ export function StatusStrip({ segments, className }: StatusStripProps) {
 
   return (
     <Well notchOpts={{ size: 10 }} className={className}>
-      <div className={cn("mt-1 grid grid-cols-2", xlCols)}>
+      <div className={cn("grid grid-cols-2", xlCols)}>
         {segments.map((seg) => (
           <div
             key={seg.key}

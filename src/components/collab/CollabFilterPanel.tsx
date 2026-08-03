@@ -9,7 +9,6 @@ import {
   type CollabCompensationType,
   type CollabExperienceLevel,
   type CollabPostType,
-  type CollabPreference,
   type CollabSortBy,
   type CollabSortOrder,
   type CollabStatus,
@@ -48,15 +47,6 @@ const EXPERIENCE_OPTIONS = [
   { value: "experienced", label: "EXPERT" },
 ] as const;
 
-// People lane: what kind of work someone is open to. Devs who said
-// "either" show up under both, so this narrows without excluding the
-// people most likely to say yes.
-const PREFERENCE_OPTIONS = [
-  { value: "all", label: "ANY" },
-  { value: "paid", label: "PAID" },
-  { value: "hobby", label: "HOBBY" },
-] as const;
-
 const COMP_OPTIONS = [
   { value: "all", label: "ALL" },
   { value: "hourly", label: "HOURLY" },
@@ -88,109 +78,73 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
   const filters = useStore(collabStore, (s) => s.filters);
   const { data: counts } = useCollabTypeCounts();
   const resultCount = useCollabResultCount();
-  const isPeople = filters.listingType === "people";
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterGroup label="SHOW">
+      <FilterGroup label="POST TYPE">
+        <PostTypeRow value={filters.type ?? "all"} options={TYPE_OPTIONS} counts={counts} />
+      </FilterGroup>
+
+      {filters.jamId !== undefined ? (
+        <FilterGroup label="JAM">
+          <JamFilterChip jamId={filters.jamId} />
+        </FilterGroup>
+      ) : null}
+
+      <FilterGroup label="STATUS">
         <SegmentedControl
-          value={isPeople ? "people" : "posts"}
-          onChange={(v) => setCollabFilters({ listingType: v as "posts" | "people" })}
+          value={filters.status ?? "any"}
+          onChange={(v) =>
+            setCollabFilters({ status: v === "any" ? undefined : (v as CollabStatus) })
+          }
           size="sm"
         >
-          <SegmentedControl.Item value="posts">PROJECTS</SegmentedControl.Item>
-          <SegmentedControl.Item value="people">PEOPLE</SegmentedControl.Item>
+          {STATUS_OPTIONS.map((s) => (
+            <SegmentedControl.Item key={s.value} value={s.value}>
+              {s.label}
+            </SegmentedControl.Item>
+          ))}
         </SegmentedControl>
       </FilterGroup>
 
-      {!isPeople ? (
-        <>
-          <FilterGroup label="POST TYPE">
-            <PostTypeRow value={filters.type ?? "all"} options={TYPE_OPTIONS} counts={counts} />
-          </FilterGroup>
+      <FilterGroup label="EXPERIENCE LEVEL">
+        <SegmentedControl
+          value={filters.experienceLevel ?? "any"}
+          onChange={(v) =>
+            setCollabFilters({
+              experienceLevel: v === "any" ? undefined : (v as CollabExperienceLevel),
+            })
+          }
+          size="sm"
+        >
+          {EXPERIENCE_OPTIONS.map((e) => (
+            <SegmentedControl.Item key={e.value} value={e.value}>
+              {e.label}
+            </SegmentedControl.Item>
+          ))}
+        </SegmentedControl>
+      </FilterGroup>
 
-          {filters.jamId !== undefined ? (
-            <FilterGroup label="JAM">
-              <JamFilterChip jamId={filters.jamId} />
-            </FilterGroup>
-          ) : null}
-
-          <FilterGroup label="STATUS">
-            <SegmentedControl
-              value={filters.status ?? "any"}
-              onChange={(v) =>
-                setCollabFilters({ status: v === "any" ? undefined : (v as CollabStatus) })
-              }
-              size="sm"
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <SegmentedControl.Item key={s.value} value={s.value}>
-                  {s.label}
-                </SegmentedControl.Item>
-              ))}
-            </SegmentedControl>
-          </FilterGroup>
-
-          <FilterGroup label="EXPERIENCE LEVEL">
-            <SegmentedControl
-              value={filters.experienceLevel ?? "any"}
-              onChange={(v) =>
-                setCollabFilters({
-                  experienceLevel: v === "any" ? undefined : (v as CollabExperienceLevel),
-                })
-              }
-              size="sm"
-            >
-              {EXPERIENCE_OPTIONS.map((e) => (
-                <SegmentedControl.Item key={e.value} value={e.value}>
-                  {e.label}
-                </SegmentedControl.Item>
-              ))}
-            </SegmentedControl>
-          </FilterGroup>
-
-          {filters.type === "paid" ? (
-            <FilterGroup label="COMPENSATION">
-              <SegmentedControl
-                value={filters.compensationType ?? "all"}
-                onChange={(v) =>
-                  setCollabFilters({
-                    compensationType: v === "all" ? undefined : (v as CollabCompensationType),
-                  })
-                }
-                size="sm"
-              >
-                {COMP_OPTIONS.map((c) => (
-                  <SegmentedControl.Item key={c.value} value={c.value}>
-                    {c.label}
-                  </SegmentedControl.Item>
-                ))}
-              </SegmentedControl>
-            </FilterGroup>
-          ) : null}
-        </>
-      ) : (
-        <FilterGroup label="OPEN TO">
+      {filters.type === "paid" ? (
+        <FilterGroup label="COMPENSATION">
           <SegmentedControl
-            value={filters.collabPreference ?? "all"}
+            value={filters.compensationType ?? "all"}
             onChange={(v) =>
               setCollabFilters({
-                collabPreference: v === "all" ? undefined : (v as CollabPreference),
+                compensationType: v === "all" ? undefined : (v as CollabCompensationType),
               })
             }
             size="sm"
           >
-            {PREFERENCE_OPTIONS.map((p) => (
-              <SegmentedControl.Item key={p.value} value={p.value}>
-                {p.label}
+            {COMP_OPTIONS.map((c) => (
+              <SegmentedControl.Item key={c.value} value={c.value}>
+                {c.label}
               </SegmentedControl.Item>
             ))}
           </SegmentedControl>
         </FilterGroup>
-      )}
+      ) : null}
 
-      {/* Both lanes filter on the same skill vocabulary — "who knows
-          Godot" and "which projects run on Godot" are the same chips. */}
       <FilterGroup label="TECH STACK">
         <SkillFilterChips selected={filters.skillIds} />
       </FilterGroup>
@@ -226,7 +180,7 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
         >
           {resultCount === null
             ? "SHOW RESULTS"
-            : `SHOW ${resultCount} ${isPeople ? "DEV" : "POST"}${resultCount === 1 ? "" : "S"}`}
+            : `SHOW ${resultCount} POST${resultCount === 1 ? "" : "S"}`}
         </Button>
       ) : null}
     </div>

@@ -210,6 +210,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
     return (
       <div
         id="main-content"
+        data-scroll-root
         className="flex flex-1 flex-col overflow-y-auto pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="mx-auto flex w-full max-w-480 flex-col">
@@ -232,6 +233,10 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
     >
       {/* Left column — main page content */}
       <div
+        data-scroll-root
+        // The header inset lives on the parent here, outside the scroller, so
+        // a hidden bar leaves nothing for sticky content to reclaim.
+        style={{ "--app-header-shift": "0px" } as React.CSSProperties}
         className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
         <div

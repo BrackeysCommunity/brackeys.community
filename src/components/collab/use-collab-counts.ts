@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 
-import { collabFilterInput, collabPeopleFilterInput, collabStore } from "@/lib/collab-store";
+import { collabFilterInput, collabStore } from "@/lib/collab-store";
 import { client } from "@/orpc/client";
 
 /**
@@ -25,35 +25,15 @@ export function useCollabTypeCounts() {
   });
 }
 
-/** Standing open-role counts per type, ignoring the active filters. */
-export function useCollabOpenCounts() {
-  return useQuery({
-    queryKey: ["collabOpenRoles"],
-    queryFn: () => client.countPostsByType({ status: "recruiting" }),
-    staleTime: 60 * 1000,
-  });
-}
-
 /**
- * Live result count for whatever the feed is currently showing. Posts
- * come free from the type-count facets; people need their own cheap
- * head request since they aren't typed.
+ * Live result count for what the feed is currently showing — free from
+ * the type-count facets, which are computed under every filter but the
+ * type itself.
  */
 export function useCollabResultCount(): number | null {
   const filters = useStore(collabStore, (s) => s.filters);
-  const isPeople = filters.listingType === "people";
   const { data: typeCounts } = useCollabTypeCounts();
 
-  const peopleInput = collabPeopleFilterInput(filters);
-  const { data: peopleCount } = useQuery({
-    queryKey: ["collabPeopleCount", peopleInput],
-    queryFn: () => client.listAvailableUsers({ ...peopleInput, limit: 1, offset: 0 }),
-    staleTime: 15 * 1000,
-    enabled: isPeople,
-    placeholderData: (previous) => previous,
-  });
-
-  if (isPeople) return peopleCount?.total ?? null;
   if (!typeCounts) return null;
   return filters.type ? typeCounts[filters.type] : typeCounts.all;
 }

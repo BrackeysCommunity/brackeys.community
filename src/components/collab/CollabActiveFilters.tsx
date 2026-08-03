@@ -43,7 +43,6 @@ const COMP_LABELS: Record<string, string> = {
 export function CollabActiveFilters() {
   const filters = useStore(collabStore, (s) => s.filters);
   const count = useCollabResultCount();
-  const isPeople = filters.listingType === "people";
 
   // Only fetched to name the ids the chips carry — both lists are small
   // and already cached by the pickers that set these filters.
@@ -63,46 +62,36 @@ export function CollabActiveFilters() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Post-only constraints stay hidden on the people lane — they're still
-  // held in the store (switching lanes back restores them) but they
-  // aren't filtering anything you can currently see.
   const chips: { key: string; label: string; clear: () => void }[] = [];
-  if (filters.type && !isPeople) {
+  if (filters.type) {
     chips.push({
       key: "type",
       label: TYPE_LABELS[filters.type] ?? filters.type,
       clear: () => setCollabFilters({ type: undefined }),
     });
   }
-  if (filters.collabPreference) {
-    chips.push({
-      key: "preference",
-      label: `OPEN TO ${filters.collabPreference.toUpperCase()}`,
-      clear: () => setCollabFilters({ collabPreference: undefined }),
-    });
-  }
-  if (filters.status && !isPeople) {
+  if (filters.status) {
     chips.push({
       key: "status",
       label: STATUS_LABELS[filters.status] ?? filters.status,
       clear: () => setCollabFilters({ status: undefined }),
     });
   }
-  if (filters.experienceLevel && filters.experienceLevel !== "any" && !isPeople) {
+  if (filters.experienceLevel && filters.experienceLevel !== "any") {
     chips.push({
       key: "level",
       label: EXPERIENCE_LABELS[filters.experienceLevel] ?? filters.experienceLevel,
       clear: () => setCollabFilters({ experienceLevel: undefined }),
     });
   }
-  if (filters.compensationType && !isPeople) {
+  if (filters.compensationType) {
     chips.push({
       key: "comp",
       label: COMP_LABELS[filters.compensationType] ?? filters.compensationType,
       clear: () => setCollabFilters({ compensationType: undefined }),
     });
   }
-  if (filters.jamId !== undefined && !isPeople) {
+  if (filters.jamId !== undefined) {
     const jam = jamData?.jams.find((j) => j.jamId === filters.jamId);
     chips.push({
       key: "jam",
@@ -110,7 +99,7 @@ export function CollabActiveFilters() {
       clear: () => setCollabFilters({ jamId: undefined }),
     });
   }
-  if (filters.teamId !== undefined && !isPeople) {
+  if (filters.teamId !== undefined) {
     chips.push({
       key: "team",
       label: `TEAM: ${(teamData?.name ?? "…").toUpperCase()}`,
@@ -134,9 +123,8 @@ export function CollabActiveFilters() {
   }
 
   // Filtered boards count matches; an unfiltered board counts what it holds.
-  const noun = isPeople ? "DEV" : "POST";
   const label =
-    chips.length > 0 ? (count === 1 ? "MATCH" : "MATCHES") : count === 1 ? noun : `${noun}S`;
+    chips.length > 0 ? (count === 1 ? "MATCH" : "MATCHES") : count === 1 ? "POST" : "POSTS";
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-dashed border-muted-foreground/25 pb-3">

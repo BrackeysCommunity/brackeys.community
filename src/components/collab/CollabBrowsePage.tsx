@@ -1,10 +1,17 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Add01Icon, Login01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { Kbd } from "@/components/ui/kbd";
-import { Text } from "@/components/ui/typography";
+import { Heading, MicroLabel, Text } from "@/components/ui/typography";
+import { Well } from "@/components/ui/well";
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import {
@@ -14,6 +21,7 @@ import {
   setCollabFilters,
   updateWizardDraft,
 } from "@/lib/collab-store";
+import { orpc } from "@/orpc/client";
 
 import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
@@ -21,7 +29,7 @@ import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel"
 import { CollabInspector } from "./CollabInspector";
 import { CollabPostFeed } from "./CollabPostFeed";
 import { CollabPostPopover } from "./CollabPostPopover";
-import { COLLAB_SEARCH_INPUT_ID, CollabToolbar } from "./CollabToolbar";
+import { COLLAB_SEARCH_INPUT_ID, CollabFloatingControls, CollabToolbar } from "./CollabToolbar";
 import { useCollabListing } from "./use-collab-listing";
 import { useReleaseFocusOnOpen } from "./use-release-focus";
 
@@ -63,10 +71,13 @@ function useIsSplitView() {
 }
 
 /**
- * Top-level collab browser, laid out as a split view: a fixed-width
- * list lane on the left, a persistent inspector on the right. Selecting
- * a post loads it into the inspector rather than over the board, so you
- * can walk the list and compare without losing your place.
+ * Top-level collab browser, laid out as a split view: the list lane on
+ * the left, a persistent inspector on the right. Selecting a post loads
+ * it into the inspector rather than over the board, so you can walk the
+ * list and compare without losing your place.
+ *
+ * The lane grows the page — scrolling is the page's, not a nested
+ * scroller's — and the inspector sticks alongside it.
  *
  * Below `lg` there isn't room for two panes, so the lane becomes the
  * whole page and the same detail renders in an overlay instead.
@@ -76,6 +87,10 @@ export function CollabBrowsePage() {
   const navigate = useNavigate();
   const search = (useSearch({ strict: false }) as CollabSearch) ?? {};
   const isSplit = useIsSplitView();
+  // Keyed on the shell, not the breakpoint: the floating controls sit above
+  // the bottom nav island, which only the touch shell mounts. A narrow desktop
+  // window gets the same stacked board with the controls inline.
+  const isTouch = useIsTouchDevice();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -159,7 +174,6 @@ export function CollabBrowsePage() {
 
   // Global keyboard shortcuts:
   //   `/`      focuses the lane's search input
-  //   `P`      toggles between the projects ↔ people listing
   //   `↑` `↓`  walk the selection through the lane (split view only)
   //   `Esc`    clears the selection
   // All are skipped while typing in an input, textarea, or
@@ -181,12 +195,6 @@ export function CollabBrowsePage() {
       if (e.key === "/") {
         e.preventDefault();
         document.getElementById(COLLAB_SEARCH_INPUT_ID)?.focus();
-        return;
-      }
-      if (e.key === "p" || e.key === "P") {
-        e.preventDefault();
-        const next = collabStore.state.filters.listingType === "people" ? "posts" : "people";
-        setCollabFilters({ listingType: next });
         return;
       }
       if (e.key === "Escape" && selectedPostId !== null) {
@@ -221,37 +229,55 @@ export function CollabBrowsePage() {
 
   // The board itself gets the full-width controls; only the narrow
   // stacked layout falls back to the filter sheet.
+  // The controls pin to the top of the scrollport, just under the app header —
+  // they're the one thing you always want reachable while walking a long list.
+  // `--app-header-shift` takes them up into the band the header vacates and
+  // back down when it returns, so they ride with it rather than leaving a gap.
+  // The `+1rem` is a gutter they keep in both states — parked flush against
+  // the viewport edge they read as clipped rather than pinned.
+  // They carry no surface of their own: `z-20` lands them on top of the
+  // header's fixed scrim, which is what the list dissolves into on its way
+  // past. The count and chips are a readout of the board rather than a
+  // control, so they scroll off with it.
   const lane = (
     <>
-      <CollabToolbar
-        onOpenFilters={isSplit ? undefined : () => setFiltersOpen(true)}
-        authenticated={!!session?.user}
-        onCreate={handleCreate}
-      />
+      <div className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20">
+        <CollabToolbar
+          onOpenFilters={isSplit ? undefined : () => setFiltersOpen(true)}
+          controlsElsewhere={isTouch}
+        />
+      </div>
       <CollabActiveFilters />
     </>
   );
 
   return (
     <div className="flex flex-col gap-5 selection:bg-primary selection:text-white">
+      <CollabHero authenticated={!!session?.user} onCreate={handleCreate} />
       {isSplit ? (
         <>
-          {/* The region is viewport-height so each pane scrolls on its
-              own — the lane keeps its scroll position while you walk
-              posts, which is the whole point of the layout. */}
-          <div className="grid h-[calc(100vh-15rem)] min-h-130 grid-cols-[minmax(0,1fr)_minmax(360px,360px)] gap-6">
-            <section className="flex min-h-0 flex-col gap-3">
+          {/* `items-start` is what lets the inspector stick: a stretched
+              grid item is already as tall as the lane, so it would have
+              nothing to travel through. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(360px,360px)] items-start gap-6">
+            <section className="flex flex-col gap-3">
               {lane}
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <CollabPostFeed
-                  currentUserId={currentUserId}
-                  selectedPostId={selectedPostId}
-                  onSelectPost={selectPost}
-                />
-              </div>
+              <CollabPostFeed
+                currentUserId={currentUserId}
+                selectedPostId={selectedPostId}
+                onSelectPost={selectPost}
+              />
             </section>
 
-            <aside className="flex min-h-0 flex-col">
+            {/* Parked at the same inset as the toolbar so the two lanes line
+                up along one edge, and travelling with the header — see
+                `--app-header-shift`. It sizes to its content and is only
+                capped at the visible band (the 3.5rem header inset plus a
+                bottom gutter, less whatever the header has vacated) — a long
+                post detail scrolls inside the pane rather than past it, while
+                the idle readout stays short instead of stretching to fill the
+                viewport. */}
+            <aside className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20 flex max-h-[calc(100vh-6rem-var(--app-header-shift))] flex-col">
               <CollabInspector
                 postId={selectedPostId}
                 currentUserId={currentUserId}
@@ -265,9 +291,6 @@ export function CollabBrowsePage() {
           <div className="flex flex-wrap items-center gap-4">
             <Text size="sm" variant="muted" className="flex items-center gap-1.5">
               Press <Kbd>/</Kbd> to search.
-            </Text>
-            <Text size="sm" variant="muted" className="flex items-center gap-1.5">
-              Press <Kbd>P</Kbd> to toggle people view.
             </Text>
             <Text size="sm" variant="muted" className="flex items-center gap-1.5">
               <Kbd>↑</Kbd> <Kbd>↓</Kbd> to walk posts.
@@ -285,6 +308,10 @@ export function CollabBrowsePage() {
           />
         </div>
       )}
+
+      {isTouch && !isSplit ? (
+        <CollabFloatingControls onOpenFilters={() => setFiltersOpen(true)} />
+      ) : null}
 
       {/* Doubles as the edit surface: the detail panel seeds the wizard
           store, then flips this open. */}
@@ -331,5 +358,64 @@ export function CollabBrowsePage() {
         </DrawerContent>
       </Drawer>
     </div>
+  );
+}
+
+/**
+ * The board's masthead and primary action, built on the same frame as
+ * the team directory's hero so the two boards read as one product.
+ *
+ * Signed-out visitors get the same button pointed at sign-in rather than
+ * a hidden one — the ask is the point of the banner, and hiding it makes
+ * the page look read-only.
+ */
+function CollabHero({ authenticated, onCreate }: { authenticated: boolean; onCreate: () => void }) {
+  // A crew is the thing most posts want behind them, so the second CTA
+  // only appears for someone who hasn't got one yet.
+  const { data: myTeams } = useQuery({
+    ...orpc.listMyTeams.queryOptions({ input: {} }),
+    enabled: authenticated,
+    staleTime: 60 * 1000,
+  });
+  const needsTeam = authenticated && myTeams !== undefined && myTeams.length === 0;
+
+  return (
+    <Well
+      notchOpts
+      // The gradient is the surface's alone — see the team hero for why
+      // it can't ride on the frame.
+      surfaceClassName="bg-card bg-linear-to-br from-primary/12 via-card to-card backdrop-blur-none"
+    >
+      <GraphPaper fade="bottom-left" />
+      <div className="relative flex flex-wrap items-end justify-between gap-6 p-6">
+        <div className="flex max-w-prose min-w-64 flex-col gap-2">
+          <MicroLabel>COLLAB BOARD</MicroLabel>
+          <Heading as="h1" className="text-2xl tracking-widest uppercase">
+            Find people to build with
+          </Heading>
+          <Text size="sm" variant="muted">
+            Open roles from teams and solo devs — paid work and hobby projects. Post what you need
+            filled, or answer someone who's already building.
+          </Text>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {needsTeam ? (
+            <Button
+              variant="outline"
+              size="lg"
+              render={<Link to="/teams" search={{ new: true }} />}
+              className="tracking-widest"
+            >
+              <HugeiconsIcon icon={UserGroupIcon} size={14} />
+              START A TEAM
+            </Button>
+          ) : null}
+          <Button size="lg" onClick={onCreate} className="tracking-widest">
+            <HugeiconsIcon icon={authenticated ? Add01Icon : Login01Icon} size={14} />
+            {authenticated ? "POST A ROLE" : "SIGN IN TO POST"}
+          </Button>
+        </div>
+      </div>
+    </Well>
   );
 }

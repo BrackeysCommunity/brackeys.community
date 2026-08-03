@@ -852,6 +852,62 @@ export const countPostsByType = os
   });
 
 /**
+ * The readout behind the board's idle sidebar: what's open, what those
+ * open posts are built in, and which seats they're hiring for. Every
+ * figure counts *recruiting* posts only — a stack that's only present on
+ * closed posts is history, not a lead — and it's one round trip because
+ * the pane renders the three together or not at all.
+ */
+export const getBoardStats = os.handler(async () => {
+  const openOnly = eq(collabPosts.status, "recruiting");
+
+  const [typeRows, skillRows, roleRows, freshRow] = await Promise.all([
+    db
+      .select({ type: collabPosts.type, count: count() })
+      .from(collabPosts)
+      .where(openOnly)
+      .groupBy(collabPosts.type),
+    db
+      .select({ id: skills.id, name: skills.name, count: count() })
+      .from(collabPostSkills)
+      .innerJoin(collabPosts, eq(collabPostSkills.postId, collabPosts.id))
+      .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
+      .where(openOnly)
+      .groupBy(skills.id, skills.name)
+      .orderBy(desc(count()))
+      .limit(5),
+    db
+      .select({ id: collabRoles.id, name: collabRoles.name, count: count() })
+      .from(collabPostRoles)
+      .innerJoin(collabPosts, eq(collabPostRoles.postId, collabPosts.id))
+      .innerJoin(collabRoles, eq(collabPostRoles.roleId, collabRoles.id))
+      .where(openOnly)
+      .groupBy(collabRoles.id, collabRoles.name)
+      .orderBy(desc(count()))
+      .limit(6),
+    db
+      .select({ count: count() })
+      .from(collabPosts)
+      .where(and(openOnly, sql`${collabPosts.createdAt} > now() - interval '7 days'`))
+      .then((rows) => rows[0]),
+  ]);
+
+  const open = { paid: 0, hobby: 0, all: 0 };
+  for (const row of typeRows) {
+    const n = Number(row.count);
+    open.all += n;
+    if (row.type === "paid" || row.type === "hobby") open[row.type] = n;
+  }
+
+  return {
+    open,
+    topSkills: skillRows.map((r) => ({ id: r.id, name: r.name, count: Number(r.count) })),
+    topRoles: roleRows.map((r) => ({ id: r.id, name: r.name, count: Number(r.count) })),
+    newThisWeek: Number(freshRow?.count ?? 0),
+  };
+});
+
+/**
  * How many open team posts a jam has attracted. Drives the jam modal's
  * "N TEAM POSTS" line, which only appears when the answer is non-zero —
  * so it counts recruiting posts only; a wall of closed ones would

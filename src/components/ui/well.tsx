@@ -9,7 +9,13 @@ const wellVariants = cva(
   {
     variants: {
       variant: {
-        default: "chonk-deboss border border-input",
+        // The recessed read is just a heavier top edge — a real border, so it
+        // takes part in layout and the radius instead of an inset shadow
+        // painted over the content. One colour for all four sides: a corner
+        // where the widths change is mitered on the diagonal, so a top edge
+        // that differs in colour as well draws a visible wedge through the
+        // radius.
+        default: "border border-t-[3px] border-deboss-shadow",
         ghost: "border border-muted/60",
       },
     },
@@ -36,7 +42,7 @@ type WellProps = React.ComponentProps<"div"> &
  * wrapper carries the radius at the non-notched corners, a middle layer
  * clipped to the outer notch path and filled with `var(--deboss-shadow)` acts
  * as the 1px frame, and the inner content surface takes the same path a notch
- * size smaller and caps itself with the 4px deboss lip.
+ * size smaller and thickens its own top border to match the plain variant.
  *
  * The triangles the notch cuts away fall outside every clip path, so the
  * wrapper is what fills them. `--emboss-surface` is the lit face of a raised
@@ -84,22 +90,17 @@ function Well({
               // square corners. It costs nothing — the clip path already
               // confines descendants to exactly this outline.
               "relative flex h-full w-full flex-col overflow-hidden rounded-[7px] bg-card/85 text-card-foreground backdrop-blur-md",
+              // Same heavier top edge as the plain variant, stacked on the
+              // 1px frame below it. A border rather than an overlay, so it
+              // sits above background washes a consumer lays over the
+              // surface — absolute `inset-0` children start under it.
+              variant !== "ghost" && "border-t-2 border-t-deboss-shadow",
               surfaceClassName,
             )}
             style={{ clipPath: buildNotchPath({ ...resolved, size: resolved.size - 1 }) }}
             {...props}
           >
             {children}
-            {/* The deboss lip. Painted as a sibling after `children` rather
-                than as an inset shadow so it reads as the frame's thicker top
-                edge: background washes and rulings a consumer lays over the
-                surface stay under it instead of running through it. */}
-            {variant !== "ghost" ? (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-[7px] bg-deboss-shadow"
-              />
-            ) : null}
           </div>
         </div>
       </div>

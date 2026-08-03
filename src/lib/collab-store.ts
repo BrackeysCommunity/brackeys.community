@@ -6,7 +6,6 @@ import { Store } from "@tanstack/store";
  * type-keyed lookup here is a map, so both return as pure additions.
  */
 export type CollabPostType = "paid" | "hobby";
-export type CollabListingType = "posts" | "people";
 export type CollabLayout = "list" | "cards";
 export type CollabStatus = "recruiting" | "party_full";
 export type CollabSortBy = "createdAt" | "updatedAt";
@@ -43,10 +42,8 @@ export type UploadedImage = {
 
 type CollabFilters = {
   type: CollabPostType | undefined;
-  listingType: CollabListingType | undefined;
   roleIds: number[];
-  /** Tech stack, shared vocabulary with `user.skills`. Filters posts on
-   *  the projects lane and people on the people lane. */
+  /** Tech stack, shared vocabulary with `user.skills`. */
   skillIds: number[];
   jamId: number | undefined;
   /** One team's posts — set from a team page's "see all" link. */
@@ -58,12 +55,7 @@ type CollabFilters = {
   experienceLevel: CollabExperienceLevel | undefined;
   compensationType: CollabCompensationType | undefined;
   isIndividual: boolean | undefined;
-  /** People lane only — what kind of work a dev is open to. */
-  collabPreference: CollabPreference | undefined;
 };
-
-/** Profile-side counterpart to a post's type. "either" matches both. */
-export type CollabPreference = "paid" | "hobby" | "either";
 
 type CollabPagination = {
   limit: number;
@@ -146,7 +138,6 @@ type CollabState = {
 
 const defaultFilters: CollabFilters = {
   type: undefined,
-  listingType: undefined,
   roleIds: [],
   skillIds: [],
   jamId: undefined,
@@ -158,7 +149,6 @@ const defaultFilters: CollabFilters = {
   experienceLevel: undefined,
   compensationType: undefined,
   isIndividual: undefined,
-  collabPreference: undefined,
 };
 
 const defaultDraft: WizardDraft = {
@@ -190,7 +180,7 @@ const defaultDraft: WizardDraft = {
 
 export const collabStore = new Store<CollabState>({
   filters: { ...defaultFilters },
-  layout: "list",
+  layout: "cards",
   pagination: { limit: 20, offset: 0 },
   wizard: {
     step: 0,
@@ -214,16 +204,15 @@ export function setCollabFilters(partial: Partial<CollabFilters>) {
 }
 
 /**
- * Clears every constraint but keeps the listing mode and sort order —
- * those are navigation and presentation, not things "CLEAR ALL" should
- * yank out from under the user.
+ * Clears every constraint but keeps the sort order — that's
+ * presentation, not something "CLEAR ALL" should yank out from under
+ * the user.
  */
 export function resetCollabFilters() {
   collabStore.setState((s) => ({
     ...s,
     filters: {
       ...defaultFilters,
-      listingType: s.filters.listingType,
       sortBy: s.filters.sortBy,
       sortOrder: s.filters.sortOrder,
     },
@@ -256,26 +245,9 @@ export function collabFilterInput(filters: CollabFilters) {
   };
 }
 
-/**
- * The people lane's own filter shape. Skills are the one constraint both
- * lanes share — "who knows Godot" and "which projects run on Godot" are
- * the same chips, resolved against the same vocabulary.
- */
-export function collabPeopleFilterInput(filters: CollabFilters) {
-  return {
-    search: filters.search || undefined,
-    skillIds: filters.skillIds.length > 0 ? filters.skillIds : undefined,
-    collabPreference: filters.collabPreference,
-  };
-}
-
-/** Returns the number of active filter constraints (excluding sort and
- *  the posts/people listing mode, which is navigation, not a filter). */
+/** Returns the number of active filter constraints, excluding sort —
+ *  that's presentation, not a filter. */
 export function countActiveCollabFilters(filters: CollabFilters): number {
-  if (filters.listingType === "people") {
-    const people = collabPeopleFilterInput(filters);
-    return [people.search, people.skillIds, people.collabPreference].filter(Boolean).length;
-  }
   const input = collabFilterInput(filters);
   return [
     input.type,

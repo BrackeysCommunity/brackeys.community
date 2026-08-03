@@ -28,7 +28,7 @@ export function StatCell({ value, label, accent, className }: StatCellProps) {
 export function StatStrip({ children }: { children: React.ReactNode }) {
   return (
     <Well notchOpts={{ size: 12 }}>
-      <div className="mt-1 grid grid-cols-2 xl:grid-cols-4">{children}</div>
+      <div className="grid grid-cols-2 xl:grid-cols-4">{children}</div>
     </Well>
   );
 }

@@ -1,18 +1,15 @@
 import {
-  Add01Icon,
   ArrowDown01Icon,
-  CubeIcon,
   GridViewIcon,
   LeftToRightListBulletIcon,
-  Login01Icon,
   SortByDown02Icon,
-  UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
 
+import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,12 +20,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchField } from "@/components/ui/search-field";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   type CollabCompensationType,
   type CollabExperienceLevel,
   type CollabPostType,
-  type CollabPreference,
   type CollabSortBy,
   type CollabSortOrder,
   type CollabStatus,
@@ -38,8 +33,6 @@ import {
 } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
-
-import { useCollabTypeCounts } from "./use-collab-counts";
 
 export const COLLAB_SEARCH_INPUT_ID = "collab-search";
 
@@ -73,13 +66,6 @@ const COMP_OPTIONS: Option[] = [
   { value: "negotiable", label: "NEGOTIABLE" },
 ];
 
-/** People lane: "either" answers both, so it isn't its own choice. */
-const PREFERENCE_OPTIONS: Option[] = [
-  { value: "all", label: "ANY WORK" },
-  { value: "paid", label: "OPEN TO PAID" },
-  { value: "hobby", label: "OPEN TO HOBBY" },
-];
-
 /** Sort presets pair a column with a direction — one choice, no
  *  separate order toggle to keep in sync. */
 const SORT_OPTIONS: { value: string; label: string; by: CollabSortBy; order: CollabSortOrder }[] = [
@@ -91,60 +77,40 @@ const SORT_OPTIONS: { value: string; label: string; by: CollabSortBy; order: Col
 interface CollabToolbarProps {
   /** Narrow layouts render search + a sheet trigger instead of the menu row. */
   onOpenFilters?: () => void;
-  authenticated: boolean;
-  onCreate: () => void;
+  /** Touch layouts hand the whole control row to {@link CollabFloatingControls},
+   *  leaving the toolbar as search alone. */
+  controlsElsewhere?: boolean;
 }
 
 /**
- * The board's whole control surface, two lines: search + the create CTA
- * on top, everything that shapes the listing below. The primary
- * navigation (post type) is a dropdown like the other facets — as tabs
- * it ate a full row by itself — and display controls (sort, layout) are
- * plain icon buttons on the trailing edge, matching the jam board.
+ * The board's whole control surface, two lines: search on top,
+ * everything that shapes the listing below. The primary navigation (post
+ * type) is a dropdown like the other facets — as tabs it ate a full row
+ * by itself — and display controls (sort, layout) are plain icon buttons
+ * on the trailing edge, matching the jam board. Creating a post is the
+ * hero's job, not the toolbar's.
  */
-export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: CollabToolbarProps) {
+export function CollabToolbar({ onOpenFilters, controlsElsewhere }: CollabToolbarProps) {
   const filters = useStore(collabStore, (s) => s.filters);
-  const layout = useStore(collabStore, (s) => s.layout);
-  const { data: counts } = useCollabTypeCounts();
-  const isPeople = filters.listingType === "people";
 
-  const sortValue = `${filters.sortBy}:${filters.sortOrder}`;
-  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortValue)?.label ?? "NEWEST";
-  const nextLayout = layout === "cards" ? "list" : "cards";
+  if (controlsElsewhere) return <CollabSearchInput className="h-10 w-full" />;
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Line 1 — search owns the width, the CTA rides its trailing edge. */}
-      <div className="flex items-center gap-2">
-        <CollabSearchInput className="h-10 min-w-0 flex-1" />
-        <Button
-          onClick={onCreate}
-          variant="default"
-          size="lg"
-          className="h-10 shrink-0 tracking-widest"
-        >
-          <HugeiconsIcon icon={authenticated ? Add01Icon : Login01Icon} size={14} />
-          <span className="hidden sm:inline">
-            {authenticated ? "POST A ROLE" : "SIGN IN TO POST"}
-          </span>
-          <span className="sm:hidden">{authenticated ? "POST" : "SIGN IN"}</span>
-        </Button>
-      </div>
+      {/* Line 1 — search owns the width. */}
+      <CollabSearchInput className="h-10 w-full" />
 
-      {/* Line 2 — facets on the left, listing mode + display on the right. */}
+      {/* Line 2 — facets on the left, display controls on the right. */}
       <div className="flex flex-wrap items-center gap-2">
         {onOpenFilters ? (
           <Button variant="outline" size="sm" onClick={onOpenFilters} className="tracking-widest">
             FILTERS
           </Button>
-        ) : !isPeople ? (
+        ) : (
           <>
             <FilterMenu
               label="TYPE"
-              options={TYPE_OPTIONS.map((o) => ({
-                ...o,
-                count: counts?.[o.value as "all" | CollabPostType],
-              }))}
+              options={TYPE_OPTIONS}
               value={filters.type ?? "all"}
               onChange={(v) =>
                 setCollabFilters({ type: v === "all" ? undefined : (v as CollabPostType) })
@@ -182,100 +148,114 @@ export function CollabToolbar({ onOpenFilters, authenticated, onCreate }: Collab
             ) : null}
             <StackFilterMenu selected={filters.skillIds} />
           </>
-        ) : (
-          /* The people lane had no facets at all on desktop — the only
-             way to narrow it was the search box. */
-          <>
-            <FilterMenu
-              label="OPEN TO"
-              options={PREFERENCE_OPTIONS}
-              value={filters.collabPreference ?? "all"}
-              onChange={(v) =>
-                setCollabFilters({
-                  collabPreference: v === "all" ? undefined : (v as CollabPreference),
-                })
-              }
-            />
-            <StackFilterMenu selected={filters.skillIds} />
-          </>
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          <SegmentedControl
-            value={isPeople ? "people" : "posts"}
-            onChange={(v) => setCollabFilters({ listingType: v as "posts" | "people" })}
-            size="sm"
-            aria-label="Listing type"
-          >
-            <SegmentedControl.Item
-              value="posts"
-              icon={<HugeiconsIcon icon={CubeIcon} />}
-              className="tracking-widest"
-            >
-              PROJECTS
-            </SegmentedControl.Item>
-            <SegmentedControl.Item
-              value="people"
-              icon={<HugeiconsIcon icon={UserGroupIcon} />}
-              className="tracking-widest"
-            >
-              PEOPLE
-            </SegmentedControl.Item>
-          </SegmentedControl>
+          <CollabDisplayControls />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          {/* Display controls as bare icon buttons, jam-board style.
-              Native `title` hints — SimpleTooltip renders its own button
-              trigger, which would nest a button in a button. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  title={`Sort: ${sortLabel}`}
-                  aria-label={`Sort order: ${sortLabel}`}
-                />
-              }
-            >
-              <HugeiconsIcon icon={SortByDown02Icon} size={14} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-auto min-w-44 p-1">
-              <DropdownMenuRadioGroup
-                value={sortValue}
-                onValueChange={(v) => {
-                  const preset = SORT_OPTIONS.find((o) => o.value === v);
-                  if (preset) setCollabFilters({ sortBy: preset.by, sortOrder: preset.order });
-                }}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <DropdownMenuRadioItem
-                    key={option.value}
-                    value={option.value}
-                    closeOnClick
-                    className="tracking-widest"
-                  >
-                    {option.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+/**
+ * Sort and card/list toggle as bare icon buttons, jam-board style. Native
+ * `title` hints rather than SimpleTooltip, which renders its own button
+ * trigger and would nest a button in a button.
+ */
+function CollabDisplayControls({ large }: { large?: boolean }) {
+  const filters = useStore(collabStore, (s) => s.filters);
+  const layout = useStore(collabStore, (s) => s.layout);
 
-          {!isPeople ? (
+  const sortValue = `${filters.sortBy}:${filters.sortOrder}`;
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortValue)?.label ?? "NEWEST";
+  const nextLayout = layout === "cards" ? "list" : "cards";
+  const size = large ? "icon-lg" : "icon-sm";
+  const iconSize = large ? 18 : 14;
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
             <Button
               variant="outline"
-              size="icon-sm"
-              onClick={() => setCollabLayout(nextLayout)}
-              title={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
-              aria-label={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
-            >
-              <HugeiconsIcon
-                icon={nextLayout === "list" ? LeftToRightListBulletIcon : GridViewIcon}
-                size={14}
-              />
-            </Button>
-          ) : null}
-        </div>
+              size={size}
+              title={`Sort: ${sortLabel}`}
+              aria-label={`Sort order: ${sortLabel}`}
+            />
+          }
+        >
+          <HugeiconsIcon icon={SortByDown02Icon} size={iconSize} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-auto min-w-44 p-1">
+          <DropdownMenuRadioGroup
+            value={sortValue}
+            onValueChange={(v) => {
+              const preset = SORT_OPTIONS.find((o) => o.value === v);
+              if (preset) setCollabFilters({ sortBy: preset.by, sortOrder: preset.order });
+            }}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <DropdownMenuRadioItem
+                key={option.value}
+                value={option.value}
+                closeOnClick
+                className="tracking-widest"
+              >
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Button
+        variant="outline"
+        size={size}
+        onClick={() => setCollabLayout(nextLayout)}
+        title={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
+        aria-label={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
+      >
+        <HugeiconsIcon
+          icon={nextLayout === "list" ? LeftToRightListBulletIcon : GridViewIcon}
+          size={iconSize}
+        />
+      </Button>
+    </>
+  );
+}
+
+/**
+ * The touch layout's control row: FILTERS on the leading edge, sort and view
+ * on the trailing one, floating just above the bottom nav island.
+ *
+ * Down here rather than in the toolbar because on a phone the toolbar is
+ * three quarters of the way from the thumb, and these three are what you
+ * reach for repeatedly while scanning the board. Split to the two edges so
+ * neither thumb has to cross the screen, with the middle left open so the
+ * list stays readable behind them.
+ */
+export function CollabFloatingControls({ onOpenFilters }: { onOpenFilters: () => void }) {
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 z-40 flex items-center justify-between px-4"
+      style={{
+        bottom: `calc(${BOTTOM_NAV_HEIGHT} - 0.5rem)`,
+        paddingLeft: "calc(1rem + env(safe-area-inset-left))",
+        paddingRight: "calc(1rem + env(safe-area-inset-right))",
+      }}
+    >
+      <Button
+        variant="outline"
+        size="lg"
+        onClick={onOpenFilters}
+        className="pointer-events-auto tracking-widest"
+      >
+        FILTERS
+      </Button>
+      <div className="pointer-events-auto flex items-center gap-2">
+        <CollabDisplayControls large />
       </div>
     </div>
   );
@@ -308,7 +288,7 @@ export function CollabSearchInput({ className }: { className?: string }) {
       id={COLLAB_SEARCH_INPUT_ID}
       value={value}
       onChange={setValue}
-      placeholder="Search posts, projects, devs…"
+      placeholder="Search roles and projects…"
       autoComplete="off"
       size="default"
       containerClassName={cn("dark:bg-emboss-surface!", className)}
@@ -379,7 +359,7 @@ function StackFilterMenu({ selected }: { selected: number[] }) {
 
 interface FilterMenuProps {
   label: string;
-  options: (Option & { count?: number })[];
+  options: Option[];
   value: string;
   onChange: (value: string) => void;
 }
@@ -409,13 +389,9 @@ function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
               key={option.value}
               value={option.value}
               closeOnClick
-              disabled={option.count === 0 && option.value !== value && option.value !== "all"}
-              className="justify-between gap-4 tracking-widest"
+              className="tracking-widest"
             >
               {option.label}
-              {option.count !== undefined ? (
-                <span className="text-muted-foreground tabular-nums">{option.count}</span>
-              ) : null}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

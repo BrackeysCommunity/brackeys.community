@@ -101,7 +101,6 @@ describe("team link on posts", () => {
   it("passes the team constraint through the board filter input", () => {
     const base = {
       type: undefined,
-      listingType: undefined,
       roleIds: [],
       skillIds: [],
       jamId: undefined,
@@ -113,7 +112,6 @@ describe("team link on posts", () => {
       experienceLevel: undefined,
       compensationType: undefined,
       isIndividual: undefined,
-      collabPreference: undefined,
     };
     expect(collabFilterInput({ ...base, teamId: "team-uuid" }).teamId).toBe("team-uuid");
     expect(collabFilterInput(base).teamId).toBeUndefined();

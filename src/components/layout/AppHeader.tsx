@@ -9,6 +9,9 @@ import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
+import { useHeaderShift } from "@/hooks/use-header-shift";
+import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
+import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
 import {
   activeUserStore,
   clearActiveUserProfile,
@@ -18,6 +21,9 @@ import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 import { profileSlug } from "@/lib/profile-links";
+
+/** Matches the `pt-14` the shell reserves for the bar — see `--app-header-shift`. */
+const HEADER_SHIFT = "-3.5rem";
 
 const springTransition = {
   type: "spring",
@@ -64,6 +70,18 @@ export function AppHeader() {
     PAGE_TITLES[pathname] ??
     (pathname.startsWith("/collab/") ? "COLLAB" : pathname.startsWith("/teams/") ? "TEAMS" : null);
 
+  // Auto-hide on scroll-down / reveal on scroll-up. Held open while the mobile
+  // menu is expanded — sliding the trigger away under an open overlay strands
+  // it. Navigating resets it (the new page's scroller starts at the top).
+  // Parking the cursor at the very top edge summons it back without scrolling;
+  // it retracts again once the pointer leaves, unless the scroll position has
+  // meanwhile brought it back on its own.
+  const scrolledAway = useHideOnScrollDown(pathname);
+  const peeking = useTopEdgePeek(scrolledAway);
+  const hidden = scrolledAway && !peeking && !mobileMenuOpen;
+
+  useHeaderShift(hidden, HEADER_SHIFT);
+
   useEffect(() => {
     setAuthSession(session ?? null);
     if (session?.user) {
@@ -76,10 +94,25 @@ export function AppHeader() {
 
   return (
     <>
-      {/* The scrim only has to cover the bar itself (~56px on desktop) plus a
-          short fade-out; the mobile menu overlay is taller, so the fade stays
-          deeper below `lg`. */}
-      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-start justify-between px-4 pt-4 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-32 before:bg-gradient-to-b before:from-background before:via-background/70 before:to-transparent before:content-[''] sm:px-6 sm:pt-5 lg:px-10 lg:before:h-20">
+      {/* The scrim is its own fixed layer rather than the bar's `before:`,
+          because it outlives the bar: once the header slides away this is what
+          keeps page content legible as it scrolls under the sticky page
+          controls. Sits above static content but below anything parked at
+          `--app-header-shift` (z-20), so a sticky toolbar lands on top of the
+          fade while the list passes behind it. The mobile menu overlay is
+          taller than the desktop bar, so the fade stays deeper below `lg`. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-10 h-32 bg-gradient-to-b from-background via-background/70 to-transparent lg:h-20"
+      />
+
+      <motion.header
+        initial={false}
+        animate={{ y: hidden ? "-100%" : "0%", opacity: hidden ? 0 : 1 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        inert={hidden}
+        className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-start justify-between px-4 pt-4 sm:px-6 sm:pt-5 lg:px-10"
+      >
         {/* Logo */}
         <MagneticLink className="pointer-events-auto shrink-0">
           <Link to="/" className="flex items-center gap-2">
@@ -189,7 +222,7 @@ export function AppHeader() {
             <HugeiconsIcon icon={mobileMenuOpen ? Cancel01Icon : Menu01Icon} size={18} />
           </Button>
         </div>
-      </header>
+      </motion.header>
 
       {/* Mobile menu overlay */}
       <AnimatePresence>

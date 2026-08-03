@@ -8,7 +8,6 @@ import {
 } from "@/components/collab/CollabCreateFlyout/shared";
 import {
   collabFilterInput,
-  collabPeopleFilterInput,
   countActiveCollabFilters,
   draftFromPost,
   isEditablePostType,
@@ -416,7 +415,6 @@ describe("draftFromPost", () => {
 describe("board filter input", () => {
   const base = {
     type: undefined,
-    listingType: undefined,
     roleIds: [],
     skillIds: [],
     jamId: undefined,
@@ -428,7 +426,6 @@ describe("board filter input", () => {
     experienceLevel: undefined,
     compensationType: undefined,
     isIndividual: undefined,
-    collabPreference: undefined,
   };
 
   it("passes jam and stack constraints through to listPosts", () => {
@@ -445,19 +442,5 @@ describe("board filter input", () => {
     expect(countActiveCollabFilters(base)).toBe(0);
     expect(countActiveCollabFilters({ ...base, jamId: 42 })).toBe(1);
     expect(countActiveCollabFilters({ ...base, jamId: 42, skillIds: [1] })).toBe(2);
-  });
-
-  it("counts only the people-lane constraints on the people lane", () => {
-    const people = { ...base, listingType: "people" as const };
-    // Post-only constraints don't apply here, so they don't count.
-    expect(countActiveCollabFilters({ ...people, type: "paid" })).toBe(0);
-    expect(countActiveCollabFilters({ ...people, skillIds: [1] })).toBe(1);
-    expect(countActiveCollabFilters({ ...people, collabPreference: "paid" })).toBe(1);
-  });
-
-  it("shares the stack vocabulary with the people lane", () => {
-    const input = collabPeopleFilterInput({ ...base, skillIds: [4, 5], collabPreference: "hobby" });
-    expect(input.skillIds).toEqual([4, 5]);
-    expect(input.collabPreference).toBe("hobby");
   });
 });

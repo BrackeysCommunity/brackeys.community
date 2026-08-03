@@ -9,7 +9,6 @@ import { collabStore, countActiveCollabFilters, resetCollabFilters } from "@/lib
 import { cn } from "@/lib/utils";
 
 import { CollabPostCard, CollabPostGridCard } from "./CollabPostCard";
-import { CollabUserCard } from "./CollabUserCard";
 import { useCollabListing } from "./use-collab-listing";
 
 interface CollabPostFeedProps {
@@ -22,12 +21,14 @@ interface CollabPostFeedProps {
 }
 
 /**
- * The list lane. Renders whichever listing the `listingType` filter
- * selects and pages in more as the bottom sentinel scrolls into view.
+ * The list lane. Renders the board's posts in whichever layout the
+ * `layout` toggle selects and pages in more as the bottom sentinel
+ * scrolls into view.
  *
  * Not virtualized: cards are cheap, the page size is 20, and the lane
- * is a plain scroll container — a virtualizer here would have to track
- * its own offset inside an ancestor it doesn't own for no real gain.
+ * grows the page rather than owning a scroller — a virtualizer here
+ * would have to track its own offset inside an ancestor it doesn't own
+ * for no real gain.
  */
 export function CollabPostFeed({
   currentUserId,
@@ -36,11 +37,10 @@ export function CollabPostFeed({
 }: CollabPostFeedProps) {
   const filters = useStore(collabStore, (s) => s.filters);
   const layout = useStore(collabStore, (s) => s.layout);
-  const { items, isPeople, isLoading, hasNextPage, isFetchingNext, fetchNext } =
+  const { items, isLoading, hasNextPage, isFetchingNext, fetchNext } =
     useCollabListing(currentUserId);
 
-  // People are always tiles; the list/cards toggle only reshapes posts.
-  const isCards = !isPeople && layout === "cards";
+  const isCards = layout === "cards";
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -58,41 +58,38 @@ export function CollabPostFeed({
 
   if (isLoading) return <FeedSkeleton cards={isCards} />;
   if (items.length === 0) {
-    return <FeedEmptyState filtered={countActiveCollabFilters(filters) > 0} isPeople={isPeople} />;
+    return <FeedEmptyState filtered={countActiveCollabFilters(filters) > 0} />;
   }
 
   return (
     <div
       className={cn(
-        "grid gap-3",
-        // Tiles are art-led and stay legible small, so the card layout
-        // takes more, narrower columns than the wide list rows.
+        "gap-3",
+        // Cards are art-led tiles on the same column rhythm as the team
+        // directory; the list is one row per post, full width, so a scan
+        // reads straight down instead of snaking across columns.
         isCards
-          ? "grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))]"
-          : "grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3",
+          ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+          : "flex flex-col gap-2",
       )}
     >
       {items.map((item) =>
-        item.kind === "post" ? (
-          isCards ? (
-            <CollabPostGridCard
-              key={`post-${item.post.id}`}
-              post={item.post}
-              pinned={item.pinned}
-              selected={item.post.id === selectedPostId}
-              onSelect={onSelectPost}
-            />
-          ) : (
-            <CollabPostCard
-              key={`post-${item.post.id}`}
-              post={item.post}
-              pinned={item.pinned}
-              selected={item.post.id === selectedPostId}
-              onSelect={onSelectPost}
-            />
-          )
+        isCards ? (
+          <CollabPostGridCard
+            key={`post-${item.post.id}`}
+            post={item.post}
+            pinned={item.pinned}
+            selected={item.post.id === selectedPostId}
+            onSelect={onSelectPost}
+          />
         ) : (
-          <CollabUserCard key={`user-${item.user.id}`} user={item.user} skills={item.user.skills} />
+          <CollabPostCard
+            key={`post-${item.post.id}`}
+            post={item.post}
+            pinned={item.pinned}
+            selected={item.post.id === selectedPostId}
+            onSelect={onSelectPost}
+          />
         ),
       )}
 
@@ -114,18 +111,14 @@ export function CollabPostFeed({
  * they get different exits: one offers a way out of the filters, the
  * other just says the board is quiet.
  */
-function FeedEmptyState({ filtered, isPeople }: { filtered: boolean; isPeople: boolean }) {
+function FeedEmptyState({ filtered }: { filtered: boolean }) {
   return (
     <Well className="items-center justify-center gap-3 px-4 py-12 text-center">
       <Text variant="muted" className="text-4xl opacity-40">
         [ ]
       </Text>
       <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        {filtered
-          ? "No results match your filters"
-          : isPeople
-            ? "Nobody has marked themselves available yet"
-            : "The board is empty — post the first role"}
+        {filtered ? "No results match your filters" : "The board is empty — post the first role"}
       </Text>
       {filtered ? (
         <Button
@@ -143,9 +136,16 @@ function FeedEmptyState({ filtered, isPeople }: { filtered: boolean; isPeople: b
 
 function FeedSkeleton({ cards }: { cards: boolean }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+    <div
+      className={cn(
+        "gap-3",
+        cards
+          ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+          : "flex flex-col gap-2",
+      )}
+    >
       {Array.from({ length: 6 }).map((_, i) => (
-        <Skeleton key={i} className={cn("w-full", cards ? "h-[248px]" : "h-[116px]")} />
+        <Skeleton key={i} className={cn("w-full", cards ? "h-[264px]" : "h-[86px]")} />
       ))}
     </div>
   );

@@ -344,15 +344,10 @@ export function CollabPostDetail({
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    setCollabFilters({
-                      listingType: "people",
-                      skillIds: post.skills.map((s) => s.id),
-                    })
-                  }
+                  onClick={() => setCollabFilters({ skillIds: post.skills.map((s) => s.id) })}
                   className="self-start text-xs tracking-widest text-primary uppercase hover:underline"
                 >
-                  Browse people with this stack →
+                  Browse posts with this stack →
                 </button>
               </div>
             ) : null}

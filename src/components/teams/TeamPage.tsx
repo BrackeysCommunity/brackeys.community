@@ -1,4 +1,9 @@
-import { Link01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import {
+  ArrowRight01Icon,
+  Link01Icon,
+  Settings02Icon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -7,8 +12,10 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Chonk } from "@/components/ui/chonk";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
-import { MicroLabel, Heading, Text } from "@/components/ui/typography";
+import { MicroLabel, Heading, Link as TextLink, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
@@ -84,9 +91,16 @@ export interface TeamProject {
 const MAX_STACK_CHIPS = 12;
 
 /**
- * A team's public page: hero, roster, derived stack, showcase, jam log,
- * open positions. The team's stack is its members' skills counted at
- * read time — there is no stored team stack to go stale.
+ * A team's public page: masthead, roster, derived stack, showcase, jam
+ * log, open positions. The team's stack is its members' skills counted
+ * at read time — there is no stored team stack to go stale.
+ *
+ * Everything here speaks the directory's vocabulary, because the two
+ * pages are the same object at two zoom levels: a notched `Well`
+ * masthead over the house ruling, `MicroLabel` section markers on a
+ * dashed rule, and `Chonk` tiles for anything that is a destination.
+ * A tile that isn't clickable stays a `Well` — deboss for readouts,
+ * emboss for links, same as on the tiles in `/teams`.
  */
 export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly unknown[] }) {
   const { session } = useStore(authStore);
@@ -107,7 +121,7 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
   return (
     <div className="flex flex-col gap-8 selection:bg-primary selection:text-white">
       {isArchived ? (
-        <Well variant="ghost" className="border-warning/40 bg-warning/5 p-3">
+        <Well variant="ghost" className="border-warning/40 bg-warning/5 p-3 backdrop-blur-none">
           <Text size="xs" className="tracking-widest text-warning uppercase">
             This team is archived — the page is read-only.
           </Text>
@@ -116,7 +130,7 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
 
       {/* Pending invite for the signed-in viewer. */}
       {team.viewerInvite && session?.user ? (
-        <Well className="flex-row flex-wrap items-center justify-between gap-3 border-primary/40 bg-primary/5 p-4">
+        <Well className="flex-row flex-wrap items-center justify-between gap-3 border-primary/40 bg-primary/5 p-4 backdrop-blur-none">
           <div className="flex flex-col gap-0.5">
             <Text size="sm" bold>
               You've been invited to join {team.name}.
@@ -130,6 +144,7 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
           <div className="flex gap-2">
             <Button
               size="sm"
+              className="tracking-widest"
               disabled={respondMutation.isPending}
               onClick={() => respondMutation.mutate(true)}
             >
@@ -138,6 +153,7 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
             <Button
               size="sm"
               variant="outline"
+              className="tracking-widest"
               disabled={respondMutation.isPending}
               onClick={() => respondMutation.mutate(false)}
             >
@@ -147,82 +163,55 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
         </Well>
       ) : null}
 
-      {/* Hero */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-start gap-4">
-          <UserAvatar avatarUrl={team.avatarUrl} username={team.name} size={72} />
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <Heading as="h1" className="text-2xl tracking-widest uppercase">
-                {team.name}
-              </Heading>
-              {team.recruiting && !isArchived ? (
-                <Badge variant="success" size="label" className="uppercase">
-                  Recruiting
-                </Badge>
-              ) : null}
-              {isArchived ? (
-                <Badge variant="outline" size="label" className="uppercase">
-                  Archived
-                </Badge>
-              ) : null}
-            </div>
-            {team.tagline ? (
-              <Text size="sm" variant="muted">
-                {team.tagline}
-              </Text>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-3">
-              <MicroLabel>/{team.slug}</MicroLabel>
-              {team.websiteUrl ? <ExternalLink href={team.websiteUrl} label="WEBSITE" /> : null}
-              {team.itchUrl ? <ExternalLink href={team.itchUrl} label="ITCH.IO" /> : null}
-            </div>
-          </div>
-          {isMember ? (
-            <Button variant="outline" size="sm" onClick={() => setManageOpen(true)}>
-              MANAGE
-            </Button>
-          ) : null}
-        </div>
-        {team.bio ? (
-          <Text size="sm" className="max-w-prose whitespace-pre-wrap text-foreground/90">
-            {team.bio}
-          </Text>
-        ) : null}
-      </div>
+      <TeamMasthead
+        team={team}
+        isMember={isMember}
+        isArchived={isArchived}
+        jamCount={jamLog.length}
+        onManage={() => setManageOpen(true)}
+      />
 
       {/* Roster */}
-      <Section title="Roster" count={team.members.length}>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <Section title="ROSTER" count={team.members.length}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {team.members.map((m) => (
-            <Link
+            <Chonk
               key={m.id}
-              to="/profile/$userId"
-              params={profileLinkParams({ id: m.userId, urlStub: m.urlStub })}
-              className="flex items-center gap-3 border border-muted/40 bg-card/40 p-3 transition-colors hover:border-primary/50 hover:bg-muted/10"
+              variant="surface"
+              size="lg"
+              className="items-center gap-3 bg-card p-3 backdrop-blur-none"
+              render={
+                <Link
+                  to="/profile/$userId"
+                  params={profileLinkParams({ id: m.userId, urlStub: m.urlStub })}
+                  aria-label={m.username ?? "Unknown"}
+                />
+              }
             >
-              <UserAvatar avatarUrl={m.avatarUrl} username={m.username} size={36} />
+              <UserAvatar avatarUrl={m.avatarUrl} username={m.username} shape="round" size={36} />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex items-center gap-1.5">
-                  <Text as="span" size="sm" bold ellipsis>
+                <span className="flex items-center gap-2">
+                  <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
                     {m.username ?? "Unknown"}
                   </Text>
-                  {m.role === "owner" ? <MicroLabel>OWNER</MicroLabel> : null}
+                  {m.role === "owner" ? (
+                    <Badge variant="outline" size="label">
+                      OWNER
+                    </Badge>
+                  ) : null}
                 </span>
-                {m.title ? (
-                  <Text as="span" size="xs" variant="muted" ellipsis>
-                    {m.title}
-                  </Text>
-                ) : null}
+                <Text as="span" size="xs" variant="muted" ellipsis>
+                  {m.title ?? m.tagline ?? "—"}
+                </Text>
               </span>
-            </Link>
+            </Chonk>
           ))}
         </div>
       </Section>
 
       {/* Stack — derived from the roster's skills. */}
       {team.skills.length > 0 ? (
-        <Section title="Stack" hint="what the roster works in">
+        <Section title="STACK" hint="WHAT THE ROSTER WORKS IN">
           <div className="flex flex-wrap gap-1.5">
             {team.skills.slice(0, MAX_STACK_CHIPS).map((s) => (
               <Badge key={s.id} variant="outline" size="label" className="uppercase">
@@ -238,16 +227,30 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
 
       {/* Open positions */}
       {team.openPosts.length > 0 ? (
-        <Section title="Open positions" count={team.openPosts.length}>
-          <div className="flex flex-col gap-2">
+        <Section
+          title="OPEN POSITIONS"
+          count={team.openPosts.length}
+          action={
+            <Link
+              to="/collab"
+              search={{ team: team.id }}
+              className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:underline"
+            >
+              ALL POSTS
+              <HugeiconsIcon icon={ArrowRight01Icon} size={11} />
+            </Link>
+          }
+        >
+          <div className="flex flex-col gap-3">
             {team.openPosts.map((p) => (
-              <Link
+              <Chonk
                 key={p.id}
-                to="/collab"
-                search={{ post: p.id }}
-                className="flex flex-wrap items-center gap-2 border border-muted/40 bg-card/40 p-3 transition-colors hover:border-primary/50 hover:bg-muted/10"
+                variant="surface"
+                size="lg"
+                className="flex-wrap items-center gap-2 bg-card p-3 backdrop-blur-none"
+                render={<Link to="/collab" search={{ post: p.id }} aria-label={p.title} />}
               >
-                <Text as="span" size="sm" bold className="min-w-0 flex-1 tracking-wider uppercase">
+                <Text as="span" size="sm" bold ellipsis className="min-w-0 flex-1 tracking-wider">
                   {p.title}
                 </Text>
                 <Badge variant="secondary" size="label" className="uppercase">
@@ -258,26 +261,17 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
                     {r.name}
                   </Badge>
                 ))}
-                <Text as="span" size="xs" variant="muted" className="tracking-widest">
-                  {timeAgo(p.createdAt)}
-                </Text>
-              </Link>
+                <MicroLabel>{timeAgo(p.createdAt)}</MicroLabel>
+              </Chonk>
             ))}
           </div>
-          <Link
-            to="/collab"
-            search={{ team: team.id }}
-            className="self-start text-xs tracking-widest text-primary uppercase hover:underline"
-          >
-            See all posts by this team →
-          </Link>
         </Section>
       ) : null}
 
       {/* Showcase */}
       {showcase.length > 0 ? (
-        <Section title="Showcase" count={showcase.length}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Section title="SHOWCASE" count={showcase.length}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {showcase.map((p) => (
               <ShowcaseCard key={p.id} project={p} />
             ))}
@@ -287,47 +281,57 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
 
       {/* Jam log */}
       {jamLog.length > 0 ? (
-        <Section title="Jam log" count={jamLog.length}>
-          <div className="flex flex-col divide-y divide-dashed divide-muted/40 border border-muted/40 bg-card/40">
+        <Section title="JAM LOG" count={jamLog.length}>
+          <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
             {jamLog.map((p) => (
-              <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3">
-                <Text as="span" size="sm" bold className="min-w-0 flex-1">
-                  {p.jamName ?? p.title}
-                </Text>
+              <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                {p.jamUrl ? (
+                  <TextLink
+                    href={p.jamUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    size="sm"
+                    bold
+                    className="min-w-0 flex-1 hover:text-primary hover:underline"
+                  >
+                    {p.jamName ?? p.title}
+                  </TextLink>
+                ) : (
+                  <Text as="span" size="sm" bold className="min-w-0 flex-1">
+                    {p.jamName ?? p.title}
+                  </Text>
+                )}
                 {p.result ? (
                   <Badge variant="warning" size="label" className="uppercase">
                     {p.result}
                   </Badge>
                 ) : null}
                 {p.participatedAt ? (
-                  <Text
-                    as="span"
-                    size="xs"
-                    variant="muted"
-                    className="tracking-widest tabular-nums"
-                  >
+                  <MicroLabel tabular>
                     {/* Jam dates are UTC everywhere in this app. */}
-                    {new Date(p.participatedAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      year: "numeric",
-                      timeZone: "UTC",
-                    })}
-                  </Text>
+                    {new Date(p.participatedAt)
+                      .toLocaleDateString("en-US", {
+                        month: "short",
+                        year: "numeric",
+                        timeZone: "UTC",
+                      })
+                      .toUpperCase()}
+                  </MicroLabel>
                 ) : null}
                 {(p.submissionUrl ?? p.url) ? (
                   <ExternalLink href={(p.submissionUrl ?? p.url)!} label="ENTRY" />
                 ) : null}
               </div>
             ))}
-          </div>
+          </Well>
         </Section>
       ) : null}
 
       {team.members.length === 0 && showcase.length === 0 ? (
-        <Well variant="ghost" className="items-center gap-2 p-8">
+        <Well className="items-center justify-center gap-3 bg-card px-4 py-12 text-center backdrop-blur-none">
           <HugeiconsIcon icon={UserGroupIcon} size={20} className="text-muted-foreground" />
-          <Text size="sm" variant="muted">
-            Nothing here yet.
+          <Text size="xs" variant="muted" className="tracking-widest uppercase">
+            This page is still empty
           </Text>
         </Well>
       ) : null}
@@ -344,43 +348,195 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
   );
 }
 
+/**
+ * The page's masthead — the directory hero, narrowed to one team. Same
+ * notched `Well`, same primary wash and ruling, so arriving from a tile
+ * in `/teams` lands on the surface the tile was a miniature of.
+ *
+ * The team's own banner, when it has one, replaces the flat wash: it is
+ * masked out toward the copy rather than letterboxed above it, so the
+ * masthead stays one panel instead of becoming a header plus a photo.
+ *
+ * The stat line at the foot carries the same figures the directory tile
+ * showed, so the numbers a visitor clicked through on are still there.
+ */
+function TeamMasthead({
+  team,
+  isMember,
+  isArchived,
+  jamCount,
+  onManage,
+}: {
+  team: RpcTeam;
+  isMember: boolean;
+  isArchived: boolean;
+  jamCount: number;
+  onManage: () => void;
+}) {
+  // Roster size always shows — a team with nobody on it is worth saying.
+  // The rest drop out at zero rather than parading empty columns.
+  const stats: { value: number; label: string }[] = [
+    { value: team.members.length, label: team.members.length === 1 ? "MEMBER" : "MEMBERS" },
+    { value: team.projects.length, label: "SHIPPED" },
+    { value: jamCount, label: jamCount === 1 ? "JAM" : "JAMS" },
+    {
+      value: team.openPosts.length,
+      label: team.openPosts.length === 1 ? "OPEN POST" : "OPEN POSTS",
+    },
+  ].filter((stat, i) => i === 0 || stat.value > 0);
+
+  return (
+    <Well
+      notchOpts
+      // The wash is the surface's alone — the notched corners fall outside
+      // its clip path, and `Well` fills those with the frame's lighter face.
+      surfaceClassName="bg-card bg-linear-to-br from-primary/12 via-card to-card backdrop-blur-none"
+    >
+      {team.bannerUrl ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-25"
+          style={{
+            // Quoted and encoded: the banner is a user-supplied URL, and a
+            // bare `url(…)` lets a stray quote or paren close the function
+            // and open a second declaration.
+            backgroundImage: `url("${encodeURI(team.bannerUrl)}")`,
+            maskImage: "linear-gradient(to bottom left, #000 0%, transparent 75%)",
+            WebkitMaskImage: "linear-gradient(to bottom left, #000 0%, transparent 75%)",
+          }}
+        />
+      ) : (
+        <GraphPaper fade="bottom-left" />
+      )}
+
+      <div className="relative flex flex-col gap-5 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+          <div className="flex min-w-64 flex-1 items-start gap-4">
+            <UserAvatar
+              avatarUrl={team.avatarUrl}
+              username={team.name}
+              shape="round"
+              size={64}
+              className="ring-2 ring-card"
+            />
+            <div className="flex min-w-0 flex-col gap-2">
+              <MicroLabel>/{team.slug}</MicroLabel>
+              <div className="flex flex-wrap items-center gap-2">
+                <Heading as="h1" className="text-2xl tracking-widest uppercase">
+                  {team.name}
+                </Heading>
+                {team.recruiting && !isArchived ? (
+                  <Badge variant="success" size="label">
+                    RECRUITING
+                  </Badge>
+                ) : null}
+                {isArchived ? (
+                  <Badge variant="outline" size="label">
+                    ARCHIVED
+                  </Badge>
+                ) : null}
+              </div>
+              {team.tagline ? (
+                <Text size="sm" variant="muted" className="max-w-prose">
+                  {team.tagline}
+                </Text>
+              ) : null}
+              {team.websiteUrl || team.itchUrl ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  {team.websiteUrl ? <ExternalLink href={team.websiteUrl} label="WEBSITE" /> : null}
+                  {team.itchUrl ? <ExternalLink href={team.itchUrl} label="ITCH.IO" /> : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Members manage; everyone else gets the way in, if there is
+              one. A page with neither is simply a read-only profile. */}
+          {isMember ? (
+            <Button variant="outline" size="lg" onClick={onManage} className="tracking-widest">
+              <HugeiconsIcon icon={Settings02Icon} size={14} />
+              MANAGE
+            </Button>
+          ) : team.openPosts.length > 0 && !isArchived ? (
+            <Button
+              size="lg"
+              nativeButton={false}
+              className="tracking-widest"
+              render={<Link to="/collab" search={{ team: team.id }} />}
+            >
+              <HugeiconsIcon icon={UserGroupIcon} size={14} />
+              SEE OPEN POSTS
+            </Button>
+          ) : null}
+        </div>
+
+        {team.bio ? (
+          <Text size="sm" className="max-w-prose whitespace-pre-wrap text-foreground/90">
+            {team.bio}
+          </Text>
+        ) : null}
+      </div>
+
+      <div className="relative flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-dashed border-muted-foreground/25 px-6 py-3">
+        {stats.map((stat) => (
+          <div key={stat.label} className="flex items-baseline gap-1.5">
+            <Text as="span" size="sm" bold tabular>
+              {stat.value}
+            </Text>
+            <MicroLabel>{stat.label}</MicroLabel>
+          </div>
+        ))}
+      </div>
+    </Well>
+  );
+}
+
+/**
+ * Section marker — the directory shelf's header, with an optional count
+ * and a right-aligned slot for the section's "see all". The marker is a
+ * `MicroLabel` rather than a `Heading`: this is the label voice, and the
+ * section takes its accessible name from `aria-label` instead of
+ * borrowing a display heading for a 10px caption.
+ */
 function Section({
   title,
   hint,
   count,
+  action,
   children,
 }: {
   title: string;
   hint?: string;
   count?: number;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-2 border-b border-dashed border-muted-foreground/25 pb-2">
-        <Heading as="h2" className="text-sm tracking-widest uppercase">
-          {title}
-        </Heading>
+    <section aria-label={title} className="flex flex-col gap-3">
+      <div className="flex items-center gap-3 border-b border-dashed border-muted-foreground/25 pb-1.5">
+        <MicroLabel>{title}</MicroLabel>
         {count !== undefined ? (
-          <Text as="span" size="xs" variant="muted" className="tabular-nums">
+          <Text as="span" size="xs" variant="muted" tabular>
             {count}
           </Text>
         ) : null}
-        {hint ? (
-          <Text as="span" size="xs" variant="muted" className="tracking-widest uppercase">
-            {hint}
-          </Text>
-        ) : null}
+        {hint ? <MicroLabel>{hint}</MicroLabel> : null}
+        {action ? <span className="ml-auto">{action}</span> : null}
       </div>
       {children}
     </section>
   );
 }
 
+/**
+ * A showcase entry. Linked projects are `Chonk` tiles like the directory's
+ * — the whole tile is the destination; an entry with no link stays a
+ * debossed `Well`, since there is nothing to press.
+ */
 function ShowcaseCard({ project }: { project: TeamProject }) {
   const body = (
     <>
-      <div className="relative h-32 w-full overflow-hidden border-b border-muted/40 bg-muted/20">
+      <span className="relative block h-32 w-full overflow-hidden border-b border-muted/40 bg-muted/20">
         {project.imageUrl ? (
           <MediaCardImage src={project.imageUrl} alt="" />
         ) : (
@@ -395,54 +551,62 @@ function ShowcaseCard({ project }: { project: TeamProject }) {
             }}
           />
         )}
-      </div>
-      <div className="flex flex-col gap-1 p-3">
-        <div className="flex items-center gap-1.5">
-          <Text as="span" size="sm" bold ellipsis className="min-w-0 flex-1">
+      </span>
+      <span className="flex flex-1 flex-col gap-1 p-3">
+        <span className="flex items-center gap-2">
+          <Text as="span" size="sm" bold ellipsis className="min-w-0 flex-1 tracking-wider">
             {project.title}
           </Text>
-          {project.pinned ? <MicroLabel>PINNED</MicroLabel> : null}
-        </div>
+          {project.pinned ? (
+            <Badge variant="outline" size="label">
+              PINNED
+            </Badge>
+          ) : null}
+        </span>
         {project.description ? (
           <Text as="span" size="xs" variant="muted" className="line-clamp-2">
             {project.description}
           </Text>
         ) : null}
         {project.jamName ? (
-          <Badge variant="warning" size="label" className="self-start uppercase">
+          <Badge variant="warning" size="label" className="mt-auto self-start uppercase">
             {project.jamName}
           </Badge>
         ) : null}
-      </div>
+      </span>
     </>
   );
 
-  const frame = "flex flex-col overflow-hidden border border-muted/40 bg-card/40";
   if (project.url) {
     return (
-      <a
-        href={project.url}
-        target="_blank"
-        rel="noreferrer"
-        className={`${frame} transition-colors hover:border-primary/50`}
+      <Chonk
+        variant="surface"
+        size="lg"
+        className="h-full flex-col overflow-hidden bg-card backdrop-blur-none"
+        render={
+          <a href={project.url} target="_blank" rel="noreferrer" aria-label={project.title} />
+        }
       >
         {body}
-      </a>
+      </Chonk>
     );
   }
-  return <div className={frame}>{body}</div>;
+  return <Well className="h-full overflow-hidden bg-card backdrop-blur-none">{body}</Well>;
 }
 
+/** An off-site destination, in the micro-label voice. */
 function ExternalLink({ href, label }: { href: string; label: string }) {
   return (
-    <a
+    <TextLink
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 text-xs tracking-widest text-primary uppercase hover:underline"
+      size="xs"
+      monospace
+      className="inline-flex items-center gap-1 tracking-widest text-primary uppercase hover:underline"
     >
       <HugeiconsIcon icon={Link01Icon} size={11} />
       {label}
-    </a>
+    </TextLink>
   );
 }
