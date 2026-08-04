@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, exists, sql } from "drizzle-orm";
 
 import { itchJamEntries, itchJams, itchMissingJams } from "../../../../src/db/schema.ts";
 import { db, pool } from "../db/client.ts";
@@ -87,9 +87,17 @@ async function main() {
       slug: itchJams.slug,
       status: itchJams.status,
       entriesCount: itchJams.entriesCount,
-      hasEntries: sql<boolean>`exists (
-        select 1 from ${itchJamEntries} e where e.jam_id = ${itchJams.jamId}
-      )`,
+      // exists() rather than a raw sql`` subquery: an unqualified `jam_id`
+      // inside the subquery binds to the *inner* table, making the predicate
+      // `e.jam_id = e.jam_id` — true for every row. That silently reported
+      // every persisted jam as having entries, so the resume guard below
+      // (re-ingesting a jam whose entries never landed) never fired.
+      hasEntries: sql<boolean>`${exists(
+        db
+          .select({ one: sql<number>`1` })
+          .from(itchJamEntries)
+          .where(eq(itchJamEntries.jamId, itchJams.jamId)),
+      )}`,
     })
     .from(itchJams);
   const persisted = new Set(rows.filter(isIngestComplete).map((r) => r.slug));

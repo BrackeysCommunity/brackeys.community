@@ -18,6 +18,15 @@ const schema = z.object({
   // the resync bucket. Rows are never deleted — after this window they sit
   // with missing_since set, awaiting manual verification.
   MISSING_RETRY_DAYS: z.coerce.number().int().positive().default(3),
+  // Forces the jam page + entries.json refetch for finished jams that are only
+  // in the resync bucket to drain pending results. Off by default: an "over"
+  // jam's metadata and entry list are frozen, so refetching 4,800 of them
+  // nightly spends ~9,600 requests to learn nothing. Turn on for a one-off
+  // full re-ingest.
+  REFRESH_TERMINAL_JAMS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   USER_AGENT: z.string().default("brackeys-itchio-scraper/0.1 (+https://brackeys.community)"),
 });
 

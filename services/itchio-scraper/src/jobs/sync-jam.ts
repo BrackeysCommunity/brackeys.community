@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { itchJamEntries, itchJamEntryResults, itchJams } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
@@ -163,6 +163,12 @@ export async function markUnratableEntriesFetched(jamId: number) {
 
 type PendingEntry = { entryId: number; gameId: number };
 
+/**
+ * The only fields the results drain needs. Lets it run against a persisted row
+ * as well as a freshly scraped page (see resultsOnlyTarget).
+ */
+type ResultsTarget = Pick<ScrapedJam, "jamId" | "slug" | "status">;
+
 type ResultsOutcome = {
   attempted: number;
   succeeded: number;
@@ -215,7 +221,7 @@ async function persistBulkResults(
   return ranked;
 }
 
-async function syncEntryResults(jam: ScrapedJam): Promise<ResultsOutcome> {
+async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutcome> {
   const idle: ResultsOutcome = {
     attempted: 0,
     succeeded: 0,
@@ -284,7 +290,7 @@ async function syncEntryResults(jam: ScrapedJam): Promise<ResultsOutcome> {
  * host never published a results listing.
  */
 async function syncEntryResultsPerEntry(
-  jam: ScrapedJam,
+  jam: ResultsTarget,
   pending: PendingEntry[],
 ): Promise<ResultsOutcome> {
   let succeeded = 0;
@@ -381,8 +387,75 @@ async function markJamMissing(slug: string) {
   }
 }
 
+export type TerminalJamRow = {
+  status: string;
+  missingSince: Date | null;
+  hasEntries: boolean;
+};
+
+/**
+ * Whether a persisted jam's page and entries.json can be skipped this run.
+ *
+ * A jam reaches "over" and its submission list, rating counts, and metadata
+ * stop changing — so the two requests spent re-reading them are pure waste. The
+ * resync bucket holds ~4,800 such jams, which is ~9,600 requests per run
+ * fetching data that provably can't have changed, ahead of any results work.
+ *
+ * Deliberately conservative: a jam that is still running, is stamped missing
+ * (its page needs re-checking to confirm it 404s or came back), or has no
+ * entries persisted yet always takes the full path.
+ */
+export function canSkipMetadataRefresh(row: TerminalJamRow): boolean {
+  if (config.REFRESH_TERMINAL_JAMS) return false;
+  if (row.status !== "over") return false;
+  if (row.missingSince !== null) return false;
+  return row.hasEntries;
+}
+
+/**
+ * Loads the minimal jam identity for a results-only sync, or null when this
+ * jam needs the full scrape.
+ */
+async function resultsOnlyTarget(slug: string): Promise<ResultsTarget | null> {
+  const [row] = await db
+    .select({
+      jamId: itchJams.jamId,
+      slug: itchJams.slug,
+      status: itchJams.status,
+      missingSince: itchJams.missingSince,
+      // exists() (not a raw sql`` subquery) so drizzle fully qualifies the
+      // outer jam_id — an unqualified reference binds to the inner table and
+      // silently matches every row.
+      hasEntries: sql<boolean>`${exists(
+        db
+          .select({ one: sql<number>`1` })
+          .from(itchJamEntries)
+          .where(eq(itchJamEntries.jamId, itchJams.jamId)),
+      )}`,
+    })
+    .from(itchJams)
+    .where(eq(itchJams.slug, slug));
+  if (!row || !canSkipMetadataRefresh(row)) return null;
+  return { jamId: row.jamId, slug: row.slug, status: row.status as ScrapedJam["status"] };
+}
+
 export async function syncJam(slug: string) {
   const started = Date.now();
+
+  // Finished jams in the resync bucket only need their pending results drained.
+  const terminal = await resultsOnlyTarget(slug);
+  if (terminal) {
+    const results = await syncEntryResults(terminal);
+    if (results.attempted > 0) {
+      console.log(
+        `[sync-jam] results ${results.succeeded}/${results.attempted} for ${slug} via ${results.source} (${results.ranked} ranked, metadata skipped) in ${Math.round(
+          (Date.now() - started) / 1000,
+        )}s`,
+      );
+    }
+    return;
+  }
+
   console.log(`[sync-jam] start slug=${slug}`);
 
   let jam: ScrapedJam;
