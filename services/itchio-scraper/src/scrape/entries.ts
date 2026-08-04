@@ -53,13 +53,16 @@ type RawResponse = {
  */
 export async function fetchJamEntries(jamId: number): Promise<ItchEntry[] | null> {
   const url = `https://itch.io/jam/${jamId}/entries.json`;
-  const res = await pacedFetch(url, {
-    headers: {
-      "user-agent": config.USER_AGENT,
-      accept: "application/json",
+  const res = await pacedFetch(
+    url,
+    {
+      headers: {
+        "user-agent": config.USER_AGENT,
+        accept: "application/json",
+      },
     },
-    signal: AbortSignal.timeout(60_000),
-  });
+    60_000,
+  );
   if (res.status === 404) {
     return null;
   }

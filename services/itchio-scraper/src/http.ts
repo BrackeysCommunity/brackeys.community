@@ -97,10 +97,21 @@ export function parseRetryAfter(res: Response): number | null {
 /**
  * Issues a paced request through the global gate. Used by fetchHtml below and
  * by the entries.json fetcher so every itch.io call shares one rate budget.
+ *
+ * The request timeout is passed as a duration, not a pre-armed signal, and the
+ * signal is created *after* the gate releases. Arming it at the call site made
+ * the clock run while the caller sat in the pacer: once a 429 armed the 60s
+ * pool cooldown, every queued request's 45s timer expired before its fetch was
+ * ever issued, so the whole pool failed with `TimeoutError` without a packet
+ * leaving the process — and burned its retry budget doing it.
  */
-export async function pacedFetch(url: string, init: RequestInit): Promise<Response> {
+export async function pacedFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
   await pacer.acquire();
-  const res = await fetch(url, init);
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   if (res.status === 429 || res.status === 503) {
     pacer.reportRateLimit(parseRetryAfter(res));
   }
@@ -137,14 +148,17 @@ export async function fetchHtml(url: string): Promise<string> {
 }
 
 async function fetchHtmlOnce(url: string): Promise<string> {
-  const res = await pacedFetch(url, {
-    headers: {
-      "user-agent": config.USER_AGENT,
-      accept: "text/html",
+  const res = await pacedFetch(
+    url,
+    {
+      headers: {
+        "user-agent": config.USER_AGENT,
+        accept: "text/html",
+      },
+      redirect: "follow",
     },
-    redirect: "follow",
-    signal: AbortSignal.timeout(45_000),
-  });
+    45_000,
+  );
   if (!res.ok) {
     throw new HttpStatusError(res.status, url);
   }
@@ -155,10 +169,18 @@ async function fetchHtmlOnce(url: string): Promise<string> {
 // during itch outages) — all worth retrying.
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504, 521]);
 
-function describe(err: unknown): string {
+/**
+ * First line of an error's message. Callers log this instead of the raw error:
+ * Bun prints a DOMException's 25 static error-code constants (`NAMESPACE_ERR`,
+ * `TIMEOUT_ERR`, …) when handed the object, which drowns the logs during a
+ * timeout storm.
+ */
+export function describeError(err: unknown): string {
   if (err instanceof Error) return err.message.split("\n")[0] ?? err.name;
   return String(err);
 }
+
+const describe = describeError;
 
 export function isTransient(err: unknown): boolean {
   if (err instanceof HttpStatusError) return TRANSIENT_STATUSES.has(err.status);

@@ -1,6 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 
-import { createPacer, HttpStatusError, isNotFound, isTransient, parseRetryAfter } from "./http.ts";
+import {
+  createPacer,
+  HttpStatusError,
+  isNotFound,
+  isTransient,
+  pacedFetch,
+  parseRetryAfter,
+} from "./http.ts";
 
 /**
  * Virtual clock: sleep advances time instantly so pacer tests are
@@ -90,6 +97,42 @@ describe("parseRetryAfter", () => {
     expect(parseRetryAfter(res({ "retry-after": "-5" }))).toBeNull();
     // HTTP-date form is unsupported and falls back to the configured cooldown.
     expect(parseRetryAfter(res({ "retry-after": "Fri, 01 Aug 2026 12:00:00 GMT" }))).toBeNull();
+  });
+});
+
+describe("pacedFetch request timeout", () => {
+  const realFetch = globalThis.fetch;
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  /**
+   * Regression: the abort signal used to be armed at the call site and passed
+   * into pacedFetch, so its clock ran while the caller waited at the gate.
+   * A 429 arming the pool cooldown meant every queued request's signal expired
+   * before its fetch was issued — the pool failed with TimeoutError without
+   * sending anything. The signal must be created after the gate releases.
+   */
+  test("the timeout clock starts after the gate, not before", async () => {
+    const seen: Array<{ aborted: boolean }> = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal;
+      seen.push({ aborted: signal.aborted });
+      // First call arms a 1s pool-wide cooldown; later calls wait it out.
+      return new Response(null, {
+        status: seen.length === 1 ? 429 : 200,
+        headers: seen.length === 1 ? { "retry-after": "1" } : {},
+      });
+    }) as typeof fetch;
+
+    await pacedFetch("https://itch.io/a", {}, 300);
+    // The gate now holds for ~1s — far longer than this 300ms timeout. With
+    // the old pre-armed signal this call threw TimeoutError instead.
+    const res = await pacedFetch("https://itch.io/b", {}, 300);
+
+    expect(res.status).toBe(200);
+    expect(seen).toHaveLength(2);
+    expect(seen.every((s) => !s.aborted)).toBe(true);
   });
 });
 

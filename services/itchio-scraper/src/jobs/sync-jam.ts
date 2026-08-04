@@ -3,10 +3,11 @@ import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { itchJamEntries, itchJamEntryResults, itchJams } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
-import { isNotFound } from "../http.ts";
+import { describeError, isNotFound } from "../http.ts";
 import { fetchJamEntries, type ItchEntry } from "../scrape/entries.ts";
 import { scrapeJamPage, type ScrapedJam } from "../scrape/jam-page.ts";
 import { scrapeRatePage } from "../scrape/rate-page.ts";
+import { type ScrapedGameResults, scrapeJamResults } from "../scrape/results-page.ts";
 import { chunk } from "../util.ts";
 
 function excluded(column: string) {
@@ -160,15 +161,70 @@ export async function markUnratableEntriesFetched(jamId: number) {
     );
 }
 
-async function syncEntryResults(
-  jam: ScrapedJam,
-): Promise<{ attempted: number; succeeded: number; gone: number }> {
-  if (config.SCRAPE_ENTRY_RESULTS === "never") {
-    return { attempted: 0, succeeded: 0, gone: 0 };
+type PendingEntry = { entryId: number; gameId: number };
+
+type ResultsOutcome = {
+  attempted: number;
+  succeeded: number;
+  gone: number;
+  ranked: number;
+  source: "results-page" | "rate-pages" | "none";
+};
+
+/**
+ * Writes rankings for a batch of entries resolved from the bulk results
+ * listing. Entries absent from `byGameId` didn't rank (too few ratings) — they
+ * are marked fetched with no rows, which is exactly the conclusion the
+ * per-entry path reaches after spending a request to find an empty table.
+ *
+ * Chunked so each transaction stays bounded on a 6,000-entry jam; a run killed
+ * midway leaves the processed chunks done and the rest still pending.
+ */
+async function persistBulkResults(
+  pending: PendingEntry[],
+  byGameId: Map<number, ScrapedGameResults>,
+): Promise<number> {
+  let ranked = 0;
+
+  for (const batch of chunk(pending, 500)) {
+    const entryIds = batch.map((e) => e.entryId);
+    const rows = batch.flatMap((entry) =>
+      (byGameId.get(entry.gameId)?.results ?? []).map((r) => ({
+        entryId: entry.entryId,
+        criterion: r.criterion,
+        rank: r.rank,
+        score: r.score,
+        rawScore: r.rawScore,
+      })),
+    );
+
+    await db.transaction(async (tx) => {
+      await tx.delete(itchJamEntryResults).where(inArray(itchJamEntryResults.entryId, entryIds));
+      if (rows.length > 0) {
+        await tx.insert(itchJamEntryResults).values(rows);
+      }
+      await tx
+        .update(itchJamEntries)
+        .set({ resultsFetchedAt: new Date() })
+        .where(inArray(itchJamEntries.entryId, entryIds));
+    });
+
+    ranked += batch.filter((e) => (byGameId.get(e.gameId)?.results.length ?? 0) > 0).length;
   }
-  if (config.SCRAPE_ENTRY_RESULTS === "after-voting" && jam.status !== "over") {
-    return { attempted: 0, succeeded: 0, gone: 0 };
-  }
+
+  return ranked;
+}
+
+async function syncEntryResults(jam: ScrapedJam): Promise<ResultsOutcome> {
+  const idle: ResultsOutcome = {
+    attempted: 0,
+    succeeded: 0,
+    gone: 0,
+    ranked: 0,
+    source: "none",
+  };
+  if (config.SCRAPE_ENTRY_RESULTS === "never") return idle;
+  if (config.SCRAPE_ENTRY_RESULTS === "after-voting" && jam.status !== "over") return idle;
 
   await markUnratableEntriesFetched(jam.jamId);
 
@@ -188,7 +244,49 @@ async function syncEntryResults(
         isNull(itchJamEntries.missingSince),
       ),
     );
+  if (pending.length === 0) return idle;
 
+  // Preferred path: one `/results` fetch covers 20 entries and carries the same
+  // criterion table the per-entry rate page does. Across the historical backlog
+  // that is the difference between ~250k requests and ~13k. Falls back to the
+  // per-entry walk when a jam has no published rankings (404) or the walk
+  // fails, since "absent from the map" only means "unranked" for a complete walk.
+  try {
+    const byGameId = await scrapeJamResults(jam.slug);
+    if (byGameId.size > 0) {
+      const ranked = await persistBulkResults(pending, byGameId);
+      return {
+        attempted: pending.length,
+        succeeded: pending.length,
+        gone: 0,
+        ranked,
+        source: "results-page",
+      };
+    }
+    console.warn(
+      `[sync-jam] ${jam.slug} results page listed no games — falling back to rate pages`,
+    );
+  } catch (err) {
+    if (isNotFound(err)) {
+      console.log(`[sync-jam] ${jam.slug} has no results page — using rate pages`);
+    } else {
+      console.warn(
+        `[sync-jam] ${jam.slug} results walk failed (${describeError(err)}) — falling back to rate pages`,
+      );
+    }
+  }
+
+  return await syncEntryResultsPerEntry(jam, pending);
+}
+
+/**
+ * Original one-request-per-entry drain, kept as the fallback for jams whose
+ * host never published a results listing.
+ */
+async function syncEntryResultsPerEntry(
+  jam: ScrapedJam,
+  pending: PendingEntry[],
+): Promise<ResultsOutcome> {
   let succeeded = 0;
   let gone = 0;
   const queue = [...pending];
@@ -235,7 +333,12 @@ async function syncEntryResults(
           console.warn(`[sync-jam] rate page gone for entry ${item.entryId}; marked missing`);
           gone += 1;
         } else {
-          console.error(`[sync-jam] failed to scrape rate page for entry ${item.entryId}`, err);
+          // Log the message only — Bun enumerates a DOMException's 25 static
+          // error-code constants when handed the raw object, which buried the
+          // real signal under hundreds of lines per failure.
+          console.error(
+            `[sync-jam] failed to scrape rate page for entry ${item.entryId}: ${describeError(err)}`,
+          );
         }
       }
       if (config.ENTRY_RESULTS_DELAY_MS > 0) {
@@ -246,7 +349,13 @@ async function syncEntryResults(
 
   await Promise.all(Array.from({ length: config.ENTRY_RESULTS_CONCURRENCY }, () => worker()));
 
-  return { attempted: pending.length, succeeded, gone };
+  return {
+    attempted: pending.length,
+    succeeded,
+    gone,
+    ranked: succeeded,
+    source: "rate-pages",
+  };
 }
 
 /**
@@ -328,7 +437,7 @@ export async function syncJam(slug: string) {
   const results = await syncEntryResults(jam);
   if (results.attempted > 0) {
     console.log(
-      `[sync-jam] results scraped ${results.succeeded}/${results.attempted} for ${jam.slug}${
+      `[sync-jam] results ${results.succeeded}/${results.attempted} for ${jam.slug} via ${results.source} (${results.ranked} ranked)${
         results.gone > 0 ? ` (${results.gone} rate pages gone)` : ""
       }`,
     );
