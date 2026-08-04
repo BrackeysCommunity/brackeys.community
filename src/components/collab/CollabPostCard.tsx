@@ -66,7 +66,8 @@ function postCardClasses(selected: boolean, closed: boolean) {
     // is substituted at `:root`, so it still carries the neutral colour.
     "[&_[data-emboss-reset]]:[--emboss-shadow:var(--color-emboss-shadow)]",
     closed && !selected && "opacity-60",
-    selected && "border-primary bg-primary/10 [--emboss-shadow:var(--primary)]",
+    selected &&
+      "border-primary bg-[color-mix(in_srgb,var(--primary)_12%,var(--card))] [--emboss-shadow:var(--primary)] hover:bg-[color-mix(in_srgb,var(--primary)_16%,var(--card))]",
   );
 }
 
