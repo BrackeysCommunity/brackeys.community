@@ -7,10 +7,14 @@ import {
   type NotificationItem,
 } from "@/components/notifications/notification-utils";
 import { Button } from "@/components/ui/button";
+import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
 const PAGE_SIZE = 20;
+
+/** One comfortable row — 36px avatar inside `py-3` — before measurement. */
+const ROW_ESTIMATE = 68;
 
 export type InboxFilter = "all" | "unread" | "collab" | "teams" | "system";
 
@@ -118,22 +122,31 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
         ))}
       </div>
 
-      <div className="border border-muted/30 bg-card/40">
-        {isLoading ? (
-          <div className="px-4 py-10 text-center text-xs text-muted-foreground">Loading…</div>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
-            <p className="text-sm text-foreground/80">
-              {filter === "unread" ? "Nothing unread." : "No notifications yet."}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              You'll see activity from collab posts and staff actions here.
-            </p>
-          </div>
-        ) : (
-          items.map((n) => <NotificationRow key={n.id} notification={n} density="comfortable" />)
-        )}
-      </div>
+      {isLoading ? (
+        <div className="border border-muted/30 bg-card/40 px-4 py-10 text-center text-xs text-muted-foreground">
+          Loading…
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center gap-1 border border-muted/30 bg-card/40 px-4 py-12 text-center">
+          <p className="text-sm text-foreground/80">
+            {filter === "unread" ? "Nothing unread." : "No notifications yet."}
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            You'll see activity from collab posts and staff actions here.
+          </p>
+        </div>
+      ) : (
+        // The inbox pages forever and never drops what it has paged in,
+        // so only the rows near the viewport stay mounted.
+        <VirtualGrid
+          items={items}
+          getItemKey={(n) => n.id}
+          renderItem={(n) => <NotificationRow notification={n} density="comfortable" />}
+          rowClassName="flex flex-col"
+          className="border border-muted/30 bg-card/40"
+          estimateRowHeight={ROW_ESTIMATE}
+        />
+      )}
 
       <div ref={sentinelRef} className="h-8" aria-hidden />
       {isFetchingNextPage && (

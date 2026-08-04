@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useDragScroll } from "@/lib/hooks/use-drag-scroll";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
@@ -16,6 +17,17 @@ import { ShelfHeader } from "./ShelfHeader";
  */
 const FADE = "var(--shelf-fade)";
 
+/** Layout key a featured card publishes to the shared-layout morph. */
+const featuredKey = (jam: JamFromList) => `feat-${jam.jamId}`;
+
+/**
+ * How long the rail stays unsnapped after a card is deselected. The modal
+ * closes by morphing back into the card (`ROW_CLOSE_TRANSITION`), so the
+ * transforms outlive `selectedKey` going null and snapping has to stay
+ * off until they land.
+ */
+const MORPH_COOLDOWN_MS = 600;
+
 /**
  * The featured shelf: a horizontal snap carousel, the only one on the
  * board. The rail bleeds to the viewport edge below `lg` (negative
@@ -25,7 +37,13 @@ const FADE = "var(--shelf-fade)";
  *
  * Overflow in either direction is signalled by a mask fade on that edge
  * plus a paging arrow in the shelf header. The arrows are pointer-only,
- * since touch users just swipe.
+ * since touch users just swipe — pointer users can also grab the rail
+ * and drag it.
+ *
+ * Snapping is suspended whenever something is transforming the cards:
+ * during a drag, and for the length of the modal's open/close morph. A
+ * snap container chases a transformed snap area on every frame, so a card
+ * flying to the modal drags the whole rail along behind it.
  */
 export function FeaturedShelf({
   jams,
@@ -40,6 +58,8 @@ export function FeaturedShelf({
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
+  const { dragging, snapSuspended } = useDragScroll(scrollerRef);
+  const morphing = useMorphing(jams.some((jam) => featuredKey(jam) === selectedKey));
 
   const syncEdges = useCallback(() => {
     const el = scrollerRef.current;
@@ -87,11 +107,20 @@ export function FeaturedShelf({
       />
       <div
         ref={scrollerRef}
-        className="-mx-4 flex snap-x scroll-pl-4 gap-3 overflow-x-auto px-4 pb-1 [--shelf-fade:1rem] [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:scroll-pl-6 sm:px-6 sm:[--shelf-fade:1.5rem] lg:-mx-10 lg:scroll-pl-10 lg:px-10 lg:[--shelf-fade:2.5rem] xl:-mx-14 xl:scroll-pl-14 xl:px-14 xl:[--shelf-fade:3.5rem] [&::-webkit-scrollbar]:hidden"
-        style={{ maskImage, WebkitMaskImage: maskImage }}
+        className={cn(
+          "-mx-4 flex cursor-grab snap-x scroll-pl-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pb-1 [--shelf-fade:1rem] [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:scroll-pl-6 sm:px-6 sm:[--shelf-fade:1.5rem] lg:-mx-10 lg:scroll-pl-10 lg:px-10 lg:[--shelf-fade:2.5rem] xl:-mx-14 xl:scroll-pl-14 xl:px-14 xl:[--shelf-fade:3.5rem] [&::-webkit-scrollbar]:hidden",
+          // The descendant selector outranks each card's own
+          // `cursor-pointer`, so the grab cursor holds across the rail.
+          dragging && "cursor-grabbing select-none [&_*]:cursor-grabbing",
+        )}
+        style={{
+          maskImage,
+          WebkitMaskImage: maskImage,
+          scrollSnapType: snapSuspended || morphing ? "none" : undefined,
+        }}
       >
         {jams.map((jam) => {
-          const layoutKey = `feat-${jam.jamId}`;
+          const layoutKey = featuredKey(jam);
           return (
             <FeaturedCard
               key={jam.jamId}
@@ -106,6 +135,32 @@ export function FeaturedShelf({
       </div>
     </section>
   );
+}
+
+/**
+ * True while one of the rail's cards is selected, and for
+ * `MORPH_COOLDOWN_MS` after it stops being — the window in which framer
+ * is transforming a card between its slot in the rail and the modal.
+ */
+function useMorphing(selected: boolean): boolean {
+  const [cooling, setCooling] = useState(false);
+  const [previous, setPrevious] = useState(selected);
+
+  // Adjusted during render rather than from an effect: snapping has to be
+  // gone in the same commit that selects the card, before framer's first
+  // transform frame lands.
+  if (previous !== selected) {
+    setPrevious(selected);
+    setCooling(true);
+  }
+
+  useEffect(() => {
+    if (selected || !cooling) return;
+    const timer = window.setTimeout(() => setCooling(false), MORPH_COOLDOWN_MS);
+    return () => window.clearTimeout(timer);
+  }, [selected, cooling]);
+
+  return selected || cooling;
 }
 
 function PageButton({

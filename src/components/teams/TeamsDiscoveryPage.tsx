@@ -10,6 +10,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
+import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
@@ -33,6 +34,10 @@ import { TeamsFloatingControls, TeamsToolbar } from "./TeamsToolbar";
 export type { TeamsSearch, TeamsSort } from "./teams-filters";
 
 const PAGE_SIZE = 24;
+
+/** Directory tile height before a real row is measured — the skeleton's
+ * `h-42`, which is what an average filled-in card comes out at. */
+const CARD_ROW_ESTIMATE = 168;
 
 /** Above this the toggle row fits inline; below it, it moves to the sheet. */
 const WIDE_QUERY = "(min-width: 1024px)";
@@ -184,24 +189,31 @@ export function TeamsDiscoveryPage() {
             onStart={startTeam}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {teams.map((team) => (
-              <TeamDirectoryCard key={team.id} team={team} />
-            ))}
-            {hasNextPage ? (
-              <div ref={sentinelRef} className="col-span-full flex justify-center py-4">
-                {isFetchingNextPage ? (
-                  <Text
-                    size="xs"
-                    variant="muted"
-                    className="animate-pulse tracking-widest uppercase"
-                  >
-                    Loading more…
-                  </Text>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          // Same construction as the member directory: rows near the
+          // viewport are the only ones mounted, and the paging sentinel
+          // lives in the footer so it survives virtualization.
+          <VirtualGrid
+            items={teams}
+            getItemKey={(team) => team.id}
+            renderItem={(team) => <TeamDirectoryCard team={team} />}
+            rowClassName="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            estimateRowHeight={CARD_ROW_ESTIMATE}
+            footer={
+              hasNextPage ? (
+                <div ref={sentinelRef} className="flex justify-center py-4">
+                  {isFetchingNextPage ? (
+                    <Text
+                      size="xs"
+                      variant="muted"
+                      className="animate-pulse tracking-widest uppercase"
+                    >
+                      Loading more…
+                    </Text>
+                  ) : null}
+                </div>
+              ) : null
+            }
+          />
         )}
       </section>
 

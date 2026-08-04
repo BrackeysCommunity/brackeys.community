@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
+import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { collabStore, countActiveCollabFilters, resetCollabFilters } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
@@ -20,15 +21,20 @@ interface CollabPostFeedProps {
   onSelectPost: (postId: number) => void;
 }
 
+/** Rough mounted height of one row in each layout, until measured. */
+const CARD_ROW_ESTIMATE = 264;
+const LIST_ROW_ESTIMATE = 86;
+
 /**
  * The list lane. Renders the board's posts in whichever layout the
  * `layout` toggle selects and pages in more as the bottom sentinel
  * scrolls into view.
  *
- * Not virtualized: cards are cheap, the page size is 20, and the lane
- * grows the page rather than owning a scroller — a virtualizer here
- * would have to track its own offset inside an ancestor it doesn't own
- * for no real gain.
+ * Virtualized through `VirtualGrid`, which does own the offset tracking
+ * inside the app's scroll root: the page size is 20 but the lane never
+ * drops what it has paged in, so a few minutes of scrolling leaves
+ * hundreds of post cards — each with its own art — mounted behind you.
+ * The paging sentinel rides in the footer so it stays mounted.
  */
 export function CollabPostFeed({
   currentUserId,
@@ -62,47 +68,42 @@ export function CollabPostFeed({
   }
 
   return (
-    <div
-      className={cn(
+    <VirtualGrid
+      items={items}
+      getItemKey={(item) => `post-${item.post.id}`}
+      renderItem={(item) => {
+        const Card = isCards ? CollabPostGridCard : CollabPostCard;
+        return (
+          <Card
+            post={item.post}
+            pinned={item.pinned}
+            selected={item.post.id === selectedPostId}
+            onSelect={onSelectPost}
+          />
+        );
+      }}
+      // Cards are art-led tiles on the same column rhythm as the team
+      // directory; the list is one row per post, full width, so a scan
+      // reads straight down instead of snaking across columns.
+      rowClassName={cn(
         "gap-3",
-        // Cards are art-led tiles on the same column rhythm as the team
-        // directory; the list is one row per post, full width, so a scan
-        // reads straight down instead of snaking across columns.
         isCards
           ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
           : "flex flex-col gap-2",
       )}
-    >
-      {items.map((item) =>
-        isCards ? (
-          <CollabPostGridCard
-            key={`post-${item.post.id}`}
-            post={item.post}
-            pinned={item.pinned}
-            selected={item.post.id === selectedPostId}
-            onSelect={onSelectPost}
-          />
-        ) : (
-          <CollabPostCard
-            key={`post-${item.post.id}`}
-            post={item.post}
-            pinned={item.pinned}
-            selected={item.post.id === selectedPostId}
-            onSelect={onSelectPost}
-          />
-        ),
-      )}
-
-      {hasNextPage ? (
-        <div ref={sentinelRef} className="col-span-full flex justify-center py-4">
-          {isFetchingNext ? (
-            <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
-              Loading more…
-            </Text>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+      estimateRowHeight={isCards ? CARD_ROW_ESTIMATE : LIST_ROW_ESTIMATE}
+      footer={
+        hasNextPage ? (
+          <div ref={sentinelRef} className="flex justify-center py-4">
+            {isFetchingNext ? (
+              <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
+                Loading more…
+              </Text>
+            ) : null}
+          </div>
+        ) : null
+      }
+    />
   );
 }
 

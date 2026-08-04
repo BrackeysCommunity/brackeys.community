@@ -10,6 +10,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
+import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
@@ -28,6 +29,10 @@ import { MembersFloatingControls, MembersToolbar } from "./MembersToolbar";
 export type { MembersSearch, MembersSort } from "./members-filters";
 
 const PAGE_SIZE = 24;
+
+/** Directory tile height before a real row is measured — the skeleton's
+ * `h-42`, which is what an average filled-in card comes out at. */
+const CARD_ROW_ESTIMATE = 168;
 
 /** Above this the toggle row fits inline; below it, it moves to the sheet. */
 const WIDE_QUERY = "(min-width: 1024px)";
@@ -161,24 +166,33 @@ export function MembersDiscoveryPage() {
         ) : members.length === 0 ? (
           <DirectoryEmptyState onClear={() => setSearch(CLEARED_MEMBER_FILTERS)} />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {members.map((member) => (
-              <MemberDirectoryCard key={member.id} member={member} />
-            ))}
-            {hasNextPage ? (
-              <div ref={sentinelRef} className="col-span-full flex justify-center py-4">
-                {isFetchingNextPage ? (
-                  <Text
-                    size="xs"
-                    variant="muted"
-                    className="animate-pulse tracking-widest uppercase"
-                  >
-                    Loading more…
-                  </Text>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          // Virtualized: the directory pages in 24 at a time and never
+          // drops what it has, so a long browse otherwise leaves every
+          // card — and every avatar — mounted behind you. The paging
+          // sentinel sits in the footer, outside the virtualized rows,
+          // so it can't be unmounted at the moment it has to fire.
+          <VirtualGrid
+            items={members}
+            getItemKey={(member) => member.id}
+            renderItem={(member) => <MemberDirectoryCard member={member} />}
+            rowClassName="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            estimateRowHeight={CARD_ROW_ESTIMATE}
+            footer={
+              hasNextPage ? (
+                <div ref={sentinelRef} className="flex justify-center py-4">
+                  {isFetchingNextPage ? (
+                    <Text
+                      size="xs"
+                      variant="muted"
+                      className="animate-pulse tracking-widest uppercase"
+                    >
+                      Loading more…
+                    </Text>
+                  ) : null}
+                </div>
+              ) : null
+            }
+          />
         )}
       </section>
 

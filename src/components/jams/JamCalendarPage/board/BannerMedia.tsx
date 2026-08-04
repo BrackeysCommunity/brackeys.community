@@ -12,11 +12,11 @@ import { useJamGradient } from "./use-jam-color";
  * card, featured card). Carries the `tl-banner-${layoutKey}` shared
  * layoutId so the detail modal's banner morph works from any of them.
  *
- * The no-image fallback is a static CSS gradient, NOT a Grainient: the
- * board mounts every visible surface at once (no virtualizer), and one
- * WebGL context per jam blows past the browser's context limit, leaving
- * blank white canvases. The animated Grainient is reserved for the
- * modal.
+ * The no-image fallback is a static CSS gradient, NOT a Grainient: even
+ * virtualized, a shelf keeps a couple of screenfuls of surfaces mounted,
+ * and one WebGL context per jam blows past the browser's context limit
+ * (~16) long before that, leaving blank white canvases. The animated
+ * Grainient is reserved for the modal.
  */
 export function JamBanner({
   jam,

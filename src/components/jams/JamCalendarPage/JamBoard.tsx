@@ -2,6 +2,7 @@ import { LayoutGroup } from "framer-motion";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { Text } from "@/components/ui/typography";
+import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { cn } from "@/lib/utils";
 
 import { BoardSkeleton } from "./board/BoardSkeleton";
@@ -169,8 +170,18 @@ export function JamBoard({
   );
 }
 
+/** Rough mounted height of one row in each layout, used until the real
+ * one is measured. Cards are the banner (h-40) plus a two-line body. */
+const CARD_ROW_ESTIMATE = 264;
+const LIST_ROW_ESTIMATE = 88;
+
 /** One shelf's jams in the active layout — a responsive card grid, or
- * the dense bordered list. */
+ * the dense bordered list.
+ *
+ * Both are virtualized. An expanded shelf is the board's worst case:
+ * `ONGOING` alone runs to four figures, and every tile carries a banner
+ * image, so mounting the whole shelf costs hundreds of image decodes for
+ * the two rows anyone is looking at. */
 function ShelfJams({
   kind,
   jams,
@@ -186,46 +197,59 @@ function ShelfJams({
   selectedKey: string | null;
   onSelect: (jam: JamFromList, layoutKey: string) => void;
 }) {
-  if (layout === "cards") {
-    // Column count comes from the available width rather than a
-    // breakpoint ladder: cards hold a ~17rem floor and the grid fits as
-    // many as it can, so ultrawide displays keep gaining columns instead
-    // of stretching four cards across 1900px. `min(...,100%)` keeps the
-    // floor from overflowing viewports narrower than a single card.
-    return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-3">
-        {jams.map((jam) => {
-          const layoutKey = `${kind}-${jam.jamId}`;
-          return (
-            <JamCard
-              key={jam.jamId}
-              jam={jam}
-              now={now}
-              layoutKey={layoutKey}
-              isSelected={selectedKey === layoutKey}
-              onSelect={() => onSelect(jam, layoutKey)}
-            />
-          );
-        })}
-      </div>
+  const renderJam = (jam: JamFromList, index: number) => {
+    const layoutKey = `${kind}-${jam.jamId}`;
+    const card = layout === "cards";
+    const row = (
+      <JamRow
+        card={card}
+        jam={jam}
+        now={now}
+        layoutKey={layoutKey}
+        isSelected={selectedKey === layoutKey}
+        onSelect={() => onSelect(jam, layoutKey)}
+      />
     );
-  }
+    // The list layout draws its own separators: the rows sit in one
+    // bordered frame, so every row but the first carries the hairline.
+    return card ? row : <div className={cn(index > 0 && "border-t border-muted/20")}>{row}</div>;
+  };
+
   return (
-    <div className="flex flex-col overflow-hidden rounded-md border border-muted/20">
-      {jams.map((jam, i) => {
-        const layoutKey = `${kind}-${jam.jamId}`;
-        return (
-          <div key={jam.jamId} className={cn(i > 0 && "border-t border-muted/20")}>
-            <ShelfRow
-              jam={jam}
-              now={now}
-              layoutKey={layoutKey}
-              isSelected={selectedKey === layoutKey}
-              onSelect={() => onSelect(jam, layoutKey)}
-            />
-          </div>
-        );
-      })}
-    </div>
+    <VirtualGrid
+      items={jams}
+      getItemKey={(jam) => jam.jamId}
+      renderItem={renderJam}
+      // Cards: the column count comes from the available width rather
+      // than a breakpoint ladder — cards hold a ~17rem floor and the grid
+      // fits as many as it can, so ultrawide displays keep gaining
+      // columns instead of stretching four cards across 1900px.
+      // `min(...,100%)` keeps the floor from overflowing viewports
+      // narrower than a single card.
+      rowClassName={
+        layout === "cards"
+          ? "grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-3"
+          : "flex flex-col"
+      }
+      className={
+        layout === "cards" ? undefined : "overflow-hidden rounded-md border border-muted/20"
+      }
+      estimateRowHeight={layout === "cards" ? CARD_ROW_ESTIMATE : LIST_ROW_ESTIMATE}
+    />
   );
+}
+
+/** A jam in whichever shelf layout is active. */
+function JamRow({
+  card,
+  ...props
+}: {
+  card: boolean;
+  jam: JamFromList;
+  now: Date;
+  layoutKey: string;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return card ? <JamCard {...props} /> : <ShelfRow {...props} />;
 }
