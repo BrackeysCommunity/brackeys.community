@@ -44,7 +44,7 @@ export function FeaturedCard({
       layout={false}
       transition={ROW_CLOSE_TRANSITION}
       style={{ opacity: isSelected ? 0 : 1, borderRadius: 8 }}
-      className="group relative flex w-80 shrink-0 cursor-pointer snap-start flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60 sm:w-96"
+      className="group relative flex w-80 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60 sm:w-96"
     >
       <div
         className="relative h-52 w-full shrink-0 overflow-hidden"

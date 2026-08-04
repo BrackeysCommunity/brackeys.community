@@ -1,6 +1,7 @@
 import { LayoutGroup } from "framer-motion";
 import { type ReactNode, useMemo, useState } from "react";
 
+import { ShelfHeader } from "@/components/ui/shelf-header";
 import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,6 @@ import { BoardSkeleton } from "./board/BoardSkeleton";
 import { type BoardLayout, type BoardSort, buildBoard } from "./board/build-board";
 import { FeaturedShelf } from "./board/FeaturedShelf";
 import { JamCard } from "./board/JamCard";
-import { ShelfHeader } from "./board/ShelfHeader";
 import { ShelfRow } from "./board/ShelfRow";
 import { type JamFromList, type ShelfKind } from "./helpers";
 import { JamDetailModal } from "./JamDetailModal";
@@ -125,6 +125,7 @@ export function JamBoard({
                 title={meta.title}
                 blurb={meta.blurb}
                 count={shelf.ranked.length + shelf.tail.length}
+                unit="JAM"
               />
               {visible.length === 0 ? (
                 <Text size="xs" variant="muted" className="px-1 tracking-widest uppercase">

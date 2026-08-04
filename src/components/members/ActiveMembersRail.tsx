@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { Rail } from "@/components/ui/rail";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MicroLabel, Text } from "@/components/ui/typography";
 import { orpc } from "@/orpc/client";
 
 import { MemberDirectoryCard } from "./MemberDirectoryCard";
@@ -34,32 +34,20 @@ export function ActiveMembersRail() {
   if (!isLoading && ranked.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-3 border-b border-dashed border-muted-foreground/25 pb-1.5">
-        <MicroLabel>MOST ACTIVE</MicroLabel>
-        <Text as="span" size="xs" variant="muted">
-          shipping, joining crews, and posting in the last six months
-        </Text>
-      </div>
-
-      {/* Negative margins let the run bleed to the page gutters, so the
-          last tile is visibly cut off rather than ending in a tidy column
-          that reads as "that's all of them". The padding puts the gutter
-          back inside the scrollport so the first tile isn't flush to the
-          edge and focus rings aren't clipped. */}
-      <div className="-mx-4 overflow-x-auto px-4 pb-1 [scrollbar-width:thin] sm:-mx-6 sm:px-6">
-        <div className="flex snap-x snap-mandatory gap-3">
-          {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-42 w-64 shrink-0" />
-              ))
-            : ranked.map((member, index) => (
-                <div key={member.id} className="w-64 shrink-0 snap-start">
-                  <MemberDirectoryCard member={member} rank={index + 1} />
-                </div>
-              ))}
-        </div>
-      </div>
-    </section>
+    <Rail
+      title="MOST ACTIVE"
+      blurb="shipping, joining crews, and posting in the last six months"
+      label="most active members"
+    >
+      {isLoading
+        ? Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-42 w-64 shrink-0" />
+          ))
+        : ranked.map((member, index) => (
+            <div key={member.id} className="w-64 shrink-0">
+              <MemberDirectoryCard member={member} rank={index + 1} />
+            </div>
+          ))}
+    </Rail>
   );
 }

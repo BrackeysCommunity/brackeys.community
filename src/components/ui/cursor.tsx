@@ -59,15 +59,6 @@ const CORNER_BORDERS = [
   { borderBottomWidth: 1, borderLeftWidth: 1 },
 ] as const;
 
-const BOUNCE_PX = 0.5;
-const CORNER_BOUNCE = [
-  { dx: BOUNCE_PX, dy: BOUNCE_PX },
-  { dx: -BOUNCE_PX, dy: BOUNCE_PX },
-  { dx: -BOUNCE_PX, dy: -BOUNCE_PX },
-  { dx: BOUNCE_PX, dy: -BOUNCE_PX },
-] as const;
-const BOUNCE_TRANSITION = { duration: 0.5, repeat: Infinity, ease: "backInOut" } as const;
-
 interface CursorProps {
   className?: string;
   spinDuration?: number;
@@ -360,38 +351,28 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
           {corners.map((pos, i) => (
             <motion.div
               key={i}
-              className="absolute top-0 left-0"
-              animate={
-                isMagnetic
-                  ? { x: [0, CORNER_BOUNCE[i].dx, 0], y: [0, CORNER_BOUNCE[i].dy, 0] }
-                  : { x: 0, y: 0 }
-              }
-              transition={isMagnetic ? BOUNCE_TRANSITION : { duration: 0.15 }}
-            >
-              <motion.div
-                className="absolute top-0 left-0 border-foreground"
-                animate={{
-                  width: isMagnetic ? CORNER_HOVERED : CORNER,
-                  height: isMagnetic ? CORNER_HOVERED : CORNER,
-                  borderRadius: isMagnetic ? 1 : idlePressed ? 0 : 1,
-                  ...Object.fromEntries(
-                    Object.entries(CORNER_BORDERS[i]).map(([k]) => [
-                      k,
-                      isMagnetic ? BORDER_HOVERED : BORDER,
-                    ]),
-                  ),
-                }}
-                transition={FADE_TRANSITION}
-                style={{
-                  width: CORNER,
-                  height: CORNER,
-                  ...CORNER_BORDERS[i],
-                  x: pos.x,
-                  y: pos.y,
-                  willChange: "transform",
-                }}
-              />
-            </motion.div>
+              className="absolute top-0 left-0 border-foreground"
+              animate={{
+                width: isMagnetic ? CORNER_HOVERED : CORNER,
+                height: isMagnetic ? CORNER_HOVERED : CORNER,
+                borderRadius: isMagnetic ? 1 : idlePressed ? 0 : 1,
+                ...Object.fromEntries(
+                  Object.entries(CORNER_BORDERS[i]).map(([k]) => [
+                    k,
+                    isMagnetic ? BORDER_HOVERED : BORDER,
+                  ]),
+                ),
+              }}
+              transition={FADE_TRANSITION}
+              style={{
+                width: CORNER,
+                height: CORNER,
+                ...CORNER_BORDERS[i],
+                x: pos.x,
+                y: pos.y,
+                willChange: "transform",
+              }}
+            />
           ))}
         </motion.div>
       )}
