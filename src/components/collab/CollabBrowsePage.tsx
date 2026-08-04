@@ -271,13 +271,15 @@ export function CollabBrowsePage() {
 
             {/* Parked at the same inset as the toolbar so the two lanes line
                 up along one edge, and travelling with the header — see
-                `--app-header-shift`. It sizes to its content and is only
-                capped at the visible band (the 3.5rem header inset plus a
-                bottom gutter, less whatever the header has vacated) — a long
-                post detail scrolls inside the pane rather than past it, while
-                the idle readout stays short instead of stretching to fill the
-                viewport. */}
-            <aside className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20 flex max-h-[calc(100vh-6rem-var(--app-header-shift))] flex-col">
+                `--app-header-shift`. The cap is a constant: the room the pane
+                has when fully expanded — parked at its 1rem inset with the
+                header away — plus a 1.5rem bottom gutter. Deliberately no
+                `--app-header-shift` term: the header returning moves the
+                pane's top (via `top`) and the bottom simply follows, hanging
+                past the fold rather than compressing the pane. A long post
+                detail scrolls inside it, while the idle readout stays short
+                instead of stretching to fill the viewport. */}
+            <aside className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20 flex max-h-[calc(100vh-2.5rem)] flex-col">
               <CollabInspector
                 postId={selectedPostId}
                 currentUserId={currentUserId}
