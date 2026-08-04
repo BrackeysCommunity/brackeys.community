@@ -7,6 +7,7 @@ import * as z from "zod";
 import { db } from "@/db";
 import {
   developerProfiles,
+  itchJamEntryResults,
   itchJams,
   linkedAccounts,
   profileProjects,
@@ -46,14 +47,48 @@ async function queryProfileProjects(where: SQL | undefined) {
       project: profileProjects,
       itchJamTitle: itchJams.title,
       itchJamSlug: itchJams.slug,
+      // The jam log dates rows by when the jam ran, not when the entry was
+      // submitted; entry counts turn a bare rank into "#12 / 312".
+      jamStartsAt: itchJams.startsAt,
+      jamEntriesCount: itchJams.entriesCount,
     })
     .from(profileProjects)
     .leftJoin(itchJams, eq(profileProjects.jamId, itchJams.jamId))
     .where(where);
-  return rows.map(({ project, itchJamTitle, itchJamSlug }) => ({
+
+  // Overall placement lives in the scraped per-criterion results, keyed on the
+  // itch entry id that imported jam rows carry as `sourceId`. Fetched
+  // separately rather than joined so a jam with several scraped criteria
+  // can't multiply the project rows.
+  const entryIds = rows
+    .filter((r) => r.project.source === "itchio-jam" && /^\d+$/.test(r.project.sourceId ?? ""))
+    .map((r) => Number(r.project.sourceId));
+  const overallRows =
+    entryIds.length > 0
+      ? await db
+          .select({ entryId: itchJamEntryResults.entryId, rank: itchJamEntryResults.rank })
+          .from(itchJamEntryResults)
+          .where(
+            and(
+              inArray(itchJamEntryResults.entryId, entryIds),
+              sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+            ),
+          )
+      : [];
+  const rankByEntryId = new Map(overallRows.map((r) => [String(r.entryId), r.rank]));
+
+  return rows.map(({ project, itchJamTitle, itchJamSlug, jamStartsAt, jamEntriesCount }) => ({
     ...project,
     jamName: project.jamName ?? itchJamTitle,
     jamUrl: project.jamUrl ?? (itchJamSlug ? `https://itch.io/jam/${itchJamSlug}` : null),
+    jamStartsAt,
+    jamEntriesCount,
+    // Guarded on source: a library row's `sourceId` is a game id, which can
+    // collide numerically with an unrelated entry id.
+    jamOverallRank:
+      project.source === "itchio-jam" && project.sourceId
+        ? (rankByEntryId.get(project.sourceId) ?? null)
+        : null,
   }));
 }
 

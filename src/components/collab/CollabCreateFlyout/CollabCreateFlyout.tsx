@@ -1,10 +1,10 @@
 import { useStore } from "@tanstack/react-store";
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { authStore } from "@/lib/auth-store";
 
-import { useReleaseFocusOnOpen } from "../use-release-focus";
 import { CollabCreateForm } from "./CollabCreateForm";
 import { CollabCreateUnauth } from "./CollabCreateUnauth";
 

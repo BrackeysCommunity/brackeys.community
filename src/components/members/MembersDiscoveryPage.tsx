@@ -1,7 +1,7 @@
-import { Add01Icon, Login01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { Login01Icon, UserSearch01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -16,21 +16,16 @@ import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
-import { client, orpc } from "@/orpc/client";
+import { client } from "@/orpc/client";
 
-import { TeamCreateDrawer } from "./TeamCreateDrawer";
-import { TeamDirectoryCard } from "./TeamDirectoryCard";
-import {
-  CLEARED_TEAM_FILTERS,
-  countActiveTeamFilters,
-  DEFAULT_SORT,
-  type TeamsSearch,
-} from "./teams-filters";
-import { TeamsActiveFilters } from "./TeamsActiveFilters";
-import { TeamsFilterClearButton, TeamsFilterPanel } from "./TeamsFilterPanel";
-import { TeamsFloatingControls, TeamsToolbar } from "./TeamsToolbar";
+import { ActiveMembersRail } from "./ActiveMembersRail";
+import { MemberDirectoryCard } from "./MemberDirectoryCard";
+import { CLEARED_MEMBER_FILTERS, DEFAULT_SORT, type MembersSearch } from "./members-filters";
+import { MembersActiveFilters } from "./MembersActiveFilters";
+import { MembersFilterClearButton, MembersFilterPanel } from "./MembersFilterPanel";
+import { MembersFloatingControls, MembersToolbar } from "./MembersToolbar";
 
-export type { TeamsSearch, TeamsSort } from "./teams-filters";
+export type { MembersSearch, MembersSort } from "./members-filters";
 
 const PAGE_SIZE = 24;
 
@@ -38,18 +33,24 @@ const PAGE_SIZE = 24;
 const WIDE_QUERY = "(min-width: 1024px)";
 
 /**
- * `/teams` — the directory. Browsing comes first: a visitor who lands
- * here without an account should see crews, not a create form. The
- * viewer's own teams ride above the listing as a shelf so "go to my
- * team page" stays one click from the same URL.
+ * `/members` — the people directory, the team directory's counterpart.
+ * Browsing comes first: a visitor without an account should see who is
+ * here, not a sign-in wall. The most-active rail rides above the listing
+ * as a shortlist, so "who's actually building right now" is answerable
+ * without touching a filter.
  *
- * Filters live in the URL (`?q=&recruiting=&skills=&sort=`) so a
- * narrowed directory is shareable, matching the collab board.
+ * Filters live in the URL (`?q=&skills=&availability=&open=&rate=&sort=`)
+ * so a narrowed directory is shareable, matching the other two boards.
+ *
+ * Everyone with a profile is listed rather than only the filled-in ones:
+ * the count has to be the truth about the community. The default
+ * most-active ordering is what keeps the empty profiles off the front,
+ * and it does so without lying about how many there are.
  */
-export function TeamsDiscoveryPage() {
-  const { session, isPending } = useStore(authStore);
+export function MembersDiscoveryPage() {
+  const { session } = useStore(authStore);
   const navigate = useNavigate();
-  const search = (useSearch({ strict: false }) as TeamsSearch) ?? {};
+  const search = (useSearch({ strict: false }) as MembersSearch) ?? {};
 
   // The toggle row fits inline on a wide screen; below that it moves into
   // the filter sheet. Keyed on the shell, not the breakpoint, for the
@@ -59,12 +60,12 @@ export function TeamsDiscoveryPage() {
   const isWide = useMediaQuery(WIDE_QUERY);
   const isTouch = useIsTouchDevice();
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
 
   const sort = search.sort ?? DEFAULT_SORT;
   const skillIds = useMemo(() => search.skills ?? [], [search.skills]);
+  const availability = useMemo(() => search.availability ?? [], [search.availability]);
 
   // The current search, read through a ref so the writer below can stay
   // referentially stable — the debounced search box keys its timer on the
@@ -76,13 +77,13 @@ export function TeamsDiscoveryPage() {
 
   // Merged here rather than through the router's `(prev) => …` reducer:
   // `prev` is typed as the search union of every route, so `sort` comes
-  // back as this board's values *plus* the member directory's — and the
-  // widened union isn't assignable to `/teams`. This page owns its whole
-  // search object, so it can just write it.
+  // back as this route's values *plus* the collab and team boards' — and
+  // the widened union isn't assignable to `/members`. This page owns its
+  // whole search object, so it can just write it.
   const setSearch = useCallback(
-    (next: Partial<TeamsSearch>) => {
+    (next: Partial<MembersSearch>) => {
       void navigate({
-        to: "/teams",
+        to: "/members",
         search: { ...searchRef.current, ...next },
         replace: true,
       });
@@ -90,25 +91,19 @@ export function TeamsDiscoveryPage() {
     [navigate],
   );
 
-  // `?new=1` is a one-shot: consume it so Back doesn't reopen the drawer.
-  useEffect(() => {
-    if (!search.new) return;
-    setCreateOpen(true);
-    setSearch({ new: undefined });
-  }, [search.new, setSearch]);
-
   const listInput = {
     search: search.q?.trim() || undefined,
-    recruiting: search.recruiting || undefined,
-    hasShipped: search.shipped || undefined,
     skillIds: skillIds.length > 0 ? skillIds : undefined,
+    availability: availability.length > 0 ? availability : undefined,
+    openToWork: search.open || undefined,
+    maxHourlyRate: search.rate,
     sort,
   };
 
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
-    queryKey: ["listTeams", listInput],
+    queryKey: ["listMembers", listInput],
     queryFn: ({ pageParam = 0 }) =>
-      client.listTeams({ ...listInput, limit: PAGE_SIZE, offset: pageParam as number }),
+      client.listMembers({ ...listInput, limit: PAGE_SIZE, offset: pageParam as number }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const fetched = allPages.length * PAGE_SIZE;
@@ -117,9 +112,8 @@ export function TeamsDiscoveryPage() {
     staleTime: 30 * 1000,
   });
 
-  const teams = useMemo(() => data?.pages.flatMap((p) => p.teams) ?? [], [data]);
+  const members = useMemo(() => data?.pages.flatMap((p) => p.members) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
-  const isFiltered = countActiveTeamFilters(search) > 0;
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -135,41 +129,28 @@ export function TeamsDiscoveryPage() {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const startTeam = () => {
-    if (!isPending && !session?.user) {
-      signInWithDiscord();
-      return;
-    }
-    setCreateOpen(true);
-  };
-
   return (
     <div className="flex flex-col gap-8 selection:bg-primary selection:text-white">
-      <TeamsHero authenticated={!!session?.user} onStart={startTeam} />
+      <MembersHero authenticated={!!session?.user} />
 
-      {session?.user ? <YourTeamsShelf onStart={startTeam} /> : null}
+      <ActiveMembersRail />
 
       <section className="flex flex-col gap-3">
         {/* The controls pin to the top of the scrollport, just under the app
             header — they're the one thing you always want reachable while
             walking a long directory. `--app-header-shift` takes them up into
             the band the header vacates and back down when it returns, so they
-            ride with it rather than leaving a gap. The `+1rem` is a gutter
-            they keep in both states — parked flush against the viewport edge
-            they read as clipped rather than pinned. They carry no surface of
-            their own: `z-20` lands them on top of the header's fixed scrim,
-            which is what the grid dissolves into on its way past. The count
-            and chips are a readout of the directory rather than a control, so
-            they scroll off with it. */}
+            ride with it rather than leaving a gap. Same construction as the
+            team directory's; see the comment there for the gutter and z-index. */}
         <div className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20">
-          <TeamsToolbar
+          <MembersToolbar
             search={search}
             setSearch={setSearch}
             onOpenFilters={isWide ? undefined : () => setFiltersOpen(true)}
             controlsElsewhere={isTouch && !isWide}
           />
         </div>
-        <TeamsActiveFilters
+        <MembersActiveFilters
           search={search}
           setSearch={setSearch}
           count={isLoading ? null : total}
@@ -177,16 +158,12 @@ export function TeamsDiscoveryPage() {
 
         {isLoading ? (
           <DirectorySkeleton />
-        ) : teams.length === 0 ? (
-          <DirectoryEmptyState
-            filtered={isFiltered}
-            onClear={() => setSearch(CLEARED_TEAM_FILTERS)}
-            onStart={startTeam}
-          />
+        ) : members.length === 0 ? (
+          <DirectoryEmptyState onClear={() => setSearch(CLEARED_MEMBER_FILTERS)} />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {teams.map((team) => (
-              <TeamDirectoryCard key={team.id} team={team} />
+            {members.map((member) => (
+              <MemberDirectoryCard key={member.id} member={member} />
             ))}
             {hasNextPage ? (
               <div ref={sentinelRef} className="col-span-full flex justify-center py-4">
@@ -206,32 +183,30 @@ export function TeamsDiscoveryPage() {
       </section>
 
       {isTouch && !isWide ? (
-        <TeamsFloatingControls
+        <MembersFloatingControls
           search={search}
           setSearch={setSearch}
           onOpenFilters={() => setFiltersOpen(true)}
         />
       ) : null}
 
-      <TeamCreateDrawer open={createOpen} onClose={() => setCreateOpen(false)} />
-
-      {/* Same drawer idiom as the collab board's filters — one overlay on
+      {/* Same drawer idiom as the team directory's filters — one overlay on
           mobile, dismissed the same way (swipe, scrim, or the panel's own
           CTA). */}
       <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
         <DrawerContent className="max-h-[88vh] p-0">
           <DrawerDescription className="sr-only">
-            Narrow the directory by recruiting status, shipped work, tech stack, and sort order.
+            Narrow the directory by availability, hourly rate, skills, and sort order.
           </DrawerDescription>
           <div className="flex min-h-0 flex-1 flex-col pt-3 pb-[env(safe-area-inset-bottom)]">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-muted/40 py-3 pr-3 pl-5">
               <DrawerTitle className="text-base tracking-widest text-foreground uppercase">
                 Filters
               </DrawerTitle>
-              <TeamsFilterClearButton search={search} setSearch={setSearch} />
+              <MembersFilterClearButton search={search} setSearch={setSearch} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <TeamsFilterPanel
+              <MembersFilterPanel
                 search={search}
                 setSearch={setSearch}
                 resultCount={isLoading ? null : total}
@@ -246,11 +221,12 @@ export function TeamsDiscoveryPage() {
 }
 
 /**
- * The page's masthead and primary action. Signed-out visitors get the
- * same button pointed at sign-in rather than a hidden one — the ask is
- * the point of the banner, and hiding it makes the page look read-only.
+ * The page's masthead. Unlike the team directory there's nothing to
+ * create here — a member is a person, not a page you start — so the
+ * action is "make yourself findable": the profile builder for a signed-in
+ * visitor, sign-in for everyone else.
  */
-function TeamsHero({ authenticated, onStart }: { authenticated: boolean; onStart: () => void }) {
+function MembersHero({ authenticated }: { authenticated: boolean }) {
   return (
     <Well
       notchOpts
@@ -265,107 +241,52 @@ function TeamsHero({ authenticated, onStart }: { authenticated: boolean; onStart
       <GraphPaper fade="bottom-left" />
       <div className="relative flex flex-wrap items-end justify-between gap-6 p-6">
         <div className="flex max-w-prose min-w-64 flex-col gap-2">
-          <MicroLabel>TEAM DIRECTORY</MicroLabel>
+          <MicroLabel>MEMBER DIRECTORY</MicroLabel>
           <Heading as="h1" className="text-2xl tracking-widest uppercase">
-            Find a crew to build with
+            Find the people behind the games
           </Heading>
           <Text size="sm" variant="muted">
-            Browse teams that are recruiting, see what they've shipped and what they work in — or
-            start your own page and let people come to you.
+            Browse everyone building here — what they work in, what they've shipped, and who's open
+            to work right now.
           </Text>
         </div>
-        <Button size="lg" onClick={onStart} className="tracking-widest">
-          <HugeiconsIcon icon={authenticated ? Add01Icon : Login01Icon} size={14} />
-          {authenticated ? "START A TEAM" : "SIGN IN TO START A TEAM"}
-        </Button>
+        {authenticated ? (
+          <Button
+            size="lg"
+            nativeButton={false}
+            render={<Link to="/profile" />}
+            className="tracking-widest"
+          >
+            <HugeiconsIcon icon={UserSearch01Icon} size={14} />
+            MAKE YOURSELF FINDABLE
+          </Button>
+        ) : (
+          <Button size="lg" onClick={() => signInWithDiscord()} className="tracking-widest">
+            <HugeiconsIcon icon={Login01Icon} size={14} />
+            SIGN IN TO BE LISTED
+          </Button>
+        )}
       </div>
     </Well>
   );
 }
 
 /**
- * The viewer's own teams, above the directory. Renders its own empty
- * state rather than disappearing: a signed-in member with no team is
- * exactly who the create path is for.
+ * There is no unfiltered empty state worth writing: a directory of people
+ * is never empty while someone is reading it, so the only way here is
+ * over-filtering.
  */
-function YourTeamsShelf({ onStart }: { onStart: () => void }) {
-  const { data: myTeams, isLoading } = useQuery({
-    ...orpc.listMyTeams.queryOptions({ input: {} }),
-    staleTime: 60 * 1000,
-  });
-
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-3 border-b border-dashed border-muted-foreground/25 pb-1.5">
-        <MicroLabel>YOUR TEAMS</MicroLabel>
-        {myTeams && myTeams.length > 0 ? (
-          <Text as="span" size="xs" variant="muted" className="tabular-nums">
-            {myTeams.length}
-          </Text>
-        ) : null}
-      </div>
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-42 w-full" />
-          ))}
-        </div>
-      ) : (myTeams?.length ?? 0) === 0 ? (
-        <Well
-          variant="ghost"
-          className="flex-row flex-wrap items-center justify-between gap-3 bg-card p-4 backdrop-blur-none"
-        >
-          <div className="flex items-center gap-3">
-            <HugeiconsIcon icon={UserGroupIcon} size={18} className="text-muted-foreground" />
-            <Text size="sm" variant="muted">
-              You're not on a team yet — start one, or ask to join a crew below.
-            </Text>
-          </div>
-          <Button variant="outline" size="sm" onClick={onStart} className="tracking-widest">
-            <HugeiconsIcon icon={Add01Icon} size={12} />
-            START A TEAM
-          </Button>
-        </Well>
-      ) : (
-        /* The same tile as the directory below, plus the viewer's role — a
-           team you belong to shouldn't look like a different kind of object
-           from the same team seen in the listing. */
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {myTeams!.map((team) => (
-            <TeamDirectoryCard key={team.id} team={team} role={team.role} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/** An over-filtered directory and an empty one are different problems. */
-function DirectoryEmptyState({
-  filtered,
-  onClear,
-  onStart,
-}: {
-  filtered: boolean;
-  onClear: () => void;
-  onStart: () => void;
-}) {
+function DirectoryEmptyState({ onClear }: { onClear: () => void }) {
   return (
     <Well className="items-center justify-center gap-3 bg-card px-4 py-12 text-center backdrop-blur-none">
       <Text variant="muted" className="text-4xl opacity-40">
         [ ]
       </Text>
       <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        {filtered ? "No teams match your filters" : "No teams yet — start the first one"}
+        No members match your filters
       </Text>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={filtered ? onClear : onStart}
-        className="tracking-widest"
-      >
-        {filtered ? "CLEAR ALL FILTERS" : "START A TEAM"}
+      <Button variant="outline" size="sm" onClick={onClear} className="tracking-widest">
+        CLEAR ALL FILTERS
       </Button>
     </Well>
   );

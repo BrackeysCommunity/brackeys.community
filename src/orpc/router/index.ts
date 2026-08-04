@@ -26,6 +26,7 @@ import {
 import { syncGitHubLink, unlinkGitHub, getContributions } from "./github";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
 import { archiveJams, getJamData, listJams } from "./jam";
+import { listMembers } from "./member";
 import {
   listNotifications,
   unreadCount,
@@ -96,6 +97,7 @@ export default {
   removeJamParticipation,
   setUrlStub,
   listAvailableUsers,
+  listMembers,
   syncGitHubLink,
   unlinkGitHub,
   getContributions,

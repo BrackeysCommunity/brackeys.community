@@ -1,7 +1,6 @@
 import { Cancel01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useStore } from "@tanstack/react-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -12,15 +11,10 @@ import { Button } from "@/components/ui/button";
 import { useHeaderShift } from "@/hooks/use-header-shift";
 import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
-import {
-  activeUserStore,
-  clearActiveUserProfile,
-  fetchActiveUserProfile,
-} from "@/lib/active-user-store";
+import { clearActiveUserProfile, fetchActiveUserProfile } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
-import { profileSlug } from "@/lib/profile-links";
 
 /** Matches the `pt-14` the shell reserves for the bar — see `--app-header-shift`. */
 const HEADER_SHIFT = "-3.5rem";
@@ -52,18 +46,12 @@ export function AppHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const activeProfile = useStore(activeUserStore, (s) => s.profile);
-  const sessionUserId = session?.user?.id;
-  // Null until the session resolves — the links below fall back to
-  // `/profile` (the builder route) rather than a broken `$userId`.
-  const ownProfileSlug = sessionUserId
-    ? profileSlug({ id: sessionUserId, urlStub: activeProfile?.urlStub })
-    : null;
 
   const PAGE_TITLES: Record<string, string> = {
     "/command-center": "COMMANDS",
     "/collab": "COLLAB",
     "/teams": "TEAMS",
+    "/members": "MEMBERS",
     "/profile": "PROFILE",
   };
   const mobileTitle =
@@ -172,14 +160,16 @@ export function AppHeader() {
                 TEAMS
               </Link>
             </MagneticLink>
+            {/* Where PROFILE used to sit. The viewer's own profile is one
+                click away in the user menu, so the bar spends the slot on
+                a destination that isn't reachable anywhere else. */}
             <MagneticLink>
               <Link
-                data-testid="desktop-profile-link"
+                data-testid="desktop-members-link"
                 className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to={ownProfileSlug ? "/profile/$userId" : "/profile"}
-                {...(ownProfileSlug ? { params: { userId: ownProfileSlug } } : {})}
+                to="/members"
               >
-                PROFILE
+                MEMBERS
               </Link>
             </MagneticLink>
           </nav>
@@ -250,13 +240,12 @@ export function AppHeader() {
                 TEAMS
               </Link>
               <Link
-                data-testid="mobile-profile-link"
-                to={ownProfileSlug ? "/profile/$userId" : "/profile"}
-                {...(ownProfileSlug ? { params: { userId: ownProfileSlug } } : {})}
+                data-testid="mobile-members-link"
+                to="/members"
                 onClick={() => setMobileMenuOpen(false)}
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
-                PROFILE
+                MEMBERS
               </Link>
               <div className="mt-2 flex items-center justify-end border-t border-muted/20 px-4 pt-3">
                 {session?.user ? (

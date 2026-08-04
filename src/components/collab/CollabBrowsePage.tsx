@@ -11,6 +11,7 @@ import { GraphPaper } from "@/components/ui/graph-paper";
 import { Kbd } from "@/components/ui/kbd";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
@@ -31,7 +32,6 @@ import { CollabPostFeed } from "./CollabPostFeed";
 import { CollabPostPopover } from "./CollabPostPopover";
 import { COLLAB_SEARCH_INPUT_ID, CollabFloatingControls, CollabToolbar } from "./CollabToolbar";
 import { useCollabListing } from "./use-collab-listing";
-import { useReleaseFocusOnOpen } from "./use-release-focus";
 
 interface CollabSearch {
   new?: boolean;

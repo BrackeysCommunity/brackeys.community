@@ -208,10 +208,15 @@ export interface ProfileProject {
 }
 
 export interface JamLogEntry {
-  jamId: string;
+  /** `profile_projects.id` — the jam row itself. A member can enter the
+   * same jam twice, so the jam's own id wouldn't be unique here. */
+  id: string;
   title: string;
   shortNote: string | null;
   startedAt: Date;
+  /** Entry page (itch rate URL) when known — the log row's title links
+   * out to it, the way the project card's OPEN chip did. */
+  url: string | null;
   /** Final placement / total entries — drives the "#4 / 420" tag. */
   rank: number | null;
   totalEntries: number | null;
@@ -221,7 +226,7 @@ export interface JamLogEntry {
 
 /** "Best finish" featured callout that anchors the JAM LOG section. */
 export interface JamLogBest {
-  jamId: string;
+  id: string;
   title: string;
   /** Bold subtitle ("BRACKEYS JAM #28 · 90 ENTRIES"). */
   subtitle: string;

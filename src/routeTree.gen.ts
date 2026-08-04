@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as MembersRouteImport } from './routes/members'
 import { Route as JamsRouteImport } from './routes/jams'
 import { Route as GameRouteImport } from './routes/game'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
@@ -51,6 +52,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembersRoute = MembersRouteImport.update({
+  id: '/members',
+  path: '/members',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JamsRoute = JamsRouteImport.update({
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
+  '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
   '/teams': typeof TeamsRouteWithChildren
@@ -212,6 +219,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/command-center': typeof CommandCenterRoute
+  '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
+  '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRouteWithChildren
   '/teams': typeof TeamsRouteWithChildren
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/command-center'
     | '/game'
     | '/jams'
+    | '/members'
     | '/notifications'
     | '/profile'
     | '/teams'
@@ -300,6 +310,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/command-center'
+    | '/members'
     | '/notifications'
     | '/api/$'
     | '/collab/$postId'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/command-center'
     | '/game'
     | '/jams'
+    | '/members'
     | '/notifications'
     | '/profile'
     | '/teams'
@@ -359,6 +371,7 @@ export interface RootRouteChildren {
   CommandCenterRoute: typeof CommandCenterRoute
   GameRoute: typeof GameRouteWithChildren
   JamsRoute: typeof JamsRouteWithChildren
+  MembersRoute: typeof MembersRoute
   NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   TeamsRoute: typeof TeamsRouteWithChildren
@@ -392,6 +405,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/members': {
+      id: '/members'
+      path: '/members'
+      fullPath: '/members'
+      preLoaderRoute: typeof MembersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jams': {
@@ -646,6 +666,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommandCenterRoute: CommandCenterRoute,
   GameRoute: GameRouteWithChildren,
   JamsRoute: JamsRouteWithChildren,
+  MembersRoute: MembersRoute,
   NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRouteWithChildren,
   TeamsRoute: TeamsRouteWithChildren,

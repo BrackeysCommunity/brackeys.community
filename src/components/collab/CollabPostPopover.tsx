@@ -1,7 +1,7 @@
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 
 import { CollabPostDetail } from "./CollabPostDetail";
-import { useReleaseFocusOnOpen } from "./use-release-focus";
 
 interface CollabPostPopoverProps {
   /** Numeric post id to show; the drawer is closed when `null`. */

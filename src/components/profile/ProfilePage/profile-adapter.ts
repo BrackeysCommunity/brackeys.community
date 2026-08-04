@@ -2,6 +2,8 @@ import { formatRate } from "@/lib/format-rate";
 
 import type {
   EditableProject,
+  JamLogBest,
+  JamLogEntry,
   ProfileBadge,
   ProfileItchSync,
   ProfileLink,
@@ -52,7 +54,15 @@ export interface RpcProfile {
     sortOrder: number | null;
     status: string;
     source: string;
+    jamId: number | null;
     jamName: string | null;
+    jamUrl: string | null;
+    /** When the jam itself ran — from the scraped `itch.jams` join. */
+    jamStartsAt: Date | null;
+    jamEntriesCount: number | null;
+    /** Overall placement scraped off the entry's rate page, once voting
+     * has closed. Null for manual rows and un-scored entries. */
+    jamOverallRank: number | null;
     submissionTitle: string | null;
     submissionUrl: string | null;
     result: string | null;
@@ -88,7 +98,21 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const tag = profile.tagline?.trim() || null;
   const glyph = (displayName.match(/\S/)?.[0] ?? "?").toUpperCase();
 
-  const projects = rpc.projects
+  // Jam participations get their own section rather than a capsule in the
+  // grid: the itch.io backfill writes them as `type: "jam"` rows alongside
+  // the library import of the same game, so leaving them in SHIPPED WORK
+  // showed the title twice while JAM LOG sat empty.
+  const jamRows = rpc.projects.filter(isJamRow);
+  const workRows = rpc.projects.filter((p) => !isJamRow(p));
+
+  const jamLog = jamRows
+    .map(adaptJamLogEntry)
+    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  const jamLogBest = deriveJamLogBest(jamRows);
+  const rankedFinishes = jamLog.map((e) => e.rank).filter((r) => r != null);
+  const bestRank = rankedFinishes.length > 0 ? Math.min(...rankedFinishes) : null;
+
+  const projects = workRows
     .slice()
     .sort((a, b) => {
       // Pinned first, then sortOrder ascending, then most recent
@@ -171,10 +195,6 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const skillsListed = skills.filter((s) => s.state === "active").length;
   const skillsPending = skills.filter((s) => s.state === "pending").length;
 
-  // Best jam result (when a project carries a numeric placement).
-  const jamProjects = projects.filter((p) => p.kind === "jam" && p.jamPlacement);
-  const bestPlacement = jamProjects[0]?.jamPlacement ?? null;
-
   const itchAccount = rpc.linkedAccounts.find(
     (acc) => acc.provider === "itchio" || acc.provider === "itch.io",
   );
@@ -191,7 +211,9 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     : null;
 
   const badges: ProfileBadge[] = [];
-  if (rpc.projects.some((p) => p.result && /^1$|winner|1st/i.test(p.result))) {
+  // A scraped overall rank of 1 is the reliable signal; the text test still
+  // covers manually-entered results ("Winner", "1st").
+  if (jamLog.some((e) => e.rank === 1) || rpc.projects.some((p) => isWinnerText(p.result))) {
     badges.push({ label: "jam winner", variant: "winner" });
   }
   if (profile.availableForWork) {
@@ -225,8 +247,13 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     stats: {
       projectsShipped,
       projectsLabel: projectsShipped > 0 ? deriveProjectsLabel(projects) : "—",
-      jamsEntered: jamProjects.length,
-      jamsBestRank: bestPlacement,
+      // Every jam counts, scored or not — the old count only saw entries
+      // whose results had already been scraped.
+      jamsEntered: jamLog.length,
+      // Derived from the log rather than `jamLogBest`, which is withheld for
+      // unremarkable finishes: the ledger row is a plain readout, so it can
+      // state the number where the trophy callout would be tactless.
+      jamsBestRank: bestRank != null ? `#${bestRank}` : null,
       skillsListed,
       skillsPendingCount: skillsPending,
       streakDays: 0,
@@ -234,9 +261,11 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     },
     itch,
     projects,
-    editableProjects: rpc.projects.map(adaptEditable),
-    jamLog: [],
-    jamLogBest: null,
+    // Owner-side editing covers manual/library rows only — jam rows are
+    // maintained by the itch.io participation sync.
+    editableProjects: workRows.map(adaptEditable),
+    jamLog,
+    jamLogBest,
     skills,
     links,
     activity: [],
@@ -256,6 +285,79 @@ function extractGithubUsername(url: string | null): string | null {
   return m[1].replace(/\/.*$/, "");
 }
 
+type RpcProject = RpcProfile["projects"][number];
+
+/** A jam participation rather than a shipped project. `type` is
+ * authoritative for the itch.io backfill; the jam link catches manual rows
+ * added through the jam-linking flow. */
+function isJamRow(p: RpcProject): boolean {
+  return p.type === "jam" || p.jamId != null || p.jamName != null;
+}
+
+/** Numeric placement, preferring the scraped rank over a `result` string
+ * the member typed themselves. Non-numeric results ("Top 5", "Winner")
+ * stay text and surface as the row's pill instead. */
+function jamRank(p: RpcProject): number | null {
+  if (p.jamOverallRank != null) return p.jamOverallRank;
+  const n = p.result != null && p.result.trim() !== "" ? Number(p.result) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+function isWinnerText(result: string | null): boolean {
+  return result != null && /^1$|winner|1st/i.test(result);
+}
+
+function adaptJamLogEntry(p: RpcProject): JamLogEntry {
+  const rank = jamRank(p);
+  // Prefer when the jam ran; fall back through the entry's own dates so a
+  // manual row without a linked jam still lands on the right date.
+  const startedAt = p.jamStartsAt ?? p.participatedAt ?? p.publishedAt ?? p.createdAt;
+  const note = [p.jamName, p.description].filter((s) => s != null && s.trim() !== "").join(" · ");
+  return {
+    id: p.id,
+    title: p.submissionTitle ?? p.title,
+    shortNote: note || null,
+    startedAt,
+    url: p.submissionUrl ?? p.url,
+    rank,
+    totalEntries: p.jamEntriesCount,
+    pill: rank == null && p.result ? p.result.toUpperCase() : null,
+  };
+}
+
+/** A finish worth putting a trophy on: top ten outright, or top decile of a
+ * large field. Everything else is still listed in the log with its rank —
+ * it just doesn't get the callout, because "BEST FINISH #3212 of 3511"
+ * reads as a burn rather than an achievement. */
+function isNotableFinish(rank: number, totalEntries: number | null): boolean {
+  if (rank <= 10) return true;
+  return totalEntries != null && totalEntries > 0 && rank <= Math.ceil(totalEntries * 0.1);
+}
+
+/** Lowest overall placement across the member's ranked entries. Jams still
+ * in voting carry no rank and can't win the callout. */
+function deriveJamLogBest(jamRows: RpcProject[]): JamLogBest | null {
+  let best: { row: RpcProject; rank: number } | null = null;
+  for (const row of jamRows) {
+    const rank = jamRank(row);
+    if (rank == null) continue;
+    if (best == null || rank < best.rank) best = { row, rank };
+  }
+  if (!best) return null;
+  const { row, rank } = best;
+  if (!isNotableFinish(rank, row.jamEntriesCount)) return null;
+  const subtitle = [row.jamName, row.jamEntriesCount ? `${row.jamEntriesCount} ENTRIES` : null]
+    .filter(Boolean)
+    .join(" · ")
+    .toUpperCase();
+  return {
+    id: row.id,
+    title: row.submissionTitle ?? row.title,
+    subtitle,
+    rank,
+  };
+}
+
 function adaptEditable(p: RpcProfile["projects"][number]): EditableProject {
   return {
     id: p.id,
@@ -268,7 +370,7 @@ function adaptEditable(p: RpcProfile["projects"][number]): EditableProject {
     pinned: p.pinned ?? null,
     status: p.status,
     jamName: p.jamName,
-    jamUrl: null, // not threaded through the adapter type yet
+    jamUrl: p.jamUrl,
     submissionTitle: p.submissionTitle,
     submissionUrl: p.submissionUrl,
     result: p.result,

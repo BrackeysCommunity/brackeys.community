@@ -3,8 +3,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
-import { Text } from "@/components/ui/typography";
+import { Link as TextLink, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { cn } from "@/lib/utils";
 
 import type { JamLogBest, JamLogEntry } from "./helpers";
 import { ProfileEmptyState } from "./ProfileEmptyState";
@@ -46,7 +47,7 @@ export function ProfileJamLogSection({
         <Well className="overflow-hidden p-0">
           <ul className="flex flex-col divide-y divide-muted/30">
             {entries.map((entry) => (
-              <li key={entry.jamId}>
+              <li key={entry.id}>
                 <JamLogRow entry={entry} />
               </li>
             ))}
@@ -62,13 +63,18 @@ function BestFinishCallout({ best }: { best: JamLogBest }) {
     <Chonk
       variant="surface"
       size="lg"
-      className="grid grid-cols-[5rem_minmax(0,1fr)_auto] items-center gap-4 px-4 py-3"
+      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-3"
     >
+      {/* Auto-width column + a step down past two digits: a fixed 5rem
+          column let a large rank run under the title. */}
       <Text
         as="div"
         bold
         density="dense"
-        className="text-5xl leading-none tracking-tight text-warning tabular-nums"
+        className={cn(
+          "leading-none tracking-tight text-warning tabular-nums",
+          best.rank >= 100 ? "text-4xl" : "text-5xl",
+        )}
       >
         #{best.rank}
       </Text>
@@ -109,9 +115,22 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
       </div>
       <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Text bold size="md" className="truncate">
-            {entry.title}
-          </Text>
+          {entry.url ? (
+            <TextLink
+              href={entry.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="md"
+              bold
+              className="truncate hover:text-primary hover:underline"
+            >
+              {entry.title}
+            </TextLink>
+          ) : (
+            <Text bold size="md" className="truncate">
+              {entry.title}
+            </Text>
+          )}
           {entry.pill ? (
             <Badge variant="warning" size="label" className="uppercase">
               ⚐ {entry.pill}

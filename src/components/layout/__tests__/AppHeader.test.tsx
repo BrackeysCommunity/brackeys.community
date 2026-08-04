@@ -137,8 +137,8 @@ afterEach(() => {
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describe("AppHeader profile links", () => {
-  it("desktop profile link uses custom url stub when set", () => {
+describe("AppHeader navigation", () => {
+  it("desktop nav links to the member directory", () => {
     sessionData = mockSession;
     setActiveProfile({
       discordUsername: "joshe",
@@ -150,76 +150,36 @@ describe("AppHeader profile links", () => {
 
     render(<AppHeader />);
 
-    const link = screen.getByTestId("desktop-profile-link");
-    expect(link.getAttribute("href")).toBe("/profile/joshe");
+    expect(screen.getByTestId("desktop-members-link").getAttribute("href")).toBe("/members");
   });
 
-  it("desktop profile link falls back to user id when no stub", () => {
+  it("mobile menu links to the member directory", () => {
     sessionData = mockSession;
-    setActiveProfile({
-      discordUsername: "joshe",
-      discordId: "123",
-      avatarUrl: null,
-      guildNickname: null,
-      urlStub: null,
-    });
 
     render(<AppHeader />);
+    fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
 
-    const link = screen.getByTestId("desktop-profile-link");
-    expect(link.getAttribute("href")).toBe("/profile/user-abc");
+    expect(screen.getByTestId("mobile-members-link").getAttribute("href")).toBe("/members");
   });
 
-  it("desktop profile link goes to /profile when not logged in", () => {
+  it("members link is public — it renders signed out too", () => {
     sessionData = null;
 
     render(<AppHeader />);
 
-    const link = screen.getByTestId("desktop-profile-link");
-    expect(link.getAttribute("href")).toBe("/profile");
+    expect(screen.getByTestId("desktop-members-link").getAttribute("href")).toBe("/members");
   });
 
-  it("mobile profile link uses custom url stub when set", () => {
+  // The own-profile entry moved to the user menu, which owns the stub
+  // resolution now (see UserMenu.test.tsx) — the bar must not grow a
+  // second one.
+  it("does not carry its own profile link", () => {
     sessionData = mockSession;
-    setActiveProfile({
-      discordUsername: "joshe",
-      discordId: "123",
-      avatarUrl: null,
-      guildNickname: null,
-      urlStub: "joshe",
-    });
 
     render(<AppHeader />);
     fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
 
-    const link = screen.getByTestId("mobile-profile-link");
-    expect(link.getAttribute("href")).toBe("/profile/joshe");
-  });
-
-  it("mobile profile link falls back to user id when no stub", () => {
-    sessionData = mockSession;
-    setActiveProfile({
-      discordUsername: "joshe",
-      discordId: "123",
-      avatarUrl: null,
-      guildNickname: null,
-      urlStub: null,
-    });
-
-    render(<AppHeader />);
-    fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
-
-    const link = screen.getByTestId("mobile-profile-link");
-    expect(link.getAttribute("href")).toBe("/profile/user-abc");
-  });
-
-  it("mobile profile link goes to /profile when not logged in", () => {
-    sessionData = null;
-
-    render(<AppHeader />);
-    fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
-
-    const link = screen.getByTestId("mobile-profile-link");
-    expect(link.getAttribute("href")).toBe("/profile");
+    expect(screen.queryByTestId("desktop-profile-link")).toBeNull();
+    expect(screen.queryByTestId("mobile-profile-link")).toBeNull();
   });
 });

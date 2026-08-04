@@ -211,7 +211,11 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       <div
         id="main-content"
         data-scroll-root
-        className="flex flex-1 flex-col overflow-y-auto pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // `overscroll-y-none` suppresses the rubber band. Chrome clips the
+        // scrolling contents to the scroll extent, so nothing the footer paints
+        // reaches the bounce gutter — the fixed dot field behind the scroller
+        // shows through instead.
+        className="flex flex-1 flex-col overflow-y-auto overscroll-y-none pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="mx-auto flex w-full max-w-480 flex-col">
           <div
@@ -237,7 +241,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         // The header inset lives on the parent here, outside the scroller, so
         // a hidden bar leaves nothing for sticky content to reclaim.
         style={{ "--app-header-shift": "0px" } as React.CSSProperties}
-        className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
+        className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
         <div
           className="flex w-full shrink-0 flex-col justify-center p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-12 lg:pt-12 xl:px-16 xl:pt-16"
