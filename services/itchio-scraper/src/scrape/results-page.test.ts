@@ -75,6 +75,28 @@ describe("parseResultsPage", () => {
     ).toEqual([]);
   });
 
+  test("drops a repeated criterion name", () => {
+    // indie-city-allstars-2026: the host defined their own "Overall" criterion
+    // alongside itch's computed one. jam_entry_results is keyed by
+    // (entry_id, criterion), so keeping both failed the entire insert.
+    const dupe = `
+      <div class="game_rank">
+        <div class="game_summary">
+          <h2><a href="#">Dupe</a></h2>
+          <p><a href="/jam/x/rate/99" class="forward_link">View</a></p>
+        </div>
+        <table class="ranking_results_table"><tbody>
+          <tr><td>Visuals</td><td>#4</td><td>4.333</td><td>4.333</td></tr>
+          <tr><td>Overall</td><td>#7</td><td>3.827</td><td>3.827</td></tr>
+          <tr><td>Overall</td><td>#8</td><td>3.800</td><td>3.800</td></tr>
+        </tbody></table>
+      </div>`;
+    const results = parseResultsPage(dupe).games[0]?.results ?? [];
+    expect(results.map((r) => r.criterion)).toEqual(["Visuals", "Overall"]);
+    // First occurrence wins.
+    expect(results[1]?.rank).toBe(7);
+  });
+
   test("returns nothing for an unrelated page", () => {
     const { games, hasNext } = parseResultsPage("<html><body>429 Too Many Requests</body></html>");
     expect(games).toEqual([]);

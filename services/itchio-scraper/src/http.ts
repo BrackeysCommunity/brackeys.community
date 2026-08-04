@@ -176,11 +176,24 @@ const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504, 521]);
  * timeout storm.
  */
 export function describeError(err: unknown): string {
+  const head = describe(err);
+  // Wrapper errors bury the real failure in `cause` — drizzle's
+  // DrizzleQueryError puts the whole SQL statement in `message` and the actual
+  // Postgres error (unique violation, overflow) underneath. Logging only the
+  // first line turned a diagnosable failure into a wall of parameter lists.
+  const cause = err instanceof Error ? err.cause : undefined;
+  if (cause !== undefined) {
+    const detail = describe(cause);
+    if (detail && detail !== head) return `${head} — caused by: ${detail}`;
+  }
+  return head;
+}
+
+/** First line only. Kept message-only so isTransient can't match on a cause. */
+function describe(err: unknown): string {
   if (err instanceof Error) return err.message.split("\n")[0] ?? err.name;
   return String(err);
 }
-
-const describe = describeError;
 
 export function isTransient(err: unknown): boolean {
   if (err instanceof HttpStatusError) return TRANSIENT_STATUSES.has(err.status);

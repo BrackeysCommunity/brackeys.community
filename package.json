@@ -15,6 +15,8 @@
     "db:pull": "drizzle-kit pull",
     "db:studio": "drizzle-kit studio",
     "db:export": "drizzle-kit export",
+    "scraper:drain": "bun run --cwd services/itchio-scraper drain",
+    "scraper:backfill": "bun run --cwd services/itchio-scraper backfill",
     "check": "vp check --no-fmt",
     "lint": "vp lint",
     "check:changed": "git diff --cached --name-only --diff-filter=d | xargs bun vp check --fix",
@@ -31,7 +33,9 @@
     "railway:db:introspect": "railway run -- drizzle-kit introspect",
     "railway:db:migrate": "railway run -- drizzle-kit migrate",
     "railway:db:push": "railway run -- drizzle-kit push",
-    "railway:db:studio": "railway run -- drizzle-kit studio"
+    "railway:db:studio": "railway run -- drizzle-kit studio",
+    "railway:scraper:drain": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper drain'",
+    "railway:scraper:backfill": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper backfill'"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

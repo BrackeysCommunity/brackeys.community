@@ -8,6 +8,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "backfill": "bun run src/jobs/backfill-history.ts",
+    "drain": "bun run src/jobs/drain-results.ts",
     "test": "bun test src",
     "typecheck": "tsc --noEmit"
   },

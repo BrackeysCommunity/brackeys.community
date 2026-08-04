@@ -4,6 +4,7 @@ import {
   createPacer,
   HttpStatusError,
   isNotFound,
+  describeError,
   isTransient,
   pacedFetch,
   parseRetryAfter,
@@ -133,6 +134,26 @@ describe("pacedFetch request timeout", () => {
     expect(res.status).toBe(200);
     expect(seen).toHaveLength(2);
     expect(seen.every((s) => !s.aborted)).toBe(true);
+  });
+});
+
+describe("describeError", () => {
+  test("keeps a single-line summary for a plain error", () => {
+    expect(describeError(new Error("boom\nstack line"))).toBe("boom");
+  });
+
+  test("surfaces the underlying cause of a wrapper error", () => {
+    // drizzle buries the real Postgres error under the full SQL statement.
+    const wrapped = new Error("Failed query: insert into ...", {
+      cause: new Error("duplicate key value violates unique constraint"),
+    });
+    expect(describeError(wrapped)).toBe(
+      "Failed query: insert into ... — caused by: duplicate key value violates unique constraint",
+    );
+  });
+
+  test("does not repeat an identical cause", () => {
+    expect(describeError(new Error("same", { cause: new Error("same") }))).toBe("same");
   });
 });
 

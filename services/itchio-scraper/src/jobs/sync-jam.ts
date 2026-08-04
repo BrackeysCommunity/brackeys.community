@@ -148,8 +148,8 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
  * up front so they leave the pending pool (and the resync bucket) for good.
  * Shared by the nightly sync and the historical backfill.
  */
-export async function markUnratableEntriesFetched(jamId: number) {
-  await db
+export async function markUnratableEntriesFetched(jamId: number): Promise<number> {
+  const marked = await db
     .update(itchJamEntries)
     .set({ resultsFetchedAt: new Date() })
     .where(
@@ -158,7 +158,9 @@ export async function markUnratableEntriesFetched(jamId: number) {
         isNull(itchJamEntries.resultsFetchedAt),
         eq(itchJamEntries.ratingCount, 0),
       ),
-    );
+    )
+    .returning({ entryId: itchJamEntries.entryId });
+  return marked.length;
 }
 
 type PendingEntry = { entryId: number; gameId: number };
@@ -169,11 +171,19 @@ type PendingEntry = { entryId: number; gameId: number };
  */
 type ResultsTarget = Pick<ScrapedJam, "jamId" | "slug" | "status">;
 
-type ResultsOutcome = {
+export type ResultsOutcome = {
   attempted: number;
   succeeded: number;
   gone: number;
   ranked: number;
+  /**
+   * Entries resolved with no HTTP request at all because they drew zero
+   * ratings and therefore can't rank. Counted separately from `succeeded`:
+   * they never enter the pending pool, and on a backlog drain they are the
+   * bulk of the work, so folding them into "attempted" would be misleading
+   * while omitting them makes a busy run look idle.
+   */
+  unratable: number;
   source: "results-page" | "rate-pages" | "none";
 };
 
@@ -221,18 +231,20 @@ async function persistBulkResults(
   return ranked;
 }
 
-async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutcome> {
+export async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutcome> {
   const idle: ResultsOutcome = {
     attempted: 0,
     succeeded: 0,
     gone: 0,
     ranked: 0,
+    unratable: 0,
     source: "none",
   };
   if (config.SCRAPE_ENTRY_RESULTS === "never") return idle;
   if (config.SCRAPE_ENTRY_RESULTS === "after-voting" && jam.status !== "over") return idle;
 
-  await markUnratableEntriesFetched(jam.jamId);
+  const unratable = await markUnratableEntriesFetched(jam.jamId);
+  idle.unratable = unratable;
 
   // Entries already marked missing are excluded — their rate pages 404. If
   // one reappears in entries.json, the upsert clears missing_since and it
@@ -257,21 +269,15 @@ async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutcome> {
   // that is the difference between ~250k requests and ~13k. Falls back to the
   // per-entry walk when a jam has no published rankings (404) or the walk
   // fails, since "absent from the map" only means "unranked" for a complete walk.
+  // Only the *scrape* is guarded here. A persist failure must not fall through:
+  // the per-entry path re-fetches the same rankings over HTTP and hands them to
+  // the same failing insert, so a bad row turned one DB error into a full
+  // rate-page walk (373s and ~17 throttled requests on the-matrice) that could
+  // only fail the same way. Scrape problems are recoverable by another route;
+  // database problems are not.
+  let byGameId: Map<number, ScrapedGameResults> | null = null;
   try {
-    const byGameId = await scrapeJamResults(jam.slug);
-    if (byGameId.size > 0) {
-      const ranked = await persistBulkResults(pending, byGameId);
-      return {
-        attempted: pending.length,
-        succeeded: pending.length,
-        gone: 0,
-        ranked,
-        source: "results-page",
-      };
-    }
-    console.warn(
-      `[sync-jam] ${jam.slug} results page listed no games — falling back to rate pages`,
-    );
+    byGameId = await scrapeJamResults(jam.slug);
   } catch (err) {
     if (isNotFound(err)) {
       console.log(`[sync-jam] ${jam.slug} has no results page — using rate pages`);
@@ -282,7 +288,24 @@ async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutcome> {
     }
   }
 
-  return await syncEntryResultsPerEntry(jam, pending);
+  if (byGameId && byGameId.size > 0) {
+    const ranked = await persistBulkResults(pending, byGameId);
+    return {
+      attempted: pending.length,
+      succeeded: pending.length,
+      gone: 0,
+      ranked,
+      unratable,
+      source: "results-page",
+    };
+  }
+  if (byGameId) {
+    console.warn(
+      `[sync-jam] ${jam.slug} results page listed no games — falling back to rate pages`,
+    );
+  }
+
+  return await syncEntryResultsPerEntry(jam, pending, unratable);
 }
 
 /**
@@ -292,6 +315,7 @@ async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutcome> {
 async function syncEntryResultsPerEntry(
   jam: ResultsTarget,
   pending: PendingEntry[],
+  unratable: number,
 ): Promise<ResultsOutcome> {
   let succeeded = 0;
   let gone = 0;
@@ -360,6 +384,7 @@ async function syncEntryResultsPerEntry(
     succeeded,
     gone,
     ranked: succeeded,
+    unratable,
     source: "rate-pages",
   };
 }
@@ -448,7 +473,7 @@ export async function syncJam(slug: string) {
     const results = await syncEntryResults(terminal);
     if (results.attempted > 0) {
       console.log(
-        `[sync-jam] results ${results.succeeded}/${results.attempted} for ${slug} via ${results.source} (${results.ranked} ranked, metadata skipped) in ${Math.round(
+        `[sync-jam] results ${results.succeeded}/${results.attempted} for ${slug} via ${results.source} (${results.ranked} ranked, ${results.unratable} unrated, metadata skipped) in ${Math.round(
           (Date.now() - started) / 1000,
         )}s`,
       );

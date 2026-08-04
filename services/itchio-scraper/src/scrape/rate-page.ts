@@ -37,6 +37,13 @@ export function parseResultRows(
   rows: ReturnType<cheerio.CheerioAPI>,
 ): ScrapedEntryResult[] {
   const results: ScrapedEntryResult[] = [];
+  // Criterion names are not unique on itch: a host can define their own
+  // criterion called "Overall" alongside the one itch computes, and both render
+  // (seen on indie-city-allstars-2026). jam_entry_results is keyed by
+  // (entry_id, criterion), so keeping both fails the whole insert and the entry
+  // never gets marked fetched. First occurrence wins — itch renders its own
+  // rows in rank order, so this is stable across runs.
+  const seen = new Set<string>();
   rows.each((_, row) => {
     const cells = $(row).find("td");
     if (cells.length < 4) return;
@@ -44,7 +51,8 @@ export function parseResultRows(
     const rank = parseRank(cells.eq(1).text());
     const score = parseNumeric(cells.eq(2).text());
     const rawScore = parseNumeric(cells.eq(3).text());
-    if (criterion && rank != null && score && rawScore) {
+    if (criterion && rank != null && score && rawScore && !seen.has(criterion)) {
+      seen.add(criterion);
       results.push({ criterion, rank, score, rawScore });
     }
   });
