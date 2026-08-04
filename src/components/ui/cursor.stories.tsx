@@ -16,14 +16,6 @@ const meta: Meta<typeof Cursor> = {
   decorators: [
     (Story) => (
       <div className="flex min-h-screen w-full flex-col items-center justify-center gap-8 bg-background p-8">
-        <style>{`
-          body {
-            cursor: none !important;
-          }
-          button, a, [role="button"] {
-            cursor: none !important;
-          }
-        `}</style>
         <Story />
       </div>
     ),
@@ -73,11 +65,8 @@ export const Showcase: Story = {
           </div>
         </div>
 
-        <div
-          className="w-full max-w-md rounded-xl border-2 border-dashed p-12 text-center"
-          data-cursor="text"
-        >
-          Text Selection Area
+        <div className="w-full max-w-md rounded-xl border-2 border-dashed p-12 text-center">
+          Text Selection Area (native I-beam)
         </div>
       </div>
     </>

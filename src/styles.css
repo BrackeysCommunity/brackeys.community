@@ -180,7 +180,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    cursor: none;
     scrollbar-width: none;
     -ms-overflow-style: none;
     &::-webkit-scrollbar {
@@ -205,8 +204,14 @@
   label,
   [tabindex]:not([tabindex="-1"]),
   [cmdk-item] {
-    cursor: none !important;
     pointer-events: auto;
+    /* The native cursor is drawn again, and Tailwind v4's preflight leaves
+       buttons on the plain arrow. Nothing depended on that while the cursor
+       was hidden; now that it isn't, clickable chrome asks for the hand.
+       Text fields keep their own I-beam. */
+    &:not(input, select, textarea) {
+      cursor: pointer;
+    }
   }
 }
 

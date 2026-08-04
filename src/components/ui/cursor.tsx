@@ -19,20 +19,11 @@ const CORNER_HOVERED = 8;
 const BORDER_HOVERED = 2;
 const HOVER_GAP = 3;
 
-const IDLE_GAP = 2;
-const IDLE_POS = [
-  { x: -CORNER - IDLE_GAP, y: -CORNER - IDLE_GAP },
-  { x: IDLE_GAP, y: -CORNER - IDLE_GAP },
-  { x: IDLE_GAP, y: IDLE_GAP },
-  { x: -CORNER - IDLE_GAP, y: IDLE_GAP },
-] as Array<{ x: number; y: number }>;
-
-const PRESSED_POS: Array<{ x: number; y: number }> = [
-  { x: -CORNER, y: -CORNER },
-  { x: 0, y: -CORNER },
-  { x: 0, y: 0 },
-  { x: -CORNER, y: 0 },
-];
+// Off a target the frame has no job — the native cursor is drawn, and the
+// corners collapse into its tip. Parking all four with their own centers on the
+// pointer means `scale: 0` retires them exactly under the arrow's point rather
+// than at four spots around it.
+const COLLAPSED = -CORNER / 2;
 
 // While the frame wraps a target, its on-screen position is the cursor spring
 // plus the corner spring: the corners are measured *relative* to where the
@@ -47,10 +38,17 @@ const CURSOR_SPRING = { damping: 26, stiffness: 3000, mass: 0.045 };
 // see CORNER_RELEASE — so tracking can be stiff without the frame snapping
 // home the instant you leave.
 const CORNER_SPRING = { stiffness: 6000, damping: 42, mass: 0.05 };
-// Leaving a target is the one moment the frame should take its time: it
-// travels from the button's corners back to the idle cluster at the pointer.
+// Leaving a target is the one moment the frame should take its time: it travels
+// from the button's corners back into the pointer tip. Its duration and
+// CORNER_VANISH's are a pair — the corners should land and disappear together,
+// not shrink to nothing halfway across.
 const CORNER_RELEASE = { duration: 0.28, ease: [0.22, 1, 0.36, 1] } as const;
 const FADE_TRANSITION = { duration: 0.15, ease: "easeInOut" } as const;
+// Latching on: the corners are already measured onto the target by the time
+// they become visible (the corner spring settles in ~7ms), so this is a pop
+// into place, not a flight out from the tip. The overshoot is the pop.
+const CORNER_APPEAR = { duration: 0.18, ease: [0.34, 1.56, 0.64, 1] } as const;
+const CORNER_VANISH = { duration: 0.24, ease: "easeIn" } as const;
 
 const CORNER_BORDERS = [
   { borderTopWidth: 1, borderLeftWidth: 1 },
@@ -59,18 +57,33 @@ const CORNER_BORDERS = [
   { borderBottomWidth: 1, borderLeftWidth: 1 },
 ] as const;
 
+// Sub-pixel idle sway, each corner breathing out along its own diagonal.
+const BOUNCE_PX = 0.5;
+const BOUNCE_DIR = [
+  { dx: 1, dy: 1 },
+  { dx: -1, dy: 1 },
+  { dx: -1, dy: -1 },
+  { dx: 1, dy: -1 },
+] as const;
+const BOUNCE_TRANSITION = { duration: 0.5, repeat: Infinity, ease: "backInOut" } as const;
+
+// Seconds per revolution of the idle spin. The spin is only ever seen during
+// the ~0.25s the corners take to shrink into the tip, so it has to be quick
+// enough to turn a visible amount inside that window — at the old 3s it barely
+// moved. 1.2s puts ~70 degrees under the collapse.
+const SPIN_DURATION = 1.2;
+
 interface CursorProps {
   className?: string;
   spinDuration?: number;
 }
 
-export function Cursor({ className, spinDuration = 3 }: CursorProps) {
+export function Cursor({ className, spinDuration = SPIN_DURATION }: CursorProps) {
   const cursorState = useCursorState();
   const isMagnetic = cursorState.type === "magnetic";
   const isHidden = cursorState.type === "hidden";
-  const isText = cursorState.type === "text";
+  const bouncePx = cursorState.bounce ?? BOUNCE_PX;
 
-  const [isPressed, setIsPressed] = React.useState(false);
   const isMobile = useIsTouchDevice();
 
   const mouseX = useMotionValue(0);
@@ -78,18 +91,14 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const springX = useSpring(mouseX, CURSOR_SPRING);
   const springY = useSpring(mouseY, CURSOR_SPRING);
 
-  const spinControls = useAnimation();
-  const isSpinRef = React.useRef(false);
-  const spinTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const c0x = useMotionValue(IDLE_POS[0].x);
-  const c0y = useMotionValue(IDLE_POS[0].y);
-  const c1x = useMotionValue(IDLE_POS[1].x);
-  const c1y = useMotionValue(IDLE_POS[1].y);
-  const c2x = useMotionValue(IDLE_POS[2].x);
-  const c2y = useMotionValue(IDLE_POS[2].y);
-  const c3x = useMotionValue(IDLE_POS[3].x);
-  const c3y = useMotionValue(IDLE_POS[3].y);
+  const c0x = useMotionValue(COLLAPSED);
+  const c0y = useMotionValue(COLLAPSED);
+  const c1x = useMotionValue(COLLAPSED);
+  const c1y = useMotionValue(COLLAPSED);
+  const c2x = useMotionValue(COLLAPSED);
+  const c2y = useMotionValue(COLLAPSED);
+  const c3x = useMotionValue(COLLAPSED);
+  const c3y = useMotionValue(COLLAPSED);
 
   const sc0x = useSpring(c0x, CORNER_SPRING);
   const sc0y = useSpring(c0y, CORNER_SPRING);
@@ -100,26 +109,36 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   const sc3x = useSpring(c3x, CORNER_SPRING);
   const sc3y = useSpring(c3y, CORNER_SPRING);
 
+  // The cluster spins whenever it isn't latched onto something — including
+  // through the release, which is the only time it's on screen. Latching snaps
+  // rotation back to 0 so the frame lines up with the target's edges; that snap
+  // lands on the same frame the corners are still at scale 0, so it isn't seen.
+  const spinControls = useAnimation();
+  React.useEffect(() => {
+    if (isMobile) return;
+    if (isMagnetic) {
+      spinControls.stop();
+      spinControls.set({ rotate: 0 });
+      return;
+    }
+    void spinControls.start({
+      rotate: [0, 360],
+      transition: { duration: spinDuration, ease: "linear", repeat: Infinity },
+    });
+  }, [isMagnetic, isMobile, spinControls, spinDuration]);
+
   React.useEffect(() => {
     if (isMobile) return;
     const onMove = (e: MouseEvent) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
     };
-    const onDown = () => setIsPressed(true);
-    const onUp = () => setIsPressed(false);
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("mouseup", onUp);
-    };
+    return () => window.removeEventListener("mousemove", onMove);
   }, [isMobile, mouseX, mouseY]);
 
-  // Corner tweens that run on release. Tracked so a re-hover (or a press)
-  // mid-flight can cancel them instead of fighting them frame by frame.
+  // Corner tweens that run on release. Tracked so a re-hover mid-flight can
+  // cancel them instead of fighting them frame by frame.
   const releaseAnimsRef = React.useRef<AnimationPlaybackControls[]>([]);
   const stopRelease = React.useCallback(() => {
     releaseAnimsRef.current.forEach((a) => a.stop());
@@ -127,154 +146,110 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
   }, []);
   const wasMagneticRef = React.useRef(false);
 
-  // Snap idle corners between normal and pressed positions — except on the way
-  // out of a magnetic target, where the corners ease home. The tween drives the
-  // spring *source*, so the (stiff) corner spring follows it rather than
-  // overriding it, and the two never disagree about where the corner is.
-  const idlePressed = isPressed && !isMagnetic;
+  // Off a target the corners collapse into the pointer tip — eased on the way
+  // out of a magnetic target, snapped on a cold start (nothing was on screen to
+  // animate). The tween drives the spring *source*, so the (stiff) corner
+  // spring follows it rather than overriding it, and the two never disagree
+  // about where the corner is.
   React.useEffect(() => {
     if (isMagnetic) return;
     stopRelease();
 
-    const pos = idlePressed ? PRESSED_POS : IDLE_POS;
-    const releasing = wasMagneticRef.current && !idlePressed;
+    const releasing = wasMagneticRef.current;
     wasMagneticRef.current = false;
 
     const values = [c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y];
-    const targets = [
-      pos[0].x,
-      pos[0].y,
-      pos[1].x,
-      pos[1].y,
-      pos[2].x,
-      pos[2].y,
-      pos[3].x,
-      pos[3].y,
-    ];
 
     if (releasing) {
-      releaseAnimsRef.current = values.map((v, i) => animate(v, targets[i], CORNER_RELEASE));
+      releaseAnimsRef.current = values.map((v) => animate(v, COLLAPSED, CORNER_RELEASE));
       return;
     }
-    values.forEach((v, i) => v.set(targets[i]));
-  }, [idlePressed, isMagnetic, stopRelease, c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y]);
-
-  const startSpin = React.useCallback(() => {
-    if (isSpinRef.current) return;
-    isSpinRef.current = true;
-    void spinControls.start({
-      rotate: [0, 360],
-      transition: { duration: spinDuration, ease: "linear", repeat: Infinity },
-    });
-  }, [spinControls, spinDuration]);
+    values.forEach((v) => v.set(COLLAPSED));
+  }, [isMagnetic, stopRelease, c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y]);
 
   React.useEffect(() => {
     if (isMobile) return;
+    if (!isMagnetic || !cursorState.targetElement) return;
 
-    if (isMagnetic && cursorState.targetElement) {
-      // Re-hovered before the release tween finished — drop it and take the
-      // corners back under the spring.
-      stopRelease();
-      wasMagneticRef.current = true;
+    // Re-hovered before the release tween finished — drop it and take the
+    // corners back under the spring.
+    stopRelease();
+    wasMagneticRef.current = true;
 
-      if (spinTimeoutRef.current) {
-        clearTimeout(spinTimeoutRef.current);
-        spinTimeoutRef.current = null;
+    const cs = CORNER_HOVERED;
+    const hpx = (cursorState.paddingX ?? 0) / 2;
+    const hpy = (cursorState.paddingY ?? 0) / 2;
+
+    const noDrift = cursorState.noDrift ?? false;
+
+    const collapse = () => {
+      const values = [c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y];
+      const springs = [sc0x, sc0y, sc1x, sc1y, sc2x, sc2y, sc3x, sc3y];
+      values.forEach((v) => v.set(COLLAPSED));
+      springs.forEach((s) => s.jump(COLLAPSED));
+    };
+
+    const updateCorners = () => {
+      const el = cursorState.targetElement;
+      if (!el || !el.isConnected) {
+        collapse();
+        return;
       }
+      const r = el.getBoundingClientRect();
+      const cx = springX.get();
+      const cy = springY.get();
 
-      spinControls.stop();
-      spinControls.set({ rotate: 0 });
-      isSpinRef.current = false;
+      const g = HOVER_GAP;
+      const v0x = r.left - BORDER - hpx - g - cx;
+      const v0y = r.top - BORDER - hpy - g - cy;
+      const v1x = r.right + BORDER + hpx + g - cs - cx;
+      const v1y = r.top - BORDER - hpy - g - cy;
+      const v2x = r.right + BORDER + hpx + g - cs - cx;
+      const v2y = r.bottom + BORDER + hpy + g - cs - cy;
+      const v3x = r.left - BORDER - hpx - g - cx;
+      const v3y = r.bottom + BORDER + hpy + g - cs - cy;
 
-      const cs = CORNER_HOVERED;
-      const hpx = (cursorState.paddingX ?? 0) / 2;
-      const hpy = (cursorState.paddingY ?? 0) / 2;
+      c0x.set(v0x);
+      c0y.set(v0y);
+      c1x.set(v1x);
+      c1y.set(v1y);
+      c2x.set(v2x);
+      c2y.set(v2y);
+      c3x.set(v3x);
+      c3y.set(v3y);
 
-      const noDrift = cursorState.noDrift ?? false;
+      if (noDrift) {
+        sc0x.jump(v0x);
+        sc0y.jump(v0y);
+        sc1x.jump(v1x);
+        sc1y.jump(v1y);
+        sc2x.jump(v2x);
+        sc2y.jump(v2y);
+        sc3x.jump(v3x);
+        sc3y.jump(v3y);
+      }
+    };
 
-      const jumpToIdle = () => {
-        c0x.set(IDLE_POS[0].x);
-        c0y.set(IDLE_POS[0].y);
-        c1x.set(IDLE_POS[1].x);
-        c1y.set(IDLE_POS[1].y);
-        c2x.set(IDLE_POS[2].x);
-        c2y.set(IDLE_POS[2].y);
-        c3x.set(IDLE_POS[3].x);
-        c3y.set(IDLE_POS[3].y);
-        sc0x.jump(IDLE_POS[0].x);
-        sc0y.jump(IDLE_POS[0].y);
-        sc1x.jump(IDLE_POS[1].x);
-        sc1y.jump(IDLE_POS[1].y);
-        sc2x.jump(IDLE_POS[2].x);
-        sc2y.jump(IDLE_POS[2].y);
-        sc3x.jump(IDLE_POS[3].x);
-        sc3y.jump(IDLE_POS[3].y);
-      };
+    updateCorners();
 
-      const updateCorners = () => {
-        const el = cursorState.targetElement;
-        if (!el || !el.isConnected) {
-          jumpToIdle();
-          return;
-        }
-        const r = el.getBoundingClientRect();
-        const cx = springX.get();
-        const cy = springY.get();
-
-        const g = HOVER_GAP;
-        const v0x = r.left - BORDER - hpx - g - cx;
-        const v0y = r.top - BORDER - hpy - g - cy;
-        const v1x = r.right + BORDER + hpx + g - cs - cx;
-        const v1y = r.top - BORDER - hpy - g - cy;
-        const v2x = r.right + BORDER + hpx + g - cs - cx;
-        const v2y = r.bottom + BORDER + hpy + g - cs - cy;
-        const v3x = r.left - BORDER - hpx - g - cx;
-        const v3y = r.bottom + BORDER + hpy + g - cs - cy;
-
-        c0x.set(v0x);
-        c0y.set(v0y);
-        c1x.set(v1x);
-        c1y.set(v1y);
-        c2x.set(v2x);
-        c2y.set(v2y);
-        c3x.set(v3x);
-        c3y.set(v3y);
-
-        if (noDrift) {
-          sc0x.jump(v0x);
-          sc0y.jump(v0y);
-          sc1x.jump(v1x);
-          sc1y.jump(v1y);
-          sc2x.jump(v2x);
-          sc2y.jump(v2y);
-          sc3x.jump(v3x);
-          sc3y.jump(v3y);
-        }
-      };
-
+    // Re-measure every frame rather than only when the pointer moves. A
+    // chonk button drops by its lift height on press and rises on hover,
+    // and both transitions run with the pointer sitting still — sampling on
+    // pointer movement alone left the frame floating at the raised position
+    // through the whole click. This also subsumes the spring's own motion,
+    // since updateCorners reads springX/springY as it goes.
+    let rafId = requestAnimationFrame(function tick() {
       updateCorners();
+      rafId = requestAnimationFrame(tick);
+    });
 
-      // Re-measure every frame rather than only when the pointer moves. A
-      // chonk button drops by its lift height on press and rises on hover,
-      // and both transitions run with the pointer sitting still — sampling on
-      // pointer movement alone left the frame floating at the raised position
-      // through the whole click. This also subsumes the spring's own motion,
-      // since updateCorners reads springX/springY as it goes.
-      let rafId = requestAnimationFrame(function tick() {
-        updateCorners();
-        rafId = requestAnimationFrame(tick);
-      });
-
-      return () => {
-        cancelAnimationFrame(rafId);
-        // Deliberately no corner reset here: on a release the idle effect
-        // eases them home (resetting first would leave that tween nothing to
-        // travel), and on a target change the branch above re-measures them
-        // in the same pass.
-        spinTimeoutRef.current = setTimeout(startSpin, 50);
-      };
-    }
-    startSpin();
+    return () => {
+      cancelAnimationFrame(rafId);
+      // Deliberately no corner reset here: on a release the collapse effect
+      // eases them into the tip (resetting first would leave that tween
+      // nothing to travel), and on a target change the effect re-runs and
+      // re-measures them in the same pass.
+    };
   }, [
     isMagnetic,
     cursorState.targetElement,
@@ -283,9 +258,7 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
     cursorState.paddingY,
     cursorState.noDrift,
     isMobile,
-    startSpin,
     stopRelease,
-    spinControls,
     springX,
     springY,
     c0x,
@@ -320,42 +293,34 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
       className={cn("pointer-events-none fixed top-0 left-0 z-9999 h-0 w-0", className)}
       style={{ x: springX, y: springY, willChange: "transform" }}
     >
-      {/* Center dot */}
-      <div
-        className="absolute rounded-full bg-foreground"
-        style={{
-          width: 4,
-          height: 4,
-          top: 0,
-          left: 0,
-          transform: "translate(-2px, -2px)",
-          boxShadow: isMagnetic ? "0 0 0 1.5px var(--background)" : undefined,
-        }}
-      />
-
-      {/* Text cursor bar */}
-      {isText && (
-        <div
-          className="absolute bg-foreground"
-          style={{ width: 2, height: 24, top: 0, left: 0, transform: "translate(-50%, -50%)" }}
-        />
-      )}
-
       {/* Corner brackets */}
-      {!isText && (
-        <motion.div
-          className="absolute top-0 left-0 h-0 w-0"
-          animate={spinControls}
-          style={{ willChange: "transform" }}
-        >
-          {corners.map((pos, i) => (
+      <motion.div
+        className="absolute top-0 left-0 h-0 w-0"
+        animate={spinControls}
+        style={{ willChange: "transform" }}
+      >
+        {corners.map((pos, i) => (
+          <motion.div
+            key={i}
+            className="absolute top-0 left-0"
+            animate={
+              isMagnetic
+                ? {
+                    x: [0, BOUNCE_DIR[i].dx * bouncePx, 0],
+                    y: [0, BOUNCE_DIR[i].dy * bouncePx, 0],
+                  }
+                : { x: 0, y: 0 }
+            }
+            transition={isMagnetic ? BOUNCE_TRANSITION : FADE_TRANSITION}
+          >
             <motion.div
-              key={i}
               className="absolute top-0 left-0 border-foreground"
               animate={{
                 width: isMagnetic ? CORNER_HOVERED : CORNER,
                 height: isMagnetic ? CORNER_HOVERED : CORNER,
-                borderRadius: isMagnetic ? 1 : idlePressed ? 0 : 1,
+                borderRadius: 1,
+                scale: isMagnetic ? 1 : 0,
+                opacity: isMagnetic ? 1 : 0,
                 ...Object.fromEntries(
                   Object.entries(CORNER_BORDERS[i]).map(([k]) => [
                     k,
@@ -363,19 +328,25 @@ export function Cursor({ className, spinDuration = 3 }: CursorProps) {
                   ]),
                 ),
               }}
-              transition={FADE_TRANSITION}
+              transition={{
+                ...FADE_TRANSITION,
+                scale: isMagnetic ? CORNER_APPEAR : CORNER_VANISH,
+                opacity: isMagnetic ? CORNER_APPEAR : CORNER_VANISH,
+              }}
               style={{
                 width: CORNER,
                 height: CORNER,
                 ...CORNER_BORDERS[i],
                 x: pos.x,
                 y: pos.y,
-                willChange: "transform",
+                scale: 0,
+                opacity: 0,
+                willChange: "transform, opacity",
               }}
             />
-          ))}
-        </motion.div>
-      )}
+          </motion.div>
+        ))}
+      </motion.div>
 
       {/* Label */}
       <AnimatePresence>
