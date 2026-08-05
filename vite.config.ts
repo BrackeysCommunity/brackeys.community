@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
 
 import babel from "@rolldown/plugin-babel";
@@ -11,6 +12,31 @@ import wasm from "vite-plugin-wasm";
 import { createLogger, defineConfig } from "vite-plus";
 
 import pkg from "./package.json" with { type: "json" };
+
+// The counter comes from package.json, bumped by the `version-bump` GitLab job
+// on every merge to main, so it is committed and therefore present in every
+// build — Railpack unpacks a snapshot with no .git dir, so nothing derived from
+// git can be relied on here.
+//
+// The commit is a best-effort suffix on top: it pins the exact build when the
+// builder knows it. Env first, since a snapshot build has the vars but not the
+// repo, and `railway up` has neither.
+const resolveCommitSha = () => {
+  const fromEnv =
+    process.env.APP_COMMIT_SHA ?? process.env.CI_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA;
+  if (fromEnv) return fromEnv.slice(0, 7);
+  try {
+    return execFileSync("git", ["rev-parse", "--short=7", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+};
+
+const commitSha = resolveCommitSha();
+const appVersion = commitSha ? `${pkg.version}+${commitSha}` : pkg.version;
 
 // Filter noisy "Failed to load source map" warnings from @tanstack/* packages
 // which ship sourceMappingURL comments without the .map files.
@@ -156,7 +182,7 @@ const config = defineConfig({
     ],
   },
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
   resolve: {
     tsconfigPaths: true,

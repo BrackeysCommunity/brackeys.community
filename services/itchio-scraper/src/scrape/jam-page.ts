@@ -106,15 +106,40 @@ function parseEmbeddedJamIdFallback(html: string): number | null {
   return null;
 }
 
-function deriveStatus(viewClasses: string): ItchJamStatus {
+/**
+ * Jam phase from the `.view_jam_base_page` class list. itch emits exactly one
+ * phase class per page — verified against live pages:
+ *
+ *   before_start           soulslike-game-jam-3   (starts later today)
+ *   during_submit          decadejam              (open until 2030)
+ *   during_voting          appx-n-jam-2026        (voting until October)
+ *   after_voting is_over   gds-144-hour-jam-2026
+ *
+ * Ordered latest-phase-first because `is_over` pages also carry `after_voting`.
+ * An unrecognized class list falls back to `upcoming`, which is the safe
+ * direction — `over` is what makes a jam eligible for ranking collection, so a
+ * page we can't read never gets its in-flight scores persisted as final.
+ */
+export function deriveStatus(viewClasses: string): ItchJamStatus {
   if (viewClasses.includes("after_voting") || viewClasses.includes("is_over")) {
     return "over";
   }
-  if (viewClasses.includes("voting_open") || viewClasses.includes("in_voting")) {
+  if (viewClasses.includes("during_voting")) {
     return "voting";
   }
-  if (viewClasses.includes("is_running") || viewClasses.includes("in_progress")) {
+  if (viewClasses.includes("during_submit")) {
     return "running";
+  }
+  // Loud on purpose: the previous mapping guessed at these class names, and
+  // because the fallback is silent every running and voting jam sat in the DB
+  // labelled `upcoming` (494 of them) with nothing to show it. If itch renames
+  // a phase class again, that shows up in the cron log the same night.
+  if (!viewClasses.includes("before_start")) {
+    console.warn(
+      `[jam-page] unrecognized jam phase classes, defaulting to upcoming: ${
+        viewClasses || "(none)"
+      }`,
+    );
   }
   return "upcoming";
 }

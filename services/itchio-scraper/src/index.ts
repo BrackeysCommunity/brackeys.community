@@ -14,15 +14,15 @@ import {
 // Politeness gap between per-jam syncs; each sync is 1-2 plain fetches.
 const JAM_DELAY_MS = 250;
 
-type SlugBuckets = {
-  /** Finished jams with unfetched rankings. Drained before anything else. */
-  pendingResults: string[];
+export type SlugBuckets = {
+  /** Persisted jams not yet terminal — where new submissions land. Synced first. */
+  stateResync: string[];
   upcoming: string[];
   inProgress: string[];
   brackeysBackfill: string[];
   endedBackfill: string[];
-  /** Persisted jams not yet terminal, re-synced to catch state transitions. */
-  stateResync: string[];
+  /** Finished jams with unfetched rankings. Drained after everything else. */
+  pendingResults: string[];
 };
 
 /** A jam marked missing stays in the buckets only while inside the retry window. */
@@ -79,18 +79,20 @@ async function collectSlugs(): Promise<SlugBuckets> {
       .select({ slug: itchJams.slug })
       .from(itchJams)
       .then((rows) => new Set(rows.map((r) => r.slug))),
-    // Finished jams still carrying unfetched rankings. These run FIRST, ahead
-    // of all discovery, so the ratings backlog drains before anything else
-    // competes for the request budget. They cost no metadata requests —
-    // syncJam takes the results-only path for terminal jams.
+    // Finished jams still carrying unfetched rankings. These run LAST: the
+    // rankings are frozen — a jam that's over stays over — so nothing is lost
+    // by collecting them after the time-sensitive work. They cost no metadata
+    // requests; syncJam takes the results-only path for terminal jams.
     db
       .select({ slug: itchJams.slug })
       .from(itchJams)
       .where(and(withinMissingWindow(), eq(itchJams.status, "over"), hasPendingResults()))
       .then((rows) => rows.map((r) => r.slug)),
-    // Persisted jams that aren't terminal yet — re-synced to catch state
-    // transitions. Their rankings aren't scraped until voting closes, so
-    // they carry no drain work and sit at the back of the queue.
+    // Persisted jams that aren't terminal yet — upcoming, running, or in
+    // voting. These run FIRST: a live jam's entry list changes under us, and
+    // an entries.json refresh is the only thing that captures submissions
+    // added since the last tick. Miss a window here and the entries are
+    // invisible until the jam is next synced.
     // Jams marked missing keep being retried for MISSING_RETRY_DAYS, then
     // drop out until manually reviewed (or until a successful scrape via
     // discovery clears the mark).
@@ -106,32 +108,52 @@ async function collectSlugs(): Promise<SlugBuckets> {
   // results and are in the pendingResults bucket anyway — only backfill unknown ones.
   const endedBackfill = recentlyEnded.filter((s) => !allPersisted.has(s));
 
-  return { pendingResults, upcoming, inProgress, brackeysBackfill, endedBackfill, stateResync };
+  return { stateResync, upcoming, inProgress, brackeysBackfill, endedBackfill, pendingResults };
+}
+
+/**
+ * Flattens the buckets into the order they're synced in. Deliberate and
+ * load-bearing, so it's exported and tested rather than left inline.
+ *
+ * Perishable work runs first. Live jams — persisted ones via state-resync,
+ * then discovery for jams we don't hold yet — lead because their entry lists
+ * move under us: a submission added today is only captured by a sync that
+ * happens while the jam is still open. Rankings are the opposite; a finished
+ * jam's scores never change, so pendingResults trails everything and takes
+ * whatever request budget is left.
+ *
+ * The tradeoff is which half a cut-short run drops (redeploy, platform
+ * restart): now it's ranking collection rather than discovery. That's
+ * recoverable — the next tick re-queues the same jams and `bun run drain`
+ * catches up on demand — whereas a missed entries.json window is not.
+ *
+ * `new Set` keeps first insertion position, so a slug in several buckets is
+ * synced at its earliest one.
+ */
+export function orderedSlugs(buckets: SlugBuckets): string[] {
+  return [
+    ...new Set([
+      ...buckets.stateResync,
+      ...buckets.upcoming,
+      ...buckets.inProgress,
+      ...buckets.brackeysBackfill,
+      ...buckets.endedBackfill,
+      ...buckets.pendingResults,
+    ]),
+  ];
 }
 
 async function runScrape() {
   const started = Date.now();
   let hadFailure = false;
 
-  const { pendingResults, upcoming, inProgress, brackeysBackfill, endedBackfill, stateResync } =
-    await collectSlugs();
-  // Order is deliberate and load-bearing: the ratings backlog runs to
-  // completion before any discovery work. `new Set` keeps first insertion
-  // position, so a slug appearing in several buckets is synced at its earliest
-  // one — putting pendingResults first is what guarantees the drain leads.
-  const slugs = [
-    ...new Set([
-      ...pendingResults,
-      ...upcoming,
-      ...inProgress,
-      ...brackeysBackfill,
-      ...endedBackfill,
-      ...stateResync,
-    ]),
-  ];
+  const buckets = await collectSlugs();
+  const { stateResync, upcoming, inProgress, brackeysBackfill, endedBackfill, pendingResults } =
+    buckets;
+  const slugs = orderedSlugs(buckets);
 
   console.log(
-    `[scrape] slugs: pending-results=${pendingResults.length} upcoming=${upcoming.length} in-progress=${inProgress.length} brackeys-backfill=${brackeysBackfill.length} ended-backfill=${endedBackfill.length} state-resync=${stateResync.length} total=${slugs.length}`,
+    `[scrape] slugs: state-resync=${stateResync.length} upcoming=${upcoming.length} in-progress=${inProgress.length} brackeys-backfill=${brackeysBackfill.length} ended-backfill=${endedBackfill.length} pending-results=${pendingResults.length} total=${slugs.length}`,
   );
 
   if (slugs.length === 0) {
@@ -164,7 +186,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[boot] fatal", err);
-  process.exit(1);
-});
+// Guarded so the ordering helper can be imported (and tested) without booting
+// a scrape. `bun run start` runs this file directly, so the cron is unaffected.
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("[boot] fatal", err);
+    process.exit(1);
+  });
+}

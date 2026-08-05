@@ -30,7 +30,8 @@ deploy-preview:
     - |
       railway variable set \
         RAILWAY_ENVIRONMENT="$PREVIEW_ENV_NAME" \
-        NODE_ENV=staging
+        NODE_ENV=staging \
+        APP_COMMIT_SHA="$CI_COMMIT_SHORT_SHA"
       if [ -n "$PREVIEW_DATABASE_URL" ]; then
         railway variable set DATABASE_URL="$PREVIEW_DATABASE_URL"
       fi

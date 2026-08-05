@@ -1,6 +1,6 @@
 {
   "name": "brackeys",
-  "version": "0.0.0-alpha.238",
+  "version": "0.0.0-alpha.412",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,7 +35,8 @@
     "railway:db:push": "railway run -- drizzle-kit push",
     "railway:db:studio": "railway run -- drizzle-kit studio",
     "railway:scraper:drain": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper drain'",
-    "railway:scraper:backfill": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper backfill'"
+    "railway:scraper:backfill": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper backfill'",
+    "railway:scraper:resync": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper resync'"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

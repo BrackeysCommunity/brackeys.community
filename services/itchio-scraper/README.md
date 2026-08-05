@@ -24,30 +24,45 @@ for the investigation that removed Browserless).
 
 ### How slugs are chosen each tick
 
-The sync set is the union of five buckets:
+The sync set is the union of six buckets, and **the order below is the order
+they sync in** — it's load-bearing, enforced by `orderedSlugs` in
+[src/index.ts](./src/index.ts), and covered by tests. Perishable work runs
+first: a live jam's entry list changes under us, so a submission added today is
+only captured by a sync that happens while the jam is still open. A finished
+jam's rankings are frozen, so collecting them can safely wait. A slug in
+several buckets syncs once, at its earliest position.
 
-1. **Upcoming discovery** — every slug on every page of `/jams/upcoming`,
+1. **Persisted re-sync** — every slug already in `itch.jams` with
+   `status != 'over'`: upcoming, running, and in-voting jams. Runs first
+   because these are the jams gaining submissions.
+2. **Upcoming discovery** — every slug on every page of `/jams/upcoming`,
    walked until itch stops rendering a "Next" pager link. Always synced so
    we catch newly-announced jams as soon as they appear.
-2. **In-progress discovery** — every slug on every page of
+3. **In-progress discovery** — every slug on every page of
    `/jams/in-progress`. Overlaps heavily with persisted re-sync (dedupe
    handles that); its job is jams whose first appearance we missed while
    they were upcoming.
-3. **Brackeys backfill** — every slug from every page of
+4. **Brackeys backfill** — every slug from every page of
    `/search?q=brackeys&type=jams` **that isn't already in `itch.jams`**.
    Brings in historical Brackeys jams (brackeys-1 … brackeys-15) the first
    time we see them, then drops out of the bucket forever.
-4. **Recently-ended backfill** — every slug from `/jams/past/sort-date`
+5. **Recently-ended backfill** — every slug from `/jams/past/sort-date`
    (end date descending, walked until the cutoff) that ended within
    `ENDED_LOOKBACK_DAYS` **and isn't already in `itch.jams`**. This is the
    outage-recovery bucket: jams that were created and finished entirely
    between successful runs are otherwise invisible to the other buckets
    forever (as happened in the June 2026 outage).
-5. **Persisted re-sync** — every slug already in `itch.jams` where the jam
-   isn't "done" yet. Specifically: `status != 'over'` **or** at least one of
-   its entries still has `results_fetched_at IS NULL`. Jams in terminal
-   state with all rate pages collected are skipped, so we don't burn cycles
-   re-scraping hundreds of historical Brackeys submissions every tick.
+6. **Ratings collection** — jams at `status = 'over'` that still have entries
+   with `results_fetched_at IS NULL`. Runs last and takes whatever request
+   budget is left; these cost no metadata requests, since `syncJam` takes the
+   results-only path for terminal jams. Terminal jams with everything
+   collected are in no bucket at all, so we don't burn cycles re-scraping
+   hundreds of historical submissions every tick.
+
+A run cut short (redeploy, platform restart) therefore drops ranking
+collection rather than discovery — recoverable, since the next tick re-queues
+the same jams and `bun run drain` catches up on demand, whereas a missed
+entries.json window is not.
 
 The `/jams` calendar page is intentionally **not** scraped — it only encodes
 dates as CSS pixels and gives us nothing the per-jam page doesn't already
@@ -130,6 +145,46 @@ invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
    SKIPPED, and once everything is ingested each tick is a ~5-minute no-op.
 5. Watch progress via the run logs (`[backfill] page N done — ingested=…`),
    then **delete the service** once it reports nothing left to ingest.
+
+## Draining the ratings backlog by hand
+
+Two one-off jobs work the `results_fetched_at IS NULL` backlog outside the
+nightly cron. Both are resumable — progress is persisted per entry, so an
+interrupted run loses nothing. From the repo root:
+
+```bash
+bun run railway:scraper:drain    # collect rankings for finished jams
+bun run railway:scraper:resync   # unstick jams whose status is stale, then collect
+```
+
+(Each wraps `railway run --service TimescaleDB` and maps `DATABASE_PUBLIC_URL`
+onto `DATABASE_URL`. Inside this directory the underlying scripts are
+`bun run drain` and `bun run resync`.)
+
+**`drain`** ([src/jobs/drain-results.ts](./src/jobs/drain-results.ts)) walks
+jams already at `status = 'over'` that still have entries with no rankings and
+pulls them off the bulk `/jam/{slug}/results` listing — one request per ~20
+entries, falling back to per-entry rate pages for jams whose host never
+published a results listing. No discovery, no jam-page or `entries.json`
+refetch. Knobs: `DRAIN_MAX_JAMS`, `DRAIN_DEADLINE_MINS`, `DRAIN_DELAY_MS`,
+`DRAIN_ORDER` (`newest` default, or `smallest` to clear the backlog count
+fastest).
+
+**`resync`** ([src/jobs/resync-stale.ts](./src/jobs/resync-stale.ts)) covers
+what `drain` structurally cannot: jams whose stored `status` says unfinished
+but whose dates say otherwise. `drain` never re-scrapes a jam page, so those
+rows are invisible to it and their entries sit in the backlog uncollected. This
+job re-scrapes the page (correcting the status) and drains that jam's rankings
+in the same pass. Scoped to jams whose `voting_ends_at` — or `ends_at`, for
+jams with no voting phase — has already passed. Knobs: `RESYNC_MAX_JAMS`,
+`RESYNC_DELAY_MS`.
+
+If a `results_fetched_at IS NULL` count looks large but `drain` reports nothing
+to do, run `resync` and then re-check. A count that stays high after both is
+expected and healthy: it's dominated by jams still taking submissions or still
+in voting, including open-ended ones like `decadejam` (submissions until 2030)
+and `never-ending-gamejam` (2099). Those have no final rankings to fetch and
+drain on their own as voting closes.
 
 ## Behavior & guarantees
 

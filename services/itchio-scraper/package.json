@@ -9,6 +9,7 @@
     "start": "bun run src/index.ts",
     "backfill": "bun run src/jobs/backfill-history.ts",
     "drain": "bun run src/jobs/drain-results.ts",
+    "resync": "bun run src/jobs/resync-stale.ts",
     "test": "bun test src",
     "typecheck": "tsc --noEmit"
   },

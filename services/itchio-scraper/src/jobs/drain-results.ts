@@ -12,11 +12,11 @@ import { syncEntryResults } from "./sync-jam.ts";
  * finished jams that still have entries with `results_fetched_at IS NULL` and
  * pulls their rankings off the bulk `/jam/{slug}/results` listing.
  *
- * Exists so the historical backlog can be worked through without repeatedly
- * retuning the nightly cron. The nightly run spends its first ~900 requests on
- * upcoming and in-progress jams (which is correct — that's the time-sensitive
- * data users see) and only then reaches the ~4,800-jam backlog. This job skips
- * straight to the backlog.
+ * Exists so a backlog can be worked through without retuning the nightly cron.
+ * The nightly run syncs live jams and discovery first — correctly, since their
+ * entry lists are perishable while finished jams' rankings are frozen — and
+ * only reaches ranking collection at the end of the tick (see `orderedSlugs`
+ * in index.ts). This job skips straight to the collection.
  *
  * Resumability is inherent: `results_fetched_at` is stamped per entry, so an
  * interrupted run loses nothing and a re-run continues where it stopped.
