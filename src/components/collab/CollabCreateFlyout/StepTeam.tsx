@@ -1,25 +1,27 @@
-import { Cancel01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { nanoid } from "nanoid";
 import { useRef, useState } from "react";
 
+import { TeamDirectoryCard } from "@/components/teams/TeamDirectoryCard";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
-import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { collabStore, type UploadedImage } from "@/lib/collab-store";
-import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
+import { type client, orpc } from "@/orpc/client";
 
 import { AddImageCard, FieldRow, TextAreaField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
 import { profanityCheck, TEAM_DESCRIPTION_MAX, TEAM_NAME_MAX } from "./shared";
 
 type TeamStepMode = "new" | "existing";
+
+/** One row of `listMyTeams` — a directory card plus the viewer's role. */
+type MyTeam = Awaited<ReturnType<typeof client.listMyTeams>>[number];
 
 /**
  * Step 02 — who's behind the post. The RECRUITING AS switch lives here
@@ -226,70 +228,41 @@ function NewTeamForm() {
   );
 }
 
-/** The secondary path: link one of the caller's existing teams. */
-function ExistingTeamPicker({
-  teams,
-}: {
-  teams: { id: string; name: string; avatarUrl: string | null }[];
-}) {
+/**
+ * The secondary path: link one of the caller's existing teams.
+ *
+ * The same tiles the directory and the profile shelf use, so the crew
+ * you're posting as reads the same everywhere — and so the pick is made
+ * on the roster and the stack rather than on a name in a list. Clicking
+ * the picked one again unlinks it; there's nothing else on the card to
+ * hang an unlink control off.
+ */
+function ExistingTeamPicker({ teams }: { teams: MyTeam[] }) {
   const form = useWizardForm();
 
   return (
     <form.Field name="teamId">
-      {(field) => {
-        const selected = teams.find((t) => t.id === field.state.value) ?? null;
-
-        if (selected) {
-          return (
-            <FieldRow label="YOUR TEAMS">
-              <Well variant="ghost" className="flex-row items-center gap-3 border-primary/30 p-2.5">
-                <UserAvatar avatarUrl={selected.avatarUrl} username={selected.name} size={32} />
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <Text size="sm" bold ellipsis>
-                    {selected.name}
-                  </Text>
-                  <Text size="xs" variant="muted" className="tracking-widest uppercase">
-                    Post appears on the team page
-                  </Text>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Unlink team"
-                  onClick={() => field.handleChange(undefined)}
-                >
-                  <HugeiconsIcon icon={Cancel01Icon} size={12} />
-                </Button>
-              </Well>
-            </FieldRow>
-          );
-        }
-
-        return (
-          <FieldRow label="YOUR TEAMS" hint="pick the team behind this post">
-            <div className="flex flex-col gap-1.5">
-              {teams.map((team) => (
-                <button
+      {(field) => (
+        <FieldRow
+          label="YOUR TEAMS"
+          hint={field.state.value ? "posts on this team's page" : "pick the team behind this post"}
+        >
+          <div className="flex flex-col gap-2">
+            {teams.map((team) => {
+              const selected = team.id === field.state.value;
+              return (
+                <TeamDirectoryCard
                   key={team.id}
-                  type="button"
-                  onClick={() => field.handleChange(team.id)}
-                  className={cn(
-                    "flex items-center gap-3 border border-muted/40 bg-background p-2 text-left",
-                    "transition-colors outline-none hover:border-primary/50 hover:bg-muted/10",
-                    "focus-visible:ring-1 focus-visible:ring-ring dark:bg-emboss-surface",
-                  )}
-                >
-                  <UserAvatar avatarUrl={team.avatarUrl} username={team.name} size={28} />
-                  <Text as="span" size="sm" ellipsis className="min-w-0 flex-1">
-                    {team.name}
-                  </Text>
-                </button>
-              ))}
-            </div>
-          </FieldRow>
-        );
-      }}
+                  team={team}
+                  role={team.role}
+                  selected={selected}
+                  onSelect={() => field.handleChange(selected ? undefined : team.id)}
+                />
+              );
+            })}
+          </div>
+        </FieldRow>
+      )}
     </form.Field>
   );
 }

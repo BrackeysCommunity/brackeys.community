@@ -12,7 +12,7 @@ import { jamLengthDays } from "@/lib/jam-countdown";
  * `@/orpc/router/jam` (not imported — that module pulls in the db): the
  * band's cover strips are one request for the whole set, and asking for
  * more jams than the server carries would reject it outright. */
-export const SHOWCASE_MAX_JAMS = 10;
+export const SHOWCASE_MAX_JAMS = 7;
 
 /** Longest jam the band will show. */
 export const SHOWCASE_MAX_LENGTH_DAYS = 62;

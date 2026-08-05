@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { cn } from "@/lib/utils";
 import type { client } from "@/orpc/client";
 
 type TeamsPage = Awaited<ReturnType<typeof client.listTeams>>;
@@ -40,22 +41,44 @@ export type TeamCard = Pick<
  *
  * `role` is the viewer's own standing on the team, shown only on the
  * shelf of teams they belong to.
+ *
+ * `onSelect` turns the tile into a choice instead of a destination —
+ * the collab wizard picking which of your teams is behind a post. Same
+ * card either way: the decision is made on the same three facts the
+ * directory shows, so it shouldn't be made off a name in a list.
  */
-export function TeamDirectoryCard({ team, role }: { team: TeamCard; role?: string | null }) {
+export function TeamDirectoryCard({
+  team,
+  role,
+  selected,
+  onSelect,
+}: {
+  team: TeamCard;
+  role?: string | null;
+  selected?: boolean;
+  onSelect?: () => void;
+}) {
   const hidden = team.memberCount - team.members.length;
 
   return (
     <Chonk
-      variant="surface"
+      variant={selected ? "default" : "surface"}
       size="lg"
       render={
-        <Link
-          to="/teams/$teamId"
-          params={{ teamId: team.slug || team.id }}
-          aria-label={team.name}
-        />
+        onSelect ? (
+          <button type="button" aria-pressed={selected} onClick={onSelect} />
+        ) : (
+          <Link
+            to="/teams/$teamId"
+            params={{ teamId: team.slug || team.id }}
+            aria-label={team.name}
+          />
+        )
       }
-      className="flex h-full flex-col gap-3 bg-card p-4 backdrop-blur-none"
+      className={cn(
+        "flex h-full w-full flex-col gap-3 p-4 backdrop-blur-none",
+        selected ? "border-primary" : "bg-card",
+      )}
     >
       <span className="flex items-start gap-3">
         <UserAvatar avatarUrl={team.avatarUrl} username={team.name} shape="round" size={44} />
@@ -66,7 +89,10 @@ export function TeamDirectoryCard({ team, role }: { team: TeamCard; role?: strin
               bold
               size="sm"
               ellipsis
-              className="min-w-0 flex-1 tracking-wider text-foreground uppercase"
+              className={cn(
+                "min-w-0 flex-1 tracking-wider uppercase",
+                selected ? "text-primary" : "text-foreground",
+              )}
             >
               {team.name}
             </Text>

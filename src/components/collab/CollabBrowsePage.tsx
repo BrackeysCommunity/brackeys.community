@@ -50,6 +50,66 @@ interface CollabSearch {
 /** Matches the `lg` breakpoint that switches the board to two panes. */
 const SPLIT_QUERY = "(min-width: 1024px)";
 
+/**
+ * How far the toolbar's margin box should overhang the bottom of its lane.
+ *
+ * A sticky box is held inside its containing block by its *margin* box, so
+ * an overhang is what lets the lane release the bar before its own end: it
+ * rides up and off with the last of the list instead of sitting pinned over
+ * the footer for the rest of the scroll, which is what the inspector does
+ * beside it (that one gets there for free by being a scrollport tall).
+ *
+ * The number is where the lane's end sits once the page has bottomed out:
+ * the scrollport, less everything trailing the lane — the hint row and the
+ * site footer. Overhang exactly that much and the bar's margin box lands
+ * flush with the lane's end at the last pixel of scroll, which puts the bar
+ * itself just above the top of the scrollport: gone, and not one pixel of
+ * pinning given up before then. It slides off over the final stretch, the
+ * same stretch the inspector uses. Zero means the lane already ends high
+ * enough on its own, which is the old behaviour and the right one there.
+ *
+ * Measured rather than written in `dvh`: neither term is a constant. The
+ * scrollport isn't the viewport on either shell (a header band inside one,
+ * a nav island in the other), and the footer reflows with the width.
+ *
+ * Whoever renders the overhang hands the same distance straight back as a
+ * negative top margin, so none of it takes up space in flow.
+ */
+function useLaneRelease(bar: HTMLElement | null) {
+  const [release, setRelease] = useState(0);
+
+  useEffect(() => {
+    const scroller = bar?.closest<HTMLElement>("[data-scroll-root]");
+    const lane = bar?.parentElement;
+    if (!bar || !lane || !scroller) return;
+
+    const measure = () => {
+      const laneEnd =
+        lane.getBoundingClientRect().bottom -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop;
+      const belowLane = scroller.scrollHeight - laneEnd;
+      setRelease(Math.max(0, scroller.clientHeight - belowLane));
+    };
+
+    measure();
+    // Both terms move: the scrollport with the window, the footer with the
+    // width. Neither is affected by the margin this feeds, so there's no
+    // loop. The window listener is the belt to that braces — a scroller
+    // sized by the viewport doesn't always report a resize of its own.
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    if (scroller.lastElementChild) observer.observe(scroller.lastElementChild);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [bar]);
+
+  return release;
+}
+
 function subscribeToSplit(onChange: () => void) {
   const mql = window.matchMedia(SPLIT_QUERY);
   mql.addEventListener("change", onChange);
@@ -96,6 +156,11 @@ export function CollabBrowsePage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
 
+  // A callback ref rather than a `useRef`: the two layouts each mount their
+  // own toolbar, so switching between them has to re-measure.
+  const [toolbarEl, setToolbarEl] = useState<HTMLDivElement | null>(null);
+  const laneRelease = useLaneRelease(toolbarEl);
+
   const currentUserId = session?.user?.id ?? null;
   const selectedPostId = typeof search.post === "number" ? search.post : null;
 
@@ -114,7 +179,7 @@ export function CollabBrowsePage() {
     beginWizardCreate();
     if (jamForNewPost !== undefined) updateWizardDraft({ jamId: jamForNewPost });
     setCreateOpen(true);
-    navigate({ to: "/collab", search: {}, replace: true });
+    navigate({ to: "/collab", search: {}, replace: true, resetScroll: false });
   }, [search.new, jamForNewPost, navigate]);
 
   // Board filters that live in the URL are read once, on arrival; from
@@ -146,6 +211,7 @@ export function CollabBrowsePage() {
         skills: skillFilters.length > 0 ? skillFilters : undefined,
       }),
       replace: true,
+      resetScroll: false,
     });
   }, [jamFilter, teamFilter, skillFilters, navigate]);
 
@@ -154,12 +220,18 @@ export function CollabBrowsePage() {
   // with the arrows replaces, so a long scan leaves one history entry.
   // Both preserve the rest of the search so selecting a post inside a
   // filtered board doesn't silently drop the filter.
+  //
+  // `resetScroll: false` throughout: these write a URL, they don't
+  // navigate anywhere. The board stays where it is and the inspector
+  // changes beside it, so the router's scroll-to-top would throw away
+  // the reader's place in the list on every click.
   const selectPost = useCallback(
     (postId: number, replace = false) => {
       navigate({
         to: "/collab",
         search: (prev: CollabSearch) => ({ ...prev, post: postId }),
         replace,
+        resetScroll: false,
       });
     },
     [navigate],
@@ -169,6 +241,7 @@ export function CollabBrowsePage() {
       to: "/collab",
       search: (prev: CollabSearch) => ({ ...prev, post: undefined }),
       replace: false,
+      resetScroll: false,
     });
   }, [navigate]);
 
@@ -241,13 +314,21 @@ export function CollabBrowsePage() {
   // control, so they scroll off with it.
   const lane = (
     <>
-      <div className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20">
+      <div
+        ref={setToolbarEl}
+        className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20"
+        style={{ marginBottom: laneRelease }}
+      >
         <CollabToolbar
           onOpenFilters={isSplit ? undefined : () => setFiltersOpen(true)}
           controlsElsewhere={isTouch}
         />
       </div>
-      <CollabActiveFilters />
+      {/* A wrapper rather than the readout itself: the margin the overhang
+          gives back has to land whatever the readout renders. */}
+      <div style={{ marginTop: -laneRelease }}>
+        <CollabActiveFilters />
+      </div>
     </>
   );
 
