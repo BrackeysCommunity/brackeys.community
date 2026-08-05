@@ -1,8 +1,23 @@
 import { Link } from "@tanstack/react-router";
 
+import { BrackeysMark } from "@/components/ui/brackeys-mark";
+import { MicroLabel } from "@/components/ui/typography";
+
+/**
+ * Every entry here resolves to something real: an app route, the Discord,
+ * or itch.io (where the jams the site tracks actually live). The two
+ * unwritten legal documents get placeholder pages rather than `href="#"`
+ * — see `@/components/legal/LegalPlaceholderPage`.
+ */
+interface FooterLink {
+  label: string;
+  to?: string;
+  href?: string;
+}
+
 interface FooterColumn {
   label: string;
-  links: { label: string; to?: string; href?: string }[];
+  links: FooterLink[];
 }
 
 const COLUMNS: FooterColumn[] = [
@@ -10,39 +25,74 @@ const COLUMNS: FooterColumn[] = [
     label: "COMMUNITY",
     links: [
       { label: "Discord server", href: "https://discord.gg/brackeys" },
-      { label: "Code of conduct", href: "#" },
-      { label: "Membership", href: "#" },
-      { label: "Become a host", href: "#" },
-    ],
-  },
-  {
-    label: "RESOURCES",
-    links: [
-      { label: "Knowledge base", href: "#" },
-      { label: "Command reference", to: "/command-center" },
-      { label: "Bot deploy guide", href: "#" },
-      { label: "Press kit", href: "#" },
+      { label: "Member directory", to: "/members" },
+      { label: "Teams", to: "/teams" },
+      { label: "Collab board", to: "/collab" },
+      { label: "Post a collab", to: "/collab/new" },
     ],
   },
   {
     label: "JAMS",
     links: [
-      { label: "Full calendar", href: "#" },
-      { label: "Theme archive", href: "#" },
-      { label: "Judging rubric", href: "#" },
-      { label: "Past entries", href: "#" },
+      { label: "Jam board", to: "/jams" },
+      { label: "Full calendar", to: "/jams/calendar" },
+      { label: "Archive", to: "/jams/archive" },
+      { label: "Brackeys Game Jam", href: "https://itch.io/jam/brackeys-15" },
+      { label: "Jam entries", href: "https://itch.io/jam/brackeys-15/entries" },
+    ],
+  },
+  {
+    label: "ITCH.IO",
+    links: [
+      { label: "Browse all jams", href: "https://itch.io/jams" },
+      { label: "Upcoming jams", href: "https://itch.io/jams/upcoming" },
+      { label: "Jams in progress", href: "https://itch.io/jams/in-progress" },
+      { label: "Past jams", href: "https://itch.io/jams/past/sort-date" },
+      { label: "itch.io home", href: "https://itch.io" },
     ],
   },
   {
     label: "ACCOUNT",
     links: [
       { label: "Your profile", to: "/profile" },
-      { label: "Collab board", to: "/collab" },
-      { label: "Notifications", href: "#" },
-      { label: "Sign out", href: "#" },
+      { label: "Notifications", to: "/notifications" },
+      { label: "Command center", to: "/command-center" },
+      { label: "Game lobby", to: "/game" },
     ],
   },
 ];
+
+const LEGAL_LINKS: FooterLink[] = [
+  { label: "Terms of Service", to: "/terms" },
+  { label: "Privacy Policy", to: "/privacy" },
+];
+
+const LINK_CLASS = "font-sans text-sm text-foreground transition-colors hover:text-primary";
+
+function FooterLinkItem({
+  link,
+  className = LINK_CLASS,
+}: {
+  link: FooterLink;
+  className?: string;
+}) {
+  if (link.to) {
+    return (
+      <Link to={link.to} className={className}>
+        {link.label}
+      </Link>
+    );
+  }
+  return (
+    <a
+      href={link.href}
+      className={className}
+      {...(link.href?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+    >
+      {link.label}
+    </a>
+  );
+}
 
 export function SiteFooter() {
   return (
@@ -50,21 +100,7 @@ export function SiteFooter() {
       <div className="mx-auto grid w-full max-w-6xl gap-10 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <div
-              className="h-5 w-5"
-              style={{
-                maskImage: "url(/brackeys-logo.svg)",
-                maskSize: "contain",
-                maskRepeat: "no-repeat",
-                maskPosition: "center",
-                WebkitMaskImage: "url(/brackeys-logo.svg)",
-                WebkitMaskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                background:
-                  "linear-gradient(135deg, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple))",
-              }}
-            />
+            <BrackeysMark className="h-5 w-5" />
             <span className="font-display text-sm font-bold text-foreground">
               Brackeys
               <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
@@ -73,53 +109,48 @@ export function SiteFooter() {
             </span>
           </div>
           <p className="max-w-xs font-sans text-xs text-muted-foreground">
-            A guild for indie game devs. Built, maintained, and moderated by the Brackeys community
-            since 2012.
+            A guild for indie game devs. Built, maintained, and moderated by the Brackeys community.
           </p>
-          <div className="mt-2 flex items-center gap-1.5 text-[10px] tracking-widest text-muted-foreground uppercase">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            All systems nominal
-          </div>
+          <p className="max-w-xs font-sans text-xs text-muted-foreground">
+            Jams run on{" "}
+            <a
+              href="https://itch.io/jams"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent underline underline-offset-2 hover:text-accent/80"
+            >
+              itch.io
+            </a>{" "}
+            — we track them, you ship on them.
+          </p>
+
+          <nav className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {LEGAL_LINKS.map((link) => (
+              <FooterLinkItem key={link.label} link={link} />
+            ))}
+          </nav>
         </div>
 
         {COLUMNS.map((col) => (
           <div key={col.label} className="flex flex-col gap-3">
-            <div className="text-[10px] tracking-widest text-muted-foreground uppercase">
+            <MicroLabel as="div" className="uppercase">
               § {col.label}
-            </div>
+            </MicroLabel>
             <ul className="flex flex-col gap-2">
-              {col.links.map((link) =>
-                link.to ? (
-                  <li key={link.label}>
-                    <Link
-                      to={link.to}
-                      className="font-sans text-sm text-foreground transition-colors hover:text-primary"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ) : (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="font-sans text-sm text-foreground transition-colors hover:text-primary"
-                      {...(link.href?.startsWith("http")
-                        ? { target: "_blank", rel: "noopener noreferrer" }
-                        : {})}
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ),
-              )}
+              {col.links.map((link) => (
+                <li key={link.label}>
+                  <FooterLinkItem link={link} />
+                </li>
+              ))}
             </ul>
           </div>
         ))}
       </div>
 
-      <div className="mx-auto mt-12 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-muted/30 pt-4 text-[10px] tracking-widest text-muted-foreground uppercase">
-        <span>◇ Brackeys Community · Est. 2012</span>
-        <span>v{__APP_VERSION__} · made by the community</span>
+      <div className="mx-auto mt-12 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-muted/30 pt-4">
+        <MicroLabel>© {new Date().getFullYear()} · made by the community</MicroLabel>
+
+        <MicroLabel>v{__APP_VERSION__}</MicroLabel>
       </div>
     </footer>
   );

@@ -9,8 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as JamsRouteImport } from './routes/jams'
@@ -39,6 +41,11 @@ import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifica
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeamsRoute = TeamsRouteImport.update({
   id: '/teams',
   path: '/teams',
@@ -47,6 +54,11 @@ const TeamsRoute = TeamsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -193,8 +205,10 @@ export interface FileRoutesByFullPath {
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
   '/teams': typeof TeamsRouteWithChildren
+  '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
@@ -221,6 +235,8 @@ export interface FileRoutesByTo {
   '/command-center': typeof CommandCenterRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
@@ -251,8 +267,10 @@ export interface FileRoutesById {
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
   '/teams': typeof TeamsRouteWithChildren
+  '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
@@ -284,8 +302,10 @@ export interface FileRouteTypes {
     | '/jams'
     | '/members'
     | '/notifications'
+    | '/privacy'
     | '/profile'
     | '/teams'
+    | '/terms'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
@@ -312,6 +332,8 @@ export interface FileRouteTypes {
     | '/command-center'
     | '/members'
     | '/notifications'
+    | '/privacy'
+    | '/terms'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
@@ -341,8 +363,10 @@ export interface FileRouteTypes {
     | '/jams'
     | '/members'
     | '/notifications'
+    | '/privacy'
     | '/profile'
     | '/teams'
+    | '/terms'
     | '/api/$'
     | '/collab/$postId'
     | '/collab/new'
@@ -373,8 +397,10 @@ export interface RootRouteChildren {
   JamsRoute: typeof JamsRouteWithChildren
   MembersRoute: typeof MembersRoute
   NotificationsRoute: typeof NotificationsRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   TeamsRoute: typeof TeamsRouteWithChildren
+  TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
@@ -386,6 +412,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/teams': {
       id: '/teams'
       path: '/teams'
@@ -398,6 +431,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -668,8 +708,10 @@ const rootRouteChildren: RootRouteChildren = {
   JamsRoute: JamsRouteWithChildren,
   MembersRoute: MembersRoute,
   NotificationsRoute: NotificationsRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRouteWithChildren,
   TeamsRoute: TeamsRouteWithChildren,
+  TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,

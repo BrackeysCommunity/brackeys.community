@@ -211,6 +211,10 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       <div
         id="main-content"
         data-scroll-root
+        // Stable key for router scroll restoration. Without it the router
+        // falls back to a generated `nth-child` path, which breaks once the
+        // lazy `AppHeader` resolves and shifts the sibling indices.
+        data-scroll-restoration-id="main-scroll"
         // `overscroll-y-none` suppresses the rubber band. Chrome clips the
         // scrolling contents to the scroll extent, so nothing the footer paints
         // reaches the bounce gutter — the fixed dot field behind the scroller
@@ -242,6 +246,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       {/* Left column — main page content */}
       <div
         data-scroll-root
+        data-scroll-restoration-id="main-scroll"
         // The header inset lives on the parent here, outside the scroller, so
         // a hidden bar leaves nothing for sticky content to reclaim.
         style={{ "--app-header-shift": "0px" } as React.CSSProperties}

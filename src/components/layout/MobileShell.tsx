@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { BrackeysMark } from "@/components/ui/brackeys-mark";
 import { Button } from "@/components/ui/button";
 import { useHeaderShift } from "@/hooks/use-header-shift";
 import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
@@ -47,21 +48,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         }}
       >
         <Link to="/" className="flex items-center gap-1.5">
-          <div
-            className="h-7 w-7"
-            style={{
-              maskImage: "url(/brackeys-logo.svg)",
-              maskSize: "contain",
-              maskRepeat: "no-repeat",
-              maskPosition: "center",
-              WebkitMaskImage: "url(/brackeys-logo.svg)",
-              WebkitMaskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              background:
-                "linear-gradient(135deg, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple))",
-            }}
-          />
+          <BrackeysMark className="h-7 w-7" />
           <span className="font-display text-base leading-none font-bold text-foreground">
             Brackeys
             <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
@@ -95,6 +82,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       <main
         id="main-content"
         data-scroll-root
+        data-scroll-restoration-id="main-scroll"
         className="pointer-events-auto fixed inset-x-0 top-0 bottom-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           // Reaches the top edge and carries the bar's height as padding
