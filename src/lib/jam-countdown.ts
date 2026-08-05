@@ -59,10 +59,18 @@ export function effectiveJamState(
   return "running";
 }
 
-export function durationDays(startsAt: Date | string | null, endsAt: Date | string | null) {
+/** Jam length in whole days, or null when either end is unknown. The
+ * numeric half of `durationDays` — callers that filter on length (the home
+ * band drops the months-long jams) need the number, not `"67d"`. */
+export function jamLengthDays(startsAt: Date | string | null, endsAt: Date | string | null) {
   if (!startsAt || !endsAt) return null;
   const s = typeof startsAt === "string" ? new Date(startsAt).getTime() : startsAt.getTime();
   const e = typeof endsAt === "string" ? new Date(endsAt).getTime() : endsAt.getTime();
-  const d = Math.max(0, Math.round((e - s) / 86_400_000));
-  return `${d}d`;
+  if (Number.isNaN(s) || Number.isNaN(e)) return null;
+  return Math.max(0, Math.round((e - s) / 86_400_000));
+}
+
+export function durationDays(startsAt: Date | string | null, endsAt: Date | string | null) {
+  const d = jamLengthDays(startsAt, endsAt);
+  return d == null ? null : `${d}d`;
 }

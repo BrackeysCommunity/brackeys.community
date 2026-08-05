@@ -3,13 +3,23 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   orderByEntries,
   SHOWCASE_MAX_JAMS,
+  SHOWCASE_MAX_LENGTH_DAYS,
   selectShowcaseJams,
 } from "@/components/home/JamShowcaseBand";
 import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 
-/** Only the fields these helpers read. */
-function jam(jamId: number, entriesCount: number | null = 0): JamFromList {
-  return { jamId, entriesCount } as JamFromList;
+const DAY_MS = 86_400_000;
+const START = new Date("2026-08-01T00:00:00Z");
+
+/** Only the fields these helpers read. Defaults to a week-long jam, which
+ * is the length the band is for. */
+function jam(jamId: number, entriesCount: number | null = 0, lengthDays = 7): JamFromList {
+  return {
+    jamId,
+    entriesCount,
+    startsAt: START,
+    endsAt: new Date(START.getTime() + lengthDays * DAY_MS),
+  } as JamFromList;
 }
 
 /** Stand-in for `useTopEntries`' grouped result. */
@@ -43,6 +53,29 @@ describe("selectShowcaseJams", () => {
   it("preserves the incoming ranking", () => {
     const picked = selectShowcaseJams([jam(3), jam(1)], [jam(2)], null);
     expect(ids(picked)).toEqual([3, 1, 2]);
+  });
+
+  it("drops the month-plus jams", () => {
+    const long = jam(2, 0, SHOWCASE_MAX_LENGTH_DAYS + 1);
+    const atLimit = jam(3, 0, SHOWCASE_MAX_LENGTH_DAYS);
+    expect(ids(selectShowcaseJams([jam(1), long, atLimit], [], null))).toEqual([1, 3]);
+  });
+
+  it("drops open-ended jams, which are the case the length rule is for", () => {
+    const openEnded = { jamId: 2, startsAt: START, endsAt: null } as JamFromList;
+    expect(ids(selectShowcaseJams([jam(1), openEnded], [], null))).toEqual([1]);
+  });
+
+  it("fills the band past a dropped jam rather than shortening it", () => {
+    const many = [
+      ...Array.from({ length: SHOWCASE_MAX_JAMS }, (_, i) => jam(i + 1)),
+      jam(99, 0, SHOWCASE_MAX_LENGTH_DAYS + 5),
+    ];
+    // The long jam sits mid-list; the band should still come back full.
+    const shuffled = [many[10]!, ...many.slice(0, 10)];
+    const picked = selectShowcaseJams(shuffled, [], null);
+    expect(picked).toHaveLength(SHOWCASE_MAX_JAMS);
+    expect(ids(picked)).not.toContain(99);
   });
 });
 

@@ -11,12 +11,13 @@ import { useStore } from "@tanstack/react-store";
 
 import { useBoardStats } from "@/components/home/use-board-stats";
 import { Chonk } from "@/components/ui/chonk";
-import { MicroLabel, Text } from "@/components/ui/typography";
+import { Heading, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { PROTOCOL_COUNT } from "@/data/commands";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authStore } from "@/lib/auth-store";
 import { profileLinkParams } from "@/lib/profile-links";
+import { cn } from "@/lib/utils";
 
 interface FeatureRailProps {
   liveCount: number;
@@ -25,18 +26,18 @@ interface FeatureRailProps {
 }
 
 /**
- * The four destinations, compressed to one quiet row.
+ * The four destinations.
  *
  * These used to be 280px-tall cards with hover-revealed sparklines sitting
  * directly under the wordmark — they read as the page's main content and
- * pushed the jam below the fold. Reduced to a single line each they still
- * do their job (a labelled way into every section) without competing with
- * the hero.
+ * pushed the jam below the fold. The current tile is the middle setting:
+ * tall enough to give the number real weight, short enough that four of
+ * them still read as a rail rather than as the page's content.
  *
  * Every stat here is live. The old cards showed `312`, `50+`, `58` and
  * `LV 14`, all hard-coded and all wrong by the time anyone read them.
  */
-export function FeatureRail({ liveCount, upcomingCount, isLoadingJams }: FeatureRailProps) {
+export function FeatureRail({ liveCount, isLoadingJams }: FeatureRailProps) {
   const { openRoles, isLoading: isLoadingStats } = useBoardStats();
 
   const session = useStore(authStore, (s) => s.session);
@@ -55,16 +56,16 @@ export function FeatureRail({ liveCount, upcomingCount, isLoadingJams }: Feature
       <FeatureTile
         link={<Link to="/jams" />}
         icon={Calendar03Icon}
-        title="JAM CALENDAR"
+        title="JAM BOARD"
         stat={isLoadingJams ? "—" : String(liveCount)}
-        statLabel={isLoadingJams ? "Live jams" : `Live · ${upcomingCount} soon`}
+        statLabel={isLoadingJams ? "Live jams" : `Live now`}
       />
       <FeatureTile
         link={<Link to="/command-center" />}
         icon={ComputerTerminal01Icon}
         title="COMMAND CENTER"
         stat={String(PROTOCOL_COUNT)}
-        statLabel="Protocols"
+        statLabel="Bot Protocols"
       />
       {user ? (
         <FeatureTile
@@ -107,6 +108,10 @@ interface FeatureTileProps {
 }
 
 function FeatureTile({ link, icon, title, stat, statLabel, avatarUrl }: FeatureTileProps) {
+  // Counts get the display size; the profile tile's stat is a username and
+  // would wrap or truncate at that size, so words drop a step.
+  const isCount = /^[\d,]+$/.test(stat);
+
   return (
     <Chonk
       variant="surface"
@@ -115,28 +120,44 @@ function FeatureTile({ link, icon, title, stat, statLabel, avatarUrl }: FeatureT
       aria-label={title}
       data-magnetic
       data-cursor-no-drift
-      className="group/tile flex min-w-0 items-center gap-3 px-3 py-2.5"
+      className="group/tile flex min-h-28 min-w-0 flex-col justify-between gap-4 p-4"
     >
-      {avatarUrl !== undefined ? (
-        <UserAvatar avatarUrl={avatarUrl} username={stat} size={24} />
-      ) : (
-        <HugeiconsIcon
-          icon={icon}
-          size={18}
-          className="shrink-0 text-muted-foreground transition-colors group-hover/tile:text-accent"
-        />
-      )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <MicroLabel as="div" className="transition-colors group-hover/tile:text-accent">
+      <div className="flex min-w-0 items-center gap-2.5">
+        {avatarUrl !== undefined ? (
+          <UserAvatar avatarUrl={avatarUrl} username={stat} size={28} />
+        ) : (
+          <HugeiconsIcon
+            icon={icon}
+            size={24}
+            className="shrink-0 text-muted-foreground transition-colors group-hover/tile:text-accent"
+          />
+        )}
+        <Heading
+          as="h3"
+          size="sm"
+          ellipsis
+          className="min-w-0 tracking-wide transition-colors group-hover/tile:text-accent"
+        >
           {title}
-        </MicroLabel>
+        </Heading>
+      </div>
+
+      {/* Caption above value, same as the jam rows' `Stat` — the number is
+          the thing being read, so nothing sits between it and the edge. */}
+      <div className="min-w-0">
         <Text as="div" size="sm" variant="muted" ellipsis density="compressed">
           {statLabel}
         </Text>
+        <Text
+          as="div"
+          bold
+          ellipsis
+          density="dense"
+          className={cn("mt-1 text-accent tabular-nums", isCount ? "text-4xl" : "text-2xl")}
+        >
+          {stat}
+        </Text>
       </div>
-      <Text bold ellipsis density="dense" className="max-w-28 text-lg text-accent tabular-nums">
-        {stat}
-      </Text>
     </Chonk>
   );
 }

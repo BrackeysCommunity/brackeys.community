@@ -184,9 +184,14 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 
 /** Bleeds to the card edges, hides its scrollbar and snaps — the same
  * treatment `ShortcutTiles` gives the touch dock. Works on both pointer
- * and touch, so the two home pages don't need separate layouts. */
+ * and touch, so the two home pages don't need separate layouts.
+ *
+ * `scroll-px-3` matches the padding: a snap point is measured from the
+ * scroll-padding edge, so without it a strip long enough to scroll snapped
+ * its first cover flush against the card border while a short strip — with
+ * no snap position to settle into — kept its inset. */
 const STRIP_SCROLLER =
-  "flex snap-x gap-2 overflow-x-auto px-3 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  "flex snap-x scroll-px-3 gap-2 overflow-x-auto px-3 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 function EntryStrip({ entries }: { entries: TopEntry[] }) {
   const ranked = entries.some((e) => e.rank != null);

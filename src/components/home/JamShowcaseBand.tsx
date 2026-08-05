@@ -6,15 +6,21 @@ import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { jamLengthDays } from "@/lib/jam-countdown";
 
-/** Rows in the band. Four is what fits before the page turns into a jam
- * board — which is what `/jams` is for. */
-export const SHOWCASE_MAX_JAMS = 4;
+/** Rows in the band. Kept at or below `TOP_ENTRIES_MAX_JAMS` in
+ * `@/orpc/router/jam` (not imported — that module pulls in the db): the
+ * band's cover strips are one request for the whole set, and asking for
+ * more jams than the server carries would reject it outright. */
+export const SHOWCASE_MAX_JAMS = 10;
+
+/** Longest jam the band will show. */
+export const SHOWCASE_MAX_LENGTH_DAYS = 62;
 
 /**
  * The jams the band shows: the featured tier first, topped up from the
  * ranked upcoming shelf, minus whichever jam the hero is already
- * promoting.
+ * promoting and anything running longer than 2 months.
  *
  * Exported so the desktop and mobile pages pick the same set — they used
  * to each slice the same data slightly differently, which is how the two
@@ -31,6 +37,10 @@ export function selectShowcaseJams(
     if (out.length >= SHOWCASE_MAX_JAMS) break;
     if (seen.has(jam.jamId)) continue;
     seen.add(jam.jamId);
+    // A jam with no end date is open-ended, which is the case this rule
+    // exists for; only a known, short length gets a row.
+    const length = jamLengthDays(jam.startsAt, jam.endsAt);
+    if (length == null || length > SHOWCASE_MAX_LENGTH_DAYS) continue;
     out.push(jam);
   }
   return out;

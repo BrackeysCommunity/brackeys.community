@@ -17,8 +17,8 @@ export const TOP_ENTRIES_PER_JAM = 10;
  * Top entries for a handful of jams, grouped by jam id.
  *
  * One request for the whole band rather than a query per row — the landing
- * page already ships the ~500-jam board payload and shouldn't add four more
- * round trips on top of it. The key is the *sorted* id list so re-ordering
+ * page already ships the ~500-jam board payload and shouldn't add a round
+ * trip per row on top of it. The key is the *sorted* id list so re-ordering
  * the rows (the hero jam is pulled out of the band, and which jam that is
  * changes as jams go live) reuses the cache entry instead of refetching.
  */
