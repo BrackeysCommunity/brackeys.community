@@ -1,129 +1,99 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "@tanstack/react-router";
 
+import { Section, SectionAction } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Heading, Link, Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { timeAgo } from "@/lib/format-time";
+import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
 
-const SIGNUP_LIMIT = 6;
+const SIGNUP_LIMIT = 10;
 
-function initialOf(name?: string | null) {
-  if (!name) return "?";
-  return name.trim().charAt(0).toUpperCase() || "?";
-}
-
+/**
+ * The newest members, as an avatar rail.
+ *
+ * `listMembers` sorted newest-first, not `listAvailableUsers`: the latter
+ * is the for-hire slice, so the section that claims to show who just
+ * joined was silently skipping everyone who hadn't ticked "open to work".
+ *
+ * The three-up card grid this replaced spent a 20px-tall card on a tagline
+ * nobody had written yet; what a visitor actually reads here is "people
+ * keep turning up", which is a face and a name. Rows link to the real
+ * profile rather than dumping everyone on `/collab`.
+ */
 export function NewestSignups() {
   const { data, isLoading } = useQuery({
     queryKey: ["newest-signups", SIGNUP_LIMIT],
-    queryFn: () =>
-      client.listAvailableUsers({
-        sortBy: "createdAt",
-        sortOrder: "desc",
-        limit: SIGNUP_LIMIT,
-        offset: 0,
-      }),
+    queryFn: () => client.listMembers({ sort: "newest", limit: SIGNUP_LIMIT, offset: 0 }),
     staleTime: 60 * 1000,
   });
 
-  const users = data?.users ?? [];
+  const users = data?.members ?? [];
 
   return (
-    <section className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <Text as="div" size="xs" variant="muted" className="tracking-widest">
-              § 03
-            </Text>
-            <Heading as="h2" className="text-2xl md:text-3xl">
-              NEWEST SIGNUPS
-            </Heading>
-          </div>
-          <Link
-            as="router"
-            to="/collab"
-            bold
-            variant="muted"
-            className="shrink-0 text-[11px] tracking-widest whitespace-nowrap"
-          >
-            BROWSE DEVS ▸
-          </Link>
-        </div>
-        <Text as="p" size="md" variant="muted">
-          Welcome the latest arrivals. Drop a DM, pair up, or pull them into your jam squad.
-        </Text>
-      </header>
-
-      <div className="grid gap-3 md:grid-cols-3">
+    <Section
+      id="devs"
+      title="NEWEST DEVS"
+      size="sm"
+      blurb="Welcome the latest arrivals."
+      action={<SectionAction to="/members">BROWSE DEVS</SectionAction>}
+    >
+      <Well className="overflow-hidden">
         {isLoading ? (
-          Array.from({ length: SIGNUP_LIMIT }).map((_, i) => (
-            <Well key={i} className="p-0" aria-hidden>
-              <Skeleton className="h-20 w-full bg-muted/50" />
-            </Well>
-          ))
+          <ul className="divide-y divide-muted/20" aria-hidden>
+            {Array.from({ length: SIGNUP_LIMIT }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-3 py-2">
+                <Skeleton className="h-8 w-8 shrink-0 rounded-full bg-muted/50" />
+                <Skeleton className="h-3.5 w-1/2 bg-muted/50" />
+                <Skeleton className="ml-auto h-3 w-12 shrink-0 bg-muted/50" />
+              </li>
+            ))}
+          </ul>
         ) : users.length === 0 ? (
-          <Well variant="ghost" className="col-span-full">
-            <Text
-              as="div"
-              size="sm"
-              variant="muted"
-              align="center"
-              className="p-6 tracking-widest uppercase"
-            >
-              No signups yet
-            </Text>
-          </Well>
+          <Text
+            as="div"
+            size="sm"
+            variant="muted"
+            align="center"
+            className="p-6 tracking-widest uppercase"
+          >
+            No signups yet
+          </Text>
         ) : (
-          users.map((u) => {
-            const handle = u.discordUsername ?? "anonymous";
-            const topSkills = u.skills.slice(0, 3).map((s) => s.name);
-            return (
-              <Well key={u.id} className="flex flex-row items-stretch overflow-hidden">
-                <div className="flex w-20 shrink-0 items-center justify-center self-stretch overflow-hidden bg-muted/60">
-                  {u.avatarUrl ? (
-                    <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Text bold size="md">
-                      {initialOf(handle)}
-                    </Text>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1 p-3">
-                  <div className="flex items-baseline gap-2">
-                    <Text bold ellipsis size="md">
-                      {u.guildNickname ?? handle}
-                    </Text>
-                    <Text size="xs" variant="accent" className="tracking-widest uppercase">
-                      NEW
-                    </Text>
-                  </div>
-                  <Text as="div" size="xs" variant="muted" ellipsis className="tracking-widest">
-                    @{handle}
-                  </Text>
-                  {u.tagline && (
-                    <Text as="p" variant="muted" className="mt-1 line-clamp-2 text-[11px]">
-                      {u.tagline}
-                    </Text>
-                  )}
-                  {topSkills.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {topSkills.map((s) => (
-                        <Text
-                          key={s}
-                          variant="muted"
-                          className="border border-muted/40 px-1.5 py-0.5 text-[9px] tracking-widest uppercase"
-                        >
-                          {s}
-                        </Text>
-                      ))}
+          <ul className="divide-y divide-muted/20">
+            {users.map((u) => {
+              const handle = u.discordUsername ?? "anonymous";
+              return (
+                <li key={u.id}>
+                  <RouterLink
+                    to="/profile/$userId"
+                    params={profileLinkParams(u)}
+                    className="group flex items-center gap-3 px-3 py-2 text-inherit transition-colors hover:bg-muted/40"
+                  >
+                    <UserAvatar avatarUrl={u.avatarUrl} username={handle} shape="round" size={32} />
+                    <div className="min-w-0 flex-1">
+                      <Text as="div" bold ellipsis size="md" className="group-hover:text-primary">
+                        {u.guildNickname ?? handle}
+                      </Text>
+                      <MicroLabel as="div" ellipsis>
+                        {u.tagline ?? `@${handle}`}
+                      </MicroLabel>
                     </div>
-                  )}
-                </div>
-              </Well>
-            );
-          })
+                    {/* When they turned up — the one fact a "newest" list is
+                        actually sorted by, so the ordering is legible. */}
+                    <MicroLabel className="shrink-0 tabular-nums">
+                      {timeAgo(u.createdAt)}
+                    </MicroLabel>
+                  </RouterLink>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
-    </section>
+      </Well>
+    </Section>
   );
 }

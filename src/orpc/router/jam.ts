@@ -1,9 +1,9 @@
 import { os } from "@orpc/server";
-import { and, asc, count, desc, gt, ilike, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
-import { itchJams } from "@/db/schema";
+import { itchJamEntries, itchJamEntryResults, itchJams } from "@/db/schema";
 
 /** A single itch.io jam submission, as returned by the jam entries feed. */
 export type JamEntry = {
@@ -281,4 +281,97 @@ export const archiveJams = os
     ]);
 
     return { jams, total: totalRow?.count ?? 0 };
+  });
+
+/** Ceiling stand-in for "no Overall placement yet" — larger than any real
+ * rank, so unranked entries sort behind ranked ones instead of ahead of
+ * them (a plain NULL sorts first under Postgres' ASC default). */
+const NO_RANK = 2_147_483_647;
+
+/** Jams per request, and entries per jam. Both are display caps: the
+ * landing page shows a handful of jams with a scrolling cover strip each,
+ * and the partition below is what keeps a 3k-entry jam from shipping 3k
+ * rows. */
+export const TOP_ENTRIES_MAX_JAMS = 8;
+export const TOP_ENTRIES_MAX_LIMIT = 10;
+
+/**
+ * The top N entries of each requested jam, in one round trip.
+ *
+ * Ordering has to straddle two worlds. Once a jam's rate pages have been
+ * scraped its entries carry an "Overall" placement, which is the only
+ * ranking anyone would recognize; before that (and for every jam whose
+ * results were never fetched) the best available signal is participation —
+ * ratings received, then itch's own `coolness`. A LEFT JOIN on the Overall
+ * criterion with a COALESCE'd sort key covers both in a single pass rather
+ * than branching into two queries.
+ */
+export function topEntriesQuery(jamIds: number[], limit: number) {
+  const ranked = db
+    .select({
+      entryId: itchJamEntries.entryId,
+      jamId: itchJamEntries.jamId,
+      gameTitle: itchJamEntries.gameTitle,
+      gameUrl: itchJamEntries.gameUrl,
+      gameCoverUrl: itchJamEntries.gameCoverUrl,
+      gameCoverColor: itchJamEntries.gameCoverColor,
+      authorName: itchJamEntries.authorName,
+      ratingCount: itchJamEntries.ratingCount,
+      rank: itchJamEntryResults.rank,
+      // entryId breaks the remaining ties so the same jam doesn't shuffle
+      // its covers between requests (most rows tie at 0 ratings).
+      rowNumber: sql<number>`ROW_NUMBER() OVER (
+        PARTITION BY ${itchJamEntries.jamId}
+        ORDER BY COALESCE(${itchJamEntryResults.rank}, ${NO_RANK}) ASC,
+                 ${itchJamEntries.ratingCount} DESC,
+                 ${itchJamEntries.coolness} DESC,
+                 ${itchJamEntries.entryId} ASC
+      )`.as("row_number"),
+    })
+    .from(itchJamEntries)
+    .leftJoin(
+      itchJamEntryResults,
+      and(
+        eq(itchJamEntryResults.entryId, itchJamEntries.entryId),
+        // Criterion casing is scraped verbatim from the rate page.
+        sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+      ),
+    )
+    // Entries itch no longer lists are kept in the table but never shown,
+    // same rule the jam listings apply to `itch.jams`.
+    .where(and(inArray(itchJamEntries.jamId, jamIds), isNull(itchJamEntries.missingSince)))
+    .as("ranked");
+
+  return db
+    .select({
+      entryId: ranked.entryId,
+      jamId: ranked.jamId,
+      gameTitle: ranked.gameTitle,
+      gameUrl: ranked.gameUrl,
+      gameCoverUrl: ranked.gameCoverUrl,
+      gameCoverColor: ranked.gameCoverColor,
+      authorName: ranked.authorName,
+      ratingCount: ranked.ratingCount,
+      rank: ranked.rank,
+    })
+    .from(ranked)
+    .where(lte(ranked.rowNumber, limit))
+    .orderBy(asc(ranked.jamId), asc(ranked.rowNumber));
+}
+
+export const listTopEntries = os
+  .input(
+    z.object({
+      jamIds: z.array(z.number().int()).max(TOP_ENTRIES_MAX_JAMS),
+      limit: z.number().int().min(1).max(TOP_ENTRIES_MAX_LIMIT).default(4),
+    }),
+  )
+  .handler(async ({ input }) => {
+    // Duplicates would only widen the IN list; the empty case would build a
+    // `jam_id IN ()` no-op, so short-circuit it.
+    const jamIds = [...new Set(input.jamIds)];
+    if (jamIds.length === 0) return { entries: [] };
+
+    const entries = await topEntriesQuery(jamIds, input.limit);
+    return { entries };
   });

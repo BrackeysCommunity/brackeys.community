@@ -1,53 +1,71 @@
 import {
-  Calendar03Icon,
   ComputerTerminal01Icon,
   FireIcon,
   PaintBucketIcon,
+  UserGroupIcon,
 } from "@hugeicons/core-free-icons";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 
-import { CyclingWord } from "@/components/home/CyclingWord";
-import { FeaturedJamCarousel } from "@/components/home/FeaturedJamCarousel";
-import { HeroWordmark } from "@/components/home/HeroWordmark";
+import {
+  FeaturedJamPanel,
+  FeaturedJamPanelSkeleton,
+  pickHeroJam,
+} from "@/components/home/FeaturedJamPanel";
+import { JamShowcaseBand, selectShowcaseJams } from "@/components/home/JamShowcaseBand";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
-import { UpcomingJamList } from "@/components/home/UpcomingJamList";
+import { useBoardStats } from "@/components/home/use-board-stats";
 import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
-import { Heading, Link, Text } from "@/components/ui/typography";
+import { Section, SectionAction } from "@/components/ui/section";
+import { PROTOCOL_COUNT } from "@/data/commands";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import useDateNow from "@/lib/hooks/use-date-now";
 
-const UPCOMING_LIMIT = 4;
-
+/**
+ * The touch landing page.
+ *
+ * Mirrors the desktop hierarchy — the live jam before the navigation,
+ * showcase rows before the community — minus the anchor rail, which has
+ * nowhere to stick on a phone. Keeping the two pages on different
+ * hierarchies would be worse than either: the same visitor sees both
+ * depending on the device, and they'd be told different things matter.
+ */
 export function MobileHome() {
   const now = useDateNow();
   const nowDate = new Date(now);
   const { theme } = useAppTheme();
   const { setOpen: openPalette } = useCommandPalette();
 
-  const featuredRef = useRef<HTMLDivElement>(null);
-  const upcomingRef = useRef<HTMLDivElement>(null);
+  const jamsRef = useRef<HTMLDivElement>(null);
+  const collabRef = useRef<HTMLDivElement>(null);
 
   const scrollToRef = (ref: React.RefObject<HTMLElement | null>) => {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const { isLoading, featured, upcoming, liveCount, upcomingCount } = useHomeJams(now);
+  const { openRoles, isLoading: isLoadingStats } = useBoardStats();
+
+  const hero = useMemo(() => pickHeroJam(featured), [featured]);
+  const showcaseJams = useMemo(
+    () => selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null),
+    [featured, upcoming, hero],
+  );
 
   const navTiles: ShortcutTile[] = [
     {
-      label: "HOT JAMS",
+      label: "LIVE JAMS",
       stat: isLoading ? "—" : String(liveCount),
       icon: FireIcon,
-      onClick: () => scrollToRef(featuredRef),
+      onClick: () => scrollToRef(jamsRef),
     },
     {
-      label: "UPCOMING",
-      stat: isLoading ? "—" : String(upcomingCount),
-      icon: Calendar03Icon,
-      onClick: () => scrollToRef(upcomingRef),
+      label: "OPEN ROLES",
+      stat: isLoadingStats ? "—" : String(openRoles),
+      icon: UserGroupIcon,
+      onClick: () => scrollToRef(collabRef),
     },
     {
       label: "THEMES",
@@ -57,7 +75,7 @@ export function MobileHome() {
     },
     {
       label: "BOT COMMANDS",
-      stat: "58",
+      stat: String(PROTOCOL_COUNT),
       icon: ComputerTerminal01Icon,
       onClick: () => openPalette(true),
     },
@@ -65,58 +83,34 @@ export function MobileHome() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Hero + tile dock share a tighter intra-group gap; the page-level
-          gap-8 still separates this group from the jams/collab/signups
-          sections below. */}
+      {/* No wordmark here. On a phone it filled most of the first screen
+          to say something the header already says, pushing the live jam —
+          the reason anyone opens this on a phone — below the fold. */}
       <div className="flex flex-col gap-3">
-        {/* Hero */}
-        <div className="flex flex-col gap-4">
-          <HeroWordmark
-            primary={<CyclingWord />}
-            secondary="GAMES"
-            className="text-[clamp(3rem,18vw,5rem)]!"
-          />
-          <Text as="p" size="md" className="[text-shadow:0_1px_3px_rgba(0,0,0,0.75)]">
-            The neural network for the Brackeys community. Find your squad, browse every jam, ship.
-          </Text>
-        </div>
+        {isLoading ? (
+          <FeaturedJamPanelSkeleton density="compact" />
+        ) : hero ? (
+          <FeaturedJamPanel hero={hero} now={nowDate} density="compact" />
+        ) : null}
 
         <ShortcutTiles tiles={navTiles} />
       </div>
 
-      {/* § 01 JAMS */}
-      <section className="flex flex-col gap-4">
-        <header className="flex items-end justify-between gap-3">
-          <div>
-            <Text as="div" size="xs" variant="muted" className="tracking-widest">
-              § 01
-            </Text>
-            <Heading as="h2" size="2xl">
-              JAMS
-            </Heading>
-          </div>
-          <Link as="router" to="/jams" bold variant="muted" className="text-[11px] tracking-widest">
-            FULL ▸
-          </Link>
-        </header>
+      <div ref={jamsRef} className="scroll-mt-20">
+        <Section
+          id="jams"
+          title="JAMS"
+          blurb={`${liveCount} live · ${upcomingCount} upcoming.`}
+          action={<SectionAction to="/jams">FULL</SectionAction>}
+        >
+          <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
+        </Section>
+      </div>
 
-        <div ref={featuredRef} className="scroll-mt-20">
-          <FeaturedJamCarousel jams={featured} isLoading={isLoading} density="compact" />
-        </div>
+      <div ref={collabRef} className="scroll-mt-20">
+        <RecentCollabPosts />
+      </div>
 
-        {/* Soonest upcoming */}
-        <div ref={upcomingRef} className="scroll-mt-20">
-          <UpcomingJamList
-            jams={upcoming}
-            isLoading={isLoading}
-            now={nowDate}
-            limit={UPCOMING_LIMIT}
-            density="compact"
-          />
-        </div>
-      </section>
-
-      <RecentCollabPosts />
       <NewestSignups />
     </div>
   );

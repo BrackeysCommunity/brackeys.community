@@ -1,8 +1,8 @@
 /**
  * App-wide jam presentation helpers. These were previously re-written in
- * each feature folder (`FeaturedJamCarousel/helpers.ts`,
- * `JamCalendarPage/helpers.ts`, the two home lists), which let the
- * fallback rules and timezone handling drift apart. One definition each.
+ * each feature folder (`JamCalendarPage/helpers.ts`, the home jam
+ * surfaces), which let the fallback rules and timezone handling drift
+ * apart. One definition each.
  */
 
 export function jamUrl(slug: string): string {

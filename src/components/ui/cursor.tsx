@@ -2,7 +2,6 @@ import {
   AnimatePresence,
   animate,
   motion,
-  useAnimation,
   useMotionValue,
   useSpring,
   type AnimationPlaybackControls,
@@ -38,17 +37,21 @@ const CURSOR_SPRING = { damping: 26, stiffness: 3000, mass: 0.045 };
 // see CORNER_RELEASE — so tracking can be stiff without the frame snapping
 // home the instant you leave.
 const CORNER_SPRING = { stiffness: 6000, damping: 42, mass: 0.05 };
-// Leaving a target is the one moment the frame should take its time: it travels
-// from the button's corners back into the pointer tip. Its duration and
-// CORNER_VANISH's are a pair — the corners should land and disappear together,
-// not shrink to nothing halfway across.
-const CORNER_RELEASE = { duration: 0.28, ease: [0.22, 1, 0.36, 1] } as const;
+// The release is what reads as drift: for as long as it runs, the corners are
+// still crossing the gap to the tip while the pointer keeps moving, so they
+// trail it. A tween's ease-out tail is the worst shape for that — most of its
+// time goes to the last few pixels, exactly where the lag is visible. A spring
+// front-loads the travel instead. Overdamped (ratio 1.5, no overshoot); the
+// slow pole is ~43ms, so it's effectively home in ~130ms rather than 280ms.
+// It and CORNER_VANISH are a pair — the corners should land and disappear
+// together, not shrink to nothing halfway across.
+const CORNER_RELEASE = { type: "spring", stiffness: 900, damping: 45, mass: 0.25 } as const;
 const FADE_TRANSITION = { duration: 0.15, ease: "easeInOut" } as const;
 // Latching on: the corners are already measured onto the target by the time
 // they become visible (the corner spring settles in ~7ms), so this is a pop
 // into place, not a flight out from the tip. The overshoot is the pop.
 const CORNER_APPEAR = { duration: 0.18, ease: [0.34, 1.56, 0.64, 1] } as const;
-const CORNER_VANISH = { duration: 0.24, ease: "easeIn" } as const;
+const CORNER_VANISH = { duration: 0.12, ease: "easeIn" } as const;
 
 const CORNER_BORDERS = [
   { borderTopWidth: 1, borderLeftWidth: 1 },
@@ -67,18 +70,11 @@ const BOUNCE_DIR = [
 ] as const;
 const BOUNCE_TRANSITION = { duration: 0.5, repeat: Infinity, ease: "backInOut" } as const;
 
-// Seconds per revolution of the idle spin. The spin is only ever seen during
-// the ~0.25s the corners take to shrink into the tip, so it has to be quick
-// enough to turn a visible amount inside that window — at the old 3s it barely
-// moved. 1.2s puts ~70 degrees under the collapse.
-const SPIN_DURATION = 1.2;
-
 interface CursorProps {
   className?: string;
-  spinDuration?: number;
 }
 
-export function Cursor({ className, spinDuration = SPIN_DURATION }: CursorProps) {
+export function Cursor({ className }: CursorProps) {
   const cursorState = useCursorState();
   const isMagnetic = cursorState.type === "magnetic";
   const isHidden = cursorState.type === "hidden";
@@ -108,24 +104,6 @@ export function Cursor({ className, spinDuration = SPIN_DURATION }: CursorProps)
   const sc2y = useSpring(c2y, CORNER_SPRING);
   const sc3x = useSpring(c3x, CORNER_SPRING);
   const sc3y = useSpring(c3y, CORNER_SPRING);
-
-  // The cluster spins whenever it isn't latched onto something — including
-  // through the release, which is the only time it's on screen. Latching snaps
-  // rotation back to 0 so the frame lines up with the target's edges; that snap
-  // lands on the same frame the corners are still at scale 0, so it isn't seen.
-  const spinControls = useAnimation();
-  React.useEffect(() => {
-    if (isMobile) return;
-    if (isMagnetic) {
-      spinControls.stop();
-      spinControls.set({ rotate: 0 });
-      return;
-    }
-    void spinControls.start({
-      rotate: [0, 360],
-      transition: { duration: spinDuration, ease: "linear", repeat: Infinity },
-    });
-  }, [isMagnetic, isMobile, spinControls, spinDuration]);
 
   React.useEffect(() => {
     if (isMobile) return;
@@ -294,59 +272,53 @@ export function Cursor({ className, spinDuration = SPIN_DURATION }: CursorProps)
       style={{ x: springX, y: springY, willChange: "transform" }}
     >
       {/* Corner brackets */}
-      <motion.div
-        className="absolute top-0 left-0 h-0 w-0"
-        animate={spinControls}
-        style={{ willChange: "transform" }}
-      >
-        {corners.map((pos, i) => (
+      {corners.map((pos, i) => (
+        <motion.div
+          key={i}
+          className="absolute top-0 left-0"
+          animate={
+            isMagnetic
+              ? {
+                  x: [0, BOUNCE_DIR[i].dx * bouncePx, 0],
+                  y: [0, BOUNCE_DIR[i].dy * bouncePx, 0],
+                }
+              : { x: 0, y: 0 }
+          }
+          transition={isMagnetic ? BOUNCE_TRANSITION : FADE_TRANSITION}
+        >
           <motion.div
-            key={i}
-            className="absolute top-0 left-0"
-            animate={
-              isMagnetic
-                ? {
-                    x: [0, BOUNCE_DIR[i].dx * bouncePx, 0],
-                    y: [0, BOUNCE_DIR[i].dy * bouncePx, 0],
-                  }
-                : { x: 0, y: 0 }
-            }
-            transition={isMagnetic ? BOUNCE_TRANSITION : FADE_TRANSITION}
-          >
-            <motion.div
-              className="absolute top-0 left-0 border-foreground"
-              animate={{
-                width: isMagnetic ? CORNER_HOVERED : CORNER,
-                height: isMagnetic ? CORNER_HOVERED : CORNER,
-                borderRadius: 1,
-                scale: isMagnetic ? 1 : 0,
-                opacity: isMagnetic ? 1 : 0,
-                ...Object.fromEntries(
-                  Object.entries(CORNER_BORDERS[i]).map(([k]) => [
-                    k,
-                    isMagnetic ? BORDER_HOVERED : BORDER,
-                  ]),
-                ),
-              }}
-              transition={{
-                ...FADE_TRANSITION,
-                scale: isMagnetic ? CORNER_APPEAR : CORNER_VANISH,
-                opacity: isMagnetic ? CORNER_APPEAR : CORNER_VANISH,
-              }}
-              style={{
-                width: CORNER,
-                height: CORNER,
-                ...CORNER_BORDERS[i],
-                x: pos.x,
-                y: pos.y,
-                scale: 0,
-                opacity: 0,
-                willChange: "transform, opacity",
-              }}
-            />
-          </motion.div>
-        ))}
-      </motion.div>
+            className="absolute top-0 left-0 border-foreground"
+            animate={{
+              width: isMagnetic ? CORNER_HOVERED : CORNER,
+              height: isMagnetic ? CORNER_HOVERED : CORNER,
+              borderRadius: 1,
+              scale: isMagnetic ? 1 : 0,
+              opacity: isMagnetic ? 1 : 0,
+              ...Object.fromEntries(
+                Object.entries(CORNER_BORDERS[i]).map(([k]) => [
+                  k,
+                  isMagnetic ? BORDER_HOVERED : BORDER,
+                ]),
+              ),
+            }}
+            transition={{
+              ...FADE_TRANSITION,
+              scale: isMagnetic ? CORNER_APPEAR : CORNER_VANISH,
+              opacity: isMagnetic ? CORNER_APPEAR : CORNER_VANISH,
+            }}
+            style={{
+              width: CORNER,
+              height: CORNER,
+              ...CORNER_BORDERS[i],
+              x: pos.x,
+              y: pos.y,
+              scale: 0,
+              opacity: 0,
+              willChange: "transform, opacity",
+            }}
+          />
+        </motion.div>
+      ))}
 
       {/* Label */}
       <AnimatePresence>

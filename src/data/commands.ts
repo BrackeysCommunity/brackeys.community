@@ -392,3 +392,13 @@ export const marcoMacros: Macro[] = [
 ];
 
 export const allBotCommands: BotCommand[] = [...hammerCommands, ...pencilCommands];
+
+/**
+ * Everything the command center lists — slash commands plus Marco macros,
+ * which is exactly what `CommandCenterPage`'s `buildEntries` concatenates.
+ *
+ * Derived rather than typed out: the landing page advertised a hard-coded
+ * "58 protocols" that had already drifted from the registry, and a literal
+ * has no way to stay honest as commands are added.
+ */
+export const PROTOCOL_COUNT = allBotCommands.length + marcoMacros.length;

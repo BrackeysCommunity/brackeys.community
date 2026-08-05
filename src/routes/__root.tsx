@@ -217,11 +217,15 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         // shows through instead.
         className="flex flex-1 flex-col overflow-y-auto overscroll-y-none pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="mx-auto flex w-full max-w-480 flex-col">
-          <div
-            className="flex w-full shrink-0 flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14"
-            style={{ minHeight: "100%" }}
-          >
+        {/* `grow shrink-0` rather than a `min-h-full` on the inner box: the
+            wrapper is a flex item of an auto-height column, so a percentage
+            min-height has nothing definite to resolve against and collapses
+            to the content height — which is what let the footer ride up
+            mid-viewport on tall screens with a short page. Growing to the
+            scroller's leftover space pins it to the bottom; `shrink-0`
+            keeps a long page from being squeezed back into one screen. */}
+        <div className="mx-auto flex w-full max-w-480 shrink-0 grow flex-col">
+          <div className="flex w-full grow flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14">
             {children}
           </div>
         </div>
