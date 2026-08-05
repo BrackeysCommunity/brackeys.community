@@ -67,12 +67,10 @@ describe("selectShowcaseJams", () => {
   });
 
   it("fills the band past a dropped jam rather than shortening it", () => {
-    const many = [
-      ...Array.from({ length: SHOWCASE_MAX_JAMS }, (_, i) => jam(i + 1)),
-      jam(99, 0, SHOWCASE_MAX_LENGTH_DAYS + 5),
-    ];
+    const enough = Array.from({ length: SHOWCASE_MAX_JAMS }, (_, i) => jam(i + 1));
+    const long = jam(99, 0, SHOWCASE_MAX_LENGTH_DAYS + 5);
     // The long jam sits mid-list; the band should still come back full.
-    const shuffled = [many[10]!, ...many.slice(0, 10)];
+    const shuffled = [...enough.slice(0, 2), long, ...enough.slice(2)];
     const picked = selectShowcaseJams(shuffled, [], null);
     expect(picked).toHaveLength(SHOWCASE_MAX_JAMS);
     expect(ids(picked)).not.toContain(99);

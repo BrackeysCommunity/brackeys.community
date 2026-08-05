@@ -14,7 +14,7 @@ import {
   jamSignal,
   nextMilestone,
 } from "@/components/jams/JamCalendarPage/helpers";
-import { Chonk } from "@/components/ui/chonk";
+import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/ui/count-up";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
@@ -142,8 +142,10 @@ export function FeaturedJamPanel({ hero, now, density = "comfortable" }: Feature
           </div>
         </Well>
 
-        <Chonk
-          variant="primary"
+        <Button
+          variant="default"
+          size="lg"
+          nativeButton={false}
           render={
             <a
               href={jamUrl(jam.slug)}
@@ -156,7 +158,7 @@ export function FeaturedJamPanel({ hero, now, density = "comfortable" }: Feature
         >
           <HugeiconsIcon icon={FlashIcon} size={14} />
           OPEN JAM
-        </Chonk>
+        </Button>
       </div>
     </Well>
   );

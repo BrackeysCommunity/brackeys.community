@@ -1,8 +1,8 @@
 import { useStore } from "@tanstack/react-store";
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { authStore } from "@/lib/auth-store";
 
 import { CollabCreateForm } from "./CollabCreateForm";
@@ -24,20 +24,20 @@ export interface CollabCreateFlyoutProps {
  */
 export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFlyoutProps) {
   const { session, isPending } = useStore(authStore);
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   useReleaseFocusOnOpen(open);
 
   return (
     <Drawer
       open={open}
       onOpenChange={(next) => !next && onClose()}
-      direction={isTouch ? "bottom" : "right"}
+      direction={isMobile ? "bottom" : "right"}
     >
       <DrawerContent
         className="p-0 sm:max-w-[32rem]"
         // A fixed tall sheet on touch so stepping through the wizard
         // doesn't resize the drawer under the user's thumb.
-        style={isTouch ? { height: "88vh", maxHeight: "88vh" } : undefined}
+        style={isMobile ? { height: "88vh", maxHeight: "88vh" } : undefined}
       >
         {/* The panel renders its own visible heading; these name and
             describe the dialog for assistive tech. */}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import type { ProfileViewModel } from "./helpers";
 import { ProfileDesktop } from "./ProfileDesktop";
@@ -26,7 +26,7 @@ interface ProfilePageProps {
  * without restructuring.
  */
 export function ProfilePage({ profile, isOwner, queryKey }: ProfilePageProps) {
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   const [edit, setEdit] = useState<{ open: boolean; step: EditStep }>({
     open: false,
     step: 1,
@@ -43,7 +43,7 @@ export function ProfilePage({ profile, isOwner, queryKey }: ProfilePageProps) {
 
   return (
     <>
-      {isTouch ? <ProfileMobile {...layoutProps} /> : <ProfileDesktop {...layoutProps} />}
+      {isMobile ? <ProfileMobile {...layoutProps} /> : <ProfileDesktop {...layoutProps} />}
       {isOwner ? (
         <ProfileEditFlyout
           open={edit.open}

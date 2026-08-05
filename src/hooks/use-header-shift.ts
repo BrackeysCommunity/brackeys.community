@@ -9,10 +9,10 @@ import { useEffect } from "react";
  *
  * It lands on the document element rather than the shell's own markup so the
  * one `transition` declared on `:root` animates it, and so the two shells
- * (desktop `AppHeader`, touch `MobileShell`) can't both claim it at once.
+ * (desktop `AppHeader`, mobile `MobileShell`) can't both claim it at once.
  *
  * @param shift a negative length — how far up sticky surfaces move once the
- * bar is gone. Differs per shell: the touch bar also eats the status-bar inset.
+ * bar is gone. Differs per shell: the mobile bar also eats the status-bar inset.
  */
 export function useHeaderShift(hidden: boolean, shift: string) {
   useEffect(() => {

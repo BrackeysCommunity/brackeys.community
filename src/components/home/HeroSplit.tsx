@@ -8,7 +8,7 @@ import {
   type HeroJam,
 } from "@/components/home/FeaturedJamPanel";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
-import { Chonk } from "@/components/ui/chonk";
+import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
@@ -50,23 +50,29 @@ export function HeroSplit({ hero, isLoading, now }: HeroSplitProps) {
         </p>
 
         <div className="flex flex-wrap gap-3">
-          <Chonk
-            variant="primary"
+          {/* `h-11` over the `lg` size's `h-9`: these two carry the fold, and
+              at default button height they read as toolbar controls. */}
+          <Button
+            variant="default"
+            size="lg"
+            nativeButton={false}
             render={<Link as="router" to="/collab" aria-label="Find a crew" />}
-            className="flex items-center gap-2 px-5 py-3 text-xs font-bold tracking-widest"
+            className="h-11 gap-2 px-5 font-bold tracking-widest"
           >
             <HugeiconsIcon icon={UserGroupIcon} size={16} />
             FIND A CREW
             <HugeiconsIcon icon={ArrowRight02Icon} size={14} />
-          </Chonk>
-          <Chonk
-            variant="surface"
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            nativeButton={false}
             render={<Link as="router" to="/jams" aria-label="Browse jams" />}
-            className="flex items-center gap-2 px-5 py-3 text-xs font-bold tracking-widest text-muted-foreground hover:text-primary"
+            className="h-11 gap-2 px-5 font-bold tracking-widest text-muted-foreground hover:text-primary"
           >
             <HugeiconsIcon icon={Calendar03Icon} size={16} />
             BROWSE JAMS
-          </Chonk>
+          </Button>
         </div>
       </div>
 

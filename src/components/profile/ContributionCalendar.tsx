@@ -5,7 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 
 import { Button } from "@/components/ui/button";
 import { MicroLabel } from "@/components/ui/typography";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { ContributionDay } from "@/lib/github";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -452,7 +452,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
     return headers;
   }, [data]);
 
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   // Desktop opens snake in a centred Dialog modal (chonky surface
   // matching the jam detail spotlight); touch opens the rotated
   // landscape overlay with on-screen controls.
@@ -479,7 +479,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
   // dedicated focus + a comfortable size, mirroring the jam detail
   // spotlight pattern from the jam page.
   const handleToggleSnake = () => {
-    if (isTouch) setFullscreen((v) => !v);
+    if (isMobile) setFullscreen((v) => !v);
     else setDesktopModal((v) => !v);
   };
 

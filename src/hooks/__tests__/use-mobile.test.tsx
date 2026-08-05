@@ -2,7 +2,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { useIsTouchDevice } from "../use-touch-device";
+import { MOBILE_BREAKPOINT, useIsMobile } from "../use-mobile";
 
 interface FakeMql {
   matches: boolean;
@@ -39,23 +39,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("useIsTouchDevice", () => {
-  it("matches `(pointer: coarse)` on the current snapshot", () => {
+describe("useIsMobile", () => {
+  it("matches the mobile-width query on the current snapshot", () => {
     mql = makeFakeMql(true);
     window.matchMedia = vi.fn((q: string) => {
-      expect(q).toBe("(pointer: coarse)");
+      expect(q).toBe(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
       return mql as unknown as MediaQueryList;
     });
 
-    const { result } = renderHook(() => useIsTouchDevice());
+    const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(true);
   });
 
-  it("returns false when pointer is fine", () => {
+  it("returns false above the breakpoint", () => {
     mql = makeFakeMql(false);
     window.matchMedia = vi.fn(() => mql as unknown as MediaQueryList);
 
-    const { result } = renderHook(() => useIsTouchDevice());
+    const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
   });
 
@@ -63,7 +63,7 @@ describe("useIsTouchDevice", () => {
     mql = makeFakeMql(false);
     window.matchMedia = vi.fn(() => mql as unknown as MediaQueryList);
 
-    const { result } = renderHook(() => useIsTouchDevice());
+    const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
 
     act(() => mql.fire(true));

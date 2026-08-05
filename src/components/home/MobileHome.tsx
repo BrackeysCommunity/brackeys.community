@@ -1,10 +1,4 @@
-import {
-  ComputerTerminal01Icon,
-  FireIcon,
-  PaintBucketIcon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 
 import {
   FeaturedJamPanel,
@@ -15,16 +9,13 @@ import { JamShowcaseBand, selectShowcaseJams } from "@/components/home/JamShowca
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
-import { useBoardStats } from "@/components/home/use-board-stats";
+import { useHomeDestinations } from "@/components/home/use-home-destinations";
 import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Section, SectionAction } from "@/components/ui/section";
-import { PROTOCOL_COUNT } from "@/data/commands";
-import { useAppTheme } from "@/lib/hooks/use-app-theme";
-import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import useDateNow from "@/lib/hooks/use-date-now";
 
 /**
- * The touch landing page.
+ * The mobile landing page.
  *
  * Mirrors the desktop hierarchy — the live jam before the navigation,
  * showcase rows before the community — minus the anchor rail, which has
@@ -35,18 +26,8 @@ import useDateNow from "@/lib/hooks/use-date-now";
 export function MobileHome() {
   const now = useDateNow();
   const nowDate = new Date(now);
-  const { theme } = useAppTheme();
-  const { setOpen: openPalette } = useCommandPalette();
-
-  const jamsRef = useRef<HTMLDivElement>(null);
-  const collabRef = useRef<HTMLDivElement>(null);
-
-  const scrollToRef = (ref: React.RefObject<HTMLElement | null>) => {
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   const { isLoading, featured, upcoming, liveCount, upcomingCount } = useHomeJams(now);
-  const { openRoles, isLoading: isLoadingStats } = useBoardStats();
 
   const hero = useMemo(() => pickHeroJam(featured), [featured]);
   const showcaseJams = useMemo(
@@ -54,32 +35,17 @@ export function MobileHome() {
     [featured, upcoming, hero],
   );
 
-  const navTiles: ShortcutTile[] = [
-    {
-      label: "LIVE JAMS",
-      stat: isLoading ? "—" : String(liveCount),
-      icon: FireIcon,
-      onClick: () => scrollToRef(jamsRef),
-    },
-    {
-      label: "OPEN ROLES",
-      stat: isLoadingStats ? "—" : String(openRoles),
-      icon: UserGroupIcon,
-      onClick: () => scrollToRef(collabRef),
-    },
-    {
-      label: "THEMES",
-      stat: theme.name,
-      icon: PaintBucketIcon,
-      onClick: () => openPalette(true),
-    },
-    {
-      label: "BOT COMMANDS",
-      stat: String(PROTOCOL_COUNT),
-      icon: ComputerTerminal01Icon,
-      onClick: () => openPalette(true),
-    },
-  ];
+  // The same four destinations and the same four numbers the desktop rail
+  // shows. These used to scroll to a section further down this page, which
+  // meant the chip row and the rail agreed on nothing — not the tiles, not
+  // the stats, not where a tap ended up.
+  const destinations = useHomeDestinations(liveCount, isLoading);
+  const navTiles: ShortcutTile[] = destinations.map((d) => ({
+    label: d.chipLabel,
+    stat: d.stat,
+    icon: d.icon,
+    to: d.to,
+  }));
 
   return (
     <div className="flex flex-col gap-8">
@@ -96,20 +62,16 @@ export function MobileHome() {
         <ShortcutTiles tiles={navTiles} />
       </div>
 
-      <div ref={jamsRef} className="scroll-mt-20">
-        <Section
-          id="jams"
-          title="JAMS"
-          blurb={`${liveCount} live · ${upcomingCount} upcoming.`}
-          action={<SectionAction to="/jams">FULL</SectionAction>}
-        >
-          <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
-        </Section>
-      </div>
+      <Section
+        id="jams"
+        title="JAMS"
+        blurb={`${liveCount} live · ${upcomingCount} upcoming.`}
+        action={<SectionAction to="/jams">FULL</SectionAction>}
+      >
+        <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
+      </Section>
 
-      <div ref={collabRef} className="scroll-mt-20">
-        <RecentCollabPosts />
-      </div>
+      <RecentCollabPosts />
 
       <NewestSignups />
     </div>

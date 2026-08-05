@@ -2,7 +2,7 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import { motion } from "framer-motion";
 
-import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ const buttonVariants = cva(
         destructive:
           "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] hover:bg-destructive/90 focus-visible:ring-destructive/30",
         outline:
-          "chonk-emboss bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
+          "chonk-emboss bg-background hover:bg-card hover:bg-muted hover:text-foreground hover:[--emboss-shadow:var(--primary)] aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-emboss-surface dark:hover:bg-muted",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
@@ -54,10 +54,13 @@ const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0
 
 type ButtonProps = ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
+    /** Opt out of the cursor's magnetic frame entirely. On by default — every
+     * button is a magnet target so the corner frame latches consistently. */
     isMagnetic?: boolean;
     /** How far the button slides toward the pointer, as a fraction of the
-     * pointer's offset from its center. Turn this down where the button
-     * should stay planted and only the cursor frame should move. */
+     * pointer's offset from its center. Defaults to the header's zero pull:
+     * the button stays planted and only the cursor frame moves. Raise it for
+     * one-off buttons that should physically drift toward the pointer. */
     magneticStrength?: number;
     notchOpts?: NotchOpts | true;
     wrapperClassName?: string;
@@ -67,13 +70,22 @@ function Button({
   className,
   variant = "default",
   size = "default",
-  isMagnetic,
-  magneticStrength = 0.2,
+  isMagnetic = true,
+  magneticStrength = HEADER_MAGNET_STRENGTH,
   notchOpts,
   wrapperClassName,
   ...props
 }: ButtonProps) {
   const { ref, position } = useMagnetic(magneticStrength);
+
+  // Every button is a magnet *target* — `data-magnetic` is what the cursor's
+  // corner frame latches onto. Physically sliding the button toward the
+  // pointer is the separate, opt-in half, and it needs a motion wrapper whose
+  // `inline-flex` changes how the button lays out in its parent. At the
+  // header's zero strength there is nothing to animate, so the marker goes
+  // straight on the button and the wrapper is skipped: same magnetization,
+  // no layout cost.
+  const drifts = isMagnetic && magneticStrength !== 0;
 
   // ── Notched variant ──────────────────────────────────────────────
   if (notchOpts) {
@@ -116,7 +128,7 @@ function Button({
       </div>
     );
 
-    if (isMagnetic) {
+    if (drifts) {
       return (
         <motion.div
           ref={ref as React.RefObject<HTMLDivElement>}
@@ -133,7 +145,16 @@ function Button({
   }
 
   // ── Standard variant ─────────────────────────────────────────────
-  if (isMagnetic) {
+  const button = (
+    <ButtonPrimitive
+      data-slot="button"
+      data-magnetic={isMagnetic ? "" : undefined}
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  );
+
+  if (drifts) {
     return (
       <motion.div
         ref={ref as React.RefObject<HTMLDivElement>}
@@ -141,23 +162,12 @@ function Button({
         transition={springTransition}
         className="relative z-10 inline-flex"
       >
-        <ButtonPrimitive
-          data-slot="button"
-          data-magnetic=""
-          className={cn(buttonVariants({ variant, size, className }))}
-          {...props}
-        />
+        {button}
       </motion.div>
     );
   }
 
-  return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  );
+  return button;
 }
 
 export { Button, buttonVariants };

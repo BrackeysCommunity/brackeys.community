@@ -185,8 +185,6 @@ export function AppHeader() {
           ) : (
             <Button
               variant="default"
-              isMagnetic
-              magneticStrength={HEADER_MAGNET_STRENGTH}
               className="px-5 text-xs font-bold tracking-widest"
               onClick={() => signInWithDiscord()}
             >

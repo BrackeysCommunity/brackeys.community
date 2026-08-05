@@ -1,6 +1,6 @@
 import { useLocation } from "@tanstack/react-router";
 import { useEventListener } from "ahooks";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 const CORNER_SIZE_MAP = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
 
@@ -96,10 +96,16 @@ export function useCursorState() {
     setState({ type: "default" });
   }, []);
 
+  // A route change leaves no `mouseout` behind — whatever the cursor was
+  // latched onto is simply unmounted — so the reset has to be by hand.
+  // Adjusted during render rather than from an effect: an effect commits the
+  // new route first and paints one frame of the old page's cursor over it.
   const { pathname } = useLocation();
-  useEffect(() => {
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
     setState({ type: "default" });
-  }, [pathname]);
+  }
 
   useEventListener("mouseover", onMouseEnter, { target: () => document.body });
   useEventListener("mouseout", onMouseLeave, { target: () => document.body });
@@ -110,11 +116,15 @@ export function useCursorState() {
 /**
  * Magnetic pull for the fixed header chrome: none.
  *
- * The default 0.2 slides a target toward the pointer, which in a bar pinned
- * over scrolling content reads as the header itself shifting. Header targets
- * stay exactly where they are and let the cursor's own corner frame do the
- * moving — they keep `data-magnetic` (that is what the frame latches onto)
+ * A non-zero strength slides a target toward the pointer, which in a bar
+ * pinned over scrolling content reads as the header itself shifting. Header
+ * targets stay exactly where they are and let the cursor's own corner frame do
+ * the moving — they keep `data-magnetic` (that is what the frame latches onto)
  * and stay off `data-cursor-no-drift`, so the frame is still free to trail.
+ *
+ * This is also `Button`'s default, so every button in the app magnetizes the
+ * cursor the same way the header chrome does. Buttons that should physically
+ * drift pass their own `magneticStrength`.
  */
 export const HEADER_MAGNET_STRENGTH = 0;
 

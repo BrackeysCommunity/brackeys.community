@@ -1,5 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
 
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
@@ -8,6 +9,9 @@ export interface ShortcutTile {
   label: string;
   stat: string;
   icon: IconSvgElement;
+  /** A destination, for chips that leave the page. Mutually exclusive with
+      `onClick` — a chip is either a link or a control, never both. */
+  to?: string;
   onClick?: () => void;
   /** Override stat text styling — e.g. for non-numeric values that don't
       look right at the default 2xl size. */
@@ -39,12 +43,18 @@ export function ShortcutTiles({ tiles }: ShortcutTilesProps) {
             </div>
           </div>
         );
-        return tile.onClick ? (
+        const render = tile.to ? (
+          <Link to={tile.to} aria-label={tile.label} />
+        ) : tile.onClick ? (
+          <button type="button" onClick={tile.onClick} aria-label={tile.label} />
+        ) : null;
+
+        return render ? (
           <Chonk
             key={tile.label}
             variant="surface"
             size="lg"
-            render={<button type="button" onClick={tile.onClick} aria-label={tile.label} />}
+            render={render}
             className="block w-auto min-w-36 shrink-0 snap-start text-left"
           >
             {inner}

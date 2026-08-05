@@ -10,7 +10,6 @@ import {
 } from "@/components/notifications/notification-utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { HEADER_MAGNET_STRENGTH } from "@/lib/hooks/use-cursor";
 import { client, orpc } from "@/orpc/client";
 
 const REFETCH_INTERVAL_MS = 30_000;
@@ -76,15 +75,7 @@ export function NotificationBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
-        render={
-          <Button
-            variant="outline"
-            size="icon-lg"
-            isMagnetic
-            magneticStrength={HEADER_MAGNET_STRENGTH}
-            className="relative"
-          />
-        }
+        render={<Button variant="outline" size="icon-lg" className="relative" />}
       >
         <HugeiconsIcon icon={Notification03Icon} size={16} />
         {count > 0 && (

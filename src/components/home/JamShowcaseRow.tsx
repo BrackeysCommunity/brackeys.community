@@ -13,7 +13,7 @@ import {
   type ShelfKind,
 } from "@/components/jams/JamCalendarPage/helpers";
 import { Badge } from "@/components/ui/badge";
-import { Chonk } from "@/components/ui/chonk";
+import { Button } from "@/components/ui/button";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
@@ -139,9 +139,10 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
               <Stat label={milestone?.label ?? "CLOSED"} value={counted?.text ?? "—"} accent />
               <Stat label={signal.label} value={signal.value.toLocaleString()} />
             </div>
-            <Chonk
-              variant="surface"
+            <Button
+              variant="outline"
               size="sm"
+              nativeButton={false}
               render={
                 <a
                   href={jamUrl(jam.slug)}
@@ -150,11 +151,11 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
                   aria-label={`Open ${jam.title}`}
                 />
               }
-              className="flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold tracking-widest text-muted-foreground hover:text-primary"
+              className="gap-1.5 text-[11px] font-bold tracking-widest text-muted-foreground hover:text-primary"
             >
               OPEN
               <HugeiconsIcon icon={ArrowRight02Icon} size={12} />
-            </Chonk>
+            </Button>
           </div>
         </div>
       </div>

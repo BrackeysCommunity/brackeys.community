@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppSettings } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
-import { HEADER_MAGNET_STRENGTH } from "@/lib/hooks/use-cursor";
 
 const ITEM_CLASS = "text-xs font-bold tracking-widest uppercase";
 
@@ -33,14 +32,7 @@ export function SettingsMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Settings"
-        render={
-          <Button
-            variant="outline"
-            size="icon-lg"
-            isMagnetic
-            magneticStrength={HEADER_MAGNET_STRENGTH}
-          />
-        }
+        render={<Button variant="outline" size="icon-lg" />}
       >
         <HugeiconsIcon icon={Settings02Icon} size={16} />
       </DropdownMenuTrigger>

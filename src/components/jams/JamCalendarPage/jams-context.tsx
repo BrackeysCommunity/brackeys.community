@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 import useDateNow from "@/lib/hooks/use-date-now";
 
 import { type BoardLayout, type BoardSort } from "./board/build-board";
@@ -52,7 +52,7 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const view = viewFromPathname(pathname);
 
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   const nowMs = useDateNow();
   const now = useMemo(() => new Date(nowMs), [nowMs]);
   // Only rebuild `today` when the UTC day actually rolls over, not on
@@ -132,7 +132,7 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
   };
 
   const value: JamsPageContextValue = {
-    compact: isTouch,
+    compact: isMobile,
     monthStart,
     today,
     now,

@@ -32,7 +32,7 @@ import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
 import { env } from "@/env";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -119,7 +119,7 @@ export function ProfileEditFlyout({
   onClose,
   onStepChange,
 }: ProfileEditFlyoutProps) {
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   const [status, setStatus] = useState<SaveStatus>("idle");
   // Track the previous step so step transitions can pick a
   // direction: forward (1→2) slides the new content in from the
@@ -174,10 +174,10 @@ export function ProfileEditFlyout({
           />
           <motion.div
             key="panel"
-            initial={isTouch ? { y: "100%" } : { x: "100%" }}
-            animate={isTouch ? { y: 0 } : { x: 0 }}
-            exit={isTouch ? { y: "100%" } : { x: "100%" }}
-            transition={isTouch ? MOBILE_TRANSITION : DESKTOP_TRANSITION}
+            initial={isMobile ? { y: "100%" } : { x: "100%" }}
+            animate={isMobile ? { y: 0 } : { x: 0 }}
+            exit={isMobile ? { y: "100%" } : { x: "100%" }}
+            transition={isMobile ? MOBILE_TRANSITION : DESKTOP_TRANSITION}
             className={cn(
               "fixed z-50 flex flex-col border-muted/30 bg-background shadow-[0_0_60px_0_rgba(0,0,0,0.4)]",
               // Mobile bottom sheet sits at a fixed two-thirds height
@@ -186,12 +186,12 @@ export function ProfileEditFlyout({
               // change ends up feeling janky no matter how it's
               // animated, so we lock the size and let the body
               // overflow.
-              isTouch
+              isMobile
                 ? "inset-x-0 bottom-0 h-[66vh] rounded-t-xl border-t"
                 : "inset-y-0 right-0 w-[28rem] max-w-[100vw] border-l",
             )}
           >
-            <FlyoutHeader profile={profile} step={step} isTouch={isTouch} onClose={onClose} />
+            <FlyoutHeader profile={profile} step={step} isMobile={isMobile} onClose={onClose} />
             <Stepper step={step} onSelect={onStepChange} />
             {/* Step content cross-fades with a slight scale + blur +
                 directional nudge on each step change. `mode="wait"`
@@ -232,17 +232,17 @@ export function ProfileEditFlyout({
 function FlyoutHeader({
   profile,
   step,
-  isTouch,
+  isMobile,
   onClose,
 }: {
   profile: ProfileViewModel;
   step: EditStep;
-  isTouch: boolean;
+  isMobile: boolean;
   onClose: () => void;
 }) {
   return (
     <div className="flex flex-col gap-2 border-b border-muted/30 px-5 pt-5 pb-4">
-      {isTouch ? (
+      {isMobile ? (
         <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-muted-foreground/30" />
       ) : null}
       <div className="flex items-start justify-between gap-3">

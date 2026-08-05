@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { LinkProps as RouterLinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Chonk } from "@/components/ui/chonk";
+import { Button } from "@/components/ui/button";
 import { Heading, Link, Text } from "@/components/ui/typography";
 
 interface SectionProps {
@@ -65,20 +65,19 @@ interface SectionActionProps {
 }
 
 /**
- * A section header's button. Same `Chonk variant="surface"` treatment as
- * the OPEN buttons inside list rows, so a page has one shape for "leave
- * this summary and go to the real thing".
+ * A section header's button. Same `outline` treatment as the OPEN buttons
+ * inside list rows, so a page has one shape for "leave this summary and go
+ * to the real thing".
  */
 export function SectionAction({ to, children }: SectionActionProps) {
   return (
-    <Chonk
-      variant="surface"
-      size="sm"
+    <Button
+      variant="outline"
+      nativeButton={false}
       render={<Link as="router" to={to} variant="inherit" />}
-      className="flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold tracking-widest whitespace-nowrap text-muted-foreground hover:text-primary"
     >
       {children}
       <HugeiconsIcon icon={ArrowRight02Icon} size={12} />
-    </Chonk>
+    </Button>
   );
 }

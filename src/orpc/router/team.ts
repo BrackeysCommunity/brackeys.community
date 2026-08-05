@@ -668,6 +668,23 @@ export const listTeams = os
     return { teams: await withTeamCardExtras(rows), total: totals?.count ?? 0 };
   });
 
+/**
+ * Two counts for the home page's teams tile. Deliberately not `listTeams`
+ * with `limit: 1` — that pays for the four card-extras round trips to read
+ * a number the caller already gets here in one.
+ */
+export const getTeamStats = os.handler(async () => {
+  const [row] = await db
+    .select({
+      active: count(),
+      recruiting: sql<number>`count(*) filter (where ${teams.recruiting})`.mapWith(Number),
+    })
+    .from(teams)
+    .where(eq(teams.status, "active"));
+
+  return { active: row?.active ?? 0, recruiting: row?.recruiting ?? 0 };
+});
+
 /** Active teams a profile belongs to — the profile page's TEAMS strip. */
 export const listUserTeams = os
   .input(z.object({ userId: z.string() }))

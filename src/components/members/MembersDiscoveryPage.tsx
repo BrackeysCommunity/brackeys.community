@@ -13,8 +13,8 @@ import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { client } from "@/orpc/client";
@@ -58,12 +58,12 @@ export function MembersDiscoveryPage() {
   const search = (useSearch({ strict: false }) as MembersSearch) ?? {};
 
   // The toggle row fits inline on a wide screen; below that it moves into
-  // the filter sheet. Keyed on the shell, not the breakpoint, for the
-  // floating controls: they sit above the bottom nav island, which only
-  // the touch shell mounts. A narrow desktop window gets the same sheet
-  // with its trigger inline.
+  // the filter sheet. Two separate thresholds: the floating controls sit
+  // above the bottom nav island, which only the mobile shell mounts, so
+  // they follow the shell's breakpoint rather than this page's wider one.
+  // In between, the sheet is there with its trigger inline.
   const isWide = useMediaQuery(WIDE_QUERY);
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
@@ -152,7 +152,7 @@ export function MembersDiscoveryPage() {
             search={search}
             setSearch={setSearch}
             onOpenFilters={isWide ? undefined : () => setFiltersOpen(true)}
-            controlsElsewhere={isTouch && !isWide}
+            controlsElsewhere={isMobile && !isWide}
           />
         </div>
         <MembersActiveFilters
@@ -196,7 +196,7 @@ export function MembersDiscoveryPage() {
         )}
       </section>
 
-      {isTouch && !isWide ? (
+      {isMobile && !isWide ? (
         <MembersFloatingControls
           search={search}
           setSearch={setSearch}

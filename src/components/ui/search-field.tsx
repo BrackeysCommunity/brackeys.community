@@ -2,7 +2,7 @@ import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type ComponentProps, forwardRef } from "react";
 
-import { Chonk } from "@/components/ui/chonk";
+import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +22,9 @@ export interface SearchFieldProps extends Omit<
 /**
  * Branded search input. Wraps `InputGroup` to inherit the debossed well
  * appearance, embeds the magnifying-glass icon as a leading addon, and
- * renders a `Chonk` × clear button on the trailing edge whenever the
- * value is non-empty. Native browser-supplied search clear/decoration
- * affordances are suppressed so only our chonk shows.
+ * renders a × clear `Button` on the trailing edge whenever the value is
+ * non-empty. Native browser-supplied search clear/decoration affordances
+ * are suppressed so only ours shows.
  */
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(function SearchField(
   { value, onChange, size = "sm", containerClassName, className, placeholder, ...rest },
@@ -49,7 +49,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
         placeholder={placeholder}
         className={cn(
           // Suppress the native WebKit/Edge search cancel/decoration
-          // affordances so only our `Chonk` clear button is visible.
+          // affordances so only our clear button is visible.
           "[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden [&::-webkit-search-results-button]:hidden [&::-webkit-search-results-decoration]:hidden",
           className,
         )}
@@ -57,14 +57,15 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
       />
       {value.length > 0 && (
         <InputGroupAddon align="inline-end">
-          <Chonk
-            variant="surface"
-            size="sm"
-            render={<button type="button" onClick={() => onChange("")} aria-label="Clear search" />}
-            className="flex h-5 w-5 items-center justify-center"
+          <Button
+            variant="outline"
+            size="icon-xs"
+            onClick={() => onChange("")}
+            aria-label="Clear search"
+            className="size-5"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />
-          </Chonk>
+          </Button>
         </InputGroupAddon>
       )}
     </InputGroup>

@@ -11,8 +11,8 @@ import { GraphPaper } from "@/components/ui/graph-paper";
 import { Kbd } from "@/components/ui/kbd";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import {
@@ -147,10 +147,10 @@ export function CollabBrowsePage() {
   const navigate = useNavigate();
   const search = (useSearch({ strict: false }) as CollabSearch) ?? {};
   const isSplit = useIsSplitView();
-  // Keyed on the shell, not the breakpoint: the floating controls sit above
-  // the bottom nav island, which only the touch shell mounts. A narrow desktop
-  // window gets the same stacked board with the controls inline.
-  const isTouch = useIsTouchDevice();
+  // Keyed on the shell's breakpoint, not this board's: the floating controls
+  // sit above the bottom nav island, which only the mobile shell mounts.
+  // Between the two the board is stacked with its controls inline.
+  const isMobile = useIsMobile();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -173,12 +173,24 @@ export function CollabBrowsePage() {
   // (`?new=1&jam=<id>`), which additionally preselects that jam. After
   // consuming the flags we strip them from the URL so back-navigation
   // doesn't loop — `jam` means "preselect", not "filter", in this pair.
+  //
+  // The split is deliberate: opening is local state adjusted during render off
+  // a routing input, while seeding the wizard store and rewriting the URL are
+  // writes to systems outside React and stay in the effect (`beginWizardCreate`
+  // is explicitly not render-safe — other mounts subscribe to that store).
+  // Comparing against the flag's last-seen value re-arms both halves, so a
+  // second arrival at `?new=1` reopens the flyout.
   const jamForNewPost = search.new ? search.jam : undefined;
+  const newFlag = Boolean(search.new);
+  const [newFlagSeen, setNewFlagSeen] = useState(false);
+  if (newFlag !== newFlagSeen) {
+    setNewFlagSeen(newFlag);
+    if (newFlag) setCreateOpen(true);
+  }
   useEffect(() => {
     if (!search.new) return;
     beginWizardCreate();
     if (jamForNewPost !== undefined) updateWizardDraft({ jamId: jamForNewPost });
-    setCreateOpen(true);
     navigate({ to: "/collab", search: {}, replace: true, resetScroll: false });
   }, [search.new, jamForNewPost, navigate]);
 
@@ -321,7 +333,7 @@ export function CollabBrowsePage() {
       >
         <CollabToolbar
           onOpenFilters={isSplit ? undefined : () => setFiltersOpen(true)}
-          controlsElsewhere={isTouch}
+          controlsElsewhere={isMobile}
         />
       </div>
       {/* A wrapper rather than the readout itself: the margin the overhang
@@ -392,7 +404,7 @@ export function CollabBrowsePage() {
         </div>
       )}
 
-      {isTouch && !isSplit ? (
+      {isMobile && !isSplit ? (
         <CollabFloatingControls onOpenFilters={() => setFiltersOpen(true)} />
       ) : null}
 
@@ -486,6 +498,7 @@ function CollabHero({ authenticated, onCreate }: { authenticated: boolean; onCre
             <Button
               variant="outline"
               size="lg"
+              nativeButton={false}
               render={<Link to="/teams" search={{ new: true }} />}
               className="tracking-widest"
             >

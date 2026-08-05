@@ -18,7 +18,6 @@ import {
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
-import { HEADER_MAGNET_STRENGTH } from "@/lib/hooks/use-cursor";
 import { profileLinkParams } from "@/lib/profile-links";
 import { truncateMiddle } from "@/lib/utils";
 
@@ -44,15 +43,7 @@ export function UserMenu({ user }: UserMenuProps) {
             let the avatar run to the border. */}
         <DropdownMenuTrigger
           aria-label="Account menu"
-          render={
-            <Button
-              variant="outline"
-              size="icon-lg"
-              isMagnetic
-              magneticStrength={HEADER_MAGNET_STRENGTH}
-              className="overflow-hidden p-0"
-            />
-          }
+          render={<Button variant="outline" size="icon-lg" className="overflow-hidden p-0" />}
         >
           <UserAvatar
             avatarUrl={user.image}

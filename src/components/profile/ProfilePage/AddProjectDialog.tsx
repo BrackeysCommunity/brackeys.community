@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES,
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
@@ -94,7 +94,7 @@ export function AddProjectDialog({
   initial,
   onSave,
 }: AddProjectDialogProps) {
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   const isEditing = initial != null;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -290,7 +290,7 @@ export function AddProjectDialog({
   // match the rest of the page's edit pattern (the profile flyout
   // uses the same edge); mobile keeps the centred `Dialog` so it
   // doesn't compete with the bottom-nav for screen real estate.
-  if (isTouch) {
+  if (isMobile) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg">

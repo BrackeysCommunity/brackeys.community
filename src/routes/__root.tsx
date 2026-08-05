@@ -18,7 +18,7 @@ import { Cursor } from "@/components/ui/cursor";
 import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
@@ -170,12 +170,12 @@ function NotificationStreamMount() {
 }
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
 
   return (
     <>
       <NotificationStreamMount />
-      {isTouch ? (
+      {isMobile ? (
         <Suspense>
           <MobileShell>{children}</MobileShell>
         </Suspense>

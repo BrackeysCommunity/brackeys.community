@@ -43,7 +43,7 @@ export function HomePage() {
         id="jams"
         title="JAMS"
         blurb={`Tracking ${liveCount} live and ${upcomingCount} upcoming jams across itch.io.`}
-        action={<SectionAction to="/jams">Jam Board</SectionAction>}
+        action={<SectionAction to="/jams">JAM BOARD</SectionAction>}
       >
         <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
       </Section>

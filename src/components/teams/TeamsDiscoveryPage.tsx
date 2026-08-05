@@ -13,8 +13,8 @@ import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { client, orpc } from "@/orpc/client";
@@ -57,12 +57,12 @@ export function TeamsDiscoveryPage() {
   const search = (useSearch({ strict: false }) as TeamsSearch) ?? {};
 
   // The toggle row fits inline on a wide screen; below that it moves into
-  // the filter sheet. Keyed on the shell, not the breakpoint, for the
-  // floating controls: they sit above the bottom nav island, which only
-  // the touch shell mounts. A narrow desktop window gets the same sheet
-  // with its trigger inline.
+  // the filter sheet. Two separate thresholds: the floating controls sit
+  // above the bottom nav island, which only the mobile shell mounts, so
+  // they follow the shell's breakpoint rather than this page's wider one.
+  // In between, the sheet is there with its trigger inline.
   const isWide = useMediaQuery(WIDE_QUERY);
-  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -95,10 +95,20 @@ export function TeamsDiscoveryPage() {
     [navigate],
   );
 
-  // `?new=1` is a one-shot: consume it so Back doesn't reopen the drawer.
+  // `?new=1` is a one-shot: open the drawer the moment the flag appears, then
+  // strip it so Back doesn't reopen. The open is adjusted during render — the
+  // flag is a routing input this component derives from, not an external
+  // system to sync with — while the URL rewrite stays in an effect, which is
+  // where navigation belongs. Tracking the flag's last-seen value re-arms the
+  // pair, so arriving with `?new=1` a second time still opens the drawer.
+  const newFlag = Boolean(search.new);
+  const [newFlagSeen, setNewFlagSeen] = useState(false);
+  if (newFlag !== newFlagSeen) {
+    setNewFlagSeen(newFlag);
+    if (newFlag) setCreateOpen(true);
+  }
   useEffect(() => {
     if (!search.new) return;
-    setCreateOpen(true);
     setSearch({ new: undefined });
   }, [search.new, setSearch]);
 
@@ -171,7 +181,7 @@ export function TeamsDiscoveryPage() {
             search={search}
             setSearch={setSearch}
             onOpenFilters={isWide ? undefined : () => setFiltersOpen(true)}
-            controlsElsewhere={isTouch && !isWide}
+            controlsElsewhere={isMobile && !isWide}
           />
         </div>
         <TeamsActiveFilters
@@ -217,7 +227,7 @@ export function TeamsDiscoveryPage() {
         )}
       </section>
 
-      {isTouch && !isWide ? (
+      {isMobile && !isWide ? (
         <TeamsFloatingControls
           search={search}
           setSearch={setSearch}

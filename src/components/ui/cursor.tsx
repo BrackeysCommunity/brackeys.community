@@ -4,11 +4,13 @@ import {
   motion,
   useMotionValue,
   useSpring,
+  useTransform,
   type AnimationPlaybackControls,
+  type MotionValue,
 } from "framer-motion";
 import * as React from "react";
 
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useCursorState } from "@/lib/hooks/use-cursor";
 import { cn } from "@/lib/utils";
 
@@ -24,18 +26,15 @@ const HOVER_GAP = 3;
 // than at four spots around it.
 const COLLAPSED = -CORNER / 2;
 
-// While the frame wraps a target, its on-screen position is the cursor spring
-// plus the corner spring: the corners are measured *relative* to where the
-// cursor spring currently is, so whatever the cursor spring has left to travel
-// shows up as slack in the frame. Both have to be tight for the frame to sit
-// still on the button, which is why these two move together.
+// Trails the pointer; only ever seen through the label and through where the
+// corners converge on release, because the corners cancel it exactly (see
+// useCornerOffset).
 const CURSOR_SPRING = { damping: 26, stiffness: 3000, mass: 0.045 };
-// Overdamped on purpose (no overshoot); settle time is roughly
-// damping/stiffness, so raising stiffness shortens the trail without changing
-// its shape. 30/400 = 75ms read as the frame coming loose from the button;
-// 42/6000 = 7ms holds the edge. Release is no longer this spring's job —
-// see CORNER_RELEASE — so tracking can be stiff without the frame snapping
-// home the instant you leave.
+// Governs the corners in *viewport* space, so while a latched target holds
+// still this spring is parked on a constant and contributes no lag no matter
+// how fast the pointer moves. What it still smooths is the target itself
+// moving — a chonk button's press/hover lift, scroll — which is the only thing
+// it should be smoothing. Overdamped (no overshoot), ~6ms slow pole.
 const CORNER_SPRING = { stiffness: 6000, damping: 42, mass: 0.05 };
 // The release is what reads as drift: for as long as it runs, the corners are
 // still crossing the gap to the tip while the pointer keeps moving, so they
@@ -47,9 +46,10 @@ const CORNER_SPRING = { stiffness: 6000, damping: 42, mass: 0.05 };
 // together, not shrink to nothing halfway across.
 const CORNER_RELEASE = { type: "spring", stiffness: 900, damping: 45, mass: 0.25 } as const;
 const FADE_TRANSITION = { duration: 0.15, ease: "easeInOut" } as const;
-// Latching on: the corners are already measured onto the target by the time
-// they become visible (the corner spring settles in ~7ms), so this is a pop
-// into place, not a flight out from the tip. The overshoot is the pop.
+// Latching on: the corners are already seated on the target by the time they
+// become visible (the first measurement jumps the corner springs there), so
+// this is a pop into place, not a flight out from the tip. The overshoot is
+// the pop.
 const CORNER_APPEAR = { duration: 0.18, ease: [0.34, 1.56, 0.64, 1] } as const;
 const CORNER_VANISH = { duration: 0.12, ease: "easeIn" } as const;
 
@@ -74,27 +74,56 @@ interface CursorProps {
   className?: string;
 }
 
+/**
+ * One corner's rendered offset inside the cursor container.
+ *
+ * The corner is stored in viewport coordinates (`abs`) because that is the
+ * frame where a hovered button is *stationary* — store it relative to the
+ * pointer instead and it becomes a moving target that the corner spring can
+ * never catch, which is drift you see as a lag on every mouse move. Cancelling
+ * the container's own transform (`base`) here rather than inside the measuring
+ * loop also means both are read in the same frame; sampling the spring from a
+ * separate rAF is off by exactly one frame of pointer travel.
+ *
+ * `latch` blends the two resting states: 1 wraps the target, 0 collapses into
+ * the pointer tip. Animating it is what plays the release, and because the
+ * blend is re-evaluated against a live `base`, the corners keep converging on
+ * the tip even while the pointer is still moving.
+ */
+function useCornerOffset(
+  abs: MotionValue<number>,
+  base: MotionValue<number>,
+  latch: MotionValue<number>,
+) {
+  return useTransform(
+    [abs, base, latch],
+    ([a, b, l]: number[]) => COLLAPSED + (a - b - COLLAPSED) * l,
+  );
+}
+
 export function Cursor({ className }: CursorProps) {
   const cursorState = useCursorState();
   const isMagnetic = cursorState.type === "magnetic";
   const isHidden = cursorState.type === "hidden";
   const bouncePx = cursorState.bounce ?? BOUNCE_PX;
 
-  const isMobile = useIsTouchDevice();
+  const isMobile = useIsMobile();
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springX = useSpring(mouseX, CURSOR_SPRING);
   const springY = useSpring(mouseY, CURSOR_SPRING);
 
-  const c0x = useMotionValue(COLLAPSED);
-  const c0y = useMotionValue(COLLAPSED);
-  const c1x = useMotionValue(COLLAPSED);
-  const c1y = useMotionValue(COLLAPSED);
-  const c2x = useMotionValue(COLLAPSED);
-  const c2y = useMotionValue(COLLAPSED);
-  const c3x = useMotionValue(COLLAPSED);
-  const c3y = useMotionValue(COLLAPSED);
+  // Viewport coordinates of each corner while latched. Meaningless at latch 0,
+  // where the blend ignores them entirely.
+  const c0x = useMotionValue(0);
+  const c0y = useMotionValue(0);
+  const c1x = useMotionValue(0);
+  const c1y = useMotionValue(0);
+  const c2x = useMotionValue(0);
+  const c2y = useMotionValue(0);
+  const c3x = useMotionValue(0);
+  const c3y = useMotionValue(0);
 
   const sc0x = useSpring(c0x, CORNER_SPRING);
   const sc0y = useSpring(c0y, CORNER_SPRING);
@@ -104,6 +133,17 @@ export function Cursor({ className }: CursorProps) {
   const sc2y = useSpring(c2y, CORNER_SPRING);
   const sc3x = useSpring(c3x, CORNER_SPRING);
   const sc3y = useSpring(c3y, CORNER_SPRING);
+
+  const latch = useMotionValue(0);
+
+  const o0x = useCornerOffset(sc0x, springX, latch);
+  const o0y = useCornerOffset(sc0y, springY, latch);
+  const o1x = useCornerOffset(sc1x, springX, latch);
+  const o1y = useCornerOffset(sc1y, springY, latch);
+  const o2x = useCornerOffset(sc2x, springX, latch);
+  const o2y = useCornerOffset(sc2y, springY, latch);
+  const o3x = useCornerOffset(sc3x, springX, latch);
+  const o3y = useCornerOffset(sc3y, springY, latch);
 
   React.useEffect(() => {
     if (isMobile) return;
@@ -126,9 +166,7 @@ export function Cursor({ className }: CursorProps) {
 
   // Off a target the corners collapse into the pointer tip — eased on the way
   // out of a magnetic target, snapped on a cold start (nothing was on screen to
-  // animate). The tween drives the spring *source*, so the (stiff) corner
-  // spring follows it rather than overriding it, and the two never disagree
-  // about where the corner is.
+  // animate).
   React.useEffect(() => {
     if (isMagnetic) return;
     stopRelease();
@@ -136,14 +174,12 @@ export function Cursor({ className }: CursorProps) {
     const releasing = wasMagneticRef.current;
     wasMagneticRef.current = false;
 
-    const values = [c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y];
-
     if (releasing) {
-      releaseAnimsRef.current = values.map((v) => animate(v, COLLAPSED, CORNER_RELEASE));
+      releaseAnimsRef.current = [animate(latch, 0, CORNER_RELEASE)];
       return;
     }
-    values.forEach((v) => v.set(COLLAPSED));
-  }, [isMagnetic, stopRelease, c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y]);
+    latch.set(0);
+  }, [isMagnetic, stopRelease, latch]);
 
   React.useEffect(() => {
     if (isMobile) return;
@@ -160,32 +196,29 @@ export function Cursor({ className }: CursorProps) {
 
     const noDrift = cursorState.noDrift ?? false;
 
-    const collapse = () => {
-      const values = [c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y];
-      const springs = [sc0x, sc0y, sc1x, sc1y, sc2x, sc2y, sc3x, sc3y];
-      values.forEach((v) => v.set(COLLAPSED));
-      springs.forEach((s) => s.jump(COLLAPSED));
-    };
+    // First measurement of a newly latched target: jump the springs onto it
+    // rather than letting them fly across the viewport from the previous
+    // target. The corners are hidden until CORNER_APPEAR pops them, so they
+    // should already be in place when they become visible.
+    let seated = false;
 
     const updateCorners = () => {
       const el = cursorState.targetElement;
       if (!el || !el.isConnected) {
-        collapse();
+        latch.set(0);
         return;
       }
       const r = el.getBoundingClientRect();
-      const cx = springX.get();
-      const cy = springY.get();
 
       const g = HOVER_GAP;
-      const v0x = r.left - BORDER - hpx - g - cx;
-      const v0y = r.top - BORDER - hpy - g - cy;
-      const v1x = r.right + BORDER + hpx + g - cs - cx;
-      const v1y = r.top - BORDER - hpy - g - cy;
-      const v2x = r.right + BORDER + hpx + g - cs - cx;
-      const v2y = r.bottom + BORDER + hpy + g - cs - cy;
-      const v3x = r.left - BORDER - hpx - g - cx;
-      const v3y = r.bottom + BORDER + hpy + g - cs - cy;
+      const v0x = r.left - BORDER - hpx - g;
+      const v0y = r.top - BORDER - hpy - g;
+      const v1x = r.right + BORDER + hpx + g - cs;
+      const v1y = r.top - BORDER - hpy - g;
+      const v2x = r.right + BORDER + hpx + g - cs;
+      const v2y = r.bottom + BORDER + hpy + g - cs;
+      const v3x = r.left - BORDER - hpx - g;
+      const v3y = r.bottom + BORDER + hpy + g - cs;
 
       c0x.set(v0x);
       c0y.set(v0y);
@@ -196,7 +229,7 @@ export function Cursor({ className }: CursorProps) {
       c3x.set(v3x);
       c3y.set(v3y);
 
-      if (noDrift) {
+      if (noDrift || !seated) {
         sc0x.jump(v0x);
         sc0y.jump(v0y);
         sc1x.jump(v1x);
@@ -206,6 +239,8 @@ export function Cursor({ className }: CursorProps) {
         sc3x.jump(v3x);
         sc3y.jump(v3y);
       }
+      seated = true;
+      if (latch.get() !== 1) latch.set(1);
     };
 
     updateCorners();
@@ -214,8 +249,9 @@ export function Cursor({ className }: CursorProps) {
     // chonk button drops by its lift height on press and rises on hover,
     // and both transitions run with the pointer sitting still — sampling on
     // pointer movement alone left the frame floating at the raised position
-    // through the whole click. This also subsumes the spring's own motion,
-    // since updateCorners reads springX/springY as it goes.
+    // through the whole click. The pointer's own motion needs no sampling at
+    // all now: these are viewport coordinates, and useCornerOffset subtracts
+    // the container transform at render time.
     let rafId = requestAnimationFrame(function tick() {
       updateCorners();
       rafId = requestAnimationFrame(tick);
@@ -224,9 +260,9 @@ export function Cursor({ className }: CursorProps) {
     return () => {
       cancelAnimationFrame(rafId);
       // Deliberately no corner reset here: on a release the collapse effect
-      // eases them into the tip (resetting first would leave that tween
-      // nothing to travel), and on a target change the effect re-runs and
-      // re-measures them in the same pass.
+      // eases the latch to 0 (resetting first would leave that tween nothing
+      // to travel), and on a target change the effect re-runs and re-measures
+      // them in the same pass.
     };
   }, [
     isMagnetic,
@@ -237,8 +273,7 @@ export function Cursor({ className }: CursorProps) {
     cursorState.noDrift,
     isMobile,
     stopRelease,
-    springX,
-    springY,
+    latch,
     c0x,
     c0y,
     c1x,
@@ -260,10 +295,10 @@ export function Cursor({ className }: CursorProps) {
   if (isMobile || isHidden) return null;
 
   const corners = [
-    { x: sc0x, y: sc0y },
-    { x: sc1x, y: sc1y },
-    { x: sc2x, y: sc2y },
-    { x: sc3x, y: sc3y },
+    { x: o0x, y: o0y },
+    { x: o1x, y: o1y },
+    { x: o2x, y: o2y },
+    { x: o3x, y: o3y },
   ];
 
   return (

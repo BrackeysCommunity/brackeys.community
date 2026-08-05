@@ -226,10 +226,16 @@
  *
  * Math guarantee: shadow_bottom = layout_bottom - chonk_y + chonk_y = layout_bottom,
  * so the shadow's bottom edge is always pinned to the same baseline.
+ *
+ * It inherits so the ::before hover pad below can read the live lift. A
+ * non-inheriting registered property resolves to its initial value inside a
+ * pseudo-element, which silently zeroes the pad's math. Every `.chonk-emboss`
+ * sets its own `--chonk-y` from `--chonk-lift`, so nothing nested picks up an
+ * ancestor's lift by accident.
  */
 @property --chonk-y {
   syntax: "<length>";
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
 
@@ -265,6 +271,17 @@
 }
 
 @layer utilities {
+  /* Scroll without a visible scrollbar. Referenced by the combobox list,
+     command list, sidebar content, and menu popups — the affordance there is
+     the clipped row at the edge, not a gutter-wide track. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .chonk-emboss {
     --chonk-lift: 2px;
     --chonk-lift-hover: 3px;
@@ -293,6 +310,33 @@
     --chonk-y: 0px;
     transition-duration: 50ms;
   }
+
+  /* Pin the hover target to page coordinates.
+     `--chonk-y` moves the element itself, so a pointer parked in the 1px band
+     the hover lift crosses leaves the element, loses :hover, drops back down,
+     lands inside again — oscillating at the 75ms transition. That band sits
+     right at the emboss, so it reads as "the emboss flickers".
+     This pad grows downward by `--chonk-y` and pulls its top down by the same
+     distance the transform moved, so `element box ∪ pad` is the same page
+     rectangle at every lift — resting, hovered, and pressed at 0: the button
+     plus the emboss band underneath it. Hovering (and clicking) the emboss
+     now counts as the button, which is what it looks like.
+     `:where()` keeps specificity at zero so a component drawing its own
+     ::before (MobileBottomNav's segment notches) still wins. */
+  @media (hover: hover) and (pointer: fine) {
+    :where(.chonk-emboss, .chonk-emboss-notched) {
+      position: relative;
+    }
+    :where(.chonk-emboss, .chonk-emboss-notched)::before {
+      content: "";
+      position: absolute;
+      top: calc(var(--chonk-y) - var(--chonk-lift));
+      right: 0;
+      bottom: calc(-1 * var(--chonk-y));
+      left: 0;
+    }
+  }
+
   .chonk-deboss {
     box-shadow: inset 0 2px 0 0 var(--deboss-shadow);
     border-color: var(--deboss-shadow);
