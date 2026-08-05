@@ -71,6 +71,9 @@ export function NodeCard(props: NodeCardProps) {
       variant="surface"
       size="xl"
       className={cn("group/node w-full min-w-0", active && pressedClasses, className)}
+      // An active toggle sits depressed and no longer lifts, so it drops out of
+      // the cursor's frame; everything else takes Chonk's default.
+      isMagnetic={active ? false : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
@@ -81,7 +84,6 @@ export function NodeCard(props: NodeCardProps) {
             type="button"
             onClick={props.onClick}
             aria-pressed={active}
-            data-magnetic={active ? undefined : true}
             data-cursor-no-drift
             data-cursor-corner-size="lg"
             className="flex w-full min-w-0 flex-col overflow-hidden p-4 text-left"
@@ -90,7 +92,6 @@ export function NodeCard(props: NodeCardProps) {
         ) : (
           <Link
             to={props.to}
-            data-magnetic
             data-cursor-no-drift
             data-cursor-corner-size="lg"
             className="flex w-full min-w-0 flex-col overflow-hidden p-4"

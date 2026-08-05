@@ -38,6 +38,14 @@ const chonkVariants = cva(
 type ChonkProps = useRender.ComponentProps<"div"> &
   VariantProps<typeof chonkVariants> & {
     notchOpts?: NotchOpts | true;
+    /**
+     * Whether the cursor's corner frame latches onto this chonk. Defaults to
+     * on for interactive chonks — one rendered as a link/button or given an
+     * `onClick` — and off for the static embossed surfaces (stat tiles,
+     * monogram squares) that have no hover state to mark. Pass `false` to opt
+     * a hoverable chonk out, e.g. while it sits depressed as the active item.
+     */
+    isMagnetic?: boolean;
   };
 
 /**
@@ -48,14 +56,36 @@ type ChonkProps = useRender.ComponentProps<"div"> &
  * Pass `render={<Link to="…" />}` or any element via base-ui's useRender to
  * control the rendered tag (the default is `<div>`).
  */
-function Chonk({ className, variant, size, notchOpts, render, style, ...props }: ChonkProps) {
+function Chonk({
+  className,
+  variant,
+  size,
+  notchOpts,
+  isMagnetic,
+  render,
+  style,
+  ...props
+}: ChonkProps) {
   const resolved = notchOpts
     ? resolveNotchOpts(notchOpts === true ? { size: 8 } : notchOpts)
     : null;
 
+  // Every hoverable chonk is a magnet target, the same way every Button is —
+  // `data-magnetic` is what the cursor's corner frame latches onto, and a tile
+  // that lifts under the pointer should be framed like one. A chonk is
+  // hoverable when it renders something clickable or takes an `onClick`; the
+  // bare embossed surfaces stay out of it.
+  const magnetic = isMagnetic ?? Boolean(render || props.onClick);
+  // `data-*` isn't part of base-ui's prop type, so the marker rides in as its
+  // own merged set rather than inline in the literal below.
+  const magneticProps = {
+    "data-magnetic": magnetic ? "" : undefined,
+  } as React.HTMLAttributes<HTMLDivElement>;
+
   const chonk = useRender({
     defaultTagName: "div",
     props: mergeProps<"div">(
+      magneticProps,
       {
         className: cn(
           chonkVariants({ variant, size }),

@@ -194,13 +194,31 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 const STRIP_SCROLLER =
   "flex snap-x scroll-px-3 gap-2 overflow-x-auto px-3 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
+/**
+ * What the strip is actually ordered by, or null when it isn't ordered by
+ * anything the reader would recognize.
+ *
+ * The server sorts on Overall placement, then ratings received, then
+ * `coolness`, then entry id (see `topEntriesQuery`). Before a jam opens
+ * voting none of the first three exist — every entry sits at zero ratings and
+ * zero coolness — so the strip is really in submission order, and claiming
+ * "BY RATINGS" over a row of ties reads as a ranking that was never computed.
+ * Ratings are the submitter-facing number on itch, so a strip with any of them
+ * is honestly described that way even before placements are published.
+ */
+export function entrySortLabel(entries: TopEntry[]): string | null {
+  if (entries.some((e) => e.rank != null)) return "BY PLACEMENT";
+  if (entries.some((e) => e.ratingCount > 0)) return "BY RATINGS";
+  return null;
+}
+
 function EntryStrip({ entries }: { entries: TopEntry[] }) {
-  const ranked = entries.some((e) => e.rank != null);
+  const sortLabel = entrySortLabel(entries);
   return (
     <div className="relative border-t border-muted/30">
       <div className="flex items-center gap-2 px-3 py-2">
         <MicroLabel>TOP ENTRIES</MicroLabel>
-        <MicroLabel variant="accent">· {ranked ? "BY PLACEMENT" : "BY RATINGS"}</MicroLabel>
+        {sortLabel && <MicroLabel variant="accent">· {sortLabel}</MicroLabel>}
       </div>
       <div className={STRIP_SCROLLER}>
         {entries.slice(0, TOP_ENTRIES_PER_JAM).map((entry) => (
