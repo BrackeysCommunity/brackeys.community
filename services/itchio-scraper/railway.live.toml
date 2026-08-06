@@ -1,0 +1,25 @@
+# Config-as-code for the LIVE cron service — the perishable tier.
+#
+# Re-syncs every jam that has started and hasn't finished (~280 today): jam
+# page + entries.json each. The entries fetch is the point — it is the only
+# capture of submissions added since the last tick, so the cadence here is the
+# freshness of the whole product.
+#
+# Create a service pointing at this repo, leave Root Directory blank (the
+# Dockerfile builds from the repo root so it can copy src/db/schema.ts), set
+# "Config file path" to services/itchio-scraper/railway.live.toml, and
+# reference the shared DATABASE_URL variable.
+#
+# Runs at :00. The three tiers are deliberately staggered — the itch.io rate
+# pacer is per-process, so overlapping services multiply the request rate itch
+# sees. LIVE_DEADLINE_MINS (default 45) bounds the run so it can't drift into
+# the next slot; stopping early is free, since the next tick resumes.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/itchio-scraper/Dockerfile"
+
+[deploy]
+startCommand = "bun run live"
+cronSchedule = "0 * * * *"
+restartPolicyType = "NEVER"

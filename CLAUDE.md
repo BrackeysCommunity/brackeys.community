@@ -115,3 +115,8 @@ passes `timeZone: "UTC"` — pairing a local month label with a
 
 **Adoption rule:** a PR touching a file that still carries one of the
 left-column patterns converts that file. New code never introduces them.
+
+**Overcommenting:** avoid overcommenting in code, specially to describe something asked in a
+single chat because that will not make sense to the user. And if you run into anything that is too heavily
+commented with chat-context-specific information (like a specific bug fixed at some point), reduce to
+what is actually relevant to a current dev

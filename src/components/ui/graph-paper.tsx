@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 const FADE = {
   bottom: "to bottom",
   "bottom-left": "to bottom left",
+  "bottom-right": "to bottom right",
 } as const;
 
 export interface GraphPaperProps {

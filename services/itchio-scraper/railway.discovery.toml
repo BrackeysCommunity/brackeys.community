@@ -1,0 +1,26 @@
+# Config-as-code for the DISCOVERY cron service — finding jams we don't hold.
+#
+# Walks /jams/upcoming, /jams/in-progress, the brackeys search, and
+# /jams/past/sort-date (bounded by ENDED_LOOKBACK_DAYS), ingests every slug not
+# already in itch.jams, then refreshes DISCOVERY_UPCOMING_LIMIT
+# announced-but-not-started jams staleest-first.
+#
+# Separate from the live tier because the cost is near-constant (~16 page
+# fetches regardless of how many jams exist) and none of it is time sensitive —
+# a jam found an hour late hasn't started yet.
+#
+# Create a service pointing at this repo, leave Root Directory blank, set
+# "Config file path" to services/itchio-scraper/railway.discovery.toml, and
+# reference the shared DATABASE_URL variable.
+#
+# Runs at :20, between the live tier (:00) and results (:40) — see
+# railway.live.toml for why the stagger matters.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/itchio-scraper/Dockerfile"
+
+[deploy]
+startCommand = "bun run discover"
+cronSchedule = "20 * * * *"
+restartPolicyType = "NEVER"

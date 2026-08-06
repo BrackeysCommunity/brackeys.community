@@ -6,6 +6,9 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "live": "bun run src/jobs/sync-live.ts",
+    "discover": "bun run src/jobs/discover.ts",
+    "results": "bun run src/jobs/collect-results.ts",
     "start": "bun run src/index.ts",
     "backfill": "bun run src/jobs/backfill-history.ts",
     "drain": "bun run src/jobs/drain-results.ts",

@@ -1,0 +1,32 @@
+# Config-as-code for the RESULTS cron service — ranking collection.
+#
+# Collects per-criterion rankings for finished jams that still have entries
+# with results_fetched_at IS NULL, off the bulk /jam/{slug}/results listing
+# (~1 request per 20 entries), falling back to per-entry rate pages for jams
+# whose host never published a results listing. No discovery, no jam-page or
+# entries.json refetch — a jam that is over is frozen.
+#
+# Six-hourly because this is the least urgent work the scraper does (a finished
+# jam's scores never change) and the only part whose size is unbounded — one
+# large jam ending adds thousands of pending entries at once. Sharing a tick
+# with the live jams put an unbounded, worthless-to-hurry job in front of
+# perishable work.
+#
+# RESULTS_DEADLINE_MINS (default 240) bounds the run. Stopping early is free:
+# results_fetched_at is stamped per entry, so the next tick resumes exactly
+# where this one stopped.
+#
+# Create a service pointing at this repo, leave Root Directory blank, set
+# "Config file path" to services/itchio-scraper/railway.results.toml, and
+# reference the shared DATABASE_URL variable.
+#
+# Runs at :40 — see railway.live.toml for why the stagger matters.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/itchio-scraper/Dockerfile"
+
+[deploy]
+startCommand = "bun run results"
+cronSchedule = "40 */6 * * *"
+restartPolicyType = "NEVER"

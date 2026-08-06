@@ -81,9 +81,11 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
         style={{ background: `color-mix(in srgb, ${jamColor} 9%, transparent)` }}
       />
       <div className={cn("relative flex flex-col sm:flex-row", mirrored && "sm:flex-row-reverse")}>
-        {/* itch banners vary wildly in aspect — a fixed-aspect box with
-            object-cover is the only crop that behaves for all of them, and
-            the theme-color fill covers the jams with no art at all. */}
+        {/* itch banners vary wildly in aspect, and most of them carry the
+            jam's name as art — cropping to the box swallowed it. The whole
+            banner is letterboxed `object-contain` against the jam's own itch
+            theme color, the same way the board's cards do it; the fill
+            doubles as the art for jams with no banner at all. */}
         <div
           className="relative aspect-[16/7] w-full shrink-0 overflow-hidden sm:aspect-auto sm:h-auto sm:w-56 lg:w-72"
           style={{ background: jamColor }}
@@ -93,7 +95,7 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
               src={jam.bannerUrl}
               alt=""
               aria-hidden
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-contain"
             />
           ) : (
             <Text

@@ -12,9 +12,8 @@ import { markUnratableEntriesFetched, upsertEntries, upsertJam } from "./sync-ja
  * One-off, resumable historical backfill: walks /jams/past/sort-date (end
  * date descending, ~420 pages back to 2014) and ingests every jam not yet in
  * `itch.jams` — jam metadata plus entries. Per-criterion rankings are left to
- * the nightly cron, which drains entries with `results_fetched_at IS NULL`
- * through its pending-results bucket; entries with zero ratings are pre-marked
- * here since they can't rank.
+ * the `results` cron tier, which drains entries with `results_fetched_at IS
+ * NULL`; entries with zero ratings are pre-marked here since they can't rank.
  *
  * Resumability comes from idempotence: already-persisted jams are skipped, so
  * re-running after an interruption continues where the previous run got to.
@@ -42,7 +41,7 @@ export type PersistedJamRow = {
 /**
  * A jam only counts as done for backfill purposes when its entries made it in
  * too — a run killed between the jam upsert and the entries upsert must
- * re-ingest on resume. Non-terminal jams are the nightly cron's job either
+ * re-ingest on resume. Non-terminal jams are the live tier's job either
  * way, and jams reporting zero entries have nothing further to fetch.
  */
 export function isIngestComplete(row: PersistedJamRow): boolean {

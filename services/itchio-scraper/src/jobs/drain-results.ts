@@ -1,22 +1,19 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
-
-import { type ItchJamStatus, itchJamEntries, itchJams } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
-import { db, pool } from "../db/client.ts";
+import { pool } from "../db/client.ts";
 import { describeError } from "../http.ts";
+import { pendingJams } from "./selectors.ts";
 import { syncEntryResults } from "./sync-jam.ts";
 
 /**
- * One-off, resumable drain of pending per-criterion rankings — and nothing
- * else. No listing discovery, no jam-page or entries.json refetch: it walks
- * finished jams that still have entries with `results_fetched_at IS NULL` and
- * pulls their rankings off the bulk `/jam/{slug}/results` listing.
+ * Manual, resumable drain of pending per-criterion rankings — the on-demand
+ * counterpart to the `results` cron tier, which works the same set on a
+ * schedule ([collect-results.ts](./collect-results.ts)).
  *
- * Exists so a backlog can be worked through without retuning the nightly cron.
- * The nightly run syncs live jams and discovery first — correctly, since their
- * entry lists are perishable while finished jams' rankings are frozen — and
- * only reaches ranking collection at the end of the tick (see `orderedSlugs`
- * in index.ts). This job skips straight to the collection.
+ * Kept as a separate entrypoint because the two are used differently: the tier
+ * runs unattended on a deadline, while this one is reached for interactively
+ * when a backlog needs working through now, with a jam cap, a time box, and an
+ * ordering chosen for the situation. Both share `pendingJams` and
+ * `syncEntryResults`, so they can't disagree about what's pending.
  *
  * Resumability is inherent: `results_fetched_at` is stamped per entry, so an
  * interrupted run loses nothing and a re-run continues where it stopped.
@@ -36,45 +33,6 @@ import { syncEntryResults } from "./sync-jam.ts";
  */
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-export type DrainCandidate = {
-  jamId: number;
-  slug: string;
-  status: ItchJamStatus;
-  pending: number;
-};
-
-/**
- * Finished jams still carrying unfetched rankings, most valuable first.
- *
- * Only `over` jams qualify: a jam still in voting has moving scores, and the
- * nightly sync owns it. Jams and entries stamped missing are excluded — their
- * pages 404.
- */
-export async function pendingJams(order: "newest" | "smallest"): Promise<DrainCandidate[]> {
-  const pending = sql<number>`count(*)::int`;
-  return await db
-    .select({
-      jamId: itchJams.jamId,
-      slug: itchJams.slug,
-      status: itchJams.status,
-      pending,
-    })
-    .from(itchJams)
-    .innerJoin(itchJamEntries, eq(itchJamEntries.jamId, itchJams.jamId))
-    .where(
-      and(
-        eq(itchJams.status, "over"),
-        isNull(itchJams.missingSince),
-        isNull(itchJamEntries.resultsFetchedAt),
-        isNull(itchJamEntries.missingSince),
-      ),
-    )
-    .groupBy(itchJams.jamId, itchJams.slug, itchJams.status, itchJams.endsAt)
-    // `nulls last` matters: Postgres sorts NULLs first on DESC, which would put
-    // undated jams ahead of the recent ones this ordering exists to prioritize.
-    .orderBy(order === "smallest" ? pending : sql`${itchJams.endsAt} desc nulls last`);
-}
 
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];

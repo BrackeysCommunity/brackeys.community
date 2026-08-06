@@ -145,8 +145,8 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
 /**
  * Entries with zero ratings can't rank — itch renders no results table for
  * them, so fetching their rate page is a guaranteed no-op. Mark them fetched
- * up front so they leave the pending pool (and the resync bucket) for good.
- * Shared by the nightly sync and the historical backfill.
+ * up front so they leave the pending pool (and the results tier) for good.
+ * Shared by the per-jam sync and the historical backfill.
  */
 export async function markUnratableEntriesFetched(jamId: number): Promise<number> {
   const marked = await db
@@ -393,9 +393,9 @@ async function syncEntryResultsPerEntry(
  * A persisted jam whose page now 404s was deleted on itch — or itch served a
  * spurious 404. Nothing is deleted either way: the row is stamped
  * missing_since and keeps being retried until the stamp is older than
- * MISSING_RETRY_DAYS, at which point it drops out of the resync bucket (see
- * index.ts) and waits for manual verification. A later successful scrape
- * clears the stamp.
+ * MISSING_RETRY_DAYS, at which point it drops out of every tier's selector
+ * (see jobs/selectors.ts) and waits for manual verification. A later
+ * successful scrape clears the stamp.
  */
 async function markJamMissing(slug: string) {
   const stamped = await db
@@ -423,8 +423,8 @@ export type TerminalJamRow = {
  *
  * A jam reaches "over" and its submission list, rating counts, and metadata
  * stop changing — so the two requests spent re-reading them are pure waste. The
- * resync bucket holds ~4,800 such jams, which is ~9,600 requests per run
- * fetching data that provably can't have changed, ahead of any results work.
+ * results tier holds thousands of such jams, and refetching them would be
+ * that many requests spent on data that provably can't have changed.
  *
  * Deliberately conservative: a jam that is still running, is stamped missing
  * (its page needs re-checking to confirm it 404s or came back), or has no
@@ -467,7 +467,7 @@ async function resultsOnlyTarget(slug: string): Promise<ResultsTarget | null> {
 export async function syncJam(slug: string) {
   const started = Date.now();
 
-  // Finished jams in the resync bucket only need their pending results drained.
+  // Finished jams only need their pending results drained.
   const terminal = await resultsOnlyTarget(slug);
   if (terminal) {
     const results = await syncEntryResults(terminal);

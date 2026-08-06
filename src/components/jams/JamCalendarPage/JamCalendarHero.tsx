@@ -2,6 +2,7 @@ import { ArrowDataTransferHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Chonk } from "@/components/ui/chonk";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { Heading, InlineCode, Text } from "@/components/ui/typography";
 
 import type { ViewMode } from "./helpers";
@@ -110,9 +111,10 @@ export function JamCalendarHero({
               render={<button type="button" />}
               onClick={() => onStatClick(tile.key)}
               aria-label={`Jump to ${tile.label.toLowerCase()}`}
-              className="flex min-w-28 cursor-pointer flex-col justify-between gap-2 px-4 py-3 text-left"
+              className="flex min-w-28 cursor-pointer flex-col justify-between gap-2 overflow-hidden px-4 py-3 text-left"
             >
-              <Text as="div" size="xs" variant="muted" density="dense" className="tracking-widest">
+              <GraphPaper fade="bottom-right" fadeStop="90%" size={12} />
+              <Text as="div" size="sm" density="dense" className="relative tracking-wide">
                 {tile.label}
               </Text>
               <Text
@@ -121,7 +123,7 @@ export function JamCalendarHero({
                 variant="accent"
                 density="dense"
                 align="right"
-                className="text-2xl tabular-nums"
+                className="relative text-2xl tabular-nums"
               >
                 {stats[tile.key]}
               </Text>

@@ -12,7 +12,7 @@ describe("isIngestComplete", () => {
     expect(isIngestComplete({ status: "over", entriesCount: null, hasEntries: false })).toBe(true);
   });
 
-  test("a non-terminal jam is the nightly cron's job, not the backfill's", () => {
+  test("a non-terminal jam is the live tier's job, not the backfill's", () => {
     expect(isIngestComplete({ status: "in-progress", entriesCount: 10, hasEntries: false })).toBe(
       true,
     );

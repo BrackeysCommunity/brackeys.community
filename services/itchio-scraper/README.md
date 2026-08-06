@@ -1,7 +1,25 @@
 # itch.io Scraper — Railway Deployment
 
-Railway cron job that scrapes itch.io jam data (metadata, entries,
-per-submission rankings) and syncs it into the main brackeys Postgres DB.
+Railway cron jobs that scrape itch.io jam data (metadata, entries,
+per-submission rankings) and sync it into the main brackeys Postgres DB.
+
+The scrape runs as **three independent cron services**, split by how
+perishable their work is. They build the same image from the same Dockerfile
+and share one config module and one set of scrapers — only the entrypoint and
+the schedule differ.
+
+| Tier          | Schedule        | Command            | Works                                                        |
+| ------------- | --------------- | ------------------ | ------------------------------------------------------------ |
+| **live**      | hourly, `:00`   | `bun run live`     | jams that have started and haven't finished (~285)           |
+| **discovery** | hourly, `:20`   | `bun run discover` | the four listing walks, jams we don't hold, upcoming refresh |
+| **results**   | 6-hourly, `:40` | `bun run results`  | ranking collection for finished jams                         |
+
+They were one nightly tick until the coupling became the problem: ranking
+collection is unbounded in size and worthless to hurry (a finished jam's scores
+never change), while re-syncing open jams is small, bounded, and the only thing
+that captures new submissions. Sharing a schedule meant the least urgent work
+set the cadence for the most urgent, and every open jam waited up to 24 hours
+for a refresh.
 
 ## What it scrapes
 
@@ -22,51 +40,81 @@ for the investigation that removed Browserless).
 | `/jam/{jamId}/entries.json`                 | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors — undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries) |
 | `/jam/{slug}/rate/{gameId}`                 | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                                                                                                                                   |
 
-### How slugs are chosen each tick
+### How each tier picks its jams
 
-The sync set is the union of six buckets, and **the order below is the order
-they sync in** — it's load-bearing, enforced by `orderedSlugs` in
-[src/index.ts](./src/index.ts), and covered by tests. Perishable work runs
-first: a live jam's entry list changes under us, so a submission added today is
-only captured by a sync that happens while the jam is still open. A finished
-jam's rankings are frozen, so collecting them can safely wait. A slug in
-several buckets syncs once, at its earliest position.
+Every selector lives in [src/jobs/selectors.ts](./src/jobs/selectors.ts), in one
+place because they are now the seam between three services — a jam that falls
+out of every tier stops being scraped at all.
 
-1. **Persisted re-sync** — every slug already in `itch.jams` with
-   `status != 'over'`: upcoming, running, and in-voting jams. Runs first
-   because these are the jams gaining submissions.
-2. **Upcoming discovery** — every slug on every page of `/jams/upcoming`,
-   walked until itch stops rendering a "Next" pager link. Always synced so
-   we catch newly-announced jams as soon as they appear.
-3. **In-progress discovery** — every slug on every page of
-   `/jams/in-progress`. Overlaps heavily with persisted re-sync (dedupe
-   handles that); its job is jams whose first appearance we missed while
-   they were upcoming.
-4. **Brackeys backfill** — every slug from every page of
-   `/search?q=brackeys&type=jams` **that isn't already in `itch.jams`**.
-   Brings in historical Brackeys jams (brackeys-1 … brackeys-15) the first
-   time we see them, then drops out of the bucket forever.
-5. **Recently-ended backfill** — every slug from `/jams/past/sort-date`
-   (end date descending, walked until the cutoff) that ended within
-   `ENDED_LOOKBACK_DAYS` **and isn't already in `itch.jams`**. This is the
-   outage-recovery bucket: jams that were created and finished entirely
-   between successful runs are otherwise invisible to the other buckets
-   forever (as happened in the June 2026 outage).
-6. **Ratings collection** — jams at `status = 'over'` that still have entries
-   with `results_fetched_at IS NULL`. Runs last and takes whatever request
-   budget is left; these cost no metadata requests, since `syncJam` takes the
-   results-only path for terminal jams. Terminal jams with everything
-   collected are in no bucket at all, so we don't burn cycles re-scraping
-   hundreds of historical submissions every tick.
+**live** ([sync-live.ts](./src/jobs/sync-live.ts)) — jams with
+`status != 'over'` whose `starts_at` has passed (a null `starts_at` counts as
+started). Jam page + `entries.json` each. The entries fetch is the whole point:
+it is the only capture of submissions added since the last tick, and a missed
+window while a jam is open is not recoverable later.
 
-A run cut short (redeploy, platform restart) therefore drops ranking
-collection rather than discovery — recoverable, since the next tick re-queues
-the same jams and `bun run drain` catches up on demand, whereas a missed
-entries.json window is not.
+Keyed on dates rather than `status`, which matters in two directions. A jam
+whose stored status lags reality is still selected and gets corrected by the
+re-scrape — that is what `resync-stale` had to exist to do when the tick keyed
+off status alone. And a jam whose deadline just passed is still selected, so
+the run that flips it to `over` is the same one that hands it to the results
+tier, within an hour of the jam finishing rather than at the next midnight.
+
+Ordered **staleest-first**, which is what makes a truncated tick self-healing.
+itch's rate limiter does cut runs short (a 429 costs a 60s pool-wide cooldown),
+and unordered, the next tick would re-read the same arbitrary prefix while the
+tail was never synced at all. Ordering by `scraped_at` sends the jams just
+synced to the back of the queue, so every open jam is visited before any is
+visited twice.
+
+**discovery** ([discover.ts](./src/jobs/discover.ts)) — walks all four
+listings, then syncs the slugs **not already in `itch.jams`**, in this order:
+
+1. `/jams/in-progress` — a jam we've never seen that is _already_ running is
+   accruing submissions right now, so it should reach the live tier's set this
+   tick rather than next.
+2. `/jams/upcoming` — newly announced jams.
+3. `/search?q=brackeys&type=jams` — historical Brackeys jams (brackeys-1 …
+   brackeys-15) the first time we see them, then never again.
+4. `/jams/past/sort-date`, walked until `ENDED_LOOKBACK_DAYS` — the
+   outage-recovery walk. Jams created _and_ finished between successful runs
+   are invisible to every other selector forever (as happened in the June 2026
+   outage).
+
+Persisted jams are skipped here: open ones belong to the live tier, and
+upcoming ones are covered by the round-robin below.
+
+Then it refreshes `DISCOVERY_UPCOMING_LIMIT` (default 25)
+announced-but-not-started jams, staleest-first. These are the complement of the
+live tier's set within the non-terminal jams, and the reason discovery refreshes
+anything at all: an upcoming jam's dates and description do get edited, and
+nothing else would notice until the jam started. They're cheap but numerous
+(~205, some starting years out) and none of it is perishable, so the pool
+round-robins — ~2 full turnovers a day for ~600 requests, against ~10k to
+refresh all of them hourly. Ingestion runs first: a jam we don't hold is
+invisible in the product, while a stale upcoming jam is merely slightly wrong.
+
+**results** ([collect-results.ts](./src/jobs/collect-results.ts)) — jams at
+`status = 'over'` that still have entries with `results_fetched_at IS NULL`,
+newest first. These cost no metadata requests; `syncEntryResults` reads the bulk
+`/jam/{slug}/results` listing. Terminal jams with everything collected are in no
+tier at all, so we don't burn cycles re-scraping historical submissions.
 
 The `/jams` calendar page is intentionally **not** scraped — it only encodes
 dates as CSS pixels and gives us nothing the per-jam page doesn't already
 provide.
+
+### Why the schedules are staggered
+
+The itch.io rate pacer (`MIN_REQUEST_INTERVAL_MS`) is **per-process**. Three
+services running concurrently would triple the request rate itch sees, which
+the pacer has no way to know about. So the tiers run at `:00`, `:20`, and `:40`,
+and each carries a `*_DEADLINE_MINS` that bounds its run well inside its slot.
+
+Stopping at a deadline is always free. Every tier's progress is persisted —
+`scraped_at` for the two jam-syncing tiers, `results_fetched_at` per entry for
+results — so the next tick resumes from it rather than restarting. Railway also
+skips a cron tick while the previous run of _that same service_ is still going,
+so a slow tier starves only itself.
 
 ## Schema
 
@@ -91,23 +139,46 @@ Staging and prod migrations run automatically via
 
 ## Railway setup
 
-This service runs as a **Railway cron job** — the process starts on
-each schedule tick, runs the scrape to completion, and exits. No resident
-daemon, no `node-cron`.
+Each tier is a **Railway cron job** — the process starts on each schedule tick,
+runs to completion, and exits. No resident daemon, no `node-cron`. All three
+build the same image from the same Dockerfile; only the config file differs.
 
-1. **Create a new service** pointing at this repo.
-2. **Leave Root Directory blank** — the Dockerfile uses the repo root as its
-   build context so it can copy `src/db/schema.ts` into the image.
-3. **Set the Dockerfile Path** to `services/itchio-scraper/Dockerfile`
-   (also set in `railway.toml`).
-4. **Cron schedule** is configured in `railway.toml` via `cronSchedule`
-   (daily 00:00 UTC). Override in the Railway dashboard under Settings →
-   Cron Schedule if you want a different cadence. Note that a `railway
-redeploy` of a cron service only re-arms the schedule; to force an
-   immediate run, use the dashboard's run button (or the GraphQL
-   `deploymentRestart` mutation).
-5. **Environment variables** — see [`.env.example`](./.env.example). Minimum:
-   - `DATABASE_URL` — reference the Railway Postgres service variable
+Create **three services**, all pointing at this repo, each with:
+
+1. **Root Directory blank** — the Dockerfile uses the repo root as its build
+   context so it can copy `src/db/schema.ts` into the image.
+2. **Config file path** set to the tier's toml:
+   - [`services/itchio-scraper/railway.live.toml`](./railway.live.toml)
+   - [`services/itchio-scraper/railway.discovery.toml`](./railway.discovery.toml)
+   - [`services/itchio-scraper/railway.results.toml`](./railway.results.toml)
+
+   Each pins its own `startCommand` and `cronSchedule`. Override a schedule in
+   the dashboard under Settings → Cron Schedule if needed, but keep the stagger.
+
+3. **`DATABASE_URL`** referencing the database service's variable. Everything
+   else is optional — see [`.env.example`](./.env.example). The tiers read one
+   shared config, so a single shared variable group works.
+
+Note that a `railway redeploy` of a cron service only re-arms the schedule; to
+force an immediate run, use the dashboard's run button (or the GraphQL
+`deploymentRestart` mutation).
+
+### Migrating from the single pre-split service
+
+The old service runs `bun run start`, which still works — [src/index.ts](./src/index.ts)
+is now a shim that runs all three tiers back to back in one process, in
+priority order. That keeps the pre-split service correct but on one schedule,
+which is exactly the coupling the split removes, so it's a bridge and not a
+destination.
+
+Cut over **additively**, so there's never a window where nothing is scraping:
+
+1. Stand up the three new services as above.
+2. Watch one tick of each in the run logs (`[live] synced …/… jams`,
+   `[discover] listings: …`, `[results] jams=…`).
+3. Only then delete — or pause the cron on — the old combined service.
+4. Delete `src/index.ts`, its test, and `railway.toml` once the old service is
+   gone.
 
 ## Running locally
 
@@ -117,14 +188,23 @@ bun install
 cp .env.example .env
 # edit .env — point DATABASE_URL at a local or staging DB
 
-bun run start
+bun run live       # open jams
+bun run discover   # listings + new jams + upcoming refresh
+bun run results    # ranking collection
+```
+
+Bound an exploratory run so it doesn't walk the whole set — the deadline is
+checked before each jam, so a jam is never left half-written:
+
+```bash
+LIVE_DEADLINE_MINS=1 bun run live
 ```
 
 ## Historical backfill
 
 `bun run backfill` walks `/jams/past/sort-date` (~420 pages, back to 2014) and
 ingests every jam not yet persisted — metadata + entries, with zero-rating
-entries pre-marked so the nightly cron only drains rate pages that can actually
+entries pre-marked so the results tier only drains rate pages that can actually
 rank. It is idempotent and resumable: a jam only counts as done once its
 entries landed, so interrupting mid-run (SIGTERM, crash, redeploy) is safe —
 re-running continues where it left off. Knobs: `BACKFILL_MAX_JAMS` (cap per
@@ -148,9 +228,9 @@ invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
 
 ## Draining the ratings backlog by hand
 
-Two one-off jobs work the `results_fetched_at IS NULL` backlog outside the
-nightly cron. Both are resumable — progress is persisted per entry, so an
-interrupted run loses nothing. From the repo root:
+Two manual jobs work the `results_fetched_at IS NULL` backlog on demand, rather
+than waiting for the six-hourly results tier. Both are resumable — progress is
+persisted per entry, so an interrupted run loses nothing. From the repo root:
 
 ```bash
 bun run railway:scraper:drain    # collect rankings for finished jams
@@ -179,6 +259,11 @@ in the same pass. Scoped to jams whose `voting_ends_at` — or `ends_at`, for
 jams with no voting phase — has already passed. Knobs: `RESYNC_MAX_JAMS`,
 `RESYNC_DELAY_MS`.
 
+Since the split, `resync` should rarely have anything to do: the live tier
+selects on dates rather than `status`, so a jam carrying a stale status is
+picked up and corrected within the hour. It's kept for forcing that correction
+immediately, and as the fallback if the live tier is ever wedged.
+
 If a `results_fetched_at IS NULL` count looks large but `drain` reports nothing
 to do, run `resync` and then re-check. A count that stays high after both is
 expected and healthy: it's dominated by jams still taking submissions or still
@@ -199,10 +284,16 @@ drain on their own as voting closes.
 - **Polite pacing.** Every itch.io request flows through one global pacer
   (`MIN_REQUEST_INTERVAL_MS` between any two requests, shared by all
   workers); a 429/503 pauses the whole pool for `Retry-After` (or
-  `RATE_LIMIT_COOLDOWN_MS` when itch doesn't send one).
+  `RATE_LIMIT_COOLDOWN_MS` when itch doesn't send one). The pacer is
+  **per-process**, so it only holds within one tier — the schedule stagger and
+  the per-tier deadlines are what keep the _aggregate_ rate polite.
+- **A truncated tick loses nothing.** Both jam-syncing tiers select
+  staleest-first and every tier persists progress as it goes, so a run cut
+  short by its deadline, a redeploy, or a rate-limit storm resumes at the tail
+  rather than restarting at the head.
 - **Nothing is ever deleted.** A jam or entry that 404s or drops off itch is
   stamped `missing_since` instead of being removed. Missing jams keep being
-  retried for `MISSING_RETRY_DAYS`, then drop out of the resync bucket; a
+  retried for `MISSING_RETRY_DAYS`, then drop out of every tier's selector; a
   later successful scrape (or an entry being listed again) clears the stamp.
   Slugs reused by a new jam get their displaced row parked under
   `<slug>--displaced-<jam_id>`. Review what's accumulated with:
@@ -214,4 +305,7 @@ drain on their own as voting closes.
   ```
 
 - **Exit code reflects success.** If any jam fails the process exits
-  non-zero, so Railway's run logs flag failed ticks clearly.
+  non-zero, so Railway's run logs flag failed ticks clearly. A failed _listing
+  walk_ also fails the discovery tick — a silently empty walk is
+  indistinguishable from "itch announced nothing", which is exactly how a
+  discovery outage would go unnoticed.
