@@ -282,6 +282,73 @@
     display: none;
   }
 
+  /* Readability pane for the page column.
+     The dot field is texture behind chrome and noise behind body copy —
+     a paragraph over it reads as if it's printed on gravel. This lays the
+     background back down under the content at 80%, so the field still
+     reads through as texture but the type has a surface to sit on.
+     Horizontally masked so the pane dissolves across the column's own
+     padding: the gutters stay pure dot field and the pane never shows a
+     hard vertical edge. `--content-pane-fade` is set by the shell to
+     whatever that breakpoint's padding is — as a `var()` fallback rather
+     than a declaration here, since a default on this class would land in
+     the same layer as the shell's responsive override and outrank it. */
+  .content-pane {
+    position: relative;
+  }
+  .content-pane::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    /* Centered and capped rather than stretched edge to edge: a page that
+       constrains its own content (see `--content-pane-width` below) would
+       otherwise get a pane spilling most of a column past the text it is
+       there to back. Falls back to the full column width, where
+       `min()` collapses the cap to 100%. */
+    left: 50%;
+    translate: -50% 0;
+    width: min(100%, calc(var(--content-pane-width, 100%) + 2 * var(--content-pane-fade, 1rem)));
+    /* Behind the column's content but inside the shell's `z-1` stacking
+       context, which is what keeps it above the fixed dot field. */
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--color-background);
+    opacity: 0.6;
+    /* Two masks, intersected: the horizontal dissolve across the column's
+       side padding, and a vertical one that falls off at both ends so the
+       pane never meets the header or the footer on a straight edge. Every
+       fade is sized to the padding it burns off in, so none of them ever
+       passes under content — the top one to the column's `pt`, which is
+       what `--content-pane-fade` already tracks, the bottom one to its
+       `pb-16`. */
+    mask-image:
+      linear-gradient(
+        to right,
+        transparent,
+        black var(--content-pane-fade, 1rem),
+        black calc(100% - var(--content-pane-fade, 1rem)),
+        transparent
+      ),
+      linear-gradient(
+        to bottom,
+        transparent,
+        black var(--content-pane-fade-top, var(--content-pane-fade, 1rem)),
+        black calc(100% - var(--content-pane-fade-bottom, 4rem)),
+        transparent
+      );
+    mask-composite: intersect;
+  }
+
+  /* A page that gives its content a narrower measure than the column
+     declares it here, and the pane hugs that instead. It has to be read
+     off a descendant — the shell owns the pane, the page owns the width,
+     and a custom property set on the page can only inherit downward.
+     The extra fade width on each side keeps the dissolve outside the
+     content box, so no text ever sits under the falloff. */
+  .content-pane:has([data-content-pane="6xl"]) {
+    --content-pane-width: 72rem;
+  }
+
   .chonk-emboss {
     --chonk-lift: 2px;
     --chonk-lift-hover: 3px;

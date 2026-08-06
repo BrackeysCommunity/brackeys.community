@@ -111,7 +111,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         />
 
         <div
-          className="flex w-full flex-col px-4 pt-4 selection:bg-primary selection:text-white"
+          className="content-pane flex w-full flex-col px-4 pt-4 selection:bg-primary selection:text-white"
           style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT} + 1rem)` }}
         >
           {children}

@@ -229,7 +229,14 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
             scroller's leftover space pins it to the bottom; `shrink-0`
             keeps a long page from being squeezed back into one screen. */}
         <div className="mx-auto flex w-full max-w-480 shrink-0 grow flex-col">
-          <div className="flex w-full grow flex-col p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 xl:px-14 xl:pt-14">
+          {/* The fade width tracks this column's own horizontal padding at
+              each breakpoint, so the pane ends exactly where the content
+              does. */}
+          {/* The footer's separation is this column's bottom padding rather
+              than a margin on the footer, so the pane covers it — a margin
+              sits outside the pane and reads as a band of bare dot field
+              between the content and the footer rule. */}
+          <div className="content-pane flex w-full grow flex-col p-4 pb-16 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 sm:[--content-pane-fade:1.5rem] lg:px-10 lg:pt-10 lg:[--content-pane-fade:2.5rem] xl:px-14 xl:pt-14 xl:[--content-pane-fade:3.5rem]">
             {children}
           </div>
         </div>
@@ -253,7 +260,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
         <div
-          className="flex w-full shrink-0 flex-col justify-center p-4 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 lg:px-12 lg:pt-12 xl:px-16 xl:pt-16"
+          className="content-pane flex w-full shrink-0 flex-col justify-center p-4 pb-16 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 sm:[--content-pane-fade:1.5rem] lg:px-12 lg:pt-12 lg:[--content-pane-fade:3rem] xl:px-16 xl:pt-16 xl:[--content-pane-fade:4rem]"
           style={{ minHeight: "100%" }}
         >
           {children}

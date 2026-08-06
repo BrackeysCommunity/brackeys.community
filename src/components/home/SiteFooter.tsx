@@ -96,7 +96,7 @@ function FooterLinkItem({
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 w-full border-t border-muted/40 bg-linear-to-b from-transparent to-background to-25% px-4 pt-10 pb-10 text-card-foreground sm:px-6 lg:px-10 xl:px-14">
+    <footer className="w-full border-muted/40 bg-linear-to-b from-transparent to-background to-25% px-4 pt-10 pb-10 text-card-foreground sm:px-6 lg:px-10 xl:px-14">
       <div className="mx-auto grid w-full max-w-6xl gap-10 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
