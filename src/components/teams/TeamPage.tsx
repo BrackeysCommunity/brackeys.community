@@ -20,6 +20,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { timeAgo } from "@/lib/format-time";
+import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
 
@@ -82,6 +83,11 @@ export interface TeamProject {
   jamId: number | null;
   jamName: string | null;
   jamUrl: string | null;
+  /** Scraped jam slug — present when the row links to a jam we track, and
+   * what turns the log row's name into a link to that jam's page. */
+  jamSlug: string | null;
+  /** Canonical project slug, when this showcase row is a placement of one. */
+  projectSlug: string | null;
   submissionUrl: string | null;
   result: string | null;
   participatedAt: string | Date | null;
@@ -285,7 +291,18 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
           <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
             {jamLog.map((p) => (
               <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                {p.jamUrl ? (
+                {/* A tracked jam links to its page here; an off-itch jam
+                    with only a free-text URL still links out, and one with
+                    neither stays plain text. */}
+                {p.jamSlug || p.jamId != null ? (
+                  <Link
+                    to="/jams/$jamSlug"
+                    params={jamLinkParams({ jamId: p.jamId ?? 0, slug: p.jamSlug })}
+                    className="min-w-0 flex-1 text-xs font-bold hover:text-primary hover:underline"
+                  >
+                    {p.jamName ?? p.title}
+                  </Link>
+                ) : p.jamUrl ? (
                   <TextLink
                     href={p.jamUrl}
                     target="_blank"
@@ -577,6 +594,27 @@ function ShowcaseCard({ project }: { project: TeamProject }) {
     </>
   );
 
+  // In-app first: a showcase row linked to a canonical project sends the
+  // tile to that project's page — credits, the jam record, the type-aware
+  // CTA. Only an unlinked row still exits straight to the provider.
+  if (project.projectSlug) {
+    return (
+      <Chonk
+        variant="surface"
+        size="lg"
+        className="h-full flex-col overflow-hidden bg-card backdrop-blur-none"
+        render={
+          <Link
+            to="/projects/$projectSlug"
+            params={{ projectSlug: project.projectSlug }}
+            aria-label={project.title}
+          />
+        }
+      >
+        {body}
+      </Chonk>
+    );
+  }
   if (project.url) {
     return (
       <Chonk

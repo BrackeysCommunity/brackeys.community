@@ -2,7 +2,7 @@ import { InlineCode } from "@/components/ui/typography";
 import { formatCountdown } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
 
-import { type ChipKind, type JamFromList, nextMilestone } from "../helpers";
+import { type ChipKind, type JamFromList, lifecyclePoints, nextMilestone } from "../helpers";
 
 export const MILESTONE_VARIANT: Record<ChipKind, "primary" | "warning" | "destructive"> = {
   starting: "primary",
@@ -32,50 +32,6 @@ const GLYPH_TINT: Record<ChipKind, string> = {
  * labels get.
  */
 export const SUPPORTING_TEXT = "font-mono text-[10px] lg:text-xs";
-
-/**
- * The jam's whole arc in one glance: start ▸ submission deadline ▸
- * voting end. The progress *track* renders separately (see
- * `JamProgress`), so this only feeds labels and math.
- */
-export function lifecyclePoints(jam: JamFromList): { kind: ChipKind; date: Date }[] {
-  const out: { kind: ChipKind; date: Date }[] = [];
-  if (jam.startsAt) out.push({ kind: "starting", date: new Date(jam.startsAt) });
-  // No voting window → the end date is the jam's full close (■).
-  if (jam.endsAt) {
-    out.push({ kind: jam.votingEndsAt ? "deadline" : "ending", date: new Date(jam.endsAt) });
-  }
-  if (jam.votingEndsAt) out.push({ kind: "ending", date: new Date(jam.votingEndsAt) });
-  return out;
-}
-
-export interface LifecycleProgress {
-  /** 0–1 fraction of the start → last-event window elapsed at `now`. */
-  fill: number;
-  /** Submission-deadline position as a 0–100 percentage of the track,
-   * present only when the jam has a separate voting window. */
-  deadlinePct: number | null;
-}
-
-/** Shared math for both progress renderings (row wash + card bar).
- * Null when the jam doesn't span a measurable window. */
-export function lifecycleProgress(jam: JamFromList, now: Date): LifecycleProgress | null {
-  const points = lifecyclePoints(jam);
-  if (points.length < 2) return null;
-  const t0 = points[0]!.date.getTime();
-  const t1 = points[points.length - 1]!.date.getTime();
-  if (t1 <= t0) return null;
-  const fill = clamp01((now.getTime() - t0) / (t1 - t0));
-  // Deadline tick only when the jam has a separate voting window (i.e.
-  // three points — otherwise the deadline IS the right edge).
-  const deadline = points.length === 3 ? points[1]!.date.getTime() : null;
-  const deadlinePct = deadline != null ? clamp01((deadline - t0) / (t1 - t0)) * 100 : null;
-  return { fill, deadlinePct };
-}
-
-function clamp01(n: number): number {
-  return Math.min(1, Math.max(0, n));
-}
 
 /** Countdown headline for the card, e.g. "⊙ SUBMISSIONS CLOSE IN 2D 14H".
  * `compact` shrinks the chip for tight card footers; `className` lets

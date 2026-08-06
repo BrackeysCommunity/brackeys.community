@@ -25,7 +25,17 @@ import {
 } from "./collab";
 import { syncGitHubLink, unlinkGitHub, getContributions } from "./github";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
-import { archiveJams, getJamData, listJams, listTopEntries } from "./jam";
+import {
+  archiveJams,
+  getJam,
+  getJamCommunity,
+  getJamData,
+  getJamResults,
+  listJamEntries,
+  listJams,
+  listJamsByHost,
+  listTopEntries,
+} from "./jam";
 import { listMembers } from "./member";
 import {
   listNotifications,
@@ -53,6 +63,7 @@ import {
   setUrlStub,
   listAvailableUsers,
 } from "./profile";
+import { getProject, listProjectsForGames } from "./project";
 import {
   createTeam,
   updateTeam,
@@ -83,6 +94,13 @@ export default {
   listJams,
   archiveJams,
   listTopEntries,
+  getJam,
+  listJamEntries,
+  getJamResults,
+  getJamCommunity,
+  listJamsByHost,
+  getProject,
+  listProjectsForGames,
   getProfile,
   getMyProfile,
   updateProfile,

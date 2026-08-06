@@ -1,5 +1,6 @@
 import { ArrowRight02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 
 import { shortName } from "@/components/home/jam-banner";
 import { type TopEntry, TOP_ENTRIES_PER_JAM } from "@/components/home/use-top-entries";
@@ -14,10 +15,10 @@ import {
 } from "@/components/jams/JamCalendarPage/helpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
+import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
-import { hostName, jamMonthDay, jamUrl } from "@/lib/jam-links";
+import { hostName, jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 /** Shelf → chip. Voting reads as a distinct phase from live, and the
@@ -112,17 +113,15 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
 
         <div className="flex min-w-0 flex-1 flex-col gap-2 p-3">
           <div className="min-w-0">
-            <Link
-              href={jamUrl(jam.slug)}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="inherit"
-              className="hover:text-primary"
+            <RouterLink
+              to="/jams/$jamSlug"
+              params={jamLinkParams(jam)}
+              className="text-inherit hover:text-primary"
             >
               <Heading as="h3" size="lg" ellipsis className="leading-tight">
                 {jam.title}
               </Heading>
-            </Link>
+            </RouterLink>
             <MicroLabel as="div" ellipsis className="mt-0.5">
               {start.month} {start.day}
               {jam.endsAt ? ` → ${end.month} ${end.day}` : ""}
@@ -144,10 +143,9 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
               size="sm"
               nativeButton={false}
               render={
-                <a
-                  href={jamUrl(jam.slug)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <RouterLink
+                  to="/jams/$jamSlug"
+                  params={jamLinkParams(jam)}
                   aria-label={`Open ${jam.title}`}
                 />
               }

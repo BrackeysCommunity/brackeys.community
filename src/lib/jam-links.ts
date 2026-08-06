@@ -5,8 +5,36 @@
  * apart. One definition each.
  */
 
+/**
+ * The jam's page **on itch.io**. In-app navigation wants
+ * `jamLinkParams` instead — this stays for the explicit "VIEW ON
+ * ITCH.IO" affordances.
+ */
 export function jamUrl(slug: string): string {
   return `https://itch.io/jam/${slug}`;
+}
+
+/**
+ * How a jam turns into a `/jams/$jamSlug` link. Mirrors
+ * `profile-links.ts` / `team-links.ts`, which exist for the same reason.
+ * `getJam` resolves either form of the segment server-side.
+ */
+interface JamLinkTarget {
+  jamId: number;
+  slug?: string | null;
+}
+
+/** The `$jamSlug` path segment for a jam. */
+export function jamSlug(jam: JamLinkTarget): string {
+  // `||` not `??`: an empty slug is not a handle. Scraped rows always
+  // carry one (it's NOT NULL), so the id fallback only covers callers
+  // holding a partial row — e.g. a jam reached through a LEFT JOIN.
+  return jam.slug || String(jam.jamId);
+}
+
+/** Route params object for TanStack Router's `to="/jams/$jamSlug"`. */
+export function jamLinkParams(jam: JamLinkTarget) {
+  return { jamSlug: jamSlug(jam) };
 }
 
 /**

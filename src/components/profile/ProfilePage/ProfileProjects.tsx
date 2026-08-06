@@ -1,6 +1,7 @@
 import { ArrowUpRight01Icon, Delete02Icon, Edit02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -256,6 +257,9 @@ function editableToDisplay(p: EditableProject): ProfileProject {
   const year = (p.participatedAt ?? p.publishedAt ?? new Date()).getUTCFullYear();
   return {
     id: p.id,
+    // The owner-edit row shape predates the canonical entity and doesn't
+    // carry the link; the read-only card falls back to the provider URL.
+    projectSlug: null,
     title: p.submissionTitle ?? p.title,
     kind,
     year,
@@ -285,7 +289,11 @@ function ProjectCard({
   project: ProfileProject;
   ownerControls?: React.ReactNode;
 }) {
-  const clickThrough = !ownerControls && project.url;
+  // In-app first: a placement linked to a canonical project sends the card
+  // to that project's page, where the credits and jam record live. Only an
+  // unlinked row still exits straight to the provider.
+  const canonicalTarget = !ownerControls && project.projectSlug ? project.projectSlug : null;
+  const clickThrough = !ownerControls && (canonicalTarget != null || project.url != null);
   return (
     <Well className="group relative gap-2 p-3 transition-colors hover:bg-card">
       <div className="relative aspect-[16/7] w-full overflow-hidden rounded bg-muted/40">
@@ -361,13 +369,22 @@ function ProjectCard({
           mode; the explicit OPEN chip sits above it (z-10) so both
           paths work. */}
       {clickThrough ? (
-        <a
-          href={project.url ?? undefined}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Open ${project.title}`}
-          className="absolute inset-0 z-0 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-        />
+        canonicalTarget ? (
+          <RouterLink
+            to="/projects/$projectSlug"
+            params={{ projectSlug: canonicalTarget }}
+            aria-label={`Open ${project.title}`}
+            className="absolute inset-0 z-0 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+          />
+        ) : (
+          <a
+            href={project.url ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${project.title}`}
+            className="absolute inset-0 z-0 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+          />
+        )
       ) : null}
     </Well>
   );

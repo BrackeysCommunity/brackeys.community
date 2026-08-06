@@ -11,6 +11,7 @@ import {
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import useDateNow from "@/lib/hooks/use-date-now";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 
 import { type BoardLayout, type BoardSort } from "./board/build-board";
 import { addMonthsUTC, startOfMonthUTC, type ViewMode } from "./helpers";
@@ -172,13 +173,4 @@ const LAYOUT_STORAGE_KEY = "jams-board-layout";
 function readStoredLayout(): BoardLayout {
   if (typeof window === "undefined") return "cards";
   return window.localStorage.getItem(LAYOUT_STORAGE_KEY) === "list" ? "list" : "cards";
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(id);
-  }, [value, delayMs]);
-  return debounced;
 }

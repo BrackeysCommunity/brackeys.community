@@ -13,6 +13,24 @@
  * an FK violation and we fall back to anonymizing the profile — child rows
  * are removed and every personal field is cleared, leaving only the skeleton
  * row (id + discord id) the moderation tables point at.
+ *
+ * **What survives, and why.** Canonical projects are shared entities: other
+ * contributors' pages, teams' showcases, and jam backlinks point at them.
+ * So deletion reaches the user's *placements* (their own surface rows) and
+ * stops there:
+ *
+ * - `project.projects` — untouched. `profile_projects.project_id` is
+ *   `ON DELETE SET NULL` in the other direction, so removing a placement
+ *   never reaches the project. An orphaned project is a periodic sweep's
+ *   problem, not this flow's.
+ * - `project.project_contributors` — the *credit* survives with its
+ *   `display_name`; only the live link dies, via `profile_id ON DELETE SET
+ *   NULL`. Nothing below deletes these rows, and nothing should: a shipped
+ *   credit is history, and the person's name on it is what makes the
+ *   project page true.
+ * - MinIO objects — the loop below deletes the user's own uploads, which is
+ *   safe precisely because a canonical row never references a user-scoped
+ *   key (it carries a provider CDN URL, or its own project-scoped upload).
  */
 import { eq } from "drizzle-orm";
 

@@ -1,5 +1,4 @@
-import type { JamFromList } from "../helpers";
-import { lifecycleProgress } from "./milestones";
+import { type JamFromList, lifecycleProgress } from "../helpers";
 import { useJamColor } from "./use-jam-color";
 
 /**

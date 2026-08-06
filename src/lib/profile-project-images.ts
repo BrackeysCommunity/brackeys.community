@@ -44,8 +44,34 @@ export function buildTeamAvatarObjectKey(teamId: string, filename: string) {
   return `${TEAM_AVATAR_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
 }
 
+/**
+ * A canonical project's cover lives in a **project-scoped** namespace, not
+ * the uploader's.
+ *
+ * The prefix above is per-user, and account deletion removes every object
+ * under it — correct for a placement's own image, wrong for a shared entity:
+ * a project row referencing an uploader's key would have its cover blanked
+ * on every page the day that person deleted their account. Write access here
+ * is the project's editor check (`createdBy`, a linked contributor, or a
+ * member of a claiming team), never a key-prefix check — same rule as team
+ * avatars.
+ */
+export const PROJECT_IMAGE_PREFIX = "project-images";
+
+export function buildProjectImageObjectKey(projectId: string, filename: string) {
+  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
+  return `${PROJECT_IMAGE_PREFIX}/${projectId}/${nanoid()}-${sanitizedFilename}`;
+}
+
 export function isOwnedProfileProjectImageKey(userId: string, key: string) {
   return key.startsWith(`${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/`);
+}
+
+/** Whether a key belongs to this project's namespace — the guard for an
+ * editor-supplied `imageKey`, so nobody can point a project at somebody
+ * else's object. */
+export function isProjectImageKey(projectId: string, key: string) {
+  return key.startsWith(`${PROJECT_IMAGE_PREFIX}/${projectId}/`);
 }
 
 function sanitizeProfileProjectImageFilename(filename: string) {

@@ -13,6 +13,7 @@ import {
   itchJams,
   profileProjects,
   profileUrlStubs,
+  projects,
   skills,
   teamInvites,
   teamMembers,
@@ -20,6 +21,7 @@ import {
   teams,
   userSkills,
 } from "@/db/schema";
+import { jamUrl } from "@/lib/jam-links";
 import { notify } from "@/lib/notifications";
 import {
   getProfileProjectImageUrl,
@@ -348,9 +350,15 @@ export const getTeam = os
           project: teamProjects,
           itchJamTitle: itchJams.title,
           itchJamSlug: itchJams.slug,
+          // The canonical project this showcase row is a placement of, when
+          // it has one — what makes a showcase tile a link to the project's
+          // own page rather than an exit to itch. Both joins are on unique
+          // keys, so neither can multiply the placement rows.
+          canonicalSlug: projects.slug,
         })
         .from(teamProjects)
         .leftJoin(itchJams, eq(teamProjects.jamId, itchJams.jamId))
+        .leftJoin(projects, eq(teamProjects.projectId, projects.id))
         .where(eq(teamProjects.teamId, team.id))
         .orderBy(
           desc(teamProjects.pinned),
@@ -452,11 +460,15 @@ export const getTeam = os
       members: memberRows,
       skills: skillRows,
       projects: await Promise.all(
-        projectRows.map(({ project, itchJamTitle, itchJamSlug }) =>
+        projectRows.map(({ project, itchJamTitle, itchJamSlug, canonicalSlug }) =>
           serializeTeamProject({
             ...project,
+            projectSlug: canonicalSlug,
             jamName: project.jamName ?? itchJamTitle,
-            jamUrl: project.jamUrl ?? (itchJamSlug ? `https://itch.io/jam/${itchJamSlug}` : null),
+            jamUrl: project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null),
+            // The scraped slug, so the jam log can link to the jam's page
+            // here rather than only off to itch.
+            jamSlug: itchJamSlug,
           }),
         ),
       ),
@@ -1206,6 +1218,15 @@ export const updateTeamProject = os
     return serializeTeamProject(updated);
   });
 
+/**
+ * Remove a project from the team's showcase.
+ *
+ * **Deletes the placement, never the canonical project** — same rule as
+ * `removeProject`: contributors' profile pages and jam backlinks point at
+ * the shared `project.projects` row. The team's *claim* on the work
+ * (`project_teams`) is a separate, credit-level fact and also survives:
+ * a team un-showcasing a game didn't stop having made it.
+ */
 export const removeTeamProject = os
   .use(requireAuth)
   .input(z.object({ teamId: z.string(), projectId: z.string() }))

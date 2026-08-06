@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { hostName, jamMonthDay, jamUrl } from "../jam-links";
+import { hostName, jamLinkParams, jamMonthDay, jamSlug, jamUrl } from "../jam-links";
 
 /** The short month label the UTC calendar puts a date in, independent of
  * the runner's timezone. */
@@ -11,6 +11,26 @@ function utcShortMonth(d: Date): string {
 describe("jamUrl", () => {
   it("builds the itch.io jam permalink", () => {
     expect(jamUrl("brackeys-13")).toBe("https://itch.io/jam/brackeys-13");
+  });
+});
+
+describe("jamSlug", () => {
+  it("prefers the scraped slug", () => {
+    expect(jamSlug({ jamId: 402922, slug: "brackeys-15" })).toBe("brackeys-15");
+  });
+
+  it("falls back to the numeric id when a caller holds no slug", () => {
+    // e.g. a jam reached through a LEFT JOIN that didn't select it.
+    expect(jamSlug({ jamId: 402922, slug: null })).toBe("402922");
+    expect(jamSlug({ jamId: 402922 })).toBe("402922");
+  });
+
+  it("treats an empty slug as absent", () => {
+    expect(jamSlug({ jamId: 7, slug: "" })).toBe("7");
+  });
+
+  it("builds the route params object the router expects", () => {
+    expect(jamLinkParams({ jamId: 7, slug: "tiny-jam" })).toEqual({ jamSlug: "tiny-jam" });
   });
 });
 

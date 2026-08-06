@@ -19,14 +19,17 @@ export function ShelfHeader({
   variant = "display",
   count,
   unit = "ITEM",
+  unitPlural,
   actions,
 }: {
   title?: string;
   blurb?: string;
   variant?: "display" | "label";
   count?: number;
-  /** Singular noun the count is of — pluralized with a trailing S. */
+  /** Singular noun the count is of. */
   unit?: string;
+  /** Plural form, when a trailing S won't do it ("ENTRY" → "ENTRIES"). */
+  unitPlural?: string;
   actions?: ReactNode;
 }) {
   const display = variant === "display";
@@ -58,8 +61,8 @@ export function ShelfHeader({
       {actions ??
         (count != null && (
           <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
-            {count} {unit}
-            {count === 1 ? "" : "S"}
+            {/* Grouped: a shelf over 2,090 submissions rendered "2090". */}
+            {count.toLocaleString()} {count === 1 ? unit : (unitPlural ?? `${unit}S`)}
           </Text>
         ))}
     </header>

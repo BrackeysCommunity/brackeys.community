@@ -1,12 +1,13 @@
+import { Link as RouterLink } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 
 import { Badge } from "@/components/ui/badge";
-import { Heading, Link, Text } from "@/components/ui/typography";
+import { Heading, Text } from "@/components/ui/typography";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
-import { hostName, jamUrl } from "@/lib/jam-links";
+import { hostName, jamLinkParams } from "@/lib/jam-links";
 
 import {
   type ChipKind,
@@ -238,10 +239,11 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
   // deadline (entries are definitionally 0 then); entries after.
   const signal = jamSignal(jam, now);
   return (
-    <Link
-      href={jamUrl(jam.slug)}
-      target="_blank"
-      rel="noopener noreferrer"
+    // The day panel's rows used to be exits to itch.io; they land on the
+    // jam's own page now, which is where the itch link lives.
+    <RouterLink
+      to="/jams/$jamSlug"
+      params={jamLinkParams(jam)}
       className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30 active:bg-muted/40"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -259,7 +261,7 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
         </Text>
       </div>
       <PhaseBadge phase={phase} state={state} />
-    </Link>
+    </RouterLink>
   );
 }
 

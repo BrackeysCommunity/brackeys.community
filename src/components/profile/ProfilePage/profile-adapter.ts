@@ -57,6 +57,10 @@ export interface RpcProfile {
     jamId: number | null;
     jamName: string | null;
     jamUrl: string | null;
+    /** Scraped jam slug — the `$jamSlug` segment of the jam's own page. */
+    jamSlug: string | null;
+    /** Canonical project slug, when the placement is linked to one. */
+    projectSlug: string | null;
     /** When the jam itself ran — from the scraped `itch.jams` join. */
     jamStartsAt: Date | null;
     jamEntriesCount: number | null;
@@ -312,11 +316,15 @@ function adaptJamLogEntry(p: RpcProject): JamLogEntry {
   // Prefer when the jam ran; fall back through the entry's own dates so a
   // manual row without a linked jam still lands on the right date.
   const startedAt = p.jamStartsAt ?? p.participatedAt ?? p.publishedAt ?? p.createdAt;
-  const note = [p.jamName, p.description].filter((s) => s != null && s.trim() !== "").join(" · ");
   return {
     id: p.id,
     title: p.submissionTitle ?? p.title,
-    shortNote: note || null,
+    // The jam name is its own field now (it carries the link to the jam's
+    // page); the note is whatever the row says beyond that.
+    jamName: p.jamName?.trim() || null,
+    jamSlug: p.jamSlug,
+    jamId: p.jamId,
+    shortNote: p.description?.trim() || null,
     startedAt,
     url: p.submissionUrl ?? p.url,
     rank,
@@ -387,6 +395,7 @@ function adaptProject(p: RpcProfile["projects"][number]): ProfileProject {
   const year = (p.participatedAt ?? p.publishedAt ?? p.createdAt).getUTCFullYear();
   return {
     id: p.id,
+    projectSlug: p.projectSlug,
     title: p.submissionTitle ?? p.title,
     kind,
     year,

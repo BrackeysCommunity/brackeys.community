@@ -1,0 +1,233 @@
+import { Link } from "@tanstack/react-router";
+
+import { Badge } from "@/components/ui/badge";
+import { Chonk } from "@/components/ui/chonk";
+import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { Well } from "@/components/ui/well";
+import { jamLinkParams } from "@/lib/jam-links";
+import { profileLinkParams } from "@/lib/profile-links";
+import { teamLinkParams } from "@/lib/team-links";
+
+import { ProjectHero } from "./ProjectHero";
+import type { ProjectContributor, ProjectDetail, ProjectJamAppearance } from "./types";
+
+/**
+ * A project's canonical page.
+ *
+ * The reason it exists is the credits section: before the project entity,
+ * "who worked on this?" was unanswerable — the answer was scattered across
+ * `profile_projects.team_members text[]`, an unused team-credits table, and
+ * `itch.jam_entries.contributors` jsonb, in three incompatible shapes. Every
+ * other section is additive and disappears when it has nothing: a library
+ * has no jam record, a solo tool has no team, and neither should render an
+ * empty box saying so.
+ */
+export function ProjectPage({ detail }: { detail: ProjectDetail }) {
+  const { project, contributors, teams, jamRecord } = detail;
+
+  return (
+    <div className="flex flex-col gap-8 pb-8">
+      <ProjectHero project={project} />
+
+      {contributors.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <ShelfHeader
+            title="CREDITS"
+            variant="label"
+            count={contributors.length}
+            unit="CONTRIBUTOR"
+          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {contributors.map((contributor) => (
+              <ContributorCard key={contributor.id} contributor={contributor} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {teams.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <ShelfHeader title="MADE BY" variant="label" />
+          <div className="flex flex-wrap gap-2">
+            {teams.map((team) => (
+              <Chonk
+                key={team.teamId}
+                variant="surface"
+                size="lg"
+                className="items-center gap-3 bg-card px-3 py-2 backdrop-blur-none"
+                render={
+                  <Link
+                    to="/teams/$teamId"
+                    params={teamLinkParams({ id: team.teamId, slug: team.slug })}
+                    aria-label={team.name}
+                  />
+                }
+              >
+                <UserAvatar avatarUrl={team.avatarUrl} username={team.name} size={28} />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <Text as="span" size="sm" bold ellipsis className="tracking-wider">
+                    {team.name}
+                  </Text>
+                  {team.tagline ? (
+                    <Text as="span" size="xs" variant="muted" ellipsis className="max-w-56">
+                      {team.tagline}
+                    </Text>
+                  ) : null}
+                </span>
+              </Chonk>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* A game with three jam appearances finally reads as a body of work.
+          A website simply doesn't have this section. */}
+      {jamRecord.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <ShelfHeader
+            title="JAM RECORD"
+            variant="label"
+            count={jamRecord.length}
+            unit="APPEARANCE"
+          />
+          <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
+            {jamRecord.map((appearance) => (
+              <JamAppearanceRow key={appearance.key} appearance={appearance} />
+            ))}
+          </Well>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One credit. A linked row navigates to the profile; a free-text row renders
+ * flat — that's the whole point of `display_name` outliving `profile_id`.
+ */
+function ContributorCard({ contributor }: { contributor: ProjectContributor }) {
+  const body = (
+    <>
+      <UserAvatar
+        avatarUrl={contributor.avatarUrl}
+        username={contributor.displayName}
+        shape="round"
+        size={36}
+      />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
+          {contributor.displayName}
+        </Text>
+        <Text as="span" size="xs" variant="muted" ellipsis>
+          {contributor.role ?? "Contributor"}
+        </Text>
+      </span>
+    </>
+  );
+
+  if (contributor.profileId) {
+    return (
+      <Chonk
+        variant="surface"
+        size="lg"
+        className="items-center gap-3 bg-card p-3 backdrop-blur-none"
+        render={
+          <Link
+            to="/profile/$userId"
+            params={profileLinkParams({
+              id: contributor.profileId,
+              urlStub: contributor.urlStub,
+            })}
+            aria-label={contributor.displayName}
+          />
+        }
+      >
+        {body}
+      </Chonk>
+    );
+  }
+
+  // Deboss for a readout, emboss for a destination — the house rule the
+  // teams directory established.
+  return <Well className="flex-row items-center gap-3 p-3 backdrop-blur-none">{body}</Well>;
+}
+
+function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) {
+  const rankChip =
+    appearance.rank != null
+      ? appearance.entriesCount
+        ? `#${appearance.rank} / ${appearance.entriesCount.toLocaleString()}`
+        : `#${appearance.rank}`
+      : appearance.result;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+      {/* A jam we track links to its page here; an off-itch jam with only a
+          free-text URL still links out; one with neither stays plain. */}
+      {appearance.jamSlug || appearance.jamId != null ? (
+        <Link
+          to="/jams/$jamSlug"
+          params={jamLinkParams({ jamId: appearance.jamId ?? 0, slug: appearance.jamSlug })}
+          className="min-w-0 flex-1 truncate text-xs font-bold hover:text-primary hover:underline"
+        >
+          {appearance.jamName ?? "Untitled jam"}
+        </Link>
+      ) : appearance.jamUrl ? (
+        <TextLink
+          href={appearance.jamUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          size="sm"
+          bold
+          className="min-w-0 flex-1 hover:text-primary hover:underline"
+        >
+          {appearance.jamName ?? "Untitled jam"}
+        </TextLink>
+      ) : (
+        <Text as="span" size="sm" bold className="min-w-0 flex-1">
+          {appearance.jamName ?? "Untitled jam"}
+        </Text>
+      )}
+
+      {appearance.participatedAt ? (
+        <MicroLabel tabular>
+          {/* Jam dates are UTC everywhere in this app. */}
+          {new Date(appearance.participatedAt)
+            .toLocaleDateString(undefined, {
+              month: "short",
+              year: "numeric",
+              timeZone: "UTC",
+            })
+            .toUpperCase()}
+        </MicroLabel>
+      ) : null}
+
+      {rankChip ? (
+        <Badge
+          variant={appearance.rank != null && appearance.rank <= 3 ? "warning" : "outline"}
+          size="label"
+        >
+          {rankChip}
+        </Badge>
+      ) : null}
+
+      {appearance.submissionUrl ? (
+        <TextLink
+          href={
+            appearance.submissionUrl.startsWith("http")
+              ? appearance.submissionUrl
+              : `https://itch.io${appearance.submissionUrl}`
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+          size="xs"
+          className="tracking-widest uppercase"
+        >
+          ENTRY →
+        </TextLink>
+      ) : null}
+    </div>
+  );
+}

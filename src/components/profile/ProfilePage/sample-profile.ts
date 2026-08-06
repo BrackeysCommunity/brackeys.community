@@ -57,6 +57,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "moth-garden",
       title: "Moth Garden",
+      projectSlug: null,
       kind: "game",
       year: 2026,
       shortDescription: "cozy idle game about bioluminescent moths and late-night tea",
@@ -69,6 +70,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "bracketeer",
       title: "bracketeer",
+      projectSlug: null,
       kind: "tool",
       year: 2025,
       shortDescription: "cli for generating chonky UI components from a JSON spec",
@@ -81,6 +83,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "shift-shift",
       title: "Shift-Shift",
+      projectSlug: null,
       kind: "jam",
       year: 2025,
       shortDescription: "48h jam entry — rhythm platformer with procedural levels",
@@ -93,6 +96,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "nightlight-fm",
       title: "nightlight.fm",
+      projectSlug: null,
       kind: "web",
       year: 2024,
       shortDescription: "tiny radio stations curated by insomniacs, for insomniacs",
@@ -185,6 +189,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "shift-shift",
       title: "Shift-Shift",
+      jamName: "Brackeys Game Jam 2026.1",
+      jamSlug: "brackeys-15",
+      jamId: 402922,
       shortNote: "procedurally-generated rhythm platformer · 48h",
       startedAt: new Date(Date.UTC(2026, 3, 18)),
       url: null,
@@ -195,6 +202,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "tidepool",
       title: "Tidepool",
+      jamName: "Ludum Dare 57",
+      jamSlug: null,
+      jamId: null,
       shortNote: "aquatic roguelike, one screen per run",
       startedAt: new Date(Date.UTC(2026, 1, 2)),
       url: null,
@@ -205,7 +215,10 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "quiet-town",
       title: "Quiet Town",
-      shortNote: "narrative vignette · brackeys jam #28",
+      jamName: "Brackeys Jam #28",
+      jamSlug: null,
+      jamId: null,
+      shortNote: "narrative vignette",
       startedAt: new Date(Date.UTC(2025, 10, 14)),
       url: null,
       rank: 1,
@@ -215,14 +228,18 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "grain",
       title: "Grain",
-      shortNote: "procedural baking sim · brackeys weekly",
+      jamName: "Brackeys Weekly",
+      jamSlug: null,
+      jamId: null,
+      shortNote: "procedural baking sim",
       startedAt: new Date(Date.UTC(2025, 7, 3)),
       url: null,
       rank: 23,
-      totalEntries: 300,
+      totalEntries: 310,
       pill: null,
     },
   ],
+
   jamLogBest: {
     id: "quiet-town",
     title: "Quiet Town",

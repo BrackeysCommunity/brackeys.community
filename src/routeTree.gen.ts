@@ -26,8 +26,10 @@ import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
+import { Route as ProjectsProjectSlugRouteImport } from './routes/projects.$projectSlug'
 import { Route as ProfilePreviewRouteImport } from './routes/profile.preview'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
+import { Route as JamsJamSlugRouteImport } from './routes/jams_.$jamSlug'
 import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
 import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
@@ -126,6 +128,11 @@ const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
   path: '/$teamId',
   getParentRoute: () => TeamsRoute,
 } as any)
+const ProjectsProjectSlugRoute = ProjectsProjectSlugRouteImport.update({
+  id: '/projects/$projectSlug',
+  path: '/projects/$projectSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfilePreviewRoute = ProfilePreviewRouteImport.update({
   id: '/preview',
   path: '/preview',
@@ -135,6 +142,11 @@ const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
   getParentRoute: () => ProfileRoute,
+} as any)
+const JamsJamSlugRoute = JamsJamSlugRouteImport.update({
+  id: '/jams_/$jamSlug',
+  path: '/jams/$jamSlug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const JamsCalendarRoute = JamsCalendarRouteImport.update({
   id: '/calendar',
@@ -215,8 +227,10 @@ export interface FileRoutesByFullPath {
   '/game/$roomId': typeof GameRoomIdRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
+  '/jams/$jamSlug': typeof JamsJamSlugRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
+  '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
@@ -243,8 +257,10 @@ export interface FileRoutesByTo {
   '/game/$roomId': typeof GameRoomIdRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
+  '/jams/$jamSlug': typeof JamsJamSlugRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
+  '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
@@ -277,8 +293,10 @@ export interface FileRoutesById {
   '/game/$roomId': typeof GameRoomIdRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
+  '/jams_/$jamSlug': typeof JamsJamSlugRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/profile/preview': typeof ProfilePreviewRoute
+  '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
@@ -312,8 +330,10 @@ export interface FileRouteTypes {
     | '/game/$roomId'
     | '/jams/archive'
     | '/jams/calendar'
+    | '/jams/$jamSlug'
     | '/profile/$userId'
     | '/profile/preview'
+    | '/projects/$projectSlug'
     | '/teams/$teamId'
     | '/collab/'
     | '/game/'
@@ -340,8 +360,10 @@ export interface FileRouteTypes {
     | '/game/$roomId'
     | '/jams/archive'
     | '/jams/calendar'
+    | '/jams/$jamSlug'
     | '/profile/$userId'
     | '/profile/preview'
+    | '/projects/$projectSlug'
     | '/teams/$teamId'
     | '/collab'
     | '/game'
@@ -373,8 +395,10 @@ export interface FileRouteTypes {
     | '/game/$roomId'
     | '/jams/archive'
     | '/jams/calendar'
+    | '/jams_/$jamSlug'
     | '/profile/$userId'
     | '/profile/preview'
+    | '/projects/$projectSlug'
     | '/teams/$teamId'
     | '/collab/'
     | '/game/'
@@ -402,6 +426,8 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  JamsJamSlugRoute: typeof JamsJamSlugRoute
+  ProjectsProjectSlugRoute: typeof ProjectsProjectSlugRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
   ApiNotificationsUnsubRoute: typeof ApiNotificationsUnsubRoute
@@ -531,6 +557,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamsTeamIdRouteImport
       parentRoute: typeof TeamsRoute
     }
+    '/projects/$projectSlug': {
+      id: '/projects/$projectSlug'
+      path: '/projects/$projectSlug'
+      fullPath: '/projects/$projectSlug'
+      preLoaderRoute: typeof ProjectsProjectSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile/preview': {
       id: '/profile/preview'
       path: '/preview'
@@ -544,6 +577,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/$userId'
       preLoaderRoute: typeof ProfileUserIdRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/jams_/$jamSlug': {
+      id: '/jams_/$jamSlug'
+      path: '/jams/$jamSlug'
+      fullPath: '/jams/$jamSlug'
+      preLoaderRoute: typeof JamsJamSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/jams/calendar': {
       id: '/jams/calendar'
@@ -713,6 +753,8 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
+  JamsJamSlugRoute: JamsJamSlugRoute,
+  ProjectsProjectSlugRoute: ProjectsProjectSlugRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
   ApiNotificationsUnsubRoute: ApiNotificationsUnsubRoute,

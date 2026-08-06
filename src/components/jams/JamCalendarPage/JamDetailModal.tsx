@@ -1,25 +1,19 @@
-import { UserGroupIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
-import DOMPurify from "dompurify";
 import { AnimatePresence, motion } from "framer-motion";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 
+import { JamTeamCta } from "@/components/jams/JamTeamCta";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Grainient } from "@/components/ui/grainient";
-import { Heading, Link, Text } from "@/components/ui/typography";
+import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
-import { hostName, jamUrl } from "@/lib/jam-links";
+import { hostName, jamLinkParams, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
-import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
 
-import { type JamFromList, jamPhase } from "./helpers";
+import { type JamFromList, jamStats } from "./helpers";
 
 interface JamDetailModalProps {
   jam: JamFromList | null;
@@ -199,8 +193,17 @@ function ModalContent({
               )}
             </div>
 
+            {/* The title is the permalink: the modal is a quick-look, and
+                the jam's real page is where a link someone shares has to
+                land. */}
             <Heading as="h2" className="text-2xl leading-tight">
-              {jam.title}
+              <RouterLink
+                to="/jams/$jamSlug"
+                params={jamLinkParams(jam)}
+                className="transition-colors hover:text-primary"
+              >
+                {jam.title}
+              </RouterLink>
             </Heading>
 
             <Text size="xs" variant="muted" className="tracking-widest">
@@ -220,16 +223,25 @@ function ModalContent({
               </Text>
             )}
 
-            <JamTeamCta jam={jam} />
+            <JamTeamCta jam={jam} className="mt-3" />
 
-            <Link
-              href={jamUrl(jam.slug)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 self-start text-xs tracking-widest uppercase"
-            >
-              View on itch.io →
-            </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <RouterLink
+                to="/jams/$jamSlug"
+                params={jamLinkParams(jam)}
+                className="text-xs font-bold tracking-widest text-primary uppercase hover:underline"
+              >
+                Full page →
+              </RouterLink>
+              <Link
+                href={jamUrl(jam.slug)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs tracking-widest uppercase"
+              >
+                View on itch.io →
+              </Link>
+            </div>
           </div>
         </OverlayScrollbarsComponent>
       </motion.div>
@@ -237,74 +249,13 @@ function ModalContent({
   );
 }
 
-/**
- * The team-finding half of a jam page. Someone reading an upcoming jam's
- * description is the single highest-intent teammate-seeker on the site,
- * and until this existed the only thing the modal offered them was a
- * link off to itch.io.
- *
- * Only shown while joining is still plausible — for an archived jam a
- * "find a team" button is an invitation to waste time.
- */
-function JamTeamCta({ jam }: { jam: JamFromList }) {
-  const phase = jamPhase(jam, new Date());
-  const open = phase === "upcoming" || phase === "running";
-
-  const { data } = useQuery({
-    ...orpc.countPostsForJam.queryOptions({ input: { jamId: jam.jamId } }),
-    staleTime: 60 * 1000,
-  });
-  const postCount = data?.count ?? 0;
-
-  if (!open && postCount === 0) return null;
-
-  return (
-    <div className="mt-3 flex flex-col items-start gap-1.5">
-      {open ? (
-        <Button
-          variant="default"
-          size="sm"
-          className="tracking-widest"
-          // Renders an <a>, not a <button> — Base UI needs telling, or it
-          // warns about losing native button semantics.
-          nativeButton={false}
-          render={<RouterLink to="/collab" search={{ new: true, jam: jam.jamId }} />}
-        >
-          <HugeiconsIcon icon={UserGroupIcon} size={13} />
-          FIND A TEAM →
-        </Button>
-      ) : null}
-      {postCount > 0 ? (
-        <RouterLink
-          to="/collab"
-          search={{ jam: jam.jamId }}
-          className="text-xs tracking-widest text-primary uppercase hover:underline"
-        >
-          {postCount} team {postCount === 1 ? "post" : "posts"} for this jam →
-        </RouterLink>
-      ) : null}
-    </div>
-  );
-}
-
-/** Every participation number we have for the jam, in one line — the
- * meaningful one flips by phase (joined pre-deadline, entries after),
- * so show whichever exist rather than guessing. */
+/** Every participation number we have for the jam, in one line. */
 function JamStatsLine({ jam }: { jam: JamFromList }) {
-  const parts: string[] = [];
-  if (jam.joinedCount != null && jam.joinedCount > 0) {
-    parts.push(`${jam.joinedCount.toLocaleString()} JOINED`);
-  }
-  if (jam.entriesCount != null && jam.entriesCount > 0) {
-    parts.push(`${jam.entriesCount.toLocaleString()} ENTRIES`);
-  }
-  if (jam.ratingsCount != null && jam.ratingsCount > 0) {
-    parts.push(`${jam.ratingsCount.toLocaleString()} RATINGS`);
-  }
-  if (parts.length === 0) return null;
+  const stats = jamStats(jam);
+  if (stats.length === 0) return null;
   return (
     <Text size="xs" bold className="tracking-widest tabular-nums">
-      {parts.join(" · ")}
+      {stats.map((s) => `${s.value.toLocaleString()} ${s.label}`).join(" · ")}
     </Text>
   );
 }
@@ -326,35 +277,5 @@ function ModalGrainientBanner({ layoutKey, jamId }: { layoutKey: string; jamId: 
     >
       <Grainient color1={colors[0]} color2={colors[1]} color3={colors[0]} />
     </motion.div>
-  );
-}
-
-/** Renders a sanitized HTML string with the same typographic treatment
- * as `MarkedText`, so jam descriptions read consistently with the
- * markdown-driven surfaces elsewhere on the site. */
-function RichHtml({ html, className }: { html: string; className?: string }) {
-  const safe = useMemo(() => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }), [html]);
-  return (
-    <div
-      className={cn(
-        "text-sm/relaxed text-foreground",
-        "[&_em]:italic [&_strong]:font-bold",
-        "[&_a]:text-accent [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-accent/80",
-        "[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-border [&_pre]:bg-card [&_pre]:p-3 [&_pre]:text-xs",
-        "[&_pre_code]:border-none [&_pre_code]:bg-transparent [&_pre_code]:p-0",
-        "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",
-        "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5",
-        "[&_li]:mb-1",
-        "[&_p]:mb-2 [&_p:last-child]:mb-0",
-        "[&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-xl [&_h1]:font-bold",
-        "[&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold",
-        "[&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-base [&_h3]:font-bold",
-        "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-accent [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_blockquote]:italic",
-        "[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded",
-        "[&_iframe]:my-3 [&_iframe]:max-w-full",
-        className,
-      )}
-      dangerouslySetInnerHTML={{ __html: safe }}
-    />
   );
 }

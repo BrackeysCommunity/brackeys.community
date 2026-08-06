@@ -3,7 +3,20 @@ import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } f
 import * as z from "zod";
 
 import { db } from "@/db";
-import { itchJamEntries, itchJamEntryResults, itchJams } from "@/db/schema";
+import {
+  collabPosts,
+  developerProfiles,
+  itchJamEntries,
+  itchJamEntryResults,
+  itchJams,
+  linkedAccounts,
+  profileProjects,
+  profileUrlStubs,
+  teamProjects,
+  teams,
+} from "@/db/schema";
+import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";
+import { likeContains } from "@/lib/sql-like";
 
 /** A single itch.io jam submission, as returned by the jam entries feed. */
 export type JamEntry = {
@@ -247,7 +260,7 @@ export const archiveJams = os
 
     // `hosts` is a jsonb array of {name,url}; a text cast keeps host
     // search simple without unnesting. Title/hashtag get plain ILIKE.
-    const q = input.search ? `%${input.search}%` : null;
+    const q = likeContains(input.search);
     const matchesSearch = q
       ? or(
           ilike(itchJams.title, q),
@@ -375,4 +388,563 @@ export const listTopEntries = os
 
     const entries = await topEntriesQuery(jamIds, input.limit);
     return { entries };
+  });
+
+// ── Jam detail page ─────────────────────────────────────────────────────────
+
+/** `itch.jams.jam_id` is a pg `integer`; a longer digit run in the URL is
+ * somebody's slug (or a probe), not an id, and must not reach the query as
+ * an out-of-range bind. */
+const MAX_INT4 = 2_147_483_647;
+
+function parseJamId(segment: string): number | null {
+  if (!/^\d{1,10}$/.test(segment)) return null;
+  const parsed = Number(segment);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= MAX_INT4 ? parsed : null;
+}
+
+/**
+ * One jam by slug or numeric id — the detail route's resolver, mirroring
+ * `getTeam`/`getProfile`'s "handle first, id as fallback" contract.
+ *
+ * Returns the full `itch.jams` row so the page's presentation helpers
+ * (`jamPhase`, `lifecyclePoints`, `useJamColor`) work off exactly the same
+ * shape the board hands them, plus the two facts the page needs before it
+ * can decide what sections to render at all.
+ *
+ * Jams stamped `missing_since` 404 on itch. They're kept in the table but
+ * are never linkable, so the page treats them as absent — same rule the
+ * listings apply.
+ */
+export const getJam = os
+  .input(z.object({ idOrSlug: z.string().trim().min(1).max(300) }))
+  .handler(async ({ input }) => {
+    const jamId = parseJamId(input.idOrSlug);
+    const rows = await db
+      .select()
+      .from(itchJams)
+      .where(
+        and(
+          isNull(itchJams.missingSince),
+          jamId != null
+            ? or(eq(itchJams.slug, input.idOrSlug), eq(itchJams.jamId, jamId))
+            : eq(itchJams.slug, input.idOrSlug),
+        ),
+      )
+      .limit(2);
+
+    // Slug is unique, so a two-row result can only mean the numeric segment
+    // is one jam's id *and* another jam's slug. The slug is the canonical
+    // link form, so it wins.
+    const jam = rows.find((row) => row.slug === input.idOrSlug) ?? rows[0];
+    if (!jam) return null;
+
+    const [[entryRow], [resultRow]] = await Promise.all([
+      db
+        .select({ count: count() })
+        .from(itchJamEntries)
+        .where(and(eq(itchJamEntries.jamId, jam.jamId), isNull(itchJamEntries.missingSince))),
+      // Presence, not a count: the rate pages are scraped per entry, so a
+      // jam either has some placements or none, and `EXISTS` stops at the
+      // first row instead of counting entries × criteria.
+      db
+        .select({ entryId: itchJamEntryResults.entryId })
+        .from(itchJamEntryResults)
+        .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, itchJamEntryResults.entryId))
+        .where(eq(itchJamEntries.jamId, jam.jamId))
+        .limit(1),
+    ]);
+
+    return {
+      jam,
+      // How many submissions we actually hold. Distinct from the scraped
+      // `entriesCount` stat, which is itch's own number and can be ahead of
+      // (or behind) our entry rows — the grid pages through *these*.
+      trackedEntries: entryRow?.count ?? 0,
+      hasResults: resultRow != null,
+    };
+  });
+
+/** Covers per page of the entries grid. A 3k-entry jam must never ship
+ * wholesale, and 48 fills the widest grid at 6 columns × 8 rows. */
+export const JAM_ENTRIES_PAGE_SIZE = 48;
+
+export type JamEntrySort = "rank" | "ratings" | "recent" | "title";
+
+/**
+ * One page of a jam's submissions, ranked.
+ *
+ * Ordering straddles the same two worlds `topEntriesQuery` documents:
+ * "rank" prefers the scraped Overall placement and falls back to
+ * participation signal for jams whose rate pages were never fetched, so
+ * the default sort is meaningful before *and* after results publish.
+ * The Overall rank is left-joined either way — the cards show it as a
+ * chip regardless of which sort is active.
+ */
+export const listJamEntries = os
+  .input(
+    z.object({
+      jamId: z.number().int().min(1).max(MAX_INT4),
+      page: z.number().int().min(0).default(0),
+      pageSize: z.number().int().min(1).max(96).default(JAM_ENTRIES_PAGE_SIZE),
+      sortBy: z.enum(["rank", "ratings", "recent", "title"]).default("rank"),
+      search: z.string().trim().max(200).default(""),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const q = likeContains(input.search);
+    const where = and(
+      eq(itchJamEntries.jamId, input.jamId),
+      // Entries itch no longer lists stay in the table but are never shown.
+      isNull(itchJamEntries.missingSince),
+      q ? or(ilike(itchJamEntries.gameTitle, q), ilike(itchJamEntries.authorName, q)) : undefined,
+    );
+
+    // entryId breaks the remaining ties in every mode so paging is stable —
+    // most rows tie at 0 ratings, and a jam submitted in bulk ties on
+    // `submitted_at` too.
+    const orderBy = {
+      rank: [
+        asc(sql`COALESCE(${itchJamEntryResults.rank}, ${NO_RANK})`),
+        desc(itchJamEntries.ratingCount),
+        desc(itchJamEntries.coolness),
+        asc(itchJamEntries.entryId),
+      ],
+      ratings: [
+        desc(itchJamEntries.ratingCount),
+        desc(itchJamEntries.coolness),
+        asc(itchJamEntries.entryId),
+      ],
+      recent: [sql`${itchJamEntries.submittedAt} DESC NULLS LAST`, desc(itchJamEntries.entryId)],
+      title: [sql`LOWER(${itchJamEntries.gameTitle}) ASC`, asc(itchJamEntries.entryId)],
+    }[input.sortBy];
+
+    const [entries, [totalRow]] = await Promise.all([
+      db
+        .select({
+          entryId: itchJamEntries.entryId,
+          gameId: itchJamEntries.gameId,
+          gameTitle: itchJamEntries.gameTitle,
+          gameShortText: itchJamEntries.gameShortText,
+          gameUrl: itchJamEntries.gameUrl,
+          gameCoverUrl: itchJamEntries.gameCoverUrl,
+          gameCoverColor: itchJamEntries.gameCoverColor,
+          gamePlatforms: itchJamEntries.gamePlatforms,
+          rateUrl: itchJamEntries.rateUrl,
+          ratingCount: itchJamEntries.ratingCount,
+          coolness: itchJamEntries.coolness,
+          submittedAt: itchJamEntries.submittedAt,
+          authorId: itchJamEntries.authorId,
+          authorName: itchJamEntries.authorName,
+          authorUrl: itchJamEntries.authorUrl,
+          contributors: itchJamEntries.contributors,
+          // Left-joined, so null for every entry until the jam's rate pages
+          // are scraped.
+          rank: itchJamEntryResults.rank,
+        })
+        .from(itchJamEntries)
+        .leftJoin(
+          itchJamEntryResults,
+          and(
+            eq(itchJamEntryResults.entryId, itchJamEntries.entryId),
+            // Criterion casing is scraped verbatim from the rate page.
+            sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+          ),
+        )
+        .where(where)
+        .orderBy(...orderBy)
+        .limit(input.pageSize)
+        .offset(input.page * input.pageSize),
+      db.select({ count: count() }).from(itchJamEntries).where(where),
+    ]);
+
+    const membersByEntryId = await matchMembersToEntries(entries);
+
+    return {
+      entries: entries.map((entry) => ({
+        ...entry,
+        // Members of this community who worked on the entry. Usually empty —
+        // most of any jam's field are strangers to us.
+        members: membersByEntryId.get(entry.entryId) ?? [],
+      })),
+      total: totalRow?.count ?? 0,
+    };
+  });
+
+/** A Brackeys member recognized on a scraped entry. */
+export interface JamEntryMember {
+  profileId: string;
+  username: string | null;
+  avatarUrl: string | null;
+  urlStub: string | null;
+}
+
+/**
+ * Which of these entries were made by people from here.
+ *
+ * Two tiers, the same ones `syncItchIoJamParticipations` matches on:
+ *
+ *  1. A member already has an imported placement for the entry (`source
+ *     'itchio-jam'`, `sourceId` = the entry id). This tier also covers
+ *     teammates, because the sync creates a placement for a contributor
+ *     whose linked itch profile URL appears in `contributors[]`.
+ *  2. The entry's `author_id` matches a linked itch account. This catches
+ *     members whose participation sync hasn't run yet (a jam scraped after
+ *     their last sign-in), which is otherwise the common case for a jam
+ *     that just closed.
+ *
+ * Scoped to the page of entries being returned, so the cost is two `IN`
+ * queries against at most ~48 ids rather than anything jam-wide.
+ */
+async function matchMembersToEntries(
+  entries: { entryId: number; authorId: number | null }[],
+): Promise<Map<number, JamEntryMember[]>> {
+  const byEntryId = new Map<number, JamEntryMember[]>();
+  if (entries.length === 0) return byEntryId;
+
+  const entryIds = entries.map((entry) => entry.entryId);
+  const authorIds = [
+    ...new Set(entries.map((entry) => entry.authorId).filter((id): id is number => id != null)),
+  ];
+
+  const [placementRows, accountRows] = await Promise.all([
+    db
+      .select({
+        sourceId: profileProjects.sourceId,
+        profileId: developerProfiles.id,
+        username: developerProfiles.guildNickname,
+        discordUsername: developerProfiles.discordUsername,
+        avatarUrl: developerProfiles.avatarUrl,
+        urlStub: profileUrlStubs.stub,
+      })
+      .from(profileProjects)
+      .innerJoin(developerProfiles, eq(profileProjects.profileId, developerProfiles.id))
+      .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+      .where(
+        and(
+          eq(profileProjects.source, "itchio-jam"),
+          eq(profileProjects.status, "approved"),
+          eq(profileProjects.published, true),
+          inArray(profileProjects.sourceId, entryIds.map(String)),
+        ),
+      ),
+    authorIds.length > 0
+      ? db
+          .select({
+            providerUserId: linkedAccounts.providerUserId,
+            profileId: developerProfiles.id,
+            username: developerProfiles.guildNickname,
+            discordUsername: developerProfiles.discordUsername,
+            avatarUrl: developerProfiles.avatarUrl,
+            urlStub: profileUrlStubs.stub,
+          })
+          .from(linkedAccounts)
+          .innerJoin(developerProfiles, eq(linkedAccounts.profileId, developerProfiles.id))
+          .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+          .where(
+            and(
+              eq(linkedAccounts.provider, "itchio"),
+              // `provider_user_id` is text; the itch user id it holds is
+              // numeric, so compare as strings rather than casting a column
+              // that may hold anything.
+              inArray(linkedAccounts.providerUserId, authorIds.map(String)),
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+
+  const add = (entryId: number, member: JamEntryMember) => {
+    const list = byEntryId.get(entryId) ?? [];
+    // The two tiers overlap for the uploader of an already-synced entry.
+    if (list.some((existing) => existing.profileId === member.profileId)) return;
+    list.push(member);
+    byEntryId.set(entryId, list);
+  };
+
+  for (const row of placementRows) {
+    const entryId = Number(row.sourceId);
+    if (!Number.isSafeInteger(entryId)) continue;
+    add(entryId, {
+      profileId: row.profileId,
+      username: row.username ?? row.discordUsername,
+      avatarUrl: row.avatarUrl,
+      urlStub: row.urlStub,
+    });
+  }
+
+  const memberByAuthorId = new Map(accountRows.map((row) => [row.providerUserId, row]));
+  for (const entry of entries) {
+    if (entry.authorId == null) continue;
+    const row = memberByAuthorId.get(String(entry.authorId));
+    if (!row) continue;
+    add(entry.entryId, {
+      profileId: row.profileId,
+      username: row.username ?? row.discordUsername,
+      avatarUrl: row.avatarUrl,
+      urlStub: row.urlStub,
+    });
+  }
+
+  return byEntryId;
+}
+
+/** Places shown per criterion on the results board. Three is a podium;
+ * the full table lives on itch. */
+const RESULTS_TOP_N = 3;
+
+/**
+ * Published placements for a jam, grouped by criterion.
+ *
+ * `entrantCount` is the number of entries that were *ranked* on a
+ * criterion, not the jam's entry count — itch ranks only submissions that
+ * received enough ratings, so "#12 of 312" has to come from the results
+ * table to be true.
+ */
+export const getJamResults = os
+  .input(
+    z.object({
+      jamId: z.number().int().min(1).max(MAX_INT4),
+      topN: z.number().int().min(1).max(10).default(RESULTS_TOP_N),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const [places, counts] = await Promise.all([
+      db
+        .select({
+          criterion: itchJamEntryResults.criterion,
+          rank: itchJamEntryResults.rank,
+          score: itchJamEntryResults.score,
+          entryId: itchJamEntries.entryId,
+          gameTitle: itchJamEntries.gameTitle,
+          gameUrl: itchJamEntries.gameUrl,
+          gameCoverUrl: itchJamEntries.gameCoverUrl,
+          gameCoverColor: itchJamEntries.gameCoverColor,
+          rateUrl: itchJamEntries.rateUrl,
+          authorName: itchJamEntries.authorName,
+          authorUrl: itchJamEntries.authorUrl,
+        })
+        .from(itchJamEntryResults)
+        .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, itchJamEntryResults.entryId))
+        .where(
+          and(
+            eq(itchJamEntries.jamId, input.jamId),
+            lte(itchJamEntryResults.rank, input.topN),
+            isNull(itchJamEntries.missingSince),
+          ),
+        )
+        .orderBy(asc(itchJamEntryResults.criterion), asc(itchJamEntryResults.rank)),
+      db
+        .select({ criterion: itchJamEntryResults.criterion, count: count() })
+        .from(itchJamEntryResults)
+        .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, itchJamEntryResults.entryId))
+        .where(eq(itchJamEntries.jamId, input.jamId))
+        .groupBy(itchJamEntryResults.criterion),
+    ]);
+
+    const entrantByCriterion = new Map(counts.map((row) => [row.criterion, row.count]));
+    const grouped = new Map<
+      string,
+      { criterion: string; entrantCount: number; places: typeof places }
+    >();
+    for (const place of places) {
+      let bucket = grouped.get(place.criterion);
+      if (!bucket) {
+        bucket = {
+          criterion: place.criterion,
+          entrantCount: entrantByCriterion.get(place.criterion) ?? 0,
+          places: [],
+        };
+        grouped.set(place.criterion, bucket);
+      }
+      bucket.places.push(place);
+    }
+
+    // Overall is the placement anyone would recognize, so it leads; the
+    // host-defined order of the rest isn't scraped, so alphabetical is the
+    // only stable choice.
+    const criteria = [...grouped.values()].sort((a, b) => {
+      const aOverall = a.criterion.toLowerCase() === "overall";
+      const bOverall = b.criterion.toLowerCase() === "overall";
+      if (aOverall !== bOverall) return aOverall ? -1 : 1;
+      return a.criterion.localeCompare(b.criterion);
+    });
+
+    return { criteria };
+  });
+
+// ── Jam detail page: the community shelf ────────────────────────────────────
+
+/** Shelf caps. A jam the whole server entered is a good problem, but the
+ * shelf is a glance, not a directory — it links out to the surfaces that
+ * are. */
+const COMMUNITY_MEMBERS_MAX = 24;
+const COMMUNITY_TEAMS_MAX = 12;
+
+/**
+ * Who from *here* took part in this jam.
+ *
+ * This is the join the research doc calls the thing itch can't copy:
+ * `profile_projects.jam_id` and `team_projects.jam_id` have carried it
+ * since the jam sync landed and nothing jam-side ever rendered it. Past
+ * participation (shipped entries) and future participation (teams
+ * recruiting) both belong on the same shelf — otherwise an upcoming jam's
+ * community section is permanently empty.
+ */
+export const getJamCommunity = os
+  .input(z.object({ jamId: z.number().int().min(1).max(MAX_INT4) }))
+  .handler(async ({ input }) => {
+    const [memberRows, teamRows, [postRow]] = await Promise.all([
+      db
+        .select({
+          placementId: profileProjects.id,
+          profileId: developerProfiles.id,
+          username: developerProfiles.guildNickname,
+          discordUsername: developerProfiles.discordUsername,
+          avatarUrl: developerProfiles.avatarUrl,
+          urlStub: profileUrlStubs.stub,
+          entryTitle: profileProjects.submissionTitle,
+          fallbackTitle: profileProjects.title,
+          submissionUrl: profileProjects.submissionUrl,
+          gameUrl: profileProjects.url,
+          source: profileProjects.source,
+          sourceId: profileProjects.sourceId,
+          result: profileProjects.result,
+        })
+        .from(profileProjects)
+        .innerJoin(developerProfiles, eq(profileProjects.profileId, developerProfiles.id))
+        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+        .where(
+          and(
+            eq(profileProjects.jamId, input.jamId),
+            // Moderation and provider visibility are the profile surface's
+            // rules; a shelf on someone else's page has to honour both.
+            eq(profileProjects.status, "approved"),
+            eq(profileProjects.published, true),
+          ),
+        )
+        .limit(COMMUNITY_MEMBERS_MAX),
+      db
+        .select({
+          placementId: teamProjects.id,
+          teamId: teams.id,
+          name: teams.name,
+          slug: teams.slug,
+          avatarUrl: teams.avatarUrl,
+          avatarKey: teams.avatarKey,
+          entryTitle: teamProjects.title,
+          submissionUrl: teamProjects.submissionUrl,
+          gameUrl: teamProjects.url,
+          result: teamProjects.result,
+        })
+        .from(teamProjects)
+        .innerJoin(teams, eq(teamProjects.teamId, teams.id))
+        // An archived team's page is read-only but still a real page, so its
+        // jam history stays visible.
+        .where(eq(teamProjects.jamId, input.jamId))
+        .limit(COMMUNITY_TEAMS_MAX),
+      db
+        .select({ count: count() })
+        .from(collabPosts)
+        .where(and(eq(collabPosts.jamId, input.jamId), eq(collabPosts.status, "recruiting"))),
+    ]);
+
+    // Overall placement for the imported rows, keyed on the itch entry id
+    // those rows carry as `sourceId`. Same guard `queryProfileProjects`
+    // uses: a library row's sourceId is a *game* id and could collide
+    // numerically with an unrelated entry id.
+    const entryIds = memberRows
+      .filter((row) => row.source === "itchio-jam" && /^\d+$/.test(row.sourceId ?? ""))
+      .map((row) => Number(row.sourceId));
+    const overallRows =
+      entryIds.length > 0
+        ? await db
+            .select({ entryId: itchJamEntryResults.entryId, rank: itchJamEntryResults.rank })
+            .from(itchJamEntryResults)
+            .where(
+              and(
+                inArray(itchJamEntryResults.entryId, entryIds),
+                sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+              ),
+            )
+        : [];
+    const rankByEntryId = new Map(overallRows.map((row) => [String(row.entryId), row.rank]));
+
+    const members = memberRows
+      .map((row) => ({
+        placementId: row.placementId,
+        profileId: row.profileId,
+        username: row.username ?? row.discordUsername,
+        avatarUrl: row.avatarUrl,
+        urlStub: row.urlStub,
+        entryTitle: row.entryTitle ?? row.fallbackTitle,
+        entryUrl: row.submissionUrl ?? row.gameUrl,
+        result: row.result,
+        rank: row.source === "itchio-jam" ? (rankByEntryId.get(row.sourceId ?? "") ?? null) : null,
+      }))
+      // Ranked entries first, then alphabetical — a shelf ordered by row id
+      // reads as random.
+      .sort(
+        (a, b) =>
+          (a.rank ?? NO_RANK) - (b.rank ?? NO_RANK) ||
+          (a.username ?? "").localeCompare(b.username ?? ""),
+      );
+
+    const teamShelf = await Promise.all(
+      teamRows.map(async ({ avatarKey, ...row }) => ({
+        ...row,
+        avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl: row.avatarUrl }),
+      })),
+    );
+
+    return { members, teams: teamShelf, openPostCount: postRow?.count ?? 0 };
+  });
+
+/** Jams in a host's series, beside the one being viewed. */
+const HOST_SERIES_MAX = 6;
+
+/**
+ * Other jams by the same host — the series strip ("every Brackeys jam"),
+ * which falls out of a jsonb containment match on `hosts[0]`.
+ *
+ * Matching on the host's *name* rather than an id because that's all the
+ * scrape carries. A containment query (`hosts @> [{"name": …}]`) matches
+ * the host in any position, so a jam that co-hosted one year and led the
+ * next still shows up in the series.
+ */
+export const listJamsByHost = os
+  .input(
+    z.object({
+      hostName: z.string().trim().min(1).max(200),
+      excludeJamId: z.number().int().min(1).max(MAX_INT4).optional(),
+      limit: z.number().int().min(1).max(12).default(HOST_SERIES_MAX),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const jams = await db
+      .select({
+        jamId: itchJams.jamId,
+        slug: itchJams.slug,
+        title: itchJams.title,
+        bannerUrl: itchJams.bannerUrl,
+        themeColor: itchJams.themeColor,
+        startsAt: itchJams.startsAt,
+        endsAt: itchJams.endsAt,
+        votingEndsAt: itchJams.votingEndsAt,
+        joinedCount: itchJams.joinedCount,
+        entriesCount: itchJams.entriesCount,
+      })
+      .from(itchJams)
+      .where(
+        and(
+          isNull(itchJams.missingSince),
+          sql`${itchJams.hosts} @> ${JSON.stringify([{ name: input.hostName }])}::jsonb`,
+          input.excludeJamId != null ? sql`${itchJams.jamId} <> ${input.excludeJamId}` : undefined,
+        ),
+      )
+      // Most recent first: a series strip is "what else has this host run",
+      // and the answer people want is the latest edition.
+      .orderBy(desc(sql`COALESCE(${itchJams.startsAt}, '-infinity'::timestamptz)`))
+      .limit(input.limit);
+
+    return { jams };
   });

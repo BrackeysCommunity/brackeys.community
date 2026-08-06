@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -24,6 +25,7 @@ export const hammerSchema = pgSchema("hammer");
 export const collabSchema = pgSchema("collab");
 export const teamSchema = pgSchema("team");
 export const itchSchema = pgSchema("itch");
+export const projectSchema = pgSchema("project");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
   "game",
@@ -166,6 +168,14 @@ export const profileProjects = userSchema.table(
     profileId: text("profile_id")
       .notNull()
       .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    // The canonical project this row is a *placement* of. Nullable while
+    // the backfill runs and for rows created by code paths that haven't
+    // converged yet. `set null`, never cascade: un-showcasing a game must
+    // not delete the project other people's pages point at, and deleting a
+    // project (rare, orphan sweep only) must not delete the surface row.
+    projectId: text("project_id").references((): AnyPgColumn => projects.id, {
+      onDelete: "set null",
+    }),
     type: profileProjectTypeEnum("type").notNull().default("game"),
     subTypes: text("sub_types").array().notNull().default([]),
     title: text("title").notNull(),
@@ -720,6 +730,11 @@ export const teamProjects = teamSchema.table("team_projects", {
   teamId: text("team_id")
     .notNull()
     .references(() => teams.id, { onDelete: "cascade" }),
+  // The canonical project this showcase row is a placement of — see the
+  // matching column on `profile_projects` for why it's `set null`.
+  projectId: text("project_id").references((): AnyPgColumn => projects.id, {
+    onDelete: "set null",
+  }),
   type: profileProjectTypeEnum("type").notNull().default("game"),
   title: text("title").notNull(),
   description: text("description"),
@@ -747,43 +762,6 @@ export const teamProjects = teamSchema.table("team_projects", {
   addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
-/**
- * Who made this game — historical, editable rows, distinct from the
- * roster. Seeded from `team_members` when a project lands, then owned by
- * the credit CRUD endpoints alone: roster churn (leave, removal, account
- * deletion) never mutates a shipped credit. `display_name` always
- * survives; `profile_id` is the optional live link, and free-text rows
- * cover contributors who were never on the platform.
- */
-export const teamProjectCredits = teamSchema.table(
-  "team_project_credits",
-  {
-    id: serial("id").primaryKey(),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => teamProjects.id, { onDelete: "cascade" }),
-    // set null, NOT cascade: a deleted account keeps its name in the
-    // credits; only the link dies.
-    profileId: text("profile_id").references(() => developerProfiles.id, {
-      onDelete: "set null",
-    }),
-    displayName: text("display_name").notNull(),
-    // "Composer", "Pixel art" — free text, same self-description rule as
-    // team_members.title.
-    role: text("role"),
-    sortOrder: integer("sort_order").default(0),
-    addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    // One credit row per profile per project; free-text rows are exempt.
-    uniqueIndex("team_project_credits_profile_unique")
-      .on(table.projectId, table.profileId)
-      .where(sql`${table.profileId} IS NOT NULL`),
-  ],
-);
 
 // ── itch.io scraped data (itch schema) ───────────────────────────────────────
 
@@ -822,38 +800,54 @@ export const itchJams = itchSchema.table("jams", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const itchJamEntries = itchSchema.table("jam_entries", {
-  // jam_game.id — itch's submission id, distinct from the underlying game id.
-  entryId: bigint("entry_id", { mode: "number" }).primaryKey(),
-  jamId: integer("jam_id")
-    .notNull()
-    .references(() => itchJams.jamId, { onDelete: "cascade" }),
-  gameId: bigint("game_id", { mode: "number" }).notNull(),
-  rateUrl: text("rate_url").notNull(),
-  ratingCount: integer("rating_count").notNull().default(0),
-  coolness: integer("coolness").notNull().default(0),
-  submittedAt: timestamp("submitted_at", { withTimezone: true }),
-  gameTitle: text("game_title").notNull(),
-  gameShortText: text("game_short_text"),
-  gameUrl: text("game_url").notNull(),
-  gameCoverUrl: text("game_cover_url"),
-  gameCoverColor: text("game_cover_color"),
-  gamePlatforms: text("game_platforms").array(),
-  authorId: bigint("author_id", { mode: "number" }),
-  authorName: text("author_name"),
-  authorUrl: text("author_url"),
-  contributors: jsonb("contributors")
-    .$type<ItchJamContributor[]>()
-    .notNull()
-    .default(sql`'[]'::jsonb`),
-  resultsFetchedAt: timestamp("results_fetched_at", { withTimezone: true }),
-  // Set when itch no longer lists the entry (pulled from the jam, or its rate
-  // page 404s). Rows are never deleted; cleared if the entry is listed again.
-  missingSince: timestamp("missing_since", { withTimezone: true }),
-  scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const itchJamEntries = itchSchema.table(
+  "jam_entries",
+  {
+    // jam_game.id — itch's submission id, distinct from the underlying game id.
+    entryId: bigint("entry_id", { mode: "number" }).primaryKey(),
+    jamId: integer("jam_id")
+      .notNull()
+      .references(() => itchJams.jamId, { onDelete: "cascade" }),
+    gameId: bigint("game_id", { mode: "number" }).notNull(),
+    rateUrl: text("rate_url").notNull(),
+    ratingCount: integer("rating_count").notNull().default(0),
+    coolness: integer("coolness").notNull().default(0),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    gameTitle: text("game_title").notNull(),
+    gameShortText: text("game_short_text"),
+    gameUrl: text("game_url").notNull(),
+    gameCoverUrl: text("game_cover_url"),
+    gameCoverColor: text("game_cover_color"),
+    gamePlatforms: text("game_platforms").array(),
+    authorId: bigint("author_id", { mode: "number" }),
+    authorName: text("author_name"),
+    authorUrl: text("author_url"),
+    contributors: jsonb("contributors")
+      .$type<ItchJamContributor[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    resultsFetchedAt: timestamp("results_fetched_at", { withTimezone: true }),
+    // Set when itch no longer lists the entry (pulled from the jam, or its rate
+    // page 404s). Rows are never deleted; cleared if the entry is listed again.
+    missingSince: timestamp("missing_since", { withTimezone: true }),
+    scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // A foreign key does not index its own column in Postgres, and this
+    // table is the largest in the database (one row per submission across
+    // every scraped jam). Every jam-scoped read — the detail page's entries
+    // grid, `topEntriesQuery`, the results board — filters on jam_id first.
+    index("jam_entries_jam_id_idx").on(table.jamId),
+    // The game id is the identity a project row dedupes on, so the derived
+    // "which jams did this game enter" join reads by it.
+    index("jam_entries_game_id_idx").on(table.gameId),
+    // Author id is how a scraped entry is matched to a linked itch account
+    // (the "Brackeys member" badge on the entries grid).
+    index("jam_entries_author_id_idx").on(table.authorId),
+  ],
+);
 
 // Slugs from the /jams/past listing whose jam page 404s and that were never
 // persisted (jam deleted on itch before we ever scraped it). Recorded so the
@@ -879,4 +873,217 @@ export const itchJamEntryResults = itchSchema.table(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.entryId, table.criterion] })],
+);
+
+// ── Projects as a canonical entity (project schema) ─────────────────────────
+
+/**
+ * The curated artifact kind. **Text, not a pg enum**, so future kinds are a
+ * pure read-path addition (same reasoning as `teams.status` and
+ * `collab_posts.type`) — the placement tables keep their narrower enum and
+ * render whatever the canonical row says once linked.
+ *
+ * `jam` is deliberately absent: jam participation is a *record*
+ * (`project_jam_links`, or the derived join on `source_game_id`), not a kind
+ * of thing. `web` exists because websites and other dev adventures were
+ * hiding under `app`'s subtype, and `assets` because itch asset packs had
+ * nowhere to go at all.
+ */
+export const PROJECT_TYPES = ["game", "tool", "assets", "audio", "app", "web", "other"] as const;
+export type ProjectType = (typeof PROJECT_TYPES)[number];
+
+/** Provenance of the canonical row itself. `itchio-jam` collapses into
+ * `itchio` here: the *game* is the identity, the entry is a jam-record fact. */
+export const PROJECT_SOURCES = ["manual", "itchio"] as const;
+export type ProjectSource = (typeof PROJECT_SOURCES)[number];
+
+/** A secondary link on a project: repo, live site, store page, registry. */
+export type ProjectLink = { label: string; url: string };
+
+/**
+ * A thing somebody made. One row per artifact, no matter how many people
+ * showcase it.
+ *
+ * The same shipped game used to exist as N unrelated `profile_projects`
+ * rows plus a `team_projects` copy, with nothing joining them — so "who
+ * worked on this?" was unanswerable and a project page had no row to be a
+ * page *of*. This is that row; `profile_projects` and `team_projects`
+ * become **placements** of it, keeping everything surface-shaped (pinned,
+ * sort order, moderation status, per-surface image override) while
+ * *identity* lives here.
+ *
+ * A project only exists when something local anchors it — a profile
+ * placement, a team placement, or a manual creation. The scraped entries
+ * corpus (hundreds of thousands of rows across ~21k jams) is rendered
+ * straight from `itch.jam_entries`; an entry links to a project page only
+ * when one happens to exist.
+ */
+export const projects = projectSchema.table(
+  "projects",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    // Baked in at birth (the teams lesson, not the profiles retrofit).
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    description: text("description"),
+    type: text("type").$type<ProjectType>().notNull().default("game"),
+    // Existing manual nuance, unchanged: music/sfx, web/standalone/mobile.
+    subTypes: text("sub_types").array().notNull().default([]),
+    // Raw itch API values — provider-owned, refreshed on sync, never
+    // user-edited. Null for manual/off-itch rows, except `releaseStatus`,
+    // which an owner may set on a manual project (a website wants "in
+    // development" too, and itch's vocabulary is a good neutral one).
+    // `classification`: game | asset | game_mod | physical_game |
+    // soundtrack | tool | comic | book | other. Stored verbatim; only the
+    // read-path mapping knows the spellings.
+    classification: text("classification"),
+    // itch's `type`: default | html | flash | java | unity. `html` is the
+    // "playable in browser" signal that drives the project page's CTA.
+    embedType: text("embed_type"),
+    // itch's `release_status`: released | in_development | on_hold |
+    // canceled | prototype.
+    releaseStatus: text("release_status"),
+    // The primary link — what the page's CTA points at.
+    url: text("url"),
+    // Everything else: repo, live site, store page. Deliberately not
+    // per-provider columns; a GitHub import later becomes a new `source`
+    // value plus an external id, which is a pure addition.
+    links: jsonb("links")
+      .$type<ProjectLink[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    // Cover art. `imageKey` uses a *project-scoped* MinIO namespace, not the
+    // per-user one: a canonical row referencing a placement owner's uploaded
+    // key would inherit that user's lifecycle and blank other people's pages
+    // when they delete their account.
+    imageUrl: text("image_url"),
+    imageKey: text("image_key"),
+    source: text("source").$type<ProjectSource>().notNull().default("manual"),
+    // itch game id — the dedupe key. Library imports carry it as their
+    // placement `sourceId`; jam imports carry an entry id whose
+    // `itch.jam_entries.game_id` resolves to it. One game on itch = one
+    // project row, however many members imported it.
+    sourceGameId: bigint("source_game_id", { mode: "number" }),
+    // Provider visibility mirrored at the canonical level. An unpublished
+    // project renders only to its editors; a restricted one renders (jam
+    // participation is public record) with its itch links suppressed.
+    published: boolean("published").notNull().default(true),
+    restrictedAt: timestamp("restricted_at"),
+    // The honest ship date — never `createdAt`, which is when the row
+    // landed in our database. Only a `released` project needs one.
+    releasedAt: timestamp("released_at"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Partial: manual projects have no game id and must not collide on NULL.
+    // This also serves the by-game-id reads (the derived jam record, and the
+    // entries grid's "does this entry have a project page" lookup) — Postgres
+    // can use a partial index for `= x` once it can prove x is not null, so a
+    // second plain index on the same column would be dead weight.
+    uniqueIndex("projects_source_game_unique")
+      .on(table.sourceGameId)
+      .where(sql`${table.sourceGameId} IS NOT NULL`),
+  ],
+);
+
+/**
+ * Who made it — the project page's reason to exist.
+ *
+ * Supersedes `team_project_credits`, which was team-scoped because teams
+ * were the only entity that shipped things; a jam entry made by three
+ * friends who never formed a team deserves credits too. Same philosophy:
+ * `display_name` always survives, `profile_id` is the optional live link,
+ * and roster churn never mutates a shipped credit.
+ */
+export const projectContributors = projectSchema.table(
+  "project_contributors",
+  {
+    id: serial("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // set null, NOT cascade: a deleted account keeps its name in the
+    // credits; only the link dies.
+    profileId: text("profile_id").references(() => developerProfiles.id, {
+      onDelete: "set null",
+    }),
+    displayName: text("display_name").notNull(),
+    // "Composer", "Pixel art" — free text, same self-description rule as
+    // `team_members.title`.
+    role: text("role"),
+    // 'placement' | 'entry-contributors' | 'manual'. Lets a re-sync refresh
+    // scraped rows without clobbering hand-edited ones.
+    source: text("source").notNull().default("manual"),
+    sortOrder: integer("sort_order").default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // One credit row per profile per project; free-text rows are exempt.
+    uniqueIndex("project_contributors_profile_unique")
+      .on(table.projectId, table.profileId)
+      .where(sql`${table.profileId} IS NOT NULL`),
+    index("project_contributors_profile_idx").on(table.profileId),
+  ],
+);
+
+/**
+ * A team's claim on a project ("made by Studio Chonk").
+ *
+ * Distinct from the team's *placement* (a `team_projects` row is what their
+ * page chooses to show); this is the credit-level fact the project page
+ * renders, and it survives the team un-showcasing the work.
+ */
+export const projectTeams = projectSchema.table(
+  "project_teams",
+  {
+    id: serial("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.projectId, table.teamId)],
+);
+
+/**
+ * Jam appearances that can't be derived.
+ *
+ * For an imported project the jam record is a **DB-only join** —
+ * `projects.source_game_id = itch.jam_entries.game_id` gives every
+ * appearance, with rank from `jam_entry_results`, at zero maintenance cost.
+ * These rows cover the rest: manual entries, and jams that never happened
+ * on itch. Read paths union the two.
+ *
+ * Same hybrid `jam_id`-FK-or-free-text pattern the placement tables use.
+ */
+export const projectJamLinks = projectSchema.table(
+  "project_jam_links",
+  {
+    id: serial("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
+    // Free text for off-itch jams; read paths coalesce text over the join.
+    jamName: text("jam_name"),
+    jamUrl: text("jam_url"),
+    submissionUrl: text("submission_url"),
+    // "Overall: #12 of 312", or whatever the owner typed.
+    result: text("result"),
+    participatedAt: timestamp("participated_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("project_jam_links_jam_unique")
+      .on(table.projectId, table.jamId)
+      .where(sql`${table.jamId} IS NOT NULL`),
+  ],
 );

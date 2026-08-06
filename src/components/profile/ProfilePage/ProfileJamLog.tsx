@@ -1,10 +1,12 @@
 import { ChampionIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { Link as TextLink, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { jamLinkParams } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import type { JamLogBest, JamLogEntry } from "./helpers";
@@ -137,8 +139,25 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
             </Badge>
           ) : null}
         </div>
-        {entry.shortNote ? (
-          <Text size="sm" variant="muted" className="truncate">
+        {entry.jamName || entry.shortNote ? (
+          <Text as="div" size="sm" variant="muted" className="truncate">
+            {/* The jam name goes to the jam's page here — a log row used to
+                offer nothing but exits to itch.io. Free-text jams (no
+                scraped row) stay plain: there's no page to point at. */}
+            {entry.jamName ? (
+              entry.jamSlug || entry.jamId != null ? (
+                <RouterLink
+                  to="/jams/$jamSlug"
+                  params={jamLinkParams({ jamId: entry.jamId ?? 0, slug: entry.jamSlug })}
+                  className="hover:text-primary hover:underline"
+                >
+                  {entry.jamName}
+                </RouterLink>
+              ) : (
+                entry.jamName
+              )
+            ) : null}
+            {entry.jamName && entry.shortNote ? " · " : null}
             {entry.shortNote}
           </Text>
         ) : null}

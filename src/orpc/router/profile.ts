@@ -12,11 +12,13 @@ import {
   linkedAccounts,
   profileProjects,
   profileUrlStubs,
+  projects,
   skillRequests,
   skills,
   userSkills,
 } from "@/db/schema";
 import { syncItchIoLibraryThrottled } from "@/lib/itchio-sync";
+import { jamUrl } from "@/lib/jam-links";
 import {
   getProfileProjectImageUrl,
   removeProfileProjectImageFromStorage,
@@ -51,9 +53,15 @@ async function queryProfileProjects(where: SQL | undefined) {
       // submitted; entry counts turn a bare rank into "#12 / 312".
       jamStartsAt: itchJams.startsAt,
       jamEntriesCount: itchJams.entriesCount,
+      // The canonical project this row is a placement of, when it has one —
+      // what turns a showcase card from an exit to itch into a link to the
+      // project's own page. Both joins are on unique keys, so neither can
+      // multiply the placement rows.
+      canonicalSlug: projects.slug,
     })
     .from(profileProjects)
     .leftJoin(itchJams, eq(profileProjects.jamId, itchJams.jamId))
+    .leftJoin(projects, eq(profileProjects.projectId, projects.id))
     .where(where);
 
   // Overall placement lives in the scraped per-criterion results, keyed on the
@@ -77,19 +85,25 @@ async function queryProfileProjects(where: SQL | undefined) {
       : [];
   const rankByEntryId = new Map(overallRows.map((r) => [String(r.entryId), r.rank]));
 
-  return rows.map(({ project, itchJamTitle, itchJamSlug, jamStartsAt, jamEntriesCount }) => ({
-    ...project,
-    jamName: project.jamName ?? itchJamTitle,
-    jamUrl: project.jamUrl ?? (itchJamSlug ? `https://itch.io/jam/${itchJamSlug}` : null),
-    jamStartsAt,
-    jamEntriesCount,
-    // Guarded on source: a library row's `sourceId` is a game id, which can
-    // collide numerically with an unrelated entry id.
-    jamOverallRank:
-      project.source === "itchio-jam" && project.sourceId
-        ? (rankByEntryId.get(project.sourceId) ?? null)
-        : null,
-  }));
+  return rows.map(
+    ({ project, itchJamTitle, itchJamSlug, jamStartsAt, jamEntriesCount, canonicalSlug }) => ({
+      ...project,
+      projectSlug: canonicalSlug,
+      jamName: project.jamName ?? itchJamTitle,
+      jamUrl: project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null),
+      // The scraped slug, so the log row can link to the jam's page *here*
+      // rather than only off to itch. Null for manual rows with no linked jam.
+      jamSlug: itchJamSlug,
+      jamStartsAt,
+      jamEntriesCount,
+      // Guarded on source: a library row's `sourceId` is a game id, which can
+      // collide numerically with an unrelated entry id.
+      jamOverallRank:
+        project.source === "itchio-jam" && project.sourceId
+          ? (rankByEntryId.get(project.sourceId) ?? null)
+          : null,
+    }),
+  );
 }
 
 function queryUserSkills(userId: string) {
@@ -578,6 +592,22 @@ export const updateProject = os
     return serializeProfileProject(updated);
   });
 
+/**
+ * Un-showcase a project from the owner's profile.
+ *
+ * **Deletes the placement, never the canonical project.** Other
+ * contributors' pages, a team's showcase, and jam backlinks all point at
+ * `project.projects`, so one member removing their copy must not take the
+ * shared row with it — which is exactly why `profile_projects.project_id`
+ * is `ON DELETE SET NULL` in the other direction and why nothing here
+ * touches the `project` schema. A project that loses its last anchor is an
+ * orphan for a periodic sweep to consider, not something to cascade-collect
+ * synchronously (race-prone, and the volume doesn't justify it).
+ *
+ * The MinIO delete below is safe for the same reason: the key is in this
+ * user's own namespace, and canonical rows never reference a user-scoped
+ * key — they carry provider CDN URLs or a project-scoped upload.
+ */
 export const removeProject = os
   .use(requireAuth)
   .input(z.object({ projectId: z.string() }))

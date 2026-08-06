@@ -1,0 +1,104 @@
+import { Link as RouterLink } from "@tanstack/react-router";
+import { useMemo } from "react";
+
+import { ShelfHeader } from "@/components/ui/shelf-header";
+import { MicroLabel, RichHtml, Text } from "@/components/ui/typography";
+import { Well } from "@/components/ui/well";
+import useDateNow from "@/lib/hooks/use-date-now";
+
+import { jamPhase } from "../JamCalendarPage/helpers";
+import { JamCommunitySection } from "./JamCommunitySection";
+import { JamCtaRail } from "./JamCtaRail";
+import { JamDetailHero } from "./JamDetailHero";
+import { JamEntriesSection } from "./JamEntriesSection";
+import { JamHostSeries } from "./JamHostSeries";
+import { JamResultsSection } from "./JamResultsSection";
+import type { JamDetail, JamEntryRow, JamResultsCriterion } from "./types";
+
+export interface JamDetailPageProps {
+  detail: JamDetail;
+  /** First page of submissions, fetched by the route loader so the grid is
+   * in the server-rendered document rather than a post-hydration flash. */
+  initialEntries: { entries: JamEntryRow[]; total: number };
+  results: JamResultsCriterion[];
+}
+
+/**
+ * A jam's own page.
+ *
+ * The board's detail modal proved out this content — banner morph,
+ * description, phase-aware stats, the team CTA — but a modal has no URL,
+ * which means ~23k tracked jams were unshareable and unindexable, and the
+ * "search → jam detail" path dead-ended in an overlay. Everything here is
+ * the modal's content given a place to live, plus the two sections a modal
+ * had no room for: the ranked submissions grid and the results board.
+ *
+ * `now` ticks from `useDateNow`, so the countdown in the hero and the
+ * phase-dependent CTA stay live without a reload.
+ */
+export function JamDetailPage({ detail, initialEntries, results }: JamDetailPageProps) {
+  const { jam, trackedEntries, hasResults } = detail;
+  const nowMs = useDateNow();
+  const now = useMemo(() => new Date(nowMs), [nowMs]);
+  const phase = jamPhase(jam, now);
+
+  return (
+    <div className="flex flex-col gap-8 pb-8">
+      <nav aria-label="Breadcrumb">
+        <RouterLink
+          to="/jams"
+          className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:text-primary"
+        >
+          ← ALL JAMS
+        </RouterLink>
+      </nav>
+
+      <JamDetailHero jam={jam} phase={phase} now={now} trackedEntries={trackedEntries} />
+
+      <JamCtaRail jam={jam} phase={phase} hasResults={hasResults} />
+
+      <JamCommunitySection jamId={jam.jamId} phase={phase} />
+
+      <section className="flex flex-col gap-3">
+        <ShelfHeader title="ABOUT THIS JAM" variant="label" />
+        {jam.contentHtml ? (
+          <RichHtml html={jam.contentHtml} />
+        ) : (
+          <Well variant="ghost" className="p-6 backdrop-blur-none">
+            <Text size="sm" variant="muted" italic>
+              The host didn't write a description for this jam.
+            </Text>
+          </Well>
+        )}
+      </section>
+
+      {hasResults ? <JamResultsSection criteria={results} /> : null}
+
+      {/* An upcoming jam has no entries by definition; a scraped jam we
+          never fetched entries for has none either. Neither case wants an
+          empty grid with a search box over it. */}
+      {trackedEntries > 0 ? (
+        <JamEntriesSection jamId={jam.jamId} total={trackedEntries} initialData={initialEntries} />
+      ) : (
+        <section className="flex flex-col gap-3">
+          <ShelfHeader title="SUBMISSIONS" variant="label" />
+          <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
+            <MicroLabel>
+              {phase === "upcoming" ? "NOTHING SUBMITTED YET" : "NO SUBMISSIONS TRACKED"}
+            </MicroLabel>
+            <Text size="xs" variant="muted">
+              {phase === "upcoming"
+                ? "Submissions appear here once the jam opens."
+                : "We haven't fetched this jam's entries from itch.io."}
+            </Text>
+          </Well>
+        </section>
+      )}
+
+      {/* Series index, free from a jsonb containment match. Only rendered
+          for a jam that actually names a host — `hostName`'s "COMMUNITY"
+          fallback isn't a host to look up. */}
+      {jam.hosts[0]?.name ? <JamHostSeries hostName={jam.hosts[0].name} jamId={jam.jamId} /> : null}
+    </div>
+  );
+}

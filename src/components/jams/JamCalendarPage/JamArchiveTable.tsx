@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { LayoutGroup, motion } from "framer-motion";
 import { useState } from "react";
 
@@ -15,7 +16,7 @@ import {
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { durationDays } from "@/lib/jam-countdown";
-import { hostName } from "@/lib/jam-links";
+import { hostName, jamLinkParams } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import { ROW_CLOSE_TRANSITION } from "./board/transitions";
@@ -143,7 +144,19 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                     style={{ opacity: selected?.jamId === jam.jamId ? 0 : 1 }}
                     className="cursor-pointer border-b transition-colors hover:bg-muted/50"
                   >
-                    <TableCell className="max-w-64 truncate font-medium">{jam.title}</TableCell>
+                    {/* The title is a real link to the jam's page — the row
+                        click still opens the quick-look, but a research
+                        surface has to let you open a jam in a new tab. */}
+                    <TableCell className="max-w-64 truncate font-medium">
+                      <Link
+                        to="/jams/$jamSlug"
+                        params={jamLinkParams(jam)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {jam.title}
+                      </Link>
+                    </TableCell>
                     <TableCell className="hidden max-w-40 truncate text-muted-foreground md:table-cell">
                       {hostName(jam, "—")}
                     </TableCell>

@@ -193,6 +193,10 @@ export interface EditableProject {
 
 export interface ProfileProject {
   id: string;
+  /** `$projectSlug` for the canonical project page, when this placement is
+   * linked to one. Null means the card has no in-app destination and still
+   * links out to the provider. */
+  projectSlug: string | null;
   title: string;
   kind: ProjectKind;
   year: number;
@@ -212,6 +216,14 @@ export interface JamLogEntry {
    * same jam twice, so the jam's own id wouldn't be unique here. */
   id: string;
   title: string;
+  /** The jam's name, kept separate from `shortNote` so it can carry the
+   * link to the jam's own page. */
+  jamName: string | null;
+  /** `$jamSlug` segment for the jam's page, when the row is linked to a
+   * scraped jam. Null for off-itch / free-text jam rows, which have no
+   * page here to point at. */
+  jamSlug: string | null;
+  jamId: number | null;
   shortNote: string | null;
   startedAt: Date;
   /** Entry page (itch rate URL) when known — the log row's title links

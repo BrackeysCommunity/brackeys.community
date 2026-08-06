@@ -73,6 +73,25 @@ export function jamSignal(jam: JamFromList, now: Date): { value: number; label: 
   return { value: jam.entriesCount ?? jam.joinedCount ?? 0, label: "ENTRIES" };
 }
 
+/**
+ * Every participation number we hold for a jam, in reading order,
+ * skipping the ones that don't exist.
+ *
+ * Which one is *meaningful* flips by phase (see `jamSignal`), but a
+ * detail surface has room to show all of them — and "0 ENTRIES" on an
+ * upcoming jam is true and says nothing, so a zero is treated as absent.
+ */
+export function jamStats(jam: JamFromList): { label: string; value: number }[] {
+  const candidates: { label: string; value: number | null }[] = [
+    { label: "JOINED", value: jam.joinedCount },
+    { label: "ENTRIES", value: jam.entriesCount },
+    { label: "RATINGS", value: jam.ratingsCount },
+  ];
+  return candidates.filter(
+    (stat): stat is { label: string; value: number } => stat.value != null && stat.value > 0,
+  );
+}
+
 export interface Milestone {
   kind: ChipKind;
   date: Date;
@@ -80,23 +99,68 @@ export interface Milestone {
   label: string;
 }
 
+/**
+ * The jam's whole arc in chronological order: start ▸ submission
+ * deadline ▸ voting end. A jam without a voting window has its end date
+ * as a full close — "ENDS", styled like a voting end (red ■), not like a
+ * submission deadline (yellow ⊙).
+ *
+ * Everything that renders a jam's timeline reads from this one list: the
+ * board's date line and progress track, the detail page's lifecycle
+ * strip, and `nextMilestone` below.
+ */
+export function lifecyclePoints(jam: JamFromList): Milestone[] {
+  const out: Milestone[] = [];
+  if (jam.startsAt) {
+    out.push({ kind: "starting", date: new Date(jam.startsAt), label: "STARTS" });
+  }
+  if (jam.endsAt) {
+    out.push(
+      jam.votingEndsAt
+        ? { kind: "deadline", date: new Date(jam.endsAt), label: "SUBMISSIONS CLOSE" }
+        : { kind: "ending", date: new Date(jam.endsAt), label: "ENDS" },
+    );
+  }
+  if (jam.votingEndsAt) {
+    out.push({ kind: "ending", date: new Date(jam.votingEndsAt), label: "VOTING ENDS" });
+  }
+  return out;
+}
+
 /** The next milestone in a jam's lifecycle from `now`, or null once
- * everything is in the past. A jam without a voting window has its end
- * date as a full close — "ENDS", styled like a voting end (red ■), not
- * like a submission deadline (yellow ⊙). */
+ * everything is in the past. */
 export function nextMilestone(jam: JamFromList, now: Date): Milestone | null {
   const t = now.getTime();
-  const s = jam.startsAt ? new Date(jam.startsAt) : null;
-  const e = jam.endsAt ? new Date(jam.endsAt) : null;
-  const v = jam.votingEndsAt ? new Date(jam.votingEndsAt) : null;
-  if (s && s.getTime() > t) return { kind: "starting", date: s, label: "STARTS" };
-  if (e && e.getTime() > t) {
-    return v
-      ? { kind: "deadline", date: e, label: "SUBMISSIONS CLOSE" }
-      : { kind: "ending", date: e, label: "ENDS" };
-  }
-  if (v && v.getTime() > t) return { kind: "ending", date: v, label: "VOTING ENDS" };
-  return null;
+  return lifecyclePoints(jam).find((point) => point.date.getTime() > t) ?? null;
+}
+
+export interface LifecycleProgress {
+  /** 0–1 fraction of the start → last-event window elapsed at `now`. */
+  fill: number;
+  /** Submission-deadline position as a 0–100 percentage of the track,
+   * present only when the jam has a separate voting window. */
+  deadlinePct: number | null;
+}
+
+/** Shared math for every progress rendering (row wash, card bar, the
+ * detail page's strip). Null when the jam doesn't span a measurable
+ * window. */
+export function lifecycleProgress(jam: JamFromList, now: Date): LifecycleProgress | null {
+  const points = lifecyclePoints(jam);
+  if (points.length < 2) return null;
+  const t0 = points[0]!.date.getTime();
+  const t1 = points[points.length - 1]!.date.getTime();
+  if (t1 <= t0) return null;
+  const fill = clamp01((now.getTime() - t0) / (t1 - t0));
+  // Deadline tick only when the jam has a separate voting window (i.e.
+  // three points — otherwise the deadline IS the right edge).
+  const deadline = points.length === 3 ? points[1]!.date.getTime() : null;
+  const deadlinePct = deadline != null ? clamp01((deadline - t0) / (t1 - t0)) * 100 : null;
+  return { fill, deadlinePct };
+}
+
+export function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
 }
 
 /** YYYY-MM-DD key in UTC — used as a Map key for grouping events by day. */

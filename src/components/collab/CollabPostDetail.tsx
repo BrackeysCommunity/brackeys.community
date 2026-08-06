@@ -26,6 +26,7 @@ import {
 } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { formatJamShortDates } from "@/lib/jam-countdown";
+import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
@@ -244,12 +245,11 @@ export function CollabPostDetail({
             ) : null}
 
             {post.jam ? (
-              <button
-                type="button"
-                onClick={() => setCollabFilters({ jamId: post.jam!.jamId })}
-                title="Show every post for this jam"
-                className="flex items-center gap-3 border border-warning/40 bg-warning/5 p-2.5 text-left transition-colors outline-none hover:bg-warning/10 focus-visible:ring-1 focus-visible:ring-ring"
-              >
+              // Two destinations, so two controls: the jam itself now has a
+              // page, and "every post for this jam" is a filter on this
+              // board. One overloaded button couldn't offer both (and a link
+              // nested in a button isn't valid markup either).
+              <div className="flex items-center gap-3 border border-warning/40 bg-warning/5 p-2.5">
                 {post.jam.bannerUrl ? (
                   <img
                     src={post.jam.bannerUrl}
@@ -258,18 +258,29 @@ export function CollabPostDetail({
                     className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
                   />
                 ) : null}
-                <span className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-col gap-0.5">
                   <Text as="span" size="xs" className="tracking-widest text-warning uppercase">
                     For the jam
                   </Text>
-                  <Text as="span" size="sm" bold ellipsis>
+                  <Link
+                    to="/jams/$jamSlug"
+                    params={jamLinkParams(post.jam)}
+                    className="min-w-0 truncate text-xs font-bold hover:text-primary hover:underline"
+                  >
                     {post.jam.title}
-                  </Text>
+                  </Link>
                   <Text as="span" size="xs" variant="muted" className="tracking-widest">
                     {formatJamShortDates(post.jam.startsAt, post.jam.endsAt) ?? "DATES TBA"}
                   </Text>
-                </span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollabFilters({ jamId: post.jam!.jamId })}
+                    className="self-start font-mono text-[10px] tracking-widest text-primary uppercase outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    All posts for this jam →
+                  </button>
+                </div>
+              </div>
             ) : null}
 
             <Text size="sm" className="whitespace-pre-wrap text-foreground/90">

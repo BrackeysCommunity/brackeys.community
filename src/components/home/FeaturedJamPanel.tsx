@@ -1,5 +1,6 @@
 import { FlashIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
 
 import {
   type Density,
@@ -20,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { effectiveJamState, formatCountdown } from "@/lib/jam-countdown";
-import { jamMonthDay, jamUrl } from "@/lib/jam-links";
+import { jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 
 export interface HeroJam {
   jam: JamFromList;
@@ -142,18 +143,14 @@ export function FeaturedJamPanel({ hero, now, density = "comfortable" }: Feature
           </div>
         </Well>
 
+        {/* Lands on the jam's page here rather than off at itch: the page
+            carries the join CTA, the description, and the team-finding
+            affordance the home panel can't fit. */}
         <Button
           variant="default"
           size="lg"
           nativeButton={false}
-          render={
-            <a
-              href={jamUrl(jam.slug)}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open jam"
-            />
-          }
+          render={<Link to="/jams/$jamSlug" params={jamLinkParams(jam)} aria-label="Open jam" />}
           className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold tracking-widest"
         >
           <HugeiconsIcon icon={FlashIcon} size={14} />
