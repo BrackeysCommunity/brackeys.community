@@ -115,6 +115,8 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "moth-garden",
       type: "game",
+      canonicalType: null,
+      canonicalLinks: null,
       subTypes: ["godot", "solo"],
       title: "Moth Garden",
       description: "cozy idle game about bioluminescent moths and late-night tea",
@@ -133,6 +135,8 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "bracketeer",
       type: "tool",
+      canonicalType: null,
+      canonicalLinks: null,
       subTypes: ["cli", "ts"],
       title: "bracketeer",
       description: "cli for generating chonky UI components from a JSON spec",
@@ -151,6 +155,8 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "shift-shift",
       type: "jam",
+      canonicalType: null,
+      canonicalLinks: null,
       subTypes: ["jam"],
       title: "Shift-Shift",
       description: "48h jam entry — rhythm platformer with procedural levels",
@@ -169,6 +175,8 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     {
       id: "nightlight-fm",
       type: "web",
+      canonicalType: null,
+      canonicalLinks: null,
       subTypes: ["web audio"],
       title: "nightlight.fm",
       description: "tiny radio stations curated by insomniacs, for insomniacs",

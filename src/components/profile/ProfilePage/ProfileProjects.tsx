@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { type ManualProfileProjectType, type ProfileProjectSubType } from "@/lib/profile-projects";
+import { type ProfileProjectSubType } from "@/lib/profile-projects";
+import { MANUAL_PROJECT_TYPES, type ManualProjectType } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
@@ -164,17 +165,17 @@ function gridClass(layout: "grid" | "list"): string {
   return layout === "list" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
 }
 
-/** Translate the legacy `EditableProject` row shape into the dialog's
- * `initial` form. Anything that doesn't map cleanly to a manual
- * project type (e.g. `jam`, `web`, `writing`) gets normalised to
- * `game` so the type chips in the dialog don't sit in an
- * unrecognised state — those entries are sourced from the itch.io
- * importer and aren't intended to be edited via this dialog anyway. */
+/** Translate the `EditableProject` row shape into the dialog's `initial`
+ * form. The kind comes from the **canonical** row where there is one — the
+ * placement's enum can't say `assets` or `web`, so seeding from it would
+ * silently retype an asset pack as a tool on every save. Anything
+ * unrecognised (a legacy `jam` or `writing` row) falls back to `game`
+ * rather than leaving the chips in a state that matches nothing. */
 function editableToInitial(p: EditableProject): ProjectInitial {
-  const manualType: ManualProfileProjectType =
-    p.type === "audio" || p.type === "tool" || p.type === "app" || p.type === "game"
-      ? p.type
-      : "game";
+  const kind = p.canonicalType ?? p.type;
+  const manualType = (MANUAL_PROJECT_TYPES as readonly string[]).includes(kind)
+    ? (kind as ManualProjectType)
+    : "game";
   return {
     title: p.title,
     description: p.description,
@@ -182,6 +183,7 @@ function editableToInitial(p: EditableProject): ProjectInitial {
     imageUrl: p.imageUrl,
     type: manualType,
     subTypes: (p.subTypes ?? []) as ProfileProjectSubType[],
+    links: p.canonicalLinks ?? [],
   };
 }
 
@@ -253,7 +255,8 @@ function OwnerProjectsBody({
  * `ProjectCard` consumes — keeps the visual treatment identical
  * across owner / non-owner views. */
 function editableToDisplay(p: EditableProject): ProfileProject {
-  const kind = (p.type as ProjectKind) ?? "other";
+  // Canonical kind first, same reason as `editableToInitial`.
+  const kind = ((p.canonicalType ?? p.type) as ProjectKind) ?? "other";
   const year = (p.participatedAt ?? p.publishedAt ?? new Date()).getUTCFullYear();
   return {
     id: p.id,

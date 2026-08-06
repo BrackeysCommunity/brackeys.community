@@ -162,7 +162,19 @@ export interface ProfileStats {
   streakStatus: string;
 }
 
-export type ProjectKind = "game" | "tool" | "jam" | "web" | "writing" | "other";
+/** Label vocabulary for a project card. The first seven are the canonical
+ * kinds (`project.projects.type`); `jam` is placement provenance and
+ * `writing` predates the entity — both stay so legacy rows still read. */
+export type ProjectKind =
+  | "game"
+  | "tool"
+  | "assets"
+  | "audio"
+  | "app"
+  | "web"
+  | "other"
+  | "jam"
+  | "writing";
 
 /**
  * Raw project row in the shape the legacy `EditableProjectCard`
@@ -173,6 +185,11 @@ export type ProjectKind = "game" | "tool" | "jam" | "web" | "writing" | "other";
 export interface EditableProject {
   id: string;
   type: string;
+  /** The canonical row's kind and secondary links, when the placement is
+   * linked to one. The placement's `type` is a pg enum that can't hold
+   * `assets` / `web` / `other`, so the editor seeds from these. */
+  canonicalType: string | null;
+  canonicalLinks: { label: string; url: string }[] | null;
   subTypes: string[];
   title: string;
   description: string | null;

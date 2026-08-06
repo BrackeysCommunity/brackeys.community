@@ -2,6 +2,34 @@ export const PROFILE_PROJECT_TYPES = ["jam", "game", "audio", "tool", "app"] as 
 export const MANUAL_PROFILE_PROJECT_TYPES = ["game", "audio", "tool", "app"] as const;
 export const PROFILE_PROJECT_SOURCE_TYPES = ["manual", "itchio", "itchio-jam"] as const;
 
+/**
+ * Canonical kind → the nearest value the *placement* enum can hold.
+ *
+ * The placement tables keep their pg enum (`user.profile_project_type`)
+ * untouched by design: identity moved to `project.projects`, whose `type` is
+ * text precisely so new kinds are pure additions. So a placement of an asset
+ * pack stores a lossy stand-in, and every surface that wants the real answer
+ * reads the canonical row — which is what `getProfile` now returns alongside
+ * the placement.
+ *
+ * The mappings are the least-wrong ones available: an asset pack is a thing
+ * you build *with* (tool), a website is the enum's `app` (whose sub-type
+ * vocabulary already had `web`), and `other` falls back to the enum default.
+ */
+const PLACEMENT_TYPE_BY_PROJECT_TYPE: Record<string, ProfileProjectType> = {
+  game: "game",
+  tool: "tool",
+  audio: "audio",
+  app: "app",
+  assets: "tool",
+  web: "app",
+  other: "game",
+};
+
+export function placementTypeForProjectType(projectType: string): ProfileProjectType {
+  return PLACEMENT_TYPE_BY_PROJECT_TYPE[projectType] ?? "game";
+}
+
 export type ProfileProjectType = (typeof PROFILE_PROJECT_TYPES)[number];
 export type ManualProfileProjectType = (typeof MANUAL_PROFILE_PROJECT_TYPES)[number];
 export type ProfileProjectSource = (typeof PROFILE_PROJECT_SOURCE_TYPES)[number];
@@ -46,6 +74,22 @@ export function getAllowedProfileProjectSubTypes(
     default:
       return [];
   }
+}
+
+/**
+ * Sub-types for a *canonical* kind.
+ *
+ * Only `audio` and `app` carry nuance, and only those two map onto a
+ * placement type that has any — the new kinds (`assets`, `web`, `other`)
+ * deliberately have none, since `web` was itself the `app/web` sub-type
+ * being promoted to a kind of its own.
+ */
+export function getAllowedSubTypesForProjectType(
+  projectType: string,
+): readonly ProfileProjectSubType[] {
+  if (projectType === "audio") return PROFILE_PROJECT_SUBTYPE_OPTIONS.audio;
+  if (projectType === "app") return PROFILE_PROJECT_SUBTYPE_OPTIONS.app;
+  return [];
 }
 
 export function sanitizeProfileProjectSubTypes(

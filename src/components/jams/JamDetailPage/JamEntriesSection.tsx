@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { SearchField } from "@/components/ui/search-field";
+import { Section } from "@/components/ui/section";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { ShelfHeader } from "@/components/ui/shelf-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
@@ -99,15 +99,17 @@ export function JamEntriesSection({
   );
 
   return (
-    <section id="entries" className="flex scroll-mt-20 flex-col gap-3">
-      <ShelfHeader
-        title="SUBMISSIONS"
-        variant="label"
-        count={matched}
-        unit="ENTRY"
-        unitPlural="ENTRIES"
-      />
-
+    <Section
+      id="entries"
+      title="SUBMISSIONS"
+      // The count is the live *matched* one, so a search says how much it
+      // narrowed rather than restating the jam's total.
+      blurb={
+        matched === total
+          ? `${total.toLocaleString()} ${total === 1 ? "entry" : "entries"}.`
+          : `${matched.toLocaleString()} of ${total.toLocaleString()} entries.`
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
         <SearchField
           value={search}
@@ -191,7 +193,7 @@ export function JamEntriesSection({
           </Text>
         </div>
       ) : null}
-    </section>
+    </Section>
   );
 }
 

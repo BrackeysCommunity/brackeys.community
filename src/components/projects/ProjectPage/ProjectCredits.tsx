@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
-import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -61,36 +61,32 @@ export function ProjectCredits({
   if (contributors.length === 0 && !canEdit) return null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <ShelfHeader
-        title="CREDITS"
-        variant="label"
-        count={contributors.length}
-        unit="CONTRIBUTOR"
-        actions={
-          canEdit ? (
-            <div className="flex items-center gap-3">
-              <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
-                {contributors.length.toLocaleString()}{" "}
-                {contributors.length === 1 ? "CONTRIBUTOR" : "CONTRIBUTORS"}
-              </Text>
-              <Button
-                size="xs"
-                variant="ghost"
-                className="tracking-widest"
-                onClick={() => {
-                  setAdding((open) => !open);
-                  setEditingId(null);
-                }}
-              >
-                <HugeiconsIcon icon={PlusSignIcon} size={12} />
-                ADD CREDIT
-              </Button>
-            </div>
-          ) : null
-        }
-      />
-
+    <Section
+      id="credits"
+      title="CREDITS"
+      blurb={
+        contributors.length === 0
+          ? "Nobody is credited yet."
+          : contributors.length === 1
+            ? "One contributor."
+            : `${contributors.length} contributors.`
+      }
+      action={
+        canEdit ? (
+          <Button
+            variant="outline"
+            className="tracking-widest"
+            onClick={() => {
+              setAdding((open) => !open);
+              setEditingId(null);
+            }}
+          >
+            <HugeiconsIcon icon={PlusSignIcon} size={12} />
+            ADD CREDIT
+          </Button>
+        ) : null
+      }
+    >
       {adding ? (
         <AddCreditForm
           projectId={projectId}
@@ -104,9 +100,7 @@ export function ProjectCredits({
 
       {contributors.length === 0 ? (
         <Well className="items-center gap-1 p-6 backdrop-blur-none">
-          <Text size="sm" variant="muted">
-            Nobody is credited yet.
-          </Text>
+          <MicroLabel>NO CREDITS YET</MicroLabel>
           <Text size="xs" variant="muted">
             Add the people who made this — teammates here, and everyone who isn't.
           </Text>
@@ -139,7 +133,7 @@ export function ProjectCredits({
           )}
         </div>
       )}
-    </section>
+    </Section>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
-import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
@@ -28,8 +28,7 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
   if (jams.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <ShelfHeader title="MORE FROM THIS HOST" variant="label" blurb={hostName.toUpperCase()} />
+    <Section id="series" title="MORE FROM THIS HOST" blurb={`Every jam ${hostName} has run.`}>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {jams.map((jam) => {
           // Scraped text never reaches a style attribute without validation.
@@ -77,6 +76,6 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
           );
         })}
       </div>
-    </section>
+    </Section>
   );
 }

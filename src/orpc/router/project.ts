@@ -16,11 +16,13 @@ import {
   projects,
   teams,
 } from "@/db/schema";
+import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { canEditProject, loadProjectForEditor } from "@/lib/project-editors";
+import { MANUAL_PROJECT_TYPES, RELEASE_STATUSES } from "@/lib/project-taxonomy";
 import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
 
 /**
@@ -228,6 +230,82 @@ export const listProjectsForGames = os
       .where(and(inArray(projects.sourceGameId, gameIds), eq(projects.published, true)));
 
     return { projects: rows };
+  });
+
+// ── Canonical fields ────────────────────────────────────────────────────────
+
+/**
+ * Edit what the project *is* — the fields that live on the canonical row
+ * rather than on anyone's placement.
+ *
+ * Named `updateProjectDetails` because `updateProject` is the profile
+ * router's placement editor; the two are genuinely different acts, and the
+ * flat router namespace makes the distinction explicit rather than
+ * accidental.
+ *
+ * Not editable here: `published` / `restrictedAt` (provider truth and the
+ * staff hide, §7.5), the cover (its own upload endpoint, since it writes to
+ * MinIO), `sourceGameId` (identity), and the slug — a rename is its own
+ * flow, mirroring `setTeamSlug`, and isn't built yet.
+ */
+export const updateProjectDetails = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      projectId: z.string(),
+      title: z.string().trim().min(1).max(200).optional(),
+      description: z.string().trim().max(2000).nullable().optional(),
+      url: z.url().nullable().optional().or(z.literal("")),
+      type: z.enum(MANUAL_PROJECT_TYPES).optional(),
+      links: z
+        .array(z.object({ label: z.string().trim().min(1).max(40), url: z.url() }))
+        .max(6)
+        .optional(),
+      releaseStatus: z.enum(RELEASE_STATUSES).nullable().optional(),
+      releasedAt: z.string().nullable().optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const project = await requireProjectEditor(input.projectId, context.user.id);
+    checkProfanity(input.title, "Title");
+    checkProfanity(input.description, "Description");
+
+    // `release_status` is provider truth for an imported project — the itch
+    // API says whether a game is in development, and the next sync would
+    // disagree with whatever was typed here. Manual projects own theirs (D7:
+    // a website wants "in development" too).
+    if (input.releaseStatus !== undefined && project.source !== "manual") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Release status comes from itch.io for imported projects.",
+      });
+    }
+
+    const releasedAt =
+      input.releasedAt === undefined
+        ? undefined
+        : input.releasedAt
+          ? new Date(input.releasedAt)
+          : null;
+    if (releasedAt != null && Number.isNaN(releasedAt.getTime())) {
+      throw new ORPCError("BAD_REQUEST", { message: "That release date isn't a date." });
+    }
+
+    const [updated] = await db
+      .update(projects)
+      .set({
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.description !== undefined ? { description: input.description || null } : {}),
+        ...(input.url !== undefined ? { url: input.url || null } : {}),
+        ...(input.type !== undefined ? { type: input.type } : {}),
+        ...(input.links !== undefined ? { links: input.links } : {}),
+        ...(input.releaseStatus !== undefined ? { releaseStatus: input.releaseStatus } : {}),
+        ...(releasedAt !== undefined ? { releasedAt } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, input.projectId))
+      .returning({ id: projects.id, slug: projects.slug });
+
+    return updated ?? null;
   });
 
 // ── Credits ─────────────────────────────────────────────────────────────────

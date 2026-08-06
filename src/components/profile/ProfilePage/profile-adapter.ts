@@ -61,6 +61,10 @@ export interface RpcProfile {
     jamSlug: string | null;
     /** Canonical project slug, when the placement is linked to one. */
     projectSlug: string | null;
+    /** The canonical row's kind (`assets`, `web`, … — the placement's own
+     * `type` is a pg enum that can't hold those) and its secondary links. */
+    canonicalType: string | null;
+    canonicalLinks: { label: string; url: string }[] | null;
     /** When the jam itself ran — from the scraped `itch.jams` join. */
     jamStartsAt: Date | null;
     jamEntriesCount: number | null;
@@ -370,6 +374,8 @@ function adaptEditable(p: RpcProfile["projects"][number]): EditableProject {
   return {
     id: p.id,
     type: p.type,
+    canonicalType: p.canonicalType,
+    canonicalLinks: p.canonicalLinks,
     subTypes: p.subTypes ?? [],
     title: p.title,
     description: p.description,
@@ -388,7 +394,9 @@ function adaptEditable(p: RpcProfile["projects"][number]): EditableProject {
 }
 
 function adaptProject(p: RpcProfile["projects"][number]): ProfileProject {
-  const kind = (p.type as ProfileProject["kind"]) ?? "other";
+  // The canonical kind wins: the placement's enum can't say "assets" or
+  // "web", so an asset pack imported or added by hand would read as TOOL.
+  const kind = ((p.canonicalType ?? p.type) as ProfileProject["kind"]) ?? "other";
   // Prefer the jam participation date, then the provider publish date
   // (itch.io `published_at`) — `createdAt` is only when the row landed
   // in our DB, which is wrong for back-catalogue imports.

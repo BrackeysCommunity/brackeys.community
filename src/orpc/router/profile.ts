@@ -1,7 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
-import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -20,32 +19,25 @@ import {
 } from "@/db/schema";
 import { syncItchIoLibraryThrottled } from "@/lib/itchio-sync";
 import { jamUrl } from "@/lib/jam-links";
+import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
   removeProfileProjectImageFromStorage,
 } from "@/lib/profile-project-image-storage";
 import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
 import {
-  MANUAL_PROFILE_PROJECT_TYPES,
   PROFILE_PROJECT_SUBTYPES,
-  sanitizeProfileProjectSubTypes,
+  type ProfileProjectSubType,
+  getAllowedSubTypesForProjectType,
+  placementTypeForProjectType,
 } from "@/lib/profile-projects";
-import {
-  creditPlacementOwner,
-  ensureProjectContributors,
-  insertProject,
-  projectTypeFromPlacement,
-} from "@/lib/projects";
+import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
+import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
   return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
-
-const profanityMatcher = new RegExpMatcher({
-  ...englishDataset.build(),
-  ...englishRecommendedTransformers,
-});
 
 // Imported jam rows (source `itchio-jam`) carry only a jam_id reference;
 // their display name/URL come from the scraped `itch.jams` row. Manual rows
@@ -65,6 +57,11 @@ async function queryProfileProjects(where: SQL | undefined) {
       // project's own page. Both joins are on unique keys, so neither can
       // multiply the placement rows.
       canonicalSlug: projects.slug,
+      // …and the kind it says it is. The placement's own `type` is a pg enum
+      // that can't hold `assets` / `web` / `other`, so a canonical row always
+      // knows better about what the thing *is*.
+      canonicalType: projects.type,
+      canonicalLinks: projects.links,
     })
     .from(profileProjects)
     .leftJoin(itchJams, eq(profileProjects.jamId, itchJams.jamId))
@@ -93,9 +90,23 @@ async function queryProfileProjects(where: SQL | undefined) {
   const rankByEntryId = new Map(overallRows.map((r) => [String(r.entryId), r.rank]));
 
   return rows.map(
-    ({ project, itchJamTitle, itchJamSlug, jamStartsAt, jamEntriesCount, canonicalSlug }) => ({
+    ({
+      project,
+      itchJamTitle,
+      itchJamSlug,
+      jamStartsAt,
+      jamEntriesCount,
+      canonicalSlug,
+      canonicalType,
+      canonicalLinks,
+    }) => ({
       ...project,
       projectSlug: canonicalSlug,
+      // Surfaced beside the placement's own `type` rather than replacing it:
+      // the jam-log split reads `type === "jam"`, which is placement
+      // provenance, while the card's label wants the artifact's kind.
+      canonicalType,
+      canonicalLinks,
       jamName: project.jamName ?? itchJamTitle,
       jamUrl: project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null),
       // The scraped slug, so the log row can link to the jam's page *here*
@@ -127,8 +138,23 @@ function queryUserSkills(userId: string) {
 }
 
 const optionalUrlSchema = z.url().optional().or(z.literal(""));
-const manualProjectTypeSchema = z.enum(MANUAL_PROFILE_PROJECT_TYPES);
+/** The *canonical* kind the member picked. The placement stores a lossy
+ * stand-in for it (`placementTypeForProjectType`) because its column is a pg
+ * enum; `project.projects.type` is the real answer. */
+const manualProjectTypeSchema = z.enum(MANUAL_PROJECT_TYPES);
 const projectSubTypeSchema = z.enum(PROFILE_PROJECT_SUBTYPES);
+/** Secondary links — repo, live site, store page. The primary `url` is the
+ * CTA; these are the rail beside it, and they live on the canonical row
+ * because they're identity, not surface. */
+const projectLinksSchema = z
+  .array(
+    z.object({
+      label: z.string().trim().min(1).max(40),
+      url: z.url(),
+    }),
+  )
+  .max(6)
+  .optional();
 const uploadedProjectImageSchema = z
   .object({
     key: z.string().min(1),
@@ -139,18 +165,22 @@ const uploadedProjectImageSchema = z
   })
   .optional();
 
+/** Sub-types are validated against the *canonical* kind the member picked,
+ * then stored on both rows — `web` has none of its own now that it's a kind
+ * rather than an `app` sub-type. */
 function normalizeManualProjectSubTypes(
   type: z.infer<typeof manualProjectTypeSchema>,
   subTypes?: string[],
 ) {
-  const normalized = sanitizeProfileProjectSubTypes(type, subTypes);
+  const allowed = new Set<string>(getAllowedSubTypesForProjectType(type));
+  const normalized = (subTypes ?? []).filter((subType) => allowed.has(subType));
   if ((subTypes?.length ?? 0) !== normalized.length) {
     throw new ORPCError("BAD_REQUEST", {
       message: "Selected sub-types do not match the chosen project type.",
     });
   }
 
-  return normalized;
+  return normalized as ProfileProjectSubType[];
 }
 
 function buildJamProjectTitle(jamName: string, submissionTitle?: string) {
@@ -484,10 +514,11 @@ export const addProject = os
       pinned: z.boolean().optional(),
       type: manualProjectTypeSchema.optional(),
       subTypes: z.array(projectSubTypeSchema).optional(),
+      links: projectLinksSchema,
     }),
   )
   .handler(async ({ input, context }) => {
-    const { image, ...projectInput } = input;
+    const { image, links, ...projectInput } = input;
     if (image) {
       assertOwnedUploadedProjectImage(context.user.id, image);
     }
@@ -502,12 +533,16 @@ export const addProject = os
     const projectId = await insertProject({
       title: input.title,
       description: input.description,
-      type: projectTypeFromPlacement(type),
+      // The kind the member actually picked. The placement below stores the
+      // nearest enum value it can hold, and every surface that wants the
+      // real answer reads it back from here.
+      type,
       subTypes,
       url: input.url || null,
+      links: links ?? [],
       // No canonical cover: an uploaded image lives in this user's own MinIO
       // namespace and would inherit their account's lifecycle. It stays the
-      // placement's override until the project-scoped upload endpoint lands.
+      // placement's override; the project-scoped upload is the cover.
       createdBy: context.user.id,
       source: "manual",
     });
@@ -528,7 +563,7 @@ export const addProject = os
               imageSizeBytes: image.sizeBytes,
             }
           : {}),
-        type,
+        type: placementTypeForProjectType(type),
         subTypes,
         source: "manual",
       })
@@ -550,17 +585,23 @@ export const updateProject = os
       pinned: z.boolean().optional(),
       type: manualProjectTypeSchema.optional(),
       subTypes: z.array(projectSubTypeSchema).optional(),
+      links: projectLinksSchema,
     }),
   )
   .handler(async ({ input, context }) => {
-    const { projectId, image, ...data } = input;
+    // `type` is pulled out of the spread: it now names a *canonical* kind,
+    // which the placement's enum column can't hold.
+    const { projectId, image, links, type, ...data } = input;
     const [existingProject] = await db
       .select({
         id: profileProjects.id,
         type: profileProjects.type,
         imageKey: profileProjects.imageKey,
+        canonicalId: profileProjects.projectId,
+        canonicalType: projects.type,
       })
       .from(profileProjects)
+      .leftJoin(projects, eq(projects.id, profileProjects.projectId))
       .where(and(eq(profileProjects.id, projectId), eq(profileProjects.profileId, context.user.id)))
       .limit(1);
 
@@ -580,9 +621,12 @@ export const updateProject = os
       assertOwnedUploadedProjectImage(context.user.id, image);
     }
 
-    const nextType = data.type ?? existingProject.type;
+    // The kind is now canonical-first: the placement's enum can't hold
+    // `assets`/`web`/`other`, so the picked kind lives on `project.projects`
+    // and the placement stores the nearest stand-in.
+    const nextType = type ?? existingProject.canonicalType ?? existingProject.type;
     const nextSubTypes =
-      data.type !== undefined || data.subTypes !== undefined
+      type !== undefined || data.subTypes !== undefined
         ? normalizeManualProjectSubTypes(nextType, data.subTypes ?? [])
         : undefined;
 
@@ -599,11 +643,29 @@ export const updateProject = os
               imageSizeBytes: image.sizeBytes,
             }
           : {}),
-        ...(data.type !== undefined ? { type: data.type } : {}),
+        ...(type !== undefined ? { type: placementTypeForProjectType(type) } : {}),
         ...(nextSubTypes !== undefined ? { subTypes: nextSubTypes } : {}),
       })
       .where(and(eq(profileProjects.id, projectId), eq(profileProjects.profileId, context.user.id)))
       .returning();
+
+    // Identity lives on the canonical row, so editing "my project" edits it.
+    // The placement owner is a credited contributor by construction, which is
+    // exactly the §1.3 editor set — no second permission check needed.
+    if (existingProject.canonicalId) {
+      await db
+        .update(projects)
+        .set({
+          ...(data.title !== undefined ? { title: data.title } : {}),
+          ...(data.description !== undefined ? { description: data.description } : {}),
+          ...(data.url !== undefined ? { url: data.url || null } : {}),
+          ...(type !== undefined ? { type } : {}),
+          ...(nextSubTypes !== undefined ? { subTypes: nextSubTypes } : {}),
+          ...(links !== undefined ? { links } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, existingProject.canonicalId));
+    }
 
     if (!updated) {
       throw new ORPCError("NOT_FOUND", {
@@ -765,11 +827,7 @@ export const setUrlStub = os
       });
     }
 
-    if (profanityMatcher.hasMatch(stub)) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "URL stub contains inappropriate language.",
-      });
-    }
+    checkProfanity(stub, "URL stub");
 
     // Check if stub is already taken by another user
     const [existing] = await db

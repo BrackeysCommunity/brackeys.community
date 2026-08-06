@@ -69,6 +69,7 @@ import {
   listProjectsForGames,
   removeProjectContributor,
   updateProjectContributor,
+  updateProjectDetails,
 } from "./project";
 import {
   createTeam,
@@ -110,6 +111,7 @@ export default {
   addProjectContributor,
   updateProjectContributor,
   removeProjectContributor,
+  updateProjectDetails,
   getProfile,
   getMyProfile,
   updateProfile,

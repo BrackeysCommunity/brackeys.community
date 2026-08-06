@@ -1,7 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -25,6 +24,7 @@ import {
 } from "@/db/schema";
 import { jamUrl } from "@/lib/jam-links";
 import { notify } from "@/lib/notifications";
+import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
@@ -35,19 +35,6 @@ import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
 // (unlike the shared one) left a backslash in the search term unescaped.
 import { escapeLike } from "@/lib/sql-like";
 import { authMiddleware, requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
-
-const profanityMatcher = new RegExpMatcher({
-  ...englishDataset.build(),
-  ...englishRecommendedTransformers,
-});
-
-function checkProfanity(text: string | undefined | null, fieldName: string) {
-  if (text && profanityMatcher.hasMatch(text)) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: `${fieldName} contains inappropriate language.`,
-    });
-  }
-}
 
 /** Postgres `unique_violation`. */
 function isUniqueViolation(err: unknown): boolean {

@@ -21,6 +21,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 // resolving. Same reason `src/db/schema.ts` has no `@/` imports of its own.
 import {
   type ItchJamContributor,
+  type ProjectLink,
   type ProjectType,
   developerProfiles,
   itchJamEntries,
@@ -97,6 +98,8 @@ export interface ProjectSeed {
   type?: ProjectType;
   subTypes?: string[];
   url?: string | null;
+  /** Secondary links (repo, live site, store page) — the rail beside the CTA. */
+  links?: ProjectLink[];
   imageUrl?: string | null;
   classification?: string | null;
   embedType?: string | null;
@@ -127,6 +130,7 @@ export async function insertProject(
           type: seed.type ?? "game",
           subTypes: seed.subTypes ?? [],
           url: seed.url ?? null,
+          links: seed.links ?? [],
           imageUrl: seed.imageUrl ?? null,
           classification: seed.classification ?? null,
           embedType: seed.embedType ?? null,

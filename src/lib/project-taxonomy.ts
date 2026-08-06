@@ -63,6 +63,46 @@ export function projectTypeFromClassification(
   return CLASSIFICATION_MAP[classification.trim().toLowerCase()] ?? null;
 }
 
+/**
+ * The kinds a member can pick when adding a project by hand.
+ *
+ * The canonical vocabulary minus nothing — every kind is pickable, which is
+ * the point: before this list existed, "add an asset pack" meant choosing
+ * between GAME, AUDIO, TOOL and APP, and a website was a mistyped app.
+ * `satisfies` is the drift guard — a kind the schema doesn't know isn't a
+ * kind. (The list is duplicated from `PROJECT_TYPES` rather than imported:
+ * importing a *value* from `@/db/schema` drags `drizzle-orm/node-postgres`
+ * into the browser bundle, which is the trap this whole module exists to
+ * avoid.)
+ */
+export const MANUAL_PROJECT_TYPES = [
+  "game",
+  "tool",
+  "assets",
+  "audio",
+  "app",
+  "web",
+  "other",
+] as const satisfies readonly ProjectType[];
+
+export type ManualProjectType = (typeof MANUAL_PROJECT_TYPES)[number];
+
+/**
+ * itch's `release_status` vocabulary, adopted verbatim rather than
+ * reinvented — it's a good neutral set, and a website or a library wants
+ * "in development" too. Provider-owned for imports; owner-editable on a
+ * manual project.
+ */
+export const RELEASE_STATUSES = [
+  "released",
+  "in_development",
+  "on_hold",
+  "canceled",
+  "prototype",
+] as const;
+
+export type ReleaseStatus = (typeof RELEASE_STATUSES)[number];
+
 /** Longest slug we'll generate from a title, before any collision suffix. */
 const SLUG_MAX_LENGTH = 60;
 

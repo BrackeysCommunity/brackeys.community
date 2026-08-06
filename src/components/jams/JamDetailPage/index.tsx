@@ -1,10 +1,11 @@
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useMemo } from "react";
 
-import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Section } from "@/components/ui/section";
 import { MicroLabel, RichHtml, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import useDateNow from "@/lib/hooks/use-date-now";
+import { hostName } from "@/lib/jam-links";
 
 import { jamPhase } from "../JamCalendarPage/helpers";
 import { JamCommunitySection } from "./JamCommunitySection";
@@ -59,8 +60,11 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
 
       <JamCommunitySection jamId={jam.jamId} phase={phase} />
 
-      <section className="flex flex-col gap-3">
-        <ShelfHeader title="ABOUT THIS JAM" variant="label" />
+      <Section
+        id="about"
+        title="ABOUT THIS JAM"
+        blurb={`Straight from ${hostName(jam, "the host")}.`}
+      >
         {jam.contentHtml ? (
           <RichHtml html={jam.contentHtml} />
         ) : (
@@ -70,7 +74,7 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
             </Text>
           </Well>
         )}
-      </section>
+      </Section>
 
       {hasResults ? <JamResultsSection criteria={results} /> : null}
 
@@ -80,8 +84,15 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
       {trackedEntries > 0 ? (
         <JamEntriesSection jamId={jam.jamId} total={trackedEntries} initialData={initialEntries} />
       ) : (
-        <section className="flex flex-col gap-3">
-          <ShelfHeader title="SUBMISSIONS" variant="label" />
+        <Section
+          id="entries"
+          title="SUBMISSIONS"
+          blurb={
+            phase === "upcoming"
+              ? "Nothing has been submitted yet."
+              : "No submissions tracked for this jam."
+          }
+        >
           <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
             <MicroLabel>
               {phase === "upcoming" ? "NOTHING SUBMITTED YET" : "NO SUBMISSIONS TRACKED"}
@@ -92,7 +103,7 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
                 : "We haven't fetched this jam's entries from itch.io."}
             </Text>
           </Well>
-        </section>
+        </Section>
       )}
 
       {/* Series index, free from a jsonb containment match. Only rendered

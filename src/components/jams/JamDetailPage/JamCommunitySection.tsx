@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
-import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -45,19 +45,17 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
   if (members.length === 0 && teams.length === 0 && openPostCount === 0 && !joinable) return null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <ShelfHeader
-        title="FROM BRACKEYS"
-        variant="label"
-        blurb={
-          members.length > 0
-            ? `${members.length} MEMBER${members.length === 1 ? "" : "S"} SHIPPED IN THIS JAM`
-            : joinable
-              ? "NOBODY FROM HERE HAS JOINED YET"
-              : undefined
-        }
-      />
-
+    <Section
+      id="community"
+      title="FROM BRACKEYS"
+      blurb={
+        members.length > 0
+          ? `${members.length} member${members.length === 1 ? "" : "s"} shipped in this jam.`
+          : joinable
+            ? "Nobody from here has joined yet."
+            : undefined
+      }
+    >
       {members.length > 0 ? (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {members.map((member) => (
@@ -154,6 +152,6 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
           </Link>
         </Well>
       ) : null}
-    </section>
+    </Section>
   );
 }

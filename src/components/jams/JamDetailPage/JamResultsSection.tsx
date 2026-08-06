@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { cn } from "@/lib/utils";
@@ -26,17 +26,15 @@ export function JamResultsSection({ criteria }: { criteria: JamResultsCriterion[
   const rest = criteria.filter((c) => c !== overall);
 
   return (
-    <section id="results" className="flex scroll-mt-20 flex-col gap-3">
-      <ShelfHeader
-        title="RESULTS"
-        variant="label"
-        blurb={
-          overall
-            ? `${overall.entrantCount.toLocaleString()} ENTRIES RANKED`
-            : "PLACEMENTS BY CRITERION"
-        }
-      />
-
+    <Section
+      id="results"
+      title="RESULTS"
+      blurb={
+        overall
+          ? `${overall.entrantCount.toLocaleString()} entries ranked.`
+          : "Placements by criterion."
+      }
+    >
       {overall ? (
         // Capped width: the content column runs to 1920px, and three covers
         // sharing that are billboards rather than a podium. ~300px each puts
@@ -95,7 +93,7 @@ export function JamResultsSection({ criteria }: { criteria: JamResultsCriterion[
           })}
         </Well>
       ) : null}
-    </section>
+    </Section>
   );
 }
 

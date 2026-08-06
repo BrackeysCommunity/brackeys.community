@@ -1,4 +1,4 @@
-import { ImageUpload01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons";
+import { Edit02Icon, ImageUpload01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -12,6 +12,7 @@ import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 
+import { ProjectDetailsEditor } from "./ProjectDetailsEditor";
 import type { ProjectRow } from "./types";
 
 /**
@@ -24,6 +25,7 @@ import type { ProjectRow } from "./types";
  * "PLAY" button is the games-first bias leaking back in.
  */
 export function ProjectHero({ project, canEdit }: { project: ProjectRow; canEdit: boolean }) {
+  const [editing, setEditing] = useState(false);
   const typeLabel = projectTypeLabel(project);
   const ctaLabel = projectCtaLabel(project);
   const status = releaseStatusLabel(project.releaseStatus);
@@ -120,6 +122,18 @@ export function ProjectHero({ project, canEdit }: { project: ProjectRow; canEdit
               <MicroLabel>THIS PROJECT'S PAGE IS NO LONGER PUBLIC ON ITCH.IO</MicroLabel>
             ) : null}
 
+            {canEdit ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="tracking-widest"
+                onClick={() => setEditing(true)}
+              >
+                <HugeiconsIcon icon={Edit02Icon} size={12} />
+                EDIT
+              </Button>
+            ) : null}
+
             {/* Secondary links: repo, live site, store page. */}
             {!restricted &&
               project.links.map((link) => (
@@ -137,6 +151,10 @@ export function ProjectHero({ project, canEdit }: { project: ProjectRow; canEdit
           </div>
         </div>
       </div>
+
+      {canEdit ? (
+        <ProjectDetailsEditor project={project} open={editing} onOpenChange={setEditing} />
+      ) : null}
     </Well>
   );
 }

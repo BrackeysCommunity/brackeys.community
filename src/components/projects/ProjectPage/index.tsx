@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
-import { ShelfHeader } from "@/components/ui/shelf-header";
+import { Section } from "@/components/ui/section";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -34,8 +34,11 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
       <ProjectCredits projectId={project.id} contributors={contributors} canEdit={viewerCanEdit} />
 
       {teams.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <ShelfHeader title="MADE BY" variant="label" />
+        <Section
+          id="teams"
+          title="MADE BY"
+          blurb={teams.length === 1 ? "The team behind it." : "The teams behind it."}
+        >
           <div className="flex flex-wrap gap-2">
             {teams.map((team) => (
               <Chonk
@@ -65,25 +68,25 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
               </Chonk>
             ))}
           </div>
-        </section>
+        </Section>
       ) : null}
 
       {/* A game with three jam appearances finally reads as a body of work.
           A website simply doesn't have this section. */}
       {jamRecord.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <ShelfHeader
-            title="JAM RECORD"
-            variant="label"
-            count={jamRecord.length}
-            unit="APPEARANCE"
-          />
+        <Section
+          id="jams"
+          title="JAM RECORD"
+          blurb={
+            jamRecord.length === 1 ? "One jam appearance." : `${jamRecord.length} jam appearances.`
+          }
+        >
           <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
             {jamRecord.map((appearance) => (
               <JamAppearanceRow key={appearance.key} appearance={appearance} />
             ))}
           </Well>
-        </section>
+        </Section>
       ) : null}
     </div>
   );

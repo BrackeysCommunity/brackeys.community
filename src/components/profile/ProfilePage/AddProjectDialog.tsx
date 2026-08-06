@@ -32,13 +32,12 @@ import {
   type UploadedProfileProjectImage,
 } from "@/lib/profile-project-images";
 import {
-  getAllowedProfileProjectSubTypes,
-  MANUAL_PROFILE_PROJECT_TYPES,
-  type ManualProfileProjectType,
+  getAllowedSubTypesForProjectType,
   PROFILE_PROJECT_SUBTYPE_LABELS,
-  PROFILE_PROJECT_TYPE_LABELS,
   type ProfileProjectSubType,
 } from "@/lib/profile-projects";
+import { projectTypeLabel } from "@/lib/project-links";
+import { MANUAL_PROJECT_TYPES, type ManualProjectType } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
 
 interface AddProjectInput {
@@ -46,8 +45,12 @@ interface AddProjectInput {
   description?: string;
   url?: string;
   image?: UploadedProfileProjectImage;
-  type: ManualProfileProjectType;
+  /** The *canonical* kind. The placement stores the nearest value its enum
+   * can hold; `project.projects.type` keeps the real one. */
+  type: ManualProjectType;
   subTypes?: ProfileProjectSubType[];
+  /** Repo, live site, store page — everything that isn't the primary URL. */
+  links?: { label: string; url: string }[];
 }
 
 /** Existing project values used to seed the dialog when it's
@@ -59,8 +62,9 @@ export interface ProjectInitial {
   description: string | null;
   url: string | null;
   imageUrl: string | null;
-  type: ManualProfileProjectType;
+  type: ManualProjectType;
   subTypes: ProfileProjectSubType[];
+  links: { label: string; url: string }[];
 }
 
 interface AddProjectDialogProps {
@@ -99,8 +103,9 @@ export function AddProjectDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
-  const [type, setType] = useState<ManualProfileProjectType>("game");
+  const [type, setType] = useState<ManualProjectType>("game");
   const [subTypes, setSubTypes] = useState<ProfileProjectSubType[]>([]);
+  const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -111,6 +116,7 @@ export function AddProjectDialog({
     setUrl(initial?.url ?? "");
     setType(initial?.type ?? "game");
     setSubTypes(initial?.subTypes ?? []);
+    setLinks(initial?.links ?? []);
     setImageFile(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     // Edit mode previews the *existing* image URL so users don't
@@ -131,6 +137,7 @@ export function AddProjectDialog({
     setUrl(initial?.url ?? "");
     setType(initial?.type ?? "game");
     setSubTypes(initial?.subTypes ?? []);
+    setLinks(initial?.links ?? []);
     setImageFile(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(initial?.imageUrl ?? null);
@@ -139,7 +146,7 @@ export function AddProjectDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
 
-  const allowedSubTypes = getAllowedProfileProjectSubTypes(type);
+  const allowedSubTypes = getAllowedSubTypesForProjectType(type);
 
   const handleSubmit = async () => {
     if (!title.trim() || submitting) return;
@@ -153,6 +160,8 @@ export function AddProjectDialog({
         image: uploaded,
         type,
         subTypes: subTypes.length > 0 ? subTypes : undefined,
+        // Blank rows are how a half-typed link looks; they never ship.
+        links: links.filter((link) => link.label.trim() && link.url.trim()),
       };
       if (isEditing && onSave) onSave(payload);
       else onAdd(payload);
@@ -198,25 +207,27 @@ export function AddProjectDialog({
           onValueChange={(v: string[]) => {
             const picked = v[0];
             if (!picked) return;
-            const next = picked as ManualProfileProjectType;
+            const next = picked as ManualProjectType;
             setType(next);
             // Drop sub-types that don't apply to the new parent
             // type so we don't send `app/web` after switching to
             // `game`.
-            const nextAllowed = getAllowedProfileProjectSubTypes(next);
+            const nextAllowed = getAllowedSubTypesForProjectType(next);
             setSubTypes((curr) => curr.filter((s) => nextAllowed.includes(s)));
           }}
           variant="outline"
           size="sm"
           className="flex-wrap [&>*:first-child]:rounded-l-md [&>*:last-child]:rounded-r-md"
         >
-          {MANUAL_PROFILE_PROJECT_TYPES.map((value) => (
+          {MANUAL_PROJECT_TYPES.map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
               className="bg-card! px-3 text-[11px] tracking-widest uppercase"
             >
-              {PROFILE_PROJECT_TYPE_LABELS[value]}
+              {/* One label table for every surface — the same words the
+                  project page's hero badge uses. */}
+              {projectTypeLabel({ type: value })}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -255,7 +266,7 @@ export function AddProjectDialog({
         />
       </FieldRow>
 
-      <FieldRow label="URL" hint="itch.io / GitHub / your site">
+      <FieldRow label="URL" hint="the main link — what the CTA points at">
         <Input
           type="url"
           value={url}
@@ -263,6 +274,8 @@ export function AddProjectDialog({
           placeholder="https://…"
         />
       </FieldRow>
+
+      <LinksField links={links} onChange={setLinks} />
 
       <div className="mt-1 flex items-center justify-end gap-2">
         <Button
@@ -444,6 +457,76 @@ function CoverImageField({
         )}
       </Well>
     </div>
+  );
+}
+
+const MAX_LINKS = 6;
+
+/**
+ * Secondary links — repo, live site, store page, registry.
+ *
+ * A website project wants a live URL *and* a repo; a library wants a repo and
+ * a registry page. One `url` column could never say that, so the canonical
+ * row carries a `{label, url}[]` rather than growing a column per provider —
+ * a GitHub import later is a new source, not a new field here.
+ */
+function LinksField({
+  links,
+  onChange,
+}: {
+  links: { label: string; url: string }[];
+  onChange: (next: { label: string; url: string }[]) => void;
+}) {
+  const update = (index: number, patch: Partial<{ label: string; url: string }>) => {
+    onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)));
+  };
+
+  return (
+    <FieldRow label="MORE LINKS" hint="optional · repo, site, store">
+      <div className="flex flex-col gap-2">
+        {links.map((link, index) => (
+          // Rows have no stable id until they're saved; they're only ever
+          // appended or removed by index, so the index *is* the identity.
+          // biome-ignore lint/suspicious/noArrayIndexKey: positional rows
+          <div key={index} className="flex items-center gap-2">
+            <Input
+              value={link.label}
+              maxLength={40}
+              placeholder="REPO"
+              className="w-28 shrink-0"
+              aria-label={`Link ${index + 1} label`}
+              onChange={(e) => update(index, { label: e.target.value })}
+            />
+            <Input
+              type="url"
+              value={link.url}
+              placeholder="https://…"
+              aria-label={`Link ${index + 1} URL`}
+              onChange={(e) => update(index, { url: e.target.value })}
+            />
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Remove link ${index + 1}`}
+              onClick={() => onChange(links.filter((_, i) => i !== index))}
+            >
+              ✕
+            </Button>
+          </div>
+        ))}
+        {links.length < MAX_LINKS ? (
+          <Button
+            variant="outline"
+            size="xs"
+            className="self-start tracking-widest"
+            onClick={() => onChange([...links, { label: "", url: "" }])}
+          >
+            <HugeiconsIcon icon={Add01Icon} size={12} />
+            ADD LINK
+          </Button>
+        ) : null}
+      </div>
+    </FieldRow>
   );
 }
 
