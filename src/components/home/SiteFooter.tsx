@@ -97,7 +97,7 @@ function FooterLinkItem({
 export function SiteFooter() {
   return (
     <footer className="w-full border-muted/40 bg-linear-to-b from-transparent to-background to-25% px-4 pt-10 pb-10 text-card-foreground sm:px-6 lg:px-10 xl:px-14">
-      <div className="mx-auto grid w-full max-w-6xl gap-10 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <BrackeysMark className="h-5 w-5" />
@@ -147,7 +147,7 @@ export function SiteFooter() {
         ))}
       </div>
 
-      <div className="mx-auto mt-12 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-muted/30 pt-4">
+      <div className="mx-auto mt-12 flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-muted/30 pt-4">
         <MicroLabel>© {new Date().getFullYear()} · made by the community</MicroLabel>
 
         <MicroLabel>v{__APP_VERSION__}</MicroLabel>

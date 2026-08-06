@@ -228,7 +228,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
             mid-viewport on tall screens with a short page. Growing to the
             scroller's leftover space pins it to the bottom; `shrink-0`
             keeps a long page from being squeezed back into one screen. */}
-        <div className="mx-auto flex w-full max-w-480 shrink-0 grow flex-col">
+        <div className="mx-auto flex w-full max-w-7xl shrink-0 grow flex-col">
           {/* The fade width tracks this column's own horizontal padding at
               each breakpoint, so the pane ends exactly where the content
               does. */}

@@ -36,7 +36,7 @@ export function HomePage() {
   return (
     // `data-content-pane` tells the shell's readability pane how wide this
     // page's measure is — keep it in step with the max-width beside it.
-    <div data-content-pane="6xl" className="mx-auto flex w-full max-w-6xl flex-col gap-12">
+    <div data-content-pane="6xl" className="mx-auto flex w-full max-w-7xl flex-col gap-12">
       <HeroSplit hero={hero} isLoading={isLoading} now={nowDate} />
 
       <FeatureRail liveCount={liveCount} upcomingCount={upcomingCount} isLoadingJams={isLoading} />
