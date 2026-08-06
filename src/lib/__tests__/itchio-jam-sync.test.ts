@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   plainWhere: vi.fn(async () => [] as unknown[]),
   insertOnConflict: vi.fn(async (_rows: unknown) => undefined),
   updateWhere: vi.fn(async (_patch: unknown) => undefined),
+  convergeJams: vi.fn(async (_userId: string, _entries: unknown[]) => ({ linked: 0 })),
 }));
 
 vi.mock("@/db", () => ({
@@ -72,6 +73,12 @@ vi.mock("@/db/schema", () => ({
   itchJamEntryResults: { entryId: "entryId", rank: "rank", criterion: "criterion" },
 }));
 
+// Canonical-project convergence has its own suite; here it only has to be
+// *called*, with the entries this run matched.
+vi.mock("@/lib/projects", () => ({
+  convergeJamPlacements: mocks.convergeJams,
+}));
+
 import {
   composeOverallResult,
   normalizeItchProfileUrl,
@@ -112,6 +119,7 @@ beforeEach(() => {
   mocks.plainWhere.mockClear();
   mocks.insertOnConflict.mockClear();
   mocks.updateWhere.mockClear();
+  mocks.convergeJams.mockClear();
   mocks.accountLimit.mockResolvedValue([account()]);
   mocks.matchesWhere.mockResolvedValue([]);
   mocks.plainWhere.mockResolvedValue([]);
@@ -295,5 +303,26 @@ describe("syncItchIoJamParticipations()", () => {
 
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
     expect(mocks.updateWhere).not.toHaveBeenCalled();
+  });
+
+  it("hands every matched entry to canonical convergence, not just the new ones", async () => {
+    // Re-runs matter: the scraper learns contributors and results after the
+    // fact, and those become credits on the canonical project.
+    const matches = [match({ entryId: 1 }), match({ entryId: 2 })];
+    mocks.matchesWhere.mockResolvedValue(matches);
+    mocks.plainWhere.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "row1",
+        sourceId: "1",
+        result: null,
+        teamMembers: null,
+        imageUrl: "https://img.itch.zone/1.png",
+        imageKey: null,
+      },
+    ]);
+
+    await syncItchIoJamParticipations("u1");
+
+    expect(mocks.convergeJams).toHaveBeenCalledWith("u1", [matches[0]?.entry, matches[1]?.entry]);
   });
 });

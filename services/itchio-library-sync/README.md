@@ -24,7 +24,10 @@ both in `src/lib/itchio-sync.ts`).
    Re-runs backfill `result` ("Overall: #N of M") once the post-voting
    rate-page scrape lands, keep team rosters in step, and refresh covers
    unless the owner uploaded their own image. Mirrors the app's
-   `src/lib/itchio-jam-sync.ts`.
+   `src/lib/itchio-jam-sync.ts`. Finally, every jam placement is converged
+   onto a canonical project — keyed on the entry's **game** id, so a game
+   that was both jam-submitted and library-imported is one project — and the
+   entry's `contributors` become credits on it.
 1. Selects every `user.linked_accounts` row with `provider = 'itchio'` and a
    non-null `access_token`.
 2. Sequentially per account (no concurrency, `SYNC_DELAY_MS` sleep between
@@ -33,7 +36,13 @@ both in `src/lib/itchio-sync.ts`).
 3. Upserts: inserts unseen games (`onConflictDoNothing` against the partial
    unique index on `(profile_id, source, source_id)`), flips `published`
    where it changed on itch.io, and refreshes `image_url` from `cover_url`
-   (skipped when the owner uploaded their own image — `image_key` set).
+   (skipped when the owner uploaded their own image — `image_key` set). Then
+   converges the account's whole `itchio` placement set onto canonical
+   projects (deduped on the itch game id) and fills canonical fields only the
+   provider knows — `classification`, `type` (browser-playable), and
+   `release_status`. Fill-if-null, never overwrite: `title` and `published`
+   are deliberately never mirrored, so an owner's rename and a staff hide
+   both survive the next tick.
 4. **401/403** ⇒ token revoked: logged and skipped (the row stays; the
    profile UI's reconnect path handles re-linking). **429/5xx** ⇒ the whole
    run aborts early rather than hammering; the next cron tick retries.
@@ -52,11 +61,23 @@ both in `src/lib/itchio-sync.ts`).
    `published: true` for restricted games, so the state can't live in
    `published` without being flipped back on the next sync.
 
-## Schema
+## Schema and shared writes
 
 The service does **not** manage its own migrations or table definitions — it
 imports `linked_accounts` / `profile_projects` straight from the main app's
 `src/db/schema.ts` (copied into the image at build time).
+
+The same goes for the **canonical-project writes**. Every placement this
+sweep creates has to get a `project.projects` row behind it, or that game has
+no project page and the one-time backfill script becomes something that has to
+be re-run after every tick. So `src/lib/project-sync.ts` (plus the two pure
+modules it pulls in, `project-taxonomy.ts` and `itch-urls.ts`) is copied into
+the image and called with _this_ service's drizzle client — it takes the
+handle as an argument and never imports the app's `db`. Steps 0 and 3 above
+both end in a `converge*Placements` call.
+
+**Deploy the app and this service in the same window** when either copy of
+the sync orchestration changes.
 
 ## Railway setup
 

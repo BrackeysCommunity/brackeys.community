@@ -23,13 +23,12 @@ import {
   linkedAccounts,
   profileProjects,
 } from "@/db/schema";
+import { normalizeItchProfileUrl } from "@/lib/itch-urls";
+import { convergeJamPlacements } from "@/lib/projects";
 
-/** Lowercase + strip trailing slashes so canonical itch URLs compare equal. */
-export function normalizeItchProfileUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const normalized = url.trim().toLowerCase().replace(/\/+$/, "");
-  return normalized.length > 0 ? normalized : null;
-}
+/** Re-exported from its own module: the canonical writes need the same
+ * comparison and can't import this file (it opens the app's `db`). */
+export { normalizeItchProfileUrl };
 
 /** "Overall: #12 of 312" — entry count omitted when the jam row lacks it. */
 export function composeOverallResult(rank: number, entriesCount: number | null): string {
@@ -182,6 +181,15 @@ export async function syncItchIoJamParticipations(
         .where(eq(profileProjects.id, row.id));
     }
   }
+
+  // Canonical convergence: every jam placement gets a `project.projects` row,
+  // keyed on the entry's *game* id so a game that was both jam-submitted and
+  // library-imported is one project — and the entry's contributors become
+  // credits on it.
+  await convergeJamPlacements(
+    userId,
+    matches.map((m) => m.entry),
+  );
 
   return { imported: newMatches.length, total: matches.length };
 }

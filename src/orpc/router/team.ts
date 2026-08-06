@@ -13,6 +13,8 @@ import {
   itchJams,
   profileProjects,
   profileUrlStubs,
+  projectJamLinks,
+  projectTeams,
   projects,
   skills,
   teamInvites,
@@ -28,6 +30,10 @@ import {
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
+import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
+// The house home for LIKE escaping — this file carried its own copy, which
+// (unlike the shared one) left a backslash in the search term unescaped.
+import { escapeLike } from "@/lib/sql-like";
 import { authMiddleware, requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
 
 const profanityMatcher = new RegExpMatcher({
@@ -724,29 +730,46 @@ export const listUserTeams = os
 
 // ── Roster ───────────────────────────────────────────────────────────────────
 
-function escapeLike(str: string): string {
-  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
 /**
- * Username lookup for the invite picker. Distinct from
- * `listAvailableUsers`, which is scoped to the for-hire directory — a
- * team can invite any member of the community, not just the ones
- * advertising availability.
+ * Member lookup for the pickers: the team invite flow, and the project
+ * page's credits editor.
+ *
+ * Distinct from `listAvailableUsers`, which is scoped to the for-hire
+ * directory — a team can invite, and a project can credit, any member of the
+ * community rather than just the ones advertising availability.
+ *
+ * Matches **both** names a profile can carry, because searching for the name
+ * you can see is the only thing anyone tries: the app renders
+ * `guildNickname ?? discordUsername` everywhere, so a nickname-only match was
+ * invisible to a username-only search.
  */
 export const searchProfiles = os
   .use(requireAuth)
   .input(z.object({ search: z.string().trim().min(2).max(100) }))
   .handler(async ({ input }) => {
-    return db
+    const pattern = `%${escapeLike(input.search)}%`;
+    const rows = await db
       .select({
         id: developerProfiles.id,
         username: developerProfiles.discordUsername,
+        guildNickname: developerProfiles.guildNickname,
         avatarUrl: developerProfiles.avatarUrl,
       })
       .from(developerProfiles)
-      .where(ilike(developerProfiles.discordUsername, `%${escapeLike(input.search)}%`))
+      .where(
+        or(
+          ilike(developerProfiles.guildNickname, pattern),
+          ilike(developerProfiles.discordUsername, pattern),
+        ),
+      )
       .limit(8);
+
+    return rows.map(({ guildNickname, ...row }) => ({
+      ...row,
+      // The name the rest of the app shows. `username` stays for the invite
+      // picker, which renders the handle deliberately.
+      displayName: guildNickname || row.username || "Unknown",
+    }));
   });
 
 const ALREADY_INVITED = "That person already has a pending invite.";
@@ -1068,10 +1091,45 @@ export const addTeamProject = os
       });
     }
 
+    const participatedAt = input.participatedAt ? new Date(input.participatedAt) : null;
+
+    // Canonical row first, so the placement is born linked (same order and
+    // same reasoning as `addProject`). The team's *claim* is a separate,
+    // credit-level fact: `project_teams` survives the team later
+    // un-showcasing the work, which is why it isn't derived from the
+    // placement.
+    const projectId = await insertProject({
+      title: input.title,
+      description: input.description,
+      url: input.url || null,
+      releasedAt: participatedAt,
+      createdBy: context.user.id,
+      source: "manual",
+    });
+    // The claim goes to the *team*, not to whoever typed the row in: a member
+    // curating the showcase didn't necessarily make the thing, and a credit
+    // is a claim about authorship. `createdBy` plus team membership already
+    // put them in the editor set (§1.3), so nothing is lost by not asserting
+    // it. Personal credits are explicit, via the credits editor.
+    await db.insert(projectTeams).values({ projectId, teamId: input.teamId }).onConflictDoNothing();
+    if (input.jamName) {
+      // Free-text jam record: a manual row has no `source_game_id`, so the
+      // entries join can't derive the appearance.
+      await db.insert(projectJamLinks).values({
+        projectId,
+        jamName: input.jamName,
+        jamUrl: input.jamUrl || null,
+        submissionUrl: input.submissionUrl || null,
+        result: input.result,
+        participatedAt,
+      });
+    }
+
     const [project] = await db
       .insert(teamProjects)
       .values({
         teamId: input.teamId,
+        projectId,
         title: input.title,
         description: input.description,
         url: input.url || null,
@@ -1088,7 +1146,7 @@ export const addTeamProject = os
         jamUrl: input.jamUrl || null,
         submissionUrl: input.submissionUrl || null,
         result: input.result,
-        participatedAt: input.participatedAt ? new Date(input.participatedAt) : null,
+        participatedAt,
         addedBy: context.user.id,
         source: "manual",
       })
@@ -1102,6 +1160,12 @@ export const addTeamProject = os
  * showcase — the common "our jam game is already on my profile" case.
  * A copy, not a link: the team's showcase must survive the member (or
  * their copy) leaving.
+ *
+ * The *identity* is no longer copied though: both placements point at the
+ * same canonical project, so the two can't drift about what the thing is,
+ * and the team's claim lands in `project_teams`. The surface fields are
+ * still snapshotted here; they stop being written once the showcase reads
+ * identity from the canonical row (plan step 6).
  */
 export const importMemberProject = os
   .use(requireAuth)
@@ -1141,10 +1205,17 @@ export const importMemberProject = os
       throw new ORPCError("BAD_REQUEST", { message: "That project is already on the showcase." });
     }
 
+    // The member's row may predate convergence, so mint on demand rather than
+    // trusting `source.projectId` — but never mint a *second* project for
+    // work that already has one.
+    const projectId = await ensureProfilePlacementProject(source.id);
+    await db.insert(projectTeams).values({ projectId, teamId: input.teamId }).onConflictDoNothing();
+
     const [project] = await db
       .insert(teamProjects)
       .values({
         teamId: input.teamId,
+        projectId,
         type: source.type,
         title: source.title,
         description: source.description,

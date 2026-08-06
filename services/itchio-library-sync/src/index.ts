@@ -7,6 +7,12 @@ import {
   linkedAccounts,
   profileProjects,
 } from "../../../src/db/schema.ts";
+import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
+// The canonical-project writes are shared with the app on purpose: this sweep
+// creates placements, and a placement with no `project_id` behind it is a
+// project page that doesn't exist. Both copies of the orchestration have to
+// mint the canonical row or the backfill script never stops being needed.
+import { convergeJamPlacements, convergeLibraryPlacements } from "../../../src/lib/project-sync.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
 
@@ -21,6 +27,13 @@ interface ItchGame {
   cover_url?: string;
   published: boolean;
   published_at?: string;
+  // Provider-owned identity facts. They only ever land on the canonical
+  // project row (`classification` drives its curated type and label, `type`
+  // is the browser-playable signal, `release_status` the hero badge); the
+  // placement has nowhere to put them.
+  classification?: string;
+  type?: string;
+  release_status?: string;
 }
 
 class ItchApiError extends Error {
@@ -56,7 +69,12 @@ async function syncAccount(
   accessToken: string,
 ): Promise<{ imported: number; flipped: number }> {
   const games = await fetchGames(accessToken);
-  if (games.length === 0) return { imported: 0, flipped: 0 };
+  if (games.length === 0) {
+    // Converge anyway: an account whose library comes back empty can still
+    // hold placements imported before the canonical row existed.
+    await convergeLibraryPlacements(db, profileId, []);
+    return { imported: 0, flipped: 0 };
+  }
 
   const existing = await db
     .select({
@@ -121,6 +139,10 @@ async function syncAccount(
       if (needsPublishFlip) flipped++;
     }
   }
+
+  // Mint/link the canonical project for every placement this account holds,
+  // and let the provider fill in canonical facts nothing else knows.
+  await convergeLibraryPlacements(db, profileId, games);
 
   return { imported: newGames.length, flipped };
 }
@@ -236,12 +258,6 @@ async function probeRestricted(): Promise<{ probed: number; marked: number; clea
 // itch user id, teammates by contributor profile URL (never by name). Same
 // shape as the app's syncItchIoJamParticipations (src/lib/itchio-jam-sync.ts),
 // but bound to this service's drizzle client.
-
-function normalizeItchProfileUrl(url: string | null): string | null {
-  if (!url) return null;
-  const normalized = url.trim().toLowerCase().replace(/\/+$/, "");
-  return normalized.length > 0 ? normalized : null;
-}
 
 function composeOverallResult(rank: number, entriesCount: number | null): string {
   return entriesCount != null && entriesCount > 0
@@ -385,6 +401,15 @@ async function backfillJamsForAccount(account: {
         .where(eq(profileProjects.id, row.id));
     }
   }
+
+  // Same convergence as the app's jam sync: the placement carries an entry
+  // id, the canonical project is keyed on that entry's game id, and the
+  // entry's contributors become credits on it.
+  await convergeJamPlacements(
+    db,
+    account.profileId,
+    matches.map((m) => m.entry),
+  );
 
   return { imported: newMatches.length };
 }

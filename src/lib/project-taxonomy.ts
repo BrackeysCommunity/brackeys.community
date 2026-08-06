@@ -8,8 +8,13 @@
  * single runtime import of `@/db` from here drags `drizzle-orm/node-postgres`
  * into the client bundle on *every* page. (It fails loudly: `Buffer is not
  * defined`.) Nothing in this file may import `@/db` other than as a type.
+ *
+ * The type import below is relative rather than aliased because
+ * `project-sync.ts` imports this module and is itself imported by the
+ * `itchio-library-sync` service, which resolves neither the app's `@/` alias
+ * nor a bundler.
  */
-import type { ProjectType } from "@/db/schema";
+import type { ProjectType } from "../db/schema";
 
 /**
  * Placement type (`user.profile_project_type`) → canonical type.

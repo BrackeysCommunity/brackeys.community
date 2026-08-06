@@ -7,11 +7,11 @@ import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { jamLinkParams } from "@/lib/jam-links";
-import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
 
+import { ProjectCredits } from "./ProjectCredits";
 import { ProjectHero } from "./ProjectHero";
-import type { ProjectContributor, ProjectDetail, ProjectJamAppearance } from "./types";
+import type { ProjectDetail, ProjectJamAppearance } from "./types";
 
 /**
  * A project's canonical page.
@@ -25,27 +25,13 @@ import type { ProjectContributor, ProjectDetail, ProjectJamAppearance } from "./
  * empty box saying so.
  */
 export function ProjectPage({ detail }: { detail: ProjectDetail }) {
-  const { project, contributors, teams, jamRecord } = detail;
+  const { project, contributors, teams, jamRecord, viewerCanEdit } = detail;
 
   return (
     <div className="flex flex-col gap-8 pb-8">
-      <ProjectHero project={project} />
+      <ProjectHero project={project} canEdit={viewerCanEdit} />
 
-      {contributors.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <ShelfHeader
-            title="CREDITS"
-            variant="label"
-            count={contributors.length}
-            unit="CONTRIBUTOR"
-          />
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {contributors.map((contributor) => (
-              <ContributorCard key={contributor.id} contributor={contributor} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <ProjectCredits projectId={project.id} contributors={contributors} canEdit={viewerCanEdit} />
 
       {teams.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -101,57 +87,6 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
       ) : null}
     </div>
   );
-}
-
-/**
- * One credit. A linked row navigates to the profile; a free-text row renders
- * flat — that's the whole point of `display_name` outliving `profile_id`.
- */
-function ContributorCard({ contributor }: { contributor: ProjectContributor }) {
-  const body = (
-    <>
-      <UserAvatar
-        avatarUrl={contributor.avatarUrl}
-        username={contributor.displayName}
-        shape="round"
-        size={36}
-      />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
-          {contributor.displayName}
-        </Text>
-        <Text as="span" size="xs" variant="muted" ellipsis>
-          {contributor.role ?? "Contributor"}
-        </Text>
-      </span>
-    </>
-  );
-
-  if (contributor.profileId) {
-    return (
-      <Chonk
-        variant="surface"
-        size="lg"
-        className="items-center gap-3 bg-card p-3 backdrop-blur-none"
-        render={
-          <Link
-            to="/profile/$userId"
-            params={profileLinkParams({
-              id: contributor.profileId,
-              urlStub: contributor.urlStub,
-            })}
-            aria-label={contributor.displayName}
-          />
-        }
-      >
-        {body}
-      </Chonk>
-    );
-  }
-
-  // Deboss for a readout, emboss for a destination — the house rule the
-  // teams directory established.
-  return <Well className="flex-row items-center gap-3 p-3 backdrop-blur-none">{body}</Well>;
 }
 
 function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) {

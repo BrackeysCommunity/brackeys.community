@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { teamMembers, teams } from "@/db/schema";
+import { projects, teamMembers, teams } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import {
   ProfileProjectImageUploadError,
@@ -16,7 +16,12 @@ import {
   uploadImageToStorage,
   uploadProfileProjectImageToStorage,
 } from "@/lib/profile-project-image-storage";
-import { buildTeamAvatarObjectKey } from "@/lib/profile-project-images";
+import {
+  buildProjectImageObjectKey,
+  buildTeamAvatarObjectKey,
+  isProjectImageKey,
+} from "@/lib/profile-project-images";
+import { loadProjectForEditor } from "@/lib/project-editors";
 import router from "@/orpc/router";
 import { TodoSchema } from "@/orpc/schema";
 
@@ -71,6 +76,9 @@ async function handle({ request }: { request: Request }) {
   }
   if (pathname === "/api/team/avatar") {
     return handleTeamAvatarUpload(request);
+  }
+  if (pathname === "/api/project/image") {
+    return handleProjectImageUpload(request);
   }
 
   const { response } = await handler.handle(request, {
@@ -205,6 +213,87 @@ async function handleTeamAvatarUpload(request: Request) {
 
     console.error(error);
     const message = error instanceof Error ? error.message : "Failed to upload team avatar.";
+    return Response.json({ message }, { status: 500 });
+  }
+}
+
+/**
+ * A canonical project's cover.
+ *
+ * The key is **project-scoped** (`project-images/<projectId>/…`), not the
+ * uploader's: the per-user namespace is wiped on account deletion, which
+ * would blank this cover on every page that renders the project — a profile
+ * showcase, a team page, a jam entry card. Write access is therefore the
+ * project's editor check (§1.3), the same shape as the team-avatar handler
+ * above, and never a key-prefix check.
+ *
+ * Replacing a cover deletes the old object best-effort, and only when it was
+ * one of ours: a legacy row pointing at a user-scoped key must not have that
+ * user's object deleted out from under their own placement.
+ */
+async function handleProjectImageUpload(request: Request) {
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { Allow: "POST" },
+    });
+  }
+
+  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  if (!session) {
+    return Response.json({ message: "Authentication required." }, { status: 401 });
+  }
+
+  const formData = await request.formData().catch(() => null);
+  const image = formData?.get("image");
+  const projectId = formData?.get("projectId");
+  if (!(image instanceof File)) {
+    return Response.json(
+      { message: 'Expected an image file in the "image" form field.' },
+      { status: 400 },
+    );
+  }
+  if (typeof projectId !== "string" || !projectId) {
+    return Response.json({ message: 'Expected a "projectId" form field.' }, { status: 400 });
+  }
+
+  const loaded = await loadProjectForEditor(projectId, session.user.id);
+  if (!loaded) {
+    return Response.json({ message: "Project not found." }, { status: 404 });
+  }
+  if (!loaded.canEdit) {
+    return Response.json(
+      { message: "Only the people credited on this project can change its cover." },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const uploaded = await uploadImageToStorage({
+      file: image,
+      objectKey: buildProjectImageObjectKey(projectId, image.name),
+    });
+
+    await db
+      .update(projects)
+      .set({ imageKey: uploaded.key, updatedAt: new Date() })
+      .where(eq(projects.id, projectId));
+
+    const previous = loaded.project.imageKey;
+    if (previous && previous !== uploaded.key && isProjectImageKey(projectId, previous)) {
+      await removeProfileProjectImageFromStorage(previous).catch((error: unknown) => {
+        console.error("Failed to delete replaced project cover", { key: previous, error });
+      });
+    }
+
+    return Response.json(uploaded, { status: 201 });
+  } catch (error) {
+    if (error instanceof ProfileProjectImageUploadError) {
+      return Response.json({ message: error.message }, { status: error.status });
+    }
+
+    console.error(error);
+    const message = error instanceof Error ? error.message : "Failed to upload project cover.";
     return Response.json({ message }, { status: 500 });
   }
 }

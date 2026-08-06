@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   insertOnConflict: vi.fn(async (_rows: unknown) => undefined),
   updateWhere: vi.fn(async (_patch: unknown) => undefined),
   fetchGames: vi.fn(async () => [] as unknown[]),
+  convergeLibrary: vi.fn(async (_userId: string, _games: unknown[]) => ({ linked: 0, filled: 0 })),
 }));
 
 vi.mock("@/db", () => ({
@@ -75,6 +76,12 @@ vi.mock("@/lib/itchio-jam-sync", () => ({
   syncItchIoJamParticipations: vi.fn(async () => null),
 }));
 
+// Canonical-project convergence has its own suite; here it only has to be
+// *called*, with the provider payload this run fetched.
+vi.mock("@/lib/projects", () => ({
+  convergeLibraryPlacements: mocks.convergeLibrary,
+}));
+
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "../itchio-sync";
 
 function game(overrides: Partial<Record<string, unknown>> & { id: number; published: boolean }) {
@@ -93,6 +100,7 @@ beforeEach(() => {
   mocks.insertOnConflict.mockClear();
   mocks.updateWhere.mockClear();
   mocks.fetchGames.mockClear();
+  mocks.convergeLibrary.mockClear();
   mocks.accountLimit.mockResolvedValue([{ accessToken: "tok" }]);
   mocks.existingWhere.mockResolvedValue([]);
   mocks.fetchGames.mockResolvedValue([]);
@@ -211,5 +219,23 @@ describe("syncItchIoLibrary()", () => {
   it("wraps itch.io fetch failures in ItchIoSyncFetchError", async () => {
     mocks.fetchGames.mockRejectedValue(new Error("boom"));
     await expect(syncItchIoLibrary("u1")).rejects.toBeInstanceOf(ItchIoSyncFetchError);
+  });
+
+  it("converges every placement onto a canonical project, with the provider payload", async () => {
+    const games = [game({ id: 1, published: true })];
+    mocks.fetchGames.mockResolvedValue(games);
+
+    await syncItchIoLibrary("u1");
+
+    expect(mocks.convergeLibrary).toHaveBeenCalledWith("u1", games);
+  });
+
+  it("converges even when the library came back empty", async () => {
+    // A row imported before the canonical entity existed has a null
+    // project_id, and no other code path will ever fix it — so an account
+    // whose library is now empty still has to be swept.
+    await syncItchIoLibrary("u1");
+
+    expect(mocks.convergeLibrary).toHaveBeenCalledWith("u1", []);
   });
 });

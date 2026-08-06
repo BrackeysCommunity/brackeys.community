@@ -63,7 +63,13 @@ import {
   setUrlStub,
   listAvailableUsers,
 } from "./profile";
-import { getProject, listProjectsForGames } from "./project";
+import {
+  addProjectContributor,
+  getProject,
+  listProjectsForGames,
+  removeProjectContributor,
+  updateProjectContributor,
+} from "./project";
 import {
   createTeam,
   updateTeam,
@@ -101,6 +107,9 @@ export default {
   listJamsByHost,
   getProject,
   listProjectsForGames,
+  addProjectContributor,
+  updateProjectContributor,
+  removeProjectContributor,
   getProfile,
   getMyProfile,
   updateProfile,

@@ -17,8 +17,15 @@ COPY services/itchio-library-sync/tsconfig.json ./services/itchio-library-sync/t
 COPY services/itchio-library-sync/src ./services/itchio-library-sync/src
 
 # The sweep imports the shared drizzle schema from the main app so that
-# everything stays in a single source of truth under drizzle migrations.
+# everything stays in a single source of truth under drizzle migrations —
+# and, for the same reason, the canonical-project writes: a placement this
+# sweep creates has to get its `project.projects` row from the same code the
+# app uses. `project-sync.ts` pulls in `project-taxonomy.ts` and
+# `itch-urls.ts`; none of the three imports the app's `db` or its `@/` alias.
 COPY src/db/schema.ts ./src/db/schema.ts
+COPY src/lib/project-sync.ts ./src/lib/project-sync.ts
+COPY src/lib/project-taxonomy.ts ./src/lib/project-taxonomy.ts
+COPY src/lib/itch-urls.ts ./src/lib/itch-urls.ts
 
 WORKDIR /app/services/itchio-library-sync
 CMD ["bun", "run", "start"]

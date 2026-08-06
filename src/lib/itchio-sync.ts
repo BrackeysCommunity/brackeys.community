@@ -14,6 +14,7 @@ import { db } from "@/db";
 import { linkedAccounts, profileProjects } from "@/db/schema";
 import { fetchGames } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
+import { convergeLibraryPlacements } from "@/lib/projects";
 
 /** Thrown when the itch.io API call itself fails (vs. no linked account). */
 export class ItchIoSyncFetchError extends Error {
@@ -43,6 +44,9 @@ export async function syncItchIoLibrary(
   });
 
   if (games.length === 0) {
+    // Converge anyway: an account whose library comes back empty can still
+    // hold placements imported before the canonical row existed.
+    await convergeLibraryPlacements(userId, []);
     return { imported: 0, total: 0 };
   }
 
@@ -111,6 +115,13 @@ export async function syncItchIoLibrary(
         .where(eq(profileProjects.id, row.id));
     }
   }
+
+  // Every placement gets its canonical `project.projects` row here, so the
+  // backfill script stays a one-time migration rather than something that has
+  // to be re-run after each sweep. Deliberately after the placement writes and
+  // outside their conditionals: a row imported before convergence shipped has
+  // a null `project_id` that nothing else will ever fix.
+  await convergeLibraryPlacements(userId, games);
 
   return { imported: newGames.length, total: games.length };
 }

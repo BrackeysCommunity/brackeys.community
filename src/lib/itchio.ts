@@ -17,7 +17,15 @@ export interface ItchIoGame {
   short_text: string;
   url: string;
   cover_url: string;
+  /** itch's embed type: default | html | flash | java | unity. `html` is the
+   * "playable in browser" signal the project page's CTA reads. */
   type: string;
+  /** Raw provider kind: game | asset | tool | soundtrack | game_mod | … The
+   * API has always returned it; we only started storing it with the canonical
+   * project row, so it's optional here for the rows that predate that. */
+  classification?: string;
+  /** released | in_development | on_hold | canceled | prototype. */
+  release_status?: string;
   published: boolean;
   published_at: string;
   created_at: string;

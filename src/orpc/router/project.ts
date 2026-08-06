@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import * as z from "zod";
@@ -13,14 +14,14 @@ import {
   projectJamLinks,
   projectTeams,
   projects,
-  teamMembers,
   teams,
 } from "@/db/schema";
 import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
-import { authMiddleware } from "@/orpc/middleware/auth";
+import { canEditProject, loadProjectForEditor } from "@/lib/project-editors";
+import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
 
 /**
  * A project's canonical page, in one round trip.
@@ -202,49 +203,6 @@ export const getProject = os
   });
 
 /**
- * The §1.3 editor set: whoever created the row, anyone credited on it with a
- * live profile link, and any member of a team that claims it.
- *
- * Deliberately *not* "the owner": a canonical project is shared, and the
- * people who made a thing are the people who get to describe it.
- */
-async function canEditProject(
-  project: { id: string; createdBy: string | null },
-  viewerId: string,
-  teamRows: { teamId: string }[],
-): Promise<boolean> {
-  if (project.createdBy === viewerId) return true;
-
-  const [credited] = await db
-    .select({ id: projectContributors.id })
-    .from(projectContributors)
-    .where(
-      and(
-        eq(projectContributors.projectId, project.id),
-        eq(projectContributors.profileId, viewerId),
-      ),
-    )
-    .limit(1);
-  if (credited) return true;
-
-  if (teamRows.length === 0) return false;
-  const [member] = await db
-    .select({ id: teamMembers.id })
-    .from(teamMembers)
-    .where(
-      and(
-        inArray(
-          teamMembers.teamId,
-          teamRows.map((row) => row.teamId),
-        ),
-        eq(teamMembers.userId, viewerId),
-      ),
-    )
-    .limit(1);
-  return member != null;
-}
-
-/**
  * Which of these itch games have a canonical project page.
  *
  * The jam page's entries grid calls this for the page of entries it just
@@ -271,3 +229,179 @@ export const listProjectsForGames = os
 
     return { projects: rows };
   });
+
+// ── Credits ─────────────────────────────────────────────────────────────────
+//
+// The credits list is why the project page exists, so it's the first thing
+// that had to become editable. Three rules run through all of it:
+//
+//  1. **Any editor may edit** (§1.3) — a project is shared by the people who
+//     made it, and "the owner" isn't a concept here.
+//  2. **`display_name` is the promise.** A credit is never rewritten by a
+//     sync and never deleted by roster churn; `profile_id` is only the
+//     optional live link, and a deleted account nulls it without touching
+//     the name.
+//  3. **Nothing here mints, merges, or renames a project.** These endpoints
+//     only ever touch `project_contributors`.
+
+/** The editor gate for a write, as a project row. Throws the way the rest of
+ * the routers do rather than returning a verdict nobody checks. */
+async function requireProjectEditor(projectId: string, viewerId: string) {
+  const loaded = await loadProjectForEditor(projectId, viewerId);
+  if (!loaded) throw new ORPCError("NOT_FOUND", { message: "Project not found." });
+  if (!loaded.canEdit) {
+    throw new ORPCError("FORBIDDEN", {
+      message: "Only the people credited on this project can edit it.",
+    });
+  }
+  return loaded.project;
+}
+
+/** A credit row plus the profile fields the page renders it with. */
+async function readContributor(contributorId: number) {
+  const [row] = await db
+    .select({
+      id: projectContributors.id,
+      projectId: projectContributors.projectId,
+      profileId: projectContributors.profileId,
+      displayName: projectContributors.displayName,
+      role: projectContributors.role,
+      source: projectContributors.source,
+      sortOrder: projectContributors.sortOrder,
+      avatarUrl: developerProfiles.avatarUrl,
+      urlStub: profileUrlStubs.stub,
+    })
+    .from(projectContributors)
+    .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+    .where(eq(projectContributors.id, contributorId))
+    .limit(1);
+  return row ?? null;
+}
+
+const displayNameSchema = z.string().trim().min(1).max(120);
+const roleSchema = z.string().trim().max(80);
+
+export const addProjectContributor = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      projectId: z.string(),
+      displayName: displayNameSchema,
+      role: roleSchema.optional(),
+      /** Optional live link to a member's profile. Omitted for the free-text
+       * case, which is the majority — most collaborators aren't here. */
+      profileId: z.string().optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    await requireProjectEditor(input.projectId, context.user.id);
+
+    if (input.profileId) {
+      const [profile] = await db
+        .select({ id: developerProfiles.id })
+        .from(developerProfiles)
+        .where(eq(developerProfiles.id, input.profileId))
+        .limit(1);
+      if (!profile) throw new ORPCError("NOT_FOUND", { message: "That member doesn't exist." });
+    }
+
+    // Same dedupe the syncs and the backfill use: by profile where there is
+    // one, case-insensitively by name otherwise. The partial unique index
+    // enforces the first; the second is ours to check.
+    const existing = await db
+      .select({
+        id: projectContributors.id,
+        profileId: projectContributors.profileId,
+        displayName: projectContributors.displayName,
+      })
+      .from(projectContributors)
+      .where(eq(projectContributors.projectId, input.projectId));
+
+    const clash = existing.find(
+      (row) =>
+        (input.profileId != null && row.profileId === input.profileId) ||
+        row.displayName.trim().toLowerCase() === input.displayName.toLowerCase(),
+    );
+    if (clash) {
+      throw new ORPCError("CONFLICT", { message: "That person is already credited." });
+    }
+
+    const [created] = await db
+      .insert(projectContributors)
+      .values({
+        projectId: input.projectId,
+        profileId: input.profileId ?? null,
+        displayName: input.displayName,
+        role: input.role || null,
+        // Hand-added, so a later sync's add-only pass leaves it alone.
+        source: "manual",
+        // New credits land at the end; the seeded rows keep their order.
+        sortOrder: existing.length,
+      })
+      .returning({ id: projectContributors.id });
+    if (!created)
+      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Could not add credit." });
+
+    return await readContributor(created.id);
+  });
+
+export const updateProjectContributor = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      contributorId: z.number().int(),
+      displayName: displayNameSchema.optional(),
+      role: roleSchema.nullable().optional(),
+      sortOrder: z.number().int().min(0).max(999).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [row] = await db
+      .select({ id: projectContributors.id, projectId: projectContributors.projectId })
+      .from(projectContributors)
+      .where(eq(projectContributors.id, input.contributorId))
+      .limit(1);
+    if (!row) throw new ORPCError("NOT_FOUND", { message: "Credit not found." });
+    await requireProjectEditor(row.projectId, context.user.id);
+
+    // A scraped `entry-contributors` row is editable too: the syncs only ever
+    // *add* credits, so a corrected name or a filled-in role survives them.
+    const [updated] = await db
+      .update(projectContributors)
+      .set({
+        ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+        ...(input.role !== undefined ? { role: input.role || null } : {}),
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(projectContributors.id, input.contributorId))
+      .returning({ id: projectContributors.id });
+    if (!updated) throw new ORPCError("NOT_FOUND", { message: "Credit not found." });
+
+    return await readContributor(updated.id);
+  });
+
+export const removeProjectContributor = os
+  .use(requireAuth)
+  .input(z.object({ contributorId: z.number().int() }))
+  .handler(async ({ input, context }) => {
+    const [row] = await db
+      .select({ id: projectContributors.id, projectId: projectContributors.projectId })
+      .from(projectContributors)
+      .where(eq(projectContributors.id, input.contributorId))
+      .limit(1);
+    if (!row) throw new ORPCError("NOT_FOUND", { message: "Credit not found." });
+    await requireProjectEditor(row.projectId, context.user.id);
+
+    // Removing your own credit can remove your own edit rights — that's
+    // allowed and intended (miscredited people can take themselves off), and
+    // `createdBy` plus any team claim survive it.
+    await db.delete(projectContributors).where(eq(projectContributors.id, input.contributorId));
+
+    return { success: true };
+  });
+
+// Picking a member to credit reuses `searchProfiles` (team router) rather
+// than minting a second member-search endpoint — it already answers exactly
+// this question, and it now matches guild nicknames as well as handles.

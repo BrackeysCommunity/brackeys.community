@@ -12,6 +12,7 @@ import {
   linkedAccounts,
   profileProjects,
   profileUrlStubs,
+  projectJamLinks,
   projects,
   skillRequests,
   skills,
@@ -29,6 +30,12 @@ import {
   PROFILE_PROJECT_SUBTYPES,
   sanitizeProfileProjectSubTypes,
 } from "@/lib/profile-projects";
+import {
+  creditPlacementOwner,
+  ensureProjectContributors,
+  insertProject,
+  projectTypeFromPlacement,
+} from "@/lib/projects";
 import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
@@ -488,10 +495,29 @@ export const addProject = os
     const type = input.type ?? "game";
     const subTypes = normalizeManualProjectSubTypes(type, input.subTypes);
 
+    // The canonical row is minted first so the placement is born linked.
+    // Failing this way round leaves an unanchored project for the orphan
+    // sweep; the other way round leaves a placement that no project page can
+    // be made of, which is exactly what this step exists to stop.
+    const projectId = await insertProject({
+      title: input.title,
+      description: input.description,
+      type: projectTypeFromPlacement(type),
+      subTypes,
+      url: input.url || null,
+      // No canonical cover: an uploaded image lives in this user's own MinIO
+      // namespace and would inherit their account's lifecycle. It stays the
+      // placement's override until the project-scoped upload endpoint lands.
+      createdBy: context.user.id,
+      source: "manual",
+    });
+    await creditPlacementOwner(projectId, context.user.id);
+
     const [project] = await db
       .insert(profileProjects)
       .values({
         profileId: context.user.id,
+        projectId,
         ...projectInput,
         ...(image
           ? {
@@ -647,10 +673,41 @@ export const addJamParticipation = os
     }),
   )
   .handler(async ({ input, context }) => {
+    const participatedAt = input.participatedAt ? new Date(input.participatedAt) : null;
+
+    // A hand-logged jam entry is a project like any other: the *submission*
+    // is the artifact ("jam" was never a kind of thing), and the jam itself
+    // becomes a record on it. Explicit, not derived — a manual row has no
+    // `source_game_id` for the entries join to key on.
+    const projectId = await insertProject({
+      title: input.submissionTitle?.trim() || input.jamName,
+      url: input.submissionUrl || null,
+      releasedAt: participatedAt,
+      createdBy: context.user.id,
+      source: "manual",
+    });
+    await creditPlacementOwner(projectId, context.user.id);
+    await ensureProjectContributors(
+      (input.teamMembers ?? []).map((name) => ({
+        projectId,
+        displayName: name,
+        source: "manual" as const,
+      })),
+    );
+    await db.insert(projectJamLinks).values({
+      projectId,
+      jamName: input.jamName,
+      jamUrl: input.jamUrl || null,
+      submissionUrl: input.submissionUrl || null,
+      result: input.result,
+      participatedAt,
+    });
+
     const [participation] = await db
       .insert(profileProjects)
       .values({
         profileId: context.user.id,
+        projectId,
         type: "jam",
         title: buildJamProjectTitle(input.jamName, input.submissionTitle),
         status: "approved",
@@ -661,7 +718,7 @@ export const addJamParticipation = os
         submissionUrl: input.submissionUrl,
         result: input.result,
         teamMembers: input.teamMembers,
-        participatedAt: input.participatedAt ? new Date(input.participatedAt) : null,
+        participatedAt,
       })
       .returning();
 
