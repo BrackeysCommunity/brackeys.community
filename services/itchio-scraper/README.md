@@ -8,11 +8,18 @@ perishable their work is. They build the same image from the same Dockerfile
 and share one config module and one set of scrapers — only the entrypoint and
 the schedule differ.
 
-| Tier          | Schedule        | Command            | Works                                                        |
-| ------------- | --------------- | ------------------ | ------------------------------------------------------------ |
-| **live**      | hourly, `:00`   | `bun run live`     | jams that have started and haven't finished (~285)           |
-| **discovery** | hourly, `:20`   | `bun run discover` | the four listing walks, jams we don't hold, upcoming refresh |
-| **results**   | 6-hourly, `:40` | `bun run results`  | ranking collection for finished jams                         |
+| Tier          | Schedule        | Measured tick  | Command            | Works                                                        |
+| ------------- | --------------- | -------------- | ------------------ | ------------------------------------------------------------ |
+| **live**      | `:00` / `:30`   | 8–9 min        | `bun run live`     | jams that have started and haven't finished (~285)           |
+| **discovery** | hourly, `:20`   | ~0.6 min       | `bun run discover` | the four listing walks, jams we don't hold, upcoming refresh |
+| **results**   | 6-hourly, `:40` | backlog-driven | `bun run results`  | ranking collection for finished jams                         |
+
+Live is the only tier with a meaningful runtime, and it drives the schedule:
+a full pass over all ~285 open jams takes 8–9 minutes (including one itch 429
+and its 60s pool cooldown), which fits the half-hour slot with room to spare
+and leaves `:20` clear for discovery. Running it faster than every 30 minutes
+means moving discovery — at `*/15` the live ticks occupy `:00-:09`, `:15-:24`,
+`:30-:39`, `:45-:54` and `:20` collides.
 
 They were one nightly tick until the coupling became the problem: ranking
 collection is unbounded in size and worthless to hurry (a finished jam's scores
@@ -162,6 +169,23 @@ Create **three services**, all pointing at this repo, each with:
 Note that a `railway redeploy` of a cron service only re-arms the schedule; to
 force an immediate run, use the dashboard's run button (or the GraphQL
 `deploymentRestart` mutation).
+
+**Two traps when creating these services**, both of which produce a service that
+builds green and never runs:
+
+- **`cronSchedule` in the toml does not arm the scheduler.** Railway's cron
+  scheduler reads the _service-instance_ field, not the deployment manifest. A
+  service whose schedule comes only from config-as-code shows
+  `nextCronRunAt: null` and simply never fires. Set the schedule on the service
+  too (dashboard → Settings → Cron Schedule), matching the toml. Verify with
+  `nextCronRunAt` — if it's null, the cron is not armed, whatever the toml says.
+- **Setting the config file path after creating the service is too late for the
+  first build.** Creating a repo-linked service triggers a deploy immediately,
+  before `railwayConfigFile` is applied, so that build uses Railpack and ignores
+  the toml entirely — including `startCommand`, which leaves it running as a
+  resident service rather than a cron. Set the config file path, then trigger a
+  fresh deploy and confirm the manifest reports
+  `builder: DOCKERFILE` and the right `startCommand`.
 
 ### Migrating from the single pre-split service
 

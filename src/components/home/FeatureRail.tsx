@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
 import { useHomeDestinations, type HomeDestination } from "@/components/home/use-home-destinations";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { Heading, Text } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
@@ -65,9 +66,10 @@ function FeatureTile({ to, icon, title, stat, statLabel }: FeatureTileProps) {
       variant="surface"
       render={<Link to={to} />}
       aria-label={title}
-      className="group/tile align-start flex min-h-28 min-w-0 flex-col justify-between gap-4 p-4"
+      className="group/tile align-start flex min-h-28 min-w-0 flex-col justify-between gap-4 overflow-hidden p-4"
     >
-      <div className="flex min-w-0 items-center gap-2.5">
+      <GraphPaper fade="bottom-right" fadeStop="90%" size={12} />
+      <div className="relative flex min-w-0 items-center gap-2.5">
         <HugeiconsIcon
           icon={icon}
           size={24}
@@ -85,8 +87,8 @@ function FeatureTile({ to, icon, title, stat, statLabel }: FeatureTileProps) {
 
       {/* Caption above value, same as the jam rows' `Stat` — the number is
           the thing being read, so nothing sits between it and the edge. */}
-      <div className="min-w-0">
-        <Text as="div" size="sm" variant="muted" ellipsis density="compressed">
+      <div className="relative min-w-0">
+        <Text as="div" size="sm" ellipsis density="dense" className="tracking-wide">
           {statLabel}
         </Text>
         <Text

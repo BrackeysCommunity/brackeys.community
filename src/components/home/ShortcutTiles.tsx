@@ -3,6 +3,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
 import { Chonk } from "@/components/ui/chonk";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { Text } from "@/components/ui/typography";
 
 export interface ShortcutTile {
@@ -27,21 +28,24 @@ export function ShortcutTiles({ tiles }: ShortcutTilesProps) {
     <div className="-mx-4 flex snap-x snap-mandatory scroll-pl-4 gap-1.5 overflow-x-auto py-3 pr-4 pl-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {tiles.map((tile) => {
         const inner = (
-          <div className="flex h-full items-center gap-2 px-3 py-2.5">
-            <HugeiconsIcon icon={tile.icon} size={24} />
-            <div className="flex flex-col gap-1">
-              <Text size="xs" variant="muted" density="dense">
-                {tile.label}
-              </Text>
-              <Text
-                variant="accent"
-                density="dense"
-                className={tile.statClassName || "text-2xl leading-none"}
-              >
-                {tile.stat}
-              </Text>
+          <>
+            <GraphPaper fade="bottom-right" fadeStop="90%" size={12} />
+            <div className="relative flex h-full items-center gap-2 px-3 py-2.5">
+              <HugeiconsIcon icon={tile.icon} size={28} />
+              <div className="flex flex-col gap-1">
+                <Text size="xs" density="dense" className="tracking-wide">
+                  {tile.label}
+                </Text>
+                <Text
+                  variant="accent"
+                  density="dense"
+                  className={tile.statClassName || "text-2xl leading-none"}
+                >
+                  {tile.stat}
+                </Text>
+              </div>
             </div>
-          </div>
+          </>
         );
         const render = tile.to ? (
           <Link to={tile.to} aria-label={tile.label} />
@@ -55,7 +59,7 @@ export function ShortcutTiles({ tiles }: ShortcutTilesProps) {
             variant="surface"
             size="lg"
             render={render}
-            className="block w-auto min-w-36 shrink-0 snap-start text-left"
+            className="block w-auto min-w-36 shrink-0 snap-start overflow-hidden text-left"
           >
             {inner}
           </Chonk>
@@ -64,7 +68,7 @@ export function ShortcutTiles({ tiles }: ShortcutTilesProps) {
             key={tile.label}
             variant="surface"
             size="lg"
-            className="block w-auto min-w-36 shrink-0 snap-start"
+            className="block w-auto min-w-36 shrink-0 snap-start overflow-hidden"
           >
             {inner}
           </Chonk>
