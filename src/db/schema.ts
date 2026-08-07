@@ -513,6 +513,9 @@ export const collabPosts = collabSchema.table("collab_posts", {
   compensationType: text("compensation_type"),
   compensationMin: integer("compensation_min"),
   compensationMax: integer("compensation_max"),
+  // Legacy: no longer written or rendered. A linked team already shows
+  // its member count and a project its credits, so the wizard stopped
+  // asking. Kept so pre-existing rows survive.
   teamSize: text("team_size"),
   projectLength: text("project_length"),
   platforms: text("platforms").array(),

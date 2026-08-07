@@ -471,7 +471,6 @@ for (const t of seedTeams) {
         description:
           "Seeded test post for the team directory. We're a small crew that ships on jam deadlines and we'd rather over-communicate than over-plan.",
         projectName: t.name,
-        teamSize: "small",
         projectLength: "short",
         experienceLevel: "intermediate",
         compensationType: post.type === "paid" ? "negotiable" : null,

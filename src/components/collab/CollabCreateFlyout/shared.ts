@@ -8,7 +8,6 @@ import type {
   CollabExperienceLevel,
   CollabPostType,
   CollabProjectLength,
-  CollabTeamSize,
   UploadedImage,
 } from "@/lib/collab-store";
 
@@ -50,7 +49,7 @@ export const WIZARD_TABS: WizardTabDef[] = [
     id: "basics",
     num: "01",
     label: "BASICS",
-    desc: "The pitch — what kind of post this is and the headline people scan on the board.",
+    desc: "The pitch and the terms — what kind of post this is, the headline people scan on the board, the scope of the work, and how to reach you.",
   },
   {
     id: "team",
@@ -62,7 +61,7 @@ export const WIZARD_TABS: WizardTabDef[] = [
     id: "project",
     num: "03",
     label: "PROJECT",
-    desc: "The project itself — show it off, scope the work, and say how to reach you.",
+    desc: "What you're building — link the project page this recruits for, or name it, and tie it to a jam.",
   },
   {
     id: "roles",
@@ -113,13 +112,6 @@ export const PLATFORM_OPTIONS = [
   "Xbox",
   "Switch",
   "VR",
-];
-
-export const TEAM_SIZE_OPTIONS: { value: CollabTeamSize; label: string }[] = [
-  { value: "solo", label: "Solo" },
-  { value: "2-3", label: "2-3" },
-  { value: "4-6", label: "4-6" },
-  { value: "7+", label: "7+" },
 ];
 
 export const PROJECT_LENGTH_OPTIONS: { value: CollabProjectLength; label: string }[] = [
@@ -252,7 +244,6 @@ export type WizardFormValues = {
   isIndividual: boolean;
   projectName: string;
   platforms: string[];
-  teamSize: CollabTeamSize | undefined;
   projectLength: CollabProjectLength | undefined;
   experienceLevel: CollabExperienceLevel | undefined;
   compensationType: CollabCompensationType | undefined;
@@ -352,10 +343,26 @@ export function getStepValidationError(
       if (v.title.trim().length < 10) return "Title must be at least 10 characters.";
       if (!v.description.trim()) return "Please enter a description.";
       if (v.description.trim().length < 30) return "Description must be at least 30 characters.";
+      if (v.platforms.length === 0) return "Please select at least one platform.";
+      if (!v.projectLength) return "Please select a timeline.";
+      if (!v.experienceLevel) return "Please select an experience level.";
+      if (v.type === "paid") {
+        if (!v.compensationType) return "Please select a compensation type.";
+        if (v.compensationType !== "negotiable" && v.compensationMin === undefined)
+          return "Please select a compensation range.";
+      }
+      if (!v.isIndividual) {
+        if (!v.contactType) return "Please select a contact type.";
+        if (!v.contactMethod.trim()) return "Please enter contact info.";
+      }
       const titleCheck = profanityCheck(v.title, "Title");
       if (titleCheck) return titleCheck;
       const descCheck = profanityCheck(v.description, "Description");
       if (descCheck) return descCheck;
+      if (v.contactMethod) {
+        const contactCheck = profanityCheck(v.contactMethod, "Contact method");
+        if (contactCheck) return contactCheck;
+      }
       break;
     }
     case "team": {
@@ -374,27 +381,21 @@ export function getStepValidationError(
       if (teamDescCheck) return teamDescCheck;
       break;
     }
+    // Only what the project entity itself owns. Everything else the step
+    // used to gate — platforms, timeline, experience, compensation,
+    // contact — describes the post, not the project, so it moved to
+    // BASICS with the rest of the post's own terms.
     case "details": {
-      if (!v.projectName.trim()) return "Project name is required.";
-      if (v.projectName.trim().length < 3) return "Project name must be at least 3 characters.";
-      if (v.platforms.length === 0) return "Please select at least one platform.";
-      if (!v.teamSize) return "Please select a team size.";
-      if (!v.projectLength) return "Please select a timeline.";
-      if (!v.experienceLevel) return "Please select an experience level.";
-      if (v.type === "paid") {
-        if (!v.compensationType) return "Please select a compensation type.";
-        if (v.compensationType !== "negotiable" && v.compensationMin === undefined)
-          return "Please select a compensation range.";
-      }
-      if (!v.isIndividual) {
-        if (!v.contactType) return "Please select a contact type.";
-        if (!v.contactMethod.trim()) return "Please enter contact info.";
-      }
-      const nameCheck = profanityCheck(v.projectName, "Project name");
-      if (nameCheck) return nameCheck;
-      if (v.contactMethod) {
-        const contactCheck = profanityCheck(v.contactMethod, "Contact method");
-        if (contactCheck) return contactCheck;
+      // A linked project supplies the name and the field is a readout, so
+      // these two can't be a gate — the user has no way to satisfy them, and
+      // the server derives the column from the canonical row anyway.
+      if (v.projectId === undefined) {
+        if (!v.projectName.trim()) return "Project name is required.";
+        if (v.projectName.trim().length < 3) return "Project name must be at least 3 characters.";
+        // Only the typed name is profanity-checked; a canonical title was
+        // already checked when the project was named or renamed.
+        const nameCheck = profanityCheck(v.projectName, "Project name");
+        if (nameCheck) return nameCheck;
       }
       break;
     }
@@ -463,27 +464,31 @@ export function getPreflightChecks(
       ok: getStepValidationError("team", v, opts) === null,
       tabId: "team",
     },
-    { label: "Project named", ok: v.projectName.trim().length >= 3, tabId: "project" },
-    { label: "At least one platform", ok: v.platforms.length > 0, tabId: "project" },
+    { label: "At least one platform", ok: v.platforms.length > 0, tabId: "basics" },
     {
-      label: "Team size, timeline, experience",
-      ok: !!v.teamSize && !!v.projectLength && !!v.experienceLevel,
-      tabId: "project",
+      label: "Timeline and experience",
+      ok: !!v.projectLength && !!v.experienceLevel,
+      tabId: "basics",
     },
-    { label: "At least one role", ok: v.roleIds.length > 0, tabId: "roles" },
     {
       label: "Compensation set",
       ok:
         v.type !== "paid" ||
         (!!v.compensationType &&
           (v.compensationType === "negotiable" || v.compensationMin !== undefined)),
-      tabId: "project",
+      tabId: "basics",
     },
     {
       label: "Contact method chosen",
       ok: v.isIndividual || (!!v.contactType && !!v.contactMethod.trim()),
+      tabId: "basics",
+    },
+    {
+      label: v.projectId !== undefined ? "Project linked" : "Project named",
+      ok: v.projectId !== undefined || v.projectName.trim().length >= 3,
       tabId: "project",
     },
+    { label: "At least one role", ok: v.roleIds.length > 0, tabId: "roles" },
   ];
 }
 

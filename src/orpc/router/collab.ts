@@ -47,7 +47,6 @@ import {
 } from "@/orpc/middleware/auth";
 
 const compensationTypeSchema = z.enum(["hourly", "fixed", "rev_share", "negotiable"]);
-const teamSizeSchema = z.enum(["solo", "2-3", "4-6", "7+"]);
 const projectLengthSchema = z.enum([
   "<1 week",
   "1-4 weeks",
@@ -96,7 +95,6 @@ const postContentShape = {
   compensationType: compensationTypeSchema.optional(),
   compensationMin: z.number().int().min(0).max(1_000_000).optional(),
   compensationMax: z.number().int().min(0).max(1_000_000).optional(),
-  teamSize: teamSizeSchema,
   projectLength: projectLengthSchema,
   platforms: z.array(z.string().max(50)).min(1).max(20),
   experience: z.string().max(1000).optional(),
@@ -309,8 +307,30 @@ async function assertProjectLinkable(projectId: string, authorId: string) {
   }
 }
 
-/** Columns of `collab_posts` the payload writes, minus the link tables. */
-function postColumns(input: PostContent) {
+/**
+ * The linked project's own title, which is what a linked post displays.
+ *
+ * A post that names a project is not free to call it something else: the
+ * canonical row owns its identity, and renaming happens on the project page.
+ * So `project_name` is *derived* here rather than taken from the payload —
+ * the wizard locks the field, and this is what makes that lock real for
+ * anything talking to the RPC directly.
+ */
+async function linkedProjectName(projectId: string): Promise<string> {
+  const [row] = await db
+    .select({ title: projects.title })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!row) {
+    throw new ORPCError("BAD_REQUEST", { message: "That project no longer exists." });
+  }
+  return row.title;
+}
+
+/** Columns of `collab_posts` the payload writes, minus the link tables.
+ *  `projectName` is overridden when the post links a canonical project. */
+function postColumns(input: PostContent, projectName?: string) {
   return {
     type: input.type,
     jamId: input.jamId ?? null,
@@ -318,11 +338,10 @@ function postColumns(input: PostContent) {
     projectId: input.projectId ?? null,
     title: input.title,
     description: input.description,
-    projectName: input.projectName,
+    projectName: projectName ?? input.projectName,
     compensationType: input.compensationType ?? null,
     compensationMin: input.compensationMin ?? null,
     compensationMax: input.compensationMax ?? null,
-    teamSize: input.teamSize,
     projectLength: input.projectLength,
     platforms: input.platforms,
     experience: input.experience ?? null,
@@ -344,15 +363,17 @@ export const createPost = os
     if (input.teamId != null) {
       await assertTeamLinkable(input.teamId, context.user.id);
     }
+    let projectName: string | undefined;
     if (input.projectId != null) {
       await assertProjectLinkable(input.projectId, context.user.id);
+      projectName = await linkedProjectName(input.projectId);
     }
 
     const [post] = await db
       .insert(collabPosts)
       .values({
         authorId: context.user.id,
-        ...postColumns(input),
+        ...postColumns(input, projectName),
         expiresAt: initialPostExpiry(jam?.endsAt),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -399,15 +420,22 @@ export const updatePost = os
     if (input.teamId != null && input.teamId !== post.teamId) {
       await assertTeamLinkable(input.teamId, post.authorId);
     }
-    if (input.projectId != null && input.projectId !== post.projectId) {
-      await assertProjectLinkable(input.projectId, post.authorId);
+    let projectName: string | undefined;
+    if (input.projectId != null) {
+      // Only a *changed* link is re-verified (same rule as the team link
+      // above), but the name is re-derived either way — the project may have
+      // been renamed since this post was written, and the post follows it.
+      if (input.projectId !== post.projectId) {
+        await assertProjectLinkable(input.projectId, post.authorId);
+      }
+      projectName = await linkedProjectName(input.projectId);
     }
     const postId = input.postId;
 
     const [updated] = await db
       .update(collabPosts)
       .set({
-        ...postColumns(input),
+        ...postColumns(input, projectName),
         // The legacy display string can't round-trip through the sliders,
         // so an edited post stops carrying one and renders from the
         // numbers like every post created since v1.

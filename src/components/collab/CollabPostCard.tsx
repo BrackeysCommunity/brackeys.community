@@ -18,7 +18,6 @@ interface CollabPostCardPost {
   createdAt: string | Date | null;
   authorId: string;
   compensationType?: string | null;
-  teamSize?: string | null;
   primaryImageUrl?: string | null;
   jam?: { jamId: number; title: string } | null;
   team?: { id: string; slug: string; name: string } | null;
@@ -112,7 +111,7 @@ function PostBadges({
   );
 }
 
-/** "SMALL · 4h ago" — the same trailing meta line in both layouts. */
+/** "4h ago" — the same trailing meta line in both layouts. */
 function PostMeta({ post, className }: { post: CollabPostCardPost; className?: string }) {
   return (
     <Text
@@ -121,7 +120,6 @@ function PostMeta({ post, className }: { post: CollabPostCardPost; className?: s
       variant="muted"
       className={cn("tracking-widest whitespace-nowrap tabular-nums", className)}
     >
-      {post.teamSize ? `${post.teamSize.toUpperCase()} · ` : ""}
       {timeAgo(post.createdAt)}
     </Text>
   );

@@ -24,7 +24,6 @@ function validPost(overrides: Record<string, unknown> = {}) {
     title: "Pixel artist for a PSX horror RPG",
     description: "A short atmospheric horror RPG in the PSX style. Looking for a pixel artist.",
     projectName: "Cathedral of Wires",
-    teamSize: "2-3",
     projectLength: "1-3 months",
     platforms: ["PC"],
     experienceLevel: "any",
@@ -80,7 +79,7 @@ describe("createPost / updatePost input schema", () => {
     expect(postContentSchema.safeParse(validPost({ roleIds: [] })).success).toBe(false);
   });
 
-  it.each(["teamSize", "projectLength", "experienceLevel", "projectName"])(
+  it.each(["projectLength", "experienceLevel", "projectName"])(
     "rejects a post missing %s",
     (field) => {
       const input = validPost();
@@ -196,7 +195,6 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
     isIndividual: false,
     projectName: "Cathedral of Wires",
     platforms: ["PC"],
-    teamSize: "2-3",
     projectLength: "1-3 months",
     experienceLevel: "any",
     compensationType: undefined,
@@ -283,12 +281,37 @@ describe("wizard step validation", () => {
   });
 
   it("requires a compensation range on paid posts, matching the server", () => {
-    expect(getStepValidationError("details", validWizardValues({ type: "paid" }))).not.toBeNull();
+    expect(getStepValidationError("basics", validWizardValues({ type: "paid" }))).not.toBeNull();
     expect(
       getStepValidationError(
-        "details",
+        "basics",
         validWizardValues({ type: "paid", compensationType: "negotiable" }),
       ),
+    ).toBeNull();
+  });
+
+  // The PROJECT step describes the project entity and nothing else, so
+  // the post's own terms have to gate on BASICS or they gate nowhere.
+  it("gates the post's terms on basics, not on the project step", () => {
+    for (const partial of [
+      { platforms: [] },
+      { projectLength: undefined },
+      { experienceLevel: undefined },
+      { contactMethod: "" },
+    ] satisfies Partial<WizardFormValues>[]) {
+      const v = validWizardValues(partial);
+      expect(getStepValidationError("basics", v)).not.toBeNull();
+      expect(getStepValidationError("details", v)).toBeNull();
+    }
+  });
+
+  it("still gates a free-text project name on the project step", () => {
+    expect(
+      getStepValidationError("details", validWizardValues({ projectName: "" })),
+    ).not.toBeNull();
+    // A linked project owns the name, so the readout can't be a gate.
+    expect(
+      getStepValidationError("details", validWizardValues({ projectName: "", projectId: "p1" })),
     ).toBeNull();
   });
 });
@@ -352,7 +375,6 @@ describe("draftFromPost", () => {
     compensationType: "hourly",
     compensationMin: 25,
     compensationMax: 75,
-    teamSize: "2-3" as const,
     projectLength: "1-3 months",
     platforms: ["PC", "Mac"],
     experience: "",
@@ -399,7 +421,6 @@ describe("draftFromPost", () => {
       compensationType: draft.compensationType,
       compensationMin: draft.compensationMin,
       compensationMax: draft.compensationMax,
-      teamSize: draft.teamSize,
       projectLength: draft.projectLength,
       platforms: draft.platforms,
       experienceLevel: draft.experienceLevel,
@@ -498,5 +519,26 @@ describe("projectPrefillValues", () => {
       { portfolioUrl: "", platforms: [] },
     );
     expect(next.platforms).toBeUndefined();
+  });
+});
+
+describe("a linked project owns the post's project name", () => {
+  it("stops gating on the name the user cannot edit", () => {
+    // Without a link, a too-short name is a real block…
+    const typed = validWizardValues({ projectName: "ab" });
+    expect(getStepValidationError("details", typed)).toMatch(/at least 3/);
+    // …with one, the field is a readout fed by the canonical row, so it
+    // must never be what stands between the user and SUBMIT.
+    const linked = validWizardValues({ projectName: "ab", projectId: "proj-1" });
+    expect(getStepValidationError("details", linked)).toBeNull();
+    expect(getStepValidationError("review", linked)).toBeNull();
+  });
+
+  it("keeps the pre-flight row satisfied and relabels it", () => {
+    const linked = validWizardValues({ projectName: "", projectId: "proj-1" });
+    const row = getPreflightChecks(linked).find((c) => c.tabId === "project" && c.ok);
+    expect(row?.label).toBe("Project linked");
+    const unlinked = getPreflightChecks(validWizardValues({ projectName: "" }));
+    expect(unlinked.find((c) => c.label === "Project named")?.ok).toBe(false);
   });
 });

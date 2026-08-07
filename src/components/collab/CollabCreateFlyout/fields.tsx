@@ -347,9 +347,21 @@ interface ImageUploaderProps {
   images: UploadedImage[];
   onAdd: (img: UploadedImage) => void;
   onRemove: (idx: number) => void;
+  /** Defaults to PROJECT IMAGES. A post linked to a canonical project says
+   *  POST IMAGES instead — these rows are the post's own, and calling them
+   *  the project's invites "0/5" to read as a fact about the project. */
+  label?: string;
+  /** Optional line under the picker, for saying where the art comes from. */
+  note?: string;
 }
 
-export function ImageUploader({ images, onAdd, onRemove }: ImageUploaderProps) {
+export function ImageUploader({
+  images,
+  onAdd,
+  onRemove,
+  label = "PROJECT IMAGES",
+  note,
+}: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
@@ -371,7 +383,7 @@ export function ImageUploader({ images, onAdd, onRemove }: ImageUploaderProps) {
   };
 
   return (
-    <FieldRow label="PROJECT IMAGES" hint={`${images.length}/5`} error={error || null}>
+    <FieldRow label={label} hint={`${images.length}/5`} error={error || null}>
       {images.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {images.map((img, idx) => (
@@ -400,6 +412,11 @@ export function ImageUploader({ images, onAdd, onRemove }: ImageUploaderProps) {
         disabled={images.length >= 5}
         label={images.length >= 5 ? "MAX 5 IMAGES" : "ADD IMAGE"}
       />
+      {note ? (
+        <Text size="xs" variant="muted" className="tracking-wide">
+          {note}
+        </Text>
+      ) : null}
       <input
         ref={inputRef}
         type="file"

@@ -13,7 +13,6 @@ export type CollabSortOrder = "asc" | "desc";
 export type CollabCompensationType = "hourly" | "fixed" | "rev_share" | "negotiable";
 export type CollabExperienceLevel = "any" | "beginner" | "intermediate" | "experienced";
 export type CollabContactType = "discord_dm" | "discord_server" | "email" | "other";
-export type CollabTeamSize = "solo" | "2-3" | "4-6" | "7+";
 export type CollabProjectLength =
   | "<1 week"
   | "1-4 weeks"
@@ -85,7 +84,6 @@ export type WizardDraft = {
   compensationType: CollabCompensationType | undefined;
   compensationMin: number | undefined;
   compensationMax: number | undefined;
-  teamSize: CollabTeamSize | undefined;
   projectLength: CollabProjectLength | undefined;
   platforms: string[];
   experience: string;
@@ -172,7 +170,6 @@ const defaultDraft: WizardDraft = {
   compensationType: undefined,
   compensationMin: undefined,
   compensationMax: undefined,
-  teamSize: undefined,
   projectLength: undefined,
   platforms: [],
   experience: "",
@@ -362,7 +359,6 @@ export type EditableCollabPost = {
   compensationType: string | null;
   compensationMin: number | null;
   compensationMax: number | null;
-  teamSize: string | null;
   projectLength: string | null;
   platforms: string[] | null;
   experience: string | null;
@@ -396,7 +392,6 @@ export function draftFromPost(post: EditableCollabPost): WizardDraft {
     compensationType: (post.compensationType as CollabCompensationType | null) ?? undefined,
     compensationMin: post.compensationMin ?? undefined,
     compensationMax: post.compensationMax ?? undefined,
-    teamSize: (post.teamSize as CollabTeamSize | null) ?? undefined,
     projectLength: (post.projectLength as CollabProjectLength | null) ?? undefined,
     platforms: post.platforms ?? [],
     experience: post.experience ?? "",

@@ -344,7 +344,6 @@ export function CollabPostDetail({
               {post.platforms && post.platforms.length > 0 ? (
                 <DetailRow label="PLATFORMS" value={post.platforms.join(" · ")} />
               ) : null}
-              {post.teamSize ? <DetailRow label="TEAM" value={post.teamSize} /> : null}
               {post.projectLength ? (
                 <DetailRow label="TIMELINE" value={post.projectLength} />
               ) : null}

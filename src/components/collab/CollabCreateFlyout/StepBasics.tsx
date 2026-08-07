@@ -1,28 +1,77 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useStore } from "@tanstack/react-store";
 
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
+import type { UploadedImage } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
 
-import { FieldRow, TextAreaField, TextField } from "./fields";
+import { ContactFields } from "./ContactFields";
+import {
+  CompensationField,
+  FieldRow,
+  ImageUploader,
+  MultiSelectField,
+  SelectField,
+  TextAreaField,
+  TextField,
+} from "./fields";
 import { useWizardForm } from "./form-context";
-import { JamPickerField } from "./JamPickerField";
-import { POST_TYPES, profanityCheck, projectLengthForJam } from "./shared";
+import {
+  COMPENSATION_TYPE_OPTIONS,
+  EXPERIENCE_LEVEL_OPTIONS,
+  PLATFORM_OPTIONS,
+  POST_TYPES,
+  PROJECT_LENGTH_OPTIONS,
+  profanityCheck,
+  type AnyFormStore,
+} from "./shared";
 
 /** Where the title stops being scannable on a card, well short of the
  *  200-char storage cap the input still enforces. */
 const TITLE_SOFT_LIMIT = 80;
 
 /**
- * Step 01 — pick a post type, write the headline + description, and
- * link a jam if there is one. Solo-vs-team moved to the TEAM step with
- * the rest of the team decisions. Mirrors the wireframe's
- * `POST TYPE / POST TITLE / DESCRIPTION` ordering.
+ * Step 01 — the post itself: art, type, headline, description, then the
+ * scope (platforms, timeline, experience), pay, and contact.
+ *
+ * Those last groups used to sit on the PROJECT step, which made that
+ * step read as if it were describing the project entity — but none of
+ * them are stored on a project, and a linked project can't answer any of
+ * them. They belong to the post, so they live with the rest of it.
+ * Solo-vs-team is on the TEAM step; the jam link is on PROJECT.
  */
 export function StepBasics() {
   const form = useWizardForm();
+  const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type);
+  const isIndividual = useStore(form.store, (s: AnyFormStore) => s.values.isIndividual);
+  const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType);
+  const projectId = useStore(form.store, (s: AnyFormStore) => s.values.projectId);
   return (
     <div className="flex flex-col gap-5">
+      {/* The visual sell leads: it's the first thing a card shows, so
+          it's the first thing the form asks for. A linked project's
+          cover already covers it, which makes this the override. */}
+      <form.Field name="images">
+        {(field) => (
+          <ImageUploader
+            images={field.state.value}
+            onAdd={(img) => field.handleChange([...field.state.value, img])}
+            onRemove={(idx) =>
+              field.handleChange(
+                field.state.value.filter((_: UploadedImage, i: number) => i !== idx),
+              )
+            }
+            label={projectId ? "POST IMAGES" : undefined}
+            note={
+              projectId
+                ? "The card already uses the project's cover. Anything added here is extra art for this post — it doesn't change the project."
+                : undefined
+            }
+          />
+        )}
+      </form.Field>
+
       <form.Field name="type">
         {(field) => (
           <FieldRow
@@ -128,22 +177,80 @@ export function StepBasics() {
         )}
       </form.Field>
 
-      <form.Field name="jamId">
+      <form.Field name="platforms">
         {(field) => (
-          <JamPickerField
+          <MultiSelectField
+            label="PLATFORMS *"
             value={field.state.value}
-            onChange={(jam) => {
-              field.handleChange(jam?.jamId);
-              // A jam's run length is the project's timeline. Only fill
-              // a blank — a user who already chose one meant it.
-              const derived = jam ? projectLengthForJam(jam.startsAt, jam.endsAt) : undefined;
-              if (derived && !form.state.values.projectLength) {
-                form.setFieldValue("projectLength", derived);
-              }
-            }}
+            onChange={field.handleChange}
+            options={PLATFORM_OPTIONS}
+            placeholder="Pick your platforms…"
           />
         )}
       </form.Field>
+
+      <form.Field name="projectLength">
+        {(field) => (
+          <SelectField
+            label="TIMELINE *"
+            value={field.state.value}
+            onChange={field.handleChange}
+            options={PROJECT_LENGTH_OPTIONS}
+            placeholder="How long it'll run…"
+          />
+        )}
+      </form.Field>
+
+      <form.Field name="experienceLevel">
+        {(field) => (
+          <SelectField
+            label="EXPERIENCE LEVEL *"
+            value={field.state.value}
+            onChange={field.handleChange}
+            options={EXPERIENCE_LEVEL_OPTIONS}
+            placeholder="Who should apply…"
+          />
+        )}
+      </form.Field>
+
+      {typeVal === "paid" ? (
+        <>
+          <form.Field name="compensationType">
+            {(field) => (
+              <SelectField
+                label="COMPENSATION TYPE *"
+                value={field.state.value}
+                onChange={field.handleChange}
+                options={COMPENSATION_TYPE_OPTIONS}
+                placeholder="How you're paying…"
+              />
+            )}
+          </form.Field>
+
+          {compensationType && compensationType !== "negotiable" ? (
+            <form.Field name="compensationMin">
+              {(minField) => (
+                <form.Field name="compensationMax">
+                  {(maxField) => (
+                    <CompensationField
+                      compensationType={compensationType}
+                      min={minField.state.value}
+                      max={maxField.state.value}
+                      onMinChange={(v) => minField.handleChange(v)}
+                      onMaxChange={(v) => maxField.handleChange(v)}
+                    />
+                  )}
+                </form.Field>
+              )}
+            </form.Field>
+          ) : null}
+        </>
+      ) : null}
+
+      {/* Solo posters used to have contact silently forced to Discord DM
+          with the fields hidden — a solo dev who prefers email had no
+          way to say so. DM is now just the default. */}
+      <ContactFields isIndividual={isIndividual} />
     </div>
   );
 }
