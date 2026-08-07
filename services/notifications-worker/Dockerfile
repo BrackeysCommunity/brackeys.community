@@ -25,5 +25,7 @@ COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/unsubscribe.ts ./src/lib/unsubscribe.ts
 COPY src/emails ./src/emails
 
+RUN ln -s /app/services/notifications-worker/node_modules /app/node_modules
+
 WORKDIR /app/services/notifications-worker
 CMD ["bun", "run", "start"]

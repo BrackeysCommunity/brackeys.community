@@ -23,5 +23,7 @@ COPY services/lifecycle-sweep/src ./services/lifecycle-sweep/src
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
 
+RUN ln -s /app/services/lifecycle-sweep/node_modules /app/node_modules
+
 WORKDIR /app/services/lifecycle-sweep
 CMD ["bun", "run", "start"]
