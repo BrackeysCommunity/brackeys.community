@@ -15,6 +15,7 @@ import {
   developerProfiles,
   itchJams,
   profileUrlStubs,
+  projects,
   teamMembers,
   teams,
   userSkills,
@@ -33,6 +34,7 @@ import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
+import { loadProjectForEditor } from "@/lib/project-editors";
 import { escapeLike } from "@/lib/sql-like";
 import { touchTeamActivity } from "@/lib/team-activity";
 import {
@@ -87,6 +89,10 @@ const postContentShape = {
   // `assertTeamRequired`, handler-level because the legacy escape hatch
   // needs the stored row, which a zod refine can't see.
   teamId: z.string().nullish(),
+  // The canonical project the post recruits for; null unlinks on edit.
+  // Always optional (a lot of posts are pre-project) and never minted
+  // here — "something new" stays free text in `projectName`.
+  projectId: z.string().nullish(),
   compensationType: compensationTypeSchema.optional(),
   compensationMin: z.number().int().min(0).max(1_000_000).optional(),
   compensationMax: z.number().int().min(0).max(1_000_000).optional(),
@@ -284,12 +290,32 @@ async function assertTeamLinkable(teamId: string, authorId: string) {
   }
 }
 
+/**
+ * A post may only link a project its *author* can edit — the projects
+ * plan's §1.3 union (created it, credited on it, or on a claiming team),
+ * reused rather than a new permission concept. Checked against the
+ * author, not the caller, so a staff edit doesn't trip over rights the
+ * staffer doesn't have — same shape as `assertTeamLinkable`.
+ */
+async function assertProjectLinkable(projectId: string, authorId: string) {
+  const loaded = await loadProjectForEditor(projectId, authorId);
+  if (!loaded) {
+    throw new ORPCError("BAD_REQUEST", { message: "That project no longer exists." });
+  }
+  if (!loaded.canEdit) {
+    throw new ORPCError("FORBIDDEN", {
+      message: "Posts can only recruit for a project the author can edit.",
+    });
+  }
+}
+
 /** Columns of `collab_posts` the payload writes, minus the link tables. */
 function postColumns(input: PostContent) {
   return {
     type: input.type,
     jamId: input.jamId ?? null,
     teamId: input.teamId ?? null,
+    projectId: input.projectId ?? null,
     title: input.title,
     description: input.description,
     projectName: input.projectName,
@@ -317,6 +343,9 @@ export const createPost = os
     const { roleIds, skillIds, jamWarning, jam } = await resolveReferences(input);
     if (input.teamId != null) {
       await assertTeamLinkable(input.teamId, context.user.id);
+    }
+    if (input.projectId != null) {
+      await assertProjectLinkable(input.projectId, context.user.id);
     }
 
     const [post] = await db
@@ -369,6 +398,9 @@ export const updatePost = os
     // link intact.
     if (input.teamId != null && input.teamId !== post.teamId) {
       await assertTeamLinkable(input.teamId, post.authorId);
+    }
+    if (input.projectId != null && input.projectId !== post.projectId) {
+      await assertProjectLinkable(input.projectId, post.authorId);
     }
     const postId = input.postId;
 
@@ -591,7 +623,7 @@ export const getPost = os
 
     if (!post) return null;
 
-    const [roles, postSkills, jam, team, images, [responseCount]] = await Promise.all([
+    const [roles, postSkills, jam, team, project, images, [responseCount]] = await Promise.all([
       db
         .select({ id: collabRoles.id, name: collabRoles.name, category: collabRoles.category })
         .from(collabPostRoles)
@@ -637,6 +669,32 @@ export const getPost = os
               return {
                 ...row,
                 avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl: row.avatarUrl }),
+              };
+            })
+        : Promise.resolve(null),
+      // The project panel — cover, kind, and the canonical page to link
+      // to. Unpublished projects still render here: the link is the
+      // author's own claim, and the project page enforces its own gate.
+      post.projectId != null
+        ? db
+            .select({
+              id: projects.id,
+              slug: projects.slug,
+              title: projects.title,
+              type: projects.type,
+              classification: projects.classification,
+              imageUrl: projects.imageUrl,
+              imageKey: projects.imageKey,
+            })
+            .from(projects)
+            .where(eq(projects.id, post.projectId))
+            .limit(1)
+            .then(async (rows) => {
+              if (!rows[0]) return null;
+              const { imageKey, ...row } = rows[0];
+              return {
+                ...row,
+                imageUrl: (await getProfileProjectImageUrl(imageKey)) ?? row.imageUrl,
               };
             })
         : Promise.resolve(null),
@@ -746,6 +804,7 @@ export const getPost = os
       skills: postSkills,
       jam,
       team,
+      project,
       images: presignedImages,
       responseCount: responseCount?.count ?? 0,
       responses,
@@ -803,6 +862,7 @@ const postFacetSchema = {
   skillIds: z.array(z.number()).optional(),
   jamId: z.number().int().positive().optional(),
   teamId: z.string().optional(),
+  projectId: z.string().optional(),
   status: z.enum(["recruiting", "party_full", "expired"]).optional(),
   search: z.string().optional(),
   experienceLevel: experienceLevelSchema.optional(),
@@ -856,6 +916,7 @@ function buildPostFilter(input: PostFilterInput) {
   }
   if (input.jamId) conditions.push(eq(collabPosts.jamId, input.jamId));
   if (input.teamId) conditions.push(eq(collabPosts.teamId, input.teamId));
+  if (input.projectId) conditions.push(eq(collabPosts.projectId, input.projectId));
   if (input.roleIds && input.roleIds.length > 0) {
     const postIdsWithRoles = db
       .select({ postId: collabPostRoles.postId })
@@ -1046,7 +1107,10 @@ export const listPosts = os
     const teamIds = [
       ...new Set(posts.map((p) => p.teamId).filter((id): id is string => id != null)),
     ];
-    const [jamRows, teamRows, skillRows, viewerSkills] = await Promise.all([
+    const projectIds = [
+      ...new Set(posts.map((p) => p.projectId).filter((id): id is string => id != null)),
+    ];
+    const [jamRows, teamRows, projectRows, skillRows, viewerSkills] = await Promise.all([
       jamIds.length > 0
         ? db
             .select({
@@ -1080,6 +1144,27 @@ export const listPosts = os
               ),
             )
         : Promise.resolve([]),
+      projectIds.length > 0
+        ? db
+            .select({
+              id: projects.id,
+              slug: projects.slug,
+              title: projects.title,
+              type: projects.type,
+              imageUrl: projects.imageUrl,
+              imageKey: projects.imageKey,
+            })
+            .from(projects)
+            .where(inArray(projects.id, projectIds))
+            .then((rows) =>
+              Promise.all(
+                rows.map(async ({ imageKey, ...row }) => ({
+                  ...row,
+                  imageUrl: (await getProfileProjectImageUrl(imageKey)) ?? row.imageUrl,
+                })),
+              ),
+            )
+        : Promise.resolve([]),
       postIds.length > 0
         ? db
             .select({ postId: collabPostSkills.postId, id: skills.id, name: skills.name })
@@ -1092,6 +1177,7 @@ export const listPosts = os
 
     const jamById = new Map(jamRows.map((j) => [j.jamId, j]));
     const teamById = new Map(teamRows.map((t) => [t.id, t]));
+    const projectById = new Map(projectRows.map((p) => [p.id, p]));
     const skillsByPost = new Map<number, { id: number; name: string }[]>();
     for (const row of skillRows) {
       const list = skillsByPost.get(row.postId) ?? [];
@@ -1103,11 +1189,16 @@ export const listPosts = os
     return {
       posts: posts.map((p) => {
         const postSkills = skillsByPost.get(p.id) ?? [];
+        const project = p.projectId != null ? (projectById.get(p.projectId) ?? null) : null;
         return {
           ...p,
-          primaryImageUrl: primaryImagesByPostId.get(p.id) ?? null,
+          // A linked project's cover stands in when the poster uploaded
+          // nothing — the §8.3 payoff: picking a project makes the card
+          // look right with zero uploads.
+          primaryImageUrl: primaryImagesByPostId.get(p.id) ?? project?.imageUrl ?? null,
           jam: p.jamId != null ? (jamById.get(p.jamId) ?? null) : null,
           team: p.teamId != null ? (teamById.get(p.teamId) ?? null) : null,
+          project,
           skills: postSkills,
           viewerOverlap:
             context.user && p.authorId !== context.user.id && postSkills.length > 0

@@ -61,6 +61,11 @@ export function CollabActiveFilters() {
     enabled: filters.teamId !== undefined,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: projectData } = useQuery({
+    ...orpc.getProject.queryOptions({ input: { idOrSlug: filters.projectId ?? "" } }),
+    enabled: filters.projectId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const chips: { key: string; label: string; clear: () => void }[] = [];
   if (filters.type) {
@@ -104,6 +109,13 @@ export function CollabActiveFilters() {
       key: "team",
       label: `TEAM: ${(teamData?.name ?? "…").toUpperCase()}`,
       clear: () => setCollabFilters({ teamId: undefined }),
+    });
+  }
+  if (filters.projectId !== undefined) {
+    chips.push({
+      key: "project",
+      label: `PROJECT: ${(projectData?.project.title ?? "…").toUpperCase()}`,
+      clear: () => setCollabFilters({ projectId: undefined }),
     });
   }
   for (const skillId of filters.skillIds) {

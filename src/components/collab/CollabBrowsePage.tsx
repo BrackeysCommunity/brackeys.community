@@ -43,8 +43,12 @@ interface CollabSearch {
   jam?: number;
   /** Tech-stack filter, so a narrowed board is shareable. */
   skills?: number[];
-  /** One team's posts — set by a team page's "see all" link. */
+  /** With `new`: the team to pre-link in the wizard. On its own: the
+   *  team the board is filtered to. */
   team?: string;
+  /** With `new`: the project to pre-link in the wizard. On its own: the
+   *  project the board is filtered to. */
+  project?: string;
 }
 
 /** Matches the `lg` breakpoint that switches the board to two panes. */
@@ -181,6 +185,8 @@ export function CollabBrowsePage() {
   // Comparing against the flag's last-seen value re-arms both halves, so a
   // second arrival at `?new=1` reopens the flyout.
   const jamForNewPost = search.new ? search.jam : undefined;
+  const teamForNewPost = search.new ? search.team : undefined;
+  const projectForNewPost = search.new ? search.project : undefined;
   const newFlag = Boolean(search.new);
   const [newFlagSeen, setNewFlagSeen] = useState(false);
   if (newFlag !== newFlagSeen) {
@@ -191,8 +197,17 @@ export function CollabBrowsePage() {
     if (!search.new) return;
     beginWizardCreate();
     if (jamForNewPost !== undefined) updateWizardDraft({ jamId: jamForNewPost });
+    // A team-page or project-page entrance arrives pre-linked (§8.4) —
+    // `isIndividual: false` because a pre-linked team post can't be solo,
+    // and a restored draft's switch state shouldn't override the entrance.
+    if (teamForNewPost !== undefined) {
+      updateWizardDraft({ teamId: teamForNewPost, isIndividual: false });
+    }
+    if (projectForNewPost !== undefined) {
+      updateWizardDraft({ projectId: projectForNewPost });
+    }
     navigate({ to: "/collab", search: {}, replace: true, resetScroll: false });
-  }, [search.new, jamForNewPost, navigate]);
+  }, [search.new, jamForNewPost, teamForNewPost, projectForNewPost, navigate]);
 
   // Board filters that live in the URL are read once, on arrival; from
   // then on the store owns them and pushes back (below). Skipped when
@@ -201,16 +216,27 @@ export function CollabBrowsePage() {
   useEffect(() => {
     if (hydratedFromUrl.current || search.new) return;
     hydratedFromUrl.current = true;
-    if (search.jam !== undefined || search.team !== undefined || (search.skills?.length ?? 0) > 0) {
-      setCollabFilters({ jamId: search.jam, teamId: search.team, skillIds: search.skills ?? [] });
+    if (
+      search.jam !== undefined ||
+      search.team !== undefined ||
+      search.project !== undefined ||
+      (search.skills?.length ?? 0) > 0
+    ) {
+      setCollabFilters({
+        jamId: search.jam,
+        teamId: search.team,
+        projectId: search.project,
+        skillIds: search.skills ?? [],
+      });
     }
-  }, [search.new, search.jam, search.team, search.skills]);
+  }, [search.new, search.jam, search.team, search.project, search.skills]);
 
   // …and the reverse: filter changes rewrite the URL so any narrowed
   // board can be linked. `replace` because filtering is refinement, not
   // navigation — Back should leave the board, not undo one chip.
   const jamFilter = useStore(collabStore, (s) => s.filters.jamId);
   const teamFilter = useStore(collabStore, (s) => s.filters.teamId);
+  const projectFilter = useStore(collabStore, (s) => s.filters.projectId);
   const skillFilters = useStore(collabStore, (s) => s.filters.skillIds);
   useEffect(() => {
     if (!hydratedFromUrl.current) return;
@@ -220,12 +246,13 @@ export function CollabBrowsePage() {
         ...prev,
         jam: jamFilter,
         team: teamFilter,
+        project: projectFilter,
         skills: skillFilters.length > 0 ? skillFilters : undefined,
       }),
       replace: true,
       resetScroll: false,
     });
-  }, [jamFilter, teamFilter, skillFilters, navigate]);
+  }, [jamFilter, teamFilter, projectFilter, skillFilters, navigate]);
 
   // Selection lives in the URL so it survives reload, back/forward, and
   // sharing. Clicking pushes (back returns to the idle pane); walking

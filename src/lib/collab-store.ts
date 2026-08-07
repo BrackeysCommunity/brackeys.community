@@ -48,6 +48,8 @@ type CollabFilters = {
   jamId: number | undefined;
   /** One team's posts — set from a team page's "see all" link. */
   teamId: string | undefined;
+  /** One project's posts — set from a project page's RECRUITING section. */
+  projectId: string | undefined;
   status: CollabStatus | undefined;
   search: string;
   sortBy: CollabSortBy;
@@ -73,6 +75,10 @@ export type WizardDraft = {
   newTeamName: string;
   newTeamDescription: string;
   newTeamImage: UploadedImage | null;
+  /** The canonical project the post recruits for; undefined = unlinked.
+   *  Picking one prefills `projectName` and friends — the free-text
+   *  fields stay the source of truth for what the post displays. */
+  projectId: string | undefined;
   title: string;
   description: string;
   projectName: string;
@@ -142,6 +148,7 @@ const defaultFilters: CollabFilters = {
   skillIds: [],
   jamId: undefined,
   teamId: undefined,
+  projectId: undefined,
   status: undefined,
   search: "",
   sortBy: "createdAt",
@@ -158,6 +165,7 @@ const defaultDraft: WizardDraft = {
   newTeamName: "",
   newTeamDescription: "",
   newTeamImage: null,
+  projectId: undefined,
   title: "",
   description: "",
   projectName: "",
@@ -242,6 +250,7 @@ export function collabFilterInput(filters: CollabFilters) {
     skillIds: filters.skillIds.length > 0 ? filters.skillIds : undefined,
     jamId: filters.jamId,
     teamId: filters.teamId,
+    projectId: filters.projectId,
   };
 }
 
@@ -260,6 +269,7 @@ export function countActiveCollabFilters(filters: CollabFilters): number {
     input.skillIds,
     input.jamId,
     input.teamId,
+    input.projectId,
   ].filter(Boolean).length;
 }
 
@@ -345,6 +355,7 @@ export type EditableCollabPost = {
   type: string;
   jamId: number | null;
   teamId: string | null;
+  projectId: string | null;
   title: string;
   description: string;
   projectName: string | null;
@@ -378,6 +389,7 @@ export function draftFromPost(post: EditableCollabPost): WizardDraft {
     type: post.type as CollabPostType,
     jamId: post.jamId ?? undefined,
     teamId: post.teamId ?? undefined,
+    projectId: post.projectId ?? undefined,
     title: post.title,
     description: post.description,
     projectName: post.projectName ?? "",

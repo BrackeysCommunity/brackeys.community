@@ -11,6 +11,7 @@ import {
   TextField,
 } from "./fields";
 import { useWizardForm } from "./form-context";
+import { ProjectPickerField } from "./ProjectPickerField";
 import {
   COMPENSATION_TYPE_OPTIONS,
   EXPERIENCE_LEVEL_OPTIONS,
@@ -18,7 +19,10 @@ import {
   PROJECT_LENGTH_OPTIONS,
   TEAM_SIZE_OPTIONS,
   profanityCheck,
+  projectPrefillValues,
   type AnyFormStore,
+  type PickableProject,
+  type WizardFormValues,
 } from "./shared";
 
 /**
@@ -32,11 +36,43 @@ export function StepProject() {
   const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type);
   const isIndividual = useStore(form.store, (s: AnyFormStore) => s.values.isIndividual);
   const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType);
+  const teamId = useStore(form.store, (s: AnyFormStore) => s.values.teamId);
+
+  // Picking fills the fields below; the free-text stays the post's own
+  // copy, so unlinking later loses nothing.
+  const applyPrefill = (project: PickableProject, { keepTyped }: { keepTyped: boolean }) => {
+    const values = form.state.values as WizardFormValues;
+    const next = projectPrefillValues(project, values);
+    if (keepTyped && values.projectName.trim()) delete next.projectName;
+    for (const [key, value] of Object.entries(next)) {
+      form.setFieldValue(key as keyof WizardFormValues, value);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Images lead — the visual sell is the first thing a card shows,
-          so it's the first thing the step asks for. */}
+      {/* The picker leads: a poster holding an entity shouldn't be made
+          to re-describe it — picking prefills the fields below and the
+          card inherits the project's cover with zero uploads. */}
+      <form.Field name="projectId">
+        {(field) => (
+          <ProjectPickerField
+            value={field.state.value}
+            selectedTeamId={teamId}
+            onChange={(project) => {
+              field.handleChange(project?.id);
+              if (project) applyPrefill(project, { keepTyped: false });
+            }}
+            // A deep-linked or edit-restored pick fills only blanks — a
+            // typed name is the poster's own copy to keep.
+            onSelectedResolved={(project) => applyPrefill(project, { keepTyped: true })}
+          />
+        )}
+      </form.Field>
+
+      {/* Images — the visual sell is the first thing a card shows. A
+          linked project's cover already covers that, so this is the
+          override, not the requirement. */}
       <form.Field name="images">
         {(field) => (
           <ImageUploader

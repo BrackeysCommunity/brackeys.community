@@ -1,6 +1,11 @@
-import { Edit02Icon, ImageUpload01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons";
+import {
+  Edit02Icon,
+  ImageUpload01Icon,
+  LinkSquare01Icon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useRouter } from "@tanstack/react-router";
+import { Link as RouterLink, useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,7 +29,17 @@ import type { ProjectRow } from "./types";
  * ship libraries and websites itch never sees), and a sample pack with a
  * "PLAY" button is the games-first bias leaking back in.
  */
-export function ProjectHero({ project, canEdit }: { project: ProjectRow; canEdit: boolean }) {
+export function ProjectHero({
+  project,
+  canEdit,
+  recruitTeamId,
+}: {
+  project: ProjectRow;
+  canEdit: boolean;
+  /** Pre-linked team for the RECRUIT entrance — set when exactly one
+   *  team claims the project, so the wizard arrives fully seeded. */
+  recruitTeamId?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const typeLabel = projectTypeLabel(project);
   const ctaLabel = projectCtaLabel(project);
@@ -123,15 +138,35 @@ export function ProjectHero({ project, canEdit }: { project: ProjectRow; canEdit
             ) : null}
 
             {canEdit ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="tracking-widest"
-                onClick={() => setEditing(true)}
-              >
-                <HugeiconsIcon icon={Edit02Icon} size={12} />
-                EDIT
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="tracking-widest"
+                  onClick={() => setEditing(true)}
+                >
+                  <HugeiconsIcon icon={Edit02Icon} size={12} />
+                  EDIT
+                </Button>
+                {/* Enters the collab wizard with this project (and its
+                    team, when there's exactly one) pre-linked — §8.4's
+                    entity-first entrance. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="tracking-widest"
+                  nativeButton={false}
+                  render={
+                    <RouterLink
+                      to="/collab"
+                      search={{ new: true, project: project.id, team: recruitTeamId }}
+                    />
+                  }
+                >
+                  <HugeiconsIcon icon={UserGroupIcon} size={12} />
+                  RECRUIT
+                </Button>
+              </>
             ) : null}
 
             {/* Secondary links: repo, live site, store page. */}

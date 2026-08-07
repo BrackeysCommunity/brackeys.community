@@ -1,10 +1,11 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
 import {
+  collabPosts,
   developerProfiles,
   itchJamEntries,
   itchJamEntryResults,
@@ -15,6 +16,7 @@ import {
   projectJamLinks,
   projectTeams,
   projects,
+  teamMembers,
   teamProjects,
   teams,
 } from "@/db/schema";
@@ -53,104 +55,119 @@ export const getProject = os
 
     const viewerId = context.user?.id ?? null;
 
-    const [contributorRows, teamRows, derivedJams, explicitJams, profileAnchor, teamAnchor] =
-      await Promise.all([
-        db
-          .select({
-            id: projectContributors.id,
-            profileId: projectContributors.profileId,
-            displayName: projectContributors.displayName,
-            role: projectContributors.role,
-            source: projectContributors.source,
-            sortOrder: projectContributors.sortOrder,
-            avatarUrl: developerProfiles.avatarUrl,
-            username: developerProfiles.guildNickname,
-            discordUsername: developerProfiles.discordUsername,
-            urlStub: profileUrlStubs.stub,
-          })
-          .from(projectContributors)
-          // Left joins: a free-text credit has no profile to join to, and that
-          // is the whole point — a contributor who was never on the platform
-          // still gets their name on the page.
-          .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
-          .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
-          .where(eq(projectContributors.projectId, project.id))
-          .orderBy(projectContributors.sortOrder, projectContributors.id),
-        db
-          .select({
-            teamId: teams.id,
-            name: teams.name,
-            slug: teams.slug,
-            tagline: teams.tagline,
-            avatarUrl: teams.avatarUrl,
-            avatarKey: teams.avatarKey,
-          })
-          .from(projectTeams)
-          .innerJoin(teams, eq(projectTeams.teamId, teams.id))
-          .where(eq(projectTeams.projectId, project.id)),
-        // Derived jam record: every appearance of this *game* on itch, joined
-        // by game id. Zero maintenance — a jam the game entered after import
-        // shows up the next time the scraper sees it.
-        project.sourceGameId != null
-          ? db
-              .select({
-                entryId: itchJamEntries.entryId,
-                jamId: itchJams.jamId,
-                jamSlug: itchJams.slug,
-                jamTitle: itchJams.title,
-                jamEntriesCount: itchJams.entriesCount,
-                submittedAt: itchJamEntries.submittedAt,
-                submissionUrl: itchJamEntries.rateUrl,
-                ratingCount: itchJamEntries.ratingCount,
-                rank: itchJamEntryResults.rank,
-              })
-              .from(itchJamEntries)
-              .innerJoin(itchJams, eq(itchJamEntries.jamId, itchJams.jamId))
-              .leftJoin(
-                itchJamEntryResults,
-                and(
-                  eq(itchJamEntryResults.entryId, itchJamEntries.entryId),
-                  sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
-                ),
-              )
-              .where(
-                and(
-                  eq(itchJamEntries.gameId, project.sourceGameId),
-                  isNull(itchJamEntries.missingSince),
-                  isNull(itchJams.missingSince),
-                ),
-              )
-              .orderBy(desc(itchJamEntries.submittedAt))
-          : Promise.resolve([]),
-        db
-          .select({
-            id: projectJamLinks.id,
-            jamId: projectJamLinks.jamId,
-            jamSlug: itchJams.slug,
-            jamTitle: itchJams.title,
-            jamEntriesCount: itchJams.entriesCount,
-            jamName: projectJamLinks.jamName,
-            jamUrl: projectJamLinks.jamUrl,
-            submissionUrl: projectJamLinks.submissionUrl,
-            result: projectJamLinks.result,
-            participatedAt: projectJamLinks.participatedAt,
-          })
-          .from(projectJamLinks)
-          .leftJoin(itchJams, eq(projectJamLinks.jamId, itchJams.jamId))
-          .where(eq(projectJamLinks.projectId, project.id)),
-        // Anchor probes for the indexability rule below — a placement anywhere
-        // counts even when its owner's credit row was since removed.
-        db
-          .select({ id: profileProjects.id })
-          .from(profileProjects)
-          .where(eq(profileProjects.projectId, project.id))
-          .limit(1),
-        db
-          .select({ id: teamProjects.id })
-          .from(teamProjects)
-          .where(eq(teamProjects.projectId, project.id))
-          .limit(1),
-      ]);
+    const [
+      contributorRows,
+      teamRows,
+      derivedJams,
+      explicitJams,
+      profileAnchor,
+      teamAnchor,
+      openPostRow,
+    ] = await Promise.all([
+      db
+        .select({
+          id: projectContributors.id,
+          profileId: projectContributors.profileId,
+          displayName: projectContributors.displayName,
+          role: projectContributors.role,
+          source: projectContributors.source,
+          sortOrder: projectContributors.sortOrder,
+          avatarUrl: developerProfiles.avatarUrl,
+          username: developerProfiles.guildNickname,
+          discordUsername: developerProfiles.discordUsername,
+          urlStub: profileUrlStubs.stub,
+        })
+        .from(projectContributors)
+        // Left joins: a free-text credit has no profile to join to, and that
+        // is the whole point — a contributor who was never on the platform
+        // still gets their name on the page.
+        .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
+        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+        .where(eq(projectContributors.projectId, project.id))
+        .orderBy(projectContributors.sortOrder, projectContributors.id),
+      db
+        .select({
+          teamId: teams.id,
+          name: teams.name,
+          slug: teams.slug,
+          tagline: teams.tagline,
+          avatarUrl: teams.avatarUrl,
+          avatarKey: teams.avatarKey,
+        })
+        .from(projectTeams)
+        .innerJoin(teams, eq(projectTeams.teamId, teams.id))
+        .where(eq(projectTeams.projectId, project.id)),
+      // Derived jam record: every appearance of this *game* on itch, joined
+      // by game id. Zero maintenance — a jam the game entered after import
+      // shows up the next time the scraper sees it.
+      project.sourceGameId != null
+        ? db
+            .select({
+              entryId: itchJamEntries.entryId,
+              jamId: itchJams.jamId,
+              jamSlug: itchJams.slug,
+              jamTitle: itchJams.title,
+              jamEntriesCount: itchJams.entriesCount,
+              submittedAt: itchJamEntries.submittedAt,
+              submissionUrl: itchJamEntries.rateUrl,
+              ratingCount: itchJamEntries.ratingCount,
+              rank: itchJamEntryResults.rank,
+            })
+            .from(itchJamEntries)
+            .innerJoin(itchJams, eq(itchJamEntries.jamId, itchJams.jamId))
+            .leftJoin(
+              itchJamEntryResults,
+              and(
+                eq(itchJamEntryResults.entryId, itchJamEntries.entryId),
+                sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+              ),
+            )
+            .where(
+              and(
+                eq(itchJamEntries.gameId, project.sourceGameId),
+                isNull(itchJamEntries.missingSince),
+                isNull(itchJams.missingSince),
+              ),
+            )
+            .orderBy(desc(itchJamEntries.submittedAt))
+        : Promise.resolve([]),
+      db
+        .select({
+          id: projectJamLinks.id,
+          jamId: projectJamLinks.jamId,
+          jamSlug: itchJams.slug,
+          jamTitle: itchJams.title,
+          jamEntriesCount: itchJams.entriesCount,
+          jamName: projectJamLinks.jamName,
+          jamUrl: projectJamLinks.jamUrl,
+          submissionUrl: projectJamLinks.submissionUrl,
+          result: projectJamLinks.result,
+          participatedAt: projectJamLinks.participatedAt,
+        })
+        .from(projectJamLinks)
+        .leftJoin(itchJams, eq(projectJamLinks.jamId, itchJams.jamId))
+        .where(eq(projectJamLinks.projectId, project.id)),
+      // Anchor probes for the indexability rule below — a placement anywhere
+      // counts even when its owner's credit row was since removed.
+      db
+        .select({ id: profileProjects.id })
+        .from(profileProjects)
+        .where(eq(profileProjects.projectId, project.id))
+        .limit(1),
+      db
+        .select({ id: teamProjects.id })
+        .from(teamProjects)
+        .where(eq(teamProjects.projectId, project.id))
+        .limit(1),
+      // Open collab posts recruiting for this project — drives the page's
+      // RECRUITING section, which (like the jam page's post count) only
+      // renders when the answer is non-zero.
+      db
+        .select({ count: count() })
+        .from(collabPosts)
+        .where(and(eq(collabPosts.projectId, project.id), eq(collabPosts.status, "recruiting")))
+        .then((rows) => rows[0]),
+    ]);
 
     // Editors = createdBy ∪ profile-linked contributors ∪ members of a
     // claiming team. Computed here so the page never has to guess.
@@ -235,6 +252,93 @@ export const getProject = os
       teams: teamShelf,
       jamRecord,
       viewerCanEdit,
+      openPostCount: Number(openPostRow?.count ?? 0),
+    };
+  });
+
+/**
+ * Every project the caller can edit — the §1.3 union (created it, credited
+ * on it, or a member of a team that claims it), which is also the pickable
+ * set for the collab wizard's project picker: no new permission concept.
+ *
+ * Unpublished rows are included on purpose — recruiting for your own
+ * unshipped thing is the normal case, and only its editors ever see it
+ * here. `teamIds` carries each project's claims so the picker can group
+ * the selected team's projects first.
+ */
+export const listEditableProjects = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    const userId = context.user.id;
+
+    const rows = await db
+      .select()
+      .from(projects)
+      .where(
+        or(
+          eq(projects.createdBy, userId),
+          inArray(
+            projects.id,
+            db
+              .select({ projectId: projectContributors.projectId })
+              .from(projectContributors)
+              .where(eq(projectContributors.profileId, userId)),
+          ),
+          inArray(
+            projects.id,
+            db
+              .select({ projectId: projectTeams.projectId })
+              .from(projectTeams)
+              .where(
+                inArray(
+                  projectTeams.teamId,
+                  db
+                    .select({ teamId: teamMembers.teamId })
+                    .from(teamMembers)
+                    .where(eq(teamMembers.userId, userId)),
+                ),
+              ),
+          ),
+        ),
+      )
+      .orderBy(desc(projects.updatedAt))
+      .limit(100);
+
+    const claims =
+      rows.length > 0
+        ? await db
+            .select({ projectId: projectTeams.projectId, teamId: projectTeams.teamId })
+            .from(projectTeams)
+            .where(
+              inArray(
+                projectTeams.projectId,
+                rows.map((row) => row.id),
+              ),
+            )
+        : [];
+    const teamIdsByProject = new Map<string, string[]>();
+    for (const claim of claims) {
+      const list = teamIdsByProject.get(claim.projectId) ?? [];
+      list.push(claim.teamId);
+      teamIdsByProject.set(claim.projectId, list);
+    }
+
+    return {
+      projects: await Promise.all(
+        rows.map(async (row) => ({
+          id: row.id,
+          slug: row.slug,
+          title: row.title,
+          type: row.type,
+          classification: row.classification,
+          embedType: row.embedType,
+          url: row.url,
+          published: row.published,
+          imageUrl: (await getProfileProjectImageUrl(row.imageKey)) ?? row.imageUrl,
+          teamIds: teamIdsByProject.get(row.id) ?? [],
+        })),
+      ),
     };
   });
 

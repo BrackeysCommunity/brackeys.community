@@ -474,13 +474,29 @@ function TeamMasthead({
             </div>
           </div>
 
-          {/* Members manage; everyone else gets the way in, if there is
-              one. A page with neither is simply a read-only profile. */}
+          {/* Members recruit and manage; everyone else gets the way in,
+              if there is one. A page with neither is simply a read-only
+              profile. */}
           {isMember ? (
-            <Button variant="outline" size="lg" onClick={onManage} className="tracking-widest">
-              <HugeiconsIcon icon={Settings02Icon} size={14} />
-              MANAGE
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isArchived ? (
+                // Enters the create wizard with this team pre-linked —
+                // what makes the RECRUITING badge actionable (§8.4).
+                <Button
+                  size="lg"
+                  nativeButton={false}
+                  className="tracking-widest"
+                  render={<Link to="/collab" search={{ new: true, team: team.id }} />}
+                >
+                  <HugeiconsIcon icon={UserGroupIcon} size={14} />
+                  POST AN OPENING
+                </Button>
+              ) : null}
+              <Button variant="outline" size="lg" onClick={onManage} className="tracking-widest">
+                <HugeiconsIcon icon={Settings02Icon} size={14} />
+                MANAGE
+              </Button>
+            </div>
           ) : team.openPosts.length > 0 && !isArchived ? (
             <Button
               size="lg"

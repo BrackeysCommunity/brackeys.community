@@ -246,6 +246,7 @@ export type WizardFormValues = {
   newTeamName: string;
   newTeamDescription: string;
   newTeamImage: UploadedImage | null;
+  projectId: string | undefined;
   title: string;
   description: string;
   isIndividual: boolean;
@@ -265,6 +266,44 @@ export type WizardFormValues = {
   skillIds: number[];
   images: UploadedImage[];
 };
+
+// ── Project-derived defaults ───────────────────────────────────────────────
+
+/** A project as the picker needs it — one row of `listEditableProjects`. */
+export interface PickableProject {
+  id: string;
+  slug: string;
+  title: string;
+  type: string;
+  classification: string | null;
+  embedType: string | null;
+  url: string | null;
+  published: boolean;
+  imageUrl: string | null;
+  teamIds: string[];
+}
+
+/**
+ * What picking a project fills in — the §8.3 payoff that makes the
+ * linked path the lazy path. The project's title *is* the project name;
+ * the URL and platforms only fill blanks, since a typed portfolio link
+ * or platform list is the poster's own claim to keep.
+ */
+export function projectPrefillValues(
+  project: PickableProject,
+  current: Pick<WizardFormValues, "portfolioUrl" | "platforms">,
+): Partial<WizardFormValues> {
+  const next: Partial<WizardFormValues> = { projectName: project.title };
+  if (!current.portfolioUrl.trim() && project.url) {
+    next.portfolioUrl = project.url;
+  }
+  // `embedType: 'html'` is itch's browser-playable signal — the one
+  // platform fact the canonical row can vouch for.
+  if (current.platforms.length === 0 && project.embedType?.toLowerCase() === "html") {
+    next.platforms = ["Web"];
+  }
+  return next;
+}
 
 // ── Jam-derived defaults ───────────────────────────────────────────────────
 

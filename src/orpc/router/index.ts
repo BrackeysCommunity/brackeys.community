@@ -67,6 +67,7 @@ import {
 import {
   addProjectContributor,
   getProject,
+  listEditableProjects,
   listProjectsForGames,
   removeProjectContributor,
   resolveProjectForGame,
@@ -110,6 +111,7 @@ export default {
   getJamCommunity,
   listJamsByHost,
   getProject,
+  listEditableProjects,
   listProjectsForGames,
   resolveProjectForGame,
   addProjectContributor,

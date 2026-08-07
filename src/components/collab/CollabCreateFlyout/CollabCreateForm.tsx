@@ -104,6 +104,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       newTeamName: initialDraft.newTeamName,
       newTeamDescription: initialDraft.newTeamDescription,
       newTeamImage: initialDraft.newTeamImage,
+      projectId: initialDraft.projectId,
       title: initialDraft.title,
       description: initialDraft.description,
       isIndividual: initialDraft.isIndividual,
@@ -352,6 +353,7 @@ async function savePost(v: WizardFormValues, editingPostId: number | null): Prom
     jamId: v.jamId ?? null,
     // Guarded against a stale pick surviving a flip to solo.
     teamId: v.isIndividual ? null : (v.teamId ?? null),
+    projectId: v.projectId ?? null,
     title: v.title.trim(),
     description: v.description.trim(),
     projectName: v.projectName.trim(),

@@ -28,6 +28,7 @@ import { formatRate } from "@/lib/format-rate";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
+import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -291,6 +292,44 @@ export function CollabPostDetail({
                     className="self-start font-mono text-[10px] tracking-widest text-primary uppercase outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     All posts for this jam →
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {post.project ? (
+              // Same two-destination shape as the jam panel: the project's
+              // canonical page, and "every post for this project" as a
+              // board filter.
+              <div className="flex items-center gap-3 border border-primary/40 bg-primary/5 p-2.5">
+                {post.project.imageUrl ? (
+                  <img
+                    src={post.project.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
+                  />
+                ) : null}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <Text as="span" size="xs" className="tracking-widest text-primary uppercase">
+                    Recruiting for
+                  </Text>
+                  <Link
+                    to="/projects/$projectSlug"
+                    params={projectLinkParams(post.project)}
+                    className="min-w-0 truncate text-xs font-bold hover:text-primary hover:underline"
+                  >
+                    {post.project.title}
+                  </Link>
+                  <Text as="span" size="xs" variant="muted" className="tracking-widest uppercase">
+                    {projectTypeLabel(post.project)}
+                  </Text>
+                  <button
+                    type="button"
+                    onClick={() => setCollabFilters({ projectId: post.project!.id })}
+                    className="self-start font-mono text-[10px] tracking-widest text-primary uppercase outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    All posts for this project →
                   </button>
                 </div>
               </div>

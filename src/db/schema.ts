@@ -496,6 +496,13 @@ export const collabPosts = collabSchema.table("collab_posts", {
   // legacy "an unnamed team" state every pre-teams row is in — a deleted
   // team degrades its posts back to that state rather than deleting them.
   teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+  // The canonical project this post recruits for. Optional on purpose —
+  // team is structural (the accept → invite loop needs one), a project is
+  // not; plenty of posts are pre-project. Never minted at post time: a
+  // post is not an anchor, so "something new" stays free text in
+  // `projectName`, and a deleted project degrades the post back to it —
+  // the same degrade-don't-delete pattern as `teamId`.
+  projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   projectName: text("project_name"),

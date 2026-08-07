@@ -43,6 +43,11 @@ export function StepReview() {
     ...orpc.listMyTeams.queryOptions({ input: {} }),
     enabled: v.teamId !== undefined,
   });
+  const { data: myProjects } = useQuery({
+    ...orpc.listEditableProjects.queryOptions({ input: {} }),
+    enabled: v.projectId !== undefined,
+    staleTime: 60 * 1000,
+  });
 
   const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
 
@@ -50,6 +55,7 @@ export function StepReview() {
   const selectedSkills = allSkills?.filter((s) => v.skillIds.includes(s.id)) ?? [];
   const jam = jamData?.jams.find((j) => j.jamId === v.jamId) ?? null;
   const team = myTeams?.find((t) => t.id === v.teamId) ?? null;
+  const project = myProjects?.projects.find((p) => p.id === v.projectId) ?? null;
   // The TEAM step's quick-create — the team doesn't exist yet, so the
   // review renders the name the submit will mint.
   const pendingTeamName = !v.isIndividual && v.teamId === undefined ? v.newTeamName.trim() : "";
@@ -207,6 +213,11 @@ export function StepReview() {
           <Text size="xs" variant="muted" className="tracking-widest">
             FOR {jam.title.toUpperCase()} ·{" "}
             {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "DATES TBA"}
+          </Text>
+        ) : null}
+        {project ? (
+          <Text size="xs" variant="muted" className="tracking-widest">
+            RECRUITING FOR {project.title.toUpperCase()} · POST APPEARS ON ITS PAGE
           </Text>
         ) : null}
       </FieldRow>

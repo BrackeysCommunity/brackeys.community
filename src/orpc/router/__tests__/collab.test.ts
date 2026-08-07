@@ -4,6 +4,8 @@ import {
   getPreflightChecks,
   getStepValidationError,
   projectLengthForJam,
+  projectPrefillValues,
+  type PickableProject,
   type WizardFormValues,
 } from "@/components/collab/CollabCreateFlyout/shared";
 import {
@@ -184,6 +186,7 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
     type: "hobby",
     jamId: undefined,
     teamId: undefined,
+    projectId: undefined,
     // The TEAM step's default path: quick-create at submit.
     newTeamName: "Night Shift Crew",
     newTeamDescription: "",
@@ -342,6 +345,7 @@ describe("draftFromPost", () => {
     type: "paid",
     jamId: 7,
     teamId: null,
+    projectId: null,
     title: "Composer for a roguelike",
     description: "Looking for a composer for a fast, punchy roguelike soundtrack.",
     projectName: "Nine Lives",
@@ -377,6 +381,11 @@ describe("draftFromPost", () => {
 
   it("treats an unlinked jam as no selection rather than null", () => {
     expect(draftFromPost({ ...post, jamId: null }).jamId).toBeUndefined();
+  });
+
+  it("round-trips the project link", () => {
+    expect(draftFromPost({ ...post, projectId: "proj-1" }).projectId).toBe("proj-1");
+    expect(draftFromPost(post).projectId).toBeUndefined();
   });
 
   it("produces a draft the server schema accepts", () => {
@@ -419,6 +428,7 @@ describe("board filter input", () => {
     skillIds: [],
     jamId: undefined,
     teamId: undefined,
+    projectId: undefined,
     status: undefined,
     search: "",
     sortBy: "createdAt" as const,
@@ -438,9 +448,55 @@ describe("board filter input", () => {
     expect(collabFilterInput(base).skillIds).toBeUndefined();
   });
 
+  it("passes the project constraint through and counts it as active", () => {
+    expect(collabFilterInput({ ...base, projectId: "proj-1" }).projectId).toBe("proj-1");
+    expect(countActiveCollabFilters({ ...base, projectId: "proj-1" })).toBe(1);
+  });
+
   it("counts jam and stack as active constraints", () => {
     expect(countActiveCollabFilters(base)).toBe(0);
     expect(countActiveCollabFilters({ ...base, jamId: 42 })).toBe(1);
     expect(countActiveCollabFilters({ ...base, jamId: 42, skillIds: [1] })).toBe(2);
+  });
+});
+
+describe("projectPrefillValues", () => {
+  const project: PickableProject = {
+    id: "proj-1",
+    slug: "nine-lives",
+    title: "Nine Lives",
+    type: "game",
+    classification: "game",
+    embedType: "html",
+    url: "https://cat.itch.io/nine-lives",
+    published: true,
+    imageUrl: null,
+    teamIds: [],
+  };
+
+  it("takes the project's title as the post's project name", () => {
+    const next = projectPrefillValues(project, { portfolioUrl: "", platforms: [] });
+    expect(next.projectName).toBe("Nine Lives");
+  });
+
+  it("fills blanks only for the URL and platforms", () => {
+    const blank = projectPrefillValues(project, { portfolioUrl: "", platforms: [] });
+    expect(blank.portfolioUrl).toBe("https://cat.itch.io/nine-lives");
+    expect(blank.platforms).toEqual(["Web"]);
+
+    const typed = projectPrefillValues(project, {
+      portfolioUrl: "https://my.site",
+      platforms: ["PC"],
+    });
+    expect(typed.portfolioUrl).toBeUndefined();
+    expect(typed.platforms).toBeUndefined();
+  });
+
+  it("only derives a platform from the browser-playable signal", () => {
+    const next = projectPrefillValues(
+      { ...project, embedType: "default" },
+      { portfolioUrl: "", platforms: [] },
+    );
+    expect(next.platforms).toBeUndefined();
   });
 });

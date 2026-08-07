@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Section } from "@/components/ui/section";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
@@ -25,11 +26,41 @@ import type { ProjectDetail, ProjectJamAppearance } from "./types";
  * empty box saying so.
  */
 export function ProjectPage({ detail }: { detail: ProjectDetail }) {
-  const { project, contributors, teams, jamRecord, viewerCanEdit } = detail;
+  const { project, contributors, teams, jamRecord, viewerCanEdit, openPostCount } = detail;
 
   return (
     <div className="flex flex-col gap-8 pb-8">
-      <ProjectHero project={project} canEdit={viewerCanEdit} />
+      <ProjectHero
+        project={project}
+        canEdit={viewerCanEdit}
+        recruitTeamId={teams.length === 1 ? teams[0]!.teamId : undefined}
+      />
+
+      {/* The page as a recruiting surface, not just a trophy case: only
+          when linked posts are open — a wall of closed ones would
+          advertise a dead end. */}
+      {openPostCount > 0 ? (
+        <Section
+          id="recruiting"
+          title="RECRUITING"
+          blurb={
+            openPostCount === 1
+              ? "One open post is looking for collaborators on this project."
+              : `${openPostCount} open posts are looking for collaborators on this project.`
+          }
+        >
+          <div>
+            <Button
+              variant="outline"
+              className="tracking-widest"
+              nativeButton={false}
+              render={<Link to="/collab" search={{ project: project.id }} />}
+            >
+              SEE THE POSTS →
+            </Button>
+          </div>
+        </Section>
+      ) : null}
 
       <ProjectCredits projectId={project.id} contributors={contributors} canEdit={viewerCanEdit} />
 

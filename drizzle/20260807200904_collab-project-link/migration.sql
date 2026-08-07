@@ -1,0 +1,2 @@
+ALTER TABLE "collab"."collab_posts" ADD COLUMN "project_id" text;--> statement-breakpoint
+ALTER TABLE "collab"."collab_posts" ADD CONSTRAINT "collab_posts_project_id_projects_id_fkey" FOREIGN KEY ("project_id") REFERENCES "project"."projects"("id") ON DELETE SET NULL;
