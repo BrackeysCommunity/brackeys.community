@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { JamShowcaseRow } from "@/components/home/JamShowcaseRow";
+import { JamShowcaseCard, JamShowcaseRow } from "@/components/home/JamShowcaseRow";
 import { useTopEntries } from "@/components/home/use-top-entries";
 import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,11 +8,13 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { jamLengthDays } from "@/lib/jam-countdown";
 
-/** Rows in the band. Kept at or below `TOP_ENTRIES_MAX_JAMS` in
+/** Jams in the band. Kept at or below `TOP_ENTRIES_MAX_JAMS` in
  * `@/orpc/router/jam` (not imported — that module pulls in the db): the
  * band's cover strips are one request for the whole set, and asking for
- * more jams than the server carries would reject it outright. */
-export const SHOWCASE_MAX_JAMS = 7;
+ * more jams than the server carries would reject it outright. Sized for
+ * the split layout: the jams without entries render two across, so the
+ * band absorbs more of them than it did as a single stack of rows. */
+export const SHOWCASE_MAX_JAMS = 12;
 
 /** Longest jam the band will show. */
 export const SHOWCASE_MAX_LENGTH_DAYS = 62;
@@ -47,11 +49,13 @@ export function selectShowcaseJams(
 }
 
 /**
- * Jams with submissions lead the band.
+ * Jams with submissions lead the band as full rows; the rest drop into a
+ * two-across grid of compact cards below them.
  *
- * A row carrying a strip of cover art shows what this place is for; a row
- * without one is four facts and a countdown. The sort is stable, so this
- * only lifts a jam past ones it would otherwise have tied with on rank.
+ * A row carrying a strip of cover art shows what this place is for; a jam
+ * without one is four facts and a countdown, which is exactly what the
+ * half-width card holds. Order within each bucket preserves the incoming
+ * ranking.
  *
  * It keys on the *fetched* entries rather than the jam row's
  * `entriesCount`: itch only fills that column once a jam's deadline has
@@ -59,12 +63,16 @@ export function selectShowcaseJams(
  * zero there. That made the column useless as a predictor — the one live
  * jam with real cover art sorted last.
  */
-export function orderByEntries(
+export function splitByEntries(
   jams: JamFromList[],
   byJamId: Map<number, unknown[]>,
-): JamFromList[] {
-  const has = (j: JamFromList) => Number((byJamId.get(j.jamId)?.length ?? 0) > 0);
-  return [...jams].sort((a, b) => has(b) - has(a));
+): { withEntries: JamFromList[]; withoutEntries: JamFromList[] } {
+  const withEntries: JamFromList[] = [];
+  const withoutEntries: JamFromList[] = [];
+  for (const jam of jams) {
+    ((byJamId.get(jam.jamId)?.length ?? 0) > 0 ? withEntries : withoutEntries).push(jam);
+  }
+  return { withEntries, withoutEntries };
 }
 
 interface JamShowcaseBandProps {
@@ -80,10 +88,15 @@ interface JamShowcaseBandProps {
  */
 export function JamShowcaseBand({ jams, isLoading, now }: JamShowcaseBandProps) {
   const jamIds = useMemo(() => jams.map((j) => j.jamId), [jams]);
-  const { byJamId } = useTopEntries(jamIds);
-  const ordered = useMemo(() => orderByEntries(jams, byJamId), [jams, byJamId]);
+  const { byJamId, isLoading: entriesLoading } = useTopEntries(jamIds);
+  const { withEntries, withoutEntries } = useMemo(
+    () => splitByEntries(jams, byJamId),
+    [jams, byJamId],
+  );
 
-  if (isLoading) {
+  // Waiting on entries too: until they land every jam would classify as
+  // entry-less and open in the grid, then jump into a row a beat later.
+  if (isLoading || entriesLoading) {
     return (
       <div className="flex flex-col gap-3" aria-hidden>
         {Array.from({ length: 2 }, (_, i) => (
@@ -111,15 +124,23 @@ export function JamShowcaseBand({ jams, isLoading, now }: JamShowcaseBandProps) 
 
   return (
     <div className="flex flex-col gap-3">
-      {ordered.map((jam, i) => (
+      {withEntries.map((jam) => (
         <JamShowcaseRow
           key={jam.jamId}
           jam={jam}
           entries={byJamId.get(jam.jamId) ?? []}
           now={now}
-          mirrored={i % 2 === 1}
         />
       ))}
+      {/* An odd count stretches its straggler across both columns rather
+          than leaving a hole next to it. */}
+      {withoutEntries.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 sm:[&>*:last-child:nth-child(odd)]:col-span-2">
+          {withoutEntries.map((jam) => (
+            <JamShowcaseCard key={jam.jamId} jam={jam} now={now} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

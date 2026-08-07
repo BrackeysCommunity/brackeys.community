@@ -304,9 +304,9 @@ const NO_RANK = 2_147_483_647;
 /** Jams per request, and entries per jam. Both are display caps: the
  * landing page shows a handful of jams with a scrolling cover strip each,
  * and the partition below is what keeps a 3k-entry jam from shipping 3k
- * rows. The jam cap tracks `SHOWCASE_MAX_JAMS`, the band's row count —
+ * rows. The jam cap tracks `SHOWCASE_MAX_JAMS`, the band's jam count —
  * the whole band is one request. */
-export const TOP_ENTRIES_MAX_JAMS = 10;
+export const TOP_ENTRIES_MAX_JAMS = 12;
 export const TOP_ENTRIES_MAX_LIMIT = 10;
 
 /**

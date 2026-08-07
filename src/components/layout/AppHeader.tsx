@@ -132,7 +132,7 @@ export function AppHeader() {
                 ease: "linear",
               }}
             />
-            <span className="leading-wide hidden font-display text-xl font-bold text-foreground sm:inline">
+            <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
               Brackeys
               <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
                 Community

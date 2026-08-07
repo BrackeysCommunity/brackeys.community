@@ -15,6 +15,7 @@ import {
 } from "@/components/jams/JamCalendarPage/helpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Chonk } from "@/components/ui/chonk";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
@@ -38,9 +39,6 @@ interface JamShowcaseRowProps {
   jam: JamFromList;
   entries: TopEntry[];
   now: Date;
-  /** Alternate rows flip the art to the other edge, so the band reads as a
-   * rhythm rather than a stack of identical cards. */
-  mirrored?: boolean;
 }
 
 /**
@@ -55,7 +53,7 @@ interface JamShowcaseRowProps {
  * appear only when it has something to show costs the row nothing when
  * entries are missing and reads denser when they aren't.
  */
-export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowcaseRowProps) {
+export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
   // Same hook the board's rows and cards use: the host's own itch theme
   // color, palette pick only as a fallback. Deriving it locally is how the
   // home band ended up giving a jam a different colorway than /jams did.
@@ -80,7 +78,7 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
         className="pointer-events-none absolute inset-0"
         style={{ background: `color-mix(in srgb, ${jamColor} 9%, transparent)` }}
       />
-      <div className={cn("relative flex flex-col sm:flex-row", mirrored && "sm:flex-row-reverse")}>
+      <div className="relative flex flex-col sm:flex-row">
         {/* itch banners vary wildly in aspect, and most of them carry the
             jam's name as art — cropping to the box swallowed it. The whole
             banner is letterboxed `object-contain` against the jam's own itch
@@ -164,6 +162,95 @@ export function JamShowcaseRow({ jam, entries, now, mirrored = false }: JamShowc
           at the card above, rather than reserving space to say so. */}
       {hasEntries && <EntryStrip entries={entries} />}
     </Well>
+  );
+}
+
+/**
+ * The half-width card for jams with nothing submitted yet — the same facts
+ * as a row, minus the entries strip they don't have. The whole card is the
+ * link (a Chonk rather than a Well), so it carries no OPEN button, and the
+ * art column is narrower than the row's: two of these sit side by side.
+ */
+export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
+  const jamColor = useJamColor(jam);
+  const badge = SHELF_BADGE[jamShelf(jam, now)];
+  const milestone = nextMilestone(jam, now);
+  const counted = milestone ? formatCountdown(milestone.date, now) : null;
+  const signal = jamSignal(jam, now);
+  const start = jamMonthDay(jam.startsAt);
+  const end = jamMonthDay(jam.endsAt);
+  const duration = durationDays(jam.startsAt, jam.endsAt);
+
+  return (
+    <Chonk
+      variant="surface"
+      size="sm"
+      className="group/card overflow-hidden"
+      render={
+        <RouterLink
+          to="/jams/$jamSlug"
+          params={jamLinkParams(jam)}
+          aria-label={`Open ${jam.title}`}
+        />
+      }
+    >
+      {/* Same 9% wash as the rows, so a jam reads as the same jam in
+          either bucket. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: `color-mix(in srgb, ${jamColor} 9%, transparent)` }}
+      />
+      <div
+        className="relative w-28 shrink-0 self-stretch overflow-hidden sm:w-40 lg:w-52"
+        style={{ background: jamColor }}
+      >
+        {jam.bannerUrl ? (
+          <img
+            src={jam.bannerUrl}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        ) : (
+          <Text
+            bold
+            density="dense"
+            className="absolute inset-0 flex items-center justify-center text-xl tracking-tighter text-foreground/40"
+          >
+            {shortName(jam.title)}
+          </Text>
+        )}
+        <div className="absolute top-2 left-2">
+          <Badge variant={badge.variant} size="label">
+            {badge.label}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2 p-2.5 pr-3">
+        <div className="min-w-0">
+          <Heading
+            as="h3"
+            size="md"
+            ellipsis
+            className="leading-tight transition-colors group-hover/card:text-primary"
+          >
+            {jam.title}
+          </Heading>
+          <MicroLabel as="div" ellipsis className="mt-0.5">
+            {start.month} {start.day}
+            {jam.endsAt ? ` → ${end.month} ${end.day}` : ""}
+            {duration ? ` · ${duration}` : ""} · {hostName(jam)}
+          </MicroLabel>
+        </div>
+
+        <div className="mt-auto flex gap-5 pt-1">
+          <Stat label={milestone?.label ?? "CLOSED"} value={counted?.text ?? "—"} accent />
+          <Stat label={signal.label} value={signal.value.toLocaleString()} />
+        </div>
+      </div>
+    </Chonk>
   );
 }
 

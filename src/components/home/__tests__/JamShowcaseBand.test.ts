@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  orderByEntries,
   SHOWCASE_MAX_JAMS,
   SHOWCASE_MAX_LENGTH_DAYS,
   selectShowcaseJams,
+  splitByEntries,
 } from "@/components/home/JamShowcaseBand";
 import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 
@@ -46,7 +46,7 @@ describe("selectShowcaseJams", () => {
   });
 
   it("caps the band", () => {
-    const many = Array.from({ length: 10 }, (_, i) => jam(i + 1));
+    const many = Array.from({ length: SHOWCASE_MAX_JAMS + 3 }, (_, i) => jam(i + 1));
     expect(selectShowcaseJams(many, [], null)).toHaveLength(SHOWCASE_MAX_JAMS);
   });
 
@@ -77,34 +77,39 @@ describe("selectShowcaseJams", () => {
   });
 });
 
-describe("orderByEntries", () => {
-  it("leads with the jams that have submissions", () => {
+describe("splitByEntries", () => {
+  it("routes jams with submissions to rows and the rest to the grid", () => {
     // 1 and 3 rank higher but have nothing to show; 2 and 4 do.
-    const ordered = orderByEntries([jam(1), jam(2), jam(3), jam(4)], entriesFor(2, 4));
-    expect(ids(ordered)).toEqual([2, 4, 1, 3]);
+    const split = splitByEntries([jam(1), jam(2), jam(3), jam(4)], entriesFor(2, 4));
+    expect(ids(split.withEntries)).toEqual([2, 4]);
+    expect(ids(split.withoutEntries)).toEqual([1, 3]);
   });
 
-  it("keeps the underlying ranking within each group", () => {
-    const ordered = orderByEntries([jam(1), jam(2), jam(3), jam(4)], entriesFor(1, 2));
-    expect(ids(ordered)).toEqual([1, 2, 3, 4]);
+  it("keeps the underlying ranking within each bucket", () => {
+    const split = splitByEntries([jam(3), jam(1), jam(4), jam(2)], entriesFor(1, 3));
+    expect(ids(split.withEntries)).toEqual([3, 1]);
+    expect(ids(split.withoutEntries)).toEqual([4, 2]);
   });
 
-  it("leaves the order alone before the entries request lands", () => {
-    const ordered = orderByEntries([jam(1), jam(2), jam(3)], new Map());
-    expect(ids(ordered)).toEqual([1, 2, 3]);
+  it("puts everything in the grid before the entries request lands", () => {
+    const split = splitByEntries([jam(1), jam(2), jam(3)], new Map());
+    expect(ids(split.withEntries)).toEqual([]);
+    expect(ids(split.withoutEntries)).toEqual([1, 2, 3]);
   });
 
   it("ignores the jam row's entriesCount, which is 0 until a jam closes", () => {
     // A live jam reports entriesCount 0 on itch while having real
-    // scraped submissions — ordering must follow the fetched entries.
+    // scraped submissions — bucketing must follow the fetched entries.
     const live = jam(1, 0);
     const upcoming = jam(2, 0);
-    expect(ids(orderByEntries([upcoming, live], entriesFor(1)))).toEqual([1, 2]);
+    const split = splitByEntries([upcoming, live], entriesFor(1));
+    expect(ids(split.withEntries)).toEqual([1]);
+    expect(ids(split.withoutEntries)).toEqual([2]);
   });
 
   it("does not mutate the input", () => {
     const input = [jam(1), jam(2)];
-    orderByEntries(input, entriesFor(2));
+    splitByEntries(input, entriesFor(2));
     expect(ids(input)).toEqual([1, 2]);
   });
 });
