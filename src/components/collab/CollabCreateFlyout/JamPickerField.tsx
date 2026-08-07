@@ -18,7 +18,6 @@ import { FieldRow } from "./fields";
 export interface PickableJam {
   jamId: number;
   title: string;
-  slug: string;
   bannerUrl: string | null;
   startsAt: string | Date | null;
   endsAt: string | Date | null;

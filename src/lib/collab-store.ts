@@ -86,7 +86,6 @@ export type WizardDraft = {
   compensationMax: number | undefined;
   projectLength: CollabProjectLength | undefined;
   platforms: string[];
-  experience: string;
   experienceLevel: CollabExperienceLevel | undefined;
   portfolioUrl: string;
   contactMethod: string;
@@ -96,26 +95,6 @@ export type WizardDraft = {
   skillIds: number[];
   images: UploadedImage[];
 };
-
-export type WizardStepDef = { id: string; num: string; label: string };
-
-/**
- * One path, always. Playtest and mentor used to fork this into a 3-step
- * shape whose step 02 reused `projectLength` and `experience` to mean
- * entirely different things — the source of most of the wizard's
- * overloaded fields.
- */
-export const WIZARD_STEPS: WizardStepDef[] = [
-  { id: "basics", num: "01", label: "TYPE & BASICS" },
-  { id: "team", num: "02", label: "TEAM" },
-  { id: "details", num: "03", label: "PROJECT DETAILS" },
-  { id: "roles", num: "04", label: "ROLES NEEDED" },
-  { id: "review", num: "05", label: "REVIEW" },
-];
-
-export function getWizardSteps(): WizardStepDef[] {
-  return WIZARD_STEPS;
-}
 
 type CollabState = {
   filters: CollabFilters;
@@ -172,7 +151,6 @@ const defaultDraft: WizardDraft = {
   compensationMax: undefined,
   projectLength: undefined,
   platforms: [],
-  experience: "",
   experienceLevel: undefined,
   portfolioUrl: "",
   contactMethod: "",
@@ -287,10 +265,7 @@ export function setWizardStep(step: number) {
 export function updateWizardDraft(partial: Partial<WizardDraft>) {
   collabStore.setState((s) => {
     const draft = { ...s.wizard.draft, ...partial };
-    // The step count no longer varies by type, but keep the clamp so a
-    // step index can never outrun the strip.
-    const step = Math.min(s.wizard.step, WIZARD_STEPS.length - 1);
-    return { ...s, wizard: { ...s.wizard, step, draft } };
+    return { ...s, wizard: { ...s.wizard, draft } };
   });
   // Only creation drafts are worth surviving a reload; an edit draft has
   // a live post behind it and is re-seeded from the server on open.
@@ -361,7 +336,6 @@ export type EditableCollabPost = {
   compensationMax: number | null;
   projectLength: string | null;
   platforms: string[] | null;
-  experience: string | null;
   experienceLevel: string | null;
   portfolioUrl: string | null;
   contactMethod: string | null;
@@ -394,7 +368,6 @@ export function draftFromPost(post: EditableCollabPost): WizardDraft {
     compensationMax: post.compensationMax ?? undefined,
     projectLength: (post.projectLength as CollabProjectLength | null) ?? undefined,
     platforms: post.platforms ?? [],
-    experience: post.experience ?? "",
     experienceLevel: (post.experienceLevel as CollabExperienceLevel | null) ?? undefined,
     portfolioUrl: post.portfolioUrl ?? "",
     contactMethod: post.contactMethod ?? "",

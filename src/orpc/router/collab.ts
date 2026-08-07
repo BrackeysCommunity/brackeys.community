@@ -97,7 +97,6 @@ const postContentShape = {
   compensationMax: z.number().int().min(0).max(1_000_000).optional(),
   projectLength: projectLengthSchema,
   platforms: z.array(z.string().max(50)).min(1).max(20),
-  experience: z.string().max(1000).optional(),
   experienceLevel: experienceLevelSchema,
   portfolioUrl: z.url().max(500).optional().or(z.literal("")),
   contactMethod: z.string().max(500).optional(),
@@ -197,7 +196,6 @@ function checkPostProfanity(input: PostContent) {
   checkProfanity(input.title, "Title");
   checkProfanity(input.description, "Description");
   checkProfanity(input.projectName, "Project name");
-  if (input.experience) checkProfanity(input.experience, "Experience");
   if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
 }
 
@@ -344,7 +342,6 @@ function postColumns(input: PostContent, projectName?: string) {
     compensationMax: input.compensationMax ?? null,
     projectLength: input.projectLength,
     platforms: input.platforms,
-    experience: input.experience ?? null,
     experienceLevel: input.experienceLevel,
     portfolioUrl: input.portfolioUrl || null,
     contactMethod: input.contactMethod ?? null,

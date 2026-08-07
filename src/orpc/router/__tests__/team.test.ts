@@ -84,7 +84,6 @@ describe("team link on posts", () => {
       compensationMax: null,
       projectLength: "1-3 months",
       platforms: ["PC"],
-      experience: null,
       experienceLevel: "any",
       portfolioUrl: null,
       contactMethod: "team@example.com",

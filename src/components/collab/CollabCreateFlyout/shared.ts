@@ -252,7 +252,6 @@ export type WizardFormValues = {
   contactType: CollabContactType | undefined;
   contactMethod: string;
   portfolioUrl: string;
-  experience: string;
   roleIds: number[];
   skillIds: number[];
   images: UploadedImage[];
@@ -263,13 +262,11 @@ export type WizardFormValues = {
 /** A project as the picker needs it — one row of `listEditableProjects`. */
 export interface PickableProject {
   id: string;
-  slug: string;
   title: string;
   type: string;
   classification: string | null;
   embedType: string | null;
   url: string | null;
-  published: boolean;
   imageUrl: string | null;
   teamIds: string[];
 }

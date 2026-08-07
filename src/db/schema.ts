@@ -519,6 +519,8 @@ export const collabPosts = collabSchema.table("collab_posts", {
   teamSize: text("team_size"),
   projectLength: text("project_length"),
   platforms: text("platforms").array(),
+  // Legacy: free text the wizard never had an input for and no surface
+  // ever rendered. Kept so pre-existing rows survive.
   experience: text("experience"),
   experienceLevel: text("experience_level"),
   portfolioUrl: text("portfolio_url"),

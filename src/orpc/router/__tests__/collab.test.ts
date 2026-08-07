@@ -203,7 +203,6 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
     contactType: "discord_dm",
     contactMethod: "someone",
     portfolioUrl: "",
-    experience: "",
     roleIds: [1],
     skillIds: [],
     images: [],
@@ -377,7 +376,6 @@ describe("draftFromPost", () => {
     compensationMax: 75,
     projectLength: "1-3 months",
     platforms: ["PC", "Mac"],
-    experience: "",
     experienceLevel: "intermediate",
     portfolioUrl: "https://example.com",
     contactMethod: "team@example.com",
@@ -484,13 +482,11 @@ describe("board filter input", () => {
 describe("projectPrefillValues", () => {
   const project: PickableProject = {
     id: "proj-1",
-    slug: "nine-lives",
     title: "Nine Lives",
     type: "game",
     classification: "game",
     embedType: "html",
     url: "https://cat.itch.io/nine-lives",
-    published: true,
     imageUrl: null,
     teamIds: [],
   };
