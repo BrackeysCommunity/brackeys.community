@@ -13,6 +13,13 @@ interface CollabCreateFooterProps {
   isLastStep: boolean;
   /** True while the create mutation is in flight. */
   isSubmitting: boolean;
+  /**
+   * On the last step: the label of the first step whose requirements
+   * aren't met ("BASICS", "PROJECT", …), or null when the post can
+   * submit. Non-null disables the primary button — the validator always
+   * enforced this; the button just used to look live anyway.
+   */
+  submitBlockedBy?: string | null;
   /** "SUBMIT" when creating, "SAVE CHANGES" when editing. */
   submitLabel: string;
   /**
@@ -34,11 +41,13 @@ export function CollabCreateFooter({
   isFirstStep,
   isLastStep,
   isSubmitting,
+  submitBlockedBy = null,
   submitLabel,
   imageRetry,
   onBack,
   onNext,
 }: CollabCreateFooterProps) {
+  const submitBlocked = isLastStep && submitBlockedBy !== null;
   return (
     <>
       {error ? (
@@ -81,11 +90,16 @@ export function CollabCreateFooter({
                   BACK
                 </Button>
               ) : null}
+              {submitBlocked ? (
+                <Text size="xs" variant="muted" className="tracking-widest">
+                  FINISH {submitBlockedBy} FIRST
+                </Text>
+              ) : null}
               <Button
                 variant="default"
                 size="sm"
                 onClick={onNext}
-                disabled={isSubmitting}
+                disabled={isSubmitting || submitBlocked}
                 className="tracking-widest"
               >
                 {isLastStep ? (isSubmitting ? "SUBMITTING…" : submitLabel) : "NEXT"}

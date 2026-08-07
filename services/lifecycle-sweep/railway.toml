@@ -1,0 +1,10 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/lifecycle-sweep/Dockerfile"
+
+[deploy]
+# Railway cron: runs to completion on each tick and exits. Daily 09:00 UTC.
+# NEVER restart and no PORT — the jam-scraper lessons.
+startCommand = "bun run start"
+cronSchedule = "0 9 * * *"
+restartPolicyType = "NEVER"

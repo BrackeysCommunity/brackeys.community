@@ -1,0 +1,24 @@
+{
+  "name": "@brackeys/lifecycle-sweep",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Railway cron job that expires stale collab posts and warns/archives quiet never-shipped teams.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bullmq": "^5.34.0",
+    "drizzle-orm": "1.0.0-rc.4",
+    "ioredis": "^5.4.2",
+    "pg": "^8.20.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.20.0",
+    "typescript": "^6.0.2"
+  }
+}

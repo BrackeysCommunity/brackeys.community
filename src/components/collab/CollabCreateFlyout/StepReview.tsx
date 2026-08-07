@@ -1,4 +1,4 @@
-import { CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { collabStore } from "@/lib/collab-store";
+import { collabStore, setWizardStep } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,19 @@ import { orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";
 import { useWizardForm } from "./form-context";
-import { type AnyFormStore, CONTACT_TYPE_LABELS, getPreflightChecks, POST_TYPES } from "./shared";
+import {
+  type AnyFormStore,
+  CONTACT_TYPE_LABELS,
+  getPreflightChecks,
+  POST_TYPES,
+  WIZARD_TABS,
+} from "./shared";
 
 /**
  * Step 04 — pre-flight checklist + compact post preview. The checklist
- * mirrors the submit requirements exactly, so 100% and "NEXT works" are
- * the same statement.
+ * mirrors the submit requirements exactly, so 100% and "SUBMIT works"
+ * are the same statement — and every unmet row routes to the step that
+ * fixes it.
  */
 export function StepReview() {
   const form = useWizardForm();
@@ -46,6 +53,7 @@ export function StepReview() {
   // The TEAM step's quick-create — the team doesn't exist yet, so the
   // review renders the name the submit will mint.
   const pendingTeamName = !v.isIndividual && v.teamId === undefined ? v.newTeamName.trim() : "";
+  const teamName = team?.name ?? pendingTeamName;
 
   const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
@@ -53,6 +61,12 @@ export function StepReview() {
   const checks = getPreflightChecks(v, { legacyUnlinkedEdit: editingLegacyUnlinked });
   const completed = checks.filter((c) => c.ok).length;
   const percent = Math.round((completed / checks.length) * 100);
+
+  const contactDisplay = v.contactMethod
+    ? `${v.contactType ? (CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType) + ": " : ""}${v.contactMethod}`
+    : v.isIndividual
+      ? "Discord DM (via your profile)"
+      : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -65,13 +79,13 @@ export function StepReview() {
               </div>
             ) : null}
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <Text size="sm" bold>
-                {v.title || (
-                  <Text as="span" variant="muted" className="italic">
-                    Your post title appears here
-                  </Text>
-                )}
-              </Text>
+              {v.title ? (
+                <Text size="sm" bold>
+                  {v.title}
+                </Text>
+              ) : (
+                <Absence>no title yet</Absence>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 {v.type ? (
                   <Badge variant="secondary" size="label" className="uppercase">
@@ -83,13 +97,9 @@ export function StepReview() {
                     Solo dev
                   </Badge>
                 ) : null}
-                {team ? (
+                {teamName ? (
                   <Badge variant="outline" size="label" className="uppercase">
-                    {team.name}
-                  </Badge>
-                ) : pendingTeamName ? (
-                  <Badge variant="outline" size="label" className="uppercase">
-                    {pendingTeamName}
+                    {teamName}
                   </Badge>
                 ) : null}
                 {jam ? (
@@ -105,9 +115,7 @@ export function StepReview() {
               {v.description}
             </Text>
           ) : (
-            <Text size="sm" variant="muted" className="italic">
-              Your one-line pitch will appear here.
-            </Text>
+            <Absence>no pitch yet</Absence>
           )}
           <div className="flex flex-col gap-0.5">
             {v.projectName ? (
@@ -133,74 +141,89 @@ export function StepReview() {
         <Progress value={percent} className="h-1" />
         <Well variant="ghost" className="gap-0 p-0">
           <ul className="divide-y divide-dashed divide-muted/40">
-            {checks.map((c) => (
-              <li key={c.label} className="flex items-center gap-2 px-3 py-2">
-                <span
-                  className={cn(
-                    "inline-flex h-4 w-4 shrink-0 items-center justify-center border font-mono",
-                    c.ok
-                      ? "border-success/50 bg-success/15 text-success"
-                      : "border-muted/40 bg-muted/20 text-muted-foreground/60",
-                  )}
-                >
+            {checks.map((c) => {
+              const stepIndex = WIZARD_TABS.findIndex((t) => t.id === c.tabId);
+              const stepLabel = WIZARD_TABS[stepIndex]?.label ?? c.tabId.toUpperCase();
+              return (
+                <li key={c.label}>
                   {c.ok ? (
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={10} />
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <CheckSquare ok />
+                      <Text size="xs" className="text-foreground">
+                        {c.label}
+                      </Text>
+                    </div>
                   ) : (
-                    <span className="text-[10px]">·</span>
+                    // An unmet requirement is a task, so the row routes to
+                    // the step that clears it rather than sitting inert.
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(stepIndex)}
+                      className={cn(
+                        "group flex w-full items-center gap-2 px-3 py-2 text-left",
+                        "transition-colors outline-none hover:bg-muted/20 focus-visible:bg-muted/20",
+                      )}
+                    >
+                      <CheckSquare />
+                      <Text size="xs" className="min-w-0 flex-1 text-muted-foreground">
+                        {c.label}
+                      </Text>
+                      <Text
+                        as="span"
+                        size="xs"
+                        className="flex shrink-0 items-center gap-1 tracking-widest text-primary/70 group-hover:text-primary"
+                      >
+                        {stepLabel}
+                        <HugeiconsIcon icon={ArrowRight01Icon} size={10} />
+                      </Text>
+                    </button>
                   )}
-                </span>
-                <Text size="xs" className={c.ok ? "text-foreground" : "text-muted-foreground"}>
-                  {c.label}
-                </Text>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </Well>
       </FieldRow>
 
-      {jam ? (
-        <FieldRow label="JAM">
-          <Text size="sm">{jam.title}</Text>
+      {/* The summary reads the way the post does — who's posting, what
+          they need, how to reach them — and absences render dimmed
+          instead of as headings over "None selected." */}
+      <FieldRow label="WHO'S POSTING">
+        {teamName || v.isIndividual ? (
+          <>
+            <Text size="sm">{v.isIndividual ? "Just you — solo post" : teamName}</Text>
+            <Text size="xs" variant="muted" className="tracking-widest uppercase">
+              {v.isIndividual
+                ? "Responses come straight to you"
+                : team
+                  ? "Post appears on the team page"
+                  : "Team page created with this post"}
+            </Text>
+          </>
+        ) : (
+          <Absence>no team picked yet</Absence>
+        )}
+        {jam ? (
           <Text size="xs" variant="muted" className="tracking-widest">
+            FOR {jam.title.toUpperCase()} ·{" "}
             {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "DATES TBA"}
           </Text>
-        </FieldRow>
-      ) : null}
+        ) : null}
+      </FieldRow>
 
-      {team ? (
-        <FieldRow label="TEAM PAGE">
-          <Text size="sm">{team.name}</Text>
-          <Text size="xs" variant="muted" className="tracking-widest uppercase">
-            Post will appear on the team's page
-          </Text>
-        </FieldRow>
-      ) : pendingTeamName ? (
-        <FieldRow label="TEAM PAGE" hint="new">
-          <Text size="sm">{pendingTeamName}</Text>
-          <Text size="xs" variant="muted" className="tracking-widest uppercase">
-            Created with this post
-          </Text>
-        </FieldRow>
-      ) : null}
-
-      <FieldRow label="ROLES NEEDED">
-        <div className="flex flex-wrap gap-1.5">
-          {selectedRoles.length === 0 ? (
-            <Text size="xs" variant="muted">
-              None selected.
-            </Text>
-          ) : (
-            selectedRoles.map((r) => (
+      <FieldRow label="LOOKING FOR">
+        {selectedRoles.length === 0 ? (
+          <Absence>no roles yet</Absence>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedRoles.map((r) => (
               <Badge key={r.id} variant="secondary" size="label" className="uppercase">
                 {r.name}
               </Badge>
-            ))
-          )}
-        </div>
-      </FieldRow>
-
-      {selectedSkills.length > 0 ? (
-        <FieldRow label="TECH STACK">
+            ))}
+          </div>
+        )}
+        {selectedSkills.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {selectedSkills.map((s) => (
               <Badge key={s.id} variant="outline" size="label" className="uppercase">
@@ -208,18 +231,45 @@ export function StepReview() {
               </Badge>
             ))}
           </div>
-        </FieldRow>
-      ) : null}
+        ) : null}
+      </FieldRow>
 
       <FieldRow label="CONTACT">
-        <Text size="xs">
-          {v.contactMethod
-            ? `${v.contactType ? (CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType) + ": " : ""}${v.contactMethod}`
-            : v.isIndividual
-              ? "Discord DM (via your profile)"
-              : "—"}
-        </Text>
+        {contactDisplay ? (
+          <Text size="xs">{contactDisplay}</Text>
+        ) : (
+          <Absence>no contact method yet</Absence>
+        )}
       </FieldRow>
     </div>
+  );
+}
+
+/** A dimmed "nothing here yet" — an absence, not placeholder copy that
+ *  could be mistaken for content that will ship. */
+function Absence({ children }: { children: React.ReactNode }) {
+  return (
+    <Text size="xs" className="tracking-widest text-muted-foreground/50 uppercase">
+      — {children}
+    </Text>
+  );
+}
+
+function CheckSquare({ ok = false }: { ok?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-4 w-4 shrink-0 items-center justify-center border font-mono",
+        ok
+          ? "border-success/50 bg-success/15 text-success"
+          : "border-muted/40 bg-muted/20 text-muted-foreground/60",
+      )}
+    >
+      {ok ? (
+        <HugeiconsIcon icon={CheckmarkCircle02Icon} size={10} />
+      ) : (
+        <span className="text-[10px]">·</span>
+      )}
+    </span>
   );
 }

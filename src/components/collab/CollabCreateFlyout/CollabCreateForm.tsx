@@ -17,6 +17,7 @@ import { CollabCreateFooter } from "./CollabCreateFooter";
 import { CollabCreateStepper } from "./CollabCreateStepper";
 import { WizardFormContext } from "./form-context";
 import {
+  getFirstIncompleteStep,
   getStepValidationError,
   uploadCollabPostImage,
   uploadTeamAvatarImage,
@@ -241,6 +242,15 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
 
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
+  // The step label blocking submit, or null when the post is valid. A
+  // string selector keeps the subscription cheap (Object.is), and only
+  // the REVIEW step pays for the validation re-run per keystroke.
+  const submitBlockedBy = useStore(form.store, (s) =>
+    isLastStep
+      ? (getFirstIncompleteStep(s.values as WizardFormValues, validationOpts)?.label ?? null)
+      : null,
+  );
+
   return (
     <>
       <CollabCreateHeader
@@ -289,6 +299,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
         isFirstStep={activeIndex === 0}
         isLastStep={isLastStep}
         isSubmitting={isSubmitting}
+        submitBlockedBy={submitBlockedBy}
         submitLabel={editingPostId !== null ? "SAVE CHANGES" : "SUBMIT"}
         imageRetry={
           imageRetryPostId !== null

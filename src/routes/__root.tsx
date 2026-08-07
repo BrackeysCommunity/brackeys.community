@@ -3,6 +3,7 @@ import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/reac
 import { lazy, Suspense } from "react";
 
 import { SiteFooter } from "@/components/home/SiteFooter";
+import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
@@ -174,6 +175,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <AuthSessionSync />
       <NotificationStreamMount />
       {isMobile ? (
         <Suspense>

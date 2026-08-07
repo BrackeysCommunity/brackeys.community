@@ -256,10 +256,14 @@ export type NotificationType =
   | "collab_response_declined"
   | "collab_post_featured"
   | "collab_post_closed_by_staff"
+  | "collab_post_expiring"
+  | "collab_post_expired"
   | "team_invite_received"
   | "team_invite_accepted"
   | "team_invite_declined"
-  | "team_member_removed";
+  | "team_member_removed"
+  | "team_archive_warning"
+  | "team_auto_archived";
 
 export type NotificationEntityType = "collab_post" | "collab_response" | "team" | "team_invite";
 

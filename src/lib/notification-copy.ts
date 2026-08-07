@@ -30,6 +30,10 @@ export function renderNotificationText(input: {
       return { headline: `Your post "${postTitle}" was featured`, href };
     case "collab_post_closed_by_staff":
       return { headline: `Staff closed your post "${postTitle}"`, href };
+    case "collab_post_expiring":
+      return { headline: `"${postTitle}" closes soon — still looking?`, href };
+    case "collab_post_expired":
+      return { headline: `"${postTitle}" expired — reopen it if you're still looking`, href };
     case "team_invite_received":
       return { headline: `${actor} invited you to join ${teamName}`, href: teamHref };
     case "team_invite_accepted":
@@ -38,6 +42,13 @@ export function renderNotificationText(input: {
       return { headline: `${actor} declined your invite to ${teamName}`, href: teamHref };
     case "team_member_removed":
       return { headline: `You were removed from ${teamName}`, href: teamHref };
+    case "team_archive_warning":
+      return {
+        headline: `${teamName} has been quiet — it archives in a week without activity`,
+        href: teamHref,
+      };
+    case "team_auto_archived":
+      return { headline: `${teamName} was archived after a quiet spell`, href: teamHref };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -49,10 +60,14 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   collab_response_declined: "Collab — your response was declined",
   collab_post_featured: "Collab — your post was featured",
   collab_post_closed_by_staff: "Collab — staff closed your post",
+  collab_post_expiring: "Collab — your post closes soon",
+  collab_post_expired: "Collab — your post expired",
   team_invite_received: "Teams — you were invited to a team",
   team_invite_accepted: "Teams — someone accepted your invite",
   team_invite_declined: "Teams — someone declined your invite",
   team_member_removed: "Teams — you were removed from a team",
+  team_archive_warning: "Teams — your team is about to be archived",
+  team_auto_archived: "Teams — your team was archived",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -61,10 +76,14 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "collab_response_declined",
   "collab_post_featured",
   "collab_post_closed_by_staff",
+  "collab_post_expiring",
+  "collab_post_expired",
   "team_invite_received",
   "team_invite_accepted",
   "team_invite_declined",
   "team_member_removed",
+  "team_archive_warning",
+  "team_auto_archived",
 ];
 
 /**
@@ -82,11 +101,18 @@ export const NOTIFICATION_DEFAULTS: Record<
   collab_response_declined: { inApp: true, email: false, digest: false },
   collab_post_featured: { inApp: true, email: true, digest: false },
   collab_post_closed_by_staff: { inApp: true, email: true, digest: false },
+  // Actionable deadlines: the email is the whole point — a user who
+  // hasn't opened the app in six weeks is exactly who the nudge is for.
+  collab_post_expiring: { inApp: true, email: true, digest: false },
+  collab_post_expired: { inApp: true, email: false, digest: false },
   team_invite_received: { inApp: true, email: true, digest: false },
   team_invite_accepted: { inApp: true, email: true, digest: false },
   // Low-signal outcomes: in-app only, same reasoning as declined responses.
   team_invite_declined: { inApp: true, email: false, digest: false },
   team_member_removed: { inApp: true, email: false, digest: false },
+  team_archive_warning: { inApp: true, email: true, digest: false },
+  // The archive already happened and is reversible in-app; no email.
+  team_auto_archived: { inApp: true, email: false, digest: false },
 };
 
 /**
@@ -101,6 +127,8 @@ export const EMAIL_IMMEDIATE: ReadonlySet<NotificationType> = new Set([
   "collab_response_accepted",
   "collab_post_featured",
   "collab_post_closed_by_staff",
+  "collab_post_expiring",
   "team_invite_received",
   "team_invite_accepted",
+  "team_archive_warning",
 ]);

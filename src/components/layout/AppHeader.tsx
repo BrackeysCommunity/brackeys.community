@@ -2,7 +2,7 @@ import { Cancel01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -11,9 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useHeaderShift } from "@/hooks/use-header-shift";
 import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
-import { clearActiveUserProfile, fetchActiveUserProfile } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
-import { setAuthSession } from "@/lib/auth-store";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 
 /** Matches the `pt-14` the shell reserves for the bar — see `--app-header-shift`. */
@@ -69,16 +67,6 @@ export function AppHeader() {
   const hidden = scrolledAway && !peeking && !mobileMenuOpen;
 
   useHeaderShift(hidden, HEADER_SHIFT);
-
-  useEffect(() => {
-    setAuthSession(session ?? null);
-    if (session?.user) {
-      // this is a promise but we don't care about awaiting the result here
-      void fetchActiveUserProfile();
-    } else {
-      clearActiveUserProfile();
-    }
-  }, [session]);
 
   return (
     <>

@@ -24,6 +24,8 @@ const COLLAB_TYPES = new Set([
   "collab_response_declined",
   "collab_post_featured",
   "collab_post_closed_by_staff",
+  "collab_post_expiring",
+  "collab_post_expired",
 ]);
 
 const TEAM_TYPES = new Set([
@@ -31,6 +33,8 @@ const TEAM_TYPES = new Set([
   "team_invite_accepted",
   "team_invite_declined",
   "team_member_removed",
+  "team_archive_warning",
+  "team_auto_archived",
 ]);
 
 export function categoryOf(type: string): "collab" | "teams" | "system" {
@@ -127,9 +131,41 @@ export function renderCopy(n: NotificationItem): {
         ),
         href: teamHref,
       };
+    case "collab_post_expiring":
+      return {
+        line: (
+          <>
+            <em className="font-medium not-italic">{postTitle}</em> closes soon — extend it if
+            you're still looking
+          </>
+        ),
+        href,
+      };
+    case "collab_post_expired":
+      return {
+        line: (
+          <>
+            <em className="font-medium not-italic">{postTitle}</em> expired — reopen it if you're
+            still looking
+          </>
+        ),
+        href,
+      };
     case "team_member_removed":
       return {
         line: <>You were removed from {teamEm}</>,
+        href: teamHref,
+      };
+    case "team_archive_warning":
+      return {
+        line: (
+          <>{teamEm} has been quiet — it archives in a week unless something happens on its page</>
+        ),
+        href: teamHref,
+      };
+    case "team_auto_archived":
+      return {
+        line: <>{teamEm} was archived after a quiet spell — restore it from its page</>,
         href: teamHref,
       };
     default:

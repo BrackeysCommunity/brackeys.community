@@ -34,6 +34,7 @@ import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
 // The house home for LIKE escaping — this file carried its own copy, which
 // (unlike the shared one) left a backslash in the search term unescaped.
 import { escapeLike } from "@/lib/sql-like";
+import { touchTeamActivity } from "@/lib/team-activity";
 import { authMiddleware, requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
 
 /** Postgres `unique_violation`. */
@@ -214,6 +215,7 @@ export const updateTeam = os
         ...(fields.websiteUrl !== undefined ? { websiteUrl: fields.websiteUrl || null } : {}),
         ...(fields.itchUrl !== undefined ? { itchUrl: fields.itchUrl || null } : {}),
         ...(fields.recruiting !== undefined ? { recruiting: fields.recruiting } : {}),
+        lastActivityAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(teams.id, input.teamId))
@@ -269,7 +271,14 @@ export const setTeamArchived = os
 
     const [updated] = await db
       .update(teams)
-      .set({ status: input.archived ? "archived" : "active", updatedAt: new Date() })
+      .set({
+        status: input.archived ? "archived" : "active",
+        // Restoring is activity, and it disarms a pending auto-archive
+        // warning — otherwise the sweep could re-archive a team the owner
+        // just deliberately brought back.
+        ...(input.archived ? {} : { archiveWarnedAt: null, lastActivityAt: new Date() }),
+        updatedAt: new Date(),
+      })
       .where(eq(teams.id, input.teamId))
       .returning();
 
@@ -928,6 +937,8 @@ export const inviteToTeam = os
       data: { teamId: team.id, teamSlug: team.slug, teamName: team.name, inviteId: invite.id },
     });
 
+    await touchTeamActivity(input.teamId);
+
     return invite;
   });
 
@@ -967,6 +978,7 @@ export const respondToInvite = os
         .insert(teamMembers)
         .values({ teamId: invite.teamId, userId: context.user.id })
         .onConflictDoNothing();
+      await touchTeamActivity(invite.teamId);
     }
 
     await notify({
@@ -1038,6 +1050,8 @@ export const removeMember = os
       data: { teamId: team.id, teamSlug: team.slug, teamName: team.name },
     });
 
+    await touchTeamActivity(input.teamId);
+
     return { success: true };
   });
 
@@ -1065,6 +1079,7 @@ export const leaveTeam = os
     }
 
     await db.delete(teamMembers).where(eq(teamMembers.id, membership.id));
+    await touchTeamActivity(input.teamId);
 
     if (memberCount === 1) {
       await db
@@ -1224,6 +1239,8 @@ export const addTeamProject = os
       })
       .returning();
 
+    await touchTeamActivity(input.teamId);
+
     return serializeTeamProject(project);
   });
 
@@ -1299,6 +1316,8 @@ export const importMemberProject = os
         addedBy: context.user.id,
       })
       .returning();
+
+    await touchTeamActivity(input.teamId);
 
     return serializeTeamProject(project);
   });

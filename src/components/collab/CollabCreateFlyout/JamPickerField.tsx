@@ -4,12 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { formatJamShortDates } from "@/lib/jam-countdown";
-import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";
@@ -115,15 +115,12 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
       ) : (
         <div className="flex flex-col gap-1.5">
           {results.map((jam) => (
-            <button
+            <Chonk
               key={jam.jamId}
-              type="button"
-              onClick={() => onChange(jam)}
-              className={cn(
-                "flex items-center gap-3 border border-muted/40 bg-background p-2 text-left",
-                "transition-colors outline-none hover:border-primary/50 hover:bg-muted/10",
-                "focus-visible:ring-1 focus-visible:ring-ring dark:bg-emboss-surface",
-              )}
+              variant="surface"
+              size="sm"
+              render={<button type="button" onClick={() => onChange(jam)} />}
+              className="w-full items-center gap-3 p-2"
             >
               <JamThumb jam={jam} />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -134,7 +131,7 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
                   {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "DATES TBA"}
                 </Text>
               </span>
-            </button>
+            </Chonk>
           ))}
         </div>
       )}

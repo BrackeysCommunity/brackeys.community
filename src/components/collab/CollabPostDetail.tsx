@@ -25,7 +25,7 @@ import {
   startWizardEdit,
 } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
-import { formatJamShortDates } from "@/lib/jam-countdown";
+import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
@@ -97,6 +97,10 @@ export function CollabPostDetail({
     mutationFn: () => client.reopenPost({ postId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
   });
+  const extendMutation = useMutation({
+    mutationFn: () => client.extendPost({ postId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
+  });
   const deleteMutation = useMutation({
     mutationFn: () => client.deletePost({ postId }),
     onSuccess: () => {
@@ -118,7 +122,11 @@ export function CollabPostDetail({
   });
 
   const isOwner = post?.isOwner ?? (!!currentUserId && post?.authorId === currentUserId);
-  const isClosed = post?.status === "party_full";
+  // Owner-closed and sweep-expired are both "no longer taking responses";
+  // the badge tells them apart, everything else treats them the same.
+  const isExpired = post?.status === "expired";
+  const isClosed = post?.status === "party_full" || isExpired;
+  const closesIn = post && !isClosed && post.expiresAt ? formatCountdown(post.expiresAt) : null;
 
   // Posts created since v1 store the numbers and format here; the text
   // column is what pre-v1 rows still carry.
@@ -165,11 +173,16 @@ export function CollabPostDetail({
             ) : null}
             {post ? (
               <Badge
-                variant={isClosed ? "destructive" : "success"}
+                variant={isExpired ? "warning" : isClosed ? "destructive" : "success"}
                 size="label"
                 className="uppercase"
               >
-                {isClosed ? "Closed" : "Open"}
+                {isExpired ? "Expired" : isClosed ? "Closed" : "Open"}
+              </Badge>
+            ) : null}
+            {closesIn && !closesIn.past ? (
+              <Badge variant="outline" size="label" className="uppercase">
+                Closes in {closesIn.text}
               </Badge>
             ) : null}
             {post?.isIndividual ? (
@@ -509,7 +522,19 @@ export function CollabPostDetail({
                     <HugeiconsIcon icon={Tick01Icon} size={12} />
                     REOPEN POST
                   </Button>
-                ) : (
+                ) : closesIn ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => extendMutation.mutate()}
+                    disabled={extendMutation.isPending}
+                    title="Still looking — push the closing date out 30 days"
+                    className="tracking-widest"
+                  >
+                    EXTEND
+                  </Button>
+                ) : null}
+                {!isClosed ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -521,7 +546,7 @@ export function CollabPostDetail({
                     <HugeiconsIcon icon={Cancel01Icon} size={12} />
                     CLOSE RECRUITING
                   </Button>
-                )}
+                ) : null}
                 <Button
                   variant="destructive"
                   size="sm"

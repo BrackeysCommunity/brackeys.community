@@ -1,7 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { and, eq, ilike, inArray, or, desc, asc, count, sql } from "drizzle-orm";
-import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -21,12 +20,21 @@ import {
   userSkills,
   skills,
 } from "@/db/schema";
+import {
+  daysFromNow,
+  EXTEND_DAYS,
+  initialPostExpiry,
+  REOPEN_EXTENSION_DAYS,
+} from "@/lib/collab-lifecycle";
 import { isStaffMember } from "@/lib/discord";
 import { notify } from "@/lib/notifications";
+import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
+import { escapeLike } from "@/lib/sql-like";
+import { touchTeamActivity } from "@/lib/team-activity";
 import {
   authMiddleware,
   requireAuth,
@@ -35,23 +43,6 @@ import {
   requireStaff,
   requireAdmin,
 } from "@/orpc/middleware/auth";
-
-function escapeLike(str: string): string {
-  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
-const profanityMatcher = new RegExpMatcher({
-  ...englishDataset.build(),
-  ...englishRecommendedTransformers,
-});
-
-function checkProfanity(text: string, fieldName: string) {
-  if (profanityMatcher.hasMatch(text)) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: `${fieldName} contains inappropriate language.`,
-    });
-  }
-}
 
 const compensationTypeSchema = z.enum(["hourly", "fixed", "rev_share", "negotiable"]);
 const teamSizeSchema = z.enum(["solo", "2-3", "4-6", "7+"]);
@@ -245,7 +236,7 @@ async function resolveReferences(input: PostContent) {
       ? "This jam has already ended."
       : null;
 
-  return { roleIds, skillIds, jamWarning };
+  return { roleIds, skillIds, jamWarning, jam };
 }
 
 /**
@@ -323,7 +314,7 @@ export const createPost = os
   .handler(async ({ input, context }) => {
     checkPostProfanity(input);
     assertTeamRequired(input);
-    const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
+    const { roleIds, skillIds, jamWarning, jam } = await resolveReferences(input);
     if (input.teamId != null) {
       await assertTeamLinkable(input.teamId, context.user.id);
     }
@@ -333,10 +324,13 @@ export const createPost = os
       .values({
         authorId: context.user.id,
         ...postColumns(input),
+        expiresAt: initialPostExpiry(jam?.endsAt),
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
+
+    await touchTeamActivity(post.teamId);
 
     await db.insert(collabPostRoles).values(roleIds.map((roleId) => ({ postId: post.id, roleId })));
     if (skillIds.length > 0) {
@@ -525,9 +519,62 @@ export const reopenPost = os
 
     const [updated] = await db
       .update(collabPosts)
-      .set({ status: "recruiting", updatedAt: new Date() })
+      .set({
+        status: "recruiting",
+        // A reopened post starts a fresh (shorter) recruiting window, and
+        // the cleared stamp re-arms the closes-soon nudge for it.
+        expiresAt: daysFromNow(REOPEN_EXTENSION_DAYS),
+        expiryNotifiedAt: null,
+        updatedAt: new Date(),
+      })
       .where(eq(collabPosts.id, input.postId))
       .returning();
+
+    await touchTeamActivity(post.teamId);
+
+    return updated;
+  });
+
+/**
+ * The owner's "still looking" lever — pushes `expires_at` out without
+ * the close-and-reopen dance. Staff get it too, same as every other
+ * post control.
+ */
+export const extendPost = os
+  .use(requireAuthWithPermissions)
+  .input(z.object({ postId: z.number() }))
+  .handler(async ({ input, context }) => {
+    const [post] = await db
+      .select()
+      .from(collabPosts)
+      .where(eq(collabPosts.id, input.postId))
+      .limit(1);
+
+    if (!post) {
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+    }
+
+    const isOwner = post.authorId === context.user.id;
+    if (!isOwner && !context.isStaff) {
+      throw new ORPCError("FORBIDDEN", { message: "You can only extend your own posts." });
+    }
+    if (post.status !== "recruiting") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Only an open post can be extended — reopen it instead.",
+      });
+    }
+
+    const [updated] = await db
+      .update(collabPosts)
+      .set({
+        expiresAt: daysFromNow(EXTEND_DAYS),
+        expiryNotifiedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(collabPosts.id, input.postId))
+      .returning();
+
+    await touchTeamActivity(post.teamId);
 
     return updated;
   });
@@ -756,7 +803,7 @@ const postFacetSchema = {
   skillIds: z.array(z.number()).optional(),
   jamId: z.number().int().positive().optional(),
   teamId: z.string().optional(),
-  status: z.enum(["recruiting", "party_full"]).optional(),
+  status: z.enum(["recruiting", "party_full", "expired"]).optional(),
   search: z.string().optional(),
   experienceLevel: experienceLevelSchema.optional(),
   compensationType: compensationTypeSchema.optional(),
@@ -781,7 +828,13 @@ function buildPostFilter(input: PostFilterInput) {
   const conditions = [];
 
   if (input.type) conditions.push(eq(collabPosts.type, input.type));
-  if (input.status) conditions.push(eq(collabPosts.status, input.status));
+  if (input.status === "party_full") {
+    // The board's CLOSED filter sends `party_full` and means "not
+    // recruiting" — owner-closed and sweep-expired posts both qualify.
+    conditions.push(inArray(collabPosts.status, ["party_full", "expired"]));
+  } else if (input.status) {
+    conditions.push(eq(collabPosts.status, input.status));
+  }
   if (input.experienceLevel)
     conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel));
   if (input.compensationType)
@@ -1125,7 +1178,9 @@ export const respondToPost = os
       throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    if (post.status === "party_full") {
+    // Anything other than open recruiting rejects — `party_full` and the
+    // sweep's `expired` both mean "no longer taking responses".
+    if (post.status !== "recruiting") {
       throw new ORPCError("BAD_REQUEST", {
         message: "This post is no longer accepting responses.",
       });

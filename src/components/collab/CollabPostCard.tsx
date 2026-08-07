@@ -101,8 +101,8 @@ function PostBadges({
         </Badge>
       ) : null}
       {closed ? (
-        <Badge variant="destructive" size="label">
-          CLOSED
+        <Badge variant={post.status === "expired" ? "warning" : "destructive"} size="label">
+          {post.status === "expired" ? "EXPIRED" : "CLOSED"}
         </Badge>
       ) : null}
       <JamBadge jam={post.jam} />
@@ -147,7 +147,7 @@ function YoursBadge() {
  * to a post, leaving the row free to be scannable.
  */
 export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostCardProps) {
-  const isClosed = post.status === "party_full";
+  const isClosed = post.status !== "recruiting";
 
   return (
     <motion.div layout="position">
@@ -197,7 +197,7 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
  * the banner's aspect.
  */
 export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabPostCardProps) {
-  const isClosed = post.status === "party_full";
+  const isClosed = post.status !== "recruiting";
 
   return (
     <motion.div layout="position" className="h-full">

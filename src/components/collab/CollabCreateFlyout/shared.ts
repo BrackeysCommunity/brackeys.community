@@ -380,6 +380,32 @@ export function getStepValidationError(
 }
 
 /**
+ * The first step whose requirements aren't met, in wizard order — what
+ * the REVIEW gate is actually complaining about. Null means the post can
+ * submit. The tab id is the *visible* step (so `details` reports as
+ * `project`), letting callers route straight to it.
+ */
+export function getFirstIncompleteStep(
+  v: WizardFormValues,
+  opts: StepValidationOpts = {},
+): { tabId: WizardTabId; label: string; error: string } | null {
+  const order: { stepId: string; tabId: WizardTabId }[] = [
+    { stepId: "basics", tabId: "basics" },
+    { stepId: "team", tabId: "team" },
+    { stepId: "details", tabId: "project" },
+    { stepId: "roles", tabId: "roles" },
+  ];
+  for (const { stepId, tabId } of order) {
+    const error = getStepValidationError(stepId, v, opts);
+    if (error) {
+      const tab = WIZARD_TABS.find((t) => t.id === tabId);
+      return { tabId, label: tab?.label ?? tabId.toUpperCase(), error };
+    }
+  }
+  return null;
+}
+
+/**
  * The pre-flight checklist, in the order it renders. Every row is a real
  * submit requirement, so "100%" and "the NEXT button works" mean the
  * same thing — the old list mixed in a phantom timezone field and let
@@ -388,32 +414,36 @@ export function getStepValidationError(
 export function getPreflightChecks(
   v: WizardFormValues,
   opts: StepValidationOpts = {},
-): { label: string; ok: boolean }[] {
+): { label: string; ok: boolean; tabId: WizardTabId }[] {
   return [
-    { label: "Post type selected", ok: !!v.type },
-    { label: "Title is descriptive", ok: v.title.trim().length >= 10 },
-    { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30 },
+    { label: "Post type selected", ok: !!v.type, tabId: "basics" },
+    { label: "Title is descriptive", ok: v.title.trim().length >= 10, tabId: "basics" },
+    { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30, tabId: "basics" },
     {
       label: "Team page picked or named",
       ok: getStepValidationError("team", v, opts) === null,
+      tabId: "team",
     },
-    { label: "Project named", ok: v.projectName.trim().length >= 3 },
-    { label: "At least one platform", ok: v.platforms.length > 0 },
+    { label: "Project named", ok: v.projectName.trim().length >= 3, tabId: "project" },
+    { label: "At least one platform", ok: v.platforms.length > 0, tabId: "project" },
     {
       label: "Team size, timeline, experience",
       ok: !!v.teamSize && !!v.projectLength && !!v.experienceLevel,
+      tabId: "project",
     },
-    { label: "At least one role", ok: v.roleIds.length > 0 },
+    { label: "At least one role", ok: v.roleIds.length > 0, tabId: "roles" },
     {
       label: "Compensation set",
       ok:
         v.type !== "paid" ||
         (!!v.compensationType &&
           (v.compensationType === "negotiable" || v.compensationMin !== undefined)),
+      tabId: "project",
     },
     {
       label: "Contact method chosen",
       ok: v.isIndividual || (!!v.contactType && !!v.contactMethod.trim()),
+      tabId: "project",
     },
   ];
 }

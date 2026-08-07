@@ -39,6 +39,9 @@ export interface RpcTeam {
   itchUrl: string | null;
   recruiting: boolean;
   status: string;
+  /** Set by the lifecycle sweep's warning; still set on an auto-archived
+   *  team, which is how the banner tells auto from hand archiving. */
+  archiveWarnedAt: string | Date | null;
   createdAt: string | Date;
   members: TeamMember[];
   skills: { id: number; name: string; category: string | null; memberCount: number }[];
@@ -129,7 +132,11 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
       {isArchived ? (
         <Well variant="ghost" className="border-warning/40 bg-warning/5 p-3 backdrop-blur-none">
           <Text size="xs" className="tracking-widest text-warning uppercase">
-            This team is archived — the page is read-only.
+            {/* A lingering warning stamp means the lifecycle sweep did the
+                archiving, not a person — say so, and that it's undoable. */}
+            {team.archiveWarnedAt
+              ? "This team was archived automatically after a quiet spell — the page is read-only. Restore it from MANAGE to bring it back."
+              : "This team is archived — the page is read-only."}
           </Text>
         </Well>
       ) : null}

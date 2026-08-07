@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
@@ -127,30 +128,37 @@ export function TagPickerPanel({
                   >
                     {category}
                   </Text>
-                  {items.map((option) => {
-                    const selected = selectedIds.includes(option.id);
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        // Keeps focus in the input, so the list can't blur
-                        // out from under the click and typing continues
-                        // straight after a pick.
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => toggle(option.id)}
-                        disabled={!selected && atCap}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs",
-                          "transition-colors outline-none hover:bg-muted/40 focus-visible:bg-muted/40",
-                          "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
-                          selected && "text-primary",
-                        )}
-                      >
-                        {option.name}
-                        {selected ? <HugeiconsIcon icon={Tick02Icon} size={12} /> : null}
-                      </button>
-                    );
-                  })}
+                  <div className="flex flex-col gap-1 px-1.5 pb-1.5">
+                    {items.map((option) => {
+                      const selected = selectedIds.includes(option.id);
+                      return (
+                        <Chonk
+                          key={option.id}
+                          variant="surface"
+                          size="sm"
+                          render={
+                            <button
+                              type="button"
+                              // Keeps focus in the input, so the list can't
+                              // blur out from under the click and typing
+                              // continues straight after a pick.
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => toggle(option.id)}
+                              disabled={!selected && atCap}
+                            />
+                          }
+                          className={cn(
+                            "w-full items-center justify-between gap-2 px-2.5 py-1.5 text-xs",
+                            "disabled:cursor-not-allowed disabled:opacity-40",
+                            selected && "text-primary",
+                          )}
+                        >
+                          {option.name}
+                          {selected ? <HugeiconsIcon icon={Tick02Icon} size={12} /> : null}
+                        </Chonk>
+                      );
+                    })}
+                  </div>
                 </div>
               ))
             )}

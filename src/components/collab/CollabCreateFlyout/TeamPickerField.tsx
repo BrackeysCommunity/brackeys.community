@@ -4,11 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";
@@ -79,21 +79,18 @@ export function TeamPickerField({
       {isLoading ? null : (
         <div className="flex flex-col gap-1.5">
           {(myTeams ?? []).map((team) => (
-            <button
+            <Chonk
               key={team.id}
-              type="button"
-              onClick={() => onChange(team.id)}
-              className={cn(
-                "flex items-center gap-3 border border-muted/40 bg-background p-2 text-left",
-                "transition-colors outline-none hover:border-primary/50 hover:bg-muted/10",
-                "focus-visible:ring-1 focus-visible:ring-ring dark:bg-emboss-surface",
-              )}
+              variant="surface"
+              size="sm"
+              render={<button type="button" onClick={() => onChange(team.id)} />}
+              className="w-full items-center gap-3 p-2"
             >
               <UserAvatar avatarUrl={team.avatarUrl} username={team.name} size={28} />
               <Text as="span" size="sm" ellipsis className="min-w-0 flex-1">
                 {team.name}
               </Text>
-            </button>
+            </Chonk>
           ))}
 
           {creating ? (
