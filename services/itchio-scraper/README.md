@@ -187,22 +187,10 @@ builds green and never runs:
   fresh deploy and confirm the manifest reports
   `builder: DOCKERFILE` and the right `startCommand`.
 
-### Migrating from the single pre-split service
-
-The old service runs `bun run start`, which still works — [src/index.ts](./src/index.ts)
-is now a shim that runs all three tiers back to back in one process, in
-priority order. That keeps the pre-split service correct but on one schedule,
-which is exactly the coupling the split removes, so it's a bridge and not a
-destination.
-
-Cut over **additively**, so there's never a window where nothing is scraping:
-
-1. Stand up the three new services as above.
-2. Watch one tick of each in the run logs (`[live] synced …/… jams`,
-   `[discover] listings: …`, `[results] jams=…`).
-3. Only then delete — or pause the cron on — the old combined service.
-4. Delete `src/index.ts`, its test, and `railway.toml` once the old service is
-   gone.
+There is no combined entrypoint and no default tier — the image's `CMD` fails
+with a usage message if a service is deployed without a `startCommand`. That's
+deliberate: defaulting to one of the tiers would let a misconfigured service
+quietly add a second scraper to itch's rate budget.
 
 ## Running locally
 

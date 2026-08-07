@@ -21,4 +21,9 @@ COPY services/itchio-scraper/src ./services/itchio-scraper/src
 COPY src/db/schema.ts ./src/db/schema.ts
 
 WORKDIR /app/services/itchio-scraper
-CMD ["bun", "run", "start"]
+
+# No default tier. Every service supplies its own startCommand from its
+# railway.*.toml (live / discover / results / backfill), and defaulting to one
+# of them would mean a misconfigured service silently adds a second scraper to
+# itch's rate budget instead of failing where someone will see it.
+CMD ["sh", "-c", "echo 'No startCommand set. Pick a tier: bun run live | discover | results | backfill' >&2; exit 1"]
