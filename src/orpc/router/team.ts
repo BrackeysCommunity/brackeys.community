@@ -345,9 +345,18 @@ export const getTeam = os
           itchJamSlug: itchJams.slug,
           // The canonical project this showcase row is a placement of, when
           // it has one — what makes a showcase tile a link to the project's
-          // own page rather than an exit to itch. Both joins are on unique
-          // keys, so neither can multiply the placement rows.
+          // own page rather than an exit to itch, and (since plan step 6)
+          // where the tile's identity comes from: `importMemberProject` no
+          // longer copies surface fields, so the canonical row is the only
+          // fresh source. Both joins are on unique keys, so neither can
+          // multiply the placement rows.
           canonicalSlug: projects.slug,
+          canonicalTitle: projects.title,
+          canonicalDescription: projects.description,
+          canonicalUrl: projects.url,
+          canonicalImageUrl: projects.imageUrl,
+          canonicalImageKey: projects.imageKey,
+          canonicalType: projects.type,
         })
         .from(teamProjects)
         .leftJoin(itchJams, eq(teamProjects.jamId, itchJams.jamId))
@@ -447,22 +456,98 @@ export const getTeam = os
         : Promise.resolve([]),
     ]);
 
+    // Rows that carry no jam facts of their own (post-step-6 placements)
+    // coalesce them from the canonical row's `project_jam_links` — fetched
+    // separately so a project with several links can't multiply the tiles.
+    const linkProjectIds = [
+      ...new Set(
+        projectRows
+          .filter(
+            (row) =>
+              row.project.projectId != null &&
+              row.project.jamName == null &&
+              row.project.jamId == null,
+          )
+          .map((row) => row.project.projectId as string),
+      ),
+    ];
+    const jamLinkRows =
+      linkProjectIds.length > 0
+        ? await db
+            .select({
+              projectId: projectJamLinks.projectId,
+              jamName: projectJamLinks.jamName,
+              jamUrl: projectJamLinks.jamUrl,
+              submissionUrl: projectJamLinks.submissionUrl,
+              result: projectJamLinks.result,
+              participatedAt: projectJamLinks.participatedAt,
+            })
+            .from(projectJamLinks)
+            .where(inArray(projectJamLinks.projectId, linkProjectIds))
+        : [];
+    const jamLinksByProject = new Map<string, typeof jamLinkRows>();
+    for (const link of jamLinkRows) {
+      const list = jamLinksByProject.get(link.projectId) ?? [];
+      list.push(link);
+      jamLinksByProject.set(link.projectId, list);
+    }
+
     return {
       ...team,
       avatarUrl: await resolveTeamAvatarUrl(team),
       members: memberRows,
       skills: skillRows,
       projects: await Promise.all(
-        projectRows.map(({ project, itchJamTitle, itchJamSlug, canonicalSlug }) =>
-          serializeTeamProject({
-            ...project,
-            projectSlug: canonicalSlug,
-            jamName: project.jamName ?? itchJamTitle,
-            jamUrl: project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null),
-            // The scraped slug, so the jam log can link to the jam's page
-            // here rather than only off to itch.
-            jamSlug: itchJamSlug,
-          }),
+        projectRows.map(
+          ({
+            project,
+            itchJamTitle,
+            itchJamSlug,
+            canonicalSlug,
+            canonicalTitle,
+            canonicalDescription,
+            canonicalUrl,
+            canonicalImageUrl,
+            canonicalImageKey,
+            canonicalType,
+          }) => {
+            const links = project.projectId ? jamLinksByProject.get(project.projectId) : undefined;
+            const jamLink =
+              links?.find(
+                (link) => link.participatedAt?.getTime() === project.participatedAt?.getTime(),
+              ) ??
+              links?.[0] ??
+              null;
+            // A placement's own upload stays its override (surface beats
+            // canonical for covers, per D2); everything identity-shaped
+            // prefers the canonical row, which is the only fresh source for
+            // a placement-only import.
+            const hasPlacementImage = project.imageKey != null || project.imageUrl != null;
+            return serializeTeamProject({
+              ...project,
+              title: canonicalTitle ?? project.title,
+              description: canonicalDescription ?? project.description,
+              url: canonicalUrl ?? project.url,
+              imageKey: hasPlacementImage ? project.imageKey : canonicalImageKey,
+              imageUrl: hasPlacementImage ? project.imageUrl : canonicalImageUrl,
+              projectSlug: canonicalSlug,
+              canonicalType,
+              jamName: project.jamName ?? itchJamTitle ?? jamLink?.jamName ?? null,
+              jamUrl:
+                project.jamUrl ??
+                (itchJamSlug ? jamUrl(itchJamSlug) : null) ??
+                jamLink?.jamUrl ??
+                null,
+              submissionUrl: project.submissionUrl ?? jamLink?.submissionUrl ?? null,
+              result: project.result ?? jamLink?.result ?? null,
+              // A coalesced row's date should be when the jam ran, not when
+              // the placement landed in our DB.
+              participatedAt: project.participatedAt ?? jamLink?.participatedAt ?? null,
+              // The scraped slug, so the jam log can link to the jam's page
+              // here rather than only off to itch.
+              jamSlug: itchJamSlug,
+            });
+          },
         ),
       ),
       openPosts: openPostRows.map((p) => ({ ...p, roles: rolesByPost.get(p.id) ?? [] })),
@@ -1112,6 +1197,9 @@ export const addTeamProject = os
       });
     }
 
+    // The placement stays surface-only (plan step 6): the jam facts just
+    // landed on `project_jam_links`, so the legacy free-text columns stay
+    // null on new rows and the reads coalesce them back in for old ones.
     const [project] = await db
       .insert(teamProjects)
       .values({
@@ -1129,10 +1217,7 @@ export const addTeamProject = os
             }
           : {}),
         pinned: input.pinned ?? false,
-        jamName: input.jamName,
-        jamUrl: input.jamUrl || null,
         submissionUrl: input.submissionUrl || null,
-        result: input.result,
         participatedAt,
         addedBy: context.user.id,
         source: "manual",
@@ -1148,11 +1233,12 @@ export const addTeamProject = os
  * A copy, not a link: the team's showcase must survive the member (or
  * their copy) leaving.
  *
- * The *identity* is no longer copied though: both placements point at the
- * same canonical project, so the two can't drift about what the thing is,
- * and the team's claim lands in `project_teams`. The surface fields are
- * still snapshotted here; they stop being written once the showcase reads
- * identity from the canonical row (plan step 6).
+ * Placement-only since plan step 6: both placements point at the same
+ * canonical project and the showcase reads identity (title, description,
+ * url, cover) from it, so nothing here can drift. What the copy keeps is
+ * surface and provenance — curation order, the source pointer, and the
+ * jam FK the team jam log dates itself by. `title` snapshots too, but only
+ * because the column is NOT NULL; the reads prefer the canonical one.
  */
 export const importMemberProject = os
   .use(requireAuth)
@@ -1205,21 +1291,10 @@ export const importMemberProject = os
         projectId,
         type: source.type,
         title: source.title,
-        description: source.description,
-        url: source.url,
-        imageUrl: source.imageUrl,
-        imageKey: source.imageKey,
-        imageFilename: source.imageFilename,
-        imageMimeType: source.imageMimeType,
-        imageSizeBytes: source.imageSizeBytes,
         source: source.source,
         sourceId: source.sourceId,
         sourceProfileProjectId: source.id,
         jamId: source.jamId,
-        jamName: source.jamName,
-        jamUrl: source.jamUrl,
-        submissionUrl: source.submissionUrl,
-        result: source.result,
         participatedAt: source.participatedAt,
         addedBy: context.user.id,
       })
@@ -1272,6 +1347,24 @@ export const updateTeamProject = os
       })
       .where(eq(teamProjects.id, input.projectId))
       .returning();
+
+    // Identity lives on the canonical row and the showcase reads it from
+    // there, so the edit has to land there to be visible — same write-through
+    // the profile's `updateProject` does. The editor is a member of a team
+    // that claims the project, which is exactly the §1.3 editor set.
+    const touchesIdentity =
+      input.title !== undefined || input.description !== undefined || input.url !== undefined;
+    if (project.projectId && touchesIdentity) {
+      await db
+        .update(projects)
+        .set({
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.description !== undefined ? { description: input.description || null } : {}),
+          ...(input.url !== undefined ? { url: input.url || null } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, project.projectId));
+    }
 
     return serializeTeamProject(updated);
   });

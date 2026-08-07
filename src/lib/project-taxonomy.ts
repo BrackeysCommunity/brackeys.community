@@ -103,6 +103,21 @@ export const RELEASE_STATUSES = [
 
 export type ReleaseStatus = (typeof RELEASE_STATUSES)[number];
 
+/**
+ * Slugs no project may hold, generated or renamed. `game` guards the
+ * `/projects/game/$gameId` mint route's namespace; the rest are the same
+ * future-route insurance the team slugs carry.
+ */
+export const RESERVED_PROJECT_SLUGS: ReadonlySet<string> = new Set([
+  "game",
+  "new",
+  "index",
+  "all",
+  "mine",
+  "settings",
+  "archive",
+]);
+
 /** Longest slug we'll generate from a title, before any collision suffix. */
 const SLUG_MAX_LENGTH = 60;
 

@@ -14,7 +14,13 @@
 import { eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { type ProjectType, itchJamEntries, profileProjects, teamProjects } from "@/db/schema";
+import {
+  type ProjectType,
+  itchJamEntries,
+  profileProjects,
+  projects,
+  teamProjects,
+} from "@/db/schema";
 import * as sync from "@/lib/project-sync";
 
 export type {
@@ -77,6 +83,13 @@ export function convergeJamPlacements(
   return sync.convergeJamPlacements(db, profileId, entries);
 }
 
+/** @see {@link sync.ensureProjectForScrapedGame} */
+export function ensureProjectForScrapedGame(
+  gameId: number,
+): Promise<{ id: string; slug: string; published: boolean } | null> {
+  return sync.ensureProjectForScrapedGame(db, gameId);
+}
+
 /**
  * Resolve `profile_projects` / `team_projects` `sourceId` values to itch
  * game ids.
@@ -105,8 +118,19 @@ export async function resolveEntryIdsToGameIds(entryIds: number[]): Promise<Map<
  * jam backlinks point at. Orphans with free-text credits or jam links are
  * kept (it's still someone's shipped work); never-anchored empties are for a
  * periodic sweep to collect, not a synchronous cascade.
+ *
+ * A scrape-minted row (`source = 'itchio'` with a `source_game_id`) is
+ * **self-anchoring**: the scraped corpus is its anchor, and the corpus
+ * fast-follow mints those rows unanchored by definition. Without this
+ * exemption the sweep would delete every one of them.
  */
 export async function projectHasAnchors(projectId: string): Promise<boolean> {
+  const [project] = await db
+    .select({ source: projects.source, sourceGameId: projects.sourceGameId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (project && project.source === "itchio" && project.sourceGameId != null) return true;
   const [profileRow] = await db
     .select({ id: profileProjects.id })
     .from(profileProjects)

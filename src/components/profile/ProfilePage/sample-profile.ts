@@ -255,6 +255,27 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     rank: 1,
   },
 
+  credits: [
+    {
+      id: 1,
+      slug: "cathedral-of-wires",
+      title: "Cathedral of Wires",
+      role: "Composer",
+      kind: "game",
+      teamName: "Night Shift Crew",
+      year: 2026,
+    },
+    {
+      id: 2,
+      slug: "bramble-tileset",
+      title: "Bramble Tileset",
+      role: "Palette",
+      kind: "assets",
+      teamName: null,
+      year: 2025,
+    },
+  ],
+
   skills: [
     { id: 1, name: "TypeScript", state: "active", category: "engineering" },
     { id: 2, name: "Godot", state: "active", category: "engine" },

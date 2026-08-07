@@ -9,11 +9,13 @@ import {
   itchJamEntries,
   itchJamEntryResults,
   itchJams,
+  profileProjects,
   profileUrlStubs,
   projectContributors,
   projectJamLinks,
   projectTeams,
   projects,
+  teamProjects,
   teams,
 } from "@/db/schema";
 import { checkProfanity } from "@/lib/profanity";
@@ -21,8 +23,14 @@ import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
+import { PROFILE_PROJECT_SUBTYPES, getAllowedSubTypesForProjectType } from "@/lib/profile-projects";
 import { canEditProject, loadProjectForEditor } from "@/lib/project-editors";
-import { MANUAL_PROJECT_TYPES, RELEASE_STATUSES } from "@/lib/project-taxonomy";
+import {
+  MANUAL_PROJECT_TYPES,
+  RELEASE_STATUSES,
+  RESERVED_PROJECT_SLUGS,
+} from "@/lib/project-taxonomy";
+import { ensureProjectForScrapedGame } from "@/lib/projects";
 import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
 
 /**
@@ -45,91 +53,104 @@ export const getProject = os
 
     const viewerId = context.user?.id ?? null;
 
-    const [contributorRows, teamRows, derivedJams, explicitJams] = await Promise.all([
-      db
-        .select({
-          id: projectContributors.id,
-          profileId: projectContributors.profileId,
-          displayName: projectContributors.displayName,
-          role: projectContributors.role,
-          source: projectContributors.source,
-          sortOrder: projectContributors.sortOrder,
-          avatarUrl: developerProfiles.avatarUrl,
-          username: developerProfiles.guildNickname,
-          discordUsername: developerProfiles.discordUsername,
-          urlStub: profileUrlStubs.stub,
-        })
-        .from(projectContributors)
-        // Left joins: a free-text credit has no profile to join to, and that
-        // is the whole point — a contributor who was never on the platform
-        // still gets their name on the page.
-        .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
-        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
-        .where(eq(projectContributors.projectId, project.id))
-        .orderBy(projectContributors.sortOrder, projectContributors.id),
-      db
-        .select({
-          teamId: teams.id,
-          name: teams.name,
-          slug: teams.slug,
-          tagline: teams.tagline,
-          avatarUrl: teams.avatarUrl,
-          avatarKey: teams.avatarKey,
-        })
-        .from(projectTeams)
-        .innerJoin(teams, eq(projectTeams.teamId, teams.id))
-        .where(eq(projectTeams.projectId, project.id)),
-      // Derived jam record: every appearance of this *game* on itch, joined
-      // by game id. Zero maintenance — a jam the game entered after import
-      // shows up the next time the scraper sees it.
-      project.sourceGameId != null
-        ? db
-            .select({
-              entryId: itchJamEntries.entryId,
-              jamId: itchJams.jamId,
-              jamSlug: itchJams.slug,
-              jamTitle: itchJams.title,
-              jamEntriesCount: itchJams.entriesCount,
-              submittedAt: itchJamEntries.submittedAt,
-              submissionUrl: itchJamEntries.rateUrl,
-              ratingCount: itchJamEntries.ratingCount,
-              rank: itchJamEntryResults.rank,
-            })
-            .from(itchJamEntries)
-            .innerJoin(itchJams, eq(itchJamEntries.jamId, itchJams.jamId))
-            .leftJoin(
-              itchJamEntryResults,
-              and(
-                eq(itchJamEntryResults.entryId, itchJamEntries.entryId),
-                sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
-              ),
-            )
-            .where(
-              and(
-                eq(itchJamEntries.gameId, project.sourceGameId),
-                isNull(itchJamEntries.missingSince),
-                isNull(itchJams.missingSince),
-              ),
-            )
-            .orderBy(desc(itchJamEntries.submittedAt))
-        : Promise.resolve([]),
-      db
-        .select({
-          id: projectJamLinks.id,
-          jamId: projectJamLinks.jamId,
-          jamSlug: itchJams.slug,
-          jamTitle: itchJams.title,
-          jamEntriesCount: itchJams.entriesCount,
-          jamName: projectJamLinks.jamName,
-          jamUrl: projectJamLinks.jamUrl,
-          submissionUrl: projectJamLinks.submissionUrl,
-          result: projectJamLinks.result,
-          participatedAt: projectJamLinks.participatedAt,
-        })
-        .from(projectJamLinks)
-        .leftJoin(itchJams, eq(projectJamLinks.jamId, itchJams.jamId))
-        .where(eq(projectJamLinks.projectId, project.id)),
-    ]);
+    const [contributorRows, teamRows, derivedJams, explicitJams, profileAnchor, teamAnchor] =
+      await Promise.all([
+        db
+          .select({
+            id: projectContributors.id,
+            profileId: projectContributors.profileId,
+            displayName: projectContributors.displayName,
+            role: projectContributors.role,
+            source: projectContributors.source,
+            sortOrder: projectContributors.sortOrder,
+            avatarUrl: developerProfiles.avatarUrl,
+            username: developerProfiles.guildNickname,
+            discordUsername: developerProfiles.discordUsername,
+            urlStub: profileUrlStubs.stub,
+          })
+          .from(projectContributors)
+          // Left joins: a free-text credit has no profile to join to, and that
+          // is the whole point — a contributor who was never on the platform
+          // still gets their name on the page.
+          .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
+          .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+          .where(eq(projectContributors.projectId, project.id))
+          .orderBy(projectContributors.sortOrder, projectContributors.id),
+        db
+          .select({
+            teamId: teams.id,
+            name: teams.name,
+            slug: teams.slug,
+            tagline: teams.tagline,
+            avatarUrl: teams.avatarUrl,
+            avatarKey: teams.avatarKey,
+          })
+          .from(projectTeams)
+          .innerJoin(teams, eq(projectTeams.teamId, teams.id))
+          .where(eq(projectTeams.projectId, project.id)),
+        // Derived jam record: every appearance of this *game* on itch, joined
+        // by game id. Zero maintenance — a jam the game entered after import
+        // shows up the next time the scraper sees it.
+        project.sourceGameId != null
+          ? db
+              .select({
+                entryId: itchJamEntries.entryId,
+                jamId: itchJams.jamId,
+                jamSlug: itchJams.slug,
+                jamTitle: itchJams.title,
+                jamEntriesCount: itchJams.entriesCount,
+                submittedAt: itchJamEntries.submittedAt,
+                submissionUrl: itchJamEntries.rateUrl,
+                ratingCount: itchJamEntries.ratingCount,
+                rank: itchJamEntryResults.rank,
+              })
+              .from(itchJamEntries)
+              .innerJoin(itchJams, eq(itchJamEntries.jamId, itchJams.jamId))
+              .leftJoin(
+                itchJamEntryResults,
+                and(
+                  eq(itchJamEntryResults.entryId, itchJamEntries.entryId),
+                  sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
+                ),
+              )
+              .where(
+                and(
+                  eq(itchJamEntries.gameId, project.sourceGameId),
+                  isNull(itchJamEntries.missingSince),
+                  isNull(itchJams.missingSince),
+                ),
+              )
+              .orderBy(desc(itchJamEntries.submittedAt))
+          : Promise.resolve([]),
+        db
+          .select({
+            id: projectJamLinks.id,
+            jamId: projectJamLinks.jamId,
+            jamSlug: itchJams.slug,
+            jamTitle: itchJams.title,
+            jamEntriesCount: itchJams.entriesCount,
+            jamName: projectJamLinks.jamName,
+            jamUrl: projectJamLinks.jamUrl,
+            submissionUrl: projectJamLinks.submissionUrl,
+            result: projectJamLinks.result,
+            participatedAt: projectJamLinks.participatedAt,
+          })
+          .from(projectJamLinks)
+          .leftJoin(itchJams, eq(projectJamLinks.jamId, itchJams.jamId))
+          .where(eq(projectJamLinks.projectId, project.id)),
+        // Anchor probes for the indexability rule below — a placement anywhere
+        // counts even when its owner's credit row was since removed.
+        db
+          .select({ id: profileProjects.id })
+          .from(profileProjects)
+          .where(eq(profileProjects.projectId, project.id))
+          .limit(1),
+        db
+          .select({ id: teamProjects.id })
+          .from(teamProjects)
+          .where(eq(teamProjects.projectId, project.id))
+          .limit(1),
+      ]);
 
     // Editors = createdBy ∪ profile-linked contributors ∪ members of a
     // claiming team. Computed here so the page never has to guess.
@@ -190,7 +211,20 @@ export const getProject = os
         })),
     ].sort((a, b) => (b.participatedAt?.getTime() ?? 0) - (a.participatedAt?.getTime() ?? 0));
 
+    // Indexing follows anchoring, not existence (§7.4.3): a lazily-minted
+    // single-jam stranger's game is real but thin, so it stays `noindex`
+    // until something local claims it — or until a second jam appearance
+    // gives the page content no jam page has.
+    const anchored =
+      project.createdBy != null ||
+      profileAnchor.length > 0 ||
+      teamAnchor.length > 0 ||
+      teamRows.length > 0 ||
+      contributorRows.some((row) => row.profileId != null) ||
+      derivedJams.length > 1;
+
     return {
+      indexable: project.published && anchored,
       project: {
         ...project,
         // A project-scoped upload wins over the provider cover, same
@@ -232,6 +266,26 @@ export const listProjectsForGames = os
     return { projects: rows };
   });
 
+/**
+ * The project page for a scraped itch game, minted on first visit.
+ *
+ * The `/projects/game/$gameId` route calls this and redirects to the
+ * canonical slug. Anonymous on purpose — the visit *is* the trigger — and
+ * safe at scale: minting is idempotent (the partial unique index on
+ * `source_game_id` absorbs races), the route is `noindex, nofollow`, and a
+ * game we hold no live entry for mints nothing.
+ *
+ * Returns null for an unpublished row too: that's the staff kill switch
+ * (§7.5) reading as "no page here" rather than as a redirect to a 404.
+ */
+export const resolveProjectForGame = os
+  .input(z.object({ gameId: z.number().int().positive() }))
+  .handler(async ({ input }) => {
+    const project = await ensureProjectForScrapedGame(input.gameId);
+    if (!project || !project.published) return null;
+    return { slug: project.slug };
+  });
+
 // ── Canonical fields ────────────────────────────────────────────────────────
 
 /**
@@ -245,8 +299,8 @@ export const listProjectsForGames = os
  *
  * Not editable here: `published` / `restrictedAt` (provider truth and the
  * staff hide, §7.5), the cover (its own upload endpoint, since it writes to
- * MinIO), `sourceGameId` (identity), and the slug — a rename is its own
- * flow, mirroring `setTeamSlug`, and isn't built yet.
+ * MinIO), `sourceGameId` (identity), and the slug — a rename is
+ * `setProjectSlug`, its own explicit act.
  */
 export const updateProjectDetails = os
   .use(requireAuth)
@@ -257,6 +311,7 @@ export const updateProjectDetails = os
       description: z.string().trim().max(2000).nullable().optional(),
       url: z.url().nullable().optional().or(z.literal("")),
       type: z.enum(MANUAL_PROJECT_TYPES).optional(),
+      subTypes: z.array(z.enum(PROFILE_PROJECT_SUBTYPES)).optional(),
       links: z
         .array(z.object({ label: z.string().trim().min(1).max(40), url: z.url() }))
         .max(6)
@@ -290,6 +345,26 @@ export const updateProjectDetails = os
       throw new ORPCError("BAD_REQUEST", { message: "That release date isn't a date." });
     }
 
+    // Sub-types follow the kind: validated against the kind being saved, and
+    // silently shed when a kind change makes them meaningless (a `web`
+    // project has no `music`). Same rule the profile placement editor
+    // enforces — this endpoint just finally applies it to the canonical row.
+    const nextType = input.type ?? project.type;
+    let nextSubTypes: string[] | undefined;
+    if (input.subTypes !== undefined) {
+      const allowed = new Set<string>(getAllowedSubTypesForProjectType(nextType));
+      if (input.subTypes.some((subType) => !allowed.has(subType))) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Selected sub-types do not match the chosen project type.",
+        });
+      }
+      nextSubTypes = [...new Set(input.subTypes)];
+    } else if (input.type !== undefined) {
+      const allowed = new Set<string>(getAllowedSubTypesForProjectType(nextType));
+      const kept = project.subTypes.filter((subType) => allowed.has(subType));
+      if (kept.length !== project.subTypes.length) nextSubTypes = kept;
+    }
+
     const [updated] = await db
       .update(projects)
       .set({
@@ -297,6 +372,7 @@ export const updateProjectDetails = os
         ...(input.description !== undefined ? { description: input.description || null } : {}),
         ...(input.url !== undefined ? { url: input.url || null } : {}),
         ...(input.type !== undefined ? { type: input.type } : {}),
+        ...(nextSubTypes !== undefined ? { subTypes: nextSubTypes } : {}),
         ...(input.links !== undefined ? { links: input.links } : {}),
         ...(input.releaseStatus !== undefined ? { releaseStatus: input.releaseStatus } : {}),
         ...(releasedAt !== undefined ? { releasedAt } : {}),
@@ -305,6 +381,51 @@ export const updateProjectDetails = os
       .where(eq(projects.id, input.projectId))
       .returning({ id: projects.id, slug: projects.slug });
 
+    return updated ?? null;
+  });
+
+// A rename is first-come-first-served with no staff gating, same policy as
+// team handles. Longer ceiling than a team's 32 because generated slugs run
+// to 60 chars plus a collision suffix, and a rename must be able to keep one.
+const SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{1,78}[a-z0-9]$/;
+
+/**
+ * Rename a project's URL handle. Its own endpoint rather than a field on
+ * `updateProjectDetails` so an ordinary details save can never move the URL
+ * the viewer is sitting on — a rename is an explicit act.
+ */
+export const setProjectSlug = os
+  .use(requireAuth)
+  .input(z.object({ projectId: z.string(), slug: z.string().min(3).max(80) }))
+  .handler(async ({ input, context }) => {
+    await requireProjectEditor(input.projectId, context.user.id);
+
+    const slug = input.slug.toLowerCase().trim();
+    if (!SLUG_REGEX.test(slug)) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "Handle must be 3-80 characters, start and end with a letter or number, and contain only lowercase letters, numbers, hyphens, and underscores.",
+      });
+    }
+    if (RESERVED_PROJECT_SLUGS.has(slug)) {
+      throw new ORPCError("BAD_REQUEST", { message: "That handle is reserved." });
+    }
+    checkProfanity(slug, "Handle");
+
+    const [existing] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+    if (existing && existing.id !== input.projectId) {
+      throw new ORPCError("CONFLICT", { message: "This handle is already taken." });
+    }
+
+    const [updated] = await db
+      .update(projects)
+      .set({ slug, updatedAt: new Date() })
+      .where(eq(projects.id, input.projectId))
+      .returning({ id: projects.id, slug: projects.slug });
     return updated ?? null;
   });
 

@@ -291,7 +291,7 @@ export function CollabSearchInput({ className }: { className?: string }) {
       placeholder="Search roles and projects…"
       autoComplete="off"
       size="default"
-      containerClassName={cn("dark:bg-emboss-surface!", className)}
+      containerClassName={className}
       className="text-[11px] tracking-widest"
     />
   );

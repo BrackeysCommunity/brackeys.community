@@ -34,8 +34,9 @@ function platformLabel(platform: string): string {
  * image still reads as the game's own tile rather than a grey hole.
  *
  * Links inward to `/projects/$slug` when the game has a canonical project
- * here, and off to itch otherwise — which is the common case, since a
- * project row only exists when something local anchors it.
+ * here, and to the mint-on-visit route otherwise — `rel="nofollow"` so a
+ * crawler walking a 3k-entry grid doesn't mint 3k rows; the itch link lives
+ * on the project page it lands on.
  */
 export function JamEntryCard({
   entry,
@@ -114,14 +115,14 @@ export function JamEntryCard({
       {body}
     </RouterLink>
   ) : (
-    <a
-      href={entry.gameUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+    <RouterLink
+      to="/projects/game/$gameId"
+      params={{ gameId: String(entry.gameId) }}
+      rel="nofollow"
       className="flex flex-col gap-1.5"
     >
       {body}
-    </a>
+    </RouterLink>
   );
 
   // A member chip has to be its own link (to their profile), and a link

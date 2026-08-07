@@ -35,8 +35,10 @@
     "railway:db:migrate": "railway run -- drizzle-kit migrate",
     "railway:db:push": "railway run -- drizzle-kit push",
     "railway:db:studio": "railway run -- drizzle-kit studio",
-    "railway:backfill:projects": "railway run -- bun scripts/backfill-projects.ts",
-    "railway:backfill:projects:dry": "railway run -- bun scripts/backfill-projects.ts --dry-run",
+    "railway:backfill:projects": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun scripts/backfill-projects.ts'",
+    "railway:backfill:projects:dry": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun scripts/backfill-projects.ts --dry-run'",
+    "railway:seed:projects": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun scripts/seed-test-projects.ts'",
+    "railway:seed:projects:clean": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun scripts/seed-test-projects.ts --clean'",
     "railway:scraper:drain": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper drain'",
     "railway:scraper:backfill": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper backfill'",
     "railway:scraper:resync": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper resync'"

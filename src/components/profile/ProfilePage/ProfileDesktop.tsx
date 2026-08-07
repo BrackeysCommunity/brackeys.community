@@ -1,6 +1,7 @@
 import { ProfileAbout } from "./ProfileAbout";
 import { ProfileActivitySection } from "./ProfileActivity";
 import { ProfileAvailabilitySection } from "./ProfileAvailability";
+import { ProfileCreditsSection } from "./ProfileCredits";
 import { ProfileHero } from "./ProfileHero";
 import { ProfileJamLogSection } from "./ProfileJamLog";
 import { ProfileLinkedAccountsSection } from "./ProfileLinkedAccounts";
@@ -49,6 +50,7 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             queryKey={queryKey}
           />
           <ProfileJamLogSection index="03" best={profile.jamLogBest} entries={profile.jamLog} />
+          <ProfileCreditsSection index="04" credits={profile.credits} />
         </div>
 
         <div className="flex flex-col gap-6">

@@ -41,9 +41,10 @@ export const Route = createFileRoute("/projects/$projectSlug")({
         { property: "og:type", content: "website" },
         ...(project.imageUrl ? [{ property: "og:image", content: project.imageUrl }] : []),
         { name: "twitter:card", content: project.imageUrl ? "summary_large_image" : "summary" },
-        // An unpublished project is visible only to its editors; keep it out
-        // of the index even for them.
-        ...(project.published ? [] : [{ name: "robots", content: "noindex" }]),
+        // Indexing follows anchoring, not existence: unpublished pages and
+        // unanchored single-jam scrape-mints both stay out of the index —
+        // the server computes which is which.
+        ...(loaderData.indexable ? [] : [{ name: "robots", content: "noindex" }]),
       ],
     };
   },

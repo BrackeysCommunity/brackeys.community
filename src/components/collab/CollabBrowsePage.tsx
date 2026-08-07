@@ -479,7 +479,7 @@ function CollabHero({ authenticated, onCreate }: { authenticated: boolean; onCre
       notchOpts
       // The gradient is the surface's alone — see the team hero for why
       // it can't ride on the frame.
-      surfaceClassName="bg-card bg-linear-to-br from-primary/12 via-card to-card backdrop-blur-none"
+      surfaceClassName="bg-card bg-linear-to-br from-deboss-surface via-deboss-surface to-primary/12 backdrop-blur-none"
     >
       <GraphPaper fade="bottom-left" />
       <div className="relative flex flex-wrap items-end justify-between gap-6 p-6">

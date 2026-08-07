@@ -407,7 +407,7 @@ function TeamMasthead({
       notchOpts
       // The wash is the surface's alone — the notched corners fall outside
       // its clip path, and `Well` fills those with the frame's lighter face.
-      surfaceClassName="bg-card bg-linear-to-br from-primary/12 via-card to-card backdrop-blur-none"
+      surfaceClassName="bg-card bg-linear-to-br from-deboss-surface via-deboss-surface to-primary/12 backdrop-blur-none"
     >
       {team.bannerUrl ? (
         <div

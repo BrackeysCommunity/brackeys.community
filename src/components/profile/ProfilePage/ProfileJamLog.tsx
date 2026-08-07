@@ -162,16 +162,23 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
           </Text>
         ) : null}
       </div>
-      <div className="flex flex-col items-end leading-tight">
-        <Text bold className="text-2xl tabular-nums">
-          {entry.rank != null ? `#${entry.rank}` : "—"}
-        </Text>
-        {entry.totalEntries ? (
-          <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
-            /{entry.totalEntries}
+      {/* The scraped Overall placement, "#rank / total entries". The em
+          dash means "tracked jam, no rank yet" (voting open, or results
+          never scraped); a free-text jam can never earn one, so it shows
+          nothing rather than a dash that reads as a bug. Typed results on
+          those rows surface as the ⚐ pill beside the title instead. */}
+      {entry.rank != null || entry.jamId != null ? (
+        <div className="flex flex-col items-end leading-tight">
+          <Text bold className="text-2xl tabular-nums">
+            {entry.rank != null ? `#${entry.rank}` : "—"}
           </Text>
-        ) : null}
-      </div>
+          {entry.totalEntries ? (
+            <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
+              /{entry.totalEntries}
+            </Text>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

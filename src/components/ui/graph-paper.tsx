@@ -31,7 +31,7 @@ export interface GraphPaperProps {
  */
 export function GraphPaper({
   fade = "bottom",
-  fadeStop = "85%",
+  fadeStop = "60%",
   size = 18,
   className,
 }: GraphPaperProps) {

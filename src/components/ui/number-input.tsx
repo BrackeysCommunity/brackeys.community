@@ -33,7 +33,7 @@ function NumberInput({
         className={cn(
           "chonk-deboss relative flex w-full items-center rounded border border-input transition-colors outline-none dark:bg-deboss-surface",
           "has-[[data-slot=number-input-field][aria-invalid=true]]:border-destructive has-[[data-slot=number-input-field][aria-invalid=true]]:ring-1 has-[[data-slot=number-input-field][aria-invalid=true]]:ring-destructive/20",
-          "dark:bg-deboss-surface dark:bg-input/30",
+          "dark:bg-deboss-surface",
           isXs ? "h-6" : "h-8",
           disabled && "pointer-events-none opacity-50",
           notchOpts &&

@@ -57,7 +57,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-deboss-surface dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-deboss-surface dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         "flex w-fit items-center justify-between gap-1.5 rounded border bg-transparent py-2 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none",
         "aria-invalid:ring-1",
         "disabled:cursor-not-allowed disabled:opacity-50",
@@ -288,7 +288,7 @@ function SelectMultiTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-deboss-surface dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-deboss-surface dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         "flex w-full items-center gap-1.5 rounded border bg-transparent pr-2 pl-2 text-xs transition-colors outline-none select-none",
         "aria-invalid:ring-1",
         "disabled:cursor-not-allowed disabled:opacity-50",

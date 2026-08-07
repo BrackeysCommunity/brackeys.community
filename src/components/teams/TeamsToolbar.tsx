@@ -22,7 +22,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchField } from "@/components/ui/search-field";
-import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import {
@@ -257,7 +256,7 @@ function TeamsSearchInput({
       placeholder="Search teams by name or what they make…"
       autoComplete="off"
       size="default"
-      containerClassName={cn("dark:bg-emboss-surface!", className)}
+      containerClassName={className}
       className="text-[11px] tracking-widest"
     />
   );

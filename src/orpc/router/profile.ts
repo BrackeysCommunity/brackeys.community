@@ -11,10 +11,13 @@ import {
   linkedAccounts,
   profileProjects,
   profileUrlStubs,
+  projectContributors,
   projectJamLinks,
+  projectTeams,
   projects,
   skillRequests,
   skills,
+  teams,
   userSkills,
 } from "@/db/schema";
 import { syncItchIoLibraryThrottled } from "@/lib/itchio-sync";
@@ -89,6 +92,49 @@ async function queryProfileProjects(where: SQL | undefined) {
       : [];
   const rankByEntryId = new Map(overallRows.map((r) => [String(r.entryId), r.rank]));
 
+  // New manual rows stop carrying the free-text jam columns (plan step 6) —
+  // the facts live on `project_jam_links` — so rows with a canonical project
+  // and no jam facts of their own coalesce them back from there. Fetched
+  // separately for the same reason as the ranks: a project with several jam
+  // links must not multiply the placement rows.
+  //
+  // Scoped to `type === "jam"` placements on purpose: the adapter's jam-log
+  // split treats any row with a jamName as a participation and pulls it out
+  // of SHIPPED WORK, so coalescing onto a *game* placement whose project
+  // also has a jam record would silently move the game off the showcase.
+  const linkProjectIds = [
+    ...new Set(
+      rows
+        .filter(
+          (r) =>
+            r.project.type === "jam" &&
+            r.project.projectId != null &&
+            r.project.jamName == null &&
+            r.project.jamId == null,
+        )
+        .map((r) => r.project.projectId as string),
+    ),
+  ];
+  const jamLinkRows =
+    linkProjectIds.length > 0
+      ? await db
+          .select({
+            projectId: projectJamLinks.projectId,
+            jamName: projectJamLinks.jamName,
+            jamUrl: projectJamLinks.jamUrl,
+            result: projectJamLinks.result,
+            participatedAt: projectJamLinks.participatedAt,
+          })
+          .from(projectJamLinks)
+          .where(inArray(projectJamLinks.projectId, linkProjectIds))
+      : [];
+  const jamLinksByProject = new Map<string, typeof jamLinkRows>();
+  for (const link of jamLinkRows) {
+    const list = jamLinksByProject.get(link.projectId) ?? [];
+    list.push(link);
+    jamLinksByProject.set(link.projectId, list);
+  }
+
   return rows.map(
     ({
       project,
@@ -99,29 +145,99 @@ async function queryProfileProjects(where: SQL | undefined) {
       canonicalSlug,
       canonicalType,
       canonicalLinks,
-    }) => ({
-      ...project,
-      projectSlug: canonicalSlug,
-      // Surfaced beside the placement's own `type` rather than replacing it:
-      // the jam-log split reads `type === "jam"`, which is placement
-      // provenance, while the card's label wants the artifact's kind.
-      canonicalType,
-      canonicalLinks,
-      jamName: project.jamName ?? itchJamTitle,
-      jamUrl: project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null),
-      // The scraped slug, so the log row can link to the jam's page *here*
-      // rather than only off to itch. Null for manual rows with no linked jam.
-      jamSlug: itchJamSlug,
-      jamStartsAt,
-      jamEntriesCount,
-      // Guarded on source: a library row's `sourceId` is a game id, which can
-      // collide numerically with an unrelated entry id.
-      jamOverallRank:
-        project.source === "itchio-jam" && project.sourceId
-          ? (rankByEntryId.get(project.sourceId) ?? null)
-          : null,
-    }),
+    }) => {
+      // The link that matches this placement's own date, or the only one —
+      // a legacy row never reaches here (its own columns win the coalesce).
+      const links = project.projectId ? jamLinksByProject.get(project.projectId) : undefined;
+      const jamLink =
+        links?.find(
+          (link) => link.participatedAt?.getTime() === project.participatedAt?.getTime(),
+        ) ??
+        links?.[0] ??
+        null;
+      return {
+        ...project,
+        projectSlug: canonicalSlug,
+        // Surfaced beside the placement's own `type` rather than replacing it:
+        // the jam-log split reads `type === "jam"`, which is placement
+        // provenance, while the card's label wants the artifact's kind.
+        canonicalType,
+        canonicalLinks,
+        jamName: project.jamName ?? itchJamTitle ?? jamLink?.jamName ?? null,
+        jamUrl:
+          project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null) ?? jamLink?.jamUrl ?? null,
+        result: project.result ?? jamLink?.result ?? null,
+        // Without this a coalesced row's log date falls through to
+        // `createdAt` — when the row landed in our DB, not when the jam ran.
+        participatedAt: project.participatedAt ?? jamLink?.participatedAt ?? null,
+        // The scraped slug, so the log row can link to the jam's page *here*
+        // rather than only off to itch. Null for manual rows with no linked jam.
+        jamSlug: itchJamSlug,
+        jamStartsAt,
+        jamEntriesCount,
+        // Guarded on source: a library row's `sourceId` is a game id, which can
+        // collide numerically with an unrelated entry id.
+        jamOverallRank:
+          project.source === "itchio-jam" && project.sourceId
+            ? (rankByEntryId.get(project.sourceId) ?? null)
+            : null,
+      };
+    },
   );
+}
+
+/**
+ * Projects this member is credited on — the portfolio-for-free surface.
+ *
+ * Joins `project_contributors` by profile id, so it covers work credited by
+ * teammates, syncs, and the backfill alike; the caller filters out projects
+ * the member already showcases as placements, since a CREDITS row under an
+ * identical SHIPPED WORK card says nothing new. Unpublished projects stay
+ * out (their pages 404 for everyone but editors).
+ */
+async function queryProfileCredits(profileId: string) {
+  const rows = await db
+    .select({
+      id: projectContributors.id,
+      role: projectContributors.role,
+      projectId: projects.id,
+      slug: projects.slug,
+      title: projects.title,
+      type: projects.type,
+      releasedAt: projects.releasedAt,
+      createdAt: projects.createdAt,
+    })
+    .from(projectContributors)
+    .innerJoin(projects, eq(projectContributors.projectId, projects.id))
+    .where(and(eq(projectContributors.profileId, profileId), eq(projects.published, true)));
+  if (rows.length === 0) return [];
+
+  // "with Night Shift Crew" — the first claiming team, when there is one.
+  const teamRows = await db
+    .select({ projectId: projectTeams.projectId, name: teams.name, slug: teams.slug })
+    .from(projectTeams)
+    .innerJoin(teams, eq(projectTeams.teamId, teams.id))
+    .where(
+      inArray(
+        projectTeams.projectId,
+        rows.map((row) => row.projectId),
+      ),
+    );
+  const teamByProject = new Map<string, { name: string; slug: string }>();
+  for (const row of teamRows) {
+    if (!teamByProject.has(row.projectId)) {
+      teamByProject.set(row.projectId, { name: row.name, slug: row.slug });
+    }
+  }
+
+  return rows
+    .sort(
+      (a, b) => (b.releasedAt ?? b.createdAt).getTime() - (a.releasedAt ?? a.createdAt).getTime(),
+    )
+    .map(({ createdAt: _createdAt, ...row }) => ({
+      ...row,
+      team: teamByProject.get(row.projectId) ?? null,
+    }));
 }
 
 function queryUserSkills(userId: string) {
@@ -260,7 +376,7 @@ export const getProfile = os
       void syncItchIoLibraryThrottled(profileId).catch(console.error);
     }
 
-    const [skillList, projects, urlStub, pendingSkillRequests, linkedAccountsList] =
+    const [skillList, projects, urlStub, pendingSkillRequests, linkedAccountsList, creditRows] =
       await Promise.all([
         queryUserSkills(profileId),
         isOwner
@@ -296,12 +412,21 @@ export const getProfile = os
           })
           .from(linkedAccounts)
           .where(eq(linkedAccounts.profileId, profileId)),
+        queryProfileCredits(profileId),
       ]);
+
+    // A credit on a project the member already showcases would repeat the
+    // SHIPPED WORK card one section down; the credits list is for the work
+    // that reaches their profile *only* through `project_contributors`.
+    const placedProjectIds = new Set(
+      projects.map((p) => p.projectId).filter((id): id is string => id != null),
+    );
 
     return {
       profile,
       skills: skillList,
       projects: await serializeProfileProjects(projects),
+      credits: creditRows.filter((credit) => !placedProjectIds.has(credit.projectId)).slice(0, 12),
       isOwner,
       urlStub: urlStub[0]?.stub ?? null,
       pendingSkillRequests,
@@ -765,6 +890,10 @@ export const addJamParticipation = os
       participatedAt,
     });
 
+    // The placement is surface-only now (plan step 6): the jam facts live on
+    // the canonical row's `project_jam_links` and the teammates are credits,
+    // so the legacy free-text columns stay null on new rows and the reads
+    // coalesce them back in for old ones.
     const [participation] = await db
       .insert(profileProjects)
       .values({
@@ -774,12 +903,8 @@ export const addJamParticipation = os
         title: buildJamProjectTitle(input.jamName, input.submissionTitle),
         status: "approved",
         source: "manual",
-        jamName: input.jamName,
-        jamUrl: input.jamUrl,
         submissionTitle: input.submissionTitle,
         submissionUrl: input.submissionUrl,
-        result: input.result,
-        teamMembers: input.teamMembers,
         participatedAt,
       })
       .returning();

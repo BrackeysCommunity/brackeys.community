@@ -248,7 +248,7 @@ function MembersHero({ authenticated }: { authenticated: boolean }) {
       // its clip path, and `Well` fills what's left with the frame's own
       // lighter face — carrying the wash out there instead reads as a second,
       // dimmer panel behind the first.
-      surfaceClassName="bg-card bg-linear-to-br from-primary/12 via-card to-card backdrop-blur-none"
+      surfaceClassName="bg-card bg-linear-to-br from-deboss-surface via-deboss-surface to-primary/12 backdrop-blur-none"
     >
       {/* Heaviest behind the headline's shoulder, gone by the time it
           reaches the copy. */}

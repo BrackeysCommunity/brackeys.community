@@ -326,7 +326,7 @@ export function AddImageCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded border border-dashed border-muted-foreground/40 bg-muted/10 text-muted-foreground",
+        "flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 text-muted-foreground",
         "transition-colors outline-none hover:border-primary/50 hover:text-foreground",
         "focus-visible:ring-1 focus-visible:ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-muted-foreground/40 disabled:hover:text-muted-foreground",

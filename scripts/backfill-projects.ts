@@ -16,6 +16,8 @@
  *   4. contributors (placement owners, entry contributors, team_members text)
  *   5. project_teams from team placements
  *   6. project_jam_links for jam appearances that can't be derived
+ *   8. bulk-mint the multi-jam scraped corpus (§7.2) — after the anchored
+ *      passes, so a game a member already imported keeps its richer seed
  *
  * Deliberately *not* careful about preserving owner edits: the app is
  * pre-prod, every placement row is dummy user data, and the real data
@@ -38,10 +40,13 @@ import {
   teamProjects,
 } from "@/db/schema";
 import { normalizeItchProfileUrl } from "@/lib/itchio-jam-sync";
+import { seedFromJamEntry } from "@/lib/project-sync";
+import { RESERVED_PROJECT_SLUGS } from "@/lib/project-taxonomy";
 import {
   insertProject,
   pickReleasedAt,
   projectTypeFromPlacement,
+  slugifyProjectTitle,
   upsertProjectForItchGame,
 } from "@/lib/projects";
 
@@ -59,6 +64,8 @@ const stats = {
   projectTeamsLinked: 0,
   jamLinksCreated: 0,
   releasedAtSet: 0,
+  projectsFromCorpus: 0,
+  contributorsFromCorpus: 0,
 };
 
 function log(step: string, detail: string) {
@@ -611,6 +618,186 @@ if (!DRY_RUN) {
   stats.releasedAtSet = dated.length;
 }
 log("step 7", `${stats.releasedAtSet} ship dates derived from first jam submission`);
+
+// ── Step 8: bulk-mint the multi-jam scraped corpus (§7.2) ──────────────────
+//
+// The games that appear in more than one jam are the ones where a project
+// page says something no jam page can — "entered three jams, placing #12,
+// #4 and #88" — and they're a bounded corpus (~21k of ~477k scraped games).
+// Everything else waits for a first visit (`/projects/game/$gameId`).
+//
+// Runs after the anchored passes so a game a member already imported keeps
+// its richer seed; `onConflictDoNothing` (untargeted — it covers the slug
+// unique *and* the partial game-id unique) makes a concurrent mint a no-op.
+
+const multiJamGames = db
+  .select({ gameId: itchJamEntries.gameId })
+  .from(itchJamEntries)
+  .where(isNull(itchJamEntries.missingSince))
+  .groupBy(itchJamEntries.gameId)
+  .having(sql`count(DISTINCT ${itchJamEntries.jamId}) > 1`);
+
+// Seed from the most recent surviving entry per game: hosts update titles
+// and covers between jams, so the latest submission is the best provider
+// truth we hold.
+const corpusSeeds = await db
+  .selectDistinctOn([itchJamEntries.gameId], {
+    entryId: itchJamEntries.entryId,
+    gameId: itchJamEntries.gameId,
+    gameTitle: itchJamEntries.gameTitle,
+    gameShortText: itchJamEntries.gameShortText,
+    gameUrl: itchJamEntries.gameUrl,
+    gameCoverUrl: itchJamEntries.gameCoverUrl,
+    submittedAt: itchJamEntries.submittedAt,
+    contributors: itchJamEntries.contributors,
+  })
+  .from(itchJamEntries)
+  .where(and(isNull(itchJamEntries.missingSince), inArray(itchJamEntries.gameId, multiJamGames)))
+  .orderBy(itchJamEntries.gameId, sql`${itchJamEntries.submittedAt} DESC NULLS LAST`);
+
+const alreadyMintedGameIds = new Set(
+  (
+    await db
+      .select({ gameId: projects.sourceGameId })
+      .from(projects)
+      .where(isNotNull(projects.sourceGameId))
+  ).map((row) => row.gameId),
+);
+const corpusToMint = corpusSeeds.filter((entry) => !alreadyMintedGameIds.has(entry.gameId));
+
+log(
+  "step 8",
+  `${corpusSeeds.length} multi-jam games in the scraped corpus, ` +
+    `${corpusToMint.length} without a project row`,
+);
+
+// Slug allocation goes bulk: one SELECT for every existing slug, then pure
+// in-memory allocation — `findFreeProjectSlug`'s per-candidate round trip
+// would be 21k+ queries here.
+const takenSlugs = new Set<string>(
+  (await db.select({ slug: projects.slug }).from(projects)).map((row) => row.slug),
+);
+for (const reserved of RESERVED_PROJECT_SLUGS) takenSlugs.add(reserved);
+
+function allocateCorpusSlug(title: string): string {
+  const base = slugifyProjectTitle(title);
+  if (!takenSlugs.has(base)) {
+    takenSlugs.add(base);
+    return base;
+  }
+  for (;;) {
+    const candidate = `${base}-${Math.floor(Math.random() * 0x10000)
+      .toString(16)
+      .padStart(4, "0")}`;
+    if (!takenSlugs.has(candidate)) {
+      takenSlugs.add(candidate);
+      return candidate;
+    }
+  }
+}
+
+type CorpusInsert = typeof projects.$inferInsert & { sourceGameId: number };
+
+let corpusRows: CorpusInsert[] = corpusToMint.map((entry) => {
+  const seed = seedFromJamEntry(entry);
+  return {
+    slug: allocateCorpusSlug(seed.title),
+    title: seed.title,
+    description: seed.description ?? null,
+    url: seed.url ?? null,
+    imageUrl: seed.imageUrl ?? null,
+    type: "game",
+    source: "itchio",
+    sourceGameId: entry.gameId,
+    published: seed.published ?? true,
+    releasedAt: seed.releasedAt ?? null,
+    // No createdBy, no profile-linked credit, no team claim: a scrape-minted
+    // row has no editors until someone claims it (§7.4.2).
+    createdBy: null,
+  };
+});
+
+if (!DRY_RUN) {
+  // Insert, then re-query which game ids actually landed and retry the rest
+  // with fresh suffixes — the only way a row misses is a slug collision with
+  // a concurrent writer, so a fresh suffix settles it.
+  for (let round = 0; round < 3 && corpusRows.length > 0; round++) {
+    for (let i = 0; i < corpusRows.length; i += 500) {
+      await db
+        .insert(projects)
+        .values(corpusRows.slice(i, i + 500))
+        .onConflictDoNothing();
+    }
+    const landed = new Set<number>();
+    const pendingIds = corpusRows.map((row) => row.sourceGameId);
+    for (let i = 0; i < pendingIds.length; i += 10_000) {
+      const found = await db
+        .select({ gameId: projects.sourceGameId })
+        .from(projects)
+        .where(inArray(projects.sourceGameId, pendingIds.slice(i, i + 10_000)));
+      for (const row of found) if (row.gameId != null) landed.add(row.gameId);
+    }
+    corpusRows = corpusRows
+      .filter((row) => !landed.has(row.sourceGameId))
+      .map((row) => ({ ...row, slug: allocateCorpusSlug(row.title) }));
+  }
+  if (corpusRows.length > 0) {
+    console.warn(`step 8: ${corpusRows.length} corpus rows still unminted after 3 rounds`);
+  }
+  stats.projectsFromCorpus = corpusToMint.length - corpusRows.length;
+} else {
+  stats.projectsFromCorpus = corpusToMint.length;
+}
+
+// Credits for the rows minted this run, from the seed entry's contributors
+// jsonb — profile-matched by normalized itch URL exactly like step 4b
+// (names alone never link a profile). Fresh projects, so the only dedupe
+// needed is within one entry's own list.
+const corpusProjectByGameId = new Map<number, string>();
+if (!DRY_RUN && corpusToMint.length > 0) {
+  const mintedIds = corpusToMint.map((entry) => entry.gameId);
+  for (let i = 0; i < mintedIds.length; i += 10_000) {
+    const rows = await db
+      .select({ id: projects.id, gameId: projects.sourceGameId })
+      .from(projects)
+      .where(inArray(projects.sourceGameId, mintedIds.slice(i, i + 10_000)));
+    for (const row of rows) if (row.gameId != null) corpusProjectByGameId.set(row.gameId, row.id);
+  }
+}
+
+const corpusCredits: (typeof projectContributors.$inferInsert)[] = [];
+for (const entry of corpusToMint) {
+  const projectId = corpusProjectByGameId.get(entry.gameId);
+  if (!projectId && !DRY_RUN) continue;
+  const seen = new Set<string>();
+  for (const contributor of entry.contributors) {
+    const name = contributor.name?.trim();
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    stats.contributorsFromCorpus += 1;
+    if (!projectId) continue;
+    corpusCredits.push({
+      projectId,
+      profileId: profileByItchUrl.get(normalizeItchProfileUrl(contributor.url) ?? "") ?? null,
+      displayName: name,
+      source: "entry-contributors",
+    });
+  }
+}
+if (!DRY_RUN && corpusCredits.length > 0) {
+  for (let i = 0; i < corpusCredits.length; i += 500) {
+    await db
+      .insert(projectContributors)
+      .values(corpusCredits.slice(i, i + 500))
+      .onConflictDoNothing();
+  }
+}
+
+log(
+  "step 8",
+  `${stats.projectsFromCorpus} corpus projects minted, ` +
+    `${stats.contributorsFromCorpus} entry credits`,
+);
 
 // ── Report ─────────────────────────────────────────────────────────────────
 

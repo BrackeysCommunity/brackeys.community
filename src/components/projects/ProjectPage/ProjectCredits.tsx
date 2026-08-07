@@ -2,6 +2,7 @@ import { Delete02Icon, Edit02Icon, PlusSignIcon } from "@hugeicons/core-free-ico
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +14,7 @@ import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { authStore } from "@/lib/auth-store";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client, orpc } from "@/orpc/client";
@@ -44,6 +46,16 @@ export function ProjectCredits({
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // A team member can be in the editor set without being credited — the
+  // claim grants edit rights, not authorship. The add form offers them a
+  // one-click way to close that gap.
+  const { session } = useStore(authStore);
+  const viewer = session?.user ?? null;
+  const self =
+    viewer != null && !contributors.some((c) => c.profileId === viewer.id)
+      ? { id: viewer.id, name: viewer.name, image: viewer.image ?? null }
+      : null;
 
   const refresh = () => void router.invalidate();
 
@@ -90,6 +102,7 @@ export function ProjectCredits({
       {adding ? (
         <AddCreditForm
           projectId={projectId}
+          self={self}
           onDone={() => {
             setAdding(false);
             refresh();
@@ -257,10 +270,14 @@ function ContributorCard({
  */
 function AddCreditForm({
   projectId,
+  self,
   onDone,
   onCancel,
 }: {
   projectId: string;
+  /** The viewer, when they're an editor who isn't credited yet — drives the
+   * one-click "credit myself" shortcut. */
+  self: { id: string; name: string; image: string | null } | null;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -293,10 +310,42 @@ function AddCreditForm({
     onError: (error) => toast.error(errorMessage(error, "Failed to add credit")),
   });
 
+  const creditSelf = useMutation({
+    mutationFn: () =>
+      client.addProjectContributor({
+        projectId,
+        displayName: self?.name ?? "",
+        profileId: self?.id,
+      }),
+    onSuccess: () => {
+      toast.success("You're credited");
+      onDone();
+    },
+    onError: (error) => toast.error(errorMessage(error, "Failed to add credit")),
+  });
+
   const canSubmit = displayName.trim().length > 0 && !addCredit.isPending;
 
   return (
     <Well className="gap-3 p-4 backdrop-blur-none">
+      {self ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="xs"
+            variant="outline"
+            className="gap-2 tracking-widest"
+            disabled={creditSelf.isPending}
+            onClick={() => creditSelf.mutate()}
+          >
+            <UserAvatar avatarUrl={self.image} username={self.name} shape="round" size={16} />
+            CREDIT MYSELF
+          </Button>
+          <Text size="xs" variant="muted">
+            You can edit this project but you're not in the credits yet.
+          </Text>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <MicroLabel>NAME</MicroLabel>

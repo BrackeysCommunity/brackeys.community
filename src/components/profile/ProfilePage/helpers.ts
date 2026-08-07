@@ -43,6 +43,9 @@ export interface ProfileViewModel {
   editableProjects: EditableProject[];
   jamLog: JamLogEntry[];
   jamLogBest: JamLogBest | null;
+  /** Projects this member is credited on but doesn't showcase — the
+   * `project_contributors` join, the portfolio they get for free. */
+  credits: ProfileCredit[];
 
   skills: ProfileSkill[];
   links: ProfileLink[];
@@ -251,6 +254,22 @@ export interface JamLogEntry {
   totalEntries: number | null;
   /** "TOP 1", "TOP 5", "WINNER" — displayed as a small badge when set. */
   pill: string | null;
+}
+
+/** One row of the CREDITS section: "Cathedral of Wires · Composer ·
+ * with Night Shift Crew". */
+export interface ProfileCredit {
+  /** `project_contributors.id`. */
+  id: number;
+  /** `$projectSlug` for the project's page. */
+  slug: string;
+  title: string;
+  role: string | null;
+  /** Canonical kind — drives the row's type label. */
+  kind: string;
+  /** First team claiming the project, when there is one. */
+  teamName: string | null;
+  year: number | null;
 }
 
 /** "Best finish" featured callout that anchors the JAM LOG section. */

@@ -5,6 +5,7 @@ import type {
   JamLogBest,
   JamLogEntry,
   ProfileBadge,
+  ProfileCredit,
   ProfileItchSync,
   ProfileLink,
   ProfileProject,
@@ -77,6 +78,18 @@ export interface RpcProfile {
     participatedAt: Date | null;
     publishedAt: Date | null;
     createdAt: Date;
+  }[];
+  /** Projects the member is credited on but doesn't showcase — already
+   * filtered against their placements server-side. */
+  credits: {
+    id: number;
+    projectId: string;
+    slug: string;
+    title: string;
+    type: string;
+    role: string | null;
+    releasedAt: Date | null;
+    team: { name: string; slug: string } | null;
   }[];
   isOwner: boolean;
   urlStub: string | null;
@@ -274,6 +287,15 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     editableProjects: workRows.map(adaptEditable),
     jamLog,
     jamLogBest,
+    credits: rpc.credits.map<ProfileCredit>((credit) => ({
+      id: credit.id,
+      slug: credit.slug,
+      title: credit.title,
+      role: credit.role,
+      kind: credit.type,
+      teamName: credit.team?.name ?? null,
+      year: credit.releasedAt?.getUTCFullYear() ?? null,
+    })),
     skills,
     links,
     activity: [],

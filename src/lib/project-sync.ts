@@ -32,6 +32,7 @@ import {
 } from "../db/schema";
 import { normalizeItchProfileUrl } from "./itch-urls";
 import {
+  RESERVED_PROJECT_SLUGS,
   projectTypeFromClassification,
   projectTypeFromPlacement,
   slugifyProjectTitle,
@@ -70,6 +71,7 @@ export async function findFreeProjectSlug(
   const base = slugifyProjectTitle(title);
   for (let attempt = 0; attempt < attempts; attempt++) {
     const candidate = attempt === 0 ? base : `${base}-${slugSuffix()}`;
+    if (RESERVED_PROJECT_SLUGS.has(candidate)) continue;
     const [taken] = await db
       .select({ slug: projects.slug })
       .from(projects)
@@ -723,4 +725,69 @@ export async function convergeJamPlacements(
 
   await ensureProjectContributors(db, credits);
   return { linked };
+}
+
+// ── Scraped-corpus minting ──────────────────────────────────────────────────
+
+/**
+ * The canonical project for a *scraped* itch game — one nothing local
+ * anchors — minted on demand from its most recent surviving jam entry.
+ *
+ * This is the lazy half of the corpus fast-follow: the `/projects/game/…`
+ * route calls it on first visit. The seed and credits are exactly the bulk
+ * pass's (`seedFromJamEntry` + the entry's `contributors` jsonb,
+ * profile-matched by itch URL), and the whole thing is idempotent — the
+ * partial unique index on `source_game_id` makes a concurrent double-visit
+ * a no-op, with the loser reading back the winner's row.
+ *
+ * Returns null when we hold no live entry for the game: there is nothing to
+ * make a page of. A scrape-minted row has no `createdBy`, no profile-linked
+ * contributor and no team claim, so `canEditProject` is false for everyone —
+ * nobody edits a stranger's game page until they claim it.
+ */
+export async function ensureProjectForScrapedGame(
+  db: ProjectDb,
+  gameId: number,
+): Promise<{ id: string; slug: string; published: boolean } | null> {
+  const projection = { id: projects.id, slug: projects.slug, published: projects.published };
+
+  const [existing] = await db
+    .select(projection)
+    .from(projects)
+    .where(eq(projects.sourceGameId, gameId))
+    .limit(1);
+  if (existing) return existing;
+
+  const [entry] = await db
+    .select()
+    .from(itchJamEntries)
+    .where(and(eq(itchJamEntries.gameId, gameId), isNull(itchJamEntries.missingSince)))
+    // Hosts update titles and covers between jams; the latest submission is
+    // the best provider truth we hold.
+    .orderBy(sql`${itchJamEntries.submittedAt} DESC NULLS LAST`)
+    .limit(1);
+  if (!entry) return null;
+
+  const projectId = await upsertProjectForItchGame(db, gameId, seedFromJamEntry(entry));
+
+  const byUrl = await resolveItchProfileIds(
+    db,
+    entry.contributors.map((contributor) => contributor.url),
+  );
+  await ensureProjectContributors(
+    db,
+    entry.contributors.map((contributor) => ({
+      projectId,
+      profileId: byUrl.get(normalizeItchProfileUrl(contributor.url) ?? "") ?? null,
+      displayName: contributor.name ?? "",
+      source: "entry-contributors" as const,
+    })),
+  );
+
+  const [row] = await db
+    .select(projection)
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return row ?? null;
 }

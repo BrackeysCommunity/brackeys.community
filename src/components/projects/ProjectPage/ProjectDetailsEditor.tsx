@@ -18,6 +18,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Text } from "@/components/ui/typography";
+import {
+  PROFILE_PROJECT_SUBTYPE_LABELS,
+  type ProfileProjectSubType,
+  getAllowedSubTypesForProjectType,
+} from "@/lib/profile-projects";
 import { projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 import {
   MANUAL_PROJECT_TYPES,
@@ -65,28 +70,52 @@ export function ProjectDetailsEditor({
     (project.releaseStatus as ReleaseStatus | null) ?? "",
   );
   const [links, setLinks] = useState<LinkRow[]>(project.links ?? []);
+  const [slug, setSlug] = useState(project.slug);
+  const [subTypes, setSubTypes] = useState<string[]>(project.subTypes ?? []);
+
+  // Only `audio` and `app` carry sub-type nuance; the row disappears (and
+  // stale picks are shed at save) for every other kind.
+  const allowedSubTypes = getAllowedSubTypesForProjectType(type);
 
   // Only a manual project owns its release status — for an import it's itch's
   // answer, and the next sync would disagree with anything typed here.
   const canEditReleaseStatus = project.source === "manual";
 
   const save = useMutation({
-    mutationFn: () =>
-      client.updateProjectDetails({
+    mutationFn: async () => {
+      await client.updateProjectDetails({
         projectId: project.id,
         title: title.trim(),
         description: description.trim() || null,
         url: url.trim() || null,
         type,
+        subTypes: subTypes.filter((subType): subType is ProfileProjectSubType =>
+          (allowedSubTypes as readonly string[]).includes(subType),
+        ),
         links: links.filter((link) => link.label.trim() && link.url.trim()),
         ...(canEditReleaseStatus ? { releaseStatus: releaseStatus || null } : {}),
-      }),
-    onSuccess: async () => {
+      });
+      // The rename is its own endpoint (first-come-first-served, any editor)
+      // so a plain details save can never move the URL by accident.
+      if (slug.trim() && slug.trim() !== project.slug) {
+        return await client.setProjectSlug({ projectId: project.id, slug: slug.trim() });
+      }
+      return null;
+    },
+    onSuccess: async (renamed) => {
       toast.success("Project updated");
       onOpenChange(false);
+      if (renamed && renamed.slug !== project.slug) {
+        // The viewer is standing on the old URL; walk them to the new one.
+        await router.navigate({
+          to: "/projects/$projectSlug",
+          params: { projectSlug: renamed.slug },
+          replace: true,
+        });
+        return;
+      }
       // The loader owns every field on this page, so it refetches rather than
-      // being patched. (The slug is deliberately not editable here, so the
-      // URL the viewer is on stays correct.)
+      // being patched.
       await router.invalidate();
     },
     onError: (error) =>
@@ -112,6 +141,14 @@ export function ProjectDetailsEditor({
             <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
           </Field>
 
+          <Field label="HANDLE" hint={`/projects/${slug.trim() || "…"}`}>
+            <Input
+              value={slug}
+              maxLength={80}
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+            />
+          </Field>
+
           <Field label="KIND">
             <ToggleGroup
               value={[type]}
@@ -134,6 +171,28 @@ export function ProjectDetailsEditor({
               ))}
             </ToggleGroup>
           </Field>
+
+          {allowedSubTypes.length > 0 ? (
+            <Field label="SUB-TYPES" hint="optional">
+              <ToggleGroup
+                value={subTypes}
+                onValueChange={(value: string[]) => setSubTypes(value)}
+                variant="outline"
+                size="sm"
+                className="flex-wrap [&>*:first-child]:rounded-l-md [&>*:last-child]:rounded-r-md"
+              >
+                {allowedSubTypes.map((value) => (
+                  <ToggleGroupItem
+                    key={value}
+                    value={value}
+                    className="bg-card! px-3 text-[11px] tracking-widest uppercase"
+                  >
+                    {PROFILE_PROJECT_SUBTYPE_LABELS[value]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </Field>
+          ) : null}
 
           <Field label="DESCRIPTION" hint="optional">
             <Textarea

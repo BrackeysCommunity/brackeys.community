@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ProfileAbout } from "./ProfileAbout";
 import { ProfileActivitySection } from "./ProfileActivity";
 import { ProfileAvailabilitySection } from "./ProfileAvailability";
+import { ProfileCreditsSection } from "./ProfileCredits";
 import { ProfileHero } from "./ProfileHero";
 import { ProfileJamLogSection } from "./ProfileJamLog";
 import { ProfileLinkedAccountsSection } from "./ProfileLinkedAccounts";
@@ -82,6 +83,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               queryKey={queryKey}
               layout="list"
             />
+            <ProfileCreditsSection index="03" credits={profile.credits} />
           </>
         ) : null}
 
