@@ -84,6 +84,12 @@ type SyncSlugsOptions = {
  * Syncs a list of slugs in order, with a politeness gap between jams, counting
  * failures rather than aborting on the first one. A single jam that 500s or
  * whose HTML changed shape must not cost the rest of the tick.
+ *
+ * Whatever failed gets one more attempt once the list is worked. Nearly every
+ * failure is itch rate-limiting a jam that would have gone through fine a
+ * minute later, and by the end of the list the pacer has long since cooled
+ * down — so the retry costs one extra request per failure and usually clears
+ * the whole set. Anything still failing after it is left for the next tick.
  */
 export async function syncSlugs(
   label: string,
@@ -92,35 +98,61 @@ export async function syncSlugs(
 ): Promise<SyncOutcome> {
   const sync = opts.sync ?? syncJam;
   const doSleep = opts.sleep ?? sleep;
-  let done = 0;
-  let failed = 0;
-  let stoppedEarly = "";
 
-  for (const slug of slugs) {
-    const stop = opts.gate.reason();
-    if (stop) {
-      stoppedEarly = stop;
-      break;
+  const pass = async (list: readonly string[]) => {
+    let done = 0;
+    const failed: string[] = [];
+    let stoppedEarly = "";
+
+    for (const slug of list) {
+      const stop = opts.gate.reason();
+      if (stop) {
+        stoppedEarly = stop;
+        break;
+      }
+      try {
+        await sync(slug);
+        done += 1;
+      } catch (err) {
+        failed.push(slug);
+        console.error(`[${label}] FAIL ${slug}: ${describeError(err)}`);
+      }
+      if (opts.delayMs > 0) await doSleep(opts.delayMs);
     }
-    try {
-      await sync(slug);
-      done += 1;
-    } catch (err) {
-      failed += 1;
-      console.error(`[${label}] FAIL ${slug}: ${describeError(err)}`);
-    }
-    if (opts.delayMs > 0) await doSleep(opts.delayMs);
+
+    return { done, failed, stoppedEarly };
+  };
+
+  const first = await pass(slugs);
+  // No retry once the gate has tripped: there is no budget left to spend, and
+  // the next tick resumes from the same persisted progress anyway.
+  if (first.failed.length === 0 || first.stoppedEarly) {
+    return { done: first.done, failed: first.failed.length, stoppedEarly: first.stoppedEarly };
   }
 
-  return { done, failed, stoppedEarly };
+  console.log(`[${label}] retrying ${first.failed.length} failed jam(s)`);
+  const retry = await pass(first.failed);
+
+  return {
+    done: first.done + retry.done,
+    // Everything that failed the first time, minus what the retry recovered —
+    // correct even when the gate cuts the retry pass short.
+    failed: first.failed.length - retry.done,
+    stoppedEarly: retry.stoppedEarly,
+  };
 }
 
 /**
- * Runs a tier's main function as a one-shot cron process: times it, closes the
- * pool, and maps a failure count onto the exit code so Railway's run log flags
- * a bad tick.
+ * Runs a tier's main function as a one-shot cron process: times it and closes
+ * the pool.
  *
- * `main` returns the number of failures (0 for a clean run).
+ * `main` returns the number of failures (0 for a clean run), which is reported
+ * but deliberately does *not* fail the process. A handful of jams itch refused
+ * — after the retry pass has already had a go at them — is the normal steady
+ * state, not a broken tick: the work is resumable, so the next tick picks them
+ * up. Exiting non-zero for it only made every Railway run red, which is worse
+ * than no signal at all. A thrown error still exits 1: that means the tick
+ * couldn't run, which is a real alert.
  */
 export async function runTier(label: string, main: () => Promise<number>): Promise<void> {
   const started = Date.now();
@@ -128,7 +160,6 @@ export async function runTier(label: string, main: () => Promise<number>): Promi
     const failures = await main();
     const mins = ((Date.now() - started) / 60_000).toFixed(1);
     console.log(`[${label}] tick finished in ${mins}m — failures=${failures}`);
-    if (failures > 0) process.exitCode = 1;
   } catch (err) {
     console.error(`[${label}] fatal: ${describeError(err)}`);
     process.exitCode = 1;

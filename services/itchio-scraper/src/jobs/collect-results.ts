@@ -49,35 +49,58 @@ export async function runResults(): Promise<number> {
   if (jams.length === 0) return 0;
 
   let done = 0;
-  let failed = 0;
   let ranked = 0;
   let fetched = 0;
   let unratable = 0;
-  let stoppedEarly = "";
 
-  for (const jam of jams) {
-    const stop = gate.reason();
-    if (stop) {
-      stoppedEarly = stop;
-      break;
+  // Same shape as the shared runner's syncSlugs: work the list counting
+  // failures, then give whatever failed one more attempt at the end. A jam
+  // that failed on a 429 an hour into the run usually goes through once the
+  // pacer has cooled off, and the retry costs one request per failure.
+  const pass = async (list: readonly (typeof jams)[number][]) => {
+    const failed: (typeof jams)[number][] = [];
+    let stoppedEarly = "";
+
+    for (const jam of list) {
+      const stop = gate.reason();
+      if (stop) {
+        stoppedEarly = stop;
+        break;
+      }
+
+      try {
+        const out = await syncEntryResults(jam);
+        done += 1;
+        ranked += out.ranked;
+        fetched += out.succeeded;
+        unratable += out.unratable;
+        const unrated = out.unratable > 0 ? `, ${out.unratable} unrated (no fetch)` : "";
+        console.log(
+          `[results] ${jam.slug} — ${out.succeeded}/${out.attempted} entries via ${out.source} (${out.ranked} ranked${unrated})`,
+        );
+      } catch (err) {
+        failed.push(jam);
+        console.error(`[results] FAIL ${jam.slug}: ${describeError(err)}`);
+      }
+
+      if (config.RESULTS_DELAY_MS > 0) await sleep(config.RESULTS_DELAY_MS);
     }
 
-    try {
-      const out = await syncEntryResults(jam);
-      done += 1;
-      ranked += out.ranked;
-      fetched += out.succeeded;
-      unratable += out.unratable;
-      const unrated = out.unratable > 0 ? `, ${out.unratable} unrated (no fetch)` : "";
-      console.log(
-        `[results] ${jam.slug} — ${out.succeeded}/${out.attempted} entries via ${out.source} (${out.ranked} ranked${unrated})`,
-      );
-    } catch (err) {
-      failed += 1;
-      console.error(`[results] FAIL ${jam.slug}: ${describeError(err)}`);
-    }
+    return { failed, stoppedEarly };
+  };
 
-    if (config.RESULTS_DELAY_MS > 0) await sleep(config.RESULTS_DELAY_MS);
+  const first = await pass(jams);
+  let failed = first.failed.length;
+  let stoppedEarly = first.stoppedEarly;
+
+  // No retry once the gate has tripped — no budget left, and results are
+  // stamped per entry, so the next tick resumes from exactly here.
+  if (failed > 0 && !stoppedEarly) {
+    console.log(`[results] retrying ${failed} failed jam(s)`);
+    const doneBefore = done;
+    const retry = await pass(first.failed);
+    failed -= done - doneBefore;
+    stoppedEarly = retry.stoppedEarly;
   }
 
   console.log(

@@ -46,20 +46,39 @@ async function listing(label: string, walk: () => Promise<string[]>): Promise<st
 export async function runDiscovery(): Promise<number> {
   const gate = createStopGate("discover", config.DISCOVERY_DEADLINE_MINS);
 
-  const [upcoming, inProgress, brackeys, recentlyEnded, held] = await Promise.all([
-    listing("/jams/upcoming", discoverUpcomingSlugs),
-    listing("/jams/in-progress", discoverInProgressSlugs),
-    listing("brackeys search", discoverBrackeysSearchSlugs),
-    listing("/jams/past/sort-date", () => discoverRecentlyEndedSlugs(config.ENDED_LOOKBACK_DAYS)),
+  const walks: { label: string; run: () => Promise<string[]> }[] = [
+    { label: "/jams/upcoming", run: discoverUpcomingSlugs },
+    { label: "/jams/in-progress", run: discoverInProgressSlugs },
+    { label: "brackeys search", run: discoverBrackeysSearchSlugs },
+    {
+      label: "/jams/past/sort-date",
+      run: () => discoverRecentlyEndedSlugs(config.ENDED_LOOKBACK_DAYS),
+    },
+  ];
+
+  const [walked, held] = await Promise.all([
+    Promise.all(walks.map((w) => listing(w.label, w.run))),
     persistedSlugs(),
   ]);
 
-  // A listing that failed contributes no slugs but must still fail the tick —
-  // a silently empty walk looks identical to "itch announced nothing", and
-  // that is exactly how a discovery outage would go unnoticed.
-  const listingFailures = [upcoming, inProgress, brackeys, recentlyEnded].filter(
-    (r) => r === null,
-  ).length;
+  // Retry a failed walk before anything is derived from it, rather than at the
+  // end of the run like the per-jam retries: everything below is downstream of
+  // these four lists, so a walk recovered afterwards would have nothing left to
+  // feed. The four run concurrently, so by now they have all settled.
+  for (const [i, result] of walked.entries()) {
+    if (result !== null) continue;
+    const walk = walks[i];
+    if (!walk) continue;
+    console.log(`[discover] retrying ${walk.label}`);
+    walked[i] = await listing(walk.label, walk.run);
+  }
+
+  const [upcoming, inProgress, brackeys, recentlyEnded] = walked;
+
+  // A listing still failing after its retry contributes no slugs and is worth
+  // shouting about — a silently empty walk looks identical to "itch announced
+  // nothing", and that is exactly how a discovery outage would go unnoticed.
+  const listingFailures = walked.filter((r) => r === null).length;
 
   // In-progress ahead of upcoming: a jam we've never seen that is *already*
   // running is accruing submissions right now, so it should reach the live

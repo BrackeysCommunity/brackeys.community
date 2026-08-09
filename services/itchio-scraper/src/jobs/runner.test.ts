@@ -61,8 +61,73 @@ describe("syncSlugs", () => {
       sleep: noSleep,
     });
 
-    expect(seen).toEqual(["a", "boom", "c"]);
+    // "boom" is retried once at the end, after the rest of the list.
+    expect(seen).toEqual(["a", "boom", "c", "boom"]);
     expect(out).toEqual({ done: 2, failed: 1, stoppedEarly: "" });
+  });
+
+  test("retries only what failed, once, after the list is worked", async () => {
+    // The realistic failure is a 429 on a jam that goes through fine once the
+    // pacer has cooled off — which by the end of the list it has.
+    const seen: string[] = [];
+    const out = await syncSlugs("test", ["a", "flaky", "c"], {
+      delayMs: 0,
+      gate: never,
+      sync: async (slug) => {
+        seen.push(slug);
+        if (slug === "flaky" && seen.filter((s) => s === "flaky").length === 1) {
+          throw new Error("429");
+        }
+      },
+      sleep: noSleep,
+    });
+
+    expect(seen).toEqual(["a", "flaky", "c", "flaky"]);
+    expect(out).toEqual({ done: 3, failed: 0, stoppedEarly: "" });
+  });
+
+  test("does not retry when the gate already tripped", async () => {
+    // A run that ran out of budget has none to spend on a retry, and the next
+    // tick resumes from the same persisted progress anyway.
+    const seen: string[] = [];
+    let tripped = false;
+    const out = await syncSlugs("test", ["boom", "b", "c"], {
+      delayMs: 0,
+      gate: { reason: () => (tripped ? "deadline (45m)" : null) },
+      sync: async (slug) => {
+        seen.push(slug);
+        if (slug === "boom") throw new Error("500");
+        tripped = true;
+      },
+      sleep: noSleep,
+    });
+
+    expect(seen).toEqual(["boom", "b"]);
+    expect(out).toEqual({ done: 1, failed: 1, stoppedEarly: "deadline (45m)" });
+  });
+
+  test("counts jams the retry pass never reached as still failed", async () => {
+    // The gate can trip mid-retry. Failures are first-pass failures minus what
+    // the retry recovered, so un-retried jams stay counted rather than
+    // vanishing into a falsely clean tick.
+    const seen: string[] = [];
+    const attempts = new Map<string, number>();
+    const out = await syncSlugs("test", ["x", "y", "z"], {
+      delayMs: 0,
+      gate: { reason: () => (seen.length >= 4 ? "interrupted" : null) },
+      sync: async (slug) => {
+        seen.push(slug);
+        const n = (attempts.get(slug) ?? 0) + 1;
+        attempts.set(slug, n);
+        if (n === 1) throw new Error("500");
+      },
+      sleep: noSleep,
+    });
+
+    // First pass fails all three; the retry recovers "x" and then the gate
+    // trips, leaving "y" and "z" untried and still counted as failures.
+    expect(seen).toEqual(["x", "y", "z", "x"]);
+    expect(out).toEqual({ done: 1, failed: 2, stoppedEarly: "interrupted" });
   });
 
   test("stops mid-list once the gate trips and reports why", async () => {

@@ -113,8 +113,8 @@ async function main() {
   let ingested = 0;
   let skipped = 0;
   let gone = 0;
-  let failed = 0;
   let reachedCutoff = false;
+  const failedSlugs: string[] = [];
 
   outer: for (let page = 1; ; page++) {
     const { entries, hasNext } = await fetchPastSortDatePage(page);
@@ -136,17 +136,36 @@ async function main() {
         else ingested++;
         persisted.add(slug);
       } catch (err) {
-        failed++;
+        failedSlugs.push(slug);
         console.error(`[backfill] FAIL ${slug}`, err instanceof Error ? err.message : err);
       }
       await sleep(DELAY_MS);
     }
 
     console.log(
-      `[backfill] page ${page} done — ingested=${ingested} skipped=${skipped} gone=${gone} failed=${failed}`,
+      `[backfill] page ${page} done — ingested=${ingested} skipped=${skipped} gone=${gone} failed=${failedSlugs.length}`,
     );
     if (!hasNext) break;
     await sleep(DELAY_MS);
+  }
+
+  // One more attempt at whatever failed, now that the walk is done and itch's
+  // rate pacer has cooled off. Anything still failing is left for the next
+  // tick, which re-derives the same set from `itch.jams`.
+  let failed = failedSlugs.length;
+  if (failed > 0) {
+    console.log(`[backfill] retrying ${failed} failed jam(s)`);
+    for (const slug of failedSlugs) {
+      try {
+        const outcome = await backfillJam(slug);
+        if (outcome === "gone") gone++;
+        else ingested++;
+        failed--;
+      } catch (err) {
+        console.error(`[backfill] FAIL ${slug}`, err instanceof Error ? err.message : err);
+      }
+      await sleep(DELAY_MS);
+    }
   }
 
   const mins = Math.round((Date.now() - started) / 60_000);
@@ -155,7 +174,6 @@ async function main() {
       reachedCutoff ? " (stopped at BACKFILL_OLDEST cutoff)" : ""
     }${ingested >= MAX_JAMS ? " (stopped at BACKFILL_MAX_JAMS — re-run to continue)" : ""}`,
   );
-  if (failed > 0) process.exitCode = 1;
 }
 
 if (import.meta.main) {

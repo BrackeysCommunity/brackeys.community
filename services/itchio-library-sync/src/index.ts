@@ -427,14 +427,31 @@ async function backfillJams(): Promise<{ accounts: number; imported: number; fai
     .where(eq(linkedAccounts.provider, "itchio"));
 
   let imported = 0;
-  let failed = 0;
+  const failedAccounts: typeof accounts = [];
   for (const account of accounts) {
     try {
       const result = await backfillJamsForAccount(account);
       imported += result.imported;
     } catch (err) {
-      failed++;
+      failedAccounts.push(account);
       console.error(`[jams] backfill failed for profile ${account.profileId}`, err);
+    }
+  }
+
+  // One retry at the end for whatever failed. This phase is a pure DB join, so
+  // the realistic failure is a transient connection blip rather than anything
+  // a second attempt would repeat.
+  let failed = failedAccounts.length;
+  if (failed > 0) {
+    console.log(`[jams] retrying ${failed} failed account(s)`);
+    for (const account of failedAccounts) {
+      try {
+        const result = await backfillJamsForAccount(account);
+        imported += result.imported;
+        failed--;
+      } catch (err) {
+        console.error(`[jams] backfill failed for profile ${account.profileId}`, err);
+      }
     }
   }
 
@@ -464,10 +481,18 @@ async function runSweep() {
   let synced = 0;
   let imported = 0;
   let flipped = 0;
-  let failed = 0;
+  let revoked = 0;
+  let aborted = false;
 
-  try {
-    for (const [i, account] of accounts.entries()) {
+  type Account = (typeof accounts)[number];
+
+  // Returns the accounts worth another go: a revoked token isn't one (the
+  // second 401 is as certain as the first), a 429/5xx abort isn't either
+  // (nothing after it was attempted, and the next tick re-runs the sweep).
+  const pass = async (list: readonly Account[]): Promise<Account[]> => {
+    const retryable: Account[] = [];
+
+    for (const [i, account] of list.entries()) {
       if (!account.accessToken) continue; // filtered in SQL; narrows the type
       if (i > 0) await sleep(config.SYNC_DELAY_MS);
 
@@ -481,26 +506,45 @@ async function runSweep() {
           // Token revoked: leave the linked_accounts row; the profile UI's
           // reconnect path handles re-linking.
           console.warn(`[sweep] token revoked for profile ${account.profileId}, skipping`);
-          failed++;
+          revoked++;
           continue;
         }
         if (err instanceof ItchApiError && (err.status === 429 || err.status >= 500)) {
           // itch.io is rate-limiting or unwell: stop hammering and let the
           // next cron tick retry the whole sweep.
           console.error(`[sweep] itch.io returned ${err.status}; aborting run early`);
-          failed++;
-          throw err;
+          aborted = true;
+          break;
         }
-        failed++;
+        retryable.push(account);
         console.error(`[sweep] failed to sync profile ${account.profileId}`, err);
       }
+    }
+
+    return retryable;
+  };
+
+  let failed = 0;
+  try {
+    const failedAccounts = await pass(accounts);
+    failed = failedAccounts.length;
+    if (failed > 0 && !aborted) {
+      console.log(`[sweep] retrying ${failed} failed account(s)`);
+      const stillFailing = await pass(failedAccounts);
+      failed = stillFailing.length;
     }
   } finally {
     const elapsed = Math.round((Date.now() - started) / 1000);
     console.log(
-      `[sweep] synced ${synced} accounts, imported ${imported}, visibility-flipped ${flipped}, failed ${failed} in ${elapsed}s`,
+      `[sweep] synced ${synced} accounts, imported ${imported}, visibility-flipped ${flipped}, revoked ${revoked}, failed ${failed} in ${elapsed}s${
+        aborted ? " (aborted early — next tick retries)" : ""
+      }`,
     );
   }
+
+  // Nothing else touches itch.io while it is rate-limiting or down; the probe
+  // is the next tick's problem.
+  if (aborted) return;
 
   // Probe after the API sync so freshly imported rows are covered too, and
   // so rows the sync just unpublished (drafts) are already excluded.

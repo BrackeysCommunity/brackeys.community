@@ -316,8 +316,13 @@ drain on their own as voting closes.
   SELECT slug, first_seen_at FROM itch.missing_jams; -- never-persisted 404s from the backfill walk
   ```
 
-- **Exit code reflects success.** If any jam fails the process exits
-  non-zero, so Railway's run logs flag failed ticks clearly. A failed _listing
-  walk_ also fails the discovery tick — a silently empty walk is
-  indistinguishable from "itch announced nothing", which is exactly how a
-  discovery outage would go unnoticed.
+- **Failures are retried once, then tolerated.** Whatever failed during a tick
+  gets one more attempt at the end of it — almost every failure is itch
+  rate-limiting a jam that goes through fine once the pacer has cooled off, so
+  the retry costs one request per failure and usually clears the set. Anything
+  still failing is logged and left to the next tick, and the process **exits
+  0**: a handful of refused jams is the steady state, not a broken tick, and
+  failing the process for it only made every Railway run red. A thrown error
+  still exits non-zero — that means the tick couldn't run at all, which is a
+  real alert. The discovery tier retries a failed _listing walk_ immediately
+  rather than at the end, since the rest of the tick is derived from it.
