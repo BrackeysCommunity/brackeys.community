@@ -9,14 +9,14 @@ import { createStopGate, runTier, syncSlugs } from "./runner.ts";
 import { persistedSlugs, upcomingJamSlugs } from "./selectors.ts";
 
 /**
- * DISCOVERY tier — hourly, offset from the live tier.
+ * DISCOVERY tier — every 4 hours, offset from the live tier.
  *
  * Walks itch's four jam listings and ingests every jam we don't already hold,
  * then spends a small fixed budget refreshing announced-but-not-started jams.
  *
  * Split out from the live tier because the two scale on different things. The
  * listing walks are a near-constant ~16 page fetches no matter how many jams
- * exist, and finding a jam an hour late costs nothing — it hasn't started.
+ * exist, and finding a jam a few hours late costs nothing — it hasn't started.
  * Re-syncing open jams scales with the number of open jams and *is* time
  * sensitive. Bundling them meant the cheap, tolerant half set the cadence for
  * the expensive, urgent half.
@@ -29,8 +29,8 @@ import { persistedSlugs, upcomingJamSlugs } from "./selectors.ts";
  *
  * Env knobs (all optional):
  *   DISCOVERY_DELAY_MS         pause between jams (default: 250)
- *   DISCOVERY_DEADLINE_MINS    stop mid-list after this long (default: 45)
- *   DISCOVERY_UPCOMING_LIMIT   upcoming jams refreshed per tick (default: 25)
+ *   DISCOVERY_DEADLINE_MINS    stop mid-list after this long (default: 25)
+ *   DISCOVERY_UPCOMING_LIMIT   upcoming jams refreshed per tick (default: 50)
  */
 
 /** One listing walk, degraded to empty on failure rather than killing the tick. */

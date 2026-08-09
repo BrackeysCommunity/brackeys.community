@@ -42,11 +42,14 @@ const schema = z.object({
   LIVE_DEADLINE_MINS: z.coerce.number().int().positive().default(45),
 
   DISCOVERY_DELAY_MS: z.coerce.number().int().nonnegative().default(250),
-  DISCOVERY_DEADLINE_MINS: z.coerce.number().int().positive().default(45),
+  // Tighter than the other tiers: discovery starts at :20, so anything past
+  // ~25 minutes runs into the live tier's :00/:30 slots and the results tier's
+  // :40 slot. Stopping early is free — both halves resume next tick.
+  DISCOVERY_DEADLINE_MINS: z.coerce.number().int().positive().default(25),
   // Announced-but-not-started jams refreshed per discovery tick, staleest
   // first. Nothing about them is perishable, so the pool round-robins instead
   // of being refreshed wholesale.
-  DISCOVERY_UPCOMING_LIMIT: z.coerce.number().int().nonnegative().default(25),
+  DISCOVERY_UPCOMING_LIMIT: z.coerce.number().int().nonnegative().default(50),
 
   RESULTS_DELAY_MS: z.coerce.number().int().nonnegative().default(250),
   // Generous because the backlog is unbounded (a large jam ending adds

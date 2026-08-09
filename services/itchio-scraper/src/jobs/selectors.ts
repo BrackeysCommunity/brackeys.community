@@ -86,9 +86,9 @@ export function openJamSlugs(): Promise<string[]> {
  *
  * They're cheap but numerous (~200, some starting years out), and none of it
  * is perishable — so instead of refreshing all of them every tick, each tick
- * takes the staleest `limit` and the set round-robins. At the default 25/hour
- * a 200-jam pool turns over roughly twice a day for 600 requests, against
- * ~10k to refresh all of them hourly.
+ * takes the staleest `limit` and the set round-robins. At the default 50 per
+ * 4-hourly tick a 200-jam pool turns over roughly every 17 hours for ~300
+ * requests a day, against ~10k to refresh all of them hourly.
  */
 export function upcomingJamSlugs(limit: number): Promise<string[]> {
   return db

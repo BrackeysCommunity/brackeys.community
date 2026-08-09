@@ -11,7 +11,7 @@ the schedule differ.
 | Tier          | Schedule        | Measured tick  | Command            | Works                                                        |
 | ------------- | --------------- | -------------- | ------------------ | ------------------------------------------------------------ |
 | **live**      | `:00` / `:30`   | 8–9 min        | `bun run live`     | jams that have started and haven't finished (~285)           |
-| **discovery** | hourly, `:20`   | ~0.6 min       | `bun run discover` | the four listing walks, jams we don't hold, upcoming refresh |
+| **discovery** | 4-hourly, `:20` | ~1–2 min       | `bun run discover` | the four listing walks, jams we don't hold, upcoming refresh |
 | **results**   | 6-hourly, `:40` | backlog-driven | `bun run results`  | ranking collection for finished jams                         |
 
 Live is the only tier with a meaningful runtime, and it drives the schedule:
@@ -90,15 +90,16 @@ listings, then syncs the slugs **not already in `itch.jams`**, in this order:
 Persisted jams are skipped here: open ones belong to the live tier, and
 upcoming ones are covered by the round-robin below.
 
-Then it refreshes `DISCOVERY_UPCOMING_LIMIT` (default 25)
+Then it refreshes `DISCOVERY_UPCOMING_LIMIT` (default 50)
 announced-but-not-started jams, staleest-first. These are the complement of the
 live tier's set within the non-terminal jams, and the reason discovery refreshes
 anything at all: an upcoming jam's dates and description do get edited, and
 nothing else would notice until the jam started. They're cheap but numerous
 (~205, some starting years out) and none of it is perishable, so the pool
-round-robins — ~2 full turnovers a day for ~600 requests, against ~10k to
-refresh all of them hourly. Ingestion runs first: a jam we don't hold is
-invisible in the product, while a stale upcoming jam is merely slightly wrong.
+round-robins — a full turnover roughly every 17 hours for ~300 requests a day,
+against ~10k to refresh all of them hourly. Ingestion runs first: a jam we
+don't hold is invisible in the product, while a stale upcoming jam is merely
+slightly wrong.
 
 **results** ([collect-results.ts](./src/jobs/collect-results.ts)) — jams at
 `status = 'over'` that still have entries with `results_fetched_at IS NULL`,

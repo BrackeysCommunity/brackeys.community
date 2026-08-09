@@ -7,14 +7,18 @@
 #
 # Separate from the live tier because the cost is near-constant (~16 page
 # fetches regardless of how many jams exist) and none of it is time sensitive —
-# a jam found an hour late hasn't started yet.
+# a jam found a few hours late hasn't started yet.
 #
 # Create a service pointing at this repo, leave Root Directory blank, set
 # "Config file path" to services/itchio-scraper/railway.discovery.toml, and
 # reference the shared DATABASE_URL variable.
 #
-# Runs at :20, between the live tier (:00) and results (:40) — see
-# railway.live.toml for why the stagger matters.
+# Runs every 4 hours at :20, between the live tier (:00/:30) and results (:40)
+# — see railway.live.toml for why the stagger matters. Hourly was the original
+# cadence, but nothing here is perishable: new jams surface in /jams/upcoming
+# days before they start, and the upcoming-jam refresh pool tolerates a
+# multi-hour turnover. Backing off cut discovery's itch traffic ~70% at a time
+# when ticks were absorbing repeated 429s.
 
 [build]
 builder = "DOCKERFILE"
@@ -22,5 +26,5 @@ dockerfilePath = "services/itchio-scraper/Dockerfile"
 
 [deploy]
 startCommand = "bun run discover"
-cronSchedule = "20 * * * *"
+cronSchedule = "20 */4 * * *"
 restartPolicyType = "NEVER"
