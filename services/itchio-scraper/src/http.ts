@@ -34,23 +34,39 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export type Pacer = {
   /** Resolves when the caller may issue its request. */
   acquire(): Promise<void>;
-  /** Pauses the whole pool; null falls back to the configured cooldown. */
+  /** Pauses the whole pool; null falls back to the escalating cooldown. */
   reportRateLimit(retryAfterSeconds: number | null): void;
+  /** Any non-throttled response — ends the current rate-limit streak. */
+  reportSuccess(): void;
 };
 
 type PacerOptions = {
   minIntervalMs: number;
   cooldownMs: number;
-  // Injectable for tests; default to real time.
+  // Injectable for tests; default to real time / real randomness.
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  random?: () => number;
 };
+
+// itch's limiter scores short per-IP bursts, and an isolated 429 usually
+// clears within seconds — so the first strike takes a short jittered pause
+// instead of the full cooldown. Consecutive strikes escalate by doubling from
+// the configured cooldown: continuing to hit the limiter while throttled
+// worsens the IP's standing with it, which is the opposite of what a retry
+// wants.
+const FIRST_STRIKE_MIN_MS = 10_000;
+const FIRST_STRIKE_JITTER_MS = 20_000;
+const MAX_COOLDOWN_MS = 600_000;
 
 export function createPacer(opts: PacerOptions): Pacer {
   const now = opts.now ?? Date.now;
   const doSleep = opts.sleep ?? sleep;
+  const random = opts.random ?? Math.random;
   let nextSlotAt = 0;
   let cooldownUntil = 0;
+  // Rate-limit reports since the last non-throttled response.
+  let strikes = 0;
 
   return {
     async acquire() {
@@ -65,14 +81,23 @@ export function createPacer(opts: PacerOptions): Pacer {
       }
     },
     reportRateLimit(retryAfterSeconds) {
-      const waitMs = retryAfterSeconds ? retryAfterSeconds * 1000 : opts.cooldownMs;
+      strikes += 1;
+      const waitMs =
+        retryAfterSeconds != null
+          ? retryAfterSeconds * 1000
+          : strikes === 1
+            ? FIRST_STRIKE_MIN_MS + random() * FIRST_STRIKE_JITTER_MS
+            : Math.min(opts.cooldownMs * 2 ** (strikes - 2), MAX_COOLDOWN_MS);
       const until = now() + waitMs;
       if (until > cooldownUntil) {
         cooldownUntil = until;
         console.warn(
-          `[http] rate limited — pausing all requests for ${Math.round(waitMs / 1000)}s`,
+          `[http] rate limited (strike ${strikes}) — pausing all requests for ${Math.round(waitMs / 1000)}s`,
         );
       }
+    },
+    reportSuccess() {
+      strikes = 0;
     },
   };
 }
@@ -81,6 +106,45 @@ const pacer = createPacer({
   minIntervalMs: config.MIN_REQUEST_INTERVAL_MS,
   cooldownMs: config.RATE_LIMIT_COOLDOWN_MS,
 });
+
+// ── Cookie jar ───────────────────────────────────────────────────────────────
+// itch sets an `itchio_token` session cookie on the first response; carrying
+// it back makes the run look like one returning client instead of a stream of
+// cookieless requests — the signature of the AI crawlers itch's limiter is
+// tuned against. In-process only: each cron run starts cold and warms up on
+// its first response.
+
+const cookieJar = new Map<string, string>();
+
+/** Test hook — the jar is module state shared by every pacedFetch call. */
+export function resetCookieJar(): void {
+  cookieJar.clear();
+}
+
+function storeCookies(res: Response): void {
+  for (const line of res.headers.getSetCookie()) {
+    const pair = line.split(";", 1)[0];
+    const eq = pair?.indexOf("=") ?? -1;
+    if (!pair || eq <= 0) continue;
+    const name = pair.slice(0, eq).trim();
+    const value = pair.slice(eq + 1).trim();
+    // An empty value is how a cookie gets cleared.
+    if (value) cookieJar.set(name, value);
+    else cookieJar.delete(name);
+  }
+}
+
+function withCookies(init: RequestInit): RequestInit {
+  if (cookieJar.size === 0) return init;
+  const headers = new Headers(init.headers);
+  if (!headers.has("cookie")) {
+    headers.set(
+      "cookie",
+      [...cookieJar.entries()].map(([name, value]) => `${name}=${value}`).join("; "),
+    );
+  }
+  return { ...init, headers };
+}
 
 /**
  * Only the delta-seconds form is handled; the HTTP-date form (rare, and itch
@@ -111,9 +175,12 @@ export async function pacedFetch(
   timeoutMs: number,
 ): Promise<Response> {
   await pacer.acquire();
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  const res = await fetch(url, { ...withCookies(init), signal: AbortSignal.timeout(timeoutMs) });
+  storeCookies(res);
   if (res.status === 429 || res.status === 503) {
     pacer.reportRateLimit(parseRetryAfter(res));
+  } else {
+    pacer.reportSuccess();
   }
   return res;
 }

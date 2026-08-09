@@ -10,8 +10,10 @@ const schema = z.object({
   // between successful runs.
   ENDED_LOOKBACK_DAYS: z.coerce.number().int().positive().default(14),
   // Global pacing across ALL itch.io requests: minimum gap between any two
-  // requests, and how long the whole pool pauses after a 429/503 when itch
-  // doesn't send a Retry-After header.
+  // requests, and the base cooldown for repeated 429/503s without a
+  // Retry-After header. An isolated 429 pauses the pool for a short jittered
+  // interval instead (itch's limiter usually clears in seconds); from the
+  // second consecutive 429 the pause starts here and doubles per strike.
   MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().nonnegative().default(350),
   RATE_LIMIT_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
   // How long a jam whose page 404s keeps being retried before it drops out of

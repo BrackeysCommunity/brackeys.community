@@ -8,6 +8,7 @@ import {
   isTransient,
   pacedFetch,
   parseRetryAfter,
+  resetCookieJar,
 } from "./http.ts";
 
 /**
@@ -37,14 +38,75 @@ describe("createPacer", () => {
     expect(clock.now()).toBe(700);
   });
 
-  test("a rate limit pauses the whole pool for the fallback cooldown", async () => {
+  test("an isolated rate limit pauses the pool for a short jittered interval", async () => {
     const clock = virtualClock();
-    const pacer = createPacer({ minIntervalMs: 350, cooldownMs: 60_000, ...clock });
+    const pacer = createPacer({
+      minIntervalMs: 350,
+      cooldownMs: 60_000,
+      ...clock,
+      random: () => 0.5,
+    });
 
     await pacer.acquire();
     pacer.reportRateLimit(null);
     await pacer.acquire();
-    expect(clock.now()).toBe(60_000);
+    // 10s floor + 0.5 * 20s jitter.
+    expect(clock.now()).toBe(20_000);
+  });
+
+  test("consecutive rate limits escalate from the base cooldown, doubling per strike", async () => {
+    const clock = virtualClock();
+    const pacer = createPacer({
+      minIntervalMs: 350,
+      cooldownMs: 60_000,
+      ...clock,
+      random: () => 0,
+    });
+
+    await pacer.acquire();
+    pacer.reportRateLimit(null); // strike 1: 10s jittered
+    await pacer.acquire();
+    expect(clock.now()).toBe(10_000);
+    pacer.reportRateLimit(null); // strike 2: base cooldown
+    await pacer.acquire();
+    expect(clock.now()).toBe(70_000);
+    pacer.reportRateLimit(null); // strike 3: doubled
+    await pacer.acquire();
+    expect(clock.now()).toBe(190_000);
+  });
+
+  test("escalation is capped at ten minutes", async () => {
+    const clock = virtualClock();
+    const pacer = createPacer({
+      minIntervalMs: 350,
+      cooldownMs: 60_000,
+      ...clock,
+      random: () => 0,
+    });
+
+    for (let i = 0; i < 10; i++) pacer.reportRateLimit(null);
+    const before = clock.now();
+    await pacer.acquire();
+    expect(clock.now() - before).toBe(600_000);
+  });
+
+  test("a successful response resets the strike streak", async () => {
+    const clock = virtualClock();
+    const pacer = createPacer({
+      minIntervalMs: 350,
+      cooldownMs: 60_000,
+      ...clock,
+      random: () => 0,
+    });
+
+    await pacer.acquire();
+    pacer.reportRateLimit(null);
+    await pacer.acquire();
+    pacer.reportSuccess();
+    pacer.reportRateLimit(null);
+    await pacer.acquire();
+    // Back to the short first-strike pause, not the 60s second strike.
+    expect(clock.now()).toBe(10_000 + 10_000);
   });
 
   test("honors Retry-After over the fallback cooldown", async () => {
@@ -134,6 +196,52 @@ describe("pacedFetch request timeout", () => {
     expect(res.status).toBe(200);
     expect(seen).toHaveLength(2);
     expect(seen.every((s) => !s.aborted)).toBe(true);
+  });
+});
+
+describe("cookie jar", () => {
+  const realFetch = globalThis.fetch;
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+    resetCookieJar();
+  });
+
+  test("replays cookies set by earlier responses", async () => {
+    resetCookieJar();
+    const seen: Array<string | null> = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      seen.push(new Headers(init.headers).get("cookie"));
+      return new Response(null, {
+        status: 200,
+        headers: { "set-cookie": "itchio_token=abc123; Path=/; HttpOnly" },
+      });
+    }) as typeof fetch;
+
+    await pacedFetch("https://itch.io/a", {}, 5_000);
+    await pacedFetch("https://itch.io/b", { headers: { accept: "text/html" } }, 5_000);
+
+    expect(seen[0]).toBeNull();
+    expect(seen[1]).toBe("itchio_token=abc123");
+  });
+
+  test("a cleared cookie stops being sent", async () => {
+    resetCookieJar();
+    let call = 0;
+    const seen: Array<string | null> = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      call += 1;
+      seen.push(new Headers(init.headers).get("cookie"));
+      return new Response(null, {
+        status: 200,
+        headers: { "set-cookie": call === 1 ? "itchio_token=abc" : "itchio_token=; Max-Age=0" },
+      });
+    }) as typeof fetch;
+
+    await pacedFetch("https://itch.io/a", {}, 5_000);
+    await pacedFetch("https://itch.io/b", {}, 5_000);
+    await pacedFetch("https://itch.io/c", {}, 5_000);
+
+    expect(seen).toEqual([null, "itchio_token=abc", null]);
   });
 });
 

@@ -7,6 +7,7 @@ import { describeError, isNotFound } from "../http.ts";
 import { fetchJamEntries, type ItchEntry } from "../scrape/entries.ts";
 import { scrapeJamPage, type ScrapedJam } from "../scrape/jam-page.ts";
 import { scrapeRatePage } from "../scrape/rate-page.ts";
+import { fetchJamResultsJson } from "../scrape/results-json.ts";
 import { type ScrapedGameResults, scrapeJamResults } from "../scrape/results-page.ts";
 import { chunk } from "../util.ts";
 
@@ -184,7 +185,7 @@ export type ResultsOutcome = {
    * while omitting them makes a busy run look idle.
    */
   unratable: number;
-  source: "results-page" | "rate-pages" | "none";
+  source: "results-json" | "results-page" | "rate-pages" | "none";
 };
 
 /**
@@ -264,31 +265,61 @@ export async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutco
     );
   if (pending.length === 0) return idle;
 
-  // Preferred path: one `/results` fetch covers 20 entries and carries the same
-  // criterion table the per-entry rate page does. Across the historical backlog
-  // that is the difference between ~250k requests and ~13k. Falls back to the
-  // per-entry walk when a jam has no published rankings (404) or the walk
-  // fails, since "absent from the map" only means "unranked" for a complete walk.
-  // Only the *scrape* is guarded here. A persist failure must not fall through:
-  // the per-entry path re-fetches the same rankings over HTTP and hands them to
-  // the same failing insert, so a bad row turned one DB error into a full
-  // rate-page walk (373s and ~17 throttled requests on the-matrice) that could
-  // only fail the same way. Scrape problems are recoverable by another route;
-  // database problems are not.
+  // Preferred path: the whole ranked set in ONE results.json request. The
+  // endpoint is unofficial (same family as entries.json), so the paginated
+  // HTML walk — one fetch per 20 entries — stays as the first fallback, and
+  // the per-entry rate-page walk as the last. All three sources produce the
+  // same map, and "absent from the map" only means "unranked" when the source
+  // returned the complete set, which is inherent for results.json and true of
+  // a fully-successful HTML walk.
+  // Only the *scrapes* are guarded here. A persist failure must not fall
+  // through: the next path re-fetches the same rankings over HTTP and hands
+  // them to the same failing insert, so a bad row turned one DB error into a
+  // full rate-page walk (373s and ~17 throttled requests on the-matrice) that
+  // could only fail the same way. Scrape problems are recoverable by another
+  // route; database problems are not.
   let byGameId: Map<number, ScrapedGameResults> | null = null;
+  let source: ResultsOutcome["source"] = "results-json";
   try {
-    byGameId = await scrapeJamResults(jam.slug);
-  } catch (err) {
-    if (isNotFound(err)) {
-      console.log(`[sync-jam] ${jam.slug} has no results page — using rate pages`);
-    } else {
+    const fromJson = await fetchJamResultsJson(jam.jamId);
+    if (fromJson === null) {
+      console.log(`[sync-jam] ${jam.slug} has no results.json — trying the results pages`);
+    } else if (fromJson.size === 0) {
       console.warn(
-        `[sync-jam] ${jam.slug} results walk failed (${describeError(err)}) — falling back to rate pages`,
+        `[sync-jam] ${jam.slug} results.json listed no games — trying the results pages`,
       );
+    } else {
+      byGameId = fromJson;
+    }
+  } catch (err) {
+    console.warn(
+      `[sync-jam] ${jam.slug} results.json failed (${describeError(err)}) — trying the results pages`,
+    );
+  }
+
+  if (!byGameId) {
+    source = "results-page";
+    try {
+      const walked = await scrapeJamResults(jam.slug);
+      if (walked.size > 0) {
+        byGameId = walked;
+      } else {
+        console.warn(
+          `[sync-jam] ${jam.slug} results page listed no games — falling back to rate pages`,
+        );
+      }
+    } catch (err) {
+      if (isNotFound(err)) {
+        console.log(`[sync-jam] ${jam.slug} has no results page — using rate pages`);
+      } else {
+        console.warn(
+          `[sync-jam] ${jam.slug} results walk failed (${describeError(err)}) — falling back to rate pages`,
+        );
+      }
     }
   }
 
-  if (byGameId && byGameId.size > 0) {
+  if (byGameId) {
     const ranked = await persistBulkResults(pending, byGameId);
     return {
       attempted: pending.length,
@@ -296,13 +327,8 @@ export async function syncEntryResults(jam: ResultsTarget): Promise<ResultsOutco
       gone: 0,
       ranked,
       unratable,
-      source: "results-page",
+      source,
     };
-  }
-  if (byGameId) {
-    console.warn(
-      `[sync-jam] ${jam.slug} results page listed no games — falling back to rate pages`,
-    );
   }
 
   return await syncEntryResultsPerEntry(jam, pending, unratable);
