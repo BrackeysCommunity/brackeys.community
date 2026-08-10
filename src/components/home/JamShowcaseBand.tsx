@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 
 import { JamShowcaseCard, JamShowcaseRow } from "@/components/home/JamShowcaseRow";
-import { useTopEntries } from "@/components/home/use-top-entries";
+import { useRecentEntries } from "@/components/home/use-recent-entries";
 import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { jamLengthDays } from "@/lib/jam-countdown";
 
-/** Jams in the band. Kept at or below `TOP_ENTRIES_MAX_JAMS` in
+/** Jams in the band. Kept at or below `RECENT_ENTRIES_MAX_JAMS` in
  * `@/orpc/router/jam` (not imported — that module pulls in the db): the
  * band's cover strips are one request for the whole set, and asking for
  * more jams than the server carries would reject it outright. Sized for
@@ -82,13 +82,13 @@ interface JamShowcaseBandProps {
 }
 
 /**
- * The band of jam rows. One `listTopEntries` call covers every row —
+ * The band of jam rows. One `listRecentEntries` call covers every row —
  * per-row queries would turn a four-jam band into four round trips on a
  * page that already ships the whole jam board.
  */
 export function JamShowcaseBand({ jams, isLoading, now }: JamShowcaseBandProps) {
   const jamIds = useMemo(() => jams.map((j) => j.jamId), [jams]);
-  const { byJamId, isLoading: entriesLoading } = useTopEntries(jamIds);
+  const { byJamId, isLoading: entriesLoading } = useRecentEntries(jamIds);
   const { withEntries, withoutEntries } = useMemo(
     () => splitByEntries(jams, byJamId),
     [jams, byJamId],

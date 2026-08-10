@@ -306,21 +306,19 @@ const NO_RANK = 2_147_483_647;
  * and the partition below is what keeps a 3k-entry jam from shipping 3k
  * rows. The jam cap tracks `SHOWCASE_MAX_JAMS`, the band's jam count —
  * the whole band is one request. */
-export const TOP_ENTRIES_MAX_JAMS = 12;
-export const TOP_ENTRIES_MAX_LIMIT = 10;
+export const RECENT_ENTRIES_MAX_JAMS = 12;
+export const RECENT_ENTRIES_MAX_LIMIT = 10;
 
 /**
- * The top N entries of each requested jam, in one round trip.
+ * The N most recently submitted entries of each requested jam, in one
+ * round trip — the same `submitted_at DESC NULLS LAST` ordering as the
+ * detail page's "recent" sort, so the strip reads as a live feed of what
+ * people are shipping rather than a leaderboard.
  *
- * Ordering has to straddle two worlds. Once a jam's rate pages have been
- * scraped its entries carry an "Overall" placement, which is the only
- * ranking anyone would recognize; before that (and for every jam whose
- * results were never fetched) the best available signal is participation —
- * ratings received, then itch's own `coolness`. A LEFT JOIN on the Overall
- * criterion with a COALESCE'd sort key covers both in a single pass rather
- * than branching into two queries.
+ * The Overall placement is still left-joined: the tiles wear it as a
+ * chip when results exist, it just doesn't drive the order.
  */
-export function topEntriesQuery(jamIds: number[], limit: number) {
+export function recentEntriesQuery(jamIds: number[], limit: number) {
   const ranked = db
     .select({
       entryId: itchJamEntries.entryId,
@@ -332,14 +330,13 @@ export function topEntriesQuery(jamIds: number[], limit: number) {
       authorName: itchJamEntries.authorName,
       ratingCount: itchJamEntries.ratingCount,
       rank: itchJamEntryResults.rank,
-      // entryId breaks the remaining ties so the same jam doesn't shuffle
-      // its covers between requests (most rows tie at 0 ratings).
+      // entryId breaks `submitted_at` ties (bulk-submitted jams share a
+      // timestamp) and stands in for it entirely when the scrape didn't
+      // capture one — itch ids grow over time, so DESC still means newest.
       rowNumber: sql<number>`ROW_NUMBER() OVER (
         PARTITION BY ${itchJamEntries.jamId}
-        ORDER BY COALESCE(${itchJamEntryResults.rank}, ${NO_RANK}) ASC,
-                 ${itchJamEntries.ratingCount} DESC,
-                 ${itchJamEntries.coolness} DESC,
-                 ${itchJamEntries.entryId} ASC
+        ORDER BY ${itchJamEntries.submittedAt} DESC NULLS LAST,
+                 ${itchJamEntries.entryId} DESC
       )`.as("row_number"),
     })
     .from(itchJamEntries)
@@ -373,11 +370,11 @@ export function topEntriesQuery(jamIds: number[], limit: number) {
     .orderBy(asc(ranked.jamId), asc(ranked.rowNumber));
 }
 
-export const listTopEntries = os
+export const listRecentEntries = os
   .input(
     z.object({
-      jamIds: z.array(z.number().int()).max(TOP_ENTRIES_MAX_JAMS),
-      limit: z.number().int().min(1).max(TOP_ENTRIES_MAX_LIMIT).default(4),
+      jamIds: z.array(z.number().int()).max(RECENT_ENTRIES_MAX_JAMS),
+      limit: z.number().int().min(1).max(RECENT_ENTRIES_MAX_LIMIT).default(4),
     }),
   )
   .handler(async ({ input }) => {
@@ -386,7 +383,7 @@ export const listTopEntries = os
     const jamIds = [...new Set(input.jamIds)];
     if (jamIds.length === 0) return { entries: [] };
 
-    const entries = await topEntriesQuery(jamIds, input.limit);
+    const entries = await recentEntriesQuery(jamIds, input.limit);
     return { entries };
   });
 
@@ -474,10 +471,12 @@ export type JamEntrySort = "rank" | "ratings" | "recent" | "title";
 /**
  * One page of a jam's submissions, ranked.
  *
- * Ordering straddles the same two worlds `topEntriesQuery` documents:
- * "rank" prefers the scraped Overall placement and falls back to
- * participation signal for jams whose rate pages were never fetched, so
- * the default sort is meaningful before *and* after results publish.
+ * The "rank" sort straddles two worlds: once a jam's rate pages have
+ * been scraped its entries carry an "Overall" placement, the only ranking
+ * anyone would recognize; before that (and for every jam whose results
+ * were never fetched) it falls back to participation signal — ratings
+ * received, then itch's own `coolness` — so the default sort is
+ * meaningful before *and* after results publish.
  * The Overall rank is left-joined either way — the cards show it as a
  * chip regardless of which sort is active.
  */

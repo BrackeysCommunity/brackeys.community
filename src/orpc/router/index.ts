@@ -35,7 +35,7 @@ import {
   listJamEntries,
   listJams,
   listJamsByHost,
-  listTopEntries,
+  listRecentEntries,
 } from "./jam";
 import { listMembers } from "./member";
 import {
@@ -104,7 +104,7 @@ export default {
   getJamData,
   listJams,
   archiveJams,
-  listTopEntries,
+  listRecentEntries,
   getJam,
   listJamEntries,
   getJamResults,

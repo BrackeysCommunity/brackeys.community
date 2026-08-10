@@ -1,38 +1,39 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import router from "@/orpc/router";
-import { TOP_ENTRIES_MAX_JAMS, TOP_ENTRIES_MAX_LIMIT, topEntriesQuery } from "@/orpc/router/jam";
+import {
+  RECENT_ENTRIES_MAX_JAMS,
+  RECENT_ENTRIES_MAX_LIMIT,
+  recentEntriesQuery,
+} from "@/orpc/router/jam";
 
 describe("jam router surface", () => {
-  it("registers the top-entries procedure alongside the existing ones", () => {
-    expect(router.listTopEntries).toBeDefined();
+  it("registers the recent-entries procedure alongside the existing ones", () => {
+    expect(router.listRecentEntries).toBeDefined();
     expect(router.listJams).toBeDefined();
     expect(router.archiveJams).toBeDefined();
   });
 });
 
-describe("topEntriesQuery", () => {
+describe("recentEntriesQuery", () => {
   const sqlFor = (jamIds: number[], limit: number) =>
-    topEntriesQuery(jamIds, limit).toSQL().sql.replace(/\s+/g, " ");
+    recentEntriesQuery(jamIds, limit).toSQL().sql.replace(/\s+/g, " ");
 
   it("partitions by jam so one busy jam can't crowd out the others", () => {
     expect(sqlFor([1, 2], 4).toLowerCase()).toContain('partition by "itch"."jam_entries"."jam_id"');
   });
 
-  it("ranks by Overall placement first, then participation", () => {
-    const sql = sqlFor([1], 4).toLowerCase();
-    // Placement wins when it exists…
-    expect(sql).toMatch(/order by coalesce\("itch"\."jam_entry_results"\."rank", \$\d+\) asc/);
-    // …and unranked entries fall through to ratings, then coolness.
-    expect(sql).toContain('"itch"."jam_entries"."rating_count" desc');
-    expect(sql).toContain('"itch"."jam_entries"."coolness" desc');
+  it("orders newest submission first, entries without a timestamp last", () => {
+    expect(sqlFor([1], 4).toLowerCase()).toContain(
+      'order by "itch"."jam_entries"."submitted_at" desc nulls last',
+    );
   });
 
-  it("breaks remaining ties on entry id so the covers don't reshuffle", () => {
-    expect(sqlFor([1], 4).toLowerCase()).toMatch(/"itch"\."jam_entries"\."entry_id" asc \)/);
+  it("breaks submitted_at ties on entry id, newest id first", () => {
+    expect(sqlFor([1], 4).toLowerCase()).toMatch(/"itch"\."jam_entries"\."entry_id" desc \)/);
   });
 
-  it("joins only the Overall criterion, and keeps it a left join", () => {
+  it("still joins the Overall placement for the rank chip, as a left join", () => {
     const sql = sqlFor([1], 4).toLowerCase();
     expect(sql).toContain("left join");
     expect(sql).toContain('lower("itch"."jam_entry_results"."criterion") = \'overall\'');
@@ -43,7 +44,7 @@ describe("topEntriesQuery", () => {
   });
 
   it("caps each partition at the requested limit", () => {
-    const query = topEntriesQuery([7, 9], 3);
+    const query = recentEntriesQuery([7, 9], 3);
     const { sql, params } = query.toSQL();
     expect(sql.replace(/\s+/g, " ")).toMatch(/where "ranked"\."row_number" <= \$\d+/i);
     expect(params).toContain(3);
@@ -58,9 +59,9 @@ describe("topEntriesQuery", () => {
   });
 });
 
-describe("listTopEntries input", () => {
+describe("listRecentEntries input", () => {
   const parse = (input: unknown) =>
-    router.listTopEntries["~orpc"].inputSchema!["~standard"].validate(input);
+    router.listRecentEntries["~orpc"].inputSchema!["~standard"].validate(input);
 
   it("defaults the per-jam limit", async () => {
     const result = await parse({ jamIds: [1] });
@@ -68,13 +69,13 @@ describe("listTopEntries input", () => {
   });
 
   it("rejects more jams than a single request should carry", async () => {
-    const tooMany = Array.from({ length: TOP_ENTRIES_MAX_JAMS + 1 }, (_, i) => i);
+    const tooMany = Array.from({ length: RECENT_ENTRIES_MAX_JAMS + 1 }, (_, i) => i);
     const result = await parse({ jamIds: tooMany });
     expect("issues" in result && result.issues).toBeTruthy();
   });
 
   it("rejects a per-jam limit beyond the display cap", async () => {
-    const result = await parse({ jamIds: [1], limit: TOP_ENTRIES_MAX_LIMIT + 1 });
+    const result = await parse({ jamIds: [1], limit: RECENT_ENTRIES_MAX_LIMIT + 1 });
     expect("issues" in result && result.issues).toBeTruthy();
   });
 });

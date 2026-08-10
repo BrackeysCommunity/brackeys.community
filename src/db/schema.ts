@@ -854,7 +854,7 @@ export const itchJamEntries = itchSchema.table(
     // A foreign key does not index its own column in Postgres, and this
     // table is the largest in the database (one row per submission across
     // every scraped jam). Every jam-scoped read — the detail page's entries
-    // grid, `topEntriesQuery`, the results board — filters on jam_id first.
+    // grid, `recentEntriesQuery`, the results board — filters on jam_id first.
     index("jam_entries_jam_id_idx").on(table.jamId),
     // The game id is the identity a project row dedupes on, so the derived
     // "which jams did this game enter" join reads by it.

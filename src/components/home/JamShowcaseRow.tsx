@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 
 import { shortName } from "@/components/home/jam-banner";
-import { type TopEntry, TOP_ENTRIES_PER_JAM } from "@/components/home/use-top-entries";
+import { RECENT_ENTRIES_PER_JAM, type RecentEntry } from "@/components/home/use-recent-entries";
 import { useJamColor } from "@/components/jams/JamCalendarPage/board/use-jam-color";
 import {
   type JamFromList,
@@ -37,7 +37,7 @@ const SHELF_BADGE: Record<
 
 interface JamShowcaseRowProps {
   jam: JamFromList;
-  entries: TopEntry[];
+  entries: RecentEntry[];
   now: Date;
 }
 
@@ -281,34 +281,14 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 const STRIP_SCROLLER =
   "flex snap-x scroll-px-3 gap-2 overflow-x-auto px-3 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
-/**
- * What the strip is actually ordered by, or null when it isn't ordered by
- * anything the reader would recognize.
- *
- * The server sorts on Overall placement, then ratings received, then
- * `coolness`, then entry id (see `topEntriesQuery`). Before a jam opens
- * voting none of the first three exist — every entry sits at zero ratings and
- * zero coolness — so the strip is really in submission order, and claiming
- * "BY RATINGS" over a row of ties reads as a ranking that was never computed.
- * Ratings are the submitter-facing number on itch, so a strip with any of them
- * is honestly described that way even before placements are published.
- */
-export function entrySortLabel(entries: TopEntry[]): string | null {
-  if (entries.some((e) => e.rank != null)) return "BY PLACEMENT";
-  if (entries.some((e) => e.ratingCount > 0)) return "BY RATINGS";
-  return null;
-}
-
-function EntryStrip({ entries }: { entries: TopEntry[] }) {
-  const sortLabel = entrySortLabel(entries);
+function EntryStrip({ entries }: { entries: RecentEntry[] }) {
   return (
     <div className="relative border-t border-muted/30">
       <div className="flex items-center gap-2 px-3 py-2">
-        <MicroLabel>TOP ENTRIES</MicroLabel>
-        {sortLabel && <MicroLabel variant="accent">· {sortLabel}</MicroLabel>}
+        <MicroLabel>RECENT ENTRIES</MicroLabel>
       </div>
       <div className={STRIP_SCROLLER}>
-        {entries.slice(0, TOP_ENTRIES_PER_JAM).map((entry) => (
+        {entries.slice(0, RECENT_ENTRIES_PER_JAM).map((entry) => (
           <EntryTile key={entry.entryId} entry={entry} />
         ))}
       </div>
@@ -316,7 +296,7 @@ function EntryStrip({ entries }: { entries: TopEntry[] }) {
   );
 }
 
-function EntryTile({ entry }: { entry: TopEntry }) {
+function EntryTile({ entry }: { entry: RecentEntry }) {
   // The cover color is scraped text; it never reaches a style attribute
   // without being re-validated first.
   const cover = safeThemeColor(entry.gameCoverColor) ?? "var(--muted)";
