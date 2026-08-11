@@ -31,9 +31,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
-import { env } from "@/env";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
+import { startItchOAuth } from "@/lib/itchio-oauth";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -1084,29 +1084,6 @@ async function linkGithub(): Promise<void> {
     const message = typeof err === "string" ? err : err.message || "Failed to start GitHub OAuth";
     throw new Error(message);
   }
-}
-
-function startItchOAuth(): void {
-  const clientId = env.VITE_ITCHIO_CLIENT_ID;
-  if (!clientId) {
-    toast.error("itch.io integration is not configured");
-    return;
-  }
-  const productionOrigin = env.VITE_OAUTH_PROXY_ORIGIN;
-  const currentOrigin = window.location.origin;
-  const isPreview = productionOrigin && currentOrigin !== productionOrigin;
-  const redirectUri = isPreview
-    ? `${productionOrigin}/oauth/itchio/callback`
-    : `${currentOrigin}/oauth/itchio/callback`;
-  const state = isPreview ? currentOrigin : "";
-  const params = new URLSearchParams({
-    client_id: clientId,
-    scope: "profile:me profile:games",
-    response_type: "token",
-    redirect_uri: redirectUri,
-    ...(state ? { state } : {}),
-  });
-  window.location.href = `https://itch.io/user/oauth?${params.toString()}`;
 }
 
 // ── Reusable form chrome ───────────────────────────────────────────

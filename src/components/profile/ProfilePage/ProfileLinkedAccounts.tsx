@@ -20,8 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { env } from "@/env";
 import { authClient } from "@/lib/auth-client";
+import { startItchOAuth } from "@/lib/itchio-oauth";
 import { client } from "@/orpc/client";
 
 import type { ProfileLink } from "./helpers";
@@ -219,31 +219,6 @@ async function linkGithub(): Promise<void> {
   } catch (e) {
     toast.error(e instanceof Error ? e.message : "Failed to link GitHub");
   }
-}
-
-function startItchOAuth(): void {
-  const clientId = env.VITE_ITCHIO_CLIENT_ID;
-  if (!clientId) {
-    toast.error("itch.io integration is not configured");
-    return;
-  }
-  // Kept inline so the section is self-contained: the OAuth redirect
-  // dance is short enough that a shared helper would only add indirection.
-  const productionOrigin = env.VITE_OAUTH_PROXY_ORIGIN;
-  const currentOrigin = window.location.origin;
-  const isPreview = productionOrigin && currentOrigin !== productionOrigin;
-  const redirectUri = isPreview
-    ? `${productionOrigin}/oauth/itchio/callback`
-    : `${currentOrigin}/oauth/itchio/callback`;
-  const state = isPreview ? currentOrigin : "";
-  const params = new URLSearchParams({
-    client_id: clientId,
-    scope: "profile:me profile:games",
-    response_type: "token",
-    redirect_uri: redirectUri,
-    ...(state ? { state } : {}),
-  });
-  window.location.href = `https://itch.io/user/oauth?${params.toString()}`;
 }
 
 function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void }) {

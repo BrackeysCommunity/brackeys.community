@@ -3,6 +3,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import {
+  buildPreviewBounceUrl,
+  consumeStoredNonce,
+  isAllowedPreviewOrigin,
+  parseOAuthState,
+} from "@/lib/itchio-oauth";
 import { client } from "@/orpc/client";
 
 export const Route = createFileRoute("/oauth/itchio/callback")({
@@ -58,18 +64,41 @@ function ItchIoCallbackPage() {
     processed.current = true;
 
     const hash = window.location.hash.slice(1);
+    // Scrub the token from the URL before anything else runs — it must not
+    // linger in history or leak via referrer.
+    window.history.replaceState(null, "", window.location.pathname);
+
     const params = new URLSearchParams(hash);
     const accessToken = params.get("access_token");
     const state = params.get("state");
+    const { nonce, origin } = parseOAuthState(state);
 
-    // If this is a proxied request from a preview env, bounce there with the token
-    if (state && accessToken) {
-      window.location.href = `${state}/oauth/itchio/callback#access_token=${accessToken}`;
+    // Preview flows route through this (registered) production callback;
+    // `state` carries the initiating origin. Only allowlisted preview
+    // origins get the token forwarded, and the full state goes with it —
+    // the preview callback runs its own nonce check on arrival.
+    if (accessToken && state && origin && origin !== window.location.origin) {
+      if (!isAllowedPreviewOrigin(origin)) {
+        toast.error("Unrecognized preview environment");
+        navigate({ to: "/profile" });
+        return;
+      }
+      window.location.href = buildPreviewBounceUrl(origin, accessToken, state);
       return;
     }
 
     if (!accessToken) {
       toast.error("No access token received from itch.io");
+      navigate({ to: "/profile" });
+      return;
+    }
+
+    // CSRF check: the callback only acts when `state` echoes the single-use
+    // nonce this session stored when it started the flow. Without this,
+    // a crafted callback URL could link an attacker's itch account.
+    const storedNonce = consumeStoredNonce();
+    if (!nonce || !storedNonce || nonce !== storedNonce) {
+      toast.error("itch.io link could not be verified — please try again");
       navigate({ to: "/profile" });
       return;
     }
