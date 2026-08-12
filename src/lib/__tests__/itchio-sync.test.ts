@@ -152,7 +152,7 @@ describe("syncItchIoLibrary()", () => {
   });
 
   it("returns zeros without touching projects when the library is empty", async () => {
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 0 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 0, drafts: 0 });
     expect(mocks.existingWhere).not.toHaveBeenCalled();
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
   });
@@ -163,7 +163,7 @@ describe("syncItchIoLibrary()", () => {
       game({ id: 2, published: false }),
     ]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 2, total: 2 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 2, total: 2, drafts: 1 });
 
     expect(mocks.insertOnConflict).toHaveBeenCalledTimes(1);
     expect(mocks.insertOnConflict).toHaveBeenCalledWith([
@@ -185,7 +185,7 @@ describe("syncItchIoLibrary()", () => {
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: false })]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1, drafts: 1 });
 
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
     expect(projectPatches()).toEqual([{ published: false }]);
@@ -203,7 +203,7 @@ describe("syncItchIoLibrary()", () => {
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1, drafts: 0 });
 
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
     expect(projectPatches()).toEqual([]);
@@ -221,7 +221,7 @@ describe("syncItchIoLibrary()", () => {
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1, drafts: 0 });
 
     expect(projectPatches()).toEqual([
       { published: true, imageUrl: "https://img.itch.zone/1.png" },
@@ -242,7 +242,7 @@ describe("syncItchIoLibrary()", () => {
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1, drafts: 0 });
 
     expect(projectPatches()).toEqual([{ published: true, url: "https://dev.itch.io/game-1" }]);
   });
@@ -259,7 +259,7 @@ describe("syncItchIoLibrary()", () => {
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1, drafts: 0 });
 
     expect(mocks.updateWhere).toHaveBeenCalledWith({
       published: true,
@@ -280,7 +280,7 @@ describe("syncItchIoLibrary()", () => {
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
-    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1, drafts: 0 });
 
     expect(projectPatches()).toEqual([]);
   });

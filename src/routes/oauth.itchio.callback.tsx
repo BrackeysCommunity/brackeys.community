@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { describeLinkImport } from "@/lib/itchio-import-copy";
 import {
   buildPreviewBounceUrl,
   consumeStoredNonce,
@@ -29,15 +30,7 @@ function ItchIoCallbackPage() {
   const { mutate: importGames } = useMutation({
     mutationFn: () => client.importItchIoGames({}),
     onSuccess: (data) => {
-      const count =
-        typeof data === "object" && data && "imported" in data
-          ? (data as { imported?: number }).imported
-          : undefined;
-      toast.success(
-        count != null
-          ? `Imported ${count} game${count === 1 ? "" : "s"} from itch.io`
-          : "Imported your itch.io games",
-      );
+      toast.success(describeLinkImport(data));
     },
     onError: (err: Error) => {
       toast.error(
@@ -97,7 +90,8 @@ function ItchIoCallbackPage() {
     }
 
     if (!accessToken) {
-      toast.error("No access token received from itch.io");
+      // Almost always the user clicking cancel on itch's consent page.
+      toast.error("itch.io link canceled");
       navigate({ to: "/profile" });
       return;
     }

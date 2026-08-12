@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { describeResyncImport } from "@/lib/itchio-import-copy";
 import { client } from "@/orpc/client";
 
 import type { ProfileItchSync } from "./helpers";
@@ -34,11 +35,7 @@ export function ProfileSyncBar({ itch, isOwner, queryKey }: ProfileSyncBarProps)
     mutationFn: () => client.importItchIoGames({}),
     onSuccess: (result) => {
       if (queryKey) void qc.invalidateQueries({ queryKey });
-      toast.success(
-        result.imported > 0
-          ? `Imported ${result.imported} new game${result.imported === 1 ? "" : "s"} from itch.io`
-          : "itch.io library is up to date",
-      );
+      toast.success(describeResyncImport(result));
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to sync itch.io"),
   });

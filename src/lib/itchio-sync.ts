@@ -36,7 +36,7 @@ export class ItchIoSyncFetchError extends Error {
  */
 export async function syncItchIoLibrary(
   userId: string,
-): Promise<{ imported: number; total: number } | null> {
+): Promise<{ imported: number; total: number; drafts: number } | null> {
   const [itchAccount] = await db
     .select()
     .from(linkedAccounts)
@@ -70,7 +70,7 @@ export async function syncItchIoLibrary(
     // Converge anyway: an account whose library comes back empty can still
     // hold placements imported before the canonical row existed.
     await convergeLibraryPlacements(userId, []);
-    return { imported: 0, total: 0 };
+    return { imported: 0, total: 0, drafts: 0 };
   }
 
   const existing = await db
@@ -178,7 +178,13 @@ export async function syncItchIoLibrary(
   // a null `project_id` that nothing else will ever fix.
   await convergeLibraryPlacements(userId, games);
 
-  return { imported: newGames.length, total: games.length };
+  return {
+    imported: newGames.length,
+    total: games.length,
+    // Drafts import fine but stay owner-only; the toasts say so instead of
+    // letting "imported 12" quietly disagree with 9 visible games.
+    drafts: games.filter((game) => !game.published).length,
+  };
 }
 
 // ── Throttled background refresh (own-profile view) ─────────────────────────
