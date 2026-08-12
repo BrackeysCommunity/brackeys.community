@@ -924,6 +924,14 @@ export type ProjectSource = (typeof PROJECT_SOURCES)[number];
 /** A secondary link on a project: repo, live site, store page, registry. */
 export type ProjectLink = { label: string; url: string };
 
+/** Last provider-seen values backing the snapshot-gated refresh — see
+ * `projects.sourceSnapshot`. */
+export type ProjectSourceSnapshot = {
+  title: string | null;
+  description: string | null;
+  url: string | null;
+};
+
 /**
  * A thing somebody made. One row per artifact, no matter how many people
  * showcase it.
@@ -990,6 +998,12 @@ export const projects = projectSchema.table(
     // `itch.jam_entries.game_id` resolves to it. One game on itch = one
     // project row, however many members imported it.
     sourceGameId: bigint("source_game_id", { mode: "number" }),
+    // Last provider-seen values for the snapshot-gated refresh: a field is
+    // provider-refreshed only while the row still equals what the provider
+    // last said (i.e. the owner hasn't edited it). Null on manual/jam-only
+    // rows and on rows that predate the column — those keep any drift until
+    // the next provider-side change.
+    sourceSnapshot: jsonb("source_snapshot").$type<ProjectSourceSnapshot>(),
     // Provider visibility mirrored at the canonical level. An unpublished
     // project renders only to its editors; a restricted one renders (jam
     // participation is public record) with its itch links suppressed.

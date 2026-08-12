@@ -1,0 +1,1 @@
+ALTER TABLE "project"."projects" ADD COLUMN "source_snapshot" jsonb;

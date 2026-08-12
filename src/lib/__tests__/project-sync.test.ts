@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { ProjectDb } from "../project-sync";
-import { ensureProjectContributors, fillProviderFields } from "../project-sync";
+import { diffItchGameRow, ensureProjectContributors, fillProviderFields } from "../project-sync";
 
 /**
  * A fake drizzle handle. The real schema and the real `eq`/`inArray` builders
@@ -128,8 +128,10 @@ describe("fillProviderFields()", () => {
     return {
       id: "p1",
       type: "game",
+      title: "Spin to Survive",
       description: null,
       url: null,
+      sourceSnapshot: null,
       imageUrl: null,
       imageKey: null,
       classification: null,
@@ -168,9 +170,11 @@ describe("fillProviderFields()", () => {
     });
   });
 
-  it("never overwrites a field the row already answers", async () => {
-    // Fill-if-null is the whole edit-protection scheme until the snapshot
-    // gate lands: we can't tell an owner's edit from a stale import.
+  it("never overwrites an answered field the snapshot can't vouch for", async () => {
+    // Pre-snapshot rows (sourceSnapshot null): we can't tell an owner's
+    // edit from a stale import, so drifted text survives. `url` is the
+    // exception — provider-owned outright, because a stale URL corrupts
+    // the restricted probe and the page CTA.
     const { patch } = await run(
       project({
         description: "the owner's words",
@@ -183,15 +187,38 @@ describe("fillProviderFields()", () => {
       }),
     );
 
-    expect(patch).toBeUndefined();
+    expect(patch).toMatchObject({ url: "https://dev.itch.io/spin" });
+    expect(patch).not.toHaveProperty("description");
+    expect(patch).not.toHaveProperty("title");
   });
 
-  it("never mirrors provider `title` or `published`", async () => {
-    // `title` is the field owners actually rename, and a staff hide
-    // (`published: false`) must survive the next sweep.
+  it("seeds the snapshot on first sight of a row", async () => {
     const { patch } = await run(project());
 
-    expect(patch).not.toHaveProperty("title");
+    expect(patch).toMatchObject({
+      sourceSnapshot: {
+        title: "Spin to Survive (renamed on itch)",
+        description: "a game",
+        url: "https://dev.itch.io/spin",
+      },
+    });
+  });
+
+  it("refreshes title through the snapshot gate, and never mirrors `published`", async () => {
+    // With the snapshot vouching that the row still says what the provider
+    // last said, a provider-side rename flows through. A staff hide
+    // (`published: false`) must still survive the next sweep.
+    const { patch } = await run(
+      project({
+        sourceSnapshot: {
+          title: "Spin to Survive",
+          description: null,
+          url: null,
+        },
+      }),
+    );
+
+    expect(patch).toMatchObject({ title: "Spin to Survive (renamed on itch)" });
     expect(patch).not.toHaveProperty("published");
   });
 
@@ -218,5 +245,125 @@ describe("fillProviderFields()", () => {
     const { db, updates } = fakeDb([]);
     await expect(fillProviderFields(db, [])).resolves.toBe(0);
     expect(updates).toHaveLength(0);
+  });
+});
+
+describe("diffItchGameRow()", () => {
+  // The provider's current answer; the matrix varies the row against it.
+  const facts = {
+    id: 1,
+    title: "New Title",
+    short_text: "new words",
+    url: "https://new-name.itch.io/game",
+  };
+  const incomingSnapshot = {
+    title: "New Title",
+    description: "new words",
+    url: "https://new-name.itch.io/game",
+  };
+  const oldSnapshot = {
+    title: "Old Title",
+    description: "old words",
+    url: "https://old-name.itch.io/game",
+  };
+
+  it("snapshot equal + provider changed → field refreshes and snapshot advances", () => {
+    const patch = diffItchGameRow(
+      {
+        title: "Old Title",
+        description: "old words",
+        url: "https://old-name.itch.io/game",
+        sourceSnapshot: oldSnapshot,
+      },
+      facts,
+    );
+    expect(patch).toEqual({
+      title: "New Title",
+      description: "new words",
+      url: "https://new-name.itch.io/game",
+      sourceSnapshot: incomingSnapshot,
+    });
+  });
+
+  it("snapshot equal + provider unchanged → no patch at all", () => {
+    const patch = diffItchGameRow(
+      {
+        title: "New Title",
+        description: "new words",
+        url: "https://new-name.itch.io/game",
+        sourceSnapshot: incomingSnapshot,
+      },
+      facts,
+    );
+    expect(patch).toBeNull();
+  });
+
+  it("snapshot diverged (owner edited) + provider changed → snapshot advances, fields survive", () => {
+    const patch = diffItchGameRow(
+      {
+        title: "My Better Title",
+        description: "my own words",
+        url: "https://new-name.itch.io/game",
+        sourceSnapshot: oldSnapshot,
+      },
+      facts,
+    );
+    expect(patch).toEqual({ sourceSnapshot: incomingSnapshot });
+  });
+
+  it("snapshot null + provider differs → conservative: only the snapshot is written", () => {
+    const patch = diffItchGameRow(
+      {
+        title: "Drifted Title",
+        description: "drifted words",
+        url: "https://new-name.itch.io/game",
+        sourceSnapshot: null,
+      },
+      facts,
+    );
+    expect(patch).toEqual({ sourceSnapshot: incomingSnapshot });
+  });
+
+  it("snapshot null + null description → filling can't destroy an edit", () => {
+    const patch = diffItchGameRow(
+      {
+        title: "New Title",
+        description: null,
+        url: "https://new-name.itch.io/game",
+        sourceSnapshot: null,
+      },
+      facts,
+    );
+    expect(patch).toEqual({ description: "new words", sourceSnapshot: incomingSnapshot });
+  });
+
+  it("url refreshes even when the owner diverged everything else", () => {
+    const patch = diffItchGameRow(
+      {
+        title: "My Better Title",
+        description: "my own words",
+        url: "https://old-name.itch.io/game",
+        sourceSnapshot: oldSnapshot,
+      },
+      facts,
+    );
+    expect(patch).toEqual({
+      url: "https://new-name.itch.io/game",
+      sourceSnapshot: incomingSnapshot,
+    });
+  });
+
+  it("owner reverting to provider wording re-arms the gate", () => {
+    // Row matches the *current* snapshot again → next provider change flows.
+    const rearmed = diffItchGameRow(
+      {
+        title: "New Title",
+        description: "new words",
+        url: "https://new-name.itch.io/game",
+        sourceSnapshot: incomingSnapshot,
+      },
+      { ...facts, title: "Even Newer" },
+    );
+    expect(rearmed).toMatchObject({ title: "Even Newer" });
   });
 });

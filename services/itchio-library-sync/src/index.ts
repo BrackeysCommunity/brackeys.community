@@ -12,7 +12,7 @@ import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
 // creates placements, and a placement with no `project_id` behind it is a
 // project page that doesn't exist. Both copies of the orchestration have to
 // mint the canonical row or the backfill script never stops being needed.
-import { fetchGames, ItchApiError } from "../../../src/lib/itchio.ts";
+import { fetchGames, ItchApiError, validateToken } from "../../../src/lib/itchio.ts";
 import { convergeJamPlacements, convergeLibraryPlacements } from "../../../src/lib/project-sync.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
@@ -37,6 +37,7 @@ async function syncAccount(
       sourceId: profileProjects.sourceId,
       published: profileProjects.published,
       publishedAt: profileProjects.publishedAt,
+      url: profileProjects.url,
       imageUrl: profileProjects.imageUrl,
       imageKey: profileProjects.imageKey,
     })
@@ -82,13 +83,19 @@ async function syncAccount(
     // Keep cover art in step with itch.io unless the owner uploaded their
     // own image (`imageKey` set), which always wins.
     const needsCoverRefresh = row.imageKey == null && row.imageUrl !== coverUrl;
-    if (needsPublishFlip || needsDateBackfill || needsCoverRefresh) {
+    // A username rename changes every game URL; the restricted probe HEADs
+    // the stored one, so a stale URL reads as 404 and wrongly hides the
+    // game. Refreshing here (before the probe phase) is what makes the
+    // probe's verdict trustworthy.
+    const needsUrlRefresh = Boolean(game.url) && row.url !== game.url;
+    if (needsPublishFlip || needsDateBackfill || needsCoverRefresh || needsUrlRefresh) {
       await db
         .update(profileProjects)
         .set({
           published: game.published,
           ...(needsDateBackfill ? { publishedAt } : {}),
           ...(needsCoverRefresh ? { imageUrl: coverUrl } : {}),
+          ...(needsUrlRefresh ? { url: game.url } : {}),
         })
         .where(eq(profileProjects.id, row.id));
       if (needsPublishFlip) flipped++;
@@ -413,18 +420,86 @@ async function backfillJams(): Promise<{ accounts: number; imported: number; fai
   return { accounts: accounts.length, imported, failed };
 }
 
+interface SweepAccount {
+  profileId: string;
+  accessToken: string | null;
+  providerUsername: string | null;
+  providerDisplayName: string | null;
+  providerProfileUrl: string | null;
+  providerAvatarUrl: string | null;
+}
+
+/**
+ * Refresh the linked account's itch identity (`/profile`): username renames
+ * change every game URL and silently break jam teammate matching (which is
+ * exact-match on normalized profile URL), so the sweep re-reads the identity
+ * nightly. Runs *before* the jam backfill so a rename's new URL matches in
+ * the same sweep, not one sweep late.
+ *
+ * Returns "revoked" on 401/403 (stamped here — this is the first API call
+ * that touches the token each sweep) and "abort" on 429/5xx.
+ */
+async function refreshIdentity(
+  account: SweepAccount,
+): Promise<"ok" | "revoked" | "abort" | "error"> {
+  if (!account.accessToken) return "error";
+  try {
+    const user = await validateToken(account.accessToken, { userAgent: config.USER_AGENT });
+    const patch: Partial<typeof linkedAccounts.$inferInsert> = {};
+    if (user.username && user.username !== account.providerUsername) {
+      patch.providerUsername = user.username;
+    }
+    const displayName = user.display_name || null;
+    if (displayName !== account.providerDisplayName) patch.providerDisplayName = displayName;
+    const profileUrl = user.url || null;
+    if (profileUrl && profileUrl !== account.providerProfileUrl) {
+      patch.providerProfileUrl = profileUrl;
+    }
+    const avatarUrl = user.cover_url || null;
+    if (avatarUrl !== account.providerAvatarUrl) patch.providerAvatarUrl = avatarUrl;
+
+    if (Object.keys(patch).length > 0) {
+      await db
+        .update(linkedAccounts)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(
+          and(
+            eq(linkedAccounts.profileId, account.profileId),
+            eq(linkedAccounts.provider, "itchio"),
+          ),
+        );
+      if (patch.providerUsername || patch.providerProfileUrl) {
+        console.log(
+          `[sweep] identity refresh: ${account.providerUsername ?? "?"} → ${user.username} (profile ${account.profileId})`,
+        );
+      }
+    }
+    return "ok";
+  } catch (err) {
+    if (err instanceof ItchApiError && (err.status === 401 || err.status === 403)) {
+      await db
+        .update(linkedAccounts)
+        .set({ tokenInvalidAt: new Date() })
+        .where(
+          and(
+            eq(linkedAccounts.profileId, account.profileId),
+            eq(linkedAccounts.provider, "itchio"),
+            isNull(linkedAccounts.tokenInvalidAt),
+          ),
+        );
+      return "revoked";
+    }
+    if (err instanceof ItchApiError && (err.status === 429 || err.status >= 500)) return "abort";
+    console.error(`[sweep] identity refresh failed for profile ${account.profileId}`, err);
+    return "error";
+  }
+}
+
 async function runSweep() {
   const started = Date.now();
 
-  // Jam backfill first: it's DB-only (no itch.io traffic), so it must not be
-  // lost when the API sweep below aborts early on a 429/5xx.
-  const jams = await backfillJams();
-  console.log(
-    `[jams] backfilled ${jams.accounts} accounts, imported ${jams.imported}, failed ${jams.failed}`,
-  );
-
   // Known-invalid tokens fail deterministically — skip their API sync (the
-  // jam backfill above already covered them; it needs no token). Logged so
+  // jam backfill below still covers them; it needs no token). Logged so
   // a growing count is visible in Railway.
   const [invalidRow] = await db
     .select({ skippedInvalid: sql<number>`count(*)::int` })
@@ -440,10 +515,14 @@ async function runSweep() {
 
   // Oldest-synced first (never-synced before that): an aborted sweep's next
   // tick resumes at the starved tail instead of re-syncing the same head.
-  const accounts = await db
+  const accounts: SweepAccount[] = await db
     .select({
       profileId: linkedAccounts.profileId,
       accessToken: linkedAccounts.accessToken,
+      providerUsername: linkedAccounts.providerUsername,
+      providerDisplayName: linkedAccounts.providerDisplayName,
+      providerProfileUrl: linkedAccounts.providerProfileUrl,
+      providerAvatarUrl: linkedAccounts.providerAvatarUrl,
     })
     .from(linkedAccounts)
     .where(
@@ -463,7 +542,37 @@ async function runSweep() {
   let imported = 0;
   let flipped = 0;
   let revoked = 0;
+  let identityRefreshed = 0;
   let aborted = false;
+
+  // Identity pass first, so a rename's refreshed profile URL is in place
+  // before the jam backfill matches teammates against it. Same API-abort
+  // policy as the library pass; the jam backfill (DB-only) still runs when
+  // this aborts, the API phases don't.
+  const revokedProfiles = new Set<string>();
+  for (const [i, account] of accounts.entries()) {
+    if (i > 0) await sleep(config.SYNC_DELAY_MS);
+    const outcome = await refreshIdentity(account);
+    if (outcome === "ok") identityRefreshed++;
+    if (outcome === "revoked") {
+      console.warn(`[sweep] token revoked for profile ${account.profileId}, skipping`);
+      revokedProfiles.add(account.profileId);
+      revoked++;
+    }
+    if (outcome === "abort") {
+      console.error("[sweep] itch.io rate-limited the identity pass; skipping API sync this run");
+      aborted = true;
+      break;
+    }
+  }
+  console.log(`[sweep] identity-refreshed ${identityRefreshed} of ${accounts.length}`);
+
+  // Jam backfill is DB-only (no itch.io traffic), so it runs even when the
+  // API passes abort on a 429/5xx.
+  const jams = await backfillJams();
+  console.log(
+    `[jams] backfilled ${jams.accounts} accounts, imported ${jams.imported}, failed ${jams.failed}`,
+  );
 
   type Account = (typeof accounts)[number];
 
@@ -526,12 +635,16 @@ async function runSweep() {
 
   let failed = 0;
   try {
-    const failedAccounts = await pass(accounts);
-    failed = failedAccounts.length;
-    if (failed > 0 && !aborted) {
-      console.log(`[sweep] retrying ${failed} failed account(s)`);
-      const stillFailing = await pass(failedAccounts);
-      failed = stillFailing.length;
+    if (!aborted) {
+      // Tokens the identity pass just found revoked fail identically here.
+      const syncable = accounts.filter((a) => !revokedProfiles.has(a.profileId));
+      const failedAccounts = await pass(syncable);
+      failed = failedAccounts.length;
+      if (failed > 0 && !aborted) {
+        console.log(`[sweep] retrying ${failed} failed account(s)`);
+        const stillFailing = await pass(failedAccounts);
+        failed = stillFailing.length;
+      }
     }
   } finally {
     const elapsed = Math.round((Date.now() - started) / 1000);

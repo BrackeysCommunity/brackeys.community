@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
         id: string;
         sourceId: string | null;
         published: boolean;
+        url?: string | null;
         imageUrl?: string | null;
         imageKey?: string | null;
       }[],
@@ -68,6 +69,7 @@ vi.mock("@/db/schema", () => ({
     sourceId: "sourceId",
     published: "published",
     publishedAt: "publishedAt",
+    url: "url",
     imageUrl: "imageUrl",
     imageKey: "imageKey",
   },
@@ -171,7 +173,13 @@ describe("syncItchIoLibrary()", () => {
 
   it("flips published when itch.io visibility changed", async () => {
     mocks.existingWhere.mockResolvedValue([
-      { id: "row1", sourceId: "1", published: true, imageUrl: "https://img.itch.zone/1.png" },
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: "https://img.itch.zone/1.png",
+      },
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: false })]);
 
@@ -183,7 +191,13 @@ describe("syncItchIoLibrary()", () => {
 
   it("no-ops when nothing changed", async () => {
     mocks.existingWhere.mockResolvedValue([
-      { id: "row1", sourceId: "1", published: true, imageUrl: "https://img.itch.zone/1.png" },
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: "https://img.itch.zone/1.png",
+      },
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
@@ -195,7 +209,13 @@ describe("syncItchIoLibrary()", () => {
 
   it("refreshes the stored cover when itch.io's cover_url changed", async () => {
     mocks.existingWhere.mockResolvedValue([
-      { id: "row1", sourceId: "1", published: true, imageUrl: "https://img.itch.zone/old.png" },
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: "https://img.itch.zone/old.png",
+      },
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
@@ -206,9 +226,34 @@ describe("syncItchIoLibrary()", () => {
     ]);
   });
 
+  it("refreshes a stale URL after a provider-side rename", async () => {
+    // The restricted probe HEADs the stored URL; leaving the old-username
+    // URL in place would 404 and wrongly stamp the game restricted.
+    mocks.existingWhere.mockResolvedValue([
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        url: "https://old-name.itch.io/game-1",
+        imageUrl: "https://img.itch.zone/1.png",
+      },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
+
+    await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
+
+    expect(projectPatches()).toEqual([{ published: true, url: "https://dev.itch.io/game-1" }]);
+  });
+
   it("backfills a missing cover on re-sync", async () => {
     mocks.existingWhere.mockResolvedValue([
-      { id: "row1", sourceId: "1", published: true, imageUrl: null },
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: null,
+      },
     ]);
     mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
 
@@ -226,6 +271,7 @@ describe("syncItchIoLibrary()", () => {
         id: "row1",
         sourceId: "1",
         published: true,
+        url: "https://dev.itch.io/game-1",
         imageUrl: null,
         imageKey: "profile-project-images/u1/custom.png",
       },

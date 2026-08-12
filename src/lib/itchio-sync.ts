@@ -78,6 +78,7 @@ export async function syncItchIoLibrary(
       sourceId: profileProjects.sourceId,
       published: profileProjects.published,
       publishedAt: profileProjects.publishedAt,
+      url: profileProjects.url,
       imageUrl: profileProjects.imageUrl,
       imageKey: profileProjects.imageKey,
     })
@@ -115,9 +116,12 @@ export async function syncItchIoLibrary(
 
   // Re-syncs update visibility (publishing / unpublishing on itch.io is
   // reflected here), backfill the provider publish date on rows imported
-  // before the `published_at` column existed, and keep the cover art in
-  // step with itch.io (unless the owner uploaded their own image, which
-  // `imageKey` records and always wins).
+  // before the `published_at` column existed, keep the cover art in step
+  // with itch.io (unless the owner uploaded their own image, which
+  // `imageKey` records and always wins), and keep the URL current — a
+  // username rename changes every game URL, and the restricted-visibility
+  // probe HEADs the stored one, so a stale URL reads as a 404 and wrongly
+  // hides the game.
   for (const game of games) {
     const row = existingBySourceId.get(String(game.id));
     if (!row) continue;
@@ -126,13 +130,15 @@ export async function syncItchIoLibrary(
     const needsPublishFlip = row.published !== game.published;
     const needsDateBackfill = row.publishedAt == null && publishedAt != null;
     const needsCoverRefresh = row.imageKey == null && row.imageUrl !== coverUrl;
-    if (needsPublishFlip || needsDateBackfill || needsCoverRefresh) {
+    const needsUrlRefresh = Boolean(game.url) && row.url !== game.url;
+    if (needsPublishFlip || needsDateBackfill || needsCoverRefresh || needsUrlRefresh) {
       await db
         .update(profileProjects)
         .set({
           published: game.published,
           ...(needsDateBackfill ? { publishedAt } : {}),
           ...(needsCoverRefresh ? { imageUrl: coverUrl } : {}),
+          ...(needsUrlRefresh ? { url: game.url } : {}),
         })
         .where(eq(profileProjects.id, row.id));
     }

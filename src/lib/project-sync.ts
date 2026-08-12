@@ -22,6 +22,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   type ItchJamContributor,
   type ProjectLink,
+  type ProjectSourceSnapshot,
   type ProjectType,
   developerProfiles,
   itchJamEntries,
@@ -409,17 +410,79 @@ export function seedFromJamEntry(entry: JamEntryFacts): ProjectSeed {
   };
 }
 
+/** The slice of a canonical row `diffItchGameRow` reads. */
+export interface SnapshotGatedRow {
+  title: string;
+  description: string | null;
+  url: string | null;
+  sourceSnapshot: ProjectSourceSnapshot | null;
+}
+
+function snapshotOf(facts: ItchGameFacts): ProjectSourceSnapshot {
+  return {
+    title: facts.title ?? null,
+    description: facts.short_text ?? null,
+    url: facts.url ?? null,
+  };
+}
+
+function snapshotsEqual(a: ProjectSourceSnapshot, b: ProjectSourceSnapshot): boolean {
+  return a.title === b.title && a.description === b.description && a.url === b.url;
+}
+
 /**
- * Fill canonical fields the provider knows and we don't yet.
+ * Snapshot-gated provider refresh for the owner-editable identity fields.
  *
- * **Fill-if-null, never overwrite.** Until the snapshot-gated refresh lands
- * (hardening Phase 4's `diffItchGameRow`), we cannot tell an owner's edit
- * from a stale import, so the sync only ever answers questions the row hasn't
- * answered. Two fields are deliberately *not* refreshed at all:
+ * The snapshot records what the provider said last time. A field refreshes
+ * only while the row still equals that value — the moment an owner edits it,
+ * row ≠ snapshot and the provider stops winning (the snapshot itself keeps
+ * advancing, so a later revert to provider wording re-arms the gate).
+ *
+ * Rules per field:
+ * - `url` — provider-owned outright for itch rows: a stale URL corrupts the
+ *   restricted-visibility probe and the page CTA, so it refreshes on any
+ *   change, snapshot or not.
+ * - `title` / `description` — gated. Rows that predate the column
+ *   (`sourceSnapshot` null) get the conservative treatment: seed the
+ *   snapshot, touch the field only where it's a no-op (or a null
+ *   description, which can't be destroying an edit) — drifted text survives
+ *   until the *next* provider-side change.
+ */
+export function diffItchGameRow(
+  row: SnapshotGatedRow,
+  facts: ItchGameFacts,
+): Partial<typeof projects.$inferInsert> | null {
+  const patch: Partial<typeof projects.$inferInsert> = {};
+  const stored = row.sourceSnapshot;
+  const incoming = snapshotOf(facts);
+
+  if (incoming.url && row.url !== incoming.url) patch.url = incoming.url;
+
+  if (incoming.title && incoming.title !== row.title) {
+    if (stored && row.title === stored.title) patch.title = incoming.title;
+  }
+
+  if (incoming.description !== row.description) {
+    if (stored ? row.description === stored.description : row.description == null) {
+      patch.description = incoming.description;
+    }
+  }
+
+  if (!stored || !snapshotsEqual(stored, incoming)) patch.sourceSnapshot = incoming;
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
+ * Refresh canonical fields from the provider.
+ *
+ * `title` / `description` / `url` go through `diffItchGameRow`'s
+ * snapshot gate above. The remaining provider facts are fill-if-null (they
+ * were never owner-editable surfaces worth diffing). Deliberately *never*
+ * refreshed:
  *
  * - `published` — staff can hide a scrape-minted project by clearing it, and
  *   a sync that mirrored the provider blindly would undo that every hour.
- * - `title` — the one field owners actually rename.
  *
  * The curated `type` moves only on the run that first learns a
  * `classification`, and only from the historical `game` default: after that
@@ -436,6 +499,7 @@ export async function fillProviderFields(
     .select({
       id: projects.id,
       type: projects.type,
+      title: projects.title,
       description: projects.description,
       url: projects.url,
       imageUrl: projects.imageUrl,
@@ -444,6 +508,7 @@ export async function fillProviderFields(
       embedType: projects.embedType,
       releaseStatus: projects.releaseStatus,
       releasedAt: projects.releasedAt,
+      sourceSnapshot: projects.sourceSnapshot,
     })
     .from(projects)
     .where(inArray(projects.id, [...factsByProjectId.keys()]));
@@ -452,9 +517,9 @@ export async function fillProviderFields(
   for (const row of rows) {
     const facts = factsByProjectId.get(row.id);
     if (!facts) continue;
-    const patch: Partial<typeof projects.$inferInsert> = {};
-    if (row.description == null && facts.short_text) patch.description = facts.short_text;
-    if (row.url == null && facts.url) patch.url = facts.url;
+    const patch: Partial<typeof projects.$inferInsert> = {
+      ...diffItchGameRow(row, facts),
+    };
     // A project-scoped upload always wins over the provider cover.
     if (row.imageUrl == null && row.imageKey == null && facts.cover_url) {
       patch.imageUrl = facts.cover_url;

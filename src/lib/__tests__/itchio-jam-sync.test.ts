@@ -140,6 +140,19 @@ describe("normalizeItchProfileUrl()", () => {
     expect(normalizeItchProfileUrl("  ")).toBeNull();
     expect(normalizeItchProfileUrl("/")).toBeNull();
   });
+
+  it("re-matches a renamed account once the identity refresh lands the new URL", () => {
+    // Teammate matching is exact-match on the normalized profile URL. A
+    // rename breaks it (old-name ≠ new-name), and the sweep's identity
+    // refresh is what restores the match — under the *new* URL.
+    const scrapedContributorUrl = "https://New-Name.itch.io/";
+    expect(normalizeItchProfileUrl("https://old-name.itch.io")).not.toBe(
+      normalizeItchProfileUrl(scrapedContributorUrl),
+    );
+    expect(normalizeItchProfileUrl("https://new-name.itch.io")).toBe(
+      normalizeItchProfileUrl(scrapedContributorUrl),
+    );
+  });
 });
 
 describe("composeOverallResult()", () => {
