@@ -28,6 +28,7 @@ COPY src/lib/project-sync.ts ./src/lib/project-sync.ts
 COPY src/lib/project-taxonomy.ts ./src/lib/project-taxonomy.ts
 COPY src/lib/itch-urls.ts ./src/lib/itch-urls.ts
 COPY src/lib/itchio.ts ./src/lib/itchio.ts
+COPY src/lib/token-crypto.ts ./src/lib/token-crypto.ts
 
 WORKDIR /app/services/itchio-library-sync
 CMD ["bun", "run", "start"]

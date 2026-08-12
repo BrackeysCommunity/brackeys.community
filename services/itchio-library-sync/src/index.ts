@@ -15,6 +15,7 @@ import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
 import { fetchGames, ItchApiError, validateToken } from "../../../src/lib/itchio.ts";
 import { convergeJamPlacements, convergeLibraryPlacements } from "../../../src/lib/project-sync.ts";
 import { placementTypeFromClassification } from "../../../src/lib/project-taxonomy.ts";
+import { openToken } from "../../../src/lib/token-crypto.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
 
@@ -547,7 +548,7 @@ async function runSweep() {
 
   // Oldest-synced first (never-synced before that): an aborted sweep's next
   // tick resumes at the starved tail instead of re-syncing the same head.
-  const accounts: SweepAccount[] = await db
+  const accountRows: SweepAccount[] = await db
     .select({
       profileId: linkedAccounts.profileId,
       accessToken: linkedAccounts.accessToken,
@@ -566,6 +567,27 @@ async function runSweep() {
       ),
     )
     .orderBy(sql`${linkedAccounts.lastSyncedAt} asc nulls first`);
+
+  // Tokens are sealed at rest. A decrypt failure is a config problem
+  // (missing or rotated LINKED_ACCOUNTS_ENC_KEY) — skip the account and
+  // say so, rather than sending ciphertext to itch as a bearer token.
+  const accounts: SweepAccount[] = [];
+  let undecryptable = 0;
+  for (const row of accountRows) {
+    try {
+      accounts.push({
+        ...row,
+        accessToken: row.accessToken ? openToken(row.accessToken) : null,
+      });
+    } catch {
+      undecryptable++;
+    }
+  }
+  if (undecryptable > 0) {
+    console.error(
+      `[sweep] ${undecryptable} account token(s) undecryptable — check LINKED_ACCOUNTS_ENC_KEY`,
+    );
+  }
 
   console.log(
     `[sweep] ${accounts.length} linked itch.io accounts to sync, skipped-invalid ${skippedInvalid}`,

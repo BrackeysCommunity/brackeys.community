@@ -5,7 +5,9 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { account, linkedAccounts } from "@/db/schema";
+import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import { fetchGitHubUser, fetchContributionCalendar } from "@/lib/github";
+import { openToken, sealToken } from "@/lib/token-crypto";
 import { requireAuth, authMiddleware } from "@/orpc/middleware/auth";
 
 export const syncGitHubLink = os
@@ -26,7 +28,12 @@ export const syncGitHubLink = os
       });
     }
 
-    const ghUser = await fetchGitHubUser(ghAccount.accessToken).catch(() => {
+    // better-auth stores its tokens encrypted under its own secret; this
+    // read bypasses its endpoints, so decryption is on us — and the copy
+    // we keep in linked_accounts is sealed with our own key.
+    const ghToken = await openBetterAuthToken(ghAccount.accessToken);
+
+    const ghUser = await fetchGitHubUser(ghToken).catch(() => {
       throw new ORPCError("BAD_REQUEST", {
         message: "Failed to fetch GitHub profile. Token may be invalid.",
       });
@@ -41,7 +48,7 @@ export const syncGitHubLink = os
         providerUsername: ghUser.login,
         providerAvatarUrl: ghUser.avatar_url ?? null,
         providerProfileUrl: ghUser.html_url ?? null,
-        accessToken: ghAccount.accessToken,
+        accessToken: sealToken(ghToken),
         scopes: "read:user",
         linkedAt: new Date(),
         updatedAt: new Date(),
@@ -53,7 +60,7 @@ export const syncGitHubLink = os
           providerUsername: ghUser.login,
           providerAvatarUrl: ghUser.avatar_url ?? null,
           providerProfileUrl: ghUser.html_url ?? null,
-          accessToken: ghAccount.accessToken,
+          accessToken: sealToken(ghToken),
           scopes: "read:user",
           updatedAt: new Date(),
         },
@@ -107,7 +114,7 @@ export const getContributions = os
     }
 
     const calendar = await fetchContributionCalendar(
-      ghLink.accessToken,
+      openToken(ghLink.accessToken),
       ghLink.providerUsername,
     ).catch(() => null);
 

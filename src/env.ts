@@ -6,6 +6,10 @@ export const env = createEnv({
     SERVER_URL: z.url().optional(),
     GITHUB_CLIENT_ID: z.string().min(1).optional(),
     GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+    // 32 bytes base64 — seals linked_accounts.access_token at rest (see
+    // src/lib/token-crypto.ts, which reads process.env directly so the
+    // sync service can share it; declared here for visibility/validation).
+    LINKED_ACCOUNTS_ENC_KEY: z.string().min(1).optional(),
     MINIO_BUCKET: z.string().min(1).optional(),
     MINIO_ENDPOINT: z.string().min(1).optional(),
     MINIO_ACCESS_KEY: z.string().min(1).optional(),

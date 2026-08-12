@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { user, session, account, verification, developerProfiles } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
 import { cleanupUserData } from "@/lib/account-deletion";
+import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import {
   discordAvatarUrl,
   fetchDiscordUser,
@@ -40,9 +41,19 @@ export const auth = betterAuth({
       scope: ["read:user"],
     },
   },
-  accountLinking: {
-    enabled: true,
-    trustedProviders: ["discord", "github"],
+  account: {
+    // NB: these options only work nested under `account.` — a previous
+    // top-level `accountLinking` block was silently ignored (linking rode
+    // on better-auth's defaults).
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["discord", "github"],
+    },
+    // OAuth tokens encrypted at rest under BETTER_AUTH_SECRET (hardening
+    // Phase 7). Rows written before this flag are plaintext; better-auth's
+    // decrypt throws on them, our direct reads go through
+    // `openBetterAuthToken` (tolerant), and rows self-heal on next sign-in.
+    encryptOAuthTokens: true,
   },
   user: {
     deleteUser: {
@@ -137,10 +148,13 @@ export const auth = betterAuth({
 
             if (discordAccount?.accessToken) {
               discordId = discordAccount.accountId;
+              // Selected straight from the account table, so decryption is
+              // on us (better-auth only decrypts in its own endpoints).
+              const discordToken = await openBetterAuthToken(discordAccount.accessToken);
               try {
                 // The member payload embeds the user object, so guild members
                 // get their current avatar with no extra Discord call.
-                const member = await fetchGuildMember(discordAccount.accessToken);
+                const member = await fetchGuildMember(discordToken);
                 guildNickname = member.nick;
                 guildJoinedAt = new Date(member.joined_at);
                 guildRoles = resolveRoleNames(member.roles);
@@ -149,9 +163,7 @@ export const auth = betterAuth({
                 // User not in guild (or rate limited) — continue without guild data
               }
               if (!latestDiscordAvatarUrl) {
-                latestDiscordAvatarUrl = discordAvatarUrl(
-                  await fetchDiscordUser(discordAccount.accessToken),
-                );
+                latestDiscordAvatarUrl = discordAvatarUrl(await fetchDiscordUser(discordToken));
               }
             }
           } catch {

@@ -16,6 +16,7 @@ import { fetchGames, ItchApiError } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { placementTypeFromClassification } from "@/lib/project-taxonomy";
 import { convergeLibraryPlacements } from "@/lib/projects";
+import { openToken } from "@/lib/token-crypto";
 
 /** Thrown when the itch.io API call itself fails (vs. no linked account).
  * `status` is set when itch answered with an error status, absent when the
@@ -45,7 +46,11 @@ export async function syncItchIoLibrary(
 
   if (!itchAccount?.accessToken) return null;
 
-  const games = await fetchGames(itchAccount.accessToken).catch(async (err) => {
+  // Sealed at rest; a decrypt failure here is a config error (bad or
+  // missing LINKED_ACCOUNTS_ENC_KEY) and should be loud, not wrapped.
+  const accessToken = openToken(itchAccount.accessToken);
+
+  const games = await fetchGames(accessToken).catch(async (err) => {
     // Token health stamping: the first 401/403 records when the token went
     // bad (the timestamp survives later failures), so the profile UI can
     // prompt a reconnect even if the nightly sweep never reaches this user.
