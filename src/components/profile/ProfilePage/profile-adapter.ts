@@ -66,6 +66,11 @@ export interface RpcProfile {
      * `type` is a pg enum that can't hold those) and its secondary links. */
     canonicalType: string | null;
     canonicalLinks: { label: string; url: string }[] | null;
+    /** Canonical provider facts — platform chips and the PAID chip. */
+    canonicalPlatforms: string[] | null;
+    canonicalMinPrice: number | null;
+    /** The game left the linked itch library (deleted, or access lost). */
+    missingSince: Date | null;
     /** When the jam itself ran — from the scraped `itch.jams` join. */
     jamStartsAt: Date | null;
     jamEntriesCount: number | null;
@@ -416,6 +421,7 @@ function adaptEditable(p: RpcProfile["projects"][number]): EditableProject {
     result: p.result,
     participatedAt: p.participatedAt,
     publishedAt: p.publishedAt,
+    missingSince: p.missingSince,
   };
 }
 
@@ -439,6 +445,9 @@ function adaptProject(p: RpcProfile["projects"][number]): ProfileProject {
     tags: [...(p.subTypes ?? []), ...(p.tags ?? [])].slice(0, 4),
     jamName: p.jamName,
     jamPlacement: p.result ? formatJamPlacement(p.result) : null,
+    platforms: p.canonicalPlatforms ?? [],
+    paid: (p.canonicalMinPrice ?? 0) > 0,
+    missing: p.missingSince != null,
   };
 }
 

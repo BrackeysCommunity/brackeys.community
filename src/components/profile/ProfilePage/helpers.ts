@@ -209,6 +209,8 @@ export interface EditableProject {
   /** Provider publish date (itch.io `published_at`) — preferred over
    * DB insert time when deriving the display year. */
   publishedAt: Date | null;
+  /** See `ProfileProject.missing` — owner cards label these. */
+  missingSince: Date | null;
 }
 
 export interface ProfileProject {
@@ -229,6 +231,14 @@ export interface ProfileProject {
   jamName: string | null;
   /** When `kind === "jam"` — small placement chip on the card. */
   jamPlacement: string | null;
+  /** Canonical provider platforms ("windows", "osx", …) — platform chips. */
+  platforms: string[];
+  /** Provider `min_price > 0` — the PAID chip. */
+  paid: boolean;
+  /** The game vanished from the linked itch library (deleted, or access
+   * lost). Public views filter these rows server-side; owners see the card
+   * with a "no longer on itch.io" label. */
+  missing: boolean;
 }
 
 export interface JamLogEntry {

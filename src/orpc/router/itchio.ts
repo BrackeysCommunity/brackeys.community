@@ -53,6 +53,7 @@ export const linkItchIo = os
         accessToken: input.accessToken,
         scopes,
         tokenInvalidAt: null,
+        providerRaw: itchUser,
         linkedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -68,6 +69,7 @@ export const linkItchIo = os
           scopes,
           // Re-linking is the reconnect path: the fresh token clears the flag.
           tokenInvalidAt: null,
+          providerRaw: itchUser,
           updatedAt: new Date(),
         },
       })

@@ -7,10 +7,14 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { type ProfileProjectSubType } from "@/lib/profile-projects";
-import { MANUAL_PROJECT_TYPES, type ManualProjectType } from "@/lib/project-taxonomy";
+import {
+  MANUAL_PROJECT_TYPES,
+  type ManualProjectType,
+  platformLabel,
+} from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
@@ -272,6 +276,11 @@ function editableToDisplay(p: EditableProject): ProfileProject {
     tags: (p.subTypes ?? []).slice(0, 4),
     jamName: p.jamName,
     jamPlacement: p.result ?? null,
+    // The owner-edit row shape doesn't carry the canonical provider facts;
+    // the owner card only needs the missing label.
+    platforms: [],
+    paid: false,
+    missing: p.missingSince != null,
   };
 }
 
@@ -343,9 +352,20 @@ function ProjectCard({
         ) : null}
       </div>
 
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        {[project.jamName ?? project.kind, project.year].join(" · ")}
-      </Text>
+      <div className="flex items-center gap-1.5">
+        <Text size="xs" variant="muted" className="tracking-widest uppercase">
+          {[project.jamName ?? project.kind, project.year].join(" · ")}
+        </Text>
+        {project.platforms.slice(0, 4).map((platform) => (
+          <MicroLabel key={platform} className="shrink-0 opacity-70">
+            {platformLabel(platform)}
+          </MicroLabel>
+        ))}
+        {project.paid ? <MicroLabel className="shrink-0 text-warning">PAID</MicroLabel> : null}
+      </div>
+      {project.missing ? (
+        <MicroLabel className="opacity-60">NO LONGER ON ITCH.IO</MicroLabel>
+      ) : null}
 
       {project.tags.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">

@@ -47,7 +47,8 @@ const RECENT_CUTOFF = sql.raw(`(now() - interval '${ACTIVE_WINDOW_DAYS} days')`)
 /** Only work the public can actually open counts as a ship. */
 const VISIBLE_SHIP = sql`${profileProjects.status} = 'approved'
   and ${profileProjects.published} = true
-  and ${profileProjects.restrictedAt} is null`;
+  and ${profileProjects.restrictedAt} is null
+  and ${profileProjects.missingSince} is null`;
 
 /** Provider publish date where there is one, else when the row landed. */
 const SHIPPED_AT = sql`coalesce(

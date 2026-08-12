@@ -65,6 +65,10 @@ async function queryProfileProjects(where: SQL | undefined) {
       // knows better about what the thing *is*.
       canonicalType: projects.type,
       canonicalLinks: projects.links,
+      // Provider-derived facts that only exist canonically: platform badges
+      // and the PAID chip read these.
+      canonicalPlatforms: projects.platforms,
+      canonicalMinPrice: sql<number | null>`(${projects.providerStats}->>'minPrice')::int`,
     })
     .from(profileProjects)
     .leftJoin(itchJams, eq(profileProjects.jamId, itchJams.jamId))
@@ -145,6 +149,8 @@ async function queryProfileProjects(where: SQL | undefined) {
       canonicalSlug,
       canonicalType,
       canonicalLinks,
+      canonicalPlatforms,
+      canonicalMinPrice,
     }) => {
       // The link that matches this placement's own date, or the only one —
       // a legacy row never reaches here (its own columns win the coalesce).
@@ -163,6 +169,8 @@ async function queryProfileProjects(where: SQL | undefined) {
         // provenance, while the card's label wants the artifact's kind.
         canonicalType,
         canonicalLinks,
+        canonicalPlatforms,
+        canonicalMinPrice,
         jamName: project.jamName ?? itchJamTitle ?? jamLink?.jamName ?? null,
         jamUrl:
           project.jamUrl ?? (itchJamSlug ? jamUrl(itchJamSlug) : null) ?? jamLink?.jamUrl ?? null,
@@ -391,6 +399,9 @@ export const getProfile = os
                 // API but 404 for anonymous visitors; the library-sync
                 // sweep's URL probe records that here. Owner-only too.
                 isNull(profileProjects.restrictedAt),
+                // Games that vanished from the linked library (deleted on
+                // itch, or access lost) are owner-only until removed.
+                isNull(profileProjects.missingSince),
               ),
             ),
         db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),

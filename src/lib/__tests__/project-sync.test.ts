@@ -367,3 +367,109 @@ describe("diffItchGameRow()", () => {
     expect(rearmed).toMatchObject({ title: "Even Newer" });
   });
 });
+
+describe("fillProviderFields() — provider-owned facts", () => {
+  const facts = {
+    id: 99,
+    title: "Synth Pack",
+    short_text: "bleeps",
+    url: "https://dev.itch.io/synth-pack",
+    cover_url: "https://img.itch.zone/synth.png",
+    published: true,
+    published_at: "2026-01-01T00:00:00.000Z",
+    classification: "soundtrack",
+    type: "default",
+    release_status: "released",
+    traits: ["p_windows", "p_linux", "can_be_bought"],
+    min_price: 500,
+    downloads_count: 10,
+    views_count: 100,
+    purchases_count: 3,
+  };
+
+  // A row already fully in step with `facts` — the no-op baseline.
+  function converged(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "p9",
+      type: "audio",
+      title: "Synth Pack",
+      description: "bleeps",
+      url: "https://dev.itch.io/synth-pack",
+      imageUrl: "https://img.itch.zone/synth.png",
+      imageKey: null,
+      classification: "soundtrack",
+      embedType: "default",
+      releaseStatus: "released",
+      releasedAt: new Date("2026-01-01T00:00:00.000Z"),
+      sourceSnapshot: {
+        title: "Synth Pack",
+        description: "bleeps",
+        url: "https://dev.itch.io/synth-pack",
+      },
+      platforms: ["windows", "linux"],
+      providerStats: {
+        downloadsCount: 10,
+        viewsCount: 100,
+        purchasesCount: 3,
+        minPrice: 500,
+        syncedAt: "2026-08-01T00:00:00.000Z",
+      },
+      ...overrides,
+    };
+  }
+
+  async function run(row: Record<string, unknown>) {
+    const { db, updates } = fakeDb([row]);
+    const count = await fillProviderFields(db, [{ projectId: "p9", facts }]);
+    return { patch: updates[0], count };
+  }
+
+  it("writes nothing when the row is fully in step (stats unchanged)", async () => {
+    const { patch, count } = await run(converged());
+    expect(count).toBe(0);
+    expect(patch).toBeUndefined();
+  });
+
+  it("writes stats, raw payload, and platforms on first sight", async () => {
+    const { patch } = await run(converged({ platforms: null, providerStats: null }));
+    expect(patch).toMatchObject({
+      platforms: ["windows", "linux"],
+      providerRaw: facts,
+      providerStats: {
+        downloadsCount: 10,
+        viewsCount: 100,
+        purchasesCount: 3,
+        minPrice: 500,
+        syncedAt: expect.any(String),
+      },
+    });
+  });
+
+  it("rewrites the stats snapshot when the numbers move", async () => {
+    const { patch } = await run(
+      converged({
+        providerStats: {
+          downloadsCount: 9,
+          viewsCount: 100,
+          purchasesCount: 3,
+          minPrice: 500,
+          syncedAt: "2026-08-01T00:00:00.000Z",
+        },
+      }),
+    );
+    expect(patch).toMatchObject({ providerStats: { downloadsCount: 10 }, providerRaw: facts });
+  });
+
+  it("refreshes classification unconditionally (users can't edit it)", async () => {
+    const { patch } = await run(converged({ classification: "game" }));
+    expect(patch).toMatchObject({ classification: "soundtrack" });
+    // …but the curated type only derives on the run that FIRST learns a
+    // classification — this row already had one.
+    expect(patch).not.toHaveProperty("type");
+  });
+
+  it("refreshes platforms when the traits change", async () => {
+    const { patch } = await run(converged({ platforms: ["windows"] }));
+    expect(patch).toMatchObject({ platforms: ["windows", "linux"] });
+  });
+});

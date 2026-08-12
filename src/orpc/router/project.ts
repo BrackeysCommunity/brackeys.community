@@ -240,10 +240,18 @@ export const getProject = os
       contributorRows.some((row) => row.profileId != null) ||
       derivedJams.length > 1;
 
+    // Internal provider bookkeeping stays server-side: the raw payload and
+    // the refresh-gate snapshot are never a read-path surface.
+    const {
+      providerRaw: _providerRaw,
+      sourceSnapshot: _sourceSnapshot,
+      ...projectPublic
+    } = project;
+
     return {
       indexable: project.published && anchored,
       project: {
-        ...project,
+        ...projectPublic,
         // A project-scoped upload wins over the provider cover, same
         // precedence the placements use for their own images.
         imageUrl: (await getProfileProjectImageUrl(project.imageKey)) ?? project.imageUrl,

@@ -4,29 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { profileLinkParams } from "@/lib/profile-links";
+import { platformLabel } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
 
 import { safeThemeColor } from "../JamCalendarPage/helpers";
 import type { JamEntryRow } from "./types";
-
-/**
- * itch's platform keys, shortened to the label voice. Unknown keys pass
- * through uppercased rather than being dropped — itch adds platforms
- * occasionally and a silent omission is worse than an odd-looking chip.
- */
-const PLATFORM_LABEL: Record<string, string> = {
-  windows: "WIN",
-  osx: "MAC",
-  linux: "LNX",
-  android: "AND",
-  ios: "IOS",
-  web: "WEB",
-  html: "WEB",
-};
-
-function platformLabel(platform: string): string {
-  return PLATFORM_LABEL[platform.toLowerCase()] ?? platform.slice(0, 4).toUpperCase();
-}
 
 /**
  * One submission. The cover is the whole point, so it leads at itch's own

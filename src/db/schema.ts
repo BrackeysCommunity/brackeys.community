@@ -217,6 +217,13 @@ export const profileProjects = userSchema.table(
     // from the API, so restricted state must not be encoded there or the
     // next sync would flip it back. NULL = publicly reachable.
     restrictedAt: timestamp("restricted_at"),
+    // Set when this game vanished from the account's `/profile/games`
+    // response (deleted on itch, or this member lost admin access — both
+    // mean "stop listing it on this profile"). Account-scoped by design:
+    // a teammate losing access says nothing about the game itself, so this
+    // lives on the placement, not `project.projects`. Cleared when the game
+    // reappears; never stamped off an empty response (API hiccup guard).
+    missingSince: timestamp("missing_since"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -250,6 +257,9 @@ export const linkedAccounts = userSchema.table(
     // Sweep resume cursor: ordered ASC NULLS FIRST, so an aborted sweep's
     // next tick starts at the starved tail instead of re-syncing the head.
     lastSyncedAt: timestamp("last_synced_at"),
+    // The provider's user object verbatim, written at link and refreshed by
+    // the sweep's identity pass. Audit/backfill surface, never a read path.
+    providerRaw: jsonb("provider_raw"),
     linkedAt: timestamp("linked_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -932,6 +942,16 @@ export type ProjectSourceSnapshot = {
   url: string | null;
 };
 
+/** Render-safe provider stats snapshot — see `projects.providerStats`. */
+export type ProjectProviderStats = {
+  downloadsCount?: number;
+  viewsCount?: number;
+  purchasesCount?: number;
+  minPrice?: number;
+  /** ISO timestamp of the sync that wrote this snapshot. */
+  syncedAt: string;
+};
+
 /**
  * A thing somebody made. One row per artifact, no matter how many people
  * showcase it.
@@ -1004,6 +1024,16 @@ export const projects = projectSchema.table(
     // rows and on rows that predate the column — those keep any drift until
     // the next provider-side change.
     sourceSnapshot: jsonb("source_snapshot").$type<ProjectSourceSnapshot>(),
+    // Derived from itch's `traits` (`p_windows` → "windows"). Null when the
+    // provider sent no traits; provider-owned, refreshed every sync.
+    platforms: text("platforms").array(),
+    // Curated, render-safe stats snapshot — overwritten each sync, never a
+    // time-series (the TimescaleDB scraper is where history would live).
+    providerStats: jsonb("provider_stats").$type<ProjectProviderStats>(),
+    // The provider's game object verbatim, overwritten each sync. Audit and
+    // future-backfill surface only — read paths use the typed columns, and
+    // API responses strip it (see getProject).
+    providerRaw: jsonb("provider_raw"),
     // Provider visibility mirrored at the canonical level. An unpublished
     // project renders only to its editors; a restricted one renders (jam
     // participation is public record) with its itch links suppressed.

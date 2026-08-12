@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 /**
  * Shared itch.io library sync: fetches the linked account's games and
  * mirrors them into `profile_projects` (new games inserted, `published`
@@ -14,6 +14,7 @@ import { db } from "@/db";
 import { linkedAccounts, profileProjects } from "@/db/schema";
 import { fetchGames, ItchApiError } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
+import { placementTypeFromClassification } from "@/lib/project-taxonomy";
 import { convergeLibraryPlacements } from "@/lib/projects";
 
 /** Thrown when the itch.io API call itself fails (vs. no linked account).
@@ -81,6 +82,7 @@ export async function syncItchIoLibrary(
       url: profileProjects.url,
       imageUrl: profileProjects.imageUrl,
       imageKey: profileProjects.imageKey,
+      missingSince: profileProjects.missingSince,
     })
     .from(profileProjects)
     .where(and(eq(profileProjects.profileId, userId), eq(profileProjects.source, "itchio")));
@@ -97,7 +99,7 @@ export async function syncItchIoLibrary(
       .values(
         newGames.map((game) => ({
           profileId: userId,
-          type: "game" as const,
+          type: placementTypeFromClassification(game.classification),
           title: game.title,
           description: game.short_text || null,
           url: game.url || null,
@@ -142,6 +144,31 @@ export async function syncItchIoLibrary(
         })
         .where(eq(profileProjects.id, row.id));
     }
+  }
+
+  // Missing reconciliation: `/profile/games` is the complete library, so
+  // absence is authoritative (unlike a scrape) — the game was deleted on
+  // itch or this member lost access to it; either way it leaves the public
+  // profile. Guarded by the zero-games early return above: an API hiccup
+  // returning an empty list must not stamp the whole library missing.
+  const seen = new Set(games.map((g) => String(g.id)));
+  const nowMissing = existing
+    .filter((row) => row.sourceId != null && !seen.has(row.sourceId) && row.missingSince == null)
+    .map((row) => row.id);
+  const returned = existing
+    .filter((row) => row.sourceId != null && seen.has(row.sourceId) && row.missingSince != null)
+    .map((row) => row.id);
+  if (nowMissing.length > 0) {
+    await db
+      .update(profileProjects)
+      .set({ missingSince: new Date() })
+      .where(inArray(profileProjects.id, nowMissing));
+  }
+  if (returned.length > 0) {
+    await db
+      .update(profileProjects)
+      .set({ missingSince: null })
+      .where(inArray(profileProjects.id, returned));
   }
 
   // Every placement gets its canonical `project.projects` row here, so the

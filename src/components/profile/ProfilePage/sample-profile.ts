@@ -66,6 +66,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       tags: ["godot", "solo"],
       jamName: null,
       jamPlacement: null,
+      platforms: [],
+      paid: false,
+      missing: false,
     },
     {
       id: "bracketeer",
@@ -79,6 +82,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       tags: ["cli", "ts", "oss"],
       jamName: null,
       jamPlacement: null,
+      platforms: [],
+      paid: false,
+      missing: false,
     },
     {
       id: "shift-shift",
@@ -92,6 +98,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       tags: ["jam"],
       jamName: "Brackeys Jam 2026.2",
       jamPlacement: "PLACED 4/420",
+      platforms: [],
+      paid: false,
+      missing: false,
     },
     {
       id: "nightlight-fm",
@@ -105,6 +114,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       tags: ["web audio"],
       jamName: null,
       jamPlacement: null,
+      platforms: [],
+      paid: false,
+      missing: false,
     },
   ],
 
@@ -131,6 +143,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       result: null,
       participatedAt: new Date(Date.UTC(2026, 1, 10)),
       publishedAt: null,
+      missingSince: null,
     },
     {
       id: "bracketeer",
@@ -151,6 +164,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       result: null,
       participatedAt: new Date(Date.UTC(2025, 8, 2)),
       publishedAt: null,
+      missingSince: null,
     },
     {
       id: "shift-shift",
@@ -171,6 +185,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       result: "PLACED 4/420",
       participatedAt: new Date(Date.UTC(2025, 5, 20)),
       publishedAt: null,
+      missingSince: null,
     },
     {
       id: "nightlight-fm",
@@ -191,6 +206,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
       result: null,
       participatedAt: new Date(Date.UTC(2024, 10, 5)),
       publishedAt: null,
+      missingSince: null,
     },
   ],
   jamLog: [

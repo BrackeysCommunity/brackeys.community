@@ -22,6 +22,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   type ItchJamContributor,
   type ProjectLink,
+  type ProjectProviderStats,
   type ProjectSourceSnapshot,
   type ProjectType,
   developerProfiles,
@@ -34,6 +35,7 @@ import {
 import { normalizeItchProfileUrl } from "./itch-urls";
 import {
   RESERVED_PROJECT_SLUGS,
+  platformsFromTraits,
   projectTypeFromClassification,
   projectTypeFromPlacement,
   slugifyProjectTitle,
@@ -357,6 +359,12 @@ export interface ItchGameFacts {
   type?: string | null;
   /** released | in_development | on_hold | canceled | prototype. */
   release_status?: string | null;
+  /** Platform/capability flags as the wire sends them (`p_windows`, …). */
+  traits?: string[] | null;
+  min_price?: number | null;
+  downloads_count?: number | null;
+  views_count?: number | null;
+  purchases_count?: number | null;
 }
 
 /** The subset of a scraped `itch.jam_entries` row a project seeds from. */
@@ -509,6 +517,8 @@ export async function fillProviderFields(
       releaseStatus: projects.releaseStatus,
       releasedAt: projects.releasedAt,
       sourceSnapshot: projects.sourceSnapshot,
+      platforms: projects.platforms,
+      providerStats: projects.providerStats,
     })
     .from(projects)
     .where(inArray(projects.id, [...factsByProjectId.keys()]));
@@ -531,14 +541,39 @@ export async function fillProviderFields(
     if (row.releaseStatus == null && facts.release_status) {
       patch.releaseStatus = facts.release_status;
     }
-    if (row.classification == null && facts.classification) {
+    // Provider-owned, no gate: users can't edit classification or platforms.
+    if (facts.classification && facts.classification !== row.classification) {
       patch.classification = facts.classification;
-      // Only on the run that first learns it, and only away from the
-      // historical default — an owner who typed "tool" keeps "tool".
-      const derived = projectTypeFromClassification(facts.classification);
-      if (derived && row.type === "game" && derived !== "game") patch.type = derived;
+      if (row.classification == null) {
+        // Only on the run that first learns it, and only away from the
+        // historical default — an owner who typed "tool" keeps "tool".
+        const derived = projectTypeFromClassification(facts.classification);
+        if (derived && row.type === "game" && derived !== "game") patch.type = derived;
+      }
     }
-    if (Object.keys(patch).length === 0) continue;
+    const platforms = platformsFromTraits(facts.traits);
+    if (platforms && JSON.stringify(platforms) !== JSON.stringify(row.platforms)) {
+      patch.platforms = platforms;
+    }
+    // Stats snapshot + verbatim payload, rewritten when the numbers moved or
+    // anything else about the row is being written anyway. A change in an
+    // unmapped raw field alone won't rewrite — for an active game the stats
+    // churn covers that within a day, and updatedAt stays meaningful.
+    const stats: ProjectProviderStats = { syncedAt: new Date().toISOString() };
+    if (facts.downloads_count != null) stats.downloadsCount = facts.downloads_count;
+    if (facts.views_count != null) stats.viewsCount = facts.views_count;
+    if (facts.purchases_count != null) stats.purchasesCount = facts.purchases_count;
+    if (facts.min_price != null) stats.minPrice = facts.min_price;
+    const prev = row.providerStats;
+    const statsChanged =
+      prev == null ||
+      prev.downloadsCount !== stats.downloadsCount ||
+      prev.viewsCount !== stats.viewsCount ||
+      prev.purchasesCount !== stats.purchasesCount ||
+      prev.minPrice !== stats.minPrice;
+    if (Object.keys(patch).length === 0 && !statsChanged) continue;
+    patch.providerStats = stats;
+    patch.providerRaw = facts;
     await db
       .update(projects)
       .set({ ...patch, updatedAt: new Date() })

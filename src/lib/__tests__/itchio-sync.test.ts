@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
         url?: string | null;
         imageUrl?: string | null;
         imageKey?: string | null;
+        missingSince?: Date | null;
       }[],
   ),
   insertOnConflict: vi.fn(async (_rows: unknown) => undefined),
@@ -51,6 +52,7 @@ vi.mock("@/db", () => ({
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => ({ _: "and", args }),
   eq: (...args: unknown[]) => ({ _: "eq", args }),
+  inArray: (...args: unknown[]) => ({ _: "inArray", args }),
   isNull: (...args: unknown[]) => ({ _: "isNull", args }),
 }));
 
@@ -395,5 +397,100 @@ describe("syncItchIoLibraryThrottled()", () => {
     await syncItchIoLibraryThrottled("u1");
 
     expect(mocks.fetchGames).not.toHaveBeenCalled();
+  });
+});
+
+describe("missing reconciliation", () => {
+  const missingPatches = () =>
+    mocks.updateWhere.mock.calls
+      .map(([patch]) => patch as Record<string, unknown>)
+      .filter((p) => "missingSince" in p);
+
+  it("stamps rows that vanished from the library response", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      {
+        id: "row-gone",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: null,
+        missingSince: null,
+      },
+      {
+        id: "row-here",
+        sourceId: "2",
+        published: true,
+        url: "https://dev.itch.io/game-2",
+        imageUrl: "https://img.itch.zone/2.png",
+        missingSince: null,
+      },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 2, published: true })]);
+
+    await syncItchIoLibrary("u1");
+
+    expect(missingPatches()).toEqual([{ missingSince: expect.any(Date) }]);
+  });
+
+  it("preserves the first-missing time on later syncs", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      {
+        id: "row-gone",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: null,
+        missingSince: new Date("2026-08-01T00:00:00.000Z"),
+      },
+      {
+        id: "row-here",
+        sourceId: "2",
+        published: true,
+        url: "https://dev.itch.io/game-2",
+        imageUrl: "https://img.itch.zone/2.png",
+        missingSince: null,
+      },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 2, published: true })]);
+
+    await syncItchIoLibrary("u1");
+
+    expect(missingPatches()).toEqual([]);
+  });
+
+  it("clears the stamp when the game reappears", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      {
+        id: "row-back",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: "https://img.itch.zone/1.png",
+        missingSince: new Date("2026-08-01T00:00:00.000Z"),
+      },
+    ]);
+    mocks.fetchGames.mockResolvedValue([game({ id: 1, published: true })]);
+
+    await syncItchIoLibrary("u1");
+
+    expect(missingPatches()).toEqual([{ missingSince: null }]);
+  });
+
+  it("never stamps off an empty response (API hiccup guard)", async () => {
+    mocks.existingWhere.mockResolvedValue([
+      {
+        id: "row1",
+        sourceId: "1",
+        published: true,
+        url: "https://dev.itch.io/game-1",
+        imageUrl: null,
+        missingSince: null,
+      },
+    ]);
+    mocks.fetchGames.mockResolvedValue([]);
+
+    await syncItchIoLibrary("u1");
+
+    expect(missingPatches()).toEqual([]);
   });
 });

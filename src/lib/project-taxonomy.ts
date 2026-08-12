@@ -64,6 +64,53 @@ export function projectTypeFromClassification(
 }
 
 /**
+ * Initial placement `type` for a fresh library import (the placement enum
+ * is narrower than the canonical vocabulary). Existing rows keep whatever
+ * they have — owners may have corrected them already.
+ */
+export function placementTypeFromClassification(
+  classification: string | null | undefined,
+): "game" | "audio" | "tool" {
+  const c = classification?.trim().toLowerCase();
+  if (c === "tool") return "tool";
+  if (c === "soundtrack") return "audio";
+  return "game";
+}
+
+/**
+ * itch's platform keys, shortened to the label voice. Unknown keys pass
+ * through uppercased rather than being dropped — itch adds platforms
+ * occasionally and a silent omission is worse than an odd-looking chip.
+ */
+const PLATFORM_LABEL: Record<string, string> = {
+  windows: "WIN",
+  osx: "MAC",
+  linux: "LNX",
+  android: "AND",
+  ios: "IOS",
+  web: "WEB",
+  html: "WEB",
+};
+
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABEL[platform.toLowerCase()] ?? platform.slice(0, 4).toUpperCase();
+}
+
+/** The platform traits itch sends, `p_`-prefixed, in display order. Other
+ * traits (`can_be_bought`, `in_press_system`, …) are not platforms. */
+const PLATFORM_TRAITS = ["p_windows", "p_osx", "p_linux", "p_android"] as const;
+
+/**
+ * itch `traits` → platform names (`p_windows` → "windows"). Null when the
+ * payload carried no traits at all — "we don't know" and "runs nowhere"
+ * are different answers.
+ */
+export function platformsFromTraits(traits: string[] | null | undefined): string[] | null {
+  if (traits == null) return null;
+  return PLATFORM_TRAITS.filter((t) => traits.includes(t)).map((t) => t.slice(2));
+}
+
+/**
  * The kinds a member can pick when adding a project by hand.
  *
  * The canonical vocabulary minus nothing — every kind is pickable, which is

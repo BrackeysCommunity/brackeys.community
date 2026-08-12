@@ -14,6 +14,7 @@ import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
 // mint the canonical row or the backfill script never stops being needed.
 import { fetchGames, ItchApiError, validateToken } from "../../../src/lib/itchio.ts";
 import { convergeJamPlacements, convergeLibraryPlacements } from "../../../src/lib/project-sync.ts";
+import { placementTypeFromClassification } from "../../../src/lib/project-taxonomy.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
 
@@ -22,13 +23,13 @@ import { db, pool } from "./db/client.ts";
 async function syncAccount(
   profileId: string,
   accessToken: string,
-): Promise<{ imported: number; flipped: number }> {
+): Promise<{ imported: number; flipped: number; missing: number }> {
   const games = await fetchGames(accessToken, { userAgent: config.USER_AGENT });
   if (games.length === 0) {
     // Converge anyway: an account whose library comes back empty can still
     // hold placements imported before the canonical row existed.
     await convergeLibraryPlacements(db, profileId, []);
-    return { imported: 0, flipped: 0 };
+    return { imported: 0, flipped: 0, missing: 0 };
   }
 
   const existing = await db
@@ -40,6 +41,7 @@ async function syncAccount(
       url: profileProjects.url,
       imageUrl: profileProjects.imageUrl,
       imageKey: profileProjects.imageKey,
+      missingSince: profileProjects.missingSince,
     })
     .from(profileProjects)
     .where(and(eq(profileProjects.profileId, profileId), eq(profileProjects.source, "itchio")));
@@ -53,7 +55,7 @@ async function syncAccount(
       .values(
         newGames.map((game) => ({
           profileId,
-          type: "game" as const,
+          type: placementTypeFromClassification(game.classification),
           title: game.title,
           description: game.short_text || null,
           url: game.url || null,
@@ -102,11 +104,35 @@ async function syncAccount(
     }
   }
 
+  // Missing reconciliation: `/profile/games` is the complete library, so
+  // absence is authoritative — deleted on itch, or this member lost access.
+  // Guarded by the zero-games early return above so an API hiccup returning
+  // an empty list can't stamp the whole library missing.
+  const seen = new Set(games.map((g) => String(g.id)));
+  const nowMissing = existing
+    .filter((row) => row.sourceId != null && !seen.has(row.sourceId) && row.missingSince == null)
+    .map((row) => row.id);
+  const returned = existing
+    .filter((row) => row.sourceId != null && seen.has(row.sourceId) && row.missingSince != null)
+    .map((row) => row.id);
+  if (nowMissing.length > 0) {
+    await db
+      .update(profileProjects)
+      .set({ missingSince: new Date() })
+      .where(inArray(profileProjects.id, nowMissing));
+  }
+  if (returned.length > 0) {
+    await db
+      .update(profileProjects)
+      .set({ missingSince: null })
+      .where(inArray(profileProjects.id, returned));
+  }
+
   // Mint/link the canonical project for every placement this account holds,
   // and let the provider fill in canonical facts nothing else knows.
   await convergeLibraryPlacements(db, profileId, games);
 
-  return { imported: newGames.length, flipped };
+  return { imported: newGames.length, flipped, missing: nowMissing.length };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -168,6 +194,9 @@ async function probeRestricted(): Promise<{ probed: number; marked: number; clea
         eq(profileProjects.source, "itchio"),
         eq(profileProjects.published, true),
         isNotNull(profileProjects.url),
+        // A deleted game 404s forever; probing it would sit as a misleading
+        // restricted stamp on a row the read paths already hide.
+        isNull(profileProjects.missingSince),
       ),
     );
 
@@ -427,6 +456,7 @@ interface SweepAccount {
   providerDisplayName: string | null;
   providerProfileUrl: string | null;
   providerAvatarUrl: string | null;
+  providerRaw: unknown;
 }
 
 /**
@@ -458,10 +488,12 @@ async function refreshIdentity(
     const avatarUrl = user.cover_url || null;
     if (avatarUrl !== account.providerAvatarUrl) patch.providerAvatarUrl = avatarUrl;
 
-    if (Object.keys(patch).length > 0) {
+    // The verbatim payload also backfills accounts linked before the
+    // provider_raw column existed.
+    if (Object.keys(patch).length > 0 || account.providerRaw == null) {
       await db
         .update(linkedAccounts)
-        .set({ ...patch, updatedAt: new Date() })
+        .set({ ...patch, providerRaw: user, updatedAt: new Date() })
         .where(
           and(
             eq(linkedAccounts.profileId, account.profileId),
@@ -523,6 +555,7 @@ async function runSweep() {
       providerDisplayName: linkedAccounts.providerDisplayName,
       providerProfileUrl: linkedAccounts.providerProfileUrl,
       providerAvatarUrl: linkedAccounts.providerAvatarUrl,
+      providerRaw: linkedAccounts.providerRaw,
     })
     .from(linkedAccounts)
     .where(
@@ -541,6 +574,7 @@ async function runSweep() {
   let synced = 0;
   let imported = 0;
   let flipped = 0;
+  let markedMissing = 0;
   let revoked = 0;
   let identityRefreshed = 0;
   let aborted = false;
@@ -591,6 +625,7 @@ async function runSweep() {
         synced++;
         imported += result.imported;
         flipped += result.flipped;
+        markedMissing += result.missing;
         await db
           .update(linkedAccounts)
           .set({ tokenInvalidAt: null, lastSyncedAt: new Date() })
@@ -649,7 +684,7 @@ async function runSweep() {
   } finally {
     const elapsed = Math.round((Date.now() - started) / 1000);
     console.log(
-      `[sweep] synced ${synced} accounts, imported ${imported}, visibility-flipped ${flipped}, revoked ${revoked}, failed ${failed} in ${elapsed}s${
+      `[sweep] synced ${synced} accounts, imported ${imported}, visibility-flipped ${flipped}, marked-missing ${markedMissing}, revoked ${revoked}, failed ${failed} in ${elapsed}s${
         aborted ? " (aborted early — next tick retries)" : ""
       }`,
     );
