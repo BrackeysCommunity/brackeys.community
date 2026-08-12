@@ -10,6 +10,7 @@ import { ProfileSkillsSection } from "./ProfileSkills";
 import { ProfileStandingSection } from "./ProfileStanding";
 import { ProfileSyncBar } from "./ProfileSyncBar";
 import { ProfileTeamsSection } from "./ProfileTeams";
+import { ProfileWallSection } from "./ProfileWall";
 import type { ProfileLayoutProps } from "./shared-types";
 
 /**
@@ -85,6 +86,15 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
           />
         </div>
       </div>
+
+      <ProfileWallSection
+        index="05"
+        profileId={profile.profileId}
+        profileName={profile.handle}
+        isOwner={isOwner}
+        notesEnabled={profile.notesEnabled}
+        queryKey={queryKey}
+      />
     </div>
   );
 }

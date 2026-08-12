@@ -18,6 +18,7 @@ import {
   skillRequests,
   skills,
   teams,
+  threads,
   userSkills,
 } from "@/db/schema";
 import { syncItchIoLibraryThrottled } from "@/lib/itchio-sync";
@@ -384,48 +385,60 @@ export const getProfile = os
       void syncItchIoLibraryThrottled(profileId).catch(console.error);
     }
 
-    const [skillList, projects, urlStub, pendingSkillRequests, linkedAccountsList, creditRows] =
-      await Promise.all([
-        queryUserSkills(profileId),
-        isOwner
-          ? queryProfileProjects(eq(profileProjects.profileId, profileId))
-          : queryProfileProjects(
-              and(
-                eq(profileProjects.profileId, profileId),
-                eq(profileProjects.status, "approved"),
-                // Unpublished titles (e.g. itch.io drafts) are owner-only.
-                eq(profileProjects.published, true),
-                // itch.io "Restricted" pages report published=true from the
-                // API but 404 for anonymous visitors; the library-sync
-                // sweep's URL probe records that here. Owner-only too.
-                isNull(profileProjects.restrictedAt),
-                // Games that vanished from the linked library (deleted on
-                // itch, or access lost) are owner-only until removed.
-                isNull(profileProjects.missingSince),
-              ),
+    const [
+      skillList,
+      projects,
+      urlStub,
+      pendingSkillRequests,
+      linkedAccountsList,
+      creditRows,
+      wallThread,
+    ] = await Promise.all([
+      queryUserSkills(profileId),
+      isOwner
+        ? queryProfileProjects(eq(profileProjects.profileId, profileId))
+        : queryProfileProjects(
+            and(
+              eq(profileProjects.profileId, profileId),
+              eq(profileProjects.status, "approved"),
+              // Unpublished titles (e.g. itch.io drafts) are owner-only.
+              eq(profileProjects.published, true),
+              // itch.io "Restricted" pages report published=true from the
+              // API but 404 for anonymous visitors; the library-sync
+              // sweep's URL probe records that here. Owner-only too.
+              isNull(profileProjects.restrictedAt),
+              // Games that vanished from the linked library (deleted on
+              // itch, or access lost) are owner-only until removed.
+              isNull(profileProjects.missingSince),
             ),
-        db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
-        isOwner
-          ? db
-              .select()
-              .from(skillRequests)
-              .where(and(eq(skillRequests.userId, profileId), eq(skillRequests.status, "pending")))
-          : Promise.resolve([]),
-        db
-          .select({
-            id: linkedAccounts.id,
-            provider: linkedAccounts.provider,
-            providerUserId: linkedAccounts.providerUserId,
-            providerUsername: linkedAccounts.providerUsername,
-            providerAvatarUrl: linkedAccounts.providerAvatarUrl,
-            providerProfileUrl: linkedAccounts.providerProfileUrl,
-            tokenInvalidAt: linkedAccounts.tokenInvalidAt,
-            linkedAt: linkedAccounts.linkedAt,
-          })
-          .from(linkedAccounts)
-          .where(eq(linkedAccounts.profileId, profileId)),
-        queryProfileCredits(profileId),
-      ]);
+          ),
+      db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
+      isOwner
+        ? db
+            .select()
+            .from(skillRequests)
+            .where(and(eq(skillRequests.userId, profileId), eq(skillRequests.status, "pending")))
+        : Promise.resolve([]),
+      db
+        .select({
+          id: linkedAccounts.id,
+          provider: linkedAccounts.provider,
+          providerUserId: linkedAccounts.providerUserId,
+          providerUsername: linkedAccounts.providerUsername,
+          providerAvatarUrl: linkedAccounts.providerAvatarUrl,
+          providerProfileUrl: linkedAccounts.providerProfileUrl,
+          tokenInvalidAt: linkedAccounts.tokenInvalidAt,
+          linkedAt: linkedAccounts.linkedAt,
+        })
+        .from(linkedAccounts)
+        .where(eq(linkedAccounts.profileId, profileId)),
+      queryProfileCredits(profileId),
+      db
+        .select({ commentCount: threads.commentCount })
+        .from(threads)
+        .where(eq(threads.profileUserId, profileId))
+        .limit(1),
+    ]);
 
     // A credit on a project the member already showcases would repeat the
     // SHIPPED WORK card one section down; the credits list is for the work
@@ -443,6 +456,7 @@ export const getProfile = os
       urlStub: urlStub[0]?.stub ?? null,
       pendingSkillRequests,
       linkedAccounts: linkedAccountsList,
+      wallNotesCount: wallThread[0]?.commentCount ?? 0,
     };
   });
 
@@ -517,6 +531,7 @@ export const updateProfile = os
       // available" post would have said lives on the profile instead.
       lookingFor: z.string().max(280).optional().nullable(),
       collabPreference: collabPreferenceSchema.optional().nullable(),
+      profileNotesEnabled: z.boolean().optional(),
     }),
   )
   .handler(async ({ input, context }) => {

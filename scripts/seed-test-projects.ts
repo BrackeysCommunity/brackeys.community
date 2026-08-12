@@ -14,7 +14,15 @@
  *   team.team_projects.id          seedtp-*
  *   team.teams.id                  seedprojteam-*
  *   user.developer_profiles.id     seedprojprof-*
+ *   auth.user.id                   seedprojprof-* (same ids — see below)
  *   collab.collab_posts            no text id to prefix — see below
+ *
+ * The synthetic members exist in BOTH `developer_profiles` and auth `user`
+ * (same id, the pairing real accounts have): `collab_posts.author_id`,
+ * `collab_responses.responder_id` and `social.comments.author_id` are FKs
+ * into auth `user`, so posts/responses/comments by anyone besides the real
+ * account need real user rows. Responses, comment threads and subscriptions
+ * all cascade from their post, so the marker-based clean covers them.
  *
  * Re-running wipes the previous batch first, so it is idempotent.
  * Pass `--clean` to only remove.
@@ -64,7 +72,9 @@ import {
   collabPostRoles,
   collabPostSkills,
   collabPosts,
+  collabResponses,
   collabRoles,
+  comments,
   developerProfiles,
   itchJamEntries,
   itchJams,
@@ -78,6 +88,8 @@ import {
   teamMembers,
   teamProjects,
   teams,
+  threads,
+  threadSubscriptions,
   user,
 } from "@/db/schema";
 
@@ -179,6 +191,10 @@ if (previousProjectIds.length > 0) {
   await db.delete(projects).where(inArray(projects.id, previousProjectIds));
 }
 await db.delete(teams).where(like(teams.id, "seedprojteam-%"));
+// Synthetic auth accounts. The marker pass above already took their posts;
+// this cascades anything the members still own elsewhere (responses,
+// comments' authorship goes tombstone-null, subscriptions, sessions).
+await db.delete(user).where(like(user.id, "seedprojprof-%"));
 await db.delete(developerProfiles).where(like(developerProfiles.id, "seedprojprof-%"));
 console.log(`cleaned ${previous.length} seeded projects (+ placements, teams, profiles)`);
 if (CLEAN_ONLY) process.exit(0);
@@ -289,6 +305,19 @@ await db.insert(developerProfiles).values(
   })),
 );
 const prof = (key: (typeof people)[number]["key"]) => `seedprojprof-${key}`;
+
+// The matching auth accounts (same id as the profile, like real sign-ups):
+// required for anything these members author — posts, responses, comments.
+await db.insert(user).values(
+  people.map((p) => ({
+    id: prof(p.key),
+    name: p.username,
+    email: `${p.key}@seed.invalid`,
+    emailVerified: true,
+    createdAt: ago(400),
+    updatedAt: ago(400),
+  })),
+);
 
 // ── Teams ────────────────────────────────────────────────────────────────────
 
@@ -929,6 +958,8 @@ const skillId = (name: string) =>
 
 type SeedPost = {
   key: string;
+  /** Auth user id; defaults to the real account. */
+  author?: string;
   projectId: string | null;
   teamId: string | null;
   isIndividual?: boolean;
@@ -942,6 +973,7 @@ type SeedPost = {
   status?: "recruiting" | "party_full" | "expired";
   /** Days from now; negative is already past (the sweep should catch it). */
   expiresInDays?: number;
+  createdDaysAgo?: number;
   roles: string[];
   skills?: string[];
 };
@@ -994,6 +1026,7 @@ const seedPosts: SeedPost[] = [
     platforms: ["PC"],
     status: "party_full",
     expiresInDays: 20,
+    createdDaysAgo: 12,
     roles: ["Writer", "Narrative Designer", "Designer"],
   },
   {
@@ -1044,16 +1077,85 @@ const seedPosts: SeedPost[] = [
     expiresInDays: 15,
     roles: ["Designer", "Game Designer", "Producer"],
   },
+  {
+    // Someone ELSE's post: the board, detail page, respond flow and
+    // report affordance all behave differently when you're not the author.
+    key: "driftline-autotiles",
+    author: prof("petra"),
+    projectId: "seedproj-bramble",
+    teamId: "seedprojteam-driftline",
+    type: "paid",
+    title: "Autotile artist for Bramble's winter set",
+    blurb:
+      " Authored by a seeded member (petrabyte), not the dev account — someone else's post to respond to.",
+    projectName: "Bramble Tileset",
+    platforms: ["PC"],
+    expiresInDays: 21,
+    createdDaysAgo: 5,
+    roles: ["Pixel Artist", "2D Artist", "Artist"],
+    skills: ["Aseprite"],
+  },
+  {
+    key: "nightloops-vocals",
+    author: prof("kit"),
+    projectId: "seedproj-nightloops",
+    teamId: null,
+    isIndividual: true,
+    type: "hobby",
+    title: "Vocalist for a Night Loops remix EP",
+    blurb: " Solo post by a seeded member (kithums) that still links a project.",
+    projectName: "Night Loops OST",
+    platforms: ["PC", "Web"],
+    expiresInDays: 35,
+    createdDaysAgo: 4,
+    roles: ["Composer", "Musician", "Audio"],
+  },
+  {
+    key: "marlow-zine",
+    author: prof("marlow"),
+    projectId: "seedproj-zine",
+    teamId: null,
+    isIndividual: true,
+    type: "hobby",
+    title: "Writers for Paper Zine Vol. 2",
+    blurb: " Authored by marlow.paints; individual + project-linked.",
+    projectName: "Paper Zine Vol. 2",
+    platforms: ["PC"],
+    expiresInDays: 45,
+    createdDaysAgo: 6,
+    roles: ["Writer", "Narrative Designer"],
+  },
+  {
+    // Already past expiresAt with the status to match — the board's closed
+    // state as the sweep leaves it, on a stranger's post.
+    key: "noor-expired",
+    author: prof("noor"),
+    projectId: null,
+    teamId: "seedprojteam-driftline",
+    type: "hobby",
+    title: "Duo for a cozy autumn jam",
+    blurb: " Expired post by noorwind — past its expiry, swept closed.",
+    projectName: "Untitled cozy game",
+    platforms: ["Web"],
+    status: "expired",
+    expiresInDays: -6,
+    createdDaysAgo: 50,
+    roles: ["Game Designer", "Designer", "Developer"],
+  },
 ];
+
+/** Curated posts by key, for the responses/comments passes below. */
+const insertedPosts = new Map<string, { id: number; authorId: string }>();
 
 for (const post of seedPosts) {
   // Skip a row whose project didn't get seeded (the corpus half is optional).
   if (post.projectId != null && !seededProjectIds.has(post.projectId)) continue;
 
+  const authorId = post.author ?? owner.id;
   const [row] = await db
     .insert(collabPosts)
     .values({
-      authorId: owner.id,
+      authorId,
       projectId: post.projectId,
       teamId: post.teamId,
       jamId: post.jamId ?? null,
@@ -1070,10 +1172,11 @@ for (const post of seedPosts) {
       contactMethod: post.isIndividual ? null : "discord.gg/seeded-example",
       status: post.status ?? "recruiting",
       expiresAt: new Date(Date.now() + (post.expiresInDays ?? 30) * DAY),
-      createdAt: ago(3),
-      updatedAt: ago(3),
+      createdAt: ago(post.createdDaysAgo ?? 3),
+      updatedAt: ago(post.createdDaysAgo ?? 3),
     })
     .returning({ id: collabPosts.id });
+  insertedPosts.set(post.key, { id: row.id, authorId });
 
   // The curated role vocabulary varies by environment, so each post lists
   // several acceptable names and takes the first that exists — a post with
@@ -1089,6 +1192,293 @@ for (const post of seedPosts) {
       .values(resolvedSkills.map((id) => ({ postId: row.id, skillId: id })));
   }
 }
+
+// ── Collab responses ─────────────────────────────────────────────────────────
+//
+// Applications to the posts above, in every status the manage view renders.
+// unique(post_id, responder_id) means one row per responder per post; they
+// cascade with the post, so the marker clean already covers them.
+
+type SeedResponse = {
+  responder: string;
+  message: string;
+  status?: "pending" | "accepted" | "declined";
+  portfolioUrl?: string;
+  /** Days ago; keep it younger than the post's createdDaysAgo. */
+  at?: number;
+};
+
+async function seedResponses(postKey: string, rows: SeedResponse[]) {
+  const post = insertedPosts.get(postKey);
+  if (!post) return;
+  await db.insert(collabResponses).values(
+    rows.map((r) => ({
+      postId: post.id,
+      responderId: r.responder,
+      message: r.message,
+      portfolioUrl: r.portfolioUrl ?? null,
+      status: r.status ?? "pending",
+      createdAt: ago(r.at ?? 1),
+    })),
+  );
+}
+
+// Your post with a full inbox: two pending, one declined.
+await seedResponses("signal-artist", [
+  {
+    responder: prof("marlow"),
+    message:
+      "I do exactly this — palette-constrained environment tiles. Six weeks works; portfolio attached.",
+    portfolioUrl: "https://example.com/marlow-portfolio",
+    at: 2.5,
+  },
+  {
+    responder: prof("noor"),
+    message: "Not a dedicated pixel artist but I can cover tiles and light animation.",
+    at: 1.4,
+  },
+  {
+    responder: prof("petra"),
+    message: "Mostly code these days but happy to help if you're stuck.",
+    status: "declined",
+    at: 2.8,
+  },
+]);
+await seedResponses("signal-audio", [
+  {
+    responder: prof("kit"),
+    message: "Radio static and room tone are my whole thing. Demo reel in the link.",
+    portfolioUrl: "https://example.com/kit-reel",
+    at: 0.8,
+  },
+]);
+// History on a filled post: the accepted seat plus a declined runner-up.
+await seedResponses("signal-closed", [
+  {
+    responder: prof("noor"),
+    message: "I'd love to take the narrative side.",
+    status: "accepted",
+    at: 9,
+  },
+  {
+    responder: prof("marlow"),
+    message: "Can write too, if art's covered!",
+    status: "declined",
+    at: 8.5,
+  },
+]);
+await seedResponses("solo-dither", [
+  {
+    responder: prof("petra"),
+    message: "I write Rust at work and Godot at home — happy to take the CLI half.",
+    at: 1.1,
+  },
+]);
+// A stranger's post with YOUR pending response — the outgoing side.
+await seedResponses("driftline-autotiles", [
+  {
+    responder: owner.id,
+    message: "I've shipped two tile sets in this style — winter palette sounds fun.",
+    portfolioUrl: "https://example.com/your-tiles",
+    at: 0.5,
+  },
+  {
+    responder: prof("marlow"),
+    message: "Autotiles are my bread and butter.",
+    status: "accepted",
+    at: 1.8,
+  },
+]);
+await seedResponses("nightloops-vocals", [
+  { responder: prof("noor"), message: "I sing! Range is alto-ish, demo on request.", at: 0.3 },
+]);
+
+// ── Comment threads ──────────────────────────────────────────────────────────
+//
+// Threads + comments exactly as the router writes them: parent/root/depth
+// per deriveChildPlacement, replyCount = direct children, thread counts
+// denormalized, author + commenters subscribed. All of it cascades from the
+// post, so the clean pass needs nothing new.
+
+type SeedComment = {
+  author: string;
+  content: string;
+  /** Days ago; children should be younger than their parent. */
+  at: number;
+  edited?: boolean;
+  /** Author-tombstoned: content kept, rendered as a tombstone. */
+  deleted?: boolean;
+  replies?: SeedComment[];
+};
+
+async function seedThread(
+  postKey: string,
+  roots: SeedComment[],
+  opts: { lockedDaysAgo?: number } = {},
+) {
+  const post = insertedPosts.get(postKey);
+  if (!post) return;
+
+  const [thread] = await db
+    .insert(threads)
+    .values({
+      subjectType: "collab_post",
+      collabPostId: post.id,
+      ...(opts.lockedDaysAgo != null
+        ? { lockedAt: ago(opts.lockedDaysAgo), lockedById: post.authorId }
+        : {}),
+    })
+    .returning({ id: threads.id });
+
+  const subscribers = new Set<string>([post.authorId]);
+  let total = 0;
+  let lastAt: Date | null = null;
+
+  async function insertNode(
+    node: SeedComment,
+    parent: { id: number; rootId: number | null; depth: number } | null,
+  ) {
+    const createdAt = ago(node.at);
+    const [row] = await db
+      .insert(comments)
+      .values({
+        threadId: thread.id,
+        parentId: parent?.id ?? null,
+        rootId: parent ? (parent.rootId ?? parent.id) : null,
+        depth: parent ? Math.min(parent.depth + 1, 8) : 0,
+        authorId: node.author,
+        content: node.content,
+        replyCount: node.replies?.length ?? 0,
+        createdAt,
+        ...(node.edited ? { editedAt: ago(Math.max(node.at - 0.1, 0)) } : {}),
+        ...(node.deleted
+          ? { deletedAt: ago(Math.max(node.at - 0.2, 0)), deletedById: node.author }
+          : {}),
+      })
+      .returning({ id: comments.id, rootId: comments.rootId, depth: comments.depth });
+    total += 1;
+    subscribers.add(node.author);
+    if (!lastAt || createdAt > lastAt) lastAt = createdAt;
+    for (const reply of node.replies ?? []) await insertNode(reply, row);
+  }
+  for (const root of roots) await insertNode(root, null);
+
+  await db
+    .update(threads)
+    .set({ commentCount: total, lastCommentAt: lastAt })
+    .where(eq(threads.id, thread.id));
+  await db
+    .insert(threadSubscriptions)
+    .values([...subscribers].map((userId) => ({ threadId: thread.id, userId })))
+    .onConflictDoNothing();
+}
+
+// The kitchen-sink thread: nesting, an edited reply, a tombstone, and
+// enough top-level comments to make the ordering visible.
+await seedThread("signal-artist", [
+  {
+    author: prof("petra"),
+    content: "Is the tile grid 16 or 32? The screenshots read 16 but the brief says chunky.",
+    at: 2.8,
+    replies: [
+      {
+        author: owner.id,
+        content: "16×16 for interiors, 32 for the lighthouse exterior — fixed the brief, thanks.",
+        at: 2.7,
+        edited: true,
+        replies: [{ author: prof("petra"), content: "Perfect, that's what I hoped.", at: 2.6 }],
+      },
+    ],
+  },
+  {
+    author: prof("kit"),
+    content: "Can vouch for this crew — did the OST for their last jam and they actually ship.",
+    at: 2.2,
+    replies: [
+      {
+        author: prof("noor"),
+        content: "(deleted by author — should render as a tombstone)",
+        at: 2.0,
+        deleted: true,
+      },
+      { author: prof("marlow"), content: "+1, the postmortem for that jam was great.", at: 1.9 },
+    ],
+  },
+  {
+    author: prof("noor"),
+    content: "Is this open to folks outside the Discord?",
+    at: 1.1,
+    replies: [
+      {
+        author: owner.id,
+        content: "Guild members only for now — the contact link goes to the server.",
+        at: 0.9,
+      },
+    ],
+  },
+  { author: prof("marlow"), content: "Applied! 🤞", at: 0.6 },
+]);
+
+// A conversation on someone else's post, with you as a participant.
+await seedThread("driftline-autotiles", [
+  {
+    author: owner.id,
+    content: "Does the winter set need animated water tiles too?",
+    at: 0.8,
+    replies: [
+      {
+        author: prof("petra"),
+        content: "Yes — 4 frames, same cadence as the autumn pack.",
+        at: 0.6,
+      },
+    ],
+  },
+]);
+
+// A reply chain past the display-flatten depth (UI flattens beyond 3).
+await seedThread("nightloops-vocals", [
+  {
+    author: owner.id,
+    content: "Which track is getting the remix treatment first?",
+    at: 1.0,
+    replies: [
+      {
+        author: prof("kit"),
+        content: "Starlink, probably.",
+        at: 0.9,
+        replies: [
+          {
+            author: owner.id,
+            content: "Good pick.",
+            at: 0.85,
+            replies: [
+              {
+                author: prof("kit"),
+                content: "It has the best hook to build a drop around.",
+                at: 0.8,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+]);
+
+// Single comment, no replies — the minimal thread shape.
+await seedThread("preproject", [
+  { author: prof("kit"), content: "What genre are you leaning toward this time?", at: 1.5 },
+]);
+
+// A LOCKED thread on the filled post: composer hidden, banner shown.
+await seedThread(
+  "signal-closed",
+  [
+    { author: prof("noor"), content: "Excited to join — thanks for picking me!", at: 8 },
+    { author: owner.id, content: "Locking this now that the seat's filled.", at: 7.8 },
+  ],
+  { lockedDaysAgo: 7.5 },
+);
 
 // ── Bulk volume ──────────────────────────────────────────────────────────────
 //
@@ -1157,6 +1547,17 @@ const bulkProfiles = Array.from({ length: 8 }, (_, i) => ({
   availableForWork: i % 3 === 0,
 }));
 await db.insert(developerProfiles).values(bulkProfiles);
+// Their auth accounts, so bulk members can author posts/responses/comments.
+await db.insert(user).values(
+  bulkProfiles.map((p, i) => ({
+    id: p.id,
+    name: p.discordUsername,
+    email: `bulk${i}@seed.invalid`,
+    emailVerified: true,
+    createdAt: ago(300),
+    updatedAt: ago(300),
+  })),
+);
 
 const allProfileIds = [...people.map((p) => prof(p.key)), ...bulkProfiles.map((p) => p.id)];
 const usernameById = new Map<string, string>([
@@ -1409,6 +1810,93 @@ if (bulkPlacements.length > 0) {
 }
 if (bulkJamLinks.length > 0) await db.insert(projectJamLinks).values(bulkJamLinks);
 
+// ── Bulk collab posts ────────────────────────────────────────────────────────
+//
+// Board volume: fifteen more posts spread across authors (the real account
+// plus every seed member), teams, projects, types and statuses, so the board
+// paginates and filters against something realistic. Same removal contract
+// as the curated posts: marker + a seed link. Every second post gets
+// responses and every third a small comment thread.
+
+const publishedBulk = bulkManual.filter((p) => p.published);
+const allAuthorIds = [owner.id, ...allProfileIds];
+const BULK_PLATFORMS = [["PC"], ["PC", "Mac"], ["Web"], ["PC", "Web", "Linux"], ["Switch", "PC"]];
+const BULK_LENGTHS = ["1-4 weeks", "1-3 months", "3-6 months", "ongoing"] as const;
+const BULK_LEVELS = ["any", "beginner", "intermediate", "experienced"] as const;
+
+for (let i = 0; i < 15; i++) {
+  const authorId = allAuthorIds[(i * 3 + 1) % allAuthorIds.length];
+  const shape = i % 3; // 0 = team+project, 1 = team only, 2 = solo+project
+  const teamId = shape === 2 ? null : allTeamIds[i % allTeamIds.length];
+  const project = shape === 1 ? null : publishedBulk[(i * 2) % publishedBulk.length];
+  const role = roleRows[(i * 7) % Math.max(roleRows.length, 1)];
+  const expired = i % 7 === 5;
+  const paid = i % 4 === 0;
+
+  const [row] = await db
+    .insert(collabPosts)
+    .values({
+      authorId,
+      projectId: project?.id ?? null,
+      teamId,
+      isIndividual: shape === 2,
+      type: paid ? "paid" : "hobby",
+      title: `${role?.name ?? "Teammate"} wanted — ${project?.title ?? fakeTitle()}`,
+      description: `${POST_MARKER} Bulk board volume. ${faker.lorem.sentences(2)}`,
+      projectName: project?.title ?? fakeTitle(),
+      platforms: BULK_PLATFORMS[i % BULK_PLATFORMS.length],
+      projectLength: BULK_LENGTHS[i % BULK_LENGTHS.length],
+      experienceLevel: BULK_LEVELS[i % BULK_LEVELS.length],
+      compensationType: paid ? (["rev_share", "negotiable", "fixed"] as const)[i % 3] : null,
+      contactType: shape === 2 ? null : "discord_server",
+      contactMethod: shape === 2 ? null : "discord.gg/seeded-example",
+      status: expired ? "expired" : i % 5 === 4 ? "party_full" : "recruiting",
+      expiresAt: expired ? ago(3 + i) : new Date(Date.now() + (10 + i * 3) * DAY),
+      createdAt: ago(4 + (i % 20)),
+      updatedAt: ago(4 + (i % 20)),
+    })
+    .returning({ id: collabPosts.id });
+  insertedPosts.set(`bulk-post-${i}`, { id: row.id, authorId });
+
+  if (role != null) {
+    await db.insert(collabPostRoles).values({ postId: row.id, roleId: role.id });
+  }
+  const skill = skillRows[(i * 5) % Math.max(skillRows.length, 1)];
+  if (skill != null && i % 2 === 0) {
+    await db.insert(collabPostSkills).values({ postId: row.id, skillId: skill.id });
+  }
+
+  if (i % 2 === 0) {
+    const responders = [
+      allAuthorIds[(i * 3 + 4) % allAuthorIds.length],
+      allAuthorIds[(i * 3 + 8) % allAuthorIds.length],
+    ].filter((id, idx, arr) => id !== authorId && arr.indexOf(id) === idx);
+    await seedResponses(
+      `bulk-post-${i}`,
+      responders.map((responder, j) => ({
+        responder,
+        message: faker.lorem.sentence(),
+        status: (["pending", "pending", "declined"] as const)[(i + j) % 3],
+        at: 0.5 + j,
+      })),
+    );
+  }
+
+  if (i % 3 === 0) {
+    const c1 = allAuthorIds[(i + 2) % allAuthorIds.length];
+    const c2 = allAuthorIds[(i + 5) % allAuthorIds.length];
+    await seedThread(`bulk-post-${i}`, [
+      {
+        author: c1,
+        content: faker.lorem.sentence(),
+        at: 1 + (i % 3),
+        replies:
+          i % 6 === 0 ? [{ author: c2, content: faker.lorem.sentence(), at: 0.5 + (i % 3) }] : [],
+      },
+    ]);
+  }
+}
+
 // The §8.3 cover-inheritance payoff, seeded last because it needs a project
 // that actually has cover art — which on a corpus environment means one of
 // the itch-anchored rows above, curated or bulk. The post carries no images
@@ -1463,6 +1951,9 @@ const [totals] = await db
     teams: sql<number>`(SELECT count(*)::int FROM ${teams} WHERE id LIKE 'seedprojteam-%')`,
     profiles: sql<number>`(SELECT count(*)::int FROM ${developerProfiles} WHERE id LIKE 'seedprojprof-%')`,
     collabPosts: sql<number>`(SELECT count(*)::int FROM ${collabPosts} WHERE description LIKE ${POST_MARKER + "%"})`,
+    responses: sql<number>`(SELECT count(*)::int FROM ${collabResponses} r JOIN ${collabPosts} cp ON cp.id = r.post_id WHERE cp.description LIKE ${POST_MARKER + "%"})`,
+    threads: sql<number>`(SELECT count(*)::int FROM ${threads} th JOIN ${collabPosts} cp ON cp.id = th.collab_post_id WHERE cp.description LIKE ${POST_MARKER + "%"})`,
+    comments: sql<number>`(SELECT count(*)::int FROM ${comments} c JOIN ${threads} th ON th.id = c.thread_id JOIN ${collabPosts} cp ON cp.id = th.collab_post_id WHERE cp.description LIKE ${POST_MARKER + "%"})`,
   })
   .from(sql`(SELECT 1) AS one`);
 
@@ -1499,5 +1990,17 @@ part 8 (collab ↔ project linkage):
   "Rust dev to help finish…"     solo post that still carries a project link
   "Playtesters for an…"          links an unpublished project (the picker includes those on purpose)
   "Sound designer for Signal…"   expires in 2d: CLOSES IN badge + EXTEND, and the sweep's nudge
+
+social layer (responses + comments; seed members are real auth users now):
+  "Pixel artist for Signal…"     3 responses on YOUR post (2 pending, 1 declined) + an 8-comment
+                                 thread: nesting, an edited reply, an author tombstone
+  "Autotile artist for Bramble…" petrabyte's post — a stranger's post to respond to; your pending
+                                 response already sent, plus a comment exchange you're part of
+  "Vocalist for a Night Loops…"  kithums' solo post; 4-deep reply chain (display flattens past 3)
+  "Writers for Paper Zine…"      marlow.paints' post
+  "Duo for a cozy autumn jam"    noorwind's post, expired + past expiresAt
+  "Writer for Signal Decay…"     LOCKED thread + accepted/declined response history
+  board volume                   15 bulk posts by rotating authors; every 2nd has responses,
+                                 every 3rd a small comment thread
 `);
 process.exit(0);

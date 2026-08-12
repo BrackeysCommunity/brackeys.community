@@ -813,6 +813,36 @@ export const getPost = os
       viewerOverlap = stackOverlap(postSkills, viewerSkills.get(context.user.id));
     }
 
+    // The viewer's own application, so a returning responder sees what
+    // they sent and its status instead of a blank form (responses stay
+    // owner/staff-only otherwise).
+    let viewerResponse: {
+      id: number;
+      message: string;
+      portfolioUrl: string | null;
+      status: string;
+      createdAt: Date | null;
+    } | null = null;
+    if (context.user && !isOwner) {
+      const [own] = await db
+        .select({
+          id: collabResponses.id,
+          message: collabResponses.message,
+          portfolioUrl: collabResponses.portfolioUrl,
+          status: collabResponses.status,
+          createdAt: collabResponses.createdAt,
+        })
+        .from(collabResponses)
+        .where(
+          and(
+            eq(collabResponses.postId, input.postId),
+            eq(collabResponses.responderId, context.user.id),
+          ),
+        )
+        .limit(1);
+      viewerResponse = own ?? null;
+    }
+
     // Re-presign each image's URL — `images.url` was generated at
     // upload time and the presigned link inside it has likely expired.
     // The `strapiMediaId` column doubles as the MinIO object key.
@@ -833,6 +863,7 @@ export const getPost = os
       images: presignedImages,
       responseCount: responseCount?.count ?? 0,
       responses,
+      viewerResponse,
       viewerOverlap,
       isOwner,
       author,
@@ -1352,6 +1383,83 @@ export const respondToPost = os
     });
 
     return response;
+  });
+
+/**
+ * A responder revising their pending application. Reviewed responses
+ * (accepted/declined) are frozen — the owner already acted on what was
+ * written, and acceptance has team-invite side effects.
+ */
+export const updateMyResponse = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      postId: z.number(),
+      message: z.string().min(1).max(2000),
+      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    checkProfanity(input.message, "Message");
+
+    const [response] = await db
+      .select()
+      .from(collabResponses)
+      .where(
+        and(
+          eq(collabResponses.postId, input.postId),
+          eq(collabResponses.responderId, context.user.id),
+        ),
+      )
+      .limit(1);
+
+    if (!response) {
+      throw new ORPCError("NOT_FOUND", { message: "You haven't responded to this post." });
+    }
+    if (response.status !== "pending") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "This response has already been reviewed and can't be edited.",
+      });
+    }
+
+    const [updated] = await db
+      .update(collabResponses)
+      .set({ message: input.message, portfolioUrl: input.portfolioUrl || null })
+      .where(eq(collabResponses.id, response.id))
+      .returning();
+
+    return updated;
+  });
+
+/** Pending-only for the same reason as edit: a reviewed response is a
+ * decision record, not a draft. Withdrawing frees the unique
+ * (post, responder) slot, so re-responding later works. */
+export const withdrawResponse = os
+  .use(requireAuth)
+  .input(z.object({ postId: z.number() }))
+  .handler(async ({ input, context }) => {
+    const [response] = await db
+      .select()
+      .from(collabResponses)
+      .where(
+        and(
+          eq(collabResponses.postId, input.postId),
+          eq(collabResponses.responderId, context.user.id),
+        ),
+      )
+      .limit(1);
+
+    if (!response) {
+      throw new ORPCError("NOT_FOUND", { message: "You haven't responded to this post." });
+    }
+    if (response.status !== "pending") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "This response has already been reviewed and can't be withdrawn.",
+      });
+    }
+
+    await db.delete(collabResponses).where(eq(collabResponses.id, response.id));
+    return { success: true };
   });
 
 export const listResponses = os

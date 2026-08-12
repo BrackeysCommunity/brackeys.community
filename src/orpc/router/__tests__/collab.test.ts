@@ -40,6 +40,11 @@ describe("collab router surface", () => {
     expect(router.createPost).toBeDefined();
     expect(router.updatePost).toBeDefined();
   });
+
+  it("registers the responder's own edit and withdraw procedures", () => {
+    expect(router.updateMyResponse).toBeDefined();
+    expect(router.withdrawResponse).toBeDefined();
+  });
 });
 
 describe("createPost / updatePost input schema", () => {

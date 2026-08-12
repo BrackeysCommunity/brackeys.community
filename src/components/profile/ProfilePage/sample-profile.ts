@@ -51,6 +51,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     skillsPendingCount: 1,
     streakDays: 42,
     streakStatus: "online now",
+    wallNotesCount: 3,
   },
 
   projects: [
@@ -339,6 +340,8 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
   totalCommits: 128,
   githubUsername: "joshe",
   profileId: "sample",
+  discordId: null,
+  notesEnabled: true,
 };
 
 /** Generates 14 weeks × 7 days of plausible activity counts so the

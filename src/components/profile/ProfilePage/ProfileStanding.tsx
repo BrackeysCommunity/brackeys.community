@@ -35,6 +35,9 @@ export function ProfileStandingSection({ index, badges, stats }: ProfileStanding
           <DetailRow label="Jams entered" value={stats.jamsEntered} />
           {stats.jamsBestRank ? <DetailRow label="Best finish" value={stats.jamsBestRank} /> : null}
           <DetailRow label="Skills listed" value={stats.skillsListed} />
+          {stats.wallNotesCount > 0 ? (
+            <DetailRow label="Wall notes" value={stats.wallNotesCount} />
+          ) : null}
           {stats.streakDays > 0 ? (
             <DetailRow label="Streak" value={`${stats.streakDays} days`} />
           ) : null}

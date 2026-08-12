@@ -62,6 +62,11 @@ export interface ProfileViewModel {
    * `ContributionCalendar` so it can fetch the GitHub contribution
    * data via `getContributions`. */
   profileId: string;
+  /** Discord user id — drives the visitor "Message on Discord" deep
+   * link. Null for profiles without a linked Discord id. */
+  discordId: string | null;
+  /** Whether the profile wall accepts and shows notes to visitors. */
+  notesEnabled: boolean;
 }
 
 export interface ProfileAvatar {
@@ -163,6 +168,8 @@ export interface ProfileStats {
   streakDays: number;
   /** Sub-line under streak — "online now" / "active 2h ago". */
   streakStatus: string;
+  /** Notes on the profile wall (thread comment count, tombstones included). */
+  wallNotesCount: number;
 }
 
 /** Label vocabulary for a project card. The first seven are the canonical

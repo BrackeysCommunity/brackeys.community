@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import {
   developerProfiles,
+  type NotificationType,
   notificationPreferences,
   notifications,
   user,
@@ -97,7 +98,7 @@ export async function handleSideEffects(data: NotificationSideEffectsJob): Promi
  * shared default table when the user hasn't customized this type, and
  * requires the user actually has an email address recorded in `auth.user`.
  */
-async function readEmailPref(userId: string, type: string): Promise<boolean> {
+async function readEmailPref(userId: string, type: NotificationType): Promise<boolean> {
   const [u] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
   if (!u?.email) return false;
 

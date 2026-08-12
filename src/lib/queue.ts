@@ -24,6 +24,19 @@ async function getRedis(): Promise<IORedis> {
   globalThis.__brackeysRedis = new IORedisCtor(url, {
     // bullmq requirement: blocking commands must be allowed to retry indefinitely.
     maxRetriesPerRequest: null,
+    // Producer-side connection only (workers hold their own): reject enqueues
+    // immediately while disconnected instead of buffering them forever, so
+    // callers' best-effort try/catch actually gets an error to catch.
+    enableOfflineQueue: false,
+    // Back off to 30s between reconnect attempts so a dead Redis doesn't
+    // spam the logs on every retry (bullmq logs each connection error).
+    retryStrategy: (times) => Math.min(times * 500, 30_000),
+  });
+  let lastError = "";
+  globalThis.__brackeysRedis.on("error", (err) => {
+    if (err.message === lastError) return;
+    lastError = err.message;
+    console.warn("[queue] redis error", err.message);
   });
   return globalThis.__brackeysRedis;
 }

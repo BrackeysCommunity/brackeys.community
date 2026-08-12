@@ -11,7 +11,15 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      // The shared ../../src/db/schema.ts resolves drizzle-orm from the repo
+      // root; force our own imports there too so TS sees one module identity
+      // (two copies — even same-version — are nominally incompatible).
+      "drizzle-orm": ["../../node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["../../node_modules/drizzle-orm/*"],
+      "pg": ["../../node_modules/@types/pg"]
+    }
   },
   "include": [
     "src/**/*.ts",

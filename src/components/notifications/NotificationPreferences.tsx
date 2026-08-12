@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import type { NotificationType } from "@/db/schema";
 import { NOTIFICATION_TYPE_LABEL, NOTIFICATION_TYPES } from "@/lib/notification-copy";
 import { client, orpc } from "@/orpc/client";
@@ -104,6 +106,64 @@ export function NotificationPreferences() {
             </div>
           );
         })}
+      </div>
+      <BlockedUsersList />
+    </div>
+  );
+}
+
+/**
+ * Members the viewer has blocked — their comments are hidden and
+ * notifications suppressed both ways. Lives with the notification
+ * preferences because that's the "who can reach me" settings surface.
+ */
+function BlockedUsersList() {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["listBlockedUsers"],
+    queryFn: () => client.listBlockedUsers({}),
+  });
+
+  const { mutate: unblock, isPending } = useMutation({
+    mutationFn: (userId: string) => client.unblockUser({ userId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["listBlockedUsers"] });
+      void queryClient.invalidateQueries({ queryKey: ["listComments"] });
+    },
+  });
+
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        Blocked members
+      </p>
+      <div className="border border-muted/30 bg-card/40">
+        {data.map((row) => (
+          <div
+            key={row.userId}
+            className="flex items-center gap-3 border-b border-muted/30 px-4 py-2.5 last:border-b-0"
+          >
+            <UserAvatar
+              avatarUrl={row.user?.avatarUrl ?? null}
+              username={row.user?.name}
+              size={24}
+            />
+            <span className="min-w-0 flex-1 truncate text-xs text-foreground/90">
+              {row.user?.name ?? "Deleted User"}
+            </span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => unblock(row.userId)}
+              disabled={isPending}
+              className="tracking-widest"
+            >
+              UNBLOCK
+            </Button>
+          </div>
+        ))}
       </div>
     </div>
   );

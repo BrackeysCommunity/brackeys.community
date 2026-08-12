@@ -4,6 +4,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -26,6 +27,7 @@ export const collabSchema = pgSchema("collab");
 export const teamSchema = pgSchema("team");
 export const itchSchema = pgSchema("itch");
 export const projectSchema = pgSchema("project");
+export const socialSchema = pgSchema("social");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
   "game",
@@ -117,6 +119,9 @@ export const developerProfiles = userSchema.table("developer_profiles", {
   // such a post would have said.
   lookingFor: text("looking_for"),
   collabPreference: text("collab_preference"),
+  // Gates the profile-wall composer/list for non-owners. Disabling hides
+  // existing notes from visitors but never deletes them.
+  profileNotesEnabled: boolean("profile_notes_enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -281,9 +286,16 @@ export type NotificationType =
   | "team_invite_declined"
   | "team_member_removed"
   | "team_archive_warning"
-  | "team_auto_archived";
+  | "team_auto_archived"
+  | "comment_received"
+  | "comment_reply";
 
-export type NotificationEntityType = "collab_post" | "collab_response" | "team" | "team_invite";
+export type NotificationEntityType =
+  | "collab_post"
+  | "collab_response"
+  | "team"
+  | "team_invite"
+  | "thread";
 
 export const notifications = userSchema.table(
   "notifications",
@@ -1155,3 +1167,155 @@ export const projectJamLinks = projectSchema.table(
       .where(sql`${table.jamId} IS NOT NULL`),
   ],
 );
+
+// ── Social layer: comment threads (social schema) ───────────────────────────
+
+export const threadSubjectType = socialSchema.enum("thread_subject_type", [
+  "collab_post",
+  "profile",
+]);
+
+/**
+ * The polymorphism boundary for commentable entities. A thread carries one
+ * real FK per subject type (CHECK-constrained to exactly one) so subject
+ * deletion cascades the whole conversation with zero app code — the same
+ * reason the codebase avoids text polymorphism everywhere else. Comments,
+ * subscriptions, and reports only ever reference threads/comments; adding a
+ * new commentable paradigm touches this table (one column) and the handler
+ * registry in `src/lib/comment-subjects.ts`, nothing else.
+ */
+export const threads = socialSchema.table(
+  "threads",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    subjectType: threadSubjectType("subject_type").notNull(),
+    collabPostId: integer("collab_post_id").references(() => collabPosts.id, {
+      onDelete: "cascade",
+    }),
+    // References auth.user, not developer_profiles: a deleted account's wall
+    // (including other people's notes on it) dies with the account even when
+    // profile cleanup falls back to anonymization.
+    profileUserId: text("profile_user_id").references(() => user.id, {
+      onDelete: "cascade",
+    }),
+    lockedAt: timestamp("locked_at"),
+    lockedById: text("locked_by_id").references(() => user.id, { onDelete: "set null" }),
+    commentCount: integer("comment_count").notNull().default(0),
+    lastCommentAt: timestamp("last_comment_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("threads_one_subject", sql`num_nonnulls(${t.collabPostId}, ${t.profileUserId}) = 1`),
+    check(
+      "threads_subject_type_matches",
+      sql`(${t.subjectType} = 'collab_post') = (${t.collabPostId} IS NOT NULL)
+      AND (${t.subjectType} = 'profile') = (${t.profileUserId} IS NOT NULL)`,
+    ),
+    // Partial unique indexes make lazy get-or-create race-safe.
+    uniqueIndex("threads_collab_post_uq")
+      .on(t.collabPostId)
+      .where(sql`${t.collabPostId} IS NOT NULL`),
+    uniqueIndex("threads_profile_uq")
+      .on(t.profileUserId)
+      .where(sql`${t.profileUserId} IS NOT NULL`),
+  ],
+);
+
+export const comments = socialSchema.table(
+  "comments",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    threadId: bigint("thread_id", { mode: "number" })
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    // parentId = integrity; rootId = top-level ancestor so one indexed query
+    // fetches an entire reply chain; depth = display logic without walking.
+    parentId: bigint("parent_id", { mode: "number" }).references((): AnyPgColumn => comments.id, {
+      onDelete: "cascade",
+    }),
+    rootId: bigint("root_id", { mode: "number" }).references((): AnyPgColumn => comments.id, {
+      onDelete: "cascade",
+    }),
+    depth: integer("depth").notNull().default(0),
+    // Set-null is a deliberate break from the usual author cascades:
+    // cascading would rip whole subtrees out of live conversations when an
+    // account is deleted. NULL author renders as "Deleted User"; content
+    // redaction happens in `cleanupUserData` while the user row still exists.
+    authorId: text("author_id").references(() => user.id, { onDelete: "set null" }),
+    content: text("content").notNull(),
+    replyCount: integer("reply_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    editedAt: timestamp("edited_at"),
+    // User-facing deletes are tombstones; hard deletes only arrive from the
+    // subject → thread → comments cascade, where removing subtrees is right.
+    deletedAt: timestamp("deleted_at"),
+    deletedById: text("deleted_by_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    check("comments_root_iff_parent", sql`(${t.parentId} IS NULL) = (${t.rootId} IS NULL)`),
+    check("comments_depth_matches", sql`(${t.parentId} IS NULL) = (${t.depth} = 0)`),
+    index("comments_thread_toplevel_idx")
+      .on(t.threadId, t.id.desc())
+      .where(sql`${t.parentId} IS NULL`),
+    index("comments_root_idx").on(t.rootId, t.id),
+    index("comments_author_idx").on(t.authorId),
+  ],
+);
+
+/**
+ * Forum-grade fan-out: the subject owner is subscribed at thread creation,
+ * each commenter at their first comment (`onConflictDoNothing`, so an
+ * auto-subscribe never flips `muted` back off).
+ */
+export const threadSubscriptions = socialSchema.table(
+  "thread_subscriptions",
+  {
+    threadId: bigint("thread_id", { mode: "number" })
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    muted: boolean("muted").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.userId] }),
+    index("thread_subs_user_idx").on(t.userId),
+  ],
+);
+
+export const userBlocks = socialSchema.table(
+  "user_blocks",
+  {
+    blockerId: text("blocker_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    blockedId: text("blocked_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.blockerId, t.blockedId] }),
+    index("user_blocks_blocked_idx").on(t.blockedId),
+  ],
+);
+
+/**
+ * Mirrors `collabPostReports` but with resolution state so staff get a
+ * queue, not just a log.
+ */
+export const commentReports = socialSchema.table("comment_reports", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  commentId: bigint("comment_id", { mode: "number" })
+    .notNull()
+    .references(() => comments.id, { onDelete: "cascade" }),
+  reporterId: text("reporter_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
+});

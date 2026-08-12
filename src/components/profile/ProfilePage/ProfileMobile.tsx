@@ -13,6 +13,7 @@ import { ProfileSkillsSection } from "./ProfileSkills";
 import { ProfileStandingSection } from "./ProfileStanding";
 import { ProfileSyncBar } from "./ProfileSyncBar";
 import { ProfileTeamsSection } from "./ProfileTeams";
+import { ProfileWallSection } from "./ProfileWall";
 import type { ProfileLayoutProps } from "./shared-types";
 
 /**
@@ -61,6 +62,14 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               links={profile.links}
               isOwner={isOwner}
               onEdit={() => openEdit(4)}
+              queryKey={queryKey}
+            />
+            <ProfileWallSection
+              index="06"
+              profileId={profile.profileId}
+              profileName={profile.handle}
+              isOwner={isOwner}
+              notesEnabled={profile.notesEnabled}
               queryKey={queryKey}
             />
           </>

@@ -1,6 +1,7 @@
-import { Edit02Icon, Share05Icon } from "@hugeicons/core-free-icons";
+import { DiscordIcon, Edit02Icon, Share05Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { authStore } from "@/lib/auth-store";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
@@ -71,7 +73,7 @@ export function ProfileHero({
               <ActionRow
                 isOwner={isOwner}
                 onEditProfile={onEditProfile}
-                handle={profile.handle}
+                profile={profile}
                 compact={compact}
               />
             </div>
@@ -118,7 +120,7 @@ export function ProfileHero({
             <ActionRow
               isOwner={isOwner}
               onEditProfile={onEditProfile}
-              handle={profile.handle}
+              profile={profile}
               compact={compact}
             />
           </div>
@@ -248,17 +250,20 @@ function AvailabilityToggleCard({
 function ActionRow({
   isOwner,
   onEditProfile,
-  handle,
+  profile,
   compact,
 }: {
   isOwner: boolean;
   onEditProfile: () => void;
-  handle: string;
+  profile: ProfileViewModel;
   compact: boolean;
 }) {
+  const { session } = useStore(authStore);
+  const signedIn = session?.user?.id != null;
+
   const onShare = () => {
     if (typeof window === "undefined") return;
-    const url = `${window.location.origin}/profile/${handle}`;
+    const url = `${window.location.origin}/profile/${profile.handle}`;
     void navigator.clipboard?.writeText(url);
     toast.success("Profile link copied");
   };
@@ -271,10 +276,72 @@ function ActionRow({
           <span className="tracking-widest">EDIT</span>
         </Button>
       ) : null}
+      {!isOwner && profile.discordId ? (
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={
+            <a
+              href={`https://discord.com/users/${profile.discordId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Message on Discord"
+            />
+          }
+        >
+          <HugeiconsIcon icon={DiscordIcon} size={14} />
+          <span className="tracking-widest">MESSAGE</span>
+        </Button>
+      ) : null}
       <Button variant="outline" size="sm" onClick={onShare} aria-label="Share profile">
         <HugeiconsIcon icon={Share05Icon} size={14} />
         {isOwner ? null : <span className="tracking-widest">SHARE</span>}
       </Button>
+      {!isOwner && signedIn ? <BlockToggle profileId={profile.profileId} /> : null}
     </div>
+  );
+}
+
+/**
+ * Block/unblock the profiled member — hides their comments from the
+ * viewer everywhere and suppresses notifications both ways. Kept as a
+ * quiet icon button so it doesn't compete with the primary actions.
+ */
+function BlockToggle({ profileId }: { profileId: string }) {
+  const qc = useQueryClient();
+  const { data: blockedUsers } = useQuery({
+    queryKey: ["listBlockedUsers"],
+    queryFn: () => client.listBlockedUsers({}),
+  });
+  const blocked = blockedUsers?.some((row) => row.userId === profileId) ?? false;
+
+  const toggle = useMutation({
+    mutationFn: () =>
+      blocked ? client.unblockUser({ userId: profileId }) : client.blockUser({ userId: profileId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["listBlockedUsers"] });
+      void qc.invalidateQueries({ queryKey: ["listComments"] });
+      toast.success(blocked ? "Member unblocked" : "Member blocked");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        if (blocked || window.confirm("Block this member? You'll stop seeing their comments."))
+          toggle.mutate();
+      }}
+      disabled={toggle.isPending}
+      aria-label={blocked ? "Unblock member" : "Block member"}
+      title={blocked ? "Unblock member" : "Block member"}
+      className={cn(blocked && "text-destructive")}
+    >
+      <HugeiconsIcon icon={UserBlock01Icon} size={14} />
+      {blocked ? <span className="tracking-widest">UNBLOCK</span> : null}
+    </Button>
   );
 }

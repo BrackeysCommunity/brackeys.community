@@ -11,6 +11,7 @@ import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useState } from "react";
 
+import { CommentThread } from "@/components/comments/CommentThread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -46,7 +47,11 @@ import {
   ReportInline,
   TYPE_LABELS,
 } from "./CollabPostDetail";
-import { CollabPostResponseForm } from "./CollabPostResponseForm";
+import {
+  CollabPostResponseForm,
+  ViewerResponseCard,
+  type ViewerResponse,
+} from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { useCollabPostActions } from "./use-collab-post-actions";
 
@@ -130,6 +135,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           <Section
             id="brief"
             title="THE BRIEF"
+            size="sm"
             blurb={`What ${post.team?.name ?? (post.author ? `@${post.author.discordUsername}` : "they")} is looking for, in their own words.`}
           >
             <Text size="md" className="max-w-prose whitespace-pre-wrap text-foreground/90">
@@ -151,11 +157,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           </Section>
 
           {post.roles.length > 0 || post.skills.length > 0 ? (
-            <Section
-              id="needs"
-              title="WHO THEY NEED"
-              blurb="The seats to fill and the stack they're building in."
-            >
+            <Section id="needs" title="WHO THEY NEED" size="sm">
               <div className="flex flex-col gap-4">
                 {post.roles.length > 0 ? (
                   <ChipGroup label="ROLES">
@@ -200,6 +202,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
             <Section
               id="responses"
               title="RESPONSES"
+              size="sm"
               blurb={
                 post.responseCount === 0
                   ? "Nobody has responded yet."
@@ -225,12 +228,17 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
               )}
             </Section>
           ) : (
-            <RespondSection postId={postId} isClosed={isClosed} signedIn={currentUserId !== null} />
+            <RespondSection
+              postId={postId}
+              isClosed={isClosed}
+              signedIn={currentUserId !== null}
+              viewerResponse={post.viewerResponse ?? null}
+            />
           )}
         </div>
 
         <div className="flex flex-col gap-6">
-          <RailSection id="details" title="THE DETAILS">
+          <Section id="details" title="THE DETAILS" size="sm">
             <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
               {post.projectName ? <SpecRow label="PROJECT" value={post.projectName} /> : null}
               {post.platforms && post.platforms.length > 0 ? (
@@ -279,9 +287,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                 </div>
               ) : null}
             </Well>
-          </RailSection>
+          </Section>
 
-          <RailSection id="crew" title="BEHIND THE POST">
+          <Section id="crew" title="BEHIND THE POST" size="sm">
             <div className="flex flex-col gap-2">
               {post.author ? (
                 <CrewTile
@@ -373,9 +381,35 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                 />
               ) : null}
             </div>
-          </RailSection>
+          </Section>
         </div>
       </div>
+
+      {/* Full-width below the grid, like the profile wall: the column
+          above is "the post and how to act on it" (one input — the
+          response form), discussion is page-level commentary underneath.
+          Keeping the two composers apart is deliberate — responses are
+          private applications, comments are public. */}
+      <CommentThread
+        subject={{ type: "collab_post", id: postId }}
+        maxLength={2000}
+        placeholder="Ask a question or leave a note for the poster…"
+        emptyHint="Questions and discussion land here — applying to the post goes through the response form."
+        shell={(content, count) => (
+          <Section
+            id="comments"
+            title="COMMENTS"
+            size="sm"
+            blurb={
+              count === 0
+                ? "Public discussion about this post."
+                : `${count} ${count === 1 ? "comment" : "comments"} so far.`
+            }
+          >
+            {content}
+          </Section>
+        )}
+      />
 
       {/* Mounted so the owner's EDIT lands in the same wizard the board
           uses — the detail panel elsewhere relies on the board's mount. */}
@@ -685,30 +719,6 @@ function HeroActions({
   );
 }
 
-/**
- * Rail-column section marker — the team page's shelf header: a
- * `MicroLabel` on a dashed rule, label voice rather than a display
- * heading, so the rail reads as a readout beside the prose column.
- */
-function RailSection({
-  id,
-  title,
-  children,
-}: {
-  id?: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} aria-label={title} className="flex min-w-0 scroll-mt-20 flex-col gap-3">
-      <div className="flex items-center gap-3 border-b border-dashed border-muted-foreground/25 pb-1.5">
-        <MicroLabel>{title}</MicroLabel>
-      </div>
-      {children}
-    </section>
-  );
-}
-
 /** A labelled row of badges, with an optional trailing note. */
 function ChipGroup({
   label,
@@ -793,15 +803,33 @@ function RespondSection({
   postId,
   isClosed,
   signedIn,
+  viewerResponse,
 }: {
   postId: number;
   isClosed: boolean;
   signedIn: boolean;
+  viewerResponse: ViewerResponse | null;
 }) {
+  if (viewerResponse) {
+    return (
+      <Section
+        id="respond"
+        title="RESPOND"
+        size="sm"
+        blurb="You've already responded — here's what you sent."
+      >
+        <Well className="p-5 backdrop-blur-none">
+          <ViewerResponseCard response={viewerResponse} postId={postId} />
+        </Well>
+      </Section>
+    );
+  }
+
   return (
     <Section
       id="respond"
       title="RESPOND"
+      size="sm"
       blurb={
         isClosed
           ? "This post is no longer taking responses."

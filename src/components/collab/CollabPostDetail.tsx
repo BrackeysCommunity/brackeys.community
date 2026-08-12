@@ -34,7 +34,7 @@ import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
-import { CollabPostResponseForm } from "./CollabPostResponseForm";
+import { CollabPostResponseForm, ViewerResponseCard } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { useCollabPostActions } from "./use-collab-post-actions";
 
@@ -473,8 +473,12 @@ export function CollabPostDetail({
               </div>
             ) : null}
 
-            {/* Non-owner: respond */}
-            {!isOwner && currentUserId && !isClosed ? (
+            {/* Non-owner: respond, or the response they already sent */}
+            {!isOwner && currentUserId && post.viewerResponse ? (
+              <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
+                <ViewerResponseCard response={post.viewerResponse} postId={postId} />
+              </div>
+            ) : !isOwner && currentUserId && !isClosed ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
                 <Text size="xs" variant="muted" className="tracking-widest uppercase">
                   Respond

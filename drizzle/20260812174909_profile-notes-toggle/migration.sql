@@ -1,0 +1,1 @@
+ALTER TABLE "user"."developer_profiles" ADD COLUMN "profile_notes_enabled" boolean DEFAULT true NOT NULL;

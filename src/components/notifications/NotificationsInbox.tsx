@@ -16,13 +16,14 @@ const PAGE_SIZE = 20;
 /** One comfortable row — 36px avatar inside `py-3` — before measurement. */
 const ROW_ESTIMATE = 68;
 
-export type InboxFilter = "all" | "unread" | "collab" | "teams" | "system";
+export type InboxFilter = "all" | "unread" | "collab" | "teams" | "comments" | "system";
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
   { value: "collab", label: "Collab" },
   { value: "teams", label: "Teams" },
+  { value: "comments", label: "Comments" },
   { value: "system", label: "System" },
 ];
 
@@ -71,6 +72,7 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
     const flat = (pages?.pages ?? []).flatMap((p) => p.items) as NotificationItem[];
     if (filter === "collab") return flat.filter((n) => categoryOf(n.type) === "collab");
     if (filter === "teams") return flat.filter((n) => categoryOf(n.type) === "teams");
+    if (filter === "comments") return flat.filter((n) => categoryOf(n.type) === "comments");
     if (filter === "system") return flat.filter((n) => categoryOf(n.type) === "system");
     return flat;
   }, [pages, filter]);

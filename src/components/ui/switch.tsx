@@ -54,7 +54,7 @@ function Switch({ className, size = "sm", notchOpts, ...props }: SwitchProps) {
         data-slot="switch-thumb"
         className={cn(
           // Emboss driven by parent hover/active via .switch-thumb-emboss CSS
-          "pointer-events-none flex items-center justify-center rounded-[2px]",
+          "pointer-events-none flex items-center justify-center rounded",
           "switch-thumb-emboss",
           // Slide transition
           "transition-[translate] duration-200 ease-in-out",

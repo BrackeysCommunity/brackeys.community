@@ -1,7 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
-import * as schema from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 
 export const pool = new pg.Pool({
@@ -9,6 +8,5 @@ export const pool = new pg.Pool({
   max: 4,
 });
 
-export const db = drizzle(pool, { schema });
+export const db = drizzle({ client: pool });
 export type DB = typeof db;
-export { schema };

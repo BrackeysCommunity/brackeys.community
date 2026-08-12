@@ -80,16 +80,23 @@ export async function notify(params: NotifyParams): Promise<void> {
 
   try {
     const queue = await getNotificationsQueue();
-    await queue.add(
-      "side_effects",
-      { notificationId: result.id },
-      {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 1000 },
-        removeOnComplete: 1000,
-        removeOnFail: 5000,
-      },
-    );
+    // bullmq's add() waits for connection readiness and never settles while
+    // Redis is unreachable — fire-and-forget so an outage can't hold the
+    // response; the job lands whenever the connection comes back.
+    queue
+      .add(
+        "side_effects",
+        { notificationId: result.id },
+        {
+          attempts: 3,
+          backoff: { type: "exponential", delay: 1000 },
+          removeOnComplete: 1000,
+          removeOnFail: 5000,
+        },
+      )
+      .catch((err: unknown) => {
+        console.warn("[notify] failed to enqueue side-effects", { id: result.id, err });
+      });
   } catch (err) {
     console.warn("[notify] failed to enqueue side-effects", { id: result.id, err });
   }

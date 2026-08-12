@@ -18,6 +18,10 @@ export function renderNotificationText(input: {
   const teamName = (input.data.teamName as string | undefined) ?? "a team";
   const teamSlug = input.data.teamSlug as string | undefined;
   const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
+  // Comment notifications are self-contained: the subject snapshot is
+  // stored on the row at write time so no social-table joins happen here.
+  const subjectTitle = (input.data.subjectTitle as string | undefined) ?? "a thread";
+  const subjectHref = (input.data.subjectUrl as string | undefined) ?? null;
 
   switch (input.type) {
     case "collab_response_received":
@@ -49,6 +53,13 @@ export function renderNotificationText(input: {
       };
     case "team_auto_archived":
       return { headline: `${teamName} was archived after a quiet spell`, href: teamHref };
+    case "comment_received":
+      return { headline: `${actor} commented on "${subjectTitle}"`, href: subjectHref };
+    case "comment_reply":
+      return {
+        headline: `${actor} replied to your comment on "${subjectTitle}"`,
+        href: subjectHref,
+      };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -68,6 +79,8 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   team_member_removed: "Teams — you were removed from a team",
   team_archive_warning: "Teams — your team is about to be archived",
   team_auto_archived: "Teams — your team was archived",
+  comment_received: "Comments — new comment in a thread you follow",
+  comment_reply: "Comments — someone replied to your comment",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -84,6 +97,8 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "team_member_removed",
   "team_archive_warning",
   "team_auto_archived",
+  "comment_received",
+  "comment_reply",
 ];
 
 /**
@@ -113,6 +128,10 @@ export const NOTIFICATION_DEFAULTS: Record<
   team_archive_warning: { inApp: true, email: true, digest: false },
   // The archive already happened and is reversible in-app; no email.
   team_auto_archived: { inApp: true, email: false, digest: false },
+  // Conversational volume: in-app + weekly digest, never transactional
+  // email by default — users opt email up, not down.
+  comment_received: { inApp: true, email: false, digest: true },
+  comment_reply: { inApp: true, email: false, digest: true },
 };
 
 /**

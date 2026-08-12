@@ -23,6 +23,7 @@ import type {
 export interface RpcProfile {
   profile: {
     id: string;
+    discordId: string | null;
     discordUsername: string | null;
     guildNickname: string | null;
     avatarUrl: string | null;
@@ -40,6 +41,7 @@ export interface RpcProfile {
     rateMax: number | null;
     createdAt: Date;
     guildJoinedAt: Date | null;
+    profileNotesEnabled: boolean;
   };
   skills: { id: number; skillId: number; name: string; category: string | null }[];
   projects: {
@@ -107,6 +109,7 @@ export interface RpcProfile {
     tokenInvalidAt: Date | null;
     linkedAt: Date;
   }[];
+  wallNotesCount: number;
 }
 
 /**
@@ -288,6 +291,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       skillsPendingCount: skillsPending,
       streakDays: 0,
       streakStatus: "—",
+      wallNotesCount: rpc.wallNotesCount,
     },
     itch,
     projects,
@@ -311,6 +315,8 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     totalCommits: 0,
     githubUsername,
     profileId: profile.id,
+    discordId: profile.discordId,
+    notesEnabled: profile.profileNotesEnabled,
   };
 }
 

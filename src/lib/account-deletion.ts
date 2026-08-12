@@ -32,10 +32,11 @@
  *   safe precisely because a canonical row never references a user-scoped
  *   key (it carries a provider CDN URL, or its own project-scoped upload).
  */
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
+  comments,
   developerProfiles,
   linkedAccounts,
   profileProjects,
@@ -73,6 +74,16 @@ export async function cleanupUserData(userId: string): Promise<void> {
   for (const { imageKey } of projectImages) {
     if (imageKey) await removeProfileProjectImageFromStorage(imageKey).catch(console.error);
   }
+
+  // Redact the user's comments while `author_id` still points at them —
+  // better-auth's user-row delete fires the set-null FK right after this
+  // hook, and the rows become unfindable by author. Tombstoned chains
+  // survive (replies keep rendering under "Deleted User"); COALESCE keeps
+  // the original timestamp/attribution on comments already deleted.
+  await db
+    .update(comments)
+    .set({ content: "", deletedAt: sql`COALESCE(${comments.deletedAt}, now())` })
+    .where(eq(comments.authorId, userId));
 
   try {
     await db.delete(developerProfiles).where(eq(developerProfiles.id, userId));

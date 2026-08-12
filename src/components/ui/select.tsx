@@ -58,7 +58,7 @@ function SelectTrigger({
       data-size={size}
       className={cn(
         "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-deboss-surface dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        "flex w-fit items-center justify-between gap-1.5 rounded border bg-transparent py-2 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none",
+        "flex w-fit items-center justify-between gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none",
         "aria-invalid:ring-1",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
@@ -289,7 +289,7 @@ function SelectMultiTrigger({
       data-size={size}
       className={cn(
         "chonk-deboss border-input focus-visible:outline-hidden aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-deboss-surface dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        "flex w-full items-center gap-1.5 rounded border bg-transparent pr-2 pl-2 text-xs transition-colors outline-none select-none",
+        "flex w-full items-center gap-1.5 rounded-lg border bg-transparent pr-2 pl-2 text-xs transition-colors outline-none select-none",
         "aria-invalid:ring-1",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "[&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

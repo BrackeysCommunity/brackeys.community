@@ -37,9 +37,12 @@ const TEAM_TYPES = new Set([
   "team_auto_archived",
 ]);
 
-export function categoryOf(type: string): "collab" | "teams" | "system" {
+const COMMENT_TYPES = new Set(["comment_received", "comment_reply"]);
+
+export function categoryOf(type: string): "collab" | "teams" | "comments" | "system" {
   if (COLLAB_TYPES.has(type)) return "collab";
   if (TEAM_TYPES.has(type)) return "teams";
+  if (COMMENT_TYPES.has(type)) return "comments";
   return "system";
 }
 
@@ -168,6 +171,29 @@ export function renderCopy(n: NotificationItem): {
         line: <>{teamEm} was archived after a quiet spell — restore it from its page</>,
         href: teamHref,
       };
+    case "comment_received": {
+      const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "a thread you follow";
+      return {
+        line: (
+          <>
+            {actor} commented on <em className="font-medium not-italic">{subjectTitle}</em>
+          </>
+        ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
+    case "comment_reply": {
+      const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "a thread";
+      return {
+        line: (
+          <>
+            {actor} replied to your comment on{" "}
+            <em className="font-medium not-italic">{subjectTitle}</em>
+          </>
+        ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
     default:
       return { line: <>You have a new notification</>, href };
   }
