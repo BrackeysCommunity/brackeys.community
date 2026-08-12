@@ -12,55 +12,10 @@ import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
 // creates placements, and a placement with no `project_id` behind it is a
 // project page that doesn't exist. Both copies of the orchestration have to
 // mint the canonical row or the backfill script never stops being needed.
+import { fetchGames, ItchApiError } from "../../../src/lib/itchio.ts";
 import { convergeJamPlacements, convergeLibraryPlacements } from "../../../src/lib/project-sync.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
-
-// Local fetch helper rather than the app's `fetchGames`: the sweep needs the
-// HTTP status (401/403 = revoked token, 429/5xx = back off) and its own
-// User-Agent, neither of which the app helper exposes.
-interface ItchGame {
-  id: number;
-  title: string;
-  short_text?: string;
-  url?: string;
-  cover_url?: string;
-  published: boolean;
-  published_at?: string;
-  // Provider-owned identity facts. They only ever land on the canonical
-  // project row (`classification` drives its curated type and label, `type`
-  // is the browser-playable signal, `release_status` the hero badge); the
-  // placement has nowhere to put them.
-  classification?: string;
-  type?: string;
-  release_status?: string;
-}
-
-class ItchApiError extends Error {
-  constructor(
-    public readonly status: number,
-    body: string,
-  ) {
-    super(`itch.io API error (${status}): ${body}`);
-  }
-}
-
-async function fetchGames(accessToken: string): Promise<ItchGame[]> {
-  const res = await fetch("https://api.itch.io/profile/games", {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "User-Agent": config.USER_AGENT,
-    },
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ItchApiError(res.status, body);
-  }
-
-  const data = (await res.json()) as { games?: ItchGame[] };
-  return data.games ?? [];
-}
 
 // Same shape as the app's syncItchIoLibrary (src/lib/itchio-sync.ts), but
 // bound to this service's drizzle client.
@@ -68,7 +23,7 @@ async function syncAccount(
   profileId: string,
   accessToken: string,
 ): Promise<{ imported: number; flipped: number }> {
-  const games = await fetchGames(accessToken);
+  const games = await fetchGames(accessToken, { userAgent: config.USER_AGENT });
   if (games.length === 0) {
     // Converge anyway: an account whose library comes back empty can still
     // hold placements imported before the canonical row existed.

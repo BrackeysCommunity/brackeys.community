@@ -66,7 +66,10 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-vi.mock("@/lib/itchio", () => ({
+// Keep the real exports (ItchApiError is instanceof-checked by the sync)
+// and only stub the network call.
+vi.mock("@/lib/itchio", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/itchio")>()),
   fetchGames: mocks.fetchGames,
 }));
 

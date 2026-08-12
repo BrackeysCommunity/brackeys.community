@@ -12,14 +12,19 @@ import type IORedis from "ioredis";
 
 import { db } from "@/db";
 import { linkedAccounts, profileProjects } from "@/db/schema";
-import { fetchGames } from "@/lib/itchio";
+import { fetchGames, ItchApiError } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { convergeLibraryPlacements } from "@/lib/projects";
 
-/** Thrown when the itch.io API call itself fails (vs. no linked account). */
+/** Thrown when the itch.io API call itself fails (vs. no linked account).
+ * `status` is set when itch answered with an error status, absent when the
+ * request never got through. */
 export class ItchIoSyncFetchError extends Error {
+  readonly status?: number;
+
   constructor(cause: unknown) {
     super("Failed to fetch games from itch.io", { cause });
+    if (cause instanceof ItchApiError) this.status = cause.status;
   }
 }
 

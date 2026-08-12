@@ -5,7 +5,7 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { linkedAccounts } from "@/db/schema";
-import { validateToken } from "@/lib/itchio";
+import { describeItchError, validateToken } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";
 import { requireAuth } from "@/orpc/middleware/auth";
@@ -16,10 +16,8 @@ export const linkItchIo = os
   .handler(async ({ input, context }) => {
     const userId = context.user.id;
 
-    const itchUser = await validateToken(input.accessToken).catch(() => {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "Invalid itch.io access token. Please try linking again.",
-      });
+    const itchUser = await validateToken(input.accessToken).catch((err) => {
+      throw new ORPCError("BAD_REQUEST", { message: describeItchError(err) });
     });
 
     const [linked] = await db
@@ -104,10 +102,7 @@ export const importItchIoGames = os
   .handler(async ({ context }) => {
     const result = await syncItchIoLibrary(context.user.id).catch((err) => {
       if (err instanceof ItchIoSyncFetchError) {
-        throw new ORPCError("BAD_REQUEST", {
-          message:
-            "Failed to fetch games from itch.io. Your token may have expired — try re-linking.",
-        });
+        throw new ORPCError("BAD_REQUEST", { message: describeItchError(err.cause) });
       }
       throw err;
     });
