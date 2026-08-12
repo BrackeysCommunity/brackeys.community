@@ -25,6 +25,7 @@ import {
   startWizardEdit,
 } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
+import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -266,7 +267,7 @@ export function CollabPostDetail({
               <div className="flex items-center gap-3 border border-warning/40 bg-warning/5 p-2.5">
                 {post.jam.bannerUrl ? (
                   <img
-                    src={post.jam.bannerUrl}
+                    src={itchImageUrl(post.jam.bannerUrl, { width: 192 })}
                     alt=""
                     loading="lazy"
                     className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
@@ -304,7 +305,7 @@ export function CollabPostDetail({
               <div className="flex items-center gap-3 border border-primary/40 bg-primary/5 p-2.5">
                 {post.project.imageUrl ? (
                   <img
-                    src={post.project.imageUrl}
+                    src={itchImageUrl(post.project.imageUrl, { width: 192 })}
                     alt=""
                     loading="lazy"
                     className="h-10 w-16 shrink-0 border border-muted/40 object-cover"

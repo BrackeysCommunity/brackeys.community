@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { itchImageUrl } from "@/lib/itch-image";
 import { projectTypeLabel } from "@/lib/project-links";
 import { orpc } from "@/orpc/client";
 
@@ -172,7 +173,12 @@ function ProjectThumb({ project }: { project: PickableProject | null }) {
   return (
     <span className="block h-10 w-16 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
       {project?.imageUrl ? (
-        <img src={project.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img
+          src={itchImageUrl(project.imageUrl, { width: 192 })}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover"
+        />
       ) : null}
     </span>
   );

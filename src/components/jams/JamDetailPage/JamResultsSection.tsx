@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import { safeThemeColor } from "../JamCalendarPage/helpers";
@@ -123,7 +124,7 @@ function PodiumCard({
       >
         {place.gameCoverUrl ? (
           <img
-            src={place.gameCoverUrl}
+            src={itchImageUrl(place.gameCoverUrl, { width: 640 })}
             alt=""
             aria-hidden
             loading="lazy"

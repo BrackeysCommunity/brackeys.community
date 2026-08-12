@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Grainient } from "@/components/ui/grainient";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
+import { BACKDROP_TRANSFORM, BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
@@ -124,7 +125,7 @@ function ModalContent({
                 top via `object-contain` so we never crop or distort
                 the actual artwork. */}
             <img
-              src={jam.bannerUrl}
+              src={itchImageUrl(jam.bannerUrl, BACKDROP_TRANSFORM)}
               alt=""
               aria-hidden
               className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
@@ -132,7 +133,9 @@ function ModalContent({
             <motion.img
               layoutId={`tl-banner-${layoutKey}`}
               transition={MODAL_TRANSITION}
-              src={jam.bannerUrl}
+              // Same transform as the board's BannerMedia — the layoutId
+              // morph must land on the identical URL to avoid a re-fetch.
+              src={itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM)}
               alt=""
               aria-hidden
               className="absolute inset-0 h-full w-full object-contain"

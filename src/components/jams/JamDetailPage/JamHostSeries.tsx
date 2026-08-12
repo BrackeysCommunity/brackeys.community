@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { itchImageUrl } from "@/lib/itch-image";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { orpc } from "@/orpc/client";
@@ -46,7 +47,7 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
               >
                 {jam.bannerUrl ? (
                   <img
-                    src={jam.bannerUrl}
+                    src={itchImageUrl(jam.bannerUrl, { width: 480 })}
                     alt=""
                     aria-hidden
                     loading="lazy"

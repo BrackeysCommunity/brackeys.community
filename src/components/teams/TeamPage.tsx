@@ -20,6 +20,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { timeAgo } from "@/lib/format-time";
+import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
@@ -424,7 +425,8 @@ function TeamMasthead({
             // Quoted and encoded: the banner is a user-supplied URL, and a
             // bare `url(…)` lets a stray quote or paren close the function
             // and open a second declaration.
-            backgroundImage: `url("${encodeURI(team.bannerUrl)}")`,
+            // Rewrite before encodeURI — the transform path must stay raw.
+            backgroundImage: `url("${encodeURI(itchImageUrl(team.bannerUrl, { width: 960, quality: 50 }))}")`,
             maskImage: "linear-gradient(to bottom left, #000 0%, transparent 75%)",
             WebkitMaskImage: "linear-gradient(to bottom left, #000 0%, transparent 75%)",
           }}

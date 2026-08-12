@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { itchImageUrl } from "@/lib/itch-image";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
@@ -90,7 +91,7 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
         >
           {jam.bannerUrl ? (
             <img
-              src={jam.bannerUrl}
+              src={itchImageUrl(jam.bannerUrl, { width: 640 })}
               alt=""
               aria-hidden
               className="absolute inset-0 h-full w-full object-contain"
@@ -207,7 +208,7 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
       >
         {jam.bannerUrl ? (
           <img
-            src={jam.bannerUrl}
+            src={itchImageUrl(jam.bannerUrl, { width: 480 })}
             alt=""
             aria-hidden
             className="absolute inset-0 h-full w-full object-contain"
@@ -314,7 +315,7 @@ function EntryTile({ entry }: { entry: RecentEntry }) {
       >
         {entry.gameCoverUrl && (
           <img
-            src={entry.gameCoverUrl}
+            src={itchImageUrl(entry.gameCoverUrl, { width: 384 })}
             alt=""
             aria-hidden
             loading="lazy"

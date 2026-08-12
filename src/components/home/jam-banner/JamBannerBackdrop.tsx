@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 
 import { Grainient } from "@/components/ui/grainient";
+import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 
 /** Shared by the backdrop's fades and the carousel's slide motion, so the
  * art and the wash behind it move on the same clock. */
@@ -48,7 +49,7 @@ export function JamBannerBackdrop({
         {bannerUrl && (
           <motion.img
             key={jamId}
-            src={bannerUrl}
+            src={itchImageUrl(bannerUrl, BACKDROP_TRANSFORM)}
             alt=""
             aria-hidden
             initial={{ opacity: 0 }}

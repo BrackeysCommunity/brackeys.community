@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/typography";
+import { itchImageUrl } from "@/lib/itch-image";
 import { type effectiveJamState } from "@/lib/jam-countdown";
 
 import { type JamLike, shortName } from "./types";
@@ -19,7 +20,7 @@ export function JamBannerArt({ jam, isCompact }: { jam: JamLike; isCompact: bool
     <>
       {jam.bannerUrl && (
         <img
-          src={jam.bannerUrl}
+          src={itchImageUrl(jam.bannerUrl, { width: 960, quality: 70 })}
           alt=""
           aria-hidden
           className="absolute inset-0 block h-full w-full object-contain"

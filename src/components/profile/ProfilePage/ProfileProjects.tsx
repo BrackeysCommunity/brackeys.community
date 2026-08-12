@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { itchImageUrl } from "@/lib/itch-image";
 import { type ProfileProjectSubType } from "@/lib/profile-projects";
 import {
   MANUAL_PROJECT_TYPES,
@@ -311,7 +312,7 @@ function ProjectCard({
       <div className="relative aspect-[16/7] w-full overflow-hidden rounded bg-muted/40">
         {project.bannerUrl ? (
           <img
-            src={project.bannerUrl}
+            src={itchImageUrl(project.bannerUrl, { width: 800 })}
             alt=""
             aria-hidden
             className="absolute inset-0 h-full w-full object-cover"

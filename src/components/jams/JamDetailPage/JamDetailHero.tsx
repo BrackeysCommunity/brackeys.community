@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { BACKDROP_TRANSFORM, itchImageSrcSet, itchImageUrl } from "@/lib/itch-image";
 import { durationDays, formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamUrl } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
@@ -64,13 +65,15 @@ export function JamDetailHero({
         {jam.bannerUrl ? (
           <>
             <img
-              src={jam.bannerUrl}
+              src={itchImageUrl(jam.bannerUrl, BACKDROP_TRANSFORM)}
               alt=""
               aria-hidden
               className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
             />
             <img
-              src={jam.bannerUrl}
+              src={itchImageUrl(jam.bannerUrl, { width: 960, quality: 70 })}
+              srcSet={itchImageSrcSet(jam.bannerUrl, undefined, { quality: 70 })}
+              sizes="100vw"
               alt={`${jam.title} banner`}
               className="absolute inset-0 h-full w-full object-contain"
             />

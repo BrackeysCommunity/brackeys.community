@@ -3,6 +3,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { itchImageUrl } from "@/lib/itch-image";
 import { profileLinkParams } from "@/lib/profile-links";
 import { platformLabel } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ export function JamEntryCard({
       >
         {entry.gameCoverUrl ? (
           <img
-            src={entry.gameCoverUrl}
+            src={itchImageUrl(entry.gameCoverUrl, { width: 480 })}
             alt=""
             aria-hidden
             loading="lazy"

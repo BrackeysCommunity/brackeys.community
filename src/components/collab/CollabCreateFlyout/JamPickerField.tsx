@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { itchImageUrl } from "@/lib/itch-image";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { orpc } from "@/orpc/client";
 
@@ -142,7 +143,12 @@ function JamThumb({ jam }: { jam: PickableJam | null }) {
   return (
     <span className="block h-10 w-16 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
       {jam?.bannerUrl ? (
-        <img src={jam.bannerUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img
+          src={itchImageUrl(jam.bannerUrl, { width: 192 })}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover"
+        />
       ) : null}
     </span>
   );

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 
+import { BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
@@ -38,7 +39,9 @@ export function JamBanner({
       <motion.img
         layoutId={`tl-banner-${layoutKey}`}
         transition={ROW_CLOSE_TRANSITION}
-        src={jam.bannerUrl}
+        // BOARD_BANNER_TRANSFORM is shared with the modal's crisp layer:
+        // both ends of the layoutId morph must fetch the identical URL.
+        src={itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM)}
         alt=""
         aria-hidden
         loading="lazy"

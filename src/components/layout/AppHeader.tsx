@@ -48,13 +48,20 @@ export function AppHeader() {
   const PAGE_TITLES: Record<string, string> = {
     "/command-center": "COMMANDS",
     "/collab": "COLLAB",
+    "/jams": "JAMS",
     "/teams": "TEAMS",
     "/members": "MEMBERS",
     "/profile": "PROFILE",
   };
   const mobileTitle =
     PAGE_TITLES[pathname] ??
-    (pathname.startsWith("/collab/") ? "COLLAB" : pathname.startsWith("/teams/") ? "TEAMS" : null);
+    (pathname.startsWith("/collab/")
+      ? "COLLAB"
+      : pathname.startsWith("/jams/")
+        ? "JAMS"
+        : pathname.startsWith("/teams/")
+          ? "TEAMS"
+          : null);
 
   // Auto-hide on scroll-down / reveal on scroll-up. Held open while the mobile
   // menu is expanded — sliding the trigger away under an open overlay strands
@@ -143,6 +150,14 @@ export function AppHeader() {
             <MagneticLink>
               <Link
                 className="px-2 py-1 text-foreground transition-colors hover:text-primary"
+                to="/jams"
+              >
+                JAMS
+              </Link>
+            </MagneticLink>
+            <MagneticLink>
+              <Link
+                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
                 to="/teams"
               >
                 TEAMS
@@ -217,6 +232,13 @@ export function AppHeader() {
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 COLLAB
+              </Link>
+              <Link
+                to="/jams"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+              >
+                JAMS
               </Link>
               <Link
                 to="/teams"

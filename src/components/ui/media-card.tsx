@@ -1,3 +1,4 @@
+import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 /**
@@ -60,8 +61,11 @@ export function MediaCardImage({
 }) {
   return (
     <>
+      {/* itchImageUrl is host-gated: it only rewrites img.itch.zone URLs, so
+          the MinIO-presigned collab images that also flow through here pass
+          untouched. */}
       <img
-        src={src}
+        src={itchImageUrl(src, BACKDROP_TRANSFORM)}
         alt=""
         aria-hidden
         loading="lazy"
@@ -69,7 +73,7 @@ export function MediaCardImage({
         className="absolute inset-0 h-full w-full scale-125 object-cover blur-lg brightness-[0.6] saturate-150"
       />
       <img
-        src={src}
+        src={itchImageUrl(src, { width: 768 })}
         alt={alt}
         loading="lazy"
         decoding="async"
