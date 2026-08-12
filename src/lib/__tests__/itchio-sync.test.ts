@@ -50,10 +50,17 @@ vi.mock("@/db", () => ({
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => ({ _: "and", args }),
   eq: (...args: unknown[]) => ({ _: "eq", args }),
+  isNull: (...args: unknown[]) => ({ _: "isNull", args }),
 }));
 
 vi.mock("@/db/schema", () => ({
-  linkedAccounts: { profileId: "profileId", provider: "provider" },
+  linkedAccounts: {
+    id: "id",
+    profileId: "profileId",
+    provider: "provider",
+    tokenInvalidAt: "tokenInvalidAt",
+    lastSyncedAt: "lastSyncedAt",
+  },
   profileProjects: {
     id: "id",
     profileId: "profileId",
@@ -85,7 +92,21 @@ vi.mock("@/lib/projects", () => ({
   convergeLibraryPlacements: mocks.convergeLibrary,
 }));
 
-import { ItchIoSyncFetchError, syncItchIoLibrary } from "../itchio-sync";
+import { ItchApiError } from "@/lib/itchio";
+
+import {
+  ItchIoSyncFetchError,
+  syncItchIoLibrary,
+  syncItchIoLibraryThrottled,
+} from "../itchio-sync";
+
+// Patches sent to db.update().set(), excluding the token-health stamp the
+// sync writes on every successful fetch — most tests only care about the
+// project-row updates.
+const projectPatches = () =>
+  mocks.updateWhere.mock.calls
+    .map(([patch]) => patch as Record<string, unknown>)
+    .filter((p) => !("lastSyncedAt" in p) && !("tokenInvalidAt" in p));
 
 function game(overrides: Partial<Record<string, unknown>> & { id: number; published: boolean }) {
   return {
@@ -145,7 +166,7 @@ describe("syncItchIoLibrary()", () => {
       expect.objectContaining({ sourceId: "1", published: true, source: "itchio" }),
       expect.objectContaining({ sourceId: "2", published: false, source: "itchio" }),
     ]);
-    expect(mocks.updateWhere).not.toHaveBeenCalled();
+    expect(projectPatches()).toEqual([]);
   });
 
   it("flips published when itch.io visibility changed", async () => {
@@ -157,8 +178,7 @@ describe("syncItchIoLibrary()", () => {
     await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
 
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
-    expect(mocks.updateWhere).toHaveBeenCalledTimes(1);
-    expect(mocks.updateWhere).toHaveBeenCalledWith({ published: false });
+    expect(projectPatches()).toEqual([{ published: false }]);
   });
 
   it("no-ops when nothing changed", async () => {
@@ -170,7 +190,7 @@ describe("syncItchIoLibrary()", () => {
     await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
 
     expect(mocks.insertOnConflict).not.toHaveBeenCalled();
-    expect(mocks.updateWhere).not.toHaveBeenCalled();
+    expect(projectPatches()).toEqual([]);
   });
 
   it("refreshes the stored cover when itch.io's cover_url changed", async () => {
@@ -181,11 +201,9 @@ describe("syncItchIoLibrary()", () => {
 
     await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
 
-    expect(mocks.updateWhere).toHaveBeenCalledTimes(1);
-    expect(mocks.updateWhere).toHaveBeenCalledWith({
-      published: true,
-      imageUrl: "https://img.itch.zone/1.png",
-    });
+    expect(projectPatches()).toEqual([
+      { published: true, imageUrl: "https://img.itch.zone/1.png" },
+    ]);
   });
 
   it("backfills a missing cover on re-sync", async () => {
@@ -216,7 +234,7 @@ describe("syncItchIoLibrary()", () => {
 
     await expect(syncItchIoLibrary("u1")).resolves.toEqual({ imported: 0, total: 1 });
 
-    expect(mocks.updateWhere).not.toHaveBeenCalled();
+    expect(projectPatches()).toEqual([]);
   });
 
   it("wraps itch.io fetch failures in ItchIoSyncFetchError", async () => {
@@ -240,5 +258,96 @@ describe("syncItchIoLibrary()", () => {
     await syncItchIoLibrary("u1");
 
     expect(mocks.convergeLibrary).toHaveBeenCalledWith("u1", []);
+  });
+});
+
+describe("token health stamping", () => {
+  const stampPatches = () =>
+    mocks.updateWhere.mock.calls
+      .map(([patch]) => patch as Record<string, unknown>)
+      .filter((p) => "lastSyncedAt" in p || "tokenInvalidAt" in p);
+
+  it("clears tokenInvalidAt and moves lastSyncedAt on a successful fetch", async () => {
+    await syncItchIoLibrary("u1");
+
+    expect(stampPatches()).toEqual([{ tokenInvalidAt: null, lastSyncedAt: expect.any(Date) }]);
+  });
+
+  it("stamps tokenInvalidAt on a 401 and rethrows with the status", async () => {
+    mocks.fetchGames.mockRejectedValue(new ItchApiError(401, "unauthorized"));
+
+    const err = await syncItchIoLibrary("u1").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ItchIoSyncFetchError);
+    expect((err as ItchIoSyncFetchError).status).toBe(401);
+    expect(stampPatches()).toEqual([{ tokenInvalidAt: expect.any(Date) }]);
+  });
+
+  it("does not stamp tokenInvalidAt on a 500", async () => {
+    mocks.fetchGames.mockRejectedValue(new ItchApiError(500, "oops"));
+
+    await expect(syncItchIoLibrary("u1")).rejects.toBeInstanceOf(ItchIoSyncFetchError);
+    expect(stampPatches()).toEqual([]);
+  });
+
+  it("does not stamp tokenInvalidAt on a network failure", async () => {
+    mocks.fetchGames.mockRejectedValue(new TypeError("fetch failed"));
+
+    await expect(syncItchIoLibrary("u1")).rejects.toBeInstanceOf(ItchIoSyncFetchError);
+    expect(stampPatches()).toEqual([]);
+  });
+});
+
+describe("syncItchIoLibraryThrottled()", () => {
+  // getRedis caches its client on globalThis — plant a fake there so the
+  // dynamic `import("ioredis")` never runs.
+  const redis = { set: vi.fn(), del: vi.fn() };
+
+  beforeEach(() => {
+    redis.set.mockReset();
+    redis.del.mockReset();
+    (globalThis as { __brackeysItchioSyncRedis?: unknown }).__brackeysItchioSyncRedis = redis;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { __brackeysItchioSyncRedis?: unknown }).__brackeysItchioSyncRedis;
+  });
+
+  it("takes a short lock, then extends to the full window on success", async () => {
+    redis.set.mockResolvedValue("OK");
+
+    await syncItchIoLibraryThrottled("u1");
+
+    expect(redis.set.mock.calls).toEqual([
+      ["itchio:sync:u1", "1", "EX", 300, "NX"],
+      ["itchio:sync:u1", "1", "EX", 3600, "XX"],
+    ]);
+    expect(redis.del).not.toHaveBeenCalled();
+  });
+
+  it("releases the lock when the sync fails, so the next view retries", async () => {
+    redis.set.mockResolvedValue("OK");
+    mocks.fetchGames.mockRejectedValue(new ItchApiError(500, "oops"));
+
+    await syncItchIoLibraryThrottled("u1");
+
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    expect(redis.del).toHaveBeenCalledWith("itchio:sync:u1");
+  });
+
+  it("does nothing when another sync holds the lock", async () => {
+    redis.set.mockResolvedValue(null);
+
+    await syncItchIoLibraryThrottled("u1");
+
+    expect(mocks.fetchGames).not.toHaveBeenCalled();
+    expect(redis.del).not.toHaveBeenCalled();
+  });
+
+  it("skips entirely when Redis is down rather than bypassing the throttle", async () => {
+    redis.set.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    await syncItchIoLibraryThrottled("u1");
+
+    expect(mocks.fetchGames).not.toHaveBeenCalled();
   });
 });

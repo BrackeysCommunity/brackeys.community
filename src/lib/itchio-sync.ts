@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 /**
  * Shared itch.io library sync: fetches the linked account's games and
  * mirrors them into `profile_projects` (new games inserted, `published`
@@ -44,9 +44,26 @@ export async function syncItchIoLibrary(
 
   if (!itchAccount?.accessToken) return null;
 
-  const games = await fetchGames(itchAccount.accessToken).catch((err) => {
+  const games = await fetchGames(itchAccount.accessToken).catch(async (err) => {
+    // Token health stamping: the first 401/403 records when the token went
+    // bad (the timestamp survives later failures), so the profile UI can
+    // prompt a reconnect even if the nightly sweep never reaches this user.
+    if (err instanceof ItchApiError && (err.status === 401 || err.status === 403)) {
+      await db
+        .update(linkedAccounts)
+        .set({ tokenInvalidAt: new Date() })
+        .where(and(eq(linkedAccounts.id, itchAccount.id), isNull(linkedAccounts.tokenInvalidAt)))
+        .catch(() => {});
+    }
     throw new ItchIoSyncFetchError(err);
   });
+
+  // The token proved good: clear any stale invalid flag and move the sweep's
+  // resume cursor.
+  await db
+    .update(linkedAccounts)
+    .set({ tokenInvalidAt: null, lastSyncedAt: new Date() })
+    .where(eq(linkedAccounts.id, itchAccount.id));
 
   if (games.length === 0) {
     // Converge anyway: an account whose library comes back empty can still
@@ -139,6 +156,10 @@ declare global {
 }
 
 const THROTTLE_TTL_SECONDS = 3600;
+// Short initial lock: it only has to outlive one sync attempt. The full
+// throttle window is granted on success; a failed sync releases the key so
+// the next profile view retries instead of waiting out the hour.
+const LOCK_TTL_SECONDS = 300;
 
 async function getRedis(): Promise<IORedis> {
   if (globalThis.__brackeysItchioSyncRedis) return globalThis.__brackeysItchioSyncRedis;
@@ -157,15 +178,18 @@ async function getRedis(): Promise<IORedis> {
  * skips the refresh entirely rather than bypassing the throttle.
  */
 export async function syncItchIoLibraryThrottled(userId: string): Promise<void> {
+  const key = `itchio:sync:${userId}`;
+  let redis: IORedis;
   let won: string | null;
   try {
-    const redis = await getRedis();
-    won = await redis.set(`itchio:sync:${userId}`, "1", "EX", THROTTLE_TTL_SECONDS, "NX");
+    redis = await getRedis();
+    won = await redis.set(key, "1", "EX", LOCK_TTL_SECONDS, "NX");
   } catch {
     return;
   }
   if (won !== "OK") return;
 
+  let syncFailed = false;
   try {
     const result = await syncItchIoLibrary(userId);
     if (result) {
@@ -174,9 +198,11 @@ export async function syncItchIoLibraryThrottled(userId: string): Promise<void> 
       );
     }
   } catch (err) {
+    syncFailed = true;
     console.error(`[itchio-sync] background refresh failed for ${userId}`, err);
   }
 
+  // Jam backfill is DB-only; its failures don't burn the throttle window.
   try {
     const jams = await syncItchIoJamParticipations(userId);
     if (jams && jams.imported > 0) {
@@ -186,5 +212,19 @@ export async function syncItchIoLibraryThrottled(userId: string): Promise<void> 
     }
   } catch (err) {
     console.error(`[itchio-sync] jam backfill failed for ${userId}`, err);
+  }
+
+  // Success extends the lock to the real throttle window; failure releases
+  // it. `XX` on the extend means an expired lock is not resurrected into a
+  // stale throttle, and the DEL is safe because the key is ours (a second
+  // concurrent sync in the gap is tolerated by the DB's onConflictDoNothing).
+  try {
+    if (syncFailed) {
+      await redis.del(key);
+    } else {
+      await redis.set(key, "1", "EX", THROTTLE_TTL_SECONDS, "XX");
+    }
+  } catch {
+    // Best-effort: Redis being down here just leaves the 5-minute lock.
   }
 }

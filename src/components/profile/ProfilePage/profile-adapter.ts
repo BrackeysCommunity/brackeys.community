@@ -99,6 +99,7 @@ export interface RpcProfile {
     provider: string;
     providerUsername: string | null;
     providerProfileUrl: string | null;
+    tokenInvalidAt: Date | null;
     linkedAt: Date;
   }[];
 }
@@ -179,6 +180,9 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       label: acc.provider.toUpperCase(),
       url: acc.providerProfileUrl ?? "",
       display: acc.providerUsername ?? acc.providerProfileUrl ?? acc.provider,
+      // Owner-only affordance; visitors never see the health of someone
+      // else's token.
+      needsReconnect: rpc.isOwner && acc.tokenInvalidAt != null,
     }));
   // Surface profile-level URLs as virtual linked accounts when the
   // user hasn't connected the corresponding provider yet — keeps the

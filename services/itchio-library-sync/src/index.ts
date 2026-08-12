@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 
 import {
   itchJamEntries,
@@ -423,15 +423,41 @@ async function runSweep() {
     `[jams] backfilled ${jams.accounts} accounts, imported ${jams.imported}, failed ${jams.failed}`,
   );
 
+  // Known-invalid tokens fail deterministically — skip their API sync (the
+  // jam backfill above already covered them; it needs no token). Logged so
+  // a growing count is visible in Railway.
+  const [invalidRow] = await db
+    .select({ skippedInvalid: sql<number>`count(*)::int` })
+    .from(linkedAccounts)
+    .where(
+      and(
+        eq(linkedAccounts.provider, "itchio"),
+        isNotNull(linkedAccounts.accessToken),
+        isNotNull(linkedAccounts.tokenInvalidAt),
+      ),
+    );
+  const skippedInvalid = invalidRow?.skippedInvalid ?? 0;
+
+  // Oldest-synced first (never-synced before that): an aborted sweep's next
+  // tick resumes at the starved tail instead of re-syncing the same head.
   const accounts = await db
     .select({
       profileId: linkedAccounts.profileId,
       accessToken: linkedAccounts.accessToken,
     })
     .from(linkedAccounts)
-    .where(and(eq(linkedAccounts.provider, "itchio"), isNotNull(linkedAccounts.accessToken)));
+    .where(
+      and(
+        eq(linkedAccounts.provider, "itchio"),
+        isNotNull(linkedAccounts.accessToken),
+        isNull(linkedAccounts.tokenInvalidAt),
+      ),
+    )
+    .orderBy(sql`${linkedAccounts.lastSyncedAt} asc nulls first`);
 
-  console.log(`[sweep] ${accounts.length} linked itch.io accounts to sync`);
+  console.log(
+    `[sweep] ${accounts.length} linked itch.io accounts to sync, skipped-invalid ${skippedInvalid}`,
+  );
 
   let synced = 0;
   let imported = 0;
@@ -456,12 +482,31 @@ async function runSweep() {
         synced++;
         imported += result.imported;
         flipped += result.flipped;
+        await db
+          .update(linkedAccounts)
+          .set({ tokenInvalidAt: null, lastSyncedAt: new Date() })
+          .where(
+            and(
+              eq(linkedAccounts.profileId, account.profileId),
+              eq(linkedAccounts.provider, "itchio"),
+            ),
+          );
       } catch (err) {
         if (err instanceof ItchApiError && (err.status === 401 || err.status === 403)) {
-          // Token revoked: leave the linked_accounts row; the profile UI's
-          // reconnect path handles re-linking.
+          // Token revoked: stamp it (first failure time wins) so the profile
+          // UI prompts a reconnect and the next sweep skips the account.
           console.warn(`[sweep] token revoked for profile ${account.profileId}, skipping`);
           revoked++;
+          await db
+            .update(linkedAccounts)
+            .set({ tokenInvalidAt: new Date() })
+            .where(
+              and(
+                eq(linkedAccounts.profileId, account.profileId),
+                eq(linkedAccounts.provider, "itchio"),
+                isNull(linkedAccounts.tokenInvalidAt),
+              ),
+            );
           continue;
         }
         if (err instanceof ItchApiError && (err.status === 429 || err.status >= 500)) {

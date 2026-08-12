@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import {
@@ -237,9 +238,25 @@ function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void 
         {link.monogram}
       </Chonk>
       <div className="flex min-w-0 flex-col">
-        <Text size="xs" variant="muted" className="tracking-widest">
-          {link.label}
-        </Text>
+        <div className="flex items-center gap-2">
+          <Text size="xs" variant="muted" className="tracking-widest">
+            {link.label}
+          </Text>
+          {link.needsReconnect ? (
+            // z-10 lifts the button above the row's stretched anchor so the
+            // click starts the OAuth flow instead of opening the stale link.
+            <button
+              type="button"
+              onClick={() => startItchOAuth()}
+              aria-label={`Reconnect ${link.label}`}
+              className="relative z-10 cursor-pointer"
+            >
+              <Badge variant="warning" size="label">
+                RECONNECT
+              </Badge>
+            </button>
+          ) : null}
+        </div>
         <Text size="sm" className="truncate">
           {link.display}
         </Text>

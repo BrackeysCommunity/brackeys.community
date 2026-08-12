@@ -312,6 +312,9 @@ export interface ProfileLink {
   url: string;
   /** Display string under the label (without scheme). */
   display: string;
+  /** Owner-only: the provider rejected our stored token (revoked on their
+   * side) — surfaces the RECONNECT affordance. */
+  needsReconnect?: boolean;
 }
 
 /** A row of seven day-counts, oldest → newest, padded with `null` when

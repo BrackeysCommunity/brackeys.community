@@ -934,6 +934,7 @@ function LinksStep({ profile, save }: { profile: ProfileViewModel; save: SaveCon
           }
           label="itch.io"
           connectedTo={profile.links.find((l) => l.label === "ITCHIO")?.display}
+          needsReconnect={profile.links.find((l) => l.label === "ITCHIO")?.needsReconnect}
           loading={linking === "itchio"}
           onClick={() => {
             setLinking("itchio");
@@ -1028,6 +1029,7 @@ function ProviderConnectButton({
   icon,
   label,
   connectedTo,
+  needsReconnect,
   loading,
   onClick,
   disabled,
@@ -1035,6 +1037,8 @@ function ProviderConnectButton({
   icon: React.ReactNode;
   label: string;
   connectedTo: string | undefined | null;
+  /** The provider revoked our stored token — escalate the RECONNECT state. */
+  needsReconnect?: boolean;
   loading: boolean;
   onClick: () => void;
   disabled?: boolean;
@@ -1049,13 +1053,15 @@ function ProviderConnectButton({
           <Text size="xs" variant="muted" className="tracking-widest">
             {label.toUpperCase()}
           </Text>
-          <Text size="sm" className="truncate">
-            {connectedTo ?? "Not connected"}
+          <Text size="sm" className={needsReconnect ? "truncate text-warning" : "truncate"}>
+            {needsReconnect
+              ? "Connection expired — reconnect to keep your games in sync"
+              : (connectedTo ?? "Not connected")}
           </Text>
         </div>
       </div>
       <Button
-        variant={connectedTo ? "outline" : "default"}
+        variant={needsReconnect ? "destructive" : connectedTo ? "outline" : "default"}
         size="sm"
         onClick={onClick}
         disabled={disabled || loading}

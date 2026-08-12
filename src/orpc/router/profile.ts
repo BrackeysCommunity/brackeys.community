@@ -408,6 +408,7 @@ export const getProfile = os
             providerUsername: linkedAccounts.providerUsername,
             providerAvatarUrl: linkedAccounts.providerAvatarUrl,
             providerProfileUrl: linkedAccounts.providerProfileUrl,
+            tokenInvalidAt: linkedAccounts.tokenInvalidAt,
             linkedAt: linkedAccounts.linkedAt,
           })
           .from(linkedAccounts)
@@ -465,6 +466,7 @@ export const getMyProfile = os
             providerUsername: linkedAccounts.providerUsername,
             providerAvatarUrl: linkedAccounts.providerAvatarUrl,
             providerProfileUrl: linkedAccounts.providerProfileUrl,
+            tokenInvalidAt: linkedAccounts.tokenInvalidAt,
             linkedAt: linkedAccounts.linkedAt,
           })
           .from(linkedAccounts)

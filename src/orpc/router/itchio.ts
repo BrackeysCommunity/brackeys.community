@@ -5,7 +5,7 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { linkedAccounts } from "@/db/schema";
-import { describeItchError, validateToken } from "@/lib/itchio";
+import { describeItchError, fetchCredentialsInfo, validateToken } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";
 import { requireAuth } from "@/orpc/middleware/auth";
@@ -20,6 +20,26 @@ export const linkItchIo = os
       throw new ORPCError("BAD_REQUEST", { message: describeItchError(err) });
     });
 
+    // Store what itch actually granted, not what we asked for — users can
+    // untick scopes on the consent page. A missing games scope still links
+    // (the identity is valid) but the caller skips the auto-import.
+    const { scopes, gamesScopeMissing } = await fetchCredentialsInfo(input.accessToken)
+      .then((info) => {
+        if (info.type === "jwt") {
+          console.warn(`[itchio] unexpected jwt-type credentials for user ${userId}`);
+        }
+        return {
+          scopes: info.scopes.join(" "),
+          gamesScopeMissing: !info.scopes.some((s) => s === "profile:games" || s === "profile"),
+        };
+      })
+      .catch((err) => {
+        // A blip on /credentials/info must not fail linking; fall back to
+        // the requested scopes as before.
+        console.warn(`[itchio] credentials/info failed for user ${userId}; storing requested`, err);
+        return { scopes: "profile:me profile:games", gamesScopeMissing: false };
+      });
+
     const [linked] = await db
       .insert(linkedAccounts)
       .values({
@@ -27,10 +47,12 @@ export const linkItchIo = os
         provider: "itchio",
         providerUserId: String(itchUser.id),
         providerUsername: itchUser.username,
+        providerDisplayName: itchUser.display_name ?? null,
         providerAvatarUrl: itchUser.cover_url ?? null,
         providerProfileUrl: itchUser.url ?? null,
         accessToken: input.accessToken,
-        scopes: "profile:me profile:games",
+        scopes,
+        tokenInvalidAt: null,
         linkedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -39,10 +61,13 @@ export const linkItchIo = os
         set: {
           providerUserId: String(itchUser.id),
           providerUsername: itchUser.username,
+          providerDisplayName: itchUser.display_name ?? null,
           providerAvatarUrl: itchUser.cover_url ?? null,
           providerProfileUrl: itchUser.url ?? null,
           accessToken: input.accessToken,
-          scopes: "profile:me profile:games",
+          scopes,
+          // Re-linking is the reconnect path: the fresh token clears the flag.
+          tokenInvalidAt: null,
           updatedAt: new Date(),
         },
       })
@@ -53,6 +78,7 @@ export const linkItchIo = os
       provider: linked.provider,
       providerUsername: linked.providerUsername,
       providerProfileUrl: linked.providerProfileUrl,
+      gamesScopeMissing,
     };
   });
 
@@ -88,6 +114,7 @@ export const getLinkedAccounts = os
         providerUsername: linkedAccounts.providerUsername,
         providerAvatarUrl: linkedAccounts.providerAvatarUrl,
         providerProfileUrl: linkedAccounts.providerProfileUrl,
+        tokenInvalidAt: linkedAccounts.tokenInvalidAt,
         linkedAt: linkedAccounts.linkedAt,
       })
       .from(linkedAccounts)

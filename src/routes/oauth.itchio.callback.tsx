@@ -50,6 +50,15 @@ function ItchIoCallbackPage() {
   const { mutate: linkItchIo } = useMutation({
     mutationFn: (accessToken: string) => client.linkItchIo({ accessToken }),
     onSuccess: (data) => {
+      if (data.gamesScopeMissing) {
+        // The identity linked fine but itch didn't grant the games scope —
+        // importing would just 403, so skip it and say why.
+        toast.warning(
+          "Linked, but itch.io didn't grant games access — re-link and approve all permissions to import your games",
+        );
+        navigate({ to: "/profile" });
+        return;
+      }
       toast.success(`Linked itch.io account: ${data.providerUsername}`);
       importGames();
     },

@@ -238,10 +238,18 @@ export const linkedAccounts = userSchema.table(
     provider: text("provider").notNull(),
     providerUserId: text("provider_user_id").notNull(),
     providerUsername: text("provider_username"),
+    providerDisplayName: text("provider_display_name"),
     providerAvatarUrl: text("provider_avatar_url"),
     providerProfileUrl: text("provider_profile_url"),
     accessToken: text("access_token"),
     scopes: text("scopes"),
+    // Set on the first 401/403 from the provider, cleared on success or
+    // re-link. Non-null = the profile UI shows RECONNECT and the sweep
+    // skips the account's API sync (jam backfill still runs — it's DB-only).
+    tokenInvalidAt: timestamp("token_invalid_at"),
+    // Sweep resume cursor: ordered ASC NULLS FIRST, so an aborted sweep's
+    // next tick starts at the starved tail instead of re-syncing the head.
+    lastSyncedAt: timestamp("last_synced_at"),
     linkedAt: timestamp("linked_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
