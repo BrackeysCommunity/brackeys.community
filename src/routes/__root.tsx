@@ -121,11 +121,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           dotSpacing={20}
           bulgeStrength={20}
           glowRadius={60}
-          waveAmplitude={1}
+          waveAmplitude={2}
           cursorRadius={500}
           cursorForce={0.0075}
           bulgeOnly={false}
-          className="pointer-events-none fixed inset-0 z-0"
+          className="pointer-events-none fixed inset-0 z-0 opacity-40"
         />
         {/* CRT scanline overlay */}
         <div

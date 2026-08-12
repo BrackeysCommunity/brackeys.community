@@ -1,5 +1,6 @@
 import { StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,42 @@ const COMP_TYPE_LABELS: Record<string, string> = {
   rev_share: "REV SHARE",
   negotiable: "NEGOT.",
 };
+
+/**
+ * The card's click target: a real anchor to the post's own page, so
+ * every post is a crawlable link and cmd/middle-click opens the page —
+ * but a plain click is intercepted to drive the board's inspector
+ * selection instead, exactly as the old button did. `preload={false}`
+ * because hover-preloading a whole post per card the pointer crosses
+ * would hammer `getPost` for nothing.
+ */
+function PostCardLink({
+  post,
+  selected,
+  onSelect,
+  ...merged
+}: Pick<CollabPostCardProps, "post" | "selected" | "onSelect"> &
+  // `onSelect` is also a DOM event handler on anchors — ours wins.
+  Omit<React.ComponentProps<"a">, "href" | "onSelect">) {
+  return (
+    <Link
+      // Chonk's `useRender` clones this element with the tile's className,
+      // children, and data attributes merged in — they arrive as props here
+      // and must reach the anchor.
+      {...merged}
+      to="/collab/$postId"
+      params={{ postId: String(post.id) }}
+      preload={false}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        onSelect(post.id);
+      }}
+      aria-current={selected ? "true" : undefined}
+      aria-label={`${post.title} — ${TYPE_LABELS[post.type] ?? post.type}`}
+    />
+  );
+}
 
 /**
  * Shared shell for both post layouts, matching the team directory's
@@ -152,14 +189,7 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
       <Chonk
         variant="surface"
         size="lg"
-        render={
-          <button
-            type="button"
-            onClick={() => onSelect(post.id)}
-            aria-current={selected ? "true" : undefined}
-            aria-label={`${post.title} — ${TYPE_LABELS[post.type] ?? post.type}`}
-          />
-        }
+        render={<PostCardLink post={post} selected={selected} onSelect={onSelect} />}
         className={cn(postCardClasses(selected, isClosed), "items-center gap-3 p-3")}
       >
         <CardThumb url={post.primaryImageUrl ?? null} />
@@ -202,14 +232,7 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
       <Chonk
         variant="surface"
         size="lg"
-        render={
-          <button
-            type="button"
-            onClick={() => onSelect(post.id)}
-            aria-current={selected ? "true" : undefined}
-            aria-label={`${post.title} — ${TYPE_LABELS[post.type] ?? post.type}`}
-          />
-        }
+        render={<PostCardLink post={post} selected={selected} onSelect={onSelect} />}
         className={cn(postCardClasses(selected, isClosed), "h-full flex-col overflow-hidden p-0")}
       >
         <span className="relative block h-36 w-full shrink-0 overflow-hidden bg-muted/20">

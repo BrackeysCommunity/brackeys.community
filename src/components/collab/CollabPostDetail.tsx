@@ -7,7 +7,7 @@ import {
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -36,27 +36,32 @@ import { client, orpc } from "@/orpc/client";
 
 import { CollabPostResponseForm } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
+import { useCollabPostActions } from "./use-collab-post-actions";
 
-const TYPE_LABELS: Record<string, string> = {
+export const TYPE_LABELS: Record<string, string> = {
   paid: "PAID WORK",
   hobby: "HOBBY",
   playtest: "PLAYTEST",
   mentor: "MENTORSHIP",
 };
 
-const COMP_TYPE_LABELS: Record<string, string> = {
+export const COMP_TYPE_LABELS: Record<string, string> = {
   hourly: "Hourly",
   fixed: "Fixed",
   rev_share: "Revenue Share",
   negotiable: "Negotiable",
 };
 
-const CONTACT_TYPE_LABELS: Record<string, string> = {
+export const CONTACT_TYPE_LABELS: Record<string, string> = {
   discord_dm: "Discord DM",
   discord_server: "Discord Server",
   email: "Email",
   other: "Other",
 };
+
+/** What `getPost` resolves for an existing post — the shape the detail
+ *  renders, and what the dedicated page's loader passes back in. */
+export type CollabPostDetailData = NonNullable<Awaited<ReturnType<typeof client.getPost>>>;
 
 /**
  * Full detail view for one post — header, scrollable body, action
@@ -70,7 +75,9 @@ export function CollabPostDetail({
   onEdit,
   compact,
   showClose = true,
+  showPermalink = true,
   frameless,
+  initialPost,
 }: {
   postId: number;
   currentUserId: string | null;
@@ -83,45 +90,34 @@ export function CollabPostDetail({
   /** The drawer turns this off: swiping down or tapping the scrim
    *  already closes it, so an × would be a third way to do one thing. */
   showClose?: boolean;
+  /** Link to the post's own page. Off on that page itself, where it
+   *  would link to where you already are. */
+  showPermalink?: boolean;
   /** Drops the panel's own frame — the drawer is already the surface,
    *  so a `Well` inside it would draw a second container. */
   frameless?: boolean;
+  /** Server-loaded post from the dedicated page's loader, so the first
+   *  render carries the content instead of a skeleton. */
+  initialPost?: CollabPostDetailData;
 }) {
-  const queryClient = useQueryClient();
   const queryOptions = orpc.getPost.queryOptions({ input: { postId } });
-  const { data: post, isLoading } = useQuery({ ...queryOptions, staleTime: 30 * 1000 });
+  const { data: post, isLoading } = useQuery({
+    ...queryOptions,
+    staleTime: 30 * 1000,
+    initialData: initialPost,
+  });
 
-  const closeMutation = useMutation({
-    mutationFn: () => client.closePost({ postId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
-  });
-  const reopenMutation = useMutation({
-    mutationFn: () => client.reopenPost({ postId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
-  });
-  const extendMutation = useMutation({
-    mutationFn: () => client.extendPost({ postId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
-  });
-  const deleteMutation = useMutation({
-    mutationFn: () => client.deletePost({ postId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listPosts"] });
-      onClose();
-    },
-  });
+  const {
+    close: closeMutation,
+    reopen: reopenMutation,
+    extend: extendMutation,
+    remove: deleteMutation,
+    report: reportMutation,
+  } = useCollabPostActions(postId, { onDeleted: onClose });
 
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportSuccess, setReportSuccess] = useState(false);
-  const reportMutation = useMutation({
-    mutationFn: () => client.reportPost({ postId, reason: reportReason }),
-    onSuccess: () => {
-      setReportSuccess(true);
-      setShowReport(false);
-      setReportReason("");
-    },
-  });
 
   const isOwner = post?.isOwner ?? (!!currentUserId && post?.authorId === currentUserId);
   // Owner-closed and sweep-expired are both "no longer taking responses";
@@ -194,17 +190,31 @@ export function CollabPostDetail({
             ) : null}
           </div>
         </div>
-        {showClose ? (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Close panel"
-            title="Close panel"
-            onClick={onClose}
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={14} />
-          </Button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {showPermalink && post ? (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label="Open the post's own page"
+              title="Open the post's own page"
+              nativeButton={false}
+              render={<Link to="/collab/$postId" params={{ postId: String(post.id) }} />}
+            >
+              <HugeiconsIcon icon={LinkSquare01Icon} size={14} />
+            </Button>
+          ) : null}
+          {showClose ? (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label="Close panel"
+              title="Close panel"
+              onClick={onClose}
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={14} />
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Body */}
@@ -611,7 +621,15 @@ export function CollabPostDetail({
                 reportReason={reportReason}
                 setReportReason={setReportReason}
                 reportSuccess={reportSuccess}
-                onSubmit={() => reportMutation.mutate()}
+                onSubmit={() =>
+                  reportMutation.mutate(reportReason, {
+                    onSuccess: () => {
+                      setReportSuccess(true);
+                      setShowReport(false);
+                      setReportReason("");
+                    },
+                  })
+                }
                 pending={reportMutation.isPending}
               />
             ) : null}
@@ -698,7 +716,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReportInline({
+export function ReportInline({
   showReport,
   setShowReport,
   reportReason,
