@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
+import { NOTIFICATION_CATEGORY } from "@/lib/notification-copy";
 import { cn } from "@/lib/utils";
 
 export type NotificationItem = {
@@ -18,32 +19,10 @@ export type NotificationItem = {
   actorAvatarUrl: string | null;
 };
 
-const COLLAB_TYPES = new Set([
-  "collab_response_received",
-  "collab_response_accepted",
-  "collab_response_declined",
-  "collab_post_featured",
-  "collab_post_closed_by_staff",
-  "collab_post_expiring",
-  "collab_post_expired",
-]);
-
-const TEAM_TYPES = new Set([
-  "team_invite_received",
-  "team_invite_accepted",
-  "team_invite_declined",
-  "team_member_removed",
-  "team_archive_warning",
-  "team_auto_archived",
-]);
-
-const COMMENT_TYPES = new Set(["comment_received", "comment_reply"]);
-
-export function categoryOf(type: string): "collab" | "teams" | "comments" | "system" {
-  if (COLLAB_TYPES.has(type)) return "collab";
-  if (TEAM_TYPES.has(type)) return "teams";
-  if (COMMENT_TYPES.has(type)) return "comments";
-  return "system";
+/** Category lives with the rest of the per-type copy data; an unknown
+ *  type simply matches no inbox tab. */
+export function categoryOf(type: string): "collab" | "teams" | "comments" | null {
+  return (NOTIFICATION_CATEGORY as Record<string, "collab" | "teams" | "comments">)[type] ?? null;
 }
 
 export function renderCopy(n: NotificationItem): {

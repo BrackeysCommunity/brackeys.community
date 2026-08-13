@@ -519,9 +519,9 @@ export const updateProfile = os
     z.object({
       bio: z.string().optional(),
       tagline: z.string().optional(),
-      githubUrl: z.string().optional(),
-      twitterUrl: z.string().optional(),
-      websiteUrl: z.string().optional(),
+      githubUrl: z.string().max(500).optional().nullable(),
+      twitterUrl: z.string().max(500).optional().nullable(),
+      websiteUrl: z.string().max(500).optional().nullable(),
       availableForWork: z.boolean().optional(),
       availability: availabilitySchema.optional().nullable(),
       rateType: rateTypeSchema.optional().nullable(),
@@ -536,6 +536,10 @@ export const updateProfile = os
   )
   .handler(async ({ input, context }) => {
     const userId = context.user.id;
+
+    checkProfanity(input.bio, "Bio");
+    checkProfanity(input.tagline, "Tagline");
+    checkProfanity(input.lookingFor, "Looking for");
 
     const [updated] = await db
       .update(developerProfiles)
@@ -719,6 +723,7 @@ export const addProject = os
         type: placementTypeForProjectType(type),
         subTypes,
         source: "manual",
+        status: "approved",
       })
       .returning();
 

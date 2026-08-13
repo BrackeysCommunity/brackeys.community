@@ -32,6 +32,13 @@ vi.mock("@/db/schema", () => ({
     entityId: "entityId",
     createdAt: "createdAt",
   },
+  notificationPreferences: {
+    userId: "userId",
+    type: "type",
+    inApp: "inApp",
+    email: "email",
+    digest: "digest",
+  },
 }));
 
 vi.mock("@/lib/queue", () => ({
@@ -110,6 +117,27 @@ describe("notify()", () => {
       entityId: "10",
       dedupeWithin: { ms: 5 * 60_000 },
     });
+    expect(mocks.insertReturning).toHaveBeenCalledTimes(1);
+    expect(mocks.queueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  // The preference lookup is the first select in notify(), so a
+  // mockResolvedValueOnce targets it; later selects (dedupe) fall through
+  // to the default.
+  it("skips insert entirely when every channel resolves off", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([
+      { inApp: false, email: false, digest: false },
+    ] as never);
+    await notify({ userId: "u1", type: "collab_response_received", actorId: "u2" });
+    expect(mocks.insertReturning).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("still inserts when inApp is off but email is on (worker needs the row)", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([
+      { inApp: false, email: true, digest: false },
+    ] as never);
+    await notify({ userId: "u1", type: "collab_response_received", actorId: "u2" });
     expect(mocks.insertReturning).toHaveBeenCalledTimes(1);
     expect(mocks.queueAdd).toHaveBeenCalledTimes(1);
   });

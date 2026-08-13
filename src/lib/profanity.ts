@@ -6,8 +6,9 @@ import { ORPCError } from "@orpc/client";
  * dataset at construction, so a copy per router is both duplicated policy
  * and duplicated work. This existed as a private `profanityMatcher` +
  * `checkProfanity` pair in three routers — profile, team and collab — which
- * had already drifted on whether a null value counts as clean. **One copy
- * remains in `collab.ts`**, to be converted when that file is next touched.
+ * had already drifted on whether a null value counts as clean. All server
+ * callers now import from here; the collab create wizard reuses
+ * `hasProfanity` client-side for instant form feedback.
  */
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 

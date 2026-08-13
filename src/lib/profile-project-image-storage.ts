@@ -148,6 +148,15 @@ export async function resolveTeamAvatarUrl(team: {
   return presigned ?? team.avatarUrl;
 }
 
+/** Same resolution as the avatar: uploaded key first, stored URL fallback. */
+export async function resolveTeamBannerUrl(team: {
+  bannerKey: string | null;
+  bannerUrl: string | null;
+}): Promise<string | null> {
+  const presigned = await getProfileProjectImageUrl(team.bannerKey);
+  return presigned ?? team.bannerUrl;
+}
+
 /**
  * Serve a stored object for the `/images/<key>` route. The immutable
  * cache-control on 200s is also enforced by the `/images/**` route rule in

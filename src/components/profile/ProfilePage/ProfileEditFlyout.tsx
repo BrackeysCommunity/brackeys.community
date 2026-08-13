@@ -3,7 +3,6 @@ import {
   CheckmarkCircle02Icon,
   GithubIcon,
   HourglassIcon,
-  Link01Icon,
   ViewIcon,
   ViewOffSlashIcon,
 } from "@hugeicons/core-free-icons";
@@ -395,7 +394,7 @@ function StepBody({ step, profile, queryKey, save }: { step: EditStep } & StepPr
   if (step === 1) return <IdentityStep profile={profile} queryKey={queryKey} save={save} />;
   if (step === 2) return <BioSkillsStep profile={profile} queryKey={queryKey} save={save} />;
   if (step === 3) return <AvailabilityStep profile={profile} queryKey={queryKey} save={save} />;
-  return <LinksStep profile={profile} save={save} />;
+  return <LinksStep profile={profile} queryKey={queryKey} save={save} />;
 }
 
 function IdentityStep({ profile, queryKey, save }: StepProps) {
@@ -752,9 +751,13 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   // user picks a value (which was triggering the React DevTools
   // warning we saw).
   const [commitment, setCommitment] = useState<string | null>(profile.availability.commitment);
-  const [rateType, setRateType] = useState<string | null>(null);
-  const [rateMin, setRateMin] = useState<string>("");
-  const [rateMax, setRateMax] = useState<string>("");
+  const [rateType, setRateType] = useState<string | null>(profile.availability.rateType);
+  const [rateMin, setRateMin] = useState<string>(
+    profile.availability.rateMin != null ? String(profile.availability.rateMin) : "",
+  );
+  const [rateMax, setRateMax] = useState<string>(
+    profile.availability.rateMax != null ? String(profile.availability.rateMax) : "",
+  );
   const [lookingFor, setLookingFor] = useState<string>(profile.availability.lookingFor ?? "");
   const [collabPreference, setCollabPreference] = useState<string | null>(
     profile.availability.collabPreference,
@@ -896,8 +899,12 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   );
 }
 
-function LinksStep({ profile, save }: { profile: ProfileViewModel; save: SaveContext }) {
+function LinksStep({ profile, queryKey, save }: StepProps) {
+  const update = useUpdateProfile(queryKey, save);
   const [linking, setLinking] = useState<"github" | "itchio" | null>(null);
+  const [githubUrl, setGithubUrl] = useState(profile.socialUrls.githubUrl ?? "");
+  const [twitterUrl, setTwitterUrl] = useState(profile.socialUrls.twitterUrl ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(profile.socialUrls.websiteUrl ?? "");
   return (
     <StepFrame title="LINKS">
       <Text size="sm" variant="muted">
@@ -945,17 +952,34 @@ function LinksStep({ profile, save }: { profile: ProfileViewModel; save: SaveCon
             }
           }}
         />
-        <ProviderConnectButton
-          icon={<HugeiconsIcon icon={Link01Icon} size={14} />}
-          label="Custom URL"
-          connectedTo={null}
-          loading={false}
-          onClick={() => {
-            toast.info("Use the LINKS step in the next iteration to add custom URLs.");
-          }}
-          disabled
-        />
       </div>
+      <Text size="sm" variant="muted">
+        Plain URLs show in the LINKED section when the matching provider isn't connected.
+      </Text>
+      <FieldRow label="GITHUB URL">
+        <Input
+          value={githubUrl}
+          onChange={(e) => setGithubUrl(e.target.value)}
+          onBlur={() => update.mutate({ githubUrl: githubUrl.trim() || null })}
+          placeholder="https://github.com/you"
+        />
+      </FieldRow>
+      <FieldRow label="TWITTER / X URL">
+        <Input
+          value={twitterUrl}
+          onChange={(e) => setTwitterUrl(e.target.value)}
+          onBlur={() => update.mutate({ twitterUrl: twitterUrl.trim() || null })}
+          placeholder="https://x.com/you"
+        />
+      </FieldRow>
+      <FieldRow label="WEBSITE / PORTFOLIO">
+        <Input
+          value={websiteUrl}
+          onChange={(e) => setWebsiteUrl(e.target.value)}
+          onBlur={() => update.mutate({ websiteUrl: websiteUrl.trim() || null })}
+          placeholder="https://yoursite.dev"
+        />
+      </FieldRow>
       <DeleteAccountZone />
     </StepFrame>
   );

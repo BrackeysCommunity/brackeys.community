@@ -1,5 +1,5 @@
 import { os } from "@orpc/server";
-import { and, count, desc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lt, lte, or, type SQL } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -16,6 +16,24 @@ const notificationTypeSchema = z.enum(
   NOTIFICATION_TYPES as [NotificationType, ...NotificationType[]],
 );
 
+/**
+ * Join + condition pair enforcing the inApp preference at read time. Rows
+ * whose (user, type) preference resolves to inApp=false stay in the table —
+ * the worker still needs them for email/digest — but never surface in the
+ * inbox or the bell count. Resolution for a missing row leans on the
+ * documented invariant that every NOTIFICATION_DEFAULTS entry has
+ * inApp: true ("In-app is always on" by default), so absent-row means
+ * visible.
+ */
+const inAppPreferenceJoin = and(
+  eq(notificationPreferences.userId, notifications.userId),
+  eq(notificationPreferences.type, notifications.type),
+);
+const inAppVisible: SQL = or(
+  isNull(notificationPreferences.inApp),
+  eq(notificationPreferences.inApp, true),
+)!;
+
 export const listNotifications = os
   .use(requireAuth)
   .input(
@@ -26,7 +44,7 @@ export const listNotifications = os
     }),
   )
   .handler(async ({ input, context }) => {
-    const conditions = [eq(notifications.userId, context.user.id)];
+    const conditions = [eq(notifications.userId, context.user.id), inAppVisible];
     if (input.cursor !== undefined) conditions.push(lt(notifications.id, input.cursor));
     if (input.unreadOnly) conditions.push(isNull(notifications.readAt));
 
@@ -45,6 +63,7 @@ export const listNotifications = os
       })
       .from(notifications)
       .leftJoin(developerProfiles, eq(notifications.actorId, developerProfiles.id))
+      .leftJoin(notificationPreferences, inAppPreferenceJoin)
       .where(and(...conditions))
       .orderBy(desc(notifications.id))
       .limit(input.limit + 1);
@@ -63,7 +82,10 @@ export const unreadCount = os
     const [row] = await db
       .select({ count: count() })
       .from(notifications)
-      .where(and(eq(notifications.userId, context.user.id), isNull(notifications.readAt)));
+      .leftJoin(notificationPreferences, inAppPreferenceJoin)
+      .where(
+        and(eq(notifications.userId, context.user.id), isNull(notifications.readAt), inAppVisible),
+      );
     return { count: row?.count ?? 0 };
   });
 

@@ -194,7 +194,9 @@ export const profileProjects = userSchema.table(
     tags: text("tags").array(),
     pinned: boolean("pinned").default(false),
     sortOrder: integer("sort_order").default(0),
-    status: text("status").notNull().default("pending"),
+    // Every read surface filters on `approved`; no review queue exists, so
+    // the default must not gate visibility.
+    status: text("status").notNull().default("approved"),
     // Mirrors the provider's visibility (e.g. itch.io `published`). Unpublished
     // titles are only shown to the profile owner.
     published: boolean("published").notNull().default(true),
@@ -637,7 +639,9 @@ export const collabPostImages = collabSchema.table("collab_post_images", {
   postId: integer("post_id")
     .notNull()
     .references(() => collabPosts.id, { onDelete: "cascade" }),
-  strapiMediaId: text("strapi_media_id").notNull(),
+  // MinIO object key (renamed from strapi_media_id; the Strapi CMS it was
+  // named for is long gone and uploads have gone to MinIO ever since).
+  imageKey: text("image_key").notNull(),
   url: text("url").notNull(),
   alt: text("alt"),
   sortOrder: integer("sort_order").default(0),

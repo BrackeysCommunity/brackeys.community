@@ -38,14 +38,20 @@ function loadKey(): Buffer | null {
 let warnedUnsealed = false;
 
 /**
- * Encrypt a token for storage. With no key configured this returns the
+ * Encrypt a token for storage. With no key configured, dev returns the
  * token unchanged (with a one-time warning) rather than blocking linking —
- * dev environments without the key keep working, and `openToken`'s
- * passthrough reads the result fine either way.
+ * `openToken`'s passthrough reads the result fine either way. Production
+ * refuses: silently persisting third-party tokens as plaintext is a
+ * misconfiguration to surface at the first write, not discover in a leak.
  */
 export function sealToken(token: string): string {
   const key = loadKey();
   if (!key) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "LINKED_ACCOUNTS_ENC_KEY is required in production — refusing to store a plaintext token",
+      );
+    }
     if (!warnedUnsealed) {
       warnedUnsealed = true;
       console.warn("[token-crypto] LINKED_ACCOUNTS_ENC_KEY not set — storing tokens unsealed");

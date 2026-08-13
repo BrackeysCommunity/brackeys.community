@@ -135,6 +135,38 @@ export const NOTIFICATION_DEFAULTS: Record<
 };
 
 /**
+ * Inbox category per type — the single source for the inbox tabs and any
+ * future per-category preference grouping. Adding a type without a row
+ * here is a compile error, which is the point.
+ */
+export const NOTIFICATION_CATEGORY: Record<NotificationType, "collab" | "teams" | "comments"> = {
+  collab_response_received: "collab",
+  collab_response_accepted: "collab",
+  collab_response_declined: "collab",
+  collab_post_featured: "collab",
+  collab_post_closed_by_staff: "collab",
+  collab_post_expiring: "collab",
+  collab_post_expired: "collab",
+  team_invite_received: "teams",
+  team_invite_accepted: "teams",
+  team_invite_declined: "teams",
+  team_member_removed: "teams",
+  team_archive_warning: "teams",
+  team_auto_archived: "teams",
+  comment_received: "comments",
+  comment_reply: "comments",
+};
+
+/**
+ * Types whose digest flag defaults on. Read paths that resolve a missing
+ * `notification_preferences` row in SQL use this list; it must stay derived
+ * from NOTIFICATION_DEFAULTS so the two can never disagree.
+ */
+export const DIGEST_DEFAULT_ON: readonly NotificationType[] = NOTIFICATION_TYPES.filter(
+  (type) => NOTIFICATION_DEFAULTS[type].digest,
+);
+
+/**
  * Types whose email fires immediately (transactional) — the user took
  * an action on the recipient's stuff and a real-time email is justified.
  * Lower-signal events (e.g. someone declining your response) are

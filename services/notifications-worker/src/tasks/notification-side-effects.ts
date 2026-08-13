@@ -49,19 +49,26 @@ export async function handleSideEffects(data: NotificationSideEffectsJob): Promi
     actorUsername = actor?.discordUsername ?? null;
   }
 
+  const prefs = await readPrefs(row.userId, row.type);
+
   // 1. Publish to the user's SSE channel — fan out to every open tab.
   //    Done before the email decision so live UIs flip the bell ASAP.
-  const ssePayload = JSON.stringify({
-    id: row.id,
-    type: row.type,
-    actorUsername,
-    data: row.data,
-    createdAt: row.createdAt,
-  });
-  try {
-    await publisher.publish(presenceChannel(row.userId), ssePayload);
-  } catch (err) {
-    console.warn("[side_effects] publish failed", { id: row.id, err });
+  //    Skipped when the user's inApp pref is off: the inbox filters these
+  //    rows out at read time, so a live bell bump would count a row the
+  //    refetch can never see.
+  if (prefs.inApp) {
+    const ssePayload = JSON.stringify({
+      id: row.id,
+      type: row.type,
+      actorUsername,
+      data: row.data,
+      createdAt: row.createdAt,
+    });
+    try {
+      await publisher.publish(presenceChannel(row.userId), ssePayload);
+    } catch (err) {
+      console.warn("[side_effects] publish failed", { id: row.id, err });
+    }
   }
 
   // 2. Email decision: only transactional types are eligible; check the
@@ -69,12 +76,10 @@ export async function handleSideEffects(data: NotificationSideEffectsJob): Promi
   //    streaming the bell (presence registry). When suppressed we still
   //    log so we can audit how often it kicks in.
   if (!EMAIL_IMMEDIATE.has(row.type)) {
-    console.log("[side_effects] not email-eligible", { id: row.id, type: row.type });
     return;
   }
 
-  const wantsEmail = await readEmailPref(row.userId, row.type);
-  if (!wantsEmail) {
+  if (!prefs.email || !(await hasEmailOnFile(row.userId))) {
     console.log("[side_effects] email pref off", { id: row.id, type: row.type });
     return;
   }
@@ -94,21 +99,31 @@ export async function handleSideEffects(data: NotificationSideEffectsJob): Promi
 }
 
 /**
- * Resolves the email preference for (userId, type). Falls back to the
- * shared default table when the user hasn't customized this type, and
- * requires the user actually has an email address recorded in `auth.user`.
+ * Resolves the (userId, type) delivery preferences, falling back to the
+ * shared default table when the user hasn't customized this type.
  */
-async function readEmailPref(userId: string, type: NotificationType): Promise<boolean> {
-  const [u] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
-  if (!u?.email) return false;
-
+async function readPrefs(
+  userId: string,
+  type: NotificationType,
+): Promise<{ inApp: boolean; email: boolean }> {
   const [pref] = await db
-    .select({ email: notificationPreferences.email })
+    .select({
+      inApp: notificationPreferences.inApp,
+      email: notificationPreferences.email,
+    })
     .from(notificationPreferences)
     .where(and(eq(notificationPreferences.userId, userId), eq(notificationPreferences.type, type)))
     .limit(1);
 
-  if (pref) return pref.email;
   const fallback = NOTIFICATION_DEFAULTS[type as keyof typeof NOTIFICATION_DEFAULTS];
-  return fallback?.email ?? false;
+  return {
+    inApp: pref?.inApp ?? fallback?.inApp ?? true,
+    email: pref?.email ?? fallback?.email ?? false,
+  };
+}
+
+/** Email delivery additionally requires an address recorded in `auth.user`. */
+async function hasEmailOnFile(userId: string): Promise<boolean> {
+  const [u] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
+  return Boolean(u?.email);
 }

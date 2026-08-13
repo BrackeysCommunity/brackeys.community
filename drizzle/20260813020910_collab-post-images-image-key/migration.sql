@@ -1,0 +1,1 @@
+ALTER TABLE "collab"."collab_post_images" RENAME COLUMN "strapi_media_id" TO "image_key";

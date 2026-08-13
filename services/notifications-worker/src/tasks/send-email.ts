@@ -1,7 +1,12 @@
 import { and, eq, gte } from "drizzle-orm";
 import { createElement } from "react";
 
-import { developerProfiles, notifications, user } from "../../../../src/db/schema.ts";
+import {
+  developerProfiles,
+  notificationPreferences,
+  notifications,
+  user,
+} from "../../../../src/db/schema.ts";
 import { NotificationEmail } from "../../../../src/emails/NotificationEmail.tsx";
 import { WeeklyDigestEmail } from "../../../../src/emails/WeeklyDigestEmail.tsx";
 import { NOTIFICATION_TYPE_LABEL } from "../../../../src/lib/notification-copy.ts";
@@ -12,6 +17,7 @@ import {
 import { db } from "../db/client.ts";
 import { APP_URL, sendEmail } from "../email.ts";
 import type { SendEmailJob } from "../queue.ts";
+import { digestEligible, digestPreferenceJoin } from "./send-weekly-digests.ts";
 
 /** Headers required by RFC 8058 + bulk-sender rules. The same URL is
  * surfaced in the email body so the inbox affordance and visible link
@@ -114,6 +120,8 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
     return;
   }
 
+  // Mirror the tick handler's eligibility filter: only types the user has
+  // digest-on (explicitly or by default) land in the email body.
   const rows = await db
     .select({
       type: notifications.type,
@@ -123,7 +131,10 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
     })
     .from(notifications)
     .leftJoin(developerProfiles, eq(notifications.actorId, developerProfiles.id))
-    .where(and(eq(notifications.userId, userId), gte(notifications.createdAt, since)))
+    .leftJoin(notificationPreferences, digestPreferenceJoin)
+    .where(
+      and(eq(notifications.userId, userId), gte(notifications.createdAt, since), digestEligible),
+    )
     .orderBy(notifications.createdAt);
 
   const items = rows.map((r) => ({

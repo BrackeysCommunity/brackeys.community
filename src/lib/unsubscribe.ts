@@ -82,8 +82,9 @@ export async function resolveUnsubscribeToken(db: DbHandle, token: string): Prom
 
 /**
  * Turns off email for one type (when scope is a specific type) or
- * every type (when scope === "all"). On "all" we also flip digest off
- * since the user explicitly asked to stop hearing from us by email.
+ * every type (when scope === "all"). Digest is switched off with the
+ * same scope — "stop emailing me about this" must cover the weekly
+ * roll-up too, or the unsubscribe looks broken the following Monday.
  *
  * Mirrors the upsert shape used by `updatePreference` so an unsub via
  * email link is bit-for-bit identical to a click in the UI.
@@ -105,14 +106,14 @@ export async function applyUnsubscribe(
         type,
         inApp: fallback.inApp,
         email: false,
-        digest: scope === "all" ? false : fallback.digest,
+        digest: false,
         updatedAt: now,
       })
       .onConflictDoUpdate({
         target: [notificationPreferences.userId, notificationPreferences.type],
         set: {
           email: false,
-          ...(scope === "all" ? { digest: false } : {}),
+          digest: false,
           updatedAt: now,
         },
       });

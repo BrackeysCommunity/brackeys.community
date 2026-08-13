@@ -49,6 +49,13 @@ export interface ProfileViewModel {
 
   skills: ProfileSkill[];
   links: ProfileLink[];
+  /** Raw profile-level URLs (LINKS-step editable); the LINKED section
+   * renders them as virtual accounts when no provider is connected. */
+  socialUrls: {
+    githubUrl: string | null;
+    twitterUrl: string | null;
+    websiteUrl: string | null;
+  };
 
   /** Last N weeks of activity, ordered oldest → newest. Each cell is a
    * day count (commits / contributions). */
@@ -88,6 +95,11 @@ export interface ProfileAvailability {
   commitment: string | null;
   /** Free-form rate hint ("rate: negotiable", "$60/h"). */
   rate: string | null;
+  /** Raw rate columns, carried alongside the formatted `rate` string so
+   * the edit flyout can seed its inputs from saved values. */
+  rateType: string | null;
+  rateMin: number | null;
+  rateMax: number | null;
   /** Mean response time, surfaced as `~4h`. */
   responseTime: string | null;
   /** Short "what I'm looking for" blurb. The people lane is the

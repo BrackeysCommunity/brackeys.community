@@ -47,7 +47,6 @@ import {
   archiveJams,
   getJam,
   getJamCommunity,
-  getJamData,
   getJamResults,
   listJamEntries,
   listJams,
@@ -118,7 +117,6 @@ import {
 } from "./team";
 
 export default {
-  getJamData,
   listJams,
   archiveJams,
   listRecentEntries,

@@ -1,4 +1,4 @@
-import { and, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
   notificationPreferences,
@@ -6,8 +6,24 @@ import {
   user,
   userNotificationSettings,
 } from "../../../../src/db/schema.ts";
+import { DIGEST_DEFAULT_ON } from "../../../../src/lib/notification-copy.ts";
 import { db } from "../db/client.ts";
 import { emailQueue, type SendEmailJob } from "../queue.ts";
+
+/**
+ * SQL condition: this notification's type resolves to digest-on for its
+ * user — an explicit opt-in row, or no row for a type whose default is on.
+ * Requires a LEFT JOIN of notification_preferences on (userId, type).
+ */
+export const digestEligible = or(
+  eq(notificationPreferences.digest, true),
+  and(isNull(notificationPreferences.digest), inArray(notifications.type, [...DIGEST_DEFAULT_ON])),
+)!;
+
+export const digestPreferenceJoin = and(
+  eq(notificationPreferences.userId, notifications.userId),
+  eq(notificationPreferences.type, notifications.type),
+)!;
 
 const FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -59,10 +75,16 @@ export async function handleWeeklyDigests(): Promise<void> {
       ? new Date(Math.max(settings.lastDigestAt.getTime(), fallbackSince.getTime()))
       : fallbackSince;
 
+    // Only count notifications whose type the user actually digests —
+    // opting into digest for one type must not sweep every type into the
+    // email.
     const [{ n } = { n: 0 }] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(notifications)
-      .where(and(eq(notifications.userId, userId), gt(notifications.createdAt, since)));
+      .leftJoin(notificationPreferences, digestPreferenceJoin)
+      .where(
+        and(eq(notifications.userId, userId), gt(notifications.createdAt, since), digestEligible),
+      );
 
     if (!n || n === 0) continue;
 

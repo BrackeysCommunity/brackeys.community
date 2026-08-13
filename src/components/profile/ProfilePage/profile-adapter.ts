@@ -271,6 +271,9 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
         formatRate(profile.rateType, profile.rateMin, profile.rateMax, {
           negotiableLabel: "Negotiable",
         }) || null,
+      rateType: profile.rateType,
+      rateMin: profile.rateMin,
+      rateMax: profile.rateMax,
       responseTime: null,
       timezone: null,
       lookingFor: profile.lookingFor,
@@ -311,6 +314,11 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     })),
     skills,
     links,
+    socialUrls: {
+      githubUrl: profile.githubUrl,
+      twitterUrl: profile.twitterUrl,
+      websiteUrl: profile.websiteUrl,
+    },
     activity: [],
     totalCommits: 0,
     githubUsername,

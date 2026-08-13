@@ -1,9 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { SAMPLE_PROFILE } from "@/components/profile/ProfilePage/sample-profile";
 
 export const Route = createFileRoute("/profile/preview")({
+  // Dev-only sandbox: fixture data has no business on the deployed site.
+  beforeLoad: () => {
+    if (import.meta.env.PROD) throw notFound();
+  },
   component: ProfilePagePreview,
 });
 

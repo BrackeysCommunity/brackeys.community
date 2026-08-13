@@ -19,6 +19,7 @@ import {
 import {
   buildProjectImageObjectKey,
   buildTeamAvatarObjectKey,
+  buildTeamBannerObjectKey,
   isProjectImageKey,
 } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
@@ -136,10 +137,11 @@ async function handleProfileProjectImageUpload(request: Request) {
 }
 
 /**
- * Team avatar upload — the wizard's TEAM step and the manage flyout
- * both post here. Owner-only: the key is team-scoped, so write access
- * is a membership check rather than a key-prefix check. Replacing an
- * avatar deletes the old object best-effort.
+ * Team avatar/banner upload — the wizard's TEAM step and the manage
+ * flyout both post here; a `kind` form field of `banner` targets the
+ * banner (default `avatar`). Owner-only: the key is team-scoped, so
+ * write access is a membership check rather than a key-prefix check.
+ * Replacing an image deletes the old object best-effort.
  */
 async function handleTeamAvatarUpload(request: Request) {
   if (request.method !== "POST") {
@@ -162,6 +164,7 @@ async function handleTeamAvatarUpload(request: Request) {
   const formData = await request.formData().catch(() => null);
   const image = formData?.get("image");
   const teamId = formData?.get("teamId");
+  const kindField = formData?.get("kind") ?? "avatar";
   if (!(image instanceof File)) {
     return Response.json(
       { message: 'Expected an image file in the "image" form field.' },
@@ -171,6 +174,10 @@ async function handleTeamAvatarUpload(request: Request) {
   if (typeof teamId !== "string" || !teamId) {
     return Response.json({ message: 'Expected a "teamId" form field.' }, { status: 400 });
   }
+  if (kindField !== "avatar" && kindField !== "banner") {
+    return Response.json({ message: '"kind" must be "avatar" or "banner".' }, { status: 400 });
+  }
+  const kind: "avatar" | "banner" = kindField;
 
   const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
   if (!team) {
@@ -183,7 +190,7 @@ async function handleTeamAvatarUpload(request: Request) {
     .limit(1);
   if (membership?.role !== "owner") {
     return Response.json(
-      { message: "Only the team owner can change the avatar." },
+      { message: `Only the team owner can change the ${kind}.` },
       { status: 403 },
     );
   }
@@ -191,17 +198,24 @@ async function handleTeamAvatarUpload(request: Request) {
   try {
     const uploaded = await uploadImageToStorage({
       file: image,
-      objectKey: buildTeamAvatarObjectKey(teamId, image.name),
+      objectKey:
+        kind === "banner"
+          ? buildTeamBannerObjectKey(teamId, image.name)
+          : buildTeamAvatarObjectKey(teamId, image.name),
     });
 
+    const previousKey = kind === "banner" ? team.bannerKey : team.avatarKey;
     await db
       .update(teams)
-      .set({ avatarKey: uploaded.key, updatedAt: new Date() })
+      .set({
+        ...(kind === "banner" ? { bannerKey: uploaded.key } : { avatarKey: uploaded.key }),
+        updatedAt: new Date(),
+      })
       .where(eq(teams.id, teamId));
 
-    if (team.avatarKey && team.avatarKey !== uploaded.key) {
-      await removeProfileProjectImageFromStorage(team.avatarKey).catch((error: unknown) => {
-        console.error("Failed to delete replaced team avatar", { key: team.avatarKey, error });
+    if (previousKey && previousKey !== uploaded.key) {
+      await removeProfileProjectImageFromStorage(previousKey).catch((error: unknown) => {
+        console.error(`Failed to delete replaced team ${kind}`, { key: previousKey, error });
       });
     }
 
@@ -212,7 +226,7 @@ async function handleTeamAvatarUpload(request: Request) {
     }
 
     console.error(error);
-    const message = error instanceof Error ? error.message : "Failed to upload team avatar.";
+    const message = error instanceof Error ? error.message : `Failed to upload team ${kind}.`;
     return Response.json({ message }, { status: 500 });
   }
 }

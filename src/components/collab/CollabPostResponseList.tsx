@@ -24,6 +24,9 @@ interface ResponseItem {
   /** This applicant's skills against the post's stack. Null when the
    *  post didn't declare one. */
   stackOverlap: { matched: string[]; missing: string[]; total: number } | null;
+  /** Latest team invite spawned from this response, if any — the INVITE
+   *  button renders from this so its state survives reloads. */
+  invite: { status: string; teamId: string } | null;
 }
 
 interface CollabPostResponseListProps {
@@ -97,7 +100,6 @@ export function CollabPostResponseList({
   // Accepting is a decision to work together; joining the team page is
   // the destination that makes it real. One click, but explicit — teams
   // may accept-to-talk before committing a roster spot.
-  const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
   const [inviteError, setInviteError] = useState<string | null>(null);
   const invite = useMutation({
     mutationFn: (resp: ResponseItem) =>
@@ -106,9 +108,9 @@ export function CollabPostResponseList({
         inviteeId: resp.responderId,
         sourceResponseId: resp.id,
       }),
-    onSuccess: (_data, resp) => {
-      setInvitedIds((prev) => new Set(prev).add(resp.id));
+    onSuccess: () => {
       setInviteError(null);
+      void invalidatePost();
     },
     onError: (err) =>
       setInviteError(err instanceof Error ? err.message : "Could not send the invite."),
@@ -211,12 +213,21 @@ export function CollabPostResponseList({
             </div>
           ) : null}
           {resp.status === "accepted" && team ? (
-            invitedIds.has(resp.id) ? (
+            resp.invite?.status === "pending" ? (
               <Text size="xs" variant="success" className="tracking-widest uppercase">
                 Invited to {team.name}
               </Text>
+            ) : resp.invite?.status === "accepted" ? (
+              <Text size="xs" variant="success" className="tracking-widest uppercase">
+                Joined {team.name}
+              </Text>
             ) : (
               <div className="flex flex-col gap-1">
+                {resp.invite?.status === "declined" ? (
+                  <Text size="xs" variant="muted" className="tracking-widest uppercase">
+                    Declined the invite to {team.name}
+                  </Text>
+                ) : null}
                 <Button
                   variant="outline"
                   size="xs"

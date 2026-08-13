@@ -1,6 +1,5 @@
 import { BriefcaseIcon, GameController01Icon } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
-import { englishDataset, englishRecommendedTransformers, RegExpMatcher } from "obscenity";
 
 import type {
   CollabCompensationType,
@@ -10,16 +9,13 @@ import type {
   CollabProjectLength,
   UploadedImage,
 } from "@/lib/collab-store";
+import { hasProfanity } from "@/lib/profanity";
 
 // ── Profanity ──────────────────────────────────────────────────────────────
 
-const profanityMatcher = new RegExpMatcher({
-  ...englishDataset.build(),
-  ...englishRecommendedTransformers,
-});
-
+/** Form-validation shape over the shared matcher: message or undefined. */
 export function profanityCheck(value: string, fieldName: string): string | undefined {
-  if (value && profanityMatcher.hasMatch(value)) {
+  if (hasProfanity(value)) {
     return `${fieldName} contains inappropriate language.`;
   }
   return undefined;
@@ -205,18 +201,21 @@ export async function uploadCollabPostImage(file: File): Promise<UploadedImageRe
 }
 
 /**
- * Upload a team avatar to `/api/team/avatar` (owner-only, team-scoped
- * key). Called at submit right after a TEAM-step quick-create — the
- * file lives in-memory as `UploadedImage.file` until then, same as
- * post images.
+ * Upload a team avatar or banner to `/api/team/avatar` (owner-only,
+ * team-scoped key). Called at submit right after a TEAM-step
+ * quick-create and from the team manage flyout — the wizard's file
+ * lives in-memory as `UploadedImage.file` until then, same as post
+ * images.
  */
 export async function uploadTeamAvatarImage(
   teamId: string,
   file: File,
+  kind: "avatar" | "banner" = "avatar",
 ): Promise<UploadedImageRecord> {
   const formData = new FormData();
   formData.append("image", file);
   formData.append("teamId", teamId);
+  formData.append("kind", kind);
 
   const response = await fetch("/api/team/avatar", {
     method: "POST",
@@ -224,7 +223,7 @@ export async function uploadTeamAvatarImage(
   });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(err?.message ?? "Avatar upload failed.");
+    throw new Error(err?.message ?? `${kind === "banner" ? "Banner" : "Avatar"} upload failed.`);
   }
   return (await response.json()) as UploadedImageRecord;
 }

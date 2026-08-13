@@ -389,7 +389,7 @@ async function attachImages(postId: number, images: UploadedImage[], isEdit: boo
     uploaded.map((rec, idx) =>
       client.addPostImage({
         postId,
-        strapiMediaId: rec.key,
+        imageKey: rec.key,
         url: rec.url,
         alt: images[idx]?.alt,
         sortOrder: isEdit ? EDIT_IMAGE_SORT_BASE + idx : idx,

@@ -62,7 +62,6 @@
     "@rolldown/plugin-babel": "^0.2.2",
     "@sentry/tanstackstart-react": "^10.47.0",
     "@storybook/react-vite": "^10.1.10",
-    "@strapi/client": "^1.5.0",
     "@t3-oss/env-core": "^0.13.8",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/match-sorter-utils": "8.19.4",

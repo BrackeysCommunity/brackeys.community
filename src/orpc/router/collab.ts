@@ -16,6 +16,7 @@ import {
   itchJams,
   profileUrlStubs,
   projects,
+  teamInvites,
   teamMembers,
   teams,
   userSkills,
@@ -776,6 +777,7 @@ export const getPost = os
           responderUsername: string | null;
           responderAvatar: string | null;
           stackOverlap: StackOverlap | null;
+          invite: ResponseInvite | null;
         }[]
       | null = null;
 
@@ -800,9 +802,11 @@ export const getPost = os
       // already knows, so a long list is scannable as chips instead of
       // paragraphs.
       const skillsByResponder = await skillIdsByUser(rows.map((r) => r.responderId));
+      const invitesByResponse = await latestInvitesByResponse(rows.map((r) => r.id));
       responses = rows.map((r) => ({
         ...r,
         stackOverlap: stackOverlap(postSkills, skillsByResponder.get(r.responderId)),
+        invite: invitesByResponse.get(r.id) ?? null,
       }));
     }
 
@@ -845,11 +849,10 @@ export const getPost = os
 
     // Re-presign each image's URL — `images.url` was generated at
     // upload time and the presigned link inside it has likely expired.
-    // The `strapiMediaId` column doubles as the MinIO object key.
     const presignedImages = await Promise.all(
       images.map(async (img) => ({
         ...img,
-        url: (await getProfileProjectImageUrl(img.strapiMediaId)) ?? img.url,
+        url: (await getProfileProjectImageUrl(img.imageKey)) ?? img.url,
       })),
     );
 
@@ -869,6 +872,38 @@ export const getPost = os
       author,
     };
   });
+
+/** The team-invite handoff state of an accepted response. */
+export type ResponseInvite = { status: string; teamId: string };
+
+/**
+ * Latest team invite per response, keyed by `sourceResponseId`. A response
+ * can accumulate invites over time (revoked, then re-sent); the newest one
+ * is the state the triage list renders, so INVITE buttons survive reloads
+ * instead of living in component state.
+ */
+async function latestInvitesByResponse(
+  responseIds: number[],
+): Promise<Map<number, ResponseInvite>> {
+  if (responseIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      sourceResponseId: teamInvites.sourceResponseId,
+      status: teamInvites.status,
+      teamId: teamInvites.teamId,
+    })
+    .from(teamInvites)
+    .where(inArray(teamInvites.sourceResponseId, responseIds))
+    .orderBy(desc(teamInvites.createdAt));
+
+  const latest = new Map<number, ResponseInvite>();
+  for (const row of rows) {
+    if (row.sourceResponseId != null && !latest.has(row.sourceResponseId)) {
+      latest.set(row.sourceResponseId, { status: row.status, teamId: row.teamId });
+    }
+  }
+  return latest;
+}
 
 /** How a person's skills line up with a post's stack. */
 export type StackOverlap = { matched: string[]; missing: string[]; total: number };
@@ -1125,14 +1160,14 @@ export const listPosts = os
     // We presign each URL fresh here — the `url` column captured on
     // upload is a presigned link that expires after 24h, and even when
     // unexpired we re-stamp so the response always carries a usable
-    // link. `strapiMediaId` doubles as the MinIO object key.
+    // link.
     const postIds = posts.map((p) => p.id);
     const primaryImagesByPostId = new Map<number, string>();
     if (postIds.length > 0) {
       const images = await db
         .select({
           postId: collabPostImages.postId,
-          objectKey: collabPostImages.strapiMediaId,
+          objectKey: collabPostImages.imageKey,
           fallbackUrl: collabPostImages.url,
           sortOrder: collabPostImages.sortOrder,
         })
@@ -1483,11 +1518,14 @@ export const listResponses = os
       });
     }
 
-    return db
+    const rows = await db
       .select()
       .from(collabResponses)
       .where(eq(collabResponses.postId, input.postId))
       .orderBy(desc(collabResponses.createdAt));
+
+    const invitesByResponse = await latestInvitesByResponse(rows.map((r) => r.id));
+    return rows.map((r) => ({ ...r, invite: invitesByResponse.get(r.id) ?? null }));
   });
 
 export const updateResponseStatus = os
@@ -1593,7 +1631,7 @@ export const addPostImage = os
   .input(
     z.object({
       postId: z.number(),
-      strapiMediaId: z.string(),
+      imageKey: z.string(),
       url: z.url(),
       alt: z.string().max(500).optional(),
       sortOrder: z.number().optional(),
@@ -1618,7 +1656,7 @@ export const addPostImage = os
       .insert(collabPostImages)
       .values({
         postId: input.postId,
-        strapiMediaId: input.strapiMediaId,
+        imageKey: input.imageKey,
         url: input.url,
         alt: input.alt,
         sortOrder: input.sortOrder,

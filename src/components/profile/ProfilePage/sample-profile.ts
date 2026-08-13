@@ -24,6 +24,9 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     state: "open",
     commitment: "part-time",
     rate: "rate: negotiable",
+    rateType: "negotiable",
+    rateMin: null,
+    rateMax: null,
     responseTime: "~4h",
     lookingFor: null,
     collabPreference: null,
@@ -33,6 +36,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     { label: "online", variant: "online" },
     { label: "winner", variant: "winner" },
   ],
+  socialUrls: { githubUrl: null, twitterUrl: null, websiteUrl: null },
 
   itch: {
     username: "joshe",

@@ -27,7 +27,9 @@ import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
+  removeProfileProjectImageFromStorage,
   resolveTeamAvatarUrl,
+  resolveTeamBannerUrl,
 } from "@/lib/profile-project-image-storage";
 import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
 import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
@@ -298,9 +300,19 @@ export const deleteTeam = os
   .use(requireAuth)
   .input(z.object({ teamId: z.string() }))
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
+    const team = await getTeamRow(input.teamId);
     await requireOwnership(input.teamId, context.user.id);
     await db.delete(teams).where(eq(teams.id, input.teamId));
+    // Replaced images are cleaned at replace time, so the current keys are
+    // the only objects this team owns. Best-effort — an orphaned object is
+    // a storage leak, not a correctness problem.
+    for (const key of [team.avatarKey, team.bannerKey]) {
+      if (key) {
+        await removeProfileProjectImageFromStorage(key).catch((error: unknown) => {
+          console.error("Failed to delete team image on team delete", { key, error });
+        });
+      }
+    }
     return { success: true };
   });
 
@@ -504,6 +516,7 @@ export const getTeam = os
     return {
       ...team,
       avatarUrl: await resolveTeamAvatarUrl(team),
+      bannerUrl: await resolveTeamBannerUrl(team),
       members: memberRows,
       skills: skillRows,
       projects: await Promise.all(

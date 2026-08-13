@@ -22,6 +22,8 @@ COPY services/lifecycle-sweep/src ./services/lifecycle-sweep/src
 # or its `@/` alias.
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
+COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
+COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 
 RUN ln -s /app/services/lifecycle-sweep/node_modules /app/node_modules
 

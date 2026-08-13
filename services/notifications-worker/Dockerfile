@@ -23,6 +23,7 @@ COPY services/notifications-worker/src ./services/notifications-worker/src
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/unsubscribe.ts ./src/lib/unsubscribe.ts
+COPY src/lib/email.ts ./src/lib/email.ts
 COPY src/emails ./src/emails
 
 RUN ln -s /app/services/notifications-worker/node_modules /app/node_modules

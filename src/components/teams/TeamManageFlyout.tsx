@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
+import { uploadTeamAvatarImage } from "@/components/collab/CollabCreateFlyout/shared";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
@@ -111,6 +112,12 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
     <section className="flex flex-col gap-3">
       <SectionLabel>IDENTITY</SectionLabel>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="AVATAR">
+          <TeamImageUpload team={team} kind="avatar" onUploaded={onSaved} />
+        </Field>
+        <Field label="BANNER" hint="wide image behind the masthead">
+          <TeamImageUpload team={team} kind="banner" onUploaded={onSaved} />
+        </Field>
         <Field label="NAME">
           <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
         </Field>
@@ -178,6 +185,88 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
         ) : null}
       </div>
     </section>
+  );
+}
+
+const MAX_TEAM_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Immediate-upload picker for the team's avatar or banner. Unlike the
+ * text fields (which batch behind SAVE IDENTITY), an image upload is its
+ * own POST — the file goes up on pick and the page query refreshes.
+ */
+function TeamImageUpload({
+  team,
+  kind,
+  onUploaded,
+}: {
+  team: RpcTeam;
+  kind: "avatar" | "banner";
+  onUploaded: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const current = kind === "avatar" ? team.avatarUrl : team.bannerUrl;
+
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadTeamAvatarImage(team.id, file, kind),
+    onSuccess: () => {
+      setError(null);
+      onUploaded();
+    },
+    onError: (err) => setError(errText(err)),
+  });
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-3">
+        {kind === "avatar" ? (
+          <UserAvatar avatarUrl={current} username={team.name} size={40} />
+        ) : (
+          <div
+            className="h-10 w-24 shrink-0 border border-muted/40 bg-muted/20 bg-cover bg-center"
+            style={current ? { backgroundImage: `url("${encodeURI(current)}")` } : undefined}
+            aria-label={current ? "Current banner" : "No banner set"}
+          />
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={upload.isPending}
+          onClick={() => fileInputRef.current?.click()}
+          className="tracking-widest"
+        >
+          {upload.isPending ? "UPLOADING…" : current ? "REPLACE" : "UPLOAD"}
+        </Button>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          if (!file.type.startsWith("image/")) {
+            setError("Only image files are allowed.");
+            return;
+          }
+          if (file.size > MAX_TEAM_IMAGE_BYTES) {
+            setError("Image must be under 5MB.");
+            return;
+          }
+          setError(null);
+          upload.mutate(file);
+        }}
+      />
+      {error ? (
+        <Text size="xs" className="text-destructive">
+          {error}
+        </Text>
+      ) : null}
+    </div>
   );
 }
 

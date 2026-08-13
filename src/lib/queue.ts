@@ -7,7 +7,7 @@ declare global {
   // eslint-disable-next-line no-var
   var __brackeysRedis: IORedis | undefined;
   // eslint-disable-next-line no-var
-  var __brackeysQueues: { notifications: Queue; email: Queue } | undefined;
+  var __brackeysQueues: { notifications: Queue } | undefined;
 }
 
 // Dynamic imports keep bullmq + ioredis out of the SSR static graph entirely.
@@ -25,13 +25,15 @@ async function getRedis(): Promise<IORedis> {
   return globalThis.__brackeysRedis;
 }
 
-async function getQueues(): Promise<{ notifications: Queue; email: Queue }> {
+// The `email` queue is produced and consumed entirely inside
+// services/notifications-worker; the app only ever enqueues notification
+// side-effects.
+async function getQueues(): Promise<{ notifications: Queue }> {
   if (globalThis.__brackeysQueues) return globalThis.__brackeysQueues;
   const connection = await getRedis();
   const { Queue: QueueCtor } = await import("bullmq");
   globalThis.__brackeysQueues = {
     notifications: new QueueCtor("notifications", { connection }),
-    email: new QueueCtor("email", { connection }),
   };
   return globalThis.__brackeysQueues;
 }
@@ -40,9 +42,4 @@ export async function getNotificationsQueue(): Promise<Queue> {
   return (await getQueues()).notifications;
 }
 
-export async function getEmailQueue(): Promise<Queue> {
-  return (await getQueues()).email;
-}
-
-export type NotificationJobName = "side_effects" | "weekly_digests";
 export type NotificationSideEffectsJob = { notificationId: number };

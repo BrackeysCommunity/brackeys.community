@@ -44,6 +44,15 @@ export function buildTeamAvatarObjectKey(teamId: string, filename: string) {
   return `${TEAM_AVATAR_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
 }
 
+/** Team banners: same ownership rules as avatars, separate namespace so
+ *  the two can be replaced/cleaned independently. */
+export const TEAM_BANNER_IMAGE_PREFIX = "team-banners";
+
+export function buildTeamBannerObjectKey(teamId: string, filename: string) {
+  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
+  return `${TEAM_BANNER_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
+}
+
 /**
  * A canonical project's cover lives in a **project-scoped** namespace, not
  * the uploader's.
@@ -69,6 +78,7 @@ export const STORED_IMAGE_ROUTE_PREFIX = "/images/";
 const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${PROFILE_PROJECT_IMAGE_PREFIX}/`,
   `${TEAM_AVATAR_IMAGE_PREFIX}/`,
+  `${TEAM_BANNER_IMAGE_PREFIX}/`,
   `${PROJECT_IMAGE_PREFIX}/`,
 ] as const;
 
