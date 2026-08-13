@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { readdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 import babel from "@rolldown/plugin-babel";
@@ -37,6 +39,19 @@ const resolveCommitSha = () => {
 
 const commitSha = resolveCommitSha();
 const appVersion = commitSha ? `${pkg.version}+${commitSha}` : pkg.version;
+
+// Unhashed files in public/ are served at the site root, so nothing busts
+// their URLs on deploy: give browsers a day and let Cloudflare hold them at
+// the edge (purge the zone cache if one is ever swapped in place).
+const publicDir = fileURLToPath(new URL("./public", import.meta.url));
+const publicFileRules = Object.fromEntries(
+  readdirSync(publicDir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => [
+      `/${relative(publicDir, join(entry.parentPath, entry.name)).split(sep).join("/")}`,
+      { headers: { "cache-control": "public, max-age=86400, stale-while-revalidate=604800" } },
+    ]),
+);
 
 // Filter noisy "Failed to load source map" warnings from @tanstack/* packages
 // which ship sourceMappingURL comments without the .map files.
@@ -201,6 +216,31 @@ const config = defineConfig({
       traceDeps: ["react", "react-dom", "@base-ui/react", "@babel/runtime"],
       rolldownConfig: {
         external: ["tslib"],
+      },
+      // Origin cache policy; Cloudflare respects these for edge TTLs. Beware
+      // two sharp edges: header rules OVERRIDE handler-set response headers
+      // (h3 merges rule headers last), and overlapping patterns merge with
+      // the most specific pattern winning — which is why the SSE stream
+      // restates its own contract below.
+      routeRules: {
+        // SSR documents embed the viewer's session: never shared-cacheable.
+        // no-cache (vs no-store) still lets the browser keep a revalidatable
+        // copy and use bfcache.
+        "/**": { headers: { "cache-control": "private, no-cache" } },
+        // Content-hashed client bundles; restates nitro's default so the
+        // fallback above can never regress it.
+        "/assets/**": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
+        "/api/**": { headers: { "cache-control": "no-store" } },
+        // Stored-image proxy (src/routes/images.$.ts): keys are
+        // nanoid-unique per upload and replacements mint a new key, so
+        // responses are immutable. Deleted objects can outlive deletion at
+        // the edge until evicted or purged (see docs/caching.md).
+        "/images/**": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
+        // no-transform keeps proxies from buffering the event stream.
+        "/api/notifications/stream": {
+          headers: { "cache-control": "no-cache, no-transform" },
+        },
+        ...publicFileRules,
       },
     }),
     // https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#react-compiler

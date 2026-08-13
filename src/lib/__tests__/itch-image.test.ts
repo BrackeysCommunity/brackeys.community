@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const ITCH_URL = "https://img.itch.zone/aW1nLzEyMzQ1LnBuZw==/original/AbCdEf.png";
+const UPLOAD_URL = "/images/profile-projects/user1/V1StGXR8Z5-cover.png";
 
 // @/env captures process.env / import.meta.env when it's first imported, so
 // each test loads a fresh module graph after stubbing the gate.
@@ -39,10 +40,17 @@ describe("itch-image (gate on)", () => {
     );
   });
 
+  it("rewrites an uploaded /images/ URL as a same-zone relative source", async () => {
+    const { itchImageUrl } = await loadItchImage();
+    expect(itchImageUrl(UPLOAD_URL, { width: 96 })).toBe(
+      `/cdn-cgi/image/width=96,quality=60,format=auto,fit=scale-down,onerror=redirect${UPLOAD_URL}`,
+    );
+  });
+
   it("passes through everything that must never be transformed", async () => {
     const { itchImageUrl } = await loadItchImage();
     const untouchables = [
-      // MinIO presigned GET — rotating query signature, uncacheable
+      // legacy MinIO presigned GET — rotating query signature, uncacheable
       "https://minio.example.com/profile-projects/abc.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=deadbeef",
       "blob:https://brackeys.community/1c9e2f0a",
       "data:image/png;base64,iVBORw0KGgo=",
@@ -76,6 +84,13 @@ describe("itch-image (gate on)", () => {
     );
   });
 
+  it("builds a srcSet for uploaded /images/ URLs", async () => {
+    const { itchImageSrcSet } = await loadItchImage();
+    expect(itchImageSrcSet(UPLOAD_URL, [480])).toBe(
+      `/cdn-cgi/image/width=480,quality=60,format=auto,fit=scale-down,onerror=redirect${UPLOAD_URL} 480w`,
+    );
+  });
+
   it("returns undefined srcSet for non-transformable input", async () => {
     const { itchImageSrcSet } = await loadItchImage();
     expect(itchImageSrcSet("blob:foo")).toBeUndefined();
@@ -87,6 +102,7 @@ describe("itch-image (gate off)", () => {
   it("passes URLs through and builds no srcSet", async () => {
     const { itchImageUrl, itchImageSrcSet } = await loadItchImage();
     expect(itchImageUrl(ITCH_URL, { width: 96 })).toBe(ITCH_URL);
+    expect(itchImageUrl(UPLOAD_URL, { width: 96 })).toBe(UPLOAD_URL);
     expect(itchImageSrcSet(ITCH_URL)).toBeUndefined();
   });
 });

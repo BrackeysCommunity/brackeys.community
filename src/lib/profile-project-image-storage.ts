@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import { Client } from "minio";
 
 import { env } from "@/env";
@@ -5,6 +7,7 @@ import {
   buildProfileProjectImageObjectKey,
   isAllowedProfileProjectImageType,
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
+  STORED_IMAGE_ROUTE_PREFIX,
   type UploadedProfileProjectImage,
 } from "@/lib/profile-project-images";
 
@@ -46,28 +49,23 @@ function getMinioClient() {
   return minioClient;
 }
 
-/** Default presigned-URL TTL (24 h). MinIO's hard upper bound is 7 days. */
-const PRESIGNED_URL_TTL_SECONDS = 24 * 60 * 60;
-
 /**
- * Resolve a stored object key to a browser-loadable URL. We use
- * presigned GET URLs so the bucket can stay private — anyone who can
- * read this row from the API gets a fresh, time-limited link without
- * us having to flip the bucket public-read.
+ * Resolve a stored object key to a browser-loadable URL: the stable
+ * `/images/<key>` proxy route (src/routes/images.$.ts). Keys are
+ * nanoid-unique per upload, so the URL is immutable and cacheable end to
+ * end — browser, Cloudflare edge, and `/cdn-cgi/image/` transforms — where
+ * the presigned links this replaced rotated their signature on every read
+ * and defeated all three. The bucket stays private; the route only serves
+ * keys our upload handlers mint.
  */
 export async function getProfileProjectImageUrl(objectKey: string | null | undefined) {
   if (!objectKey) return null;
 
-  const bucket = env.MINIO_BUCKET;
-  const endpoint = env.MINIO_ENDPOINT;
-  if (!bucket || !endpoint) return null;
+  // Without MinIO config the serving route would have nothing to read;
+  // returning null lets call sites fall back to their stored URL.
+  if (!env.MINIO_BUCKET || !env.MINIO_ENDPOINT) return null;
 
-  try {
-    return await getMinioClient().presignedGetObject(bucket, objectKey, PRESIGNED_URL_TTL_SECONDS);
-  } catch (error) {
-    console.error("Failed to presign profile project image", { objectKey, error });
-    return null;
-  }
+  return `${STORED_IMAGE_ROUTE_PREFIX}${objectKey}`;
 }
 
 /**
@@ -148,6 +146,53 @@ export async function resolveTeamAvatarUrl(team: {
 }): Promise<string | null> {
   const presigned = await getProfileProjectImageUrl(team.avatarKey);
   return presigned ?? team.avatarUrl;
+}
+
+/**
+ * Serve a stored object for the `/images/<key>` route. The immutable
+ * cache-control on 200s is also enforced by the `/images/**` route rule in
+ * vite.config.ts; it's set here too so dev and conditional responses agree.
+ * Keys are validated by the route before this is called.
+ */
+export async function streamStoredImage(objectKey: string, request: Request): Promise<Response> {
+  const bucket = env.MINIO_BUCKET;
+  if (!bucket) {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  let stat;
+  try {
+    stat = await getMinioClient().statObject(bucket, objectKey);
+  } catch {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  const headers = new Headers({
+    "cache-control": "public, max-age=31536000, immutable",
+  });
+  const contentType = stat.metaData?.["content-type"];
+  if (contentType) headers.set("content-type", contentType);
+  const etag = stat.etag ? `"${stat.etag}"` : null;
+  if (etag) headers.set("etag", etag);
+
+  const ifNoneMatch = request.headers.get("if-none-match");
+  if (etag && ifNoneMatch && ifNoneMatch.replace(/^W\//, "") === etag) {
+    return new Response(null, { status: 304, headers });
+  }
+
+  if (request.method === "HEAD") {
+    headers.set("content-length", String(stat.size));
+    return new Response(null, { headers });
+  }
+
+  try {
+    const objectStream = await getMinioClient().getObject(bucket, objectKey);
+    headers.set("content-length", String(stat.size));
+    return new Response(Readable.toWeb(objectStream) as unknown as BodyInit, { headers });
+  } catch (error) {
+    console.error("Failed to stream stored image", { objectKey, error });
+    return new Response("Not Found", { status: 404 });
+  }
 }
 
 export async function removeProfileProjectImageFromStorage(objectKey: string | null | undefined) {

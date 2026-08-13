@@ -32,6 +32,7 @@ import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as JamsJamSlugRouteImport } from './routes/jams_.$jamSlug'
 import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
 import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
+import { Route as ImagesSplatRouteImport } from './routes/images.$'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
@@ -159,6 +160,11 @@ const JamsArchiveRoute = JamsArchiveRouteImport.update({
   path: '/archive',
   getParentRoute: () => JamsRoute,
 } as any)
+const ImagesSplatRoute = ImagesSplatRouteImport.update({
+  id: '/images/$',
+  path: '/images/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GameRoomIdRoute = GameRoomIdRouteImport.update({
   id: '/$roomId',
   path: '/$roomId',
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
   '/jams/$jamSlug': typeof JamsJamSlugRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
   '/jams/$jamSlug': typeof JamsJamSlugRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
   '/jams_/$jamSlug': typeof JamsJamSlugRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
+    | '/images/$'
     | '/jams/archive'
     | '/jams/calendar'
     | '/jams/$jamSlug'
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
+    | '/images/$'
     | '/jams/archive'
     | '/jams/calendar'
     | '/jams/$jamSlug'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
+    | '/images/$'
     | '/jams/archive'
     | '/jams/calendar'
     | '/jams_/$jamSlug'
@@ -438,6 +450,7 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ImagesSplatRoute: typeof ImagesSplatRoute
   JamsJamSlugRoute: typeof JamsJamSlugRoute
   ProjectsProjectSlugRoute: typeof ProjectsProjectSlugRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -612,6 +625,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JamsArchiveRouteImport
       parentRoute: typeof JamsRoute
     }
+    '/images/$': {
+      id: '/images/$'
+      path: '/images/$'
+      fullPath: '/images/$'
+      preLoaderRoute: typeof ImagesSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/game/$roomId': {
       id: '/game/$roomId'
       path: '/$roomId'
@@ -773,6 +793,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ImagesSplatRoute: ImagesSplatRoute,
   JamsJamSlugRoute: JamsJamSlugRoute,
   ProjectsProjectSlugRoute: ProjectsProjectSlugRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

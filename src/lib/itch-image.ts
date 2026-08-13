@@ -1,17 +1,18 @@
 /**
- * Cloudflare image transformation URL builders for itch-hosted assets.
+ * Cloudflare image transformation URL builders.
  *
- * Jam banners and game covers are hotlinked from `img.itch.zone`, often as
- * `/original/` masters rendered at tile size. Rewriting them to
- * `/cdn-cgi/image/<options>/<source>` lets our Cloudflare zone re-encode to
- * AVIF/WebP, resize to display size, and cache the result on our own edge.
+ * Two source kinds are eligible: jam banners and game covers hotlinked from
+ * `img.itch.zone` (often `/original/` masters rendered at tile size), and
+ * our own uploads served at `/images/<key>` (src/routes/images.$.ts).
+ * Rewriting either to `/cdn-cgi/image/<options>/<source>` lets our
+ * Cloudflare zone re-encode to AVIF/WebP, resize to display size, and cache
+ * the result on our own edge.
  *
- * Host-gated on purpose: `profileProjects.imageUrl` and friends are
- * polymorphic (itch cover URL, MinIO presigned URL with a rotating query
- * signature, or a `blob:` editor preview), so the rewrite keys on the
- * `img.itch.zone` origin rather than which field the URL came from. Anything
- * else passes through untouched, which makes the helpers safe to apply
- * blindly at mixed-origin call sites.
+ * Source-gated on purpose: `profileProjects.imageUrl` and friends are
+ * polymorphic (itch cover URL, `/images/` upload, a `blob:` editor preview,
+ * Discord/GitHub avatar), so the rewrite keys on the source rather than
+ * which field the URL came from. Anything else passes through untouched,
+ * which makes the helpers safe to apply blindly at mixed-origin call sites.
  *
  * `onerror=redirect` is always included so a failed transform (feature off,
  * origin blocked, source 404) falls back to the original image rather than a
@@ -21,6 +22,7 @@
  * https://developers.cloudflare.com/images/transform-images/transform-via-url/
  */
 import { env } from "@/env";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 
 export interface ItchImageOpts {
   /** Target width in CSS px. Omit to re-encode at the source's own size. */
@@ -65,12 +67,14 @@ export const BOARD_BANNER_TRANSFORM: ItchImageOpts = { width: 640 };
 const cfImagesEnabled = () => env.VITE_CF_IMAGES !== undefined;
 
 /**
- * True only for itch-hosted https URLs that haven't already been rewritten.
- * Excludes MinIO presigned URLs, `blob:`/`data:` URIs, Discord/GitHub
- * avatars, relative paths — everything that must never hit the transformer.
+ * True only for itch-hosted https URLs and our own `/images/` uploads that
+ * haven't already been rewritten. Excludes `blob:`/`data:` URIs,
+ * Discord/GitHub avatars, other relative paths — everything that must never
+ * hit the transformer.
  */
 export function isTransformable(url: string): boolean {
-  return url.startsWith("https://img.itch.zone/") && !url.includes("/cdn-cgi/image/");
+  if (url.includes("/cdn-cgi/image/")) return false;
+  return url.startsWith("https://img.itch.zone/") || url.startsWith(STORED_IMAGE_ROUTE_PREFIX);
 }
 
 function optionString(opts: ItchImageOpts): string {
@@ -96,7 +100,10 @@ export function itchImageUrl<T extends string | null | undefined>(
   opts: ItchImageOpts = {},
 ): T {
   if (!url || !cfImagesEnabled() || !isTransformable(url)) return url;
-  return `/cdn-cgi/image/${optionString(opts)}/${url}` as T;
+  // Same-zone sources are referenced by their path without the leading
+  // slash: /cdn-cgi/image/<options>/images/<key>.
+  const source = url.startsWith("/") ? url.slice(1) : url;
+  return `/cdn-cgi/image/${optionString(opts)}/${source}` as T;
 }
 
 /**

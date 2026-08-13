@@ -63,6 +63,26 @@ export function buildProjectImageObjectKey(projectId: string, filename: string) 
   return `${PROJECT_IMAGE_PREFIX}/${projectId}/${nanoid()}-${sanitizedFilename}`;
 }
 
+/** Root path of the stable serving route (src/routes/images.$.ts). */
+export const STORED_IMAGE_ROUTE_PREFIX = "/images/";
+
+const SERVABLE_IMAGE_KEY_PREFIXES = [
+  `${PROFILE_PROJECT_IMAGE_PREFIX}/`,
+  `${TEAM_AVATAR_IMAGE_PREFIX}/`,
+  `${PROJECT_IMAGE_PREFIX}/`,
+] as const;
+
+/**
+ * Gate for the public serving route: only keys minted by our upload
+ * handlers resolve, so nothing else in the private bucket is reachable.
+ */
+export function isServableImageKey(key: string) {
+  return (
+    SERVABLE_IMAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
+    !key.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+  );
+}
+
 export function isOwnedProfileProjectImageKey(userId: string, key: string) {
   return key.startsWith(`${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/`);
 }
