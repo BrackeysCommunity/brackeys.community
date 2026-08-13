@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/ui/confirm";
 import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
@@ -328,20 +329,25 @@ function BlockToggle({ profileId }: { profileId: string }) {
   });
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => {
-        if (blocked || window.confirm("Block this member? You'll stop seeing their comments."))
-          toggle.mutate();
-      }}
-      disabled={toggle.isPending}
-      aria-label={blocked ? "Unblock member" : "Block member"}
-      title={blocked ? "Unblock member" : "Block member"}
-      className={cn(blocked && "text-destructive")}
+    <Confirm
+      variant="destructive"
+      title="Block this member?"
+      message="You'll stop seeing their comments."
+      confirmText="BLOCK"
+      bypass={blocked}
+      onConfirm={() => toggle.mutate()}
     >
-      <HugeiconsIcon icon={UserBlock01Icon} size={14} />
-      {blocked ? <span className="tracking-widest">UNBLOCK</span> : null}
-    </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={toggle.isPending}
+        aria-label={blocked ? "Unblock member" : "Block member"}
+        title={blocked ? "Unblock member" : "Block member"}
+        className={cn(blocked && "text-destructive")}
+      >
+        <HugeiconsIcon icon={UserBlock01Icon} size={14} />
+        {blocked ? <span className="tracking-widest">UNBLOCK</span> : null}
+      </Button>
+    </Confirm>
   );
 }

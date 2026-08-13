@@ -15,6 +15,7 @@ import { CommentThread } from "@/components/comments/CommentThread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
+import { Confirm } from "@/components/ui/confirm";
 import { Section } from "@/components/ui/section";
 import { Heading, Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -674,23 +675,22 @@ function HeroActions({
               </Button>
             </>
           )}
-          <Button
+          <Confirm
             variant="destructive"
-            size="sm"
-            onClick={() => {
-              if (
-                typeof window !== "undefined" &&
-                window.confirm("Delete this post permanently?")
-              ) {
-                actions.remove.mutate();
-              }
-            }}
-            disabled={actions.remove.isPending}
-            className="tracking-widest"
+            title="Delete this post permanently?"
+            confirmText="DELETE"
+            onConfirm={() => actions.remove.mutate()}
           >
-            <HugeiconsIcon icon={Delete02Icon} size={12} />
-            DELETE
-          </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={actions.remove.isPending}
+              className="tracking-widest"
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={12} />
+              DELETE
+            </Button>
+          </Confirm>
         </>
       ) : null}
 

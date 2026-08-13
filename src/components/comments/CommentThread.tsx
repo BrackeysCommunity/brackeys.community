@@ -9,13 +9,19 @@ import {
   SquareLock01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/ui/confirm";
 import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -39,6 +45,53 @@ const PAGE_SIZE = 20;
 
 export function commentThreadQueryKey(subject: SubjectRef) {
   return ["listComments", subject.type, subject.id] as const;
+}
+
+type ThreadData = InfiniteData<ThreadResponse>;
+
+/**
+ * The placeholder row shown while createComment is in flight; the
+ * post-success refetch swaps it for the real row. The temp id is a ms
+ * timestamp — far above any serial comment id, so a reply sorts to the
+ * end of its chain where new replies belong.
+ */
+function optimisticComment(
+  user: { id: string; name?: string | null; image?: string | null },
+  parent: CommentRow | undefined,
+  content: string,
+): CommentRow {
+  return {
+    id: Date.now(),
+    parentId: parent?.id ?? null,
+    rootId: parent ? (parent.rootId ?? parent.id) : null,
+    depth: parent ? Math.min(parent.depth + 1, 8) : 0,
+    content,
+    tombstone: null,
+    hidden: false,
+    createdAt: new Date(),
+    editedAt: null,
+    replyCount: 0,
+    author: { id: user.id, name: user.name ?? "You", avatarUrl: user.image ?? null, urlStub: null },
+    viewer: { isMine: true, canEdit: true, canDelete: true },
+  };
+}
+
+function withOptimisticComment(data: ThreadData, comment: CommentRow): ThreadData {
+  return {
+    ...data,
+    pages: data.pages.map((page, i) =>
+      i === 0
+        ? {
+            ...page,
+            commentCount: page.commentCount + 1,
+            // New top-level comments render newest-first; replies are
+            // picked out of the page by rootId and sorted by id.
+            comments:
+              comment.parentId == null ? [comment, ...page.comments] : [...page.comments, comment],
+          }
+        : page,
+    ),
+  };
 }
 
 /**
@@ -209,7 +262,7 @@ function Composer({
   subject,
   maxLength,
   placeholder,
-  parentId,
+  parent,
   autoFocus,
   onPosted,
   onCancel,
@@ -217,21 +270,42 @@ function Composer({
   subject: SubjectRef;
   maxLength: number;
   placeholder: string;
-  parentId?: number;
+  parent?: CommentRow;
   autoFocus?: boolean;
   onPosted: () => void;
   onCancel?: () => void;
 }) {
   const [content, setContent] = useState("");
+  const queryClient = useQueryClient();
+  const queryKey = commentThreadQueryKey(subject);
+  const { session } = useStore(authStore);
 
   const post = useMutation({
-    mutationFn: () => client.createComment({ subject, parentId, content: content.trim() }),
-    onSuccess: () => {
+    mutationFn: (body: string) =>
+      client.createComment({ subject, parentId: parent?.id, content: body }),
+    // Optimistic: the comment renders immediately; the server round trip
+    // (rate limit, notification fan-out) reconciles behind it.
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<ThreadData>(queryKey);
+      const user = session?.user;
+      if (previous && user) {
+        queryClient.setQueryData(
+          queryKey,
+          withOptimisticComment(previous, optimisticComment(user, parent, body)),
+        );
+      }
+      const draft = content;
       setContent("");
-      onPosted();
       onCancel?.();
+      return { previous, draft };
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error, _body, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
+      if (ctx) setContent(ctx.draft);
+      toast.error(err.message);
+    },
+    onSuccess: () => onPosted(),
   });
 
   const remaining = maxLength - content.length;
@@ -242,7 +316,7 @@ function Composer({
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder={placeholder}
-        rows={parentId ? 2 : 3}
+        rows={parent ? 2 : 3}
         maxLength={maxLength}
         autoFocus={autoFocus}
       />
@@ -258,12 +332,12 @@ function Composer({
           ) : null}
           <Button
             size="sm"
-            onClick={() => post.mutate()}
+            onClick={() => post.mutate(content.trim())}
             disabled={!content.trim() || post.isPending}
             className="tracking-widest"
           >
             <HugeiconsIcon icon={Sent02Icon} size={12} />
-            {post.isPending ? "POSTING…" : parentId ? "REPLY" : "POST"}
+            {post.isPending ? "POSTING…" : parent ? "REPLY" : "POST"}
           </Button>
         </div>
       </div>
@@ -295,14 +369,74 @@ function CommentChain({
   const [expanded, setExpanded] = useState(false);
   const [extraReplies, setExtraReplies] = useState<CommentRow[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<number>>(new Set());
 
   const known = useMemo(() => {
     const seen = new Set(chain.map((c) => c.id));
     return [...chain, ...extraReplies.filter((r) => !seen.has(r.id))].sort((a, b) => a.id - b.id);
   }, [chain, extraReplies]);
 
-  const visible = expanded ? known : known.slice(0, CHAIN_PREVIEW);
-  const hiddenCount = known.length - visible.length;
+  // byId from the page cache misses lazily-fetched extras; the chain-local
+  // map covers every row this chain renders.
+  const chainById = useMemo(() => {
+    const m = new Map(byId);
+    m.set(root.id, root);
+    for (const c of known) m.set(c.id, c);
+    return m;
+  }, [byId, root, known]);
+
+  const toggleCollapsed = (id: number) => {
+    const reopening = collapsedIds.has(id);
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (reopening) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    // "SHOW n REPLIES" promises all n — lift the preview cap so the
+    // reopened subtree isn't immediately re-hidden by it.
+    if (reopening) setExpanded(true);
+  };
+
+  const [hoveredLineId, setHoveredLineId] = useState<number | null>(null);
+
+  /** Walks parent links; true when any ancestor is collapsed. */
+  const suppressed = (c: CommentRow): boolean => {
+    let cur = c.parentId != null ? chainById.get(c.parentId) : undefined;
+    while (cur) {
+      if (collapsedIds.has(cur.id)) return true;
+      cur = cur.parentId != null ? chainById.get(cur.parentId) : undefined;
+    }
+    return false;
+  };
+
+  const countDescendants = (id: number): number =>
+    known.filter((c) => {
+      let cur: CommentRow | undefined = c;
+      while (cur) {
+        if (cur.parentId === id) return true;
+        cur = cur.parentId != null ? chainById.get(cur.parentId) : undefined;
+      }
+      return false;
+    }).length;
+
+  /** Line level → the ancestor that line descends from, for collapse. */
+  const ancestorIdAt = (c: CommentRow) => (level: number) => {
+    let cur = c.parentId != null ? chainById.get(c.parentId) : undefined;
+    while (cur) {
+      if (cur.depth === level) return cur.id;
+      cur = cur.parentId != null ? chainById.get(cur.parentId) : undefined;
+    }
+    return undefined;
+  };
+
+  const rootCollapsed = collapsedIds.has(root.id);
+  // Collapse filtering happens before the preview cap so collapsing a
+  // subtree pulls later siblings up instead of leaving a short preview,
+  // and the "show more" count only ever promises rows that will appear.
+  const shown = known.filter((c) => !suppressed(c));
+  const visible = expanded ? shown : shown.slice(0, CHAIN_PREVIEW);
+  const hiddenCount = shown.length - visible.length;
   const canFetchMore = root.hasMoreReplies && extraReplies.length === 0;
 
   const loadRest = async () => {
@@ -327,35 +461,48 @@ function CommentChain({
     <div className="flex flex-col">
       <CommentItem
         comment={root}
-        byId={byId}
+        byId={chainById}
         subject={subject}
         maxLength={maxLength}
         locked={locked}
         commentingEnabled={commentingEnabled}
         viewerId={viewerId}
         onChange={onChange}
+        collapsedDescendants={rootCollapsed ? countDescendants(root.id) : 0}
+        onToggleCollapse={toggleCollapsed}
       />
-      {visible.map((reply) => (
-        <CommentItem
-          key={reply.id}
-          comment={reply}
-          byId={byId}
-          subject={subject}
-          maxLength={maxLength}
-          locked={locked}
-          commentingEnabled={commentingEnabled}
-          viewerId={viewerId}
-          onChange={onChange}
-        />
-      ))}
-      {hiddenCount > 0 || canFetchMore ? (
+      {!rootCollapsed &&
+        visible.map((reply) => (
+          <CommentItem
+            key={reply.id}
+            comment={reply}
+            byId={chainById}
+            subject={subject}
+            maxLength={maxLength}
+            locked={locked}
+            commentingEnabled={commentingEnabled}
+            viewerId={viewerId}
+            onChange={onChange}
+            ancestorIdAt={ancestorIdAt(reply)}
+            collapsedDescendants={collapsedIds.has(reply.id) ? countDescendants(reply.id) : 0}
+            onToggleCollapse={toggleCollapsed}
+            trackHighlightId={hoveredLineId}
+            onTrackHover={setHoveredLineId}
+          />
+        ))}
+      {!rootCollapsed && (hiddenCount > 0 || canFetchMore) ? (
         <button
           type="button"
           onClick={loadRest}
           disabled={loadingMore}
-          className="px-4 pt-1 pb-3 text-left font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:text-primary/80"
+          className="relative px-4 pt-1 pb-3 text-left font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:text-primary/80"
           style={{ paddingLeft: `${indentPx(1)}px` }}
         >
+          <TrackLines
+            depth={1}
+            ancestorIdAt={(level) => (level === 0 ? root.id : undefined)}
+            highlightId={hoveredLineId}
+          />
           {loadingMore
             ? "LOADING…"
             : hiddenCount > 0
@@ -371,6 +518,73 @@ function indentPx(depth: number): number {
   return 16 + Math.min(depth, MAX_VISUAL_DEPTH) * 20;
 }
 
+/**
+ * One vertical guide per ancestor level, aligned with that ancestor's
+ * avatar's left edge so a chain reads as a thread. Host element must be
+ * `relative`; the lines span its full height, so consecutive rows connect.
+ *
+ * With `ancestorIdAt`/`onCollapse` wired, each line becomes a click target
+ * (16px hit area centered on the 1px line) that collapses that ancestor's
+ * subtree — omit `onCollapse` where a nested button would be invalid.
+ * Hover is reported upward via `onHover` so the chain can light the whole
+ * column (`highlightId`) rather than just the hovered row's segment.
+ */
+function TrackLines({
+  depth,
+  ancestorIdAt,
+  onCollapse,
+  highlightId,
+  onHover,
+}: {
+  depth: number;
+  ancestorIdAt?: (level: number) => number | undefined;
+  onCollapse?: (id: number) => void;
+  highlightId?: number | null;
+  onHover?: (id: number | null) => void;
+}) {
+  const levels = Math.min(depth, MAX_VISUAL_DEPTH);
+  if (levels <= 0) return null;
+  return (
+    <>
+      {Array.from({ length: levels }, (_, i) => {
+        const ancestorId = ancestorIdAt?.(i);
+        const lit = ancestorId != null && ancestorId === highlightId;
+        const lineClass = cn(
+          "border-l border-dashed transition-colors",
+          lit ? "border-primary/70" : "border-muted/40",
+        );
+        if (ancestorId == null || !onCollapse) {
+          return (
+            <span
+              key={i}
+              aria-hidden
+              className={cn("pointer-events-none absolute inset-y-0", lineClass)}
+              style={{ left: `${indentPx(i)}px` }}
+            />
+          );
+        }
+        return (
+          <button
+            key={i}
+            type="button"
+            aria-label="Collapse thread"
+            onClick={() => {
+              onHover?.(null);
+              onCollapse(ancestorId);
+            }}
+            onMouseEnter={() => onHover?.(ancestorId)}
+            onMouseLeave={() => onHover?.(null)}
+            className="absolute inset-y-0 w-4"
+            style={{ left: `${indentPx(i) - 8}px` }}
+          >
+            <span className={cn("absolute inset-y-0 left-1/2", lineClass)} />
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 function CommentItem({
   comment,
   byId,
@@ -380,6 +594,11 @@ function CommentItem({
   commentingEnabled,
   viewerId,
   onChange,
+  ancestorIdAt,
+  collapsedDescendants = 0,
+  onToggleCollapse,
+  trackHighlightId,
+  onTrackHover,
 }: {
   comment: CommentRow;
   byId: Map<number, CommentRow>;
@@ -389,6 +608,14 @@ function CommentItem({
   commentingEnabled: boolean;
   viewerId: string | null;
   onChange: () => void;
+  /** Maps a track-line level to the ancestor it belongs to. */
+  ancestorIdAt?: (level: number) => number | undefined;
+  /** Non-zero when this comment's subtree is collapsed under it. */
+  collapsedDescendants?: number;
+  onToggleCollapse?: (id: number) => void;
+  /** Ancestor whose track line is hovered anywhere in the chain. */
+  trackHighlightId?: number | null;
+  onTrackHover?: (id: number | null) => void;
 }) {
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -430,7 +657,14 @@ function CommentItem({
 
   if (comment.hidden) {
     return (
-      <div className="px-4 py-2.5" style={{ paddingLeft: `${indent}px` }}>
+      <div className="relative px-4 py-2.5" style={{ paddingLeft: `${indent}px` }}>
+        <TrackLines
+          depth={comment.depth}
+          ancestorIdAt={ancestorIdAt}
+          onCollapse={onToggleCollapse}
+          highlightId={trackHighlightId}
+          onHover={onTrackHover}
+        />
         <Text size="xs" variant="muted" className="italic">
           Comment hidden — from someone you've blocked.
         </Text>
@@ -443,9 +677,16 @@ function CommentItem({
   return (
     <div
       id={`comment-${comment.id}`}
-      className="flex flex-col gap-2 px-4 py-3"
+      className="relative flex flex-col gap-2 px-4 py-3"
       style={{ paddingLeft: `${indent}px` }}
     >
+      <TrackLines
+        depth={comment.depth}
+        ancestorIdAt={ancestorIdAt}
+        onCollapse={onToggleCollapse}
+        highlightId={trackHighlightId}
+        onHover={onTrackHover}
+      />
       <div className="flex items-center gap-2">
         <UserAvatar avatarUrl={comment.author?.avatarUrl ?? null} username={authorName} size={24} />
         {comment.author ? (
@@ -509,7 +750,7 @@ function CommentItem({
       )}
 
       {viewerId && !editing && !comment.tombstone ? (
-        <div className="flex items-center gap-1">
+        <div className="-ml-1.5 flex items-center gap-1">
           {!locked && commentingEnabled ? (
             <CommentAction
               icon={ArrowTurnBackwardIcon}
@@ -528,13 +769,14 @@ function CommentItem({
             />
           ) : null}
           {comment.viewer.canDelete ? (
-            <CommentAction
-              icon={Delete02Icon}
-              label="DELETE"
-              onClick={() => {
-                if (window.confirm("Remove this comment?")) remove.mutate();
-              }}
-            />
+            <Confirm
+              variant="destructive"
+              title="Remove this comment?"
+              confirmText="REMOVE"
+              onConfirm={() => remove.mutate()}
+            >
+              <CommentAction icon={Delete02Icon} label="DELETE" />
+            </Confirm>
           ) : null}
           {!comment.viewer.isMine ? (
             <CommentAction
@@ -573,11 +815,21 @@ function CommentItem({
           subject={subject}
           maxLength={maxLength}
           placeholder={`Reply to ${authorName}…`}
-          parentId={comment.id}
+          parent={comment}
           autoFocus
           onPosted={onChange}
           onCancel={() => setReplying(false)}
         />
+      ) : null}
+
+      {collapsedDescendants > 0 && onToggleCollapse ? (
+        <button
+          type="button"
+          onClick={() => onToggleCollapse(comment.id)}
+          className="self-start font-mono text-[10px] tracking-widest text-primary uppercase transition-colors hover:text-primary/80"
+        >
+          SHOW {collapsedDescendants} {collapsedDescendants === 1 ? "REPLY" : "REPLIES"}
+        </button>
       ) : null}
     </div>
   );
@@ -586,17 +838,20 @@ function CommentItem({
 function CommentAction({
   icon,
   label,
-  onClick,
+  className,
+  ...props
 }: {
   icon: typeof Flag02Icon;
   label: string;
-  onClick: () => void;
-}) {
+} & React.ComponentProps<"button">) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="flex items-center gap-1 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:text-primary"
+      {...props}
+      className={cn(
+        "flex items-center gap-1 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:text-primary",
+        className,
+      )}
     >
       <HugeiconsIcon icon={icon} size={11} />
       {label}

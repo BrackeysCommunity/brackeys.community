@@ -466,63 +466,65 @@ export const createComment = os
       return comment;
     });
 
-    // Notifications after commit, never inside the transaction.
-    const subjectUrl = `${subject.url}#comment-${created.id}`;
-    const notificationData = {
-      subjectType: input.subject.type,
-      subjectTitle: subject.title,
-      subjectUrl,
-      commentId: created.id,
-      preview: input.content.slice(0, 140),
-    };
+    // Fan-out runs after the response (and never inside the transaction):
+    // the caller's result needs nothing from it, and a slow or failed
+    // notification pass must not delay or fail the comment itself.
+    const writerId = context.user.id;
+    const parentAuthorId = parent?.authorId ?? null;
+    void (async () => {
+      const subjectUrl = `${subject.url}#comment-${created.id}`;
+      const notificationData = {
+        subjectType: input.subject.type,
+        subjectTitle: subject.title,
+        subjectUrl,
+        commentId: created.id,
+        preview: input.content.slice(0, 140),
+      };
 
-    const writerBlocks = await db
-      .select({ blockerId: userBlocks.blockerId, blockedId: userBlocks.blockedId })
-      .from(userBlocks)
-      .where(
-        or(eq(userBlocks.blockerId, context.user.id), eq(userBlocks.blockedId, context.user.id)),
+      const writerBlocks = await db
+        .select({ blockerId: userBlocks.blockerId, blockedId: userBlocks.blockedId })
+        .from(userBlocks)
+        .where(or(eq(userBlocks.blockerId, writerId), eq(userBlocks.blockedId, writerId)));
+      const blockPaired = new Set(
+        writerBlocks.map((b) => (b.blockerId === writerId ? b.blockedId : b.blockerId)),
       );
-    const blockPaired = new Set(
-      writerBlocks.map((b) => (b.blockerId === context.user.id ? b.blockedId : b.blockerId)),
-    );
 
-    const notified = new Set<string>([context.user.id]);
-    if (
-      parent?.authorId &&
-      parent.authorId !== context.user.id &&
-      !blockPaired.has(parent.authorId)
-    ) {
-      notified.add(parent.authorId);
-      await notify({
-        userId: parent.authorId,
-        type: "comment_reply",
-        actorId: context.user.id,
-        entityType: "thread",
-        entityId: String(thread.id),
-        dedupeWithin: { ms: 15 * 60_000 },
-        data: notificationData,
-      });
-    }
+      const notified = new Set<string>([writerId]);
+      if (parentAuthorId && parentAuthorId !== writerId && !blockPaired.has(parentAuthorId)) {
+        notified.add(parentAuthorId);
+        await notify({
+          userId: parentAuthorId,
+          type: "comment_reply",
+          actorId: writerId,
+          entityType: "thread",
+          entityId: String(thread.id),
+          dedupeWithin: { ms: 15 * 60_000 },
+          data: notificationData,
+        });
+      }
 
-    const subscribers = await db
-      .select({ userId: threadSubscriptions.userId })
-      .from(threadSubscriptions)
-      .where(
-        and(eq(threadSubscriptions.threadId, thread.id), eq(threadSubscriptions.muted, false)),
-      );
-    for (const { userId } of subscribers) {
-      if (notified.has(userId) || blockPaired.has(userId)) continue;
-      notified.add(userId);
-      await notify({
-        userId,
-        type: "comment_received",
-        actorId: context.user.id,
-        entityType: "thread",
-        entityId: String(thread.id),
-        dedupeWithin: { ms: 15 * 60_000 },
-        data: notificationData,
-      });
-    }
+      const subscribers = await db
+        .select({ userId: threadSubscriptions.userId })
+        .from(threadSubscriptions)
+        .where(
+          and(eq(threadSubscriptions.threadId, thread.id), eq(threadSubscriptions.muted, false)),
+        );
+      for (const { userId } of subscribers) {
+        if (notified.has(userId) || blockPaired.has(userId)) continue;
+        notified.add(userId);
+        await notify({
+          userId,
+          type: "comment_received",
+          actorId: writerId,
+          entityType: "thread",
+          entityId: String(thread.id),
+          dedupeWithin: { ms: 15 * 60_000 },
+          data: notificationData,
+        });
+      }
+    })().catch((err: unknown) => {
+      console.warn("[comments] notification fan-out failed", { commentId: created.id, err });
+    });
 
     return { id: created.id, rootId: created.rootId, depth: created.depth };
   });

@@ -7,6 +7,7 @@ import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ZodObject, ZodRawShape } from "zod";
 
+import { openConfirmModal } from "@/components/ui/confirm";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 
@@ -70,7 +71,7 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
       // Confirmation dialog
       if (confirm) {
         const msg = typeof confirm === "function" ? confirm(value[name]) : confirm;
-        if (msg && !window.confirm(msg)) return;
+        if (msg && !(await openConfirmModal({ title: msg }))) return;
       }
 
       setStatus("saving");

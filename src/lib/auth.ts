@@ -79,7 +79,8 @@ export const auth = betterAuth({
         await cleanupUserData(deletedUser.id);
       },
       afterDelete: async (deletedUser) => {
-        await purgePresence(deletedUser.id);
+        // Best-effort: the presence set's 60s TTL is the backstop.
+        await purgePresence(deletedUser.id).catch(() => {});
       },
     },
   },

@@ -1,6 +1,8 @@
 import type { Queue } from "bullmq";
 import type IORedis from "ioredis";
 
+import { createRedisClient } from "@/lib/redis";
+
 declare global {
   // eslint-disable-next-line no-var
   var __brackeysRedis: IORedis | undefined;
@@ -16,27 +18,9 @@ declare global {
 // free of redis client code.
 async function getRedis(): Promise<IORedis> {
   if (globalThis.__brackeysRedis) return globalThis.__brackeysRedis;
-  const url = process.env.REDIS_URL;
-  if (!url) {
-    throw new Error("REDIS_URL is not set");
-  }
-  const { default: IORedisCtor } = await import("ioredis");
-  globalThis.__brackeysRedis = new IORedisCtor(url, {
+  globalThis.__brackeysRedis = await createRedisClient("queue", {
     // bullmq requirement: blocking commands must be allowed to retry indefinitely.
     maxRetriesPerRequest: null,
-    // Producer-side connection only (workers hold their own): reject enqueues
-    // immediately while disconnected instead of buffering them forever, so
-    // callers' best-effort try/catch actually gets an error to catch.
-    enableOfflineQueue: false,
-    // Back off to 30s between reconnect attempts so a dead Redis doesn't
-    // spam the logs on every retry (bullmq logs each connection error).
-    retryStrategy: (times) => Math.min(times * 500, 30_000),
-  });
-  let lastError = "";
-  globalThis.__brackeysRedis.on("error", (err) => {
-    if (err.message === lastError) return;
-    lastError = err.message;
-    console.warn("[queue] redis error", err.message);
   });
   return globalThis.__brackeysRedis;
 }

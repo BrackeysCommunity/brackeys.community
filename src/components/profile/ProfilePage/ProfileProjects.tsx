@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/ui/confirm";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -236,18 +237,22 @@ function OwnerProjectsBody({
               >
                 <HugeiconsIcon icon={Edit02Icon} size={12} />
               </Button>
-              <Button
-                variant="outline"
-                size="icon-xs"
-                aria-label={`Remove ${project.title}`}
-                onClick={() => {
-                  if (window.confirm(`Remove "${project.title}"? This can't be undone.`))
-                    onRemoveClick(project.id);
-                }}
-                className="text-muted-foreground hover:text-destructive"
+              <Confirm
+                variant="destructive"
+                title={`Remove "${project.title}"?`}
+                message="This can't be undone."
+                confirmText="REMOVE"
+                onConfirm={() => onRemoveClick(project.id)}
               >
-                <HugeiconsIcon icon={Delete02Icon} size={12} />
-              </Button>
+                <Button
+                  variant="outline"
+                  size="icon-xs"
+                  aria-label={`Remove ${project.title}`}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} size={12} />
+                </Button>
+              </Confirm>
             </div>
           }
         />

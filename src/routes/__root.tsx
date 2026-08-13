@@ -15,6 +15,7 @@ const MobileShell = lazy(() =>
   import("@/components/layout/MobileShell").then((m) => ({ default: m.MobileShell })),
 );
 
+import { ConfirmPortal } from "@/components/ui/confirm";
 import { Cursor } from "@/components/ui/cursor";
 import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
@@ -159,6 +160,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </TanStackQueryProvider>
         </div>
         <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
+        <ConfirmPortal />
         <Scripts />
       </body>
     </html>

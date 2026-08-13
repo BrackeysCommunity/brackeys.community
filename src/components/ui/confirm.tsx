@@ -82,7 +82,15 @@ function Confirm({
   );
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        // The trigger opens regardless of preventDefault, so bypass/disabled
+        // must be enforced here rather than in the click handler.
+        if (next && (bypass || disabled)) return;
+        setOpen(next);
+      }}
+    >
       <AlertDialogTrigger onClick={handleTriggerClick} render={children} />
       <AlertDialogContent>
         <AlertDialogHeader>

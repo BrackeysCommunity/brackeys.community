@@ -8,6 +8,7 @@ import {
   registerConnection,
   unregisterConnection,
 } from "@/lib/presence";
+import { createRedisClient } from "@/lib/redis";
 
 const HEARTBEAT_MS = 25_000;
 
@@ -24,13 +25,9 @@ async function handle({ request }: { request: Request }) {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random()}`;
 
-  // Dynamic import keeps ioredis out of the SSR static graph (mirrors the
-  // queue setup) and only opens a subscriber socket when a client actually
-  // connects to /api/notifications/stream.
-  const { default: IORedisCtor } = await import("ioredis");
-  const subscriber = new IORedisCtor(process.env.REDIS_URL!, {
-    maxRetriesPerRequest: null,
-  });
+  // One subscriber socket per SSE connection, opened only when a client
+  // actually connects to /api/notifications/stream.
+  const subscriber = await createRedisClient("sse-subscriber");
 
   const channel = presenceChannel(userId);
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -46,13 +43,16 @@ async function handle({ request }: { request: Request }) {
         }
       };
 
-      await registerConnection(userId, connectionId);
+      // Presence and pub/sub are best-effort: with Redis down the stream
+      // stays open for heartbeats (the inbox still polls), it just loses
+      // live push until the client reconnects.
+      await registerConnection(userId, connectionId).catch(() => {});
 
       subscriber.on("message", (_channel, message) => {
         // Each payload is a single SSE `data:` event; the client parses it.
         send(`event: notification\ndata: ${message}\n\n`);
       });
-      await subscriber.subscribe(channel);
+      await subscriber.subscribe(channel).catch(() => {});
 
       // Initial comment so the client immediately knows the stream is open
       // (many EventSource impls don't fire `onopen` until a first byte).
@@ -60,7 +60,7 @@ async function handle({ request }: { request: Request }) {
 
       heartbeat = setInterval(() => {
         send(`: ping\n\n`);
-        void refreshConnection(userId, connectionId);
+        refreshConnection(userId, connectionId).catch(() => {});
       }, HEARTBEAT_MS);
     },
     async cancel() {

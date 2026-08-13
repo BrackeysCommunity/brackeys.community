@@ -1,5 +1,7 @@
 import type IORedis from "ioredis";
 
+import { createRedisClient } from "@/lib/redis";
+
 declare global {
   // eslint-disable-next-line no-var
   var __brackeysDiscordRedis: IORedis | undefined;
@@ -104,12 +106,7 @@ export class DiscordBackoffError extends Error {
 
 async function getRedis(): Promise<IORedis> {
   if (globalThis.__brackeysDiscordRedis) return globalThis.__brackeysDiscordRedis;
-  const url = process.env.REDIS_URL;
-  if (!url) throw new Error("REDIS_URL is not set");
-  const { default: IORedisCtor } = await import("ioredis");
-  globalThis.__brackeysDiscordRedis = new IORedisCtor(url, {
-    maxRetriesPerRequest: null,
-  });
+  globalThis.__brackeysDiscordRedis = await createRedisClient("discord");
   return globalThis.__brackeysDiscordRedis;
 }
 

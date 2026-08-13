@@ -27,7 +27,7 @@
     "chromatic": "bun run build-storybook:test && chromatic --storybook-build-dir storybook-static",
     "prepare": "vp config",
     "commit": "cz",
-    "railway:dev": "railway run -- sh -c \"BETTER_AUTH_URL=http://localhost:3000 VITE_CF_IMAGES= vp dev --port 3000\"",
+    "railway:dev": "railway run -- sh -c 'BETTER_AUTH_URL=http://localhost:3000 VITE_CF_IMAGES= REDIS_URL=\"${REDIS_PUBLIC_URL:-$REDIS_URL}\" vp dev --port 3000'",
     "railway:build": "railway run -- vp build && cp instrument.server.mjs .output/server",
     "railway:start": "railway run -- node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
     "railway:db:generate": "railway run -- drizzle-kit generate",

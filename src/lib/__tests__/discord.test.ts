@@ -34,6 +34,12 @@ const fakeRedis = vi.hoisted(() => {
 
 vi.mock("ioredis", () => ({
   default: class {
+    // createRedisClient wires error/ready listeners and checks `status`
+    // before resolving; "ready" skips its wait-for-connection path.
+    status = "ready";
+    on = () => this;
+    once = () => this;
+    off = () => this;
     get = fakeRedis.get.bind(fakeRedis);
     set = fakeRedis.set.bind(fakeRedis);
     del = fakeRedis.del.bind(fakeRedis);

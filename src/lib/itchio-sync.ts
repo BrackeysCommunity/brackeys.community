@@ -16,6 +16,7 @@ import { fetchGames, ItchApiError } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { placementTypeFromClassification } from "@/lib/project-taxonomy";
 import { convergeLibraryPlacements } from "@/lib/projects";
+import { createRedisClient } from "@/lib/redis";
 import { openToken } from "@/lib/token-crypto";
 
 /** Thrown when the itch.io API call itself fails (vs. no linked account).
@@ -207,12 +208,7 @@ const LOCK_TTL_SECONDS = 300;
 
 async function getRedis(): Promise<IORedis> {
   if (globalThis.__brackeysItchioSyncRedis) return globalThis.__brackeysItchioSyncRedis;
-  const url = process.env.REDIS_URL;
-  if (!url) throw new Error("REDIS_URL is not set");
-  const { default: IORedisCtor } = await import("ioredis");
-  globalThis.__brackeysItchioSyncRedis = new IORedisCtor(url, {
-    maxRetriesPerRequest: null,
-  });
+  globalThis.__brackeysItchioSyncRedis = await createRedisClient("itchio-sync");
   return globalThis.__brackeysItchioSyncRedis;
 }
 

@@ -1,5 +1,7 @@
 import type IORedis from "ioredis";
 
+import { createRedisClient } from "@/lib/redis";
+
 declare global {
   // eslint-disable-next-line no-var
   var __brackeysRateLimitRedis: IORedis | undefined;
@@ -7,22 +9,8 @@ declare global {
 
 async function getRedis(): Promise<IORedis | null> {
   if (globalThis.__brackeysRateLimitRedis) return globalThis.__brackeysRateLimitRedis;
-  const url = process.env.REDIS_URL;
-  if (!url) return null;
-  const { default: IORedisCtor } = await import("ioredis");
-  // Fail fast when Redis is unreachable: with the offline queue on, commands
-  // buffer and never settle, hanging the request instead of degrading open.
-  globalThis.__brackeysRateLimitRedis = new IORedisCtor(url, {
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
-    connectTimeout: 2000,
-  });
-  let lastError = "";
-  globalThis.__brackeysRateLimitRedis.on("error", (err) => {
-    if (err.message === lastError) return;
-    lastError = err.message;
-    console.warn("[rate-limit] redis error", err.message);
-  });
+  if (!process.env.REDIS_URL) return null;
+  globalThis.__brackeysRateLimitRedis = await createRedisClient("rate-limit");
   return globalThis.__brackeysRateLimitRedis;
 }
 

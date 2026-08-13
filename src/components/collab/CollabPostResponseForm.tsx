@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
@@ -165,20 +166,23 @@ export function ViewerResponseCard({
                 <HugeiconsIcon icon={PencilEdit01Icon} size={12} />
                 EDIT
               </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => {
-                  if (window.confirm("Withdraw your response? The poster won't see it anymore.")) {
-                    withdraw.mutate();
-                  }
-                }}
-                disabled={withdraw.isPending}
-                className="tracking-widest text-destructive"
+              <Confirm
+                variant="destructive"
+                title="Withdraw your response?"
+                message="The poster won't see it anymore."
+                confirmText="WITHDRAW"
+                onConfirm={() => withdraw.mutate()}
               >
-                <HugeiconsIcon icon={Delete02Icon} size={12} />
-                WITHDRAW
-              </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  disabled={withdraw.isPending}
+                  className="tracking-widest text-destructive"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} size={12} />
+                  WITHDRAW
+                </Button>
+              </Confirm>
             </>
           )}
         </div>
