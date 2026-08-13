@@ -110,12 +110,17 @@ export const requireAuthWithPermissions = os.middleware(async ({ context, next }
   assertNotBanned(session);
 
   const guildRoles = await resolveUserRoles(session.user.id);
+  const isStaff = checkIsStaff(guildRoles);
+
+  if (isStaff) {
+    void refreshGuildRolesThrottled(session.user.id);
+  }
 
   return next({
     context: {
       session,
       user: session.user,
-      isStaff: checkIsStaff(guildRoles),
+      isStaff,
       isAdmin: checkIsAdmin(guildRoles),
     },
   });
