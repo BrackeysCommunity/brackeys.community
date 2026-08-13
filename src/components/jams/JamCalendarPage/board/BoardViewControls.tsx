@@ -62,12 +62,8 @@ export function BoardViewControls({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuRadioGroup value={sort} onValueChange={(v) => onSortChange(v as BoardSort)}>
-            <DropdownMenuRadioItem value="signal" className="text-[11px] tracking-widest">
-              BIGGEST
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="soonest" className="text-[11px] tracking-widest">
-              SOONEST
-            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="signal">BIGGEST</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="soonest">SOONEST</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>

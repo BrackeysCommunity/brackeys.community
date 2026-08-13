@@ -19,6 +19,8 @@ import { Route as JamsRouteImport } from './routes/jams'
 import { Route as GameRouteImport } from './routes/game'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TeamsIndexRouteImport } from './routes/teams.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
@@ -93,6 +95,16 @@ const CommandCenterRoute = CommandCenterRouteImport.update({
 const CollabRoute = CollabRouteImport.update({
   id: '/collab',
   path: '/collab',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -223,6 +235,8 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/admin': typeof AdminRoute
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
@@ -260,6 +274,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/admin': typeof AdminRoute
   '/command-center': typeof CommandCenterRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
@@ -293,6 +309,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/admin': typeof AdminRoute
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/game': typeof GameRouteWithChildren
@@ -332,6 +350,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
+    | '/admin'
     | '/collab'
     | '/command-center'
     | '/game'
@@ -369,6 +389,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
+    | '/admin'
     | '/command-center'
     | '/members'
     | '/notifications'
@@ -401,6 +423,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$'
+    | '/admin'
     | '/collab'
     | '/command-center'
     | '/game'
@@ -439,6 +463,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SplatRoute: typeof SplatRoute
+  AdminRoute: typeof AdminRoute
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
   GameRoute: typeof GameRouteWithChildren
@@ -532,6 +558,20 @@ declare module '@tanstack/react-router' {
       path: '/collab'
       fullPath: '/collab'
       preLoaderRoute: typeof CollabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -782,6 +822,8 @@ const TeamsRouteWithChildren = TeamsRoute._addFileChildren(TeamsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SplatRoute: SplatRoute,
+  AdminRoute: AdminRoute,
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
   GameRoute: GameRouteWithChildren,

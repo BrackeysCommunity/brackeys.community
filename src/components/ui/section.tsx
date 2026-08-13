@@ -4,7 +4,7 @@ import type { LinkProps as RouterLinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Heading, Link, Text } from "@/components/ui/typography";
+import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 
 interface SectionProps {
   /** Anchor target, so a section is linkable from outside the page. */
@@ -15,8 +15,9 @@ interface SectionProps {
    * page" control. Use {@link SectionAction}. */
   action?: ReactNode;
   /** `sm` is for sections sharing a row, where a 3xl heading would shout
-   * over the full-width ones above it. */
-  size?: "default" | "sm";
+   * over the full-width ones above it. `mini` is the group divider inside
+   * a section — a micro-label, not a heading. */
+  size?: "default" | "sm" | "mini";
   children: ReactNode;
 }
 
@@ -30,6 +31,27 @@ interface SectionProps {
  * row end their panels on the same line.
  */
 export function Section({ id, title, blurb, action, size = "default", children }: SectionProps) {
+  // A group divider rather than a page section: the rule runs through the
+  // header line instead of a heading sitting above the content, so a dozen
+  // of them stack inside one section without reading as a dozen sections.
+  if (size === "mini") {
+    return (
+      <section id={id} className="flex min-w-0 scroll-mt-20 flex-col gap-2">
+        <header className="flex min-h-6 items-center gap-2">
+          <MicroLabel as="span">{title.toUpperCase()}</MicroLabel>
+          <span aria-hidden className="h-px flex-1 bg-border/60" />
+          {action}
+        </header>
+        {blurb && (
+          <Text as="p" size="xs" variant="muted">
+            {blurb}
+          </Text>
+        )}
+        {children}
+      </section>
+    );
+  }
+
   return (
     // `min-w-0` is load-bearing wherever a section is a grid item: a grid
     // item's automatic minimum size is its content's min-content width.

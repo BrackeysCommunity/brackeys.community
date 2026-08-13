@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { adaptProfile, type RpcProfile } from "@/components/profile/ProfilePage/profile-adapter";
 import { Text } from "@/components/ui/typography";
@@ -50,13 +51,9 @@ function ProfileLoadingState() {
 
 function ProfileNotFoundState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        ✕ PROFILE NOT FOUND
-      </Text>
-      <Text size="sm" variant="muted">
-        The handle you're looking for doesn't match any profile.
-      </Text>
-    </div>
+    <NotFoundPage
+      subject="Profile"
+      message="The handle you're looking for doesn't match any profile."
+    />
   );
 }

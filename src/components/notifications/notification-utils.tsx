@@ -21,8 +21,12 @@ export type NotificationItem = {
 
 /** Category lives with the rest of the per-type copy data; an unknown
  *  type simply matches no inbox tab. */
-export function categoryOf(type: string): "collab" | "teams" | "comments" | null {
-  return (NOTIFICATION_CATEGORY as Record<string, "collab" | "teams" | "comments">)[type] ?? null;
+export function categoryOf(type: string): "collab" | "teams" | "comments" | "moderation" | null {
+  return (
+    (NOTIFICATION_CATEGORY as Record<string, "collab" | "teams" | "comments" | "moderation">)[
+      type
+    ] ?? null
+  );
 }
 
 export function renderCopy(n: NotificationItem): {
@@ -171,6 +175,55 @@ export function renderCopy(n: NotificationItem): {
           </>
         ),
         href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
+    case "comment_removed_by_staff": {
+      const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "a thread";
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            A moderator removed your comment on{" "}
+            <em className="font-medium not-italic">{subjectTitle}</em>
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
+    case "skill_request_approved": {
+      const skillName = n.data.skillName as string | undefined;
+      const requestedName = n.data.requestedName as string | undefined;
+      // Naming both sides is the whole point when staff corrected the
+      // casing or matched an existing entry — otherwise the skill on the
+      // profile silently doesn't match what was typed.
+      const renamed = skillName && requestedName && skillName !== requestedName;
+      return {
+        line: renamed ? (
+          <>
+            Your <em className="font-medium not-italic">{requestedName}</em> request was approved as{" "}
+            <em className="font-medium not-italic">{skillName}</em>
+          </>
+        ) : (
+          <>
+            Your <em className="font-medium not-italic">{skillName ?? requestedName ?? "skill"}</em>{" "}
+            request was approved
+          </>
+        ),
+        href: "/profile",
+      };
+    }
+    case "skill_request_rejected": {
+      const requestedName = (n.data.requestedName as string | undefined) ?? "skill";
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            Your <em className="font-medium not-italic">{requestedName}</em> request wasn’t approved
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: "/profile",
       };
     }
     default:

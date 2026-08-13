@@ -22,6 +22,11 @@ export function renderNotificationText(input: {
   // stored on the row at write time so no social-table joins happen here.
   const subjectTitle = (input.data.subjectTitle as string | undefined) ?? "a thread";
   const subjectHref = (input.data.subjectUrl as string | undefined) ?? null;
+  // Moderation outcomes: the reason is optional — staff write one when the
+  // removal isn't self-evident, and the copy reads without it either way.
+  const moderationReason = input.data.reason as string | undefined;
+  const skillName = input.data.skillName as string | undefined;
+  const requestedName = input.data.requestedName as string | undefined;
 
   switch (input.type) {
     case "collab_response_received":
@@ -60,6 +65,28 @@ export function renderNotificationText(input: {
         headline: `${actor} replied to your comment on "${subjectTitle}"`,
         href: subjectHref,
       };
+    case "comment_removed_by_staff":
+      return {
+        headline: moderationReason
+          ? `A moderator removed your comment on "${subjectTitle}" — ${moderationReason}`
+          : `A moderator removed your comment on "${subjectTitle}"`,
+        href: subjectHref,
+      };
+    case "skill_request_approved":
+      return {
+        headline:
+          skillName && requestedName && skillName !== requestedName
+            ? `Your "${requestedName}" skill request was approved as "${skillName}"`
+            : `Your "${skillName ?? requestedName ?? "skill"}" request was approved`,
+        href: "/profile",
+      };
+    case "skill_request_rejected":
+      return {
+        headline: moderationReason
+          ? `Your "${requestedName ?? "skill"}" request wasn't approved — ${moderationReason}`
+          : `Your "${requestedName ?? "skill"}" request wasn't approved`,
+        href: "/profile",
+      };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -81,6 +108,9 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   team_auto_archived: "Teams — your team was archived",
   comment_received: "Comments — new comment in a thread you follow",
   comment_reply: "Comments — someone replied to your comment",
+  comment_removed_by_staff: "Moderation — your comment was removed",
+  skill_request_approved: "Moderation — your skill request was approved",
+  skill_request_rejected: "Moderation — your skill request wasn't approved",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -99,6 +129,9 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "team_auto_archived",
   "comment_received",
   "comment_reply",
+  "comment_removed_by_staff",
+  "skill_request_approved",
+  "skill_request_rejected",
 ];
 
 /**
@@ -132,6 +165,13 @@ export const NOTIFICATION_DEFAULTS: Record<
   // email by default — users opt email up, not down.
   comment_received: { inApp: true, email: false, digest: true },
   comment_reply: { inApp: true, email: false, digest: true },
+  // Something was taken down without the author present. In-app alone can
+  // sit unread for weeks, and "my comment vanished" is exactly the silence
+  // that reads as the site being broken — or as staff being arbitrary.
+  comment_removed_by_staff: { inApp: true, email: true, digest: false },
+  // Outcomes the user gets on their next visit anyway; in-app is enough.
+  skill_request_approved: { inApp: true, email: false, digest: false },
+  skill_request_rejected: { inApp: true, email: false, digest: false },
 };
 
 /**
@@ -139,7 +179,10 @@ export const NOTIFICATION_DEFAULTS: Record<
  * future per-category preference grouping. Adding a type without a row
  * here is a compile error, which is the point.
  */
-export const NOTIFICATION_CATEGORY: Record<NotificationType, "collab" | "teams" | "comments"> = {
+export const NOTIFICATION_CATEGORY: Record<
+  NotificationType,
+  "collab" | "teams" | "comments" | "moderation"
+> = {
   collab_response_received: "collab",
   collab_response_accepted: "collab",
   collab_response_declined: "collab",
@@ -155,6 +198,9 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, "collab" | "teams" 
   team_auto_archived: "teams",
   comment_received: "comments",
   comment_reply: "comments",
+  comment_removed_by_staff: "moderation",
+  skill_request_approved: "moderation",
+  skill_request_rejected: "moderation",
 };
 
 /**
@@ -182,4 +228,5 @@ export const EMAIL_IMMEDIATE: ReadonlySet<NotificationType> = new Set([
   "team_invite_received",
   "team_invite_accepted",
   "team_archive_warning",
+  "comment_removed_by_staff",
 ]);

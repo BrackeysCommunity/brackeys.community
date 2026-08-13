@@ -23,8 +23,31 @@ import {
   isProjectImageKey,
 } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import router from "@/orpc/router";
 import { TodoSchema } from "@/orpc/schema";
+
+/**
+ * One shared bucket for every image-upload surface (profile covers, team
+ * avatars/banners, project covers). Anti-runaway, not anti-user.
+ */
+async function imageUploadAllowed(userId: string): Promise<boolean> {
+  return checkRateLimit("image-upload", userId, 50, 86400);
+}
+
+/**
+ * These handlers sit outside the oRPC middleware chain, so the ban check
+ * has to happen here too — a banned session reads as anonymous, matching
+ * `authMiddleware`.
+ */
+async function readUploadSession(request: Request) {
+  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  if (!session || session.user.bannedAt != null) return null;
+  return session;
+}
+
+const UPLOAD_LIMIT_RESPONSE = () =>
+  Response.json({ message: "Too many uploads today — try again tomorrow." }, { status: 429 });
 
 const handler = new OpenAPIHandler(router, {
   interceptors: [
@@ -98,14 +121,13 @@ async function handleProfileProjectImageUpload(request: Request) {
     });
   }
 
-  const session = await auth.api
-    .getSession({
-      headers: request.headers,
-    })
-    .catch(() => null);
+  const session = await readUploadSession(request);
 
   if (!session) {
     return Response.json({ message: "Authentication required." }, { status: 401 });
+  }
+  if (!(await imageUploadAllowed(session.user.id))) {
+    return UPLOAD_LIMIT_RESPONSE();
   }
 
   const formData = await request.formData().catch(() => null);
@@ -151,14 +173,13 @@ async function handleTeamAvatarUpload(request: Request) {
     });
   }
 
-  const session = await auth.api
-    .getSession({
-      headers: request.headers,
-    })
-    .catch(() => null);
+  const session = await readUploadSession(request);
 
   if (!session) {
     return Response.json({ message: "Authentication required." }, { status: 401 });
+  }
+  if (!(await imageUploadAllowed(session.user.id))) {
+    return UPLOAD_LIMIT_RESPONSE();
   }
 
   const formData = await request.formData().catch(() => null);
@@ -253,9 +274,12 @@ async function handleProjectImageUpload(request: Request) {
     });
   }
 
-  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  const session = await readUploadSession(request);
   if (!session) {
     return Response.json({ message: "Authentication required." }, { status: 401 });
+  }
+  if (!(await imageUploadAllowed(session.user.id))) {
+    return UPLOAD_LIMIT_RESPONSE();
   }
 
   const formData = await request.formData().catch(() => null);

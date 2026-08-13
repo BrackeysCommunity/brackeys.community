@@ -1,6 +1,6 @@
-import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 
-import { Text } from "@/components/ui/typography";
+import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { client } from "@/orpc/client";
 
 /**
@@ -35,20 +35,5 @@ export const Route = createFileRoute("/projects/game/$gameId")({
 });
 
 function GameNotFound() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        ✕ PROJECT NOT FOUND
-      </Text>
-      <Text size="sm" variant="muted">
-        We don't hold a page for that game.
-      </Text>
-      <Link
-        to="/jams"
-        className="mt-2 font-mono text-[10px] tracking-widest text-primary uppercase hover:underline"
-      >
-        BROWSE JAMS →
-      </Link>
-    </div>
-  );
+  return <NotFoundPage subject="Project" message="We don't hold a page for that game." />;
 }

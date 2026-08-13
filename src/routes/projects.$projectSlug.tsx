@@ -1,7 +1,7 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProjectPage } from "@/components/projects/ProjectPage";
-import { Text } from "@/components/ui/typography";
 import { projectTypeLabel } from "@/lib/project-links";
 import { client } from "@/orpc/client";
 
@@ -57,20 +57,5 @@ function ProjectRoute() {
 }
 
 function ProjectNotFound() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        ✕ PROJECT NOT FOUND
-      </Text>
-      <Text size="sm" variant="muted">
-        That link doesn't match any project here.
-      </Text>
-      <Link
-        to="/members"
-        className="mt-2 font-mono text-[10px] tracking-widest text-primary uppercase hover:underline"
-      >
-        BROWSE MEMBERS →
-      </Link>
-    </div>
-  );
+  return <NotFoundPage subject="Project" message="That link doesn't match any project here." />;
 }

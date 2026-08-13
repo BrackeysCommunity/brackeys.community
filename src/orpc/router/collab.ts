@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, eq, ilike, inArray, or, desc, asc, count, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNull, or, desc, asc, count, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -29,6 +29,7 @@ import {
   REOPEN_EXTENSION_DAYS,
 } from "@/lib/collab-lifecycle";
 import { isStaffMember } from "@/lib/discord";
+import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
 import {
@@ -36,8 +37,10 @@ import {
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { loadProjectForEditor } from "@/lib/project-editors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { escapeLike } from "@/lib/sql-like";
 import { touchTeamActivity } from "@/lib/team-activity";
+import { blockPairExists } from "@/lib/user-blocks";
 import {
   authMiddleware,
   requireAuth,
@@ -357,6 +360,11 @@ export const createPost = os
   .handler(async ({ input, context }) => {
     checkPostProfanity(input);
     assertTeamRequired(input);
+    if (!(await checkRateLimit("collab-post", context.user.id, 10, 86400))) {
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        message: "You've created a lot of posts today — try again tomorrow.",
+      });
+    }
     const { roleIds, skillIds, jamWarning, jam } = await resolveReferences(input);
     if (input.teamId != null) {
       await assertTeamLinkable(input.teamId, context.user.id);
@@ -1372,6 +1380,17 @@ export const respondToPost = os
       throw new ORPCError("BAD_REQUEST", { message: "You cannot respond to your own post." });
     }
 
+    // Neutral on purpose — never reveal a block or its direction.
+    if (await blockPairExists(post.authorId, context.user.id)) {
+      throw new ORPCError("FORBIDDEN", { message: "You can't respond to this post." });
+    }
+
+    if (!(await checkRateLimit("collab-response", context.user.id, 30, 86400))) {
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        message: "You've sent a lot of responses today — try again tomorrow.",
+      });
+    }
+
     // `collab_responses` is unique on (post_id, responder_id). Without a
     // pre-check the second application surfaced as the raw DB error,
     // which the response form rendered verbatim.
@@ -1604,23 +1623,107 @@ export const listCollabRoles = os
     return db.select().from(collabRoles);
   });
 
+const roleNameSchema = z.string().trim().min(1).max(100);
+const roleCategorySchema = z
+  .string()
+  .trim()
+  .max(100)
+  .transform((v) => (v.length === 0 ? null : v))
+  .nullable();
+
+/**
+ * Names are unique case-sensitively in the DB, which isn't what "already in
+ * the vocabulary" means to a moderator — an exact `ilike` (no wildcards,
+ * hence the escape) is.
+ */
+async function assertRoleNameFree(name: string, exceptId?: number): Promise<void> {
+  const [match] = await db
+    .select({ id: collabRoles.id, name: collabRoles.name })
+    .from(collabRoles)
+    .where(ilike(collabRoles.name, escapeLike(name)))
+    .limit(1);
+  if (match && match.id !== exceptId) {
+    throw new ORPCError("CONFLICT", { message: `“${match.name}” already exists.` });
+  }
+}
+
 export const addCollabRole = os
   .use(requireStaff)
-  .input(z.object({ name: z.string().min(1).max(100), category: z.string().max(100).optional() }))
-  .handler(async ({ input }) => {
+  .input(z.object({ name: roleNameSchema, category: roleCategorySchema.optional() }))
+  .handler(async ({ input, context }) => {
+    await assertRoleNameFree(input.name);
     const [role] = await db
       .insert(collabRoles)
-      .values({ name: input.name, category: input.category })
+      .values({ name: input.name, category: input.category ?? null })
       .returning();
 
+    await recordModerationAction({
+      action: "vocabulary_created",
+      actorId: context.user.id,
+      targetType: "collab_role",
+      targetId: role?.id,
+      metadata: { name: input.name, category: input.category ?? null },
+    });
     return role;
+  });
+
+/** Posts reference roles by id, so a correction propagates on its own. */
+export const updateCollabRole = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      roleId: z.number(),
+      name: roleNameSchema,
+      category: roleCategorySchema.optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    await assertRoleNameFree(input.name, input.roleId);
+    const [before] = await db
+      .select({ name: collabRoles.name, category: collabRoles.category })
+      .from(collabRoles)
+      .where(eq(collabRoles.id, input.roleId))
+      .limit(1);
+    const [updated] = await db
+      .update(collabRoles)
+      .set({ name: input.name, category: input.category ?? null })
+      .where(eq(collabRoles.id, input.roleId))
+      .returning();
+    if (!updated) throw new ORPCError("NOT_FOUND", { message: "Role not found." });
+
+    await recordModerationAction({
+      action: "vocabulary_renamed",
+      actorId: context.user.id,
+      targetType: "collab_role",
+      targetId: updated.id,
+      metadata: {
+        from: before?.name ?? null,
+        to: updated.name,
+        fromCategory: before?.category ?? null,
+        toCategory: updated.category,
+      },
+    });
+    return updated;
   });
 
 export const removeCollabRole = os
   .use(requireAdmin)
   .input(z.object({ roleId: z.number() }))
-  .handler(async ({ input }) => {
-    await db.delete(collabRoles).where(eq(collabRoles.id, input.roleId));
+  .handler(async ({ input, context }) => {
+    const [deleted] = await db
+      .delete(collabRoles)
+      .where(eq(collabRoles.id, input.roleId))
+      .returning();
+
+    if (deleted) {
+      await recordModerationAction({
+        action: "vocabulary_deleted",
+        actorId: context.user.id,
+        targetType: "collab_role",
+        targetId: deleted.id,
+        metadata: { name: deleted.name, category: deleted.category },
+      });
+    }
     return { success: true };
   });
 
@@ -1720,6 +1823,27 @@ export const reportPost = os
 
     checkProfanity(input.reason, "Report reason");
 
+    const [open] = await db
+      .select({ id: collabPostReports.id })
+      .from(collabPostReports)
+      .where(
+        and(
+          eq(collabPostReports.postId, input.postId),
+          eq(collabPostReports.reporterId, context.user.id),
+          isNull(collabPostReports.resolvedAt),
+        ),
+      )
+      .limit(1);
+    if (open) {
+      throw new ORPCError("BAD_REQUEST", { message: "You've already reported this post." });
+    }
+
+    // Same bucket as `reportComment`, so a spammer gets 10/hr total across
+    // both surfaces rather than 10+10.
+    if (!(await checkRateLimit("report", context.user.id, 10))) {
+      throw new ORPCError("TOO_MANY_REQUESTS", { message: "Too many reports — try again later." });
+    }
+
     const [report] = await db
       .insert(collabPostReports)
       .values({
@@ -1734,22 +1858,148 @@ export const reportPost = os
 
 export const listReports = os
   .use(requireStaff)
-  .input(z.object({ postId: z.number().optional() }))
+  .input(z.object({ postId: z.number().optional(), includeResolved: z.boolean().default(false) }))
   .handler(async ({ input }) => {
-    if (input.postId) {
-      return db
-        .select()
-        .from(collabPostReports)
-        .where(eq(collabPostReports.postId, input.postId))
-        .orderBy(desc(collabPostReports.createdAt));
+    const conditions = [
+      input.postId ? eq(collabPostReports.postId, input.postId) : undefined,
+      input.includeResolved ? undefined : isNull(collabPostReports.resolvedAt),
+    ].filter((c) => c != null);
+
+    const rows = await db
+      .select({
+        id: collabPostReports.id,
+        postId: collabPostReports.postId,
+        reporterId: collabPostReports.reporterId,
+        reason: collabPostReports.reason,
+        createdAt: collabPostReports.createdAt,
+        resolvedAt: collabPostReports.resolvedAt,
+        resolvedById: collabPostReports.resolvedById,
+        postTitle: collabPosts.title,
+        postStatus: collabPosts.status,
+        postAuthorId: collabPosts.authorId,
+      })
+      .from(collabPostReports)
+      .innerJoin(collabPosts, eq(collabPostReports.postId, collabPosts.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(
+        sql`${collabPostReports.resolvedAt} ASC NULLS FIRST`,
+        desc(collabPostReports.createdAt),
+      );
+
+    const profiles = await db
+      .select({
+        id: developerProfiles.id,
+        discordUsername: developerProfiles.discordUsername,
+        guildNickname: developerProfiles.guildNickname,
+        avatarUrl: developerProfiles.avatarUrl,
+      })
+      .from(developerProfiles)
+      .where(
+        inArray(developerProfiles.id, [
+          ...new Set(rows.flatMap((r) => [r.reporterId, r.postAuthorId])),
+        ]),
+      );
+    const byId = new Map(
+      profiles.map((p) => [
+        p.id,
+        {
+          id: p.id,
+          displayName: p.guildNickname ?? p.discordUsername ?? "Member",
+          avatarUrl: p.avatarUrl,
+        },
+      ]),
+    );
+
+    return rows.map((r) => ({
+      ...r,
+      reporter: byId.get(r.reporterId) ?? null,
+      postAuthor: byId.get(r.postAuthorId) ?? null,
+    }));
+  });
+
+/**
+ * Mirrors `resolveCommentReport`: dismiss clears the queue entry;
+ * `close_post` also stops the post from recruiting (same effect and author
+ * notification as a staff `closePost`). Hard-delete of junk reports stays
+ * admin-only via `deleteReport`.
+ */
+export const resolvePostReport = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      reportId: z.number().int().positive(),
+      action: z.enum(["dismiss", "close_post"]),
+      /** Recorded in the moderation log; the close notice stays generic. */
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [report] = await db
+      .select()
+      .from(collabPostReports)
+      .where(eq(collabPostReports.id, input.reportId))
+      .limit(1);
+    if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
+    if (report.resolvedAt) return { success: true };
+
+    if (input.action === "close_post") {
+      const [closed] = await db
+        .update(collabPosts)
+        .set({ status: "party_full", updatedAt: new Date() })
+        .where(and(eq(collabPosts.id, report.postId), eq(collabPosts.status, "recruiting")))
+        .returning();
+      if (closed) {
+        await notify({
+          userId: closed.authorId,
+          type: "collab_post_closed_by_staff",
+          actorId: context.user.id,
+          entityType: "collab_post",
+          entityId: String(closed.id),
+          data: { postId: closed.id, postTitle: closed.title },
+        });
+      }
     }
-    return db.select().from(collabPostReports).orderBy(desc(collabPostReports.createdAt));
+
+    await db
+      .update(collabPostReports)
+      .set({ resolvedAt: new Date(), resolvedById: context.user.id })
+      .where(eq(collabPostReports.id, report.id));
+
+    await recordModerationAction({
+      action: input.action === "close_post" ? "post_closed" : "post_report_dismissed",
+      actorId: context.user.id,
+      targetType: input.action === "close_post" ? "collab_post" : "post_report",
+      targetId: input.action === "close_post" ? report.postId : report.id,
+      subjectUserId: report.reporterId,
+      reason: input.reason,
+      metadata: { reportId: report.id, postId: report.postId, reportReason: report.reason },
+    });
+    return { success: true };
   });
 
 export const deleteReport = os
   .use(requireAdmin)
   .input(z.object({ reportId: z.number() }))
-  .handler(async ({ input }) => {
-    await db.delete(collabPostReports).where(eq(collabPostReports.id, input.reportId));
+  .handler(async ({ input, context }) => {
+    const [deleted] = await db
+      .delete(collabPostReports)
+      .where(eq(collabPostReports.id, input.reportId))
+      .returning();
+
+    // A hard delete is the one action that destroys its own evidence, so
+    // the log keeps what the row said.
+    if (deleted) {
+      await recordModerationAction({
+        action: "post_report_deleted",
+        actorId: context.user.id,
+        targetType: "post_report",
+        targetId: deleted.id,
+        metadata: {
+          postId: deleted.postId,
+          reporterId: deleted.reporterId,
+          reportReason: deleted.reason,
+        },
+      });
+    }
     return { success: true };
   });

@@ -20,7 +20,6 @@ const MicroLabel = forwardRef<HTMLElement, MicroLabelProps>(
   ({ variant = "muted", className, ...props }, ref) => (
     <Text
       ref={ref}
-      monospace
       size="xs"
       variant={variant}
       className={cn("tracking-widest", className)}

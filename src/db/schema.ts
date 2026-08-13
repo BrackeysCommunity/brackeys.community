@@ -22,6 +22,14 @@ import {
 
 export const authSchema = pgSchema("auth");
 export const userSchema = pgSchema("user");
+/**
+ * Moderation. Most of it is the Discord bot's — those tables are mirrored
+ * here for types and FK awareness, and this app never writes them (they're
+ * keyed on `guild_id` and Discord snowflakes, and the bot owns their
+ * migrations). `moderation_actions` at the bottom of this file is ours: the
+ * site's moderation log, kept alongside the guild's so an incident review
+ * reads one schema instead of two.
+ */
 export const hammerSchema = pgSchema("hammer");
 export const collabSchema = pgSchema("collab");
 export const teamSchema = pgSchema("team");
@@ -51,6 +59,13 @@ export const user = authSchema.table("user", {
   image: text("image"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
+  // Ban state lives on the identity row (not developer_profiles) so it
+  // survives profile deletion/anonymization.
+  bannedAt: timestamp("banned_at"),
+  banReason: text("ban_reason"),
+  bannedById: text("banned_by_id").references((): AnyPgColumn => user.id, {
+    onDelete: "set null",
+  }),
 });
 
 export const session = authSchema.table("session", {
@@ -290,14 +305,19 @@ export type NotificationType =
   | "team_archive_warning"
   | "team_auto_archived"
   | "comment_received"
-  | "comment_reply";
+  | "comment_reply"
+  | "comment_removed_by_staff"
+  | "skill_request_approved"
+  | "skill_request_rejected";
 
 export type NotificationEntityType =
   | "collab_post"
   | "collab_response"
   | "team"
   | "team_invite"
-  | "thread";
+  | "thread"
+  | "comment"
+  | "skill_request";
 
 export const notifications = userSchema.table(
   "notifications",
@@ -658,6 +678,8 @@ export const collabPostReports = collabSchema.table("collab_post_reports", {
     .references(() => user.id, { onDelete: "cascade" }),
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
 });
 
 // ── Teams (team schema) ──────────────────────────────────────────────────────
@@ -1307,8 +1329,8 @@ export const userBlocks = socialSchema.table(
 );
 
 /**
- * Mirrors `collabPostReports` but with resolution state so staff get a
- * queue, not just a log.
+ * Comment twin of `collabPostReports`; both carry resolution state so
+ * staff get a queue, not just a log.
  */
 export const commentReports = socialSchema.table("comment_reports", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
@@ -1323,3 +1345,72 @@ export const commentReports = socialSchema.table("comment_reports", {
   resolvedAt: timestamp("resolved_at"),
   resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
 });
+
+// ── Moderation log (ours, alongside the bot's) ──────────────────────────────
+
+/**
+ * Every staff action taken on the site, and why. The notification carrying
+ * a removal reason is the user's copy and they can delete it; this is the
+ * record that survives — "why did this come down six months ago" needs an
+ * answer that doesn't depend on the recipient keeping their inbox.
+ */
+export type ModerationActionType =
+  | "comment_removed"
+  | "comment_report_dismissed"
+  | "post_closed"
+  | "post_report_dismissed"
+  | "post_report_deleted"
+  | "skill_request_approved"
+  | "skill_request_rejected"
+  | "user_banned"
+  | "user_unbanned"
+  | "vocabulary_created"
+  | "vocabulary_renamed"
+  | "vocabulary_deleted";
+
+export type ModerationTargetType =
+  | "comment"
+  | "comment_report"
+  | "collab_post"
+  | "post_report"
+  | "skill_request"
+  | "skill"
+  | "collab_role"
+  | "user";
+
+export const moderationActions = hammerSchema.table(
+  "moderation_actions",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    action: text("action").$type<ModerationActionType>().notNull(),
+    // Both people are `set null`, never cascade: a log row that disappears
+    // with the account is not a log. `actorName` is the snapshot that keeps
+    // the row readable afterwards — a moderator acting in an official
+    // capacity, not personal data. The subject is deliberately *not*
+    // snapshotted, so an account erasure anonymizes what was done to them
+    // while leaving the fact that it happened.
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    subjectUserId: text("subject_user_id").references(() => user.id, { onDelete: "set null" }),
+    targetType: text("target_type").$type<ModerationTargetType>().notNull(),
+    /** Text, not a FK: targets span eight tables and outlive their rows. */
+    targetId: text("target_id"),
+    /** What staff typed, when they typed one. */
+    reason: text("reason"),
+    /** Names, titles, and previous values — whatever makes the row legible
+     * without joining to tables the target may have been deleted from. */
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("moderation_actions_created_idx").on(t.createdAt.desc()),
+    // "everything done to this member" and "everything this mod did" are
+    // the two questions an incident review actually asks.
+    index("moderation_actions_subject_idx").on(t.subjectUserId, t.createdAt.desc()),
+    index("moderation_actions_actor_idx").on(t.actorId, t.createdAt.desc()),
+    index("moderation_actions_target_idx").on(t.targetType, t.targetId),
+  ],
+);

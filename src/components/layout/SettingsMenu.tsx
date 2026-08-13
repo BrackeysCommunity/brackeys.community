@@ -16,8 +16,6 @@ import {
 import { useAppSettings } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 
-const ITEM_CLASS = "text-xs font-bold tracking-widest uppercase";
-
 /**
  * Header cog — the same prefs the mobile shell shows in
  * `AppSettingsDialog` (theme, reduce motion, mute), inline in a dropdown
@@ -37,23 +35,17 @@ export function SettingsMenu() {
         <HugeiconsIcon icon={Settings02Icon} size={16} />
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        align="end"
-        sideOffset={8}
-        className="min-w-[200px] border border-muted bg-background/95 p-1 backdrop-blur-md"
-      >
+      <DropdownMenuContent align="end" sideOffset={8} className="min-w-[200px]">
         {/* The label registers itself with the enclosing group — base-ui
             throws outside one, and RadioGroup is not that group. */}
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="text-[10px] font-bold tracking-widest uppercase">
-            Theme
-          </DropdownMenuLabel>
+          <DropdownMenuLabel>Theme</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={themeId}
             onValueChange={(value) => setTheme(String(value))}
           >
             {themes.map((t) => (
-              <DropdownMenuRadioItem key={t.id} value={t.id} className={ITEM_CLASS}>
+              <DropdownMenuRadioItem key={t.id} value={t.id}>
                 {t.name}
               </DropdownMenuRadioItem>
             ))}
@@ -62,14 +54,10 @@ export function SettingsMenu() {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuCheckboxItem
-          checked={reduceMotion}
-          onCheckedChange={setReduceMotion}
-          className={ITEM_CLASS}
-        >
+        <DropdownMenuCheckboxItem checked={reduceMotion} onCheckedChange={setReduceMotion}>
           Reduce motion
         </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem checked={muted} onCheckedChange={setMuted} className={ITEM_CLASS}>
+        <DropdownMenuCheckboxItem checked={muted} onCheckedChange={setMuted}>
           <HugeiconsIcon icon={muted ? VolumeMute02Icon : VolumeHighIcon} size={14} />
           Mute
         </DropdownMenuCheckboxItem>

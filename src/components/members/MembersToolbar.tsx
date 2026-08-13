@@ -192,12 +192,7 @@ function MembersSortMenu({
           }
         >
           {SORT_OPTIONS.map((option) => (
-            <DropdownMenuRadioItem
-              key={option.value}
-              value={option.value}
-              closeOnClick
-              className="tracking-widest"
-            >
+            <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
               {option.label}
             </DropdownMenuRadioItem>
           ))}
@@ -253,9 +248,9 @@ function AvailabilityMenu({
         {label}
       </ComboboxTrigger>
       <ComboboxContent align="start" className="w-48 min-w-48">
-        <ComboboxList className="p-1">
+        <ComboboxList>
           {(option: (typeof AVAILABILITY_OPTIONS)[number]) => (
-            <ComboboxItem key={option.value} value={option} className="tracking-widest">
+            <ComboboxItem key={option.value} value={option}>
               {option.label}
             </ComboboxItem>
           )}
@@ -296,16 +291,11 @@ function RateMenu({ rate, setSearch }: { rate?: number; setSearch: SetMembersSea
             setSearch({ rate: value === "any" ? undefined : Number(value) })
           }
         >
-          <DropdownMenuRadioItem value="any" closeOnClick className="tracking-widest">
+          <DropdownMenuRadioItem value="any" closeOnClick>
             ANY RATE
           </DropdownMenuRadioItem>
           {RATE_OPTIONS.map((option) => (
-            <DropdownMenuRadioItem
-              key={option.value}
-              value={String(option.value)}
-              closeOnClick
-              className="tracking-widest"
-            >
+            <DropdownMenuRadioItem key={option.value} value={String(option.value)} closeOnClick>
               {option.label}
             </DropdownMenuRadioItem>
           ))}
@@ -421,14 +411,14 @@ function SkillFilterCombobox({
       </ComboboxTrigger>
       <ComboboxContent align="start" className="w-56 min-w-56">
         <ComboboxInput placeholder="Filter skills…" showTrigger={false} />
-        <ComboboxList className="p-1">
+        <ComboboxList>
           {(skill: (typeof skills)[number]) => (
-            <ComboboxItem key={skill.id} value={skill} className="tracking-widest uppercase">
+            <ComboboxItem key={skill.id} value={skill}>
               {skill.name}
             </ComboboxItem>
           )}
         </ComboboxList>
-        <ComboboxEmpty className="tracking-widest uppercase">No match</ComboboxEmpty>
+        <ComboboxEmpty>No match</ComboboxEmpty>
       </ComboboxContent>
     </Combobox>
   );

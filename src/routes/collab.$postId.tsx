@@ -1,7 +1,8 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { CollabPostPage } from "@/components/collab/CollabPostPage";
-import { htmlToPlainText, Text } from "@/components/ui/typography";
+import { NotFoundPage } from "@/components/layout/NotFoundPage";
+import { htmlToPlainText } from "@/components/ui/typography";
 import { client } from "@/orpc/client";
 
 /**
@@ -53,21 +54,5 @@ function CollabPostRoute() {
 }
 
 function PostNotFound() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        ✕ POST NOT FOUND
-      </Text>
-      <Text size="sm" variant="muted">
-        This post does not exist or has been deleted.
-      </Text>
-      <Link
-        to="/collab"
-        search={{}}
-        className="mt-2 text-xs tracking-widest text-primary uppercase hover:underline"
-      >
-        BROWSE THE BOARD →
-      </Link>
-    </div>
-  );
+  return <NotFoundPage subject="Post" message="This post does not exist or has been deleted." />;
 }

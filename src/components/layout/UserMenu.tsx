@@ -56,45 +56,34 @@ export function UserMenu({ user }: UserMenuProps) {
           />
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent
-          align="end"
-          sideOffset={8}
-          className="min-w-[180px] border border-muted bg-background/95 p-1 backdrop-blur-md"
-        >
+        <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
           {/* The name row is a group label, not an item — it takes no focus
               and no hover. base-ui requires it to sit inside a Group, which
               it then labels. */}
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="border-b border-muted/40 text-xs font-bold tracking-widest text-foreground uppercase">
+            <DropdownMenuLabel className="border-b border-muted/40 text-xs text-foreground">
               {truncateMiddle(user.name ?? "USER", 18)}
             </DropdownMenuLabel>
-            <DropdownMenuItem
-              className="text-xs font-bold tracking-widest uppercase"
-              render={<Link to="/profile" />}
-            >
+            <DropdownMenuItem render={<Link to="/profile" />}>
               <HugeiconsIcon icon={UserIcon} size={14} />
-              MY PROFILE
+              My profile
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="text-xs font-bold tracking-widest uppercase"
               render={
                 <Link data-testid="view-public-link" to="/profile/$userId" params={profileParams} />
               }
             >
               <HugeiconsIcon icon={Share01Icon} size={14} />
-              VIEW PUBLIC
+              View public
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-xs font-bold tracking-widest uppercase"
-              onClick={() => setSettingsOpen(true)}
-            >
+            <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
               <HugeiconsIcon icon={Settings02Icon} size={14} />
-              SETTINGS
+              Settings
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-xs font-bold tracking-widest text-destructive uppercase"
+            className="text-destructive"
             onClick={async () => {
               await authClient.signOut({
                 fetchOptions: {
@@ -104,7 +93,7 @@ export function UserMenu({ user }: UserMenuProps) {
             }}
           >
             <HugeiconsIcon icon={Logout03Icon} size={14} />
-            SIGN OUT
+            Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

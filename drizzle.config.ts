@@ -15,5 +15,5 @@ export default defineConfig({
   // themselves, so generate still saw them — but `introspect`/`pull` and
   // `push` honour this list, and would have reported the team tables as
   // extraneous.
-  schemaFilter: ["public", "auth", "user", "hammer", "collab", "team", "itch", "project"],
+  schemaFilter: ["public", "auth", "user", "hammer", "collab", "team", "itch", "project", "social"],
 });

@@ -33,10 +33,12 @@ import {
 } from "@/lib/profile-project-image-storage";
 import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
 import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
+import { checkRateLimit } from "@/lib/rate-limit";
 // The house home for LIKE escaping — this file carried its own copy, which
 // (unlike the shared one) left a backslash in the search term unescaped.
 import { escapeLike } from "@/lib/sql-like";
 import { touchTeamActivity } from "@/lib/team-activity";
+import { blockPairExists } from "@/lib/user-blocks";
 import { authMiddleware, requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
 
 /** Postgres `unique_violation`. */
@@ -906,6 +908,17 @@ export const inviteToTeam = os
 
     if (await getMembership(input.teamId, input.inviteeId)) {
       throw new ORPCError("BAD_REQUEST", { message: "That person is already on this team." });
+    }
+
+    // Neutral on purpose — never reveal a block or its direction.
+    if (await blockPairExists(input.inviteeId, context.user.id)) {
+      throw new ORPCError("FORBIDDEN", { message: "You can't invite this person." });
+    }
+
+    if (!(await checkRateLimit("team-invite", context.user.id, 50, 86400))) {
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        message: "You've sent a lot of invites today — try again tomorrow.",
+      });
     }
 
     const [existing] = await db

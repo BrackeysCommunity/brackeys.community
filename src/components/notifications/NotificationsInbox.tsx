@@ -16,9 +16,7 @@ const PAGE_SIZE = 20;
 /** One comfortable row — 36px avatar inside `py-3` — before measurement. */
 const ROW_ESTIMATE = 68;
 
-// No notification type maps to a "system" category today — the tab comes
-// back the day one does.
-export type InboxFilter = "all" | "unread" | "collab" | "teams" | "comments";
+export type InboxFilter = "all" | "unread" | "collab" | "teams" | "comments" | "moderation";
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -26,6 +24,7 @@ const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: "collab", label: "Collab" },
   { value: "teams", label: "Teams" },
   { value: "comments", label: "Comments" },
+  { value: "moderation", label: "Moderation" },
 ];
 
 export interface NotificationsInboxProps {
@@ -74,6 +73,7 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
     if (filter === "collab") return flat.filter((n) => categoryOf(n.type) === "collab");
     if (filter === "teams") return flat.filter((n) => categoryOf(n.type) === "teams");
     if (filter === "comments") return flat.filter((n) => categoryOf(n.type) === "comments");
+    if (filter === "moderation") return flat.filter((n) => categoryOf(n.type) === "moderation");
     return flat;
   }, [pages, filter]);
 

@@ -2,22 +2,14 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { oAuthProxy } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { and, eq } from "drizzle-orm";
 import { createElement } from "react";
 
 import { db } from "@/db";
-import { user, session, account, verification, developerProfiles } from "@/db/schema";
+import { user, session, account, verification } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
 import { cleanupUserData } from "@/lib/account-deletion";
-import { openBetterAuthToken } from "@/lib/better-auth-tokens";
-import {
-  discordAvatarUrl,
-  fetchDiscordUser,
-  fetchGuildMember,
-  isDiscordAvatarUrl,
-  resolveRoleNames,
-} from "@/lib/discord";
 import { sendEmail } from "@/lib/email";
+import { syncDiscordProfile } from "@/lib/guild-sync";
 import { purgePresence } from "@/lib/presence";
 
 export const auth = betterAuth({
@@ -56,6 +48,15 @@ export const auth = betterAuth({
     encryptOAuthTokens: true,
   },
   user: {
+    // Surfaced on the session so the ban check in `src/orpc/middleware/auth.ts`
+    // costs no extra query. Never client-writable.
+    additionalFields: {
+      bannedAt: {
+        type: "date",
+        required: false,
+        input: false,
+      },
+    },
     deleteUser: {
       enabled: true,
       // OAuth-only users have no password, so deletion always goes through
@@ -126,91 +127,7 @@ export const auth = betterAuth({
     session: {
       create: {
         after: async (session) => {
-          const [userRecord] = await db
-            .select()
-            .from(user)
-            .where(eq(user.id, session.userId))
-            .limit(1);
-          if (!userRecord) return;
-
-          // Fetch Discord guild data from the stored access token
-          let discordId: string | null = null;
-          let guildNickname: string | null = null;
-          let guildJoinedAt: Date | null = null;
-          let guildRoles: string[] | null = null;
-          let latestDiscordAvatarUrl: string | null = null;
-
-          try {
-            const [discordAccount] = await db
-              .select()
-              .from(account)
-              .where(and(eq(account.userId, session.userId), eq(account.providerId, "discord")))
-              .limit(1);
-
-            if (discordAccount?.accessToken) {
-              discordId = discordAccount.accountId;
-              // Selected straight from the account table, so decryption is
-              // on us (better-auth only decrypts in its own endpoints).
-              const discordToken = await openBetterAuthToken(discordAccount.accessToken);
-              try {
-                // The member payload embeds the user object, so guild members
-                // get their current avatar with no extra Discord call.
-                const member = await fetchGuildMember(discordToken);
-                guildNickname = member.nick;
-                guildJoinedAt = new Date(member.joined_at);
-                guildRoles = resolveRoleNames(member.roles);
-                if (member.user) latestDiscordAvatarUrl = discordAvatarUrl(member.user);
-              } catch {
-                // User not in guild (or rate limited) — continue without guild data
-              }
-              if (!latestDiscordAvatarUrl) {
-                latestDiscordAvatarUrl = discordAvatarUrl(await fetchDiscordUser(discordToken));
-              }
-            }
-          } catch {
-            // Token may be expired or Discord unavailable — continue with what we have
-          }
-
-          // Refresh a stale Discord avatar, but never clobber a non-Discord
-          // one (e.g. sourced from GitHub).
-          let avatarUrl = userRecord.image;
-          if (
-            latestDiscordAvatarUrl &&
-            latestDiscordAvatarUrl !== userRecord.image &&
-            (userRecord.image == null || isDiscordAvatarUrl(userRecord.image))
-          ) {
-            avatarUrl = latestDiscordAvatarUrl;
-            await db
-              .update(user)
-              .set({ image: avatarUrl, updatedAt: new Date() })
-              .where(eq(user.id, session.userId));
-          }
-
-          await db
-            .insert(developerProfiles)
-            .values({
-              id: session.userId,
-              discordId,
-              discordUsername: userRecord.name,
-              avatarUrl,
-              guildNickname,
-              guildJoinedAt,
-              guildRoles,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .onConflictDoUpdate({
-              target: developerProfiles.id,
-              set: {
-                discordId: discordId ?? undefined,
-                discordUsername: userRecord.name,
-                avatarUrl,
-                guildNickname: guildNickname ?? undefined,
-                guildJoinedAt: guildJoinedAt ?? undefined,
-                guildRoles: guildRoles ?? undefined,
-                updatedAt: new Date(),
-              },
-            });
+          await syncDiscordProfile(session.userId);
         },
       },
     },

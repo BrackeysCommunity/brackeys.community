@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { TeamPage, type RpcTeam } from "@/components/teams/TeamPage";
 import { Text } from "@/components/ui/typography";
 import { orpc } from "@/orpc/client";
@@ -37,13 +38,6 @@ function TeamLoadingState() {
 
 function TeamNotFoundState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        ✕ TEAM NOT FOUND
-      </Text>
-      <Text size="sm" variant="muted">
-        The handle you're looking for doesn't match any team.
-      </Text>
-    </div>
+    <NotFoundPage subject="Team" message="The handle you're looking for doesn't match any team." />
   );
 }

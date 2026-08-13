@@ -150,7 +150,7 @@ function SelectContent({
           data-align-trigger={alignWithTrigger}
           className={cn(
             "bg-popover text-popover-foreground data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded shadow-md ring-1 ring-foreground/10 duration-100",
+            "chonk-emboss-panel relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg px-1 py-2 duration-100",
             "data-[align-trigger=true]:animate-none",
             className,
           )}
@@ -169,7 +169,10 @@ function SelectLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) 
   return (
     <SelectPrimitive.GroupLabel
       data-slot="select-label"
-      className={cn("px-2 py-2 text-xs text-muted-foreground", className)}
+      className={cn(
+        "px-2 py-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase",
+        className,
+      )}
       {...props}
     />
   );

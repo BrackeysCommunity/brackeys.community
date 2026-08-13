@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import {
+  collabPosts,
   commentReports,
   comments,
   developerProfiles,
@@ -22,9 +23,11 @@ import {
   type SubjectRef,
 } from "@/lib/comment-subjects";
 import { isStaffMember } from "@/lib/discord";
+import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { blockPairExists } from "@/lib/user-blocks";
 import {
   authMiddleware,
   requireAuth,
@@ -109,21 +112,6 @@ async function blockedByViewer(viewerId: string | null): Promise<Set<string>> {
     .from(userBlocks)
     .where(eq(userBlocks.blockerId, viewerId));
   return new Set(rows.map((r) => r.blockedId));
-}
-
-/** Whether a block exists in either direction between two users. */
-async function blockPairExists(a: string, b: string): Promise<boolean> {
-  const [row] = await db
-    .select({ blockerId: userBlocks.blockerId })
-    .from(userBlocks)
-    .where(
-      or(
-        and(eq(userBlocks.blockerId, a), eq(userBlocks.blockedId, b)),
-        and(eq(userBlocks.blockerId, b), eq(userBlocks.blockedId, a)),
-      ),
-    )
-    .limit(1);
-  return Boolean(row);
 }
 
 /**
@@ -575,7 +563,14 @@ export const editComment = os
 
 export const deleteComment = os
   .use(requireAuthWithPermissions)
-  .input(z.object({ commentId: z.number().int().positive() }))
+  .input(
+    z.object({
+      commentId: z.number().int().positive(),
+      /** Shown to the author in the removal notice. Staff/owner path only —
+       * an author deleting their own comment isn't told why they did it. */
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
   .handler(async ({ input, context }) => {
     const [comment] = await db
       .select()
@@ -605,8 +600,70 @@ export const deleteComment = os
       .update(comments)
       .set({ deletedAt: new Date(), deletedById: context.user.id })
       .where(eq(comments.id, comment.id));
+
+    if (comment.authorId !== context.user.id) {
+      await recordModerationAction({
+        action: "comment_removed",
+        actorId: context.user.id,
+        targetType: "comment",
+        targetId: comment.id,
+        subjectUserId: comment.authorId,
+        reason: input.reason,
+        metadata: { threadId: comment.threadId, preview: comment.content.slice(0, 280) },
+      });
+    }
+
+    await notifyCommentRemoved({
+      comment,
+      removedById: context.user.id,
+      reason: input.reason,
+    });
     return { success: true };
   });
+
+/**
+ * Tell the author their comment came down, when someone else took it down.
+ * Silence here is what makes moderation feel arbitrary — the comment simply
+ * isn't there next time they look, with nothing saying who or why.
+ *
+ * Best-effort and never awaited into the caller's failure path: a removal
+ * that succeeded must not report failure because the notify leg did.
+ */
+async function notifyCommentRemoved(params: {
+  comment: { id: number; threadId: number; authorId: string | null; content: string };
+  removedById: string;
+  reason?: string;
+}): Promise<void> {
+  const { comment, removedById, reason } = params;
+  if (!comment.authorId || comment.authorId === removedById) return;
+
+  try {
+    const [thread] = await db
+      .select()
+      .from(threads)
+      .where(eq(threads.id, comment.threadId))
+      .limit(1);
+    const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
+
+    await notify({
+      userId: comment.authorId,
+      type: "comment_removed_by_staff",
+      // No actorId: which moderator acted is staff's business, and naming
+      // them turns a policy decision into a personal one.
+      entityType: "comment",
+      entityId: String(comment.id),
+      data: {
+        subjectTitle: subject?.title ?? "a thread",
+        subjectUrl: subject?.url ?? null,
+        commentId: comment.id,
+        preview: comment.content.slice(0, 140),
+        ...(reason ? { reason } : {}),
+      },
+    });
+  } catch (err) {
+    console.warn("[comments] removal notice failed", { commentId: comment.id, err });
+  }
+}
 
 export const reportComment = os
   .use(requireAuth)
@@ -702,9 +759,14 @@ export const listCommentReports = os
         commentAuthorId: comments.authorId,
         commentDeletedAt: comments.deletedAt,
         threadId: comments.threadId,
+        // Where the comment lives, so the queue can link to it in situ.
+        subjectType: threads.subjectType,
+        subjectCollabPostId: threads.collabPostId,
+        subjectProfileUserId: threads.profileUserId,
       })
       .from(commentReports)
       .innerJoin(comments, eq(commentReports.commentId, comments.id))
+      .innerJoin(threads, eq(comments.threadId, threads.id))
       .where(input.includeResolved ? undefined : isNull(commentReports.resolvedAt))
       .orderBy(sql`${commentReports.resolvedAt} ASC NULLS FIRST`, desc(commentReports.createdAt));
     const authors = await authorsByIds(
@@ -719,12 +781,75 @@ export const listCommentReports = os
     }));
   });
 
+/**
+ * Everything said site-wide, newest first. The report queue is reactive —
+ * this is the pass staff make when nobody has reported anything yet.
+ */
+export const listRecentComments = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(15),
+      includeRemoved: z.boolean().default(false),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const where = input.includeRemoved ? undefined : isNull(comments.deletedAt);
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(comments).where(where),
+      db
+        .select({
+          id: comments.id,
+          content: comments.content,
+          authorId: comments.authorId,
+          depth: comments.depth,
+          createdAt: comments.createdAt,
+          editedAt: comments.editedAt,
+          deletedAt: comments.deletedAt,
+          subjectType: threads.subjectType,
+          subjectCollabPostId: threads.collabPostId,
+          subjectProfileUserId: threads.profileUserId,
+          postTitle: collabPosts.title,
+        })
+        .from(comments)
+        .innerJoin(threads, eq(comments.threadId, threads.id))
+        .leftJoin(collabPosts, eq(threads.collabPostId, collabPosts.id))
+        .where(where)
+        .orderBy(desc(comments.id))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const people = await authorsByIds(
+      rows
+        .flatMap((r) => [r.authorId, r.subjectProfileUserId])
+        .filter((id): id is string => id != null),
+    );
+
+    const total = totals?.total ?? 0;
+    return {
+      items: rows.map((r) => ({
+        ...r,
+        author: r.authorId ? (people.get(r.authorId) ?? null) : null,
+        subjectOwner: r.subjectProfileUserId ? (people.get(r.subjectProfileUserId) ?? null) : null,
+      })),
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
+  });
+
 export const resolveCommentReport = os
   .use(requireStaff)
   .input(
     z.object({
       reportId: z.number().int().positive(),
       action: z.enum(["dismiss", "remove_comment"]),
+      /** Shown to the comment's author when the action is a removal. */
+      reason: z.string().trim().max(500).optional(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -737,18 +862,55 @@ export const resolveCommentReport = os
     if (report.resolvedAt) return { success: true };
 
     if (input.action === "remove_comment") {
-      await db
+      const [removed] = await db
         .update(comments)
         .set({
           deletedAt: sql`COALESCE(${comments.deletedAt}, now())`,
           deletedById: context.user.id,
         })
-        .where(and(eq(comments.id, report.commentId), isNull(comments.deletedAt)));
+        .where(and(eq(comments.id, report.commentId), isNull(comments.deletedAt)))
+        .returning();
+      // Only on a real transition — a comment already tombstoned by an
+      // earlier report shouldn't notify its author a second time.
+      if (removed) {
+        await recordModerationAction({
+          action: "comment_removed",
+          actorId: context.user.id,
+          targetType: "comment",
+          targetId: removed.id,
+          subjectUserId: removed.authorId,
+          reason: input.reason,
+          metadata: {
+            reportId: report.id,
+            reportReason: report.reason,
+            preview: removed.content.slice(0, 280),
+          },
+        });
+        await notifyCommentRemoved({
+          comment: removed,
+          removedById: context.user.id,
+          reason: input.reason,
+        });
+      }
     }
     await db
       .update(commentReports)
       .set({ resolvedAt: new Date(), resolvedById: context.user.id })
       .where(eq(commentReports.id, report.id));
+
+    if (input.action === "dismiss") {
+      // Dismissals matter most of all: "nothing happened" is the decision
+      // hardest to reconstruct later, and the one people query when they
+      // ask whether a pattern was ever looked at.
+      await recordModerationAction({
+        action: "comment_report_dismissed",
+        actorId: context.user.id,
+        targetType: "comment_report",
+        targetId: report.id,
+        reason: input.reason,
+        metadata: { commentId: report.commentId, reportReason: report.reason },
+      });
+    }
     return { success: true };
   });
 

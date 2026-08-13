@@ -269,12 +269,22 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
   );
 }
 
+/**
+ * Badge text long enough to need an ellipsis. The truncation has to live
+ * on a child: the badge is a flex box, and `text-overflow` never applies
+ * to the anonymous flex item bare text becomes — it just overflows and
+ * gets clipped at both edges by the badge's centring.
+ */
+function BadgeLabel({ children }: { children: React.ReactNode }) {
+  return <span className="truncate">{children}</span>;
+}
+
 /** The jam a post is recruiting for, when it named one. */
 function JamBadge({ jam }: { jam?: { jamId: number; title: string } | null }) {
   if (!jam) return null;
   return (
-    <Badge variant="warning" size="label" className="max-w-40 truncate">
-      {jam.title.toUpperCase()}
+    <Badge variant="warning" size="label" className="max-w-40">
+      <BadgeLabel>{jam.title.toUpperCase()}</BadgeLabel>
     </Badge>
   );
 }
@@ -283,8 +293,8 @@ function JamBadge({ jam }: { jam?: { jamId: number; title: string } | null }) {
 function TeamBadge({ team }: { team?: { id: string; name: string } | null }) {
   if (!team) return null;
   return (
-    <Badge variant="outline" size="label" className="max-w-40 truncate">
-      {team.name.toUpperCase()}
+    <Badge variant="outline" size="label" className="max-w-40">
+      <BadgeLabel>{team.name.toUpperCase()}</BadgeLabel>
     </Badge>
   );
 }

@@ -1,7 +1,8 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { JamDetailPage } from "@/components/jams/JamDetailPage";
-import { htmlToPlainText, Text } from "@/components/ui/typography";
+import { NotFoundPage } from "@/components/layout/NotFoundPage";
+import { htmlToPlainText } from "@/components/ui/typography";
 import { client } from "@/orpc/client";
 
 /**
@@ -68,20 +69,5 @@ function JamDetailRoute() {
 }
 
 function JamNotFound() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24">
-      <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        ✕ JAM NOT FOUND
-      </Text>
-      <Text size="sm" variant="muted">
-        That link doesn't match any jam we track.
-      </Text>
-      <Link
-        to="/jams"
-        className="mt-2 font-mono text-[10px] tracking-widest text-primary uppercase hover:underline"
-      >
-        BROWSE ALL JAMS →
-      </Link>
-    </div>
-  );
+  return <NotFoundPage subject="Jam" message="That link doesn't match any jam we track." />;
 }

@@ -197,12 +197,7 @@ function CollabDisplayControls({ large }: { large?: boolean }) {
             }}
           >
             {SORT_OPTIONS.map((option) => (
-              <DropdownMenuRadioItem
-                key={option.value}
-                value={option.value}
-                closeOnClick
-                className="tracking-widest"
-              >
+              <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
                 {option.label}
               </DropdownMenuRadioItem>
             ))}
@@ -347,7 +342,6 @@ function StackFilterMenu({ selected }: { selected: number[] }) {
             key={skill.id}
             checked={selected.includes(skill.id)}
             onCheckedChange={() => toggle(skill.id)}
-            className="tracking-widest"
           >
             {skill.name}
           </DropdownMenuCheckboxItem>
@@ -385,12 +379,7 @@ function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
       <DropdownMenuContent align="start" className="w-auto min-w-44 p-1">
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as string)}>
           {options.map((option) => (
-            <DropdownMenuRadioItem
-              key={option.value}
-              value={option.value}
-              closeOnClick
-              className="tracking-widest"
-            >
+            <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
               {option.label}
             </DropdownMenuRadioItem>
           ))}

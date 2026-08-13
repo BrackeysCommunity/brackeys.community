@@ -60,6 +60,21 @@ export function resolveRoleNames(roleIds: string[]): string[] {
   return roleIds.map((id) => GUILD_ROLE_NAMES[id]).filter((name): name is string => name != null);
 }
 
+// Discord *user* IDs granted Admin regardless of their live guild roles —
+// the owner break-glass, so a role-map drift or guild mishap can't lock the
+// site out of its own admin surface. Applied at sync time (`guild-sync`), so
+// the grant lands in the same cached `guildRoles` every check already reads.
+const ADMIN_USER_OVERRIDES = new Set(["474678259280510977"]);
+
+/** Union a member's resolved role names with any per-user override grants. */
+export function applyRoleOverrides(
+  discordUserId: string | null | undefined,
+  roleNames: string[],
+): string[] {
+  if (!discordUserId || !ADMIN_USER_OVERRIDES.has(discordUserId)) return roleNames;
+  return roleNames.includes("Admin") ? roleNames : [...roleNames, "Admin"];
+}
+
 /** Check if guild roles contain a specific role name. */
 export function hasRole(guildRoles: string[] | null, roleName: string): boolean {
   if (!guildRoles) return false;

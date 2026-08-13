@@ -14,7 +14,7 @@ type Priority = "default" | "primary";
 const itemVariants = cva(
   [
     // base button-group item: outlined chonk-emboss mini-button
-    "group/segmented-item chonk-emboss relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded border border-input bg-background font-medium outline-none transition-colors",
+    "group/segmented-item chonk-emboss relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-input bg-background font-medium outline-none transition-colors",
     // Only apply hover styles on devices with a fine pointer (mouse / trackpad).
     // Touch devices report `(hover: hover)` on some platforms, so a tap can
     // briefly trigger the hover state — we additionally require `(pointer: fine)`.

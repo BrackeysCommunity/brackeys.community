@@ -1,5 +1,6 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 
+import { NotFoundPage } from "./components/layout/NotFoundPage";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
@@ -8,6 +9,10 @@ export function getRouter() {
     routeTree,
 
     context: getContext(),
+
+    // Every `notFound()` a loader throws lands on the same page unless the
+    // route names its own copy — see `@/components/layout/NotFoundPage`.
+    defaultNotFoundComponent: () => <NotFoundPage />,
 
     scrollRestoration: true,
     // The document body is `h-screen overflow-hidden`; the real scroller is

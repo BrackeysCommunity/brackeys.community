@@ -10,6 +10,7 @@ import {
 } from "@/components/notifications/notification-utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MicroLabel } from "@/components/ui/typography";
 import { client, orpc } from "@/orpc/client";
 
 const REFETCH_INTERVAL_MS = 30_000;
@@ -87,18 +88,18 @@ export function NotificationBell() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
-        <div className="flex items-center justify-between border-b border-muted/40 px-3 py-2">
-          <span className="text-[10px] font-bold tracking-widest text-foreground/70 uppercase">
-            Notifications
-          </span>
+      <PopoverContent align="end" sideOffset={8} className="w-80 gap-0 overflow-hidden p-0">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <MicroLabel variant="primary" bold>
+            NOTIFICATIONS
+          </MicroLabel>
           {count > 0 && (
             <button
               type="button"
               onClick={() => markAllReadMutate({})}
-              className="text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
+              className="transition-colors hover:text-primary"
             >
-              Mark all read
+              <MicroLabel>MARK ALL READ</MicroLabel>
             </button>
           )}
         </div>
@@ -117,13 +118,13 @@ export function NotificationBell() {
           )}
         </div>
 
-        <div className="border-t border-muted/40 px-3 py-2 text-center">
+        <div className="border-t border-border px-3 py-2 text-center">
           <Link
             to="/notifications"
             onClick={() => setOpen(false)}
-            className="text-[10px] tracking-wider text-muted-foreground transition-colors hover:text-primary"
+            className="transition-colors hover:text-primary"
           >
-            See all
+            <MicroLabel>SEE ALL</MicroLabel>
           </Link>
         </div>
       </PopoverContent>

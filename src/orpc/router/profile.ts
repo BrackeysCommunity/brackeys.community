@@ -37,6 +37,7 @@ import {
 } from "@/lib/profile-projects";
 import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
@@ -540,6 +541,13 @@ export const updateProfile = os
     checkProfanity(input.bio, "Bio");
     checkProfanity(input.tagline, "Tagline");
     checkProfanity(input.lookingFor, "Looking for");
+
+    // Anti-runaway, not anti-user — the editor autosaves field by field.
+    if (!(await checkRateLimit("profile-update", userId, 120))) {
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        message: "Too many profile updates — try again in a bit.",
+      });
+    }
 
     const [updated] = await db
       .update(developerProfiles)
