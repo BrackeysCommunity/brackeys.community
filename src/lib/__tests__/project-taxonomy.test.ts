@@ -24,6 +24,10 @@ describe("platformsFromTraits()", () => {
     expect(platformsFromTraits([])).toEqual([]);
     expect(platformsFromTraits(["can_be_bought"])).toEqual([]);
   });
+
+  it("survives itch sending an empty trait list as an object", () => {
+    expect(platformsFromTraits({})).toBeNull();
+  });
 });
 
 describe("placementTypeFromClassification()", () => {

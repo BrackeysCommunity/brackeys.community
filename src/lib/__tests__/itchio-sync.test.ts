@@ -84,12 +84,6 @@ vi.mock("@/lib/itchio", async (importOriginal) => ({
   fetchGames: mocks.fetchGames,
 }));
 
-// Only the throttled path calls the jam sync; stub it so this suite's db
-// mock doesn't have to satisfy the jam module's imports.
-vi.mock("@/lib/itchio-jam-sync", () => ({
-  syncItchIoJamParticipations: vi.fn(async () => null),
-}));
-
 // Canonical-project convergence has its own suite; here it only has to be
 // *called*, with the provider payload this run fetched.
 vi.mock("@/lib/projects", () => ({
@@ -98,11 +92,7 @@ vi.mock("@/lib/projects", () => ({
 
 import { ItchApiError } from "@/lib/itchio";
 
-import {
-  ItchIoSyncFetchError,
-  syncItchIoLibrary,
-  syncItchIoLibraryThrottled,
-} from "../itchio-sync";
+import { ItchIoSyncFetchError, syncItchIoLibrary } from "../itchio-sync";
 
 // Patches sent to db.update().set(), excluding the token-health stamp the
 // sync writes on every successful fetch — most tests only care about the
@@ -342,61 +332,6 @@ describe("token health stamping", () => {
 
     await expect(syncItchIoLibrary("u1")).rejects.toBeInstanceOf(ItchIoSyncFetchError);
     expect(stampPatches()).toEqual([]);
-  });
-});
-
-describe("syncItchIoLibraryThrottled()", () => {
-  // getRedis caches its client on globalThis — plant a fake there so the
-  // dynamic `import("ioredis")` never runs.
-  const redis = { set: vi.fn(), del: vi.fn() };
-
-  beforeEach(() => {
-    redis.set.mockReset();
-    redis.del.mockReset();
-    (globalThis as { __brackeysItchioSyncRedis?: unknown }).__brackeysItchioSyncRedis = redis;
-  });
-
-  afterEach(() => {
-    delete (globalThis as { __brackeysItchioSyncRedis?: unknown }).__brackeysItchioSyncRedis;
-  });
-
-  it("takes a short lock, then extends to the full window on success", async () => {
-    redis.set.mockResolvedValue("OK");
-
-    await syncItchIoLibraryThrottled("u1");
-
-    expect(redis.set.mock.calls).toEqual([
-      ["itchio:sync:u1", "1", "EX", 300, "NX"],
-      ["itchio:sync:u1", "1", "EX", 3600, "XX"],
-    ]);
-    expect(redis.del).not.toHaveBeenCalled();
-  });
-
-  it("releases the lock when the sync fails, so the next view retries", async () => {
-    redis.set.mockResolvedValue("OK");
-    mocks.fetchGames.mockRejectedValue(new ItchApiError(500, "oops"));
-
-    await syncItchIoLibraryThrottled("u1");
-
-    expect(redis.set).toHaveBeenCalledTimes(1);
-    expect(redis.del).toHaveBeenCalledWith("itchio:sync:u1");
-  });
-
-  it("does nothing when another sync holds the lock", async () => {
-    redis.set.mockResolvedValue(null);
-
-    await syncItchIoLibraryThrottled("u1");
-
-    expect(mocks.fetchGames).not.toHaveBeenCalled();
-    expect(redis.del).not.toHaveBeenCalled();
-  });
-
-  it("skips entirely when Redis is down rather than bypassing the throttle", async () => {
-    redis.set.mockRejectedValue(new Error("ECONNREFUSED"));
-
-    await syncItchIoLibraryThrottled("u1");
-
-    expect(mocks.fetchGames).not.toHaveBeenCalled();
   });
 });
 

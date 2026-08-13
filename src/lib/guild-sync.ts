@@ -113,8 +113,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
 // `guildRoles` is otherwise as stale as the user's last sign-in: a demoted
 // moderator would keep staff power until they next authenticate. Staff-gated
 // middleware fires this on every hit; the Redis NX key keeps actual Discord
-// traffic to at most one refresh per user per hour. Same lock/extend shape
-// as `syncItchIoLibraryThrottled`.
+// traffic to at most one refresh per user per hour.
 
 declare global {
   // eslint-disable-next-line no-var

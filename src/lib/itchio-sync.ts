@@ -4,19 +4,16 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
  * mirrors them into `profile_projects` (new games inserted, `published`
  * visibility kept in step with itch.io).
  *
- * Called from three places: the explicit "Import games" ORPC route, the
- * throttled background refresh on own-profile view, and (re-implemented
- * against its own client) the itchio-library-sync cron service.
+ * Called from two places: the explicit "Import games" ORPC route, and
+ * (re-implemented against its own client) the itchio-library-sync cron
+ * service, which is what keeps libraries fresh without anyone asking.
  */
-import type IORedis from "ioredis";
 
 import { db } from "@/db";
 import { linkedAccounts, profileProjects } from "@/db/schema";
 import { fetchGames, ItchApiError } from "@/lib/itchio";
-import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { placementTypeFromClassification } from "@/lib/project-taxonomy";
 import { convergeLibraryPlacements } from "@/lib/projects";
-import { createRedisClient } from "@/lib/redis";
 import { openToken } from "@/lib/token-crypto";
 
 /** Thrown when the itch.io API call itself fails (vs. no linked account).
@@ -191,80 +188,4 @@ export async function syncItchIoLibrary(
     // letting "imported 12" quietly disagree with 9 visible games.
     drafts: games.filter((game) => !game.published).length,
   };
-}
-
-// ── Throttled background refresh (own-profile view) ─────────────────────────
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __brackeysItchioSyncRedis: IORedis | undefined;
-}
-
-const THROTTLE_TTL_SECONDS = 3600;
-// Short initial lock: it only has to outlive one sync attempt. The full
-// throttle window is granted on success; a failed sync releases the key so
-// the next profile view retries instead of waiting out the hour.
-const LOCK_TTL_SECONDS = 300;
-
-async function getRedis(): Promise<IORedis> {
-  if (globalThis.__brackeysItchioSyncRedis) return globalThis.__brackeysItchioSyncRedis;
-  globalThis.__brackeysItchioSyncRedis = await createRedisClient("itchio-sync");
-  return globalThis.__brackeysItchioSyncRedis;
-}
-
-/**
- * Fire-and-forget library refresh, at most once per hour per user (Redis
- * NX key is the only throttle state). Never throws: Redis being down
- * skips the refresh entirely rather than bypassing the throttle.
- */
-export async function syncItchIoLibraryThrottled(userId: string): Promise<void> {
-  const key = `itchio:sync:${userId}`;
-  let redis: IORedis;
-  let won: string | null;
-  try {
-    redis = await getRedis();
-    won = await redis.set(key, "1", "EX", LOCK_TTL_SECONDS, "NX");
-  } catch {
-    return;
-  }
-  if (won !== "OK") return;
-
-  let syncFailed = false;
-  try {
-    const result = await syncItchIoLibrary(userId);
-    if (result) {
-      console.log(
-        `[itchio-sync] background refresh for ${userId}: imported ${result.imported} of ${result.total}`,
-      );
-    }
-  } catch (err) {
-    syncFailed = true;
-    console.error(`[itchio-sync] background refresh failed for ${userId}`, err);
-  }
-
-  // Jam backfill is DB-only; its failures don't burn the throttle window.
-  try {
-    const jams = await syncItchIoJamParticipations(userId);
-    if (jams && jams.imported > 0) {
-      console.log(
-        `[itchio-sync] jam backfill for ${userId}: imported ${jams.imported} of ${jams.total}`,
-      );
-    }
-  } catch (err) {
-    console.error(`[itchio-sync] jam backfill failed for ${userId}`, err);
-  }
-
-  // Success extends the lock to the real throttle window; failure releases
-  // it. `XX` on the extend means an expired lock is not resurrected into a
-  // stale throttle, and the DEL is safe because the key is ours (a second
-  // concurrent sync in the gap is tolerated by the DB's onConflictDoNothing).
-  try {
-    if (syncFailed) {
-      await redis.del(key);
-    } else {
-      await redis.set(key, "1", "EX", THROTTLE_TTL_SECONDS, "XX");
-    }
-  } catch {
-    // Best-effort: Redis being down here just leaves the 5-minute lock.
-  }
 }

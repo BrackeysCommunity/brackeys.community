@@ -359,8 +359,9 @@ export interface ItchGameFacts {
   type?: string | null;
   /** released | in_development | on_hold | canceled | prototype. */
   release_status?: string | null;
-  /** Platform/capability flags as the wire sends them (`p_windows`, …). */
-  traits?: string[] | null;
+  /** Platform/capability flags as the wire sends them (`p_windows`, …), or
+   * `{}` when the game has none — always read via `platformsFromTraits`. */
+  traits?: unknown;
   min_price?: number | null;
   downloads_count?: number | null;
   views_count?: number | null;

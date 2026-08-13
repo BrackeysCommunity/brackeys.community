@@ -38,8 +38,10 @@ export interface ItchIoGame {
   created_at?: string;
   /** Platform and capability flags as itch actually sends them
    * (`p_windows`, `p_osx`, `can_be_bought`, …) — the `p_*` boolean fields
-   * this type used to declare never existed on the wire. */
-  traits?: string[];
+   * this type used to declare never existed on the wire. Typed loose because
+   * a game with no traits comes back as `{}` rather than `[]`; read it
+   * through `platformsFromTraits`, which handles both. */
+  traits?: unknown;
   min_price?: number;
   downloads_count?: number;
   views_count?: number;

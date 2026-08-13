@@ -472,4 +472,14 @@ describe("fillProviderFields() — provider-owned facts", () => {
     const { patch } = await run(converged({ platforms: ["windows"] }));
     expect(patch).toMatchObject({ platforms: ["windows", "linux"] });
   });
+
+  // itch sends `"traits": {}` for a game with none, which is not an array.
+  it("leaves platforms alone when itch sends an empty trait object", async () => {
+    const { db, updates } = fakeDb([converged()]);
+    const count = await fillProviderFields(db, [
+      { projectId: "p9", facts: { ...facts, traits: {} } },
+    ]);
+    expect(count).toBe(0);
+    expect(updates[0]).toBeUndefined();
+  });
 });

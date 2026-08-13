@@ -104,9 +104,15 @@ const PLATFORM_TRAITS = ["p_windows", "p_osx", "p_linux", "p_android"] as const;
  * itch `traits` → platform names (`p_windows` → "windows"). Null when the
  * payload carried no traits at all — "we don't know" and "runs nowhere"
  * are different answers.
+ *
+ * `unknown` because the wire is not to be trusted here: itch serializes a
+ * game with no traits as `"traits": {}`, not `[]`, so the declared array
+ * type is a lie for exactly the games that have nothing to say. Anything
+ * that isn't an array is "we don't know" — that leaves a known platform
+ * list alone rather than clearing it.
  */
-export function platformsFromTraits(traits: string[] | null | undefined): string[] | null {
-  if (traits == null) return null;
+export function platformsFromTraits(traits: unknown): string[] | null {
+  if (!Array.isArray(traits)) return null;
   return PLATFORM_TRAITS.filter((t) => traits.includes(t)).map((t) => t.slice(2));
 }
 
