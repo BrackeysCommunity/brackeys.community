@@ -27,6 +27,7 @@ import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { resolveUserRoles } from "@/lib/staff-roles";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
   authMiddleware,
@@ -173,12 +174,7 @@ export function serializeComments(
 
 async function viewerIsStaff(viewerId: string | null): Promise<boolean> {
   if (!viewerId) return false;
-  const [profile] = await db
-    .select({ guildRoles: developerProfiles.guildRoles })
-    .from(developerProfiles)
-    .where(eq(developerProfiles.id, viewerId))
-    .limit(1);
-  return isStaffMember(profile?.guildRoles ?? null);
+  return isStaffMember(await resolveUserRoles(viewerId));
 }
 
 async function loadSubjectOrThrow(ref: SubjectRef): Promise<SubjectContext> {

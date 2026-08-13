@@ -63,9 +63,8 @@ export function resolveRoleNames(roleIds: string[]): string[] {
 // Discord *user* IDs granted Admin regardless of their live guild roles —
 // the owner break-glass, so a role-map drift or guild mishap can't lock the
 // site out of its own admin surface. Comma-separated in ADMIN_DISCORD_IDS
-// (env, not source, so the IDs aren't public in the repo). Applied at sync
-// time (`guild-sync`), so the grant lands in the same cached `guildRoles`
-// every check already reads.
+// (env, not source, so the IDs aren't public in the repo). Applied when
+// authorizing, in `lib/staff-roles.ts` — never written to the cache.
 function adminUserOverrides(): Set<string> {
   return new Set(
     (process.env.ADMIN_DISCORD_IDS ?? "")

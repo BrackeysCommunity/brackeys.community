@@ -39,6 +39,7 @@ import {
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { escapeLike } from "@/lib/sql-like";
+import { resolveUserRoles } from "@/lib/staff-roles";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
@@ -947,12 +948,7 @@ async function skillIdsByUser(userIds: string[]): Promise<Map<string, Set<number
 }
 
 async function userIsStaff(userId: string): Promise<boolean> {
-  const [profile] = await db
-    .select({ guildRoles: developerProfiles.guildRoles })
-    .from(developerProfiles)
-    .where(eq(developerProfiles.id, userId))
-    .limit(1);
-  return isStaffMember(profile?.guildRoles ?? null);
+  return isStaffMember(await resolveUserRoles(userId));
 }
 
 /** Filters that apply across types — the facets a count can vary over. */

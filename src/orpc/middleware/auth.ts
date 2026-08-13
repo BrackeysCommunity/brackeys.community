@@ -11,6 +11,7 @@ import {
   isGuildMember,
 } from "@/lib/discord";
 import { refreshGuildRolesThrottled } from "@/lib/guild-sync";
+import { resolveUserRoles } from "@/lib/staff-roles";
 
 type SessionResult = Awaited<ReturnType<typeof auth.api.getSession>>;
 
@@ -99,16 +100,6 @@ export const requireGuildMember = os.middleware(async ({ context, next }) => {
   });
 });
 
-async function fetchGuildRoles(userId: string): Promise<string[] | null> {
-  const [profile] = await db
-    .select({ guildRoles: developerProfiles.guildRoles })
-    .from(developerProfiles)
-    .where(eq(developerProfiles.id, userId))
-    .limit(1);
-
-  return profile?.guildRoles ?? null;
-}
-
 /** Requires auth + enriches context with isStaff/isAdmin booleans. */
 export const requireAuthWithPermissions = os.middleware(async ({ context, next }) => {
   const session = await readSession(context);
@@ -118,7 +109,7 @@ export const requireAuthWithPermissions = os.middleware(async ({ context, next }
   }
   assertNotBanned(session);
 
-  const guildRoles = await fetchGuildRoles(session.user.id);
+  const guildRoles = await resolveUserRoles(session.user.id);
 
   return next({
     context: {
@@ -138,7 +129,7 @@ export const requireStaff = os.middleware(async ({ context, next }) => {
   }
   assertNotBanned(session);
 
-  const guildRoles = await fetchGuildRoles(session.user.id);
+  const guildRoles = await resolveUserRoles(session.user.id);
 
   if (!checkIsStaff(guildRoles)) {
     throw new ORPCError("FORBIDDEN", { message: "Staff access required." });
@@ -167,7 +158,7 @@ export const requireAdmin = os.middleware(async ({ context, next }) => {
   }
   assertNotBanned(session);
 
-  const guildRoles = await fetchGuildRoles(session.user.id);
+  const guildRoles = await resolveUserRoles(session.user.id);
 
   if (!checkIsAdmin(guildRoles)) {
     throw new ORPCError("FORBIDDEN", { message: "Admin access required." });

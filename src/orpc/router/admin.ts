@@ -18,6 +18,7 @@ import { isAdmin as checkIsAdmin, isStaffMember as checkIsStaff } from "@/lib/di
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { escapeLike } from "@/lib/sql-like";
+import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
 
 /**
@@ -58,12 +59,7 @@ async function profilesByIds(userIds: string[]): Promise<Map<string, ProfileSumm
  */
 export const getStaffStatus = os.use(authMiddleware).handler(async ({ context }) => {
   if (!context.user) return { isStaff: false, isAdmin: false };
-  const [profile] = await db
-    .select({ guildRoles: developerProfiles.guildRoles })
-    .from(developerProfiles)
-    .where(eq(developerProfiles.id, context.user.id))
-    .limit(1);
-  const guildRoles = profile?.guildRoles ?? null;
+  const guildRoles = await resolveUserRoles(context.user.id);
   return { isStaff: checkIsStaff(guildRoles), isAdmin: checkIsAdmin(guildRoles) };
 });
 
@@ -94,12 +90,7 @@ export const banUser = os
 
     // Admins are unbannable — a compromised or confused admin session must
     // not be able to lock the whole staff out.
-    const [targetProfile] = await db
-      .select({ guildRoles: developerProfiles.guildRoles })
-      .from(developerProfiles)
-      .where(eq(developerProfiles.id, input.userId))
-      .limit(1);
-    if (checkIsAdmin(targetProfile?.guildRoles ?? null)) {
+    if (checkIsAdmin(await resolveUserRoles(input.userId))) {
       throw new ORPCError("BAD_REQUEST", { message: "Admins can't be banned." });
     }
 

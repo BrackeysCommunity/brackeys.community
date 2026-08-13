@@ -5,7 +5,6 @@ import { db } from "@/db";
 import { account, developerProfiles, user } from "@/db/schema";
 import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import {
-  applyRoleOverrides,
   discordAvatarUrl,
   fetchDiscordUser,
   fetchGuildMember,
@@ -52,7 +51,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
         const member = await fetchGuildMember(discordToken);
         guildNickname = member.nick;
         guildJoinedAt = new Date(member.joined_at);
-        guildRoles = applyRoleOverrides(discordId, resolveRoleNames(member.roles));
+        guildRoles = resolveRoleNames(member.roles);
         if (member.user) latestDiscordAvatarUrl = discordAvatarUrl(member.user);
       } catch {
         // User not in guild (or rate limited) — continue without guild data
