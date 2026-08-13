@@ -8,6 +8,20 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 
 import { isPublicProcedure } from "@/orpc/public-procedures";
 import router from "@/orpc/router";
+import type AppRouter from "@/orpc/router";
+
+/**
+ * The router reaches the database, so its module graph must never land in the
+ * browser bundle. It survives here only because the isomorphic transform
+ * strips the `.server()` branch and then drops the now-unused value import.
+ *
+ * That elimination is load-bearing and fragile: a `typeof router` anywhere
+ * outside the server branch keeps the value import alive, and drizzle, the
+ * pg pool and every router file get bundled for the browser (where they die
+ * on `Buffer is not defined`). Hence the type-only alias — every
+ * client-visible mention of the router's shape goes through it.
+ */
+type AppClient = RouterClient<typeof AppRouter>;
 
 const getORPCClient = createIsomorphicFn()
   .server(() =>
@@ -17,7 +31,7 @@ const getORPCClient = createIsomorphicFn()
       }),
     }),
   )
-  .client((): RouterClient<typeof router> => {
+  .client((): AppClient => {
     const privateClient = createORPCClient(
       new RPCLink({ url: `${window.location.origin}/api/rpc` }),
     );
@@ -45,9 +59,9 @@ const getORPCClient = createIsomorphicFn()
           typeof name === "string" && isPublicProcedure(name) ? publicClient : privateClient;
         return (source as Record<string | symbol, unknown>)[name];
       },
-    }) as RouterClient<typeof router>;
+    }) as AppClient;
   });
 
-export const client: RouterClient<typeof router> = getORPCClient();
+export const client: AppClient = getORPCClient();
 
 export const orpc = createTanstackQueryUtils(client);
