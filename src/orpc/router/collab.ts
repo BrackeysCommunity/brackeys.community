@@ -1039,7 +1039,7 @@ function buildPostFilter(input: PostFilterInput) {
  * clicking into an empty board.
  */
 export const countPostsByType = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(z.object(postFacetSchema))
   .handler(async ({ input }) => {
     const rows = await db
@@ -1067,7 +1067,7 @@ export const countPostsByType = os
  * closed posts is history, not a lead — and it's one round trip because
  * the pane renders the three together or not at all.
  */
-export const getBoardStats = os.handler(async () => {
+export const getBoardStats = os.route({ method: "GET" }).handler(async () => {
   const openOnly = eq(collabPosts.status, "recruiting");
 
   const [typeRows, skillRows, roleRows, freshRow] = await Promise.all([
@@ -1123,6 +1123,7 @@ export const getBoardStats = os.handler(async () => {
  * advertise a dead end.
  */
 export const countPostsForJam = os
+  .route({ method: "GET" })
   .input(z.object({ jamId: z.number().int().positive() }))
   .handler(async ({ input }) => {
     const [row] = await db
@@ -1608,6 +1609,7 @@ export const updateResponseStatus = os
 // ── Roles ────────────────────────────────────────────────────────────────────
 
 export const listCollabRoles = os
+  .route({ method: "GET" })
   .input(z.object({ search: z.string().optional() }))
   .handler(async ({ input }) => {
     if (input.search) {

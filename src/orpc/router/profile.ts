@@ -579,6 +579,7 @@ export const syncDiscordData = os
   });
 
 export const listSkills = os
+  .route({ method: "GET" })
   .input(z.object({ search: z.string().optional() }))
   .handler(async ({ input }) => {
     if (input.search) {
@@ -1020,7 +1021,7 @@ export const setUrlStub = os
   });
 
 export const listAvailableUsers = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(
     z.object({
       search: z.string().optional(),

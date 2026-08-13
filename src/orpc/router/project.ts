@@ -359,6 +359,7 @@ export const listEditableProjects = os
  * something local anchors it.
  */
 export const listProjectsForGames = os
+  .route({ method: "GET" })
   .input(z.object({ gameIds: z.array(z.number().int()).max(96) }))
   .handler(async ({ input }) => {
     const gameIds = [...new Set(input.gameIds)];

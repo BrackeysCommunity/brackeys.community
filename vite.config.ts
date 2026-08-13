@@ -231,6 +231,23 @@ const config = defineConfig({
         // fallback above can never regress it.
         "/assets/**": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
         "/api/**": { headers: { "cache-control": "no-store" } },
+        // The public RPC tier (src/routes/api.public.rpc.$.ts): served with
+        // no cookies read and identical output for every caller, so it is
+        // the one /api subtree that is shared-cacheable.
+        "/api/public/**": { headers: { "cache-control": "public, max-age=30, s-maxage=60" } },
+        // Taxonomies change when a moderator edits the vocabulary — rare
+        // enough for a day at the edge.
+        "/api/public/rpc/listSkills": {
+          headers: { "cache-control": "public, max-age=3600, s-maxage=86400" },
+        },
+        "/api/public/rpc/listCollabRoles": {
+          headers: { "cache-control": "public, max-age=3600, s-maxage=86400" },
+        },
+        // A live GitHub GraphQL call per request otherwise; the calendar
+        // only moves once a day anyway.
+        "/api/public/rpc/getContributions": {
+          headers: { "cache-control": "public, max-age=300, s-maxage=900" },
+        },
         // Stored-image proxy (src/routes/images.$.ts): keys are
         // nanoid-unique per upload and replacements mint a new key, so
         // responses are immutable. Deleted objects can outlive deletion at

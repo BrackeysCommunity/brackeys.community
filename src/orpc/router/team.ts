@@ -708,6 +708,7 @@ export const listMyTeams = os
  * same no-N+1 shape `listPosts` uses for its jam/team/skill chips.
  */
 export const listTeams = os
+  .route({ method: "GET" })
   .input(
     z.object({
       search: z.string().trim().max(100).optional(),
@@ -787,7 +788,7 @@ export const listTeams = os
  * with `limit: 1` — that pays for the four card-extras round trips to read
  * a number the caller already gets here in one.
  */
-export const getTeamStats = os.handler(async () => {
+export const getTeamStats = os.route({ method: "GET" }).handler(async () => {
   const [row] = await db
     .select({
       active: count(),
@@ -801,6 +802,7 @@ export const getTeamStats = os.handler(async () => {
 
 /** Active teams a profile belongs to — the profile page's TEAMS strip. */
 export const listUserTeams = os
+  .route({ method: "GET" })
   .input(z.object({ userId: z.string() }))
   .handler(async ({ input }) => {
     const rows = await db

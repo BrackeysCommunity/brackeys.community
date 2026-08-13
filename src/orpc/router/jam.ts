@@ -39,6 +39,7 @@ const lastEventAt = sql`GREATEST(
  * occasionally stale).
  */
 export const listJams = os
+  .route({ method: "GET" })
   .input(
     z.object({
       filter: z.enum(["live", "upcoming", "active", "board", "calendar", "all"]).default("active"),
@@ -137,6 +138,7 @@ export const listJams = os
  * most 100 rows) so the detail modal works from archive rows too.
  */
 export const archiveJams = os
+  .route({ method: "GET" })
   .input(
     z.object({
       search: z.string().trim().max(200).default(""),
@@ -264,6 +266,7 @@ export function recentEntriesQuery(jamIds: number[], limit: number) {
 }
 
 export const listRecentEntries = os
+  .route({ method: "GET" })
   .input(
     z.object({
       jamIds: z.array(z.number().int()).max(RECENT_ENTRIES_MAX_JAMS),
@@ -307,6 +310,7 @@ function parseJamId(segment: string): number | null {
  * listings apply.
  */
 export const getJam = os
+  .route({ method: "GET" })
   .input(z.object({ idOrSlug: z.string().trim().min(1).max(300) }))
   .handler(async ({ input }) => {
     const jamId = parseJamId(input.idOrSlug);
@@ -374,6 +378,7 @@ export type JamEntrySort = "rank" | "ratings" | "recent" | "title";
  * chip regardless of which sort is active.
  */
 export const listJamEntries = os
+  .route({ method: "GET" })
   .input(
     z.object({
       jamId: z.number().int().min(1).max(MAX_INT4),
@@ -593,6 +598,7 @@ const RESULTS_TOP_N = 3;
  * table to be true.
  */
 export const getJamResults = os
+  .route({ method: "GET" })
   .input(
     z.object({
       jamId: z.number().int().min(1).max(MAX_INT4),
@@ -683,6 +689,7 @@ const COMMUNITY_TEAMS_MAX = 12;
  * community section is permanently empty.
  */
 export const getJamCommunity = os
+  .route({ method: "GET" })
   .input(z.object({ jamId: z.number().int().min(1).max(MAX_INT4) }))
   .handler(async ({ input }) => {
     const [memberRows, teamRows, [postRow]] = await Promise.all([
@@ -804,6 +811,7 @@ const HOST_SERIES_MAX = 6;
  * next still shows up in the series.
  */
 export const listJamsByHost = os
+  .route({ method: "GET" })
   .input(
     z.object({
       hostName: z.string().trim().min(1).max(200),

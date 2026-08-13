@@ -15,6 +15,13 @@ const MobileShell = lazy(() =>
   import("@/components/layout/MobileShell").then((m) => ({ default: m.MobileShell })),
 );
 
+// The three latin subsets are needed on every page, and they are only
+// discoverable once fonts.css has been fetched and parsed — preload them
+// alongside it so the swap happens in the first paint, not after it.
+import monoLatin from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url";
+import sansLatin from "@fontsource-variable/rubik/files/rubik-latin-wght-normal.woff2?url";
+import displayLatin from "@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2?url";
+
 import { ConfirmPortal } from "@/components/ui/confirm";
 import { Cursor } from "@/components/ui/cursor";
 import { ThemedDotField } from "@/components/ui/dot-field";
@@ -31,6 +38,19 @@ import TanStackQueryProvider from "../integrations/tanstack-query/root-provider"
 
 import fontsCss from "../fonts.css?url";
 import appCss from "../styles.css?url";
+
+// `as const` keeps crossOrigin narrow: React types it as CrossOrigin, and a
+// mapped object literal would widen it to string.
+const fontPreloads = [sansLatin, displayLatin, monoLatin].map(
+  (href) =>
+    ({
+      rel: "preload",
+      as: "font",
+      type: "font/woff2",
+      crossOrigin: "anonymous",
+      href,
+    }) as const,
+);
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -62,6 +82,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         href: "/brackeys-logo-inverted.svg",
         media: "(prefers-color-scheme: dark)",
       },
+      ...fontPreloads,
       { rel: "stylesheet", href: fontsCss },
       { rel: "stylesheet", href: appCss },
     ],

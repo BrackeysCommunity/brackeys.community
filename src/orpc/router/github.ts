@@ -8,7 +8,7 @@ import { account, linkedAccounts } from "@/db/schema";
 import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import { fetchGitHubUser, fetchContributionCalendar } from "@/lib/github";
 import { openToken, sealToken } from "@/lib/token-crypto";
-import { requireAuth, authMiddleware } from "@/orpc/middleware/auth";
+import { requireAuth } from "@/orpc/middleware/auth";
 
 export const syncGitHubLink = os
   .use(requireAuth)
@@ -100,7 +100,7 @@ export const unlinkGitHub = os
   });
 
 export const getContributions = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(z.object({ userId: z.string() }))
   .handler(async ({ input }) => {
     const [ghLink] = await db

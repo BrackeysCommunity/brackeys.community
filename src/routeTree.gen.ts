@@ -46,6 +46,7 @@ import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifications.unsub'
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiPublicRpcSplatRouteImport } from './routes/api.public.rpc.$'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -232,6 +233,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRpcSplatRoute = ApiPublicRpcSplatRouteImport.update({
+  id: '/api/public/rpc/$',
+  path: '/api/public/rpc/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
+  '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -305,6 +312,7 @@ export interface FileRoutesByTo {
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
+  '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -345,6 +353,7 @@ export interface FileRoutesById {
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
+  '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -386,6 +395,7 @@ export interface FileRouteTypes {
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
+    | '/api/public/rpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -420,6 +430,7 @@ export interface FileRouteTypes {
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
+    | '/api/public/rpc/$'
   id:
     | '__root__'
     | '/'
@@ -459,6 +470,7 @@ export interface FileRouteTypes {
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
+    | '/api/public/rpc/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -486,6 +498,7 @@ export interface RootRouteChildren {
   OauthGithubCallbackRoute: typeof OauthGithubCallbackRoute
   OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
   ProjectsGameGameIdRoute: typeof ProjectsGameGameIdRoute
+  ApiPublicRpcSplatRoute: typeof ApiPublicRpcSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -749,6 +762,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/rpc/$': {
+      id: '/api/public/rpc/$'
+      path: '/api/public/rpc/$'
+      fullPath: '/api/public/rpc/$'
+      preLoaderRoute: typeof ApiPublicRpcSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -845,6 +865,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthGithubCallbackRoute: OauthGithubCallbackRoute,
   OauthItchioCallbackRoute: OauthItchioCallbackRoute,
   ProjectsGameGameIdRoute: ProjectsGameGameIdRoute,
+  ApiPublicRpcSplatRoute: ApiPublicRpcSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

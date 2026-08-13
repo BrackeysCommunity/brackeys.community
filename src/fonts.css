@@ -1,9 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+/* Self-hosted through Fontsource: the woff2 files go through the hashed asset
+   pipeline (immutable at the edge, see docs/caching.md) instead of Google's
+   CDN, which browsers partition per-site anyway. Each package's index.css is
+   the full upright set, split by unicode-range — a subset is only fetched if
+   the page renders a character in it. */
+@import "@fontsource-variable/rubik/index.css";
+@import "@fontsource-variable/space-grotesk/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
 
 :root {
-  --font-sans: "Rubik", sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Rubik Variable", "Rubik", sans-serif;
+  --font-display: "Space Grotesk Variable", "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
 }
 
 @keyframes gridScroll {

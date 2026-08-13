@@ -136,6 +136,7 @@ export const MEMBER_AVAILABILITY = ["full_time", "part_time", "limited"] as cons
 export const MEMBER_SORTS = ["active", "newest", "rate"] as const;
 
 export const listMembers = os
+  .route({ method: "GET" })
   .input(
     z.object({
       search: z.string().trim().max(100).optional(),
