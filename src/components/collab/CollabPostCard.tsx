@@ -30,10 +30,15 @@ interface CollabPostCardPost {
 interface CollabPostCardProps {
   post: CollabPostCardPost;
   /** Highlighted because it's the post loaded in the inspector. */
-  selected: boolean;
+  selected?: boolean;
   /** Hoisted to the top because the viewer owns it. */
   pinned?: boolean;
-  onSelect: (postId: number) => void;
+  /**
+   * Load the post into the board's inspector instead of navigating. Omit it
+   * off the board — the home ticker has no inspector to drive, and a row
+   * that swallows its own click there would go nowhere.
+   */
+  onSelect?: (postId: number) => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -54,7 +59,8 @@ const COMP_TYPE_LABELS: Record<string, string> = {
  * The card's click target: a real anchor to the post's own page, so
  * every post is a crawlable link and cmd/middle-click opens the page —
  * but a plain click is intercepted to drive the board's inspector
- * selection instead, exactly as the old button did. `preload={false}`
+ * selection instead, exactly as the old button did. Without `onSelect`
+ * (off the board) the anchor is left to navigate. `preload={false}`
  * because hover-preloading a whole post per card the pointer crosses
  * would hammer `getPost` for nothing.
  */
@@ -76,6 +82,7 @@ function PostCardLink({
       params={{ postId: String(post.id) }}
       preload={false}
       onClick={(e) => {
+        if (!onSelect) return;
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         e.preventDefault();
         onSelect(post.id);
@@ -181,7 +188,7 @@ function YoursBadge() {
  * Carries no action buttons: the inspector owns everything you can do
  * to a post, leaving the row free to be scannable.
  */
-export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostCardProps) {
+export function CollabPostCard({ post, selected = false, pinned, onSelect }: CollabPostCardProps) {
   const isClosed = post.status !== "recruiting";
 
   return (
@@ -224,7 +231,12 @@ export function CollabPostCard({ post, selected, pinned, onSelect }: CollabPostC
  * shown whole against a blurred copy of itself rather than cropped to
  * the banner's aspect.
  */
-export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabPostCardProps) {
+export function CollabPostGridCard({
+  post,
+  selected = false,
+  pinned,
+  onSelect,
+}: CollabPostCardProps) {
   const isClosed = post.status !== "recruiting";
 
   return (

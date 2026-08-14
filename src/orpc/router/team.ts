@@ -724,6 +724,10 @@ export const listMyTeams = os
         avatarKey: teams.avatarKey,
         recruiting: teams.recruiting,
         status: teams.status,
+        lastActivityAt: teams.lastActivityAt,
+        // The sweep's archive warning currently only reaches a notification;
+        // the home dashboard's team cards surface it as a badge.
+        archiveWarnedAt: teams.archiveWarnedAt,
         role: teamMembers.role,
       })
       .from(teamMembers)
@@ -894,6 +898,94 @@ export const listUserTeams = os
       rows.map(async ({ avatarKey: _avatarKey, ...row }) => ({
         ...row,
         avatarUrl: await resolveTeamAvatarUrl({ avatarKey: _avatarKey, avatarUrl: row.avatarUrl }),
+      })),
+    );
+  });
+
+/**
+ * A settled invite stays on the viewer's list this long, so accepting or
+ * declining leaves a trace instead of blanking the row that was just acted on.
+ */
+const RESOLVED_INVITE_DAYS = 30;
+
+/**
+ * Every team invite pointed at the viewer: the pending ones they still owe an
+ * answer to, plus recently settled ones for context.
+ *
+ * `getTeamViewerState.viewerInvite` already renders an accept/decline bar —
+ * but only for someone who happens to open the team page or follow the
+ * notification. An invitee had no surface that simply listed what was waiting
+ * on them, which is the gap this closes.
+ *
+ * Revoked invites are left out on purpose: the team withdrew it, the viewer
+ * never had a decision to make, and a REVOKED row on a personal inbox reads as
+ * something to act on.
+ */
+export const listMyInvites = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    const rows = await db
+      .select({
+        id: teamInvites.id,
+        status: teamInvites.status,
+        message: teamInvites.message,
+        createdAt: teamInvites.createdAt,
+        respondedAt: teamInvites.respondedAt,
+        teamId: teams.id,
+        teamSlug: teams.slug,
+        teamName: teams.name,
+        teamAvatarUrl: teams.avatarUrl,
+        teamAvatarKey: teams.avatarKey,
+        teamStatus: teams.status,
+        inviterId: teamInvites.invitedBy,
+        inviterUsername: developerProfiles.discordUsername,
+        inviterNickname: developerProfiles.guildNickname,
+        inviterAvatar: developerProfiles.avatarUrl,
+      })
+      .from(teamInvites)
+      .innerJoin(teams, eq(teamInvites.teamId, teams.id))
+      .leftJoin(developerProfiles, eq(teamInvites.invitedBy, developerProfiles.id))
+      .where(
+        and(
+          eq(teamInvites.inviteeId, context.user.id),
+          or(
+            eq(teamInvites.status, "pending"),
+            and(
+              inArray(teamInvites.status, ["accepted", "declined"]),
+              // `make_interval` rather than `$1 * interval '1 day'`: a bound
+              // parameter multiplied by an interval leaves Postgres with an
+              // ambiguous `unknown * interval`, which fails at plan time.
+              sql`${teamInvites.respondedAt} > now() - make_interval(days => ${RESOLVED_INVITE_DAYS})`,
+            ),
+          ),
+        ),
+      )
+      .orderBy(sql`(${teamInvites.status} = 'pending') desc`, desc(teamInvites.createdAt));
+
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        status: row.status,
+        message: row.message,
+        createdAt: row.createdAt,
+        respondedAt: row.respondedAt,
+        team: {
+          id: row.teamId,
+          slug: row.teamSlug,
+          name: row.teamName,
+          status: row.teamStatus,
+          avatarUrl: await resolveTeamAvatarUrl({
+            avatarKey: row.teamAvatarKey,
+            avatarUrl: row.teamAvatarUrl,
+          }),
+        },
+        inviter: {
+          id: row.inviterId,
+          // The name the rest of the app shows — see `searchProfiles`.
+          displayName: row.inviterNickname || row.inviterUsername || "A member",
+          avatarUrl: row.inviterAvatar,
+        },
       })),
     );
   });

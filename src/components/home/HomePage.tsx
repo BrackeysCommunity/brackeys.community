@@ -1,15 +1,12 @@
-import { useMemo } from "react";
-
 import { CommandCenterTeaser } from "@/components/home/CommandCenterTeaser";
-import { pickHeroJam } from "@/components/home/FeaturedJamPanel";
+import { HomeDashboard } from "@/components/home/dashboard/HomeDashboard";
 import { FeatureRail } from "@/components/home/FeatureRail";
 import { HeroSplit } from "@/components/home/HeroSplit";
-import { JamShowcaseBand, selectShowcaseJams } from "@/components/home/JamShowcaseBand";
+import { JamShowcaseBand } from "@/components/home/JamShowcaseBand";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
-import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
+import { useHomeContent } from "@/components/home/use-home-content";
 import { Section, SectionAction } from "@/components/ui/section";
-import useDateNow from "@/lib/hooks/use-date-now";
 
 /**
  * The desktop landing page — "command deck" layout.
@@ -20,18 +17,28 @@ import useDateNow from "@/lib/hooks/use-date-now";
  * hiring and who just arrived (collab + community). The previous version
  * led with four equal-weight navigation cards, which asked the visitor to
  * pick a destination before the page had given them a reason to.
+ *
+ * Signed in, that hierarchy gains a rung rather than losing one. The
+ * dashboard — invites, applications, posts, teams, jam clocks — slots in
+ * directly under the rail, above discovery: it is the most specific thing on
+ * the page to the person reading it. Everything a signed-out visitor gets
+ * stays, jam band included; the one exception is the newest-signups rail,
+ * which is a welcome mat and has nothing to say to someone already inside.
+ *
+ * `MobileHome` renders the same slots in the same order off the same hook —
+ * only the hero and the navigation are different components there.
  */
 export function HomePage() {
-  const now = useDateNow();
-  const nowDate = new Date(now);
-
-  const { isLoading, featured, upcoming, liveCount, upcomingCount } = useHomeJams(now);
-
-  const hero = useMemo(() => pickHeroJam(featured), [featured]);
-  const showcaseJams = useMemo(
-    () => selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null),
-    [featured, upcoming, hero],
-  );
+  const {
+    nowDate,
+    isLoading,
+    hero,
+    showcaseJams,
+    liveCount,
+    upcomingCount,
+    dashboard,
+    showDashboard,
+  } = useHomeContent();
 
   return (
     // `data-content-pane` tells the shell's readability pane how wide this
@@ -40,6 +47,8 @@ export function HomePage() {
       <HeroSplit hero={hero} isLoading={isLoading} now={nowDate} />
 
       <FeatureRail liveCount={liveCount} upcomingCount={upcomingCount} isLoadingJams={isLoading} />
+
+      {showDashboard ? <HomeDashboard data={dashboard} /> : null}
 
       <Section
         id="jams"
@@ -56,9 +65,11 @@ export function HomePage() {
           gets a full-width slot it can't fill. The columns stretch (the
           grid default) rather than sitting at `items-start`: the signup
           list is the taller of the two and sets the row, and the command
-          panel clips itself to that height instead of running past it. */}
-      <div className="grid gap-8 lg:grid-cols-2">
-        <NewestSignups />
+          panel clips itself to that height instead of running past it.
+          The signup rail is a welcome mat, so it steps aside for the
+          dashboard and the command panel takes the full row. */}
+      <div className={showDashboard ? "grid gap-8" : "grid gap-8 lg:grid-cols-2"}>
+        {showDashboard ? null : <NewestSignups />}
         <CommandCenterTeaser />
       </div>
     </div>

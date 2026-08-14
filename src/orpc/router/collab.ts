@@ -1601,6 +1601,128 @@ export const listResponses = os
     }));
   });
 
+/** Team identity for a chip beside an application row. */
+async function teamChipsByIds(teamIds: string[]) {
+  const unique = [...new Set(teamIds)];
+  if (unique.length === 0) return new Map<string, { id: string; name: string; slug: string }>();
+  const rows = await db
+    .select({ id: teams.id, name: teams.name, slug: teams.slug })
+    .from(teams)
+    .where(inArray(teams.id, unique));
+  return new Map(rows.map((t) => [t.id, t]));
+}
+
+/**
+ * The viewer's own applications, newest first — the responder half of the
+ * loop. `getPostViewerState` answers "what did I send to *this* post"; until
+ * this existed nothing answered "what have I sent at all", so a responder
+ * could only learn their status by revisiting each post one at a time.
+ *
+ * Withdrawn applications are hard-deleted, so absence *is* the withdrawal.
+ * Applications to posts that have since closed or expired stay in the list —
+ * the status chip is the point, and a decision doesn't stop mattering because
+ * the post moved on.
+ */
+export const listMyResponses = os
+  .use(requireAuth)
+  .input(z.object({ limit: z.number().min(1).max(100).default(25) }))
+  .handler(async ({ input, context }) => {
+    const rows = await db
+      .select({
+        id: collabResponses.id,
+        postId: collabResponses.postId,
+        status: collabResponses.status,
+        createdAt: collabResponses.createdAt,
+        postTitle: collabPosts.title,
+        postType: collabPosts.type,
+        postStatus: collabPosts.status,
+        jamId: itchJams.jamId,
+        jamTitle: itchJams.title,
+        jamSlug: itchJams.slug,
+        jamStartsAt: itchJams.startsAt,
+        jamEndsAt: itchJams.endsAt,
+      })
+      .from(collabResponses)
+      .innerJoin(collabPosts, eq(collabResponses.postId, collabPosts.id))
+      .leftJoin(itchJams, eq(collabPosts.jamId, itchJams.jamId))
+      .where(eq(collabResponses.responderId, context.user.id))
+      .orderBy(desc(collabResponses.createdAt))
+      .limit(input.limit);
+
+    // An accepted application's real end state is the team invite it spawned,
+    // which is why the responder gets the same `sourceResponseId` lookup the
+    // owner's triage list uses rather than a bare ACCEPTED chip.
+    const invitesByResponse = await latestInvitesByResponse(rows.map((r) => r.id));
+    const teamById = await teamChipsByIds([...invitesByResponse.values()].map((i) => i.teamId));
+
+    return rows.map(({ jamId, jamTitle, jamSlug, jamStartsAt, jamEndsAt, ...row }) => {
+      const invite = invitesByResponse.get(row.id);
+      return {
+        ...row,
+        jam:
+          jamId != null
+            ? { jamId, title: jamTitle, slug: jamSlug, startsAt: jamStartsAt, endsAt: jamEndsAt }
+            : null,
+        invite: invite ? { ...invite, team: teamById.get(invite.teamId) ?? null } : null,
+      };
+    });
+  });
+
+/**
+ * The viewer's posts with their pending applicant counts — the owner half of
+ * the same gap. `listResponses` answers per post and is owner-gated; nothing
+ * told an owner that three of their five posts had someone waiting.
+ *
+ * One grouped query rather than a count per post: an author with a dozen open
+ * posts is exactly the caller this is for.
+ */
+export const listMyPostsSummary = os
+  .use(requireAuth)
+  .input(z.object({ limit: z.number().min(1).max(100).default(25) }))
+  .handler(async ({ input, context }) => {
+    const rows = await db
+      .select({
+        id: collabPosts.id,
+        title: collabPosts.title,
+        type: collabPosts.type,
+        status: collabPosts.status,
+        expiresAt: collabPosts.expiresAt,
+        createdAt: collabPosts.createdAt,
+        jamId: itchJams.jamId,
+        jamTitle: itchJams.title,
+        jamSlug: itchJams.slug,
+        jamStartsAt: itchJams.startsAt,
+        jamEndsAt: itchJams.endsAt,
+        responseCount: count(collabResponses.id),
+        pendingResponseCount:
+          sql<number>`count(${collabResponses.id}) filter (where ${collabResponses.status} = 'pending')`.mapWith(
+            Number,
+          ),
+      })
+      .from(collabPosts)
+      .leftJoin(collabResponses, eq(collabResponses.postId, collabPosts.id))
+      .leftJoin(itchJams, eq(collabPosts.jamId, itchJams.jamId))
+      .where(eq(collabPosts.authorId, context.user.id))
+      .groupBy(collabPosts.id, itchJams.jamId)
+      // Attention order, not chronological: open posts first, then the ones
+      // with people waiting on them.
+      .orderBy(
+        sql`(${collabPosts.status} = 'recruiting') desc`,
+        sql`count(${collabResponses.id}) filter (where ${collabResponses.status} = 'pending') desc`,
+        desc(collabPosts.createdAt),
+      )
+      .limit(input.limit);
+
+    return rows.map(({ jamId, jamTitle, jamSlug, jamStartsAt, jamEndsAt, ...row }) => ({
+      ...row,
+      responseCount: Number(row.responseCount),
+      jam:
+        jamId != null
+          ? { jamId, title: jamTitle, slug: jamSlug, startsAt: jamStartsAt, endsAt: jamEndsAt }
+          : null,
+    }));
+  });
+
 export const updateResponseStatus = os
   .use(requireAuthWithPermissions)
   .input(

@@ -15,6 +15,10 @@ describe("team router surface", () => {
     expect(router.transferOwnership).toBeDefined();
     expect(router.importMemberProject).toBeDefined();
   });
+
+  it("registers the invitee's own inbox", () => {
+    expect(router.listMyInvites).toBeDefined();
+  });
 });
 
 describe("slugifyTeamName", () => {

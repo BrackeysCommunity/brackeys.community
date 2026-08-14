@@ -1,62 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link as RouterLink } from "@tanstack/react-router";
 
-import { Badge } from "@/components/ui/badge";
+import { CollabPostCard } from "@/components/collab/CollabPostCard";
 import { Section, SectionAction } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MicroLabel, Text } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { formatRate } from "@/lib/format-rate";
-import { timeAgo } from "@/lib/format-time";
 import { client } from "@/orpc/client";
 
 /** Rows in the ticker. Six reads as a feed; three read as three cards
  * that happened to be next to each other. */
 const POST_LIMIT = 6;
 
-type PostBadge = { label: string; variant: "default" | "secondary" | "outline" };
-
-const POST_KIND: Record<string, PostBadge> = {
-  paid: { label: "PAID", variant: "default" },
-  hobby: { label: "HOBBY", variant: "secondary" },
-  playtest: { label: "PLAYTEST", variant: "outline" },
-  mentor: { label: "MENTOR", variant: "outline" },
-};
-
-const FALLBACK_KIND: PostBadge = { label: "POST", variant: "outline" };
-
-function compensationLabel(post: {
-  compensationType?: string | null;
-  compensation?: string | null;
-  compensationMin?: number | null;
-  compensationMax?: number | null;
-}) {
-  // Posts created since v1 carry numbers; `compensation` is the legacy
-  // display string pre-v1 rows still hold.
-  const rate = formatRate(post.compensationType, post.compensationMin, post.compensationMax);
-  if (rate) return rate;
-  if (post.compensation) return post.compensation;
-  switch (post.compensationType) {
-    case "rev_share":
-      return "Rev share";
-    case "fixed":
-      return "Fixed";
-    case "hourly":
-      return "Hourly";
-    case "unpaid":
-      return "Unpaid";
-    default:
-      return null;
-  }
-}
+/** The board's own list-row height, so the skeleton doesn't resize on load. */
+const LIST_ROW_ESTIMATE = 86;
 
 /**
  * The collab board's latest roles, as a ticker.
  *
- * Three tall cards gave a three-role sample the visual weight of a whole
- * section while saying less than six scannable rows do — the thing that
- * makes the board look alive is the *rate* of postings, which a feed
- * shows and a card grid hides.
+ * Renders `CollabPostCard` — the board's list row — rather than a local
+ * row of its own. The two used to be separate implementations of the same
+ * idea, so the home page's version silently missed everything the board
+ * gained: cover thumbnails, FEATURED and CLOSED badges, the jam and team
+ * chips. Sharing the row means the next thing added to a board row shows
+ * up here too instead of drifting apart again.
+ *
+ * No `onSelect`: there's no inspector on this page, so a click on a row
+ * navigates to the post like the anchor says it will.
  */
 export function RecentCollabPosts() {
   const { data, isLoading } = useQuery({
@@ -80,18 +49,15 @@ export function RecentCollabPosts() {
       blurb="The latest roles off the board."
       action={<SectionAction to="/collab">OPEN BOARD</SectionAction>}
     >
-      <Well className="overflow-hidden">
-        {isLoading ? (
-          <ul className="divide-y divide-muted/20" aria-hidden>
-            {Array.from({ length: POST_LIMIT }, (_, i) => (
-              <li key={i} className="flex items-center gap-3 px-3 py-2.5">
-                <Skeleton className="h-4 w-14 shrink-0 bg-muted/50" />
-                <Skeleton className="h-3.5 flex-1 bg-muted/50" />
-                <Skeleton className="h-3 w-16 shrink-0 bg-muted/50" />
-              </li>
-            ))}
-          </ul>
-        ) : posts.length === 0 ? (
+      {isLoading ? (
+        // Same stack and row height the board's own feed skeleton uses.
+        <div className="flex flex-col gap-2" aria-hidden>
+          {Array.from({ length: POST_LIMIT }, (_, i) => (
+            <Skeleton key={i} className="w-full" style={{ height: LIST_ROW_ESTIMATE }} />
+          ))}
+        </div>
+      ) : posts.length === 0 ? (
+        <Well>
           <Text
             as="div"
             size="sm"
@@ -101,52 +67,14 @@ export function RecentCollabPosts() {
           >
             No posts yet
           </Text>
-        ) : (
-          <ul className="divide-y divide-muted/20">
-            {posts.map((post) => {
-              const kind = POST_KIND[post.type ?? ""] ?? FALLBACK_KIND;
-              const comp = compensationLabel(post);
-              return (
-                <li key={post.id}>
-                  <RouterLink
-                    to="/collab/$postId"
-                    params={{ postId: String(post.id) }}
-                    className="group flex items-center gap-3 px-3 py-2.5 text-inherit transition-colors hover:bg-muted/40"
-                  >
-                    <Badge variant={kind.variant} size="label" className="shrink-0">
-                      {kind.label}
-                    </Badge>
-
-                    <Text
-                      as="div"
-                      bold
-                      ellipsis
-                      size="md"
-                      className="min-w-0 flex-1 group-hover:text-primary"
-                    >
-                      {post.title}
-                    </Text>
-
-                    {comp && (
-                      <MicroLabel as="div" variant="accent" className="hidden shrink-0 sm:block">
-                        {comp}
-                      </MicroLabel>
-                    )}
-                    {post.experienceLevel && (
-                      <MicroLabel as="div" className="hidden shrink-0 uppercase md:block">
-                        {post.experienceLevel}
-                      </MicroLabel>
-                    )}
-                    <MicroLabel as="div" className="w-16 shrink-0 text-right">
-                      {timeAgo(post.createdAt)}
-                    </MicroLabel>
-                  </RouterLink>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Well>
+        </Well>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {posts.map((post) => (
+            <CollabPostCard key={post.id} post={post} />
+          ))}
+        </div>
+      )}
     </Section>
   );
 }

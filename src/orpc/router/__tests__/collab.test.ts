@@ -45,6 +45,11 @@ describe("collab router surface", () => {
     expect(router.updateMyResponse).toBeDefined();
     expect(router.withdrawResponse).toBeDefined();
   });
+
+  it("registers the dashboard's viewer-scoped summaries", () => {
+    expect(router.listMyResponses).toBeDefined();
+    expect(router.listMyPostsSummary).toBeDefined();
+  });
 });
 
 describe("createPost / updatePost input schema", () => {

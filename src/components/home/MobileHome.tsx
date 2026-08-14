@@ -1,39 +1,33 @@
-import { useMemo } from "react";
-
-import {
-  FeaturedJamPanel,
-  FeaturedJamPanelSkeleton,
-  pickHeroJam,
-} from "@/components/home/FeaturedJamPanel";
-import { JamShowcaseBand, selectShowcaseJams } from "@/components/home/JamShowcaseBand";
+import { HomeDashboard } from "@/components/home/dashboard/HomeDashboard";
+import { FeaturedJamPanel, FeaturedJamPanelSkeleton } from "@/components/home/FeaturedJamPanel";
+import { JamShowcaseBand } from "@/components/home/JamShowcaseBand";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
+import { useHomeContent } from "@/components/home/use-home-content";
 import { useHomeDestinations } from "@/components/home/use-home-destinations";
-import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Section, SectionAction } from "@/components/ui/section";
-import useDateNow from "@/lib/hooks/use-date-now";
 
 /**
  * The mobile landing page.
  *
- * Mirrors the desktop hierarchy — the live jam before the navigation,
- * showcase rows before the community — minus the anchor rail, which has
- * nowhere to stick on a phone. Keeping the two pages on different
- * hierarchies would be worse than either: the same visitor sees both
- * depending on the device, and they'd be told different things matter.
+ * Same slots in the same order as `HomePage`, off the same `useHomeContent`
+ * hook — which is what keeps the two from arguing about what matters, since
+ * one visitor sees both depending on the device. What differs is only what
+ * a phone can't carry: the hero split becomes a bare compact jam panel, and
+ * the anchor rail — which has nothing to stick to here — becomes tiles.
  */
 export function MobileHome() {
-  const now = useDateNow();
-  const nowDate = new Date(now);
-
-  const { isLoading, featured, upcoming, liveCount, upcomingCount } = useHomeJams(now);
-
-  const hero = useMemo(() => pickHeroJam(featured), [featured]);
-  const showcaseJams = useMemo(
-    () => selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null),
-    [featured, upcoming, hero],
-  );
+  const {
+    nowDate,
+    isLoading,
+    hero,
+    showcaseJams,
+    liveCount,
+    upcomingCount,
+    dashboard,
+    showDashboard,
+  } = useHomeContent();
 
   // The same four destinations and the same four numbers the desktop rail
   // shows. These used to scroll to a section further down this page, which
@@ -62,6 +56,8 @@ export function MobileHome() {
         <ShortcutTiles tiles={navTiles} />
       </div>
 
+      {showDashboard ? <HomeDashboard data={dashboard} /> : null}
+
       <Section
         id="jams"
         title="JAMS"
@@ -73,7 +69,7 @@ export function MobileHome() {
 
       <RecentCollabPosts />
 
-      <NewestSignups />
+      {showDashboard ? null : <NewestSignups />}
     </div>
   );
 }
