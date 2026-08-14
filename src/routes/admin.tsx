@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
+import { AdminFeatured } from "@/components/admin/AdminFeatured";
 import { AdminRecentComments } from "@/components/admin/AdminRecentComments";
 import { AdminReportQueue } from "@/components/admin/AdminReportQueue";
 import { AdminSkills } from "@/components/admin/AdminSkills";
@@ -17,7 +18,9 @@ import { client, orpc } from "@/orpc/client";
 // Named `section` rather than `view` so it doesn't widen the router-wide
 // search union that /notifications' own `view` param narrows against.
 const searchSchema = z.object({
-  section: z.enum(["reports", "comments", "skills", "vocab", "bans"]).default("reports"),
+  section: z
+    .enum(["reports", "comments", "featured", "skills", "vocab", "bans"])
+    .default("reports"),
 });
 
 type View = z.infer<typeof searchSchema>["section"];
@@ -25,6 +28,7 @@ type View = z.infer<typeof searchSchema>["section"];
 const TABS: { key: View; label: string }[] = [
   { key: "reports", label: "Reports" },
   { key: "comments", label: "Comments" },
+  { key: "featured", label: "Featured" },
   { key: "skills", label: "Skills" },
   { key: "vocab", label: "Vocabulary" },
   { key: "bans", label: "Bans" },
@@ -151,6 +155,7 @@ function AdminRoute() {
 
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
+      {section === "featured" && <AdminFeatured />}
       {section === "skills" && <AdminSkills isAdmin={isAdmin} />}
       {section === "vocab" && <AdminVocabulary isAdmin={isAdmin} />}
       {section === "bans" && <AdminBans isAdmin={isAdmin} />}

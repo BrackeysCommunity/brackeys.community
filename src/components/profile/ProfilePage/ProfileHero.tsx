@@ -1,4 +1,4 @@
-import { DiscordIcon, Edit02Icon, Share05Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
+import { Edit02Icon, Share05Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
@@ -277,23 +278,8 @@ function ActionRow({
           <span className="tracking-widest">EDIT</span>
         </Button>
       ) : null}
-      {!isOwner && profile.discordId ? (
-        <Button
-          variant="outline"
-          size="sm"
-          nativeButton={false}
-          render={
-            <a
-              href={`https://discord.com/users/${profile.discordId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Message on Discord"
-            />
-          }
-        >
-          <HugeiconsIcon icon={DiscordIcon} size={14} />
-          <span className="tracking-widest">MESSAGE</span>
-        </Button>
+      {!isOwner ? (
+        <DiscordMessageButton discordId={profile.discordId} personLabel={profile.name} />
       ) : null}
       <Button variant="outline" size="sm" onClick={onShare} aria-label="Share profile">
         <HugeiconsIcon icon={Share05Icon} size={14} />

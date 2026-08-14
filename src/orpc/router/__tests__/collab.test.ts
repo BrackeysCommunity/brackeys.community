@@ -15,7 +15,7 @@ import {
   isEditablePostType,
 } from "@/lib/collab-store";
 import router from "@/orpc/router";
-import { assertTeamRequired, postContentSchema } from "@/orpc/router/collab";
+import { assertTeamRequired, postContentSchema, stripContact } from "@/orpc/router/collab";
 
 /** A payload that satisfies every requirement, for tests to break one at a time. */
 function validPost(overrides: Record<string, unknown> = {}) {
@@ -364,6 +364,40 @@ describe("projectLengthForJam", () => {
     expect(projectLengthForJam(null, after(2))).toBeUndefined();
     expect(projectLengthForJam(start, null)).toBeUndefined();
     expect(projectLengthForJam(after(2), start)).toBeUndefined();
+  });
+});
+
+describe("stripContact", () => {
+  const row = {
+    id: 7,
+    title: "Composer wanted",
+    contactType: "email" as string | null,
+    contactMethod: "team@example.com" as string | null,
+  };
+
+  it("removes both contact columns and keeps everything else", () => {
+    const out = stripContact(row);
+    expect(out).not.toHaveProperty("contactType");
+    expect(out).not.toHaveProperty("contactMethod");
+    expect(out.id).toBe(7);
+    expect(out.title).toBe("Composer wanted");
+  });
+
+  it("reports whether there was a contact block behind the gate", () => {
+    expect(stripContact(row).hasContact).toBe(true);
+    expect(stripContact({ ...row, contactMethod: null }).hasContact).toBe(true);
+    expect(stripContact({ ...row, contactType: null }).hasContact).toBe(true);
+    expect(stripContact({ ...row, contactType: null, contactMethod: null }).hasContact).toBe(false);
+  });
+
+  it("leaves no contact value anywhere in the serialized payload", () => {
+    // The bug this guards against shipped twice: `getPost` was fixed while
+    // `listPosts` kept leaking, because both build their response by
+    // spreading a full-row `select()`. A substring check catches a leak
+    // through any key, not just the two we remember to name.
+    const json = JSON.stringify(stripContact(row));
+    expect(json).not.toContain("team@example.com");
+    expect(json).not.toContain("email");
   });
 });
 

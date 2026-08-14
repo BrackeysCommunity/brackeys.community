@@ -679,7 +679,8 @@ export const reportComment = os
       .where(eq(comments.id, input.commentId))
       .limit(1);
     if (!comment) throw new ORPCError("NOT_FOUND", { message: "Comment not found." });
-    checkProfanity(input.reason, "Report reason");
+    // Staff-only text about something abusive — quoting the abuse must
+    // not block the report, so no profanity check on the reason.
     const [open] = await db
       .select({ id: commentReports.id })
       .from(commentReports)

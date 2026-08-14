@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -21,6 +22,8 @@ interface ResponseItem {
   createdAt: string | Date | null;
   responderUsername: string | null;
   responderAvatar: string | null;
+  /** Only used once accepted — the door to the conversation the match earned. */
+  responderDiscordId: string | null;
   /** This applicant's skills against the post's stack. Null when the
    *  post didn't declare one. */
   stackOverlap: { matched: string[]; missing: string[]; total: number } | null;
@@ -214,6 +217,15 @@ export function CollabPostResponseList({
                 </Text>
               ) : null}
             </div>
+          ) : null}
+          {resp.status === "accepted" ? (
+            <DiscordMessageButton
+              discordId={resp.responderDiscordId}
+              label="MESSAGE ON DISCORD"
+              size="xs"
+              className="self-start"
+              personLabel={resp.responderUsername ? `@${resp.responderUsername}` : undefined}
+            />
           ) : null}
           {resp.status === "accepted" && team ? (
             resp.invite?.status === "pending" ? (

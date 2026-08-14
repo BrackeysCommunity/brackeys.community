@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { client, orpc } from "@/orpc/client";
 
@@ -34,6 +35,9 @@ export function useCollabPostActions(postId: number, opts: { onDeleted?: () => v
   });
   const report = useMutation({
     mutationFn: (reason: string) => client.reportPost({ postId, reason }),
+    // Duplicate reports and rate limits both come back as errors; without
+    // this the dialog would just close as if the report had landed.
+    onError: (err: Error) => toast.error(err.message),
   });
 
   return { close, reopen, extend, remove, report };

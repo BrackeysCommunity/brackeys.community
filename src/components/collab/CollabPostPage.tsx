@@ -44,7 +44,7 @@ import { CollabCreateFlyout } from "./CollabCreateFlyout";
 import {
   COMP_TYPE_LABELS,
   type CollabPostDetailData,
-  ReportInline,
+  ReportPostAction,
   TYPE_LABELS,
 } from "./CollabPostDetail";
 import {
@@ -93,11 +93,8 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
   const [editOpen, setEditOpen] = useState(false);
 
-  const { isOwner, responses, viewerResponse, contact, viewerOverlap } = usePostViewerState(
-    postId,
-    post,
-    currentUserId,
-  );
+  const { isOwner, responses, viewerResponse, contact, authorDiscordId, viewerOverlap } =
+    usePostViewerState(postId, post, currentUserId);
   const isClosed = post.status !== "recruiting";
   const closesIn = !isClosed && post.expiresAt ? formatCountdown(post.expiresAt) : null;
   const rateDisplay =
@@ -239,6 +236,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
               isClosed={isClosed}
               signedIn={currentUserId !== null}
               viewerResponse={viewerResponse}
+              authorDiscordId={authorDiscordId}
             />
           )}
         </div>
@@ -594,10 +592,6 @@ function HeroActions({
   actions: ReturnType<typeof useCollabPostActions>;
   onEdit: () => void;
 }) {
-  const [showReport, setShowReport] = useState(false);
-  const [reportReason, setReportReason] = useState("");
-  const [reportSuccess, setReportSuccess] = useState(false);
-
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
       {!isOwner && !isClosed ? (
@@ -692,23 +686,7 @@ function HeroActions({
 
       {!isOwner && currentUserId ? (
         <div className="ml-auto">
-          <ReportInline
-            showReport={showReport}
-            setShowReport={setShowReport}
-            reportReason={reportReason}
-            setReportReason={setReportReason}
-            reportSuccess={reportSuccess}
-            onSubmit={() =>
-              actions.report.mutate(reportReason, {
-                onSuccess: () => {
-                  setReportSuccess(true);
-                  setShowReport(false);
-                  setReportReason("");
-                },
-              })
-            }
-            pending={actions.report.isPending}
-          />
+          <ReportPostAction report={actions.report} />
         </div>
       ) : null}
     </div>
@@ -800,11 +778,13 @@ function RespondSection({
   isClosed,
   signedIn,
   viewerResponse,
+  authorDiscordId,
 }: {
   postId: number;
   isClosed: boolean;
   signedIn: boolean;
   viewerResponse: ViewerResponse | null;
+  authorDiscordId: string | null;
 }) {
   if (viewerResponse) {
     return (
@@ -815,7 +795,11 @@ function RespondSection({
         blurb="You've already responded — here's what you sent."
       >
         <Well className="p-5 backdrop-blur-none">
-          <ViewerResponseCard response={viewerResponse} postId={postId} />
+          <ViewerResponseCard
+            response={viewerResponse}
+            postId={postId}
+            authorDiscordId={authorDiscordId}
+          />
         </Well>
       </Section>
     );

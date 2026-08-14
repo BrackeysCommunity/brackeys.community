@@ -22,6 +22,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { ReportDialog } from "@/components/ui/report-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -620,9 +621,6 @@ function CommentItem({
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
-  const [reporting, setReporting] = useState(false);
-  const [reportReason, setReportReason] = useState("");
-
   const edit = useMutation({
     mutationFn: () => client.editComment({ commentId: comment.id, content: editDraft.trim() }),
     onSuccess: () => {
@@ -639,12 +637,8 @@ function CommentItem({
   });
 
   const report = useMutation({
-    mutationFn: () => client.reportComment({ commentId: comment.id, reason: reportReason.trim() }),
-    onSuccess: () => {
-      setReporting(false);
-      setReportReason("");
-      toast.success("Report sent — staff will take a look.");
-    },
+    mutationFn: (reason: string) => client.reportComment({ commentId: comment.id, reason }),
+    onSuccess: () => toast.success("Report sent — staff will take a look."),
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -779,34 +773,15 @@ function CommentItem({
             </Confirm>
           ) : null}
           {!comment.viewer.isMine ? (
-            <CommentAction
-              icon={Flag02Icon}
-              label="REPORT"
-              onClick={() => setReporting((v) => !v)}
-            />
+            <ReportDialog
+              title="Report this comment?"
+              message="Tell staff what's wrong with it. Only staff see this."
+              placeholder="What's wrong with this comment?"
+              onSubmit={(reason) => report.mutateAsync(reason)}
+            >
+              <CommentAction icon={Flag02Icon} label="REPORT" />
+            </ReportDialog>
           ) : null}
-        </div>
-      ) : null}
-
-      {reporting ? (
-        <div className="flex items-center gap-2">
-          <Textarea
-            value={reportReason}
-            onChange={(e) => setReportReason(e.target.value)}
-            placeholder="What's wrong with this comment?"
-            rows={1}
-            maxLength={1000}
-            className="flex-1"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => report.mutate()}
-            disabled={!reportReason.trim() || report.isPending}
-            className="tracking-widest"
-          >
-            {report.isPending ? "SENDING…" : "SEND"}
-          </Button>
         </div>
       ) : null}
 

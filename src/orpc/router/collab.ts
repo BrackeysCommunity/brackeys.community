@@ -788,17 +788,10 @@ export const getPost = os
       })),
     );
 
-    // Contact details never ride this response. It carries no auth
-    // middleware and is edge-cached, so anything in it is public to the
-    // internet by construction — `getPostViewerState` serves the contact
-    // block to signed-in guild members instead.
-    const { contactType: _contactType, contactMethod: _contactMethod, ...publicPost } = post;
-
+    // `getPostViewerState` serves the contact block to signed-in guild
+    // members; it must not ride this anonymous, edge-cached response.
     return {
-      ...publicPost,
-      // Whether there is a contact block behind the gate, so the anonymous
-      // render can offer the sign-in affordance only when it leads somewhere.
-      hasContact: Boolean(post.contactType || post.contactMethod),
+      ...stripContact(post),
       roles,
       skills: postSkills,
       jam,
@@ -861,8 +854,22 @@ export const getPostViewerState = os
     // contact step and silently wipe the field on save.
     const canSeeContact = post != null && (inGuild || post.authorId === context.user.id);
 
+    // The other half of the match. Released only once the viewer's own
+    // application is accepted — that is the moment the two of them need to
+    // talk, and it keeps the author's Discord id off every other response.
+    let authorDiscordId: string | null = null;
+    if (post && own?.status === "accepted" && post.authorId !== context.user.id) {
+      const [author] = await db
+        .select({ discordId: developerProfiles.discordId })
+        .from(developerProfiles)
+        .where(eq(developerProfiles.id, post.authorId))
+        .limit(1);
+      authorDiscordId = author?.discordId ?? null;
+    }
+
     return {
       viewerResponse: own ?? null,
+      authorDiscordId,
       contact: canSeeContact
         ? { contactType: post.contactType, contactMethod: post.contactMethod }
         : null,
@@ -919,6 +926,25 @@ async function skillIdsByUser(userIds: string[]): Promise<Map<string, Set<number
   return byUser;
 }
 
+/**
+ * Strip the contact block off a post row and replace it with a boolean.
+ *
+ * Every public read of a post goes through this. `getPost` and `listPosts`
+ * both `select()` the whole row, so contact details ship by default unless
+ * something takes them out — and both of those responses are anonymous and
+ * edge-cached, which makes "by default" a public leak. One function so the
+ * two cannot disagree, and so a third public read has something to call.
+ *
+ * `hasContact` is what's left: enough for an anonymous render to offer the
+ * sign-in affordance, nothing an anonymous caller can act on.
+ */
+export function stripContact<
+  T extends { contactType: string | null; contactMethod: string | null },
+>(post: T): Omit<T, "contactType" | "contactMethod"> & { hasContact: boolean } {
+  const { contactType, contactMethod, ...rest } = post;
+  return { ...rest, hasContact: Boolean(contactType || contactMethod) };
+}
+
 /** Filters that apply across types — the facets a count can vary over. */
 const postFacetSchema = {
   roleIds: z.array(z.number()).optional(),
@@ -931,6 +957,9 @@ const postFacetSchema = {
   experienceLevel: experienceLevelSchema.optional(),
   compensationType: compensationTypeSchema.optional(),
   isIndividual: z.boolean().optional(),
+  /** Staff curation. A facet rather than a filter so the type counts above
+   *  the board agree with the list when it's applied. */
+  featured: z.boolean().optional(),
 };
 
 const postFilterSchema = {
@@ -976,6 +1005,11 @@ function buildPostFilter(input: PostFilterInput) {
       ilike(collabPosts.description, `%${escaped}%`),
     );
     if (searchCondition) conditions.push(searchCondition);
+  }
+  if (input.featured === true) {
+    conditions.push(sql`${collabPosts.featuredAt} IS NOT NULL`);
+  } else if (input.featured === false) {
+    conditions.push(sql`${collabPosts.featuredAt} IS NULL`);
   }
   if (input.jamId) conditions.push(eq(collabPosts.jamId, input.jamId));
   if (input.teamId) conditions.push(eq(collabPosts.teamId, input.teamId));
@@ -1144,9 +1178,14 @@ export const listPosts = os
     const sortColumn = input.sortBy === "updatedAt" ? collabPosts.updatedAt : collabPosts.createdAt;
     const sortFn = input.sortOrder === "asc" ? asc : desc;
 
+    // Featured posts pin to the top, ahead of whatever sort the viewer
+    // picked — that pin is the whole point of featuring, and without it
+    // `featurePost` only adds a badge to a post nobody scrolls to. Applied
+    // before the sort rather than instead of it, so featured posts stay
+    // ordered among themselves and the pin is stable across pages.
     const posts = await query
       .where(where)
-      .orderBy(sortFn(sortColumn))
+      .orderBy(sql`(${collabPosts.featuredAt} IS NOT NULL) DESC`, sortFn(sortColumn))
       .limit(input.limit)
       .offset(input.offset);
 
@@ -1279,7 +1318,7 @@ export const listPosts = os
         const postSkills = skillsByPost.get(p.id) ?? [];
         const project = p.projectId != null ? (projectById.get(p.projectId) ?? null) : null;
         return {
-          ...p,
+          ...stripContact(p),
           // A linked project's cover stands in when the poster uploaded
           // nothing — the §8.3 payoff: picking a project makes the card
           // look right with zero uploads.
@@ -1532,6 +1571,10 @@ export const listResponses = os
         createdAt: collabResponses.createdAt,
         responderUsername: developerProfiles.discordUsername,
         responderAvatar: developerProfiles.avatarUrl,
+        // Powers the MESSAGE ON DISCORD deep link on accepted rows. Safe
+        // here and nowhere near `getPost`: this procedure is owner-or-staff
+        // gated, so the id never reaches an anonymous or cacheable response.
+        responderDiscordId: developerProfiles.discordId,
       })
       .from(collabResponses)
       .leftJoin(developerProfiles, eq(collabResponses.responderId, developerProfiles.id))
@@ -1833,7 +1876,8 @@ export const reportPost = os
       throw new ORPCError("NOT_FOUND", { message: "Post not found." });
     }
 
-    checkProfanity(input.reason, "Report reason");
+    // No profanity check here: a report reason is staff-only text about
+    // something abusive, so quoting the abuse must not block the report.
 
     const [open] = await db
       .select({ id: collabPostReports.id })

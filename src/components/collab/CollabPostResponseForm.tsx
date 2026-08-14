@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
@@ -42,9 +43,13 @@ const RESPONSE_STATUS_BADGE: Record<
 export function ViewerResponseCard({
   response,
   postId,
+  authorDiscordId,
 }: {
   response: ViewerResponse;
   postId: number;
+  /** The post author's Discord id — the server only sends it once this
+   *  response is accepted, so no extra gate is needed here. */
+  authorDiscordId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -136,6 +141,15 @@ export function ViewerResponseCard({
         <Text size="xs" variant="danger">
           {error}
         </Text>
+      ) : null}
+
+      {response.status === "accepted" ? (
+        <DiscordMessageButton
+          discordId={authorDiscordId}
+          label="MESSAGE ON DISCORD"
+          size="xs"
+          className="mt-1 self-start"
+        />
       ) : null}
 
       {pending ? (

@@ -10,11 +10,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { MediaCardImage } from "@/components/ui/media-card";
+import { ReportDialog } from "@/components/ui/report-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -113,15 +115,8 @@ export function CollabPostDetail({
     report: reportMutation,
   } = useCollabPostActions(postId, { onDeleted: onClose });
 
-  const [showReport, setShowReport] = useState(false);
-  const [reportReason, setReportReason] = useState("");
-  const [reportSuccess, setReportSuccess] = useState(false);
-
-  const { isOwner, responses, viewerResponse, contact, viewerOverlap } = usePostViewerState(
-    postId,
-    post,
-    currentUserId,
-  );
+  const { isOwner, responses, viewerResponse, contact, authorDiscordId, viewerOverlap } =
+    usePostViewerState(postId, post, currentUserId);
   // Owner-closed and sweep-expired are both "no longer taking responses";
   // the badge tells them apart, everything else treats them the same.
   const isExpired = post?.status === "expired";
@@ -469,7 +464,11 @@ export function CollabPostDetail({
             {/* Non-owner: respond, or the response they already sent */}
             {!isOwner && currentUserId && viewerResponse ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
-                <ViewerResponseCard response={viewerResponse} postId={postId} />
+                <ViewerResponseCard
+                  response={viewerResponse}
+                  postId={postId}
+                  authorDiscordId={authorDiscordId}
+                />
               </div>
             ) : !isOwner && currentUserId && !isClosed ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
@@ -611,23 +610,7 @@ export function CollabPostDetail({
                 </Confirm>
               </>
             ) : currentUserId ? (
-              <ReportInline
-                showReport={showReport}
-                setShowReport={setShowReport}
-                reportReason={reportReason}
-                setReportReason={setReportReason}
-                reportSuccess={reportSuccess}
-                onSubmit={() =>
-                  reportMutation.mutate(reportReason, {
-                    onSuccess: () => {
-                      setReportSuccess(true);
-                      setShowReport(false);
-                      setReportReason("");
-                    },
-                  })
-                }
-                pending={reportMutation.isPending}
-              />
+              <ReportPostAction report={reportMutation} />
             ) : null}
           </div>
         </div>
@@ -712,73 +695,39 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-export function ReportInline({
-  showReport,
-  setShowReport,
-  reportReason,
-  setReportReason,
-  reportSuccess,
-  onSubmit,
-  pending,
+/**
+ * REPORT for a post — the reason is collected in the shared dialog, and
+ * the button becomes a receipt once staff have it.
+ */
+export function ReportPostAction({
+  report,
 }: {
-  showReport: boolean;
-  setShowReport: (b: boolean) => void;
-  reportReason: string;
-  setReportReason: (s: string) => void;
-  reportSuccess: boolean;
-  onSubmit: () => void;
-  pending: boolean;
+  report: ReturnType<typeof useCollabPostActions>["report"];
 }) {
-  if (reportSuccess) {
+  const [reported, setReported] = useState(false);
+
+  if (reported) {
     return (
       <Text size="xs" variant="success" className="tracking-widest uppercase">
         Report submitted
       </Text>
     );
   }
-  if (showReport) {
-    return (
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={reportReason}
-          onChange={(e) => setReportReason(e.target.value)}
-          placeholder="Reason"
-          maxLength={500}
-          className="rounded border border-muted/50 bg-background px-2 py-1 text-xs text-foreground placeholder-muted-foreground/40 outline-none focus:border-primary/50 dark:bg-emboss-surface"
-        />
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={onSubmit}
-          disabled={!reportReason.trim() || pending}
-          className="tracking-widest"
-        >
-          REPORT
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setShowReport(false);
-            setReportReason("");
-          }}
-          className="tracking-widest"
-        >
-          CANCEL
-        </Button>
-      </div>
-    );
-  }
+
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => setShowReport(true)}
-      className="tracking-widest"
+    <ReportDialog
+      title="Report this post?"
+      message="Tell staff what's wrong with it. Only staff see this."
+      onSubmit={async (reason) => {
+        await report.mutateAsync(reason);
+        setReported(true);
+        toast.success("Report sent — staff will take a look.");
+      }}
     >
-      <HugeiconsIcon icon={Flag01Icon} size={12} />
-      REPORT
-    </Button>
+      <Button variant="outline" size="sm" className="tracking-widest">
+        <HugeiconsIcon icon={Flag01Icon} size={12} />
+        REPORT
+      </Button>
+    </ReportDialog>
   );
 }
