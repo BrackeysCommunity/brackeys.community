@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -741,43 +741,81 @@ export const listMyTeams = os
  * Card extras are four batched queries keyed on the page's ids, the
  * same no-N+1 shape `listPosts` uses for its jam/team/skill chips.
  */
+const teamFacetSchema = {
+  search: z.string().trim().max(100).optional(),
+  /** Derived from the roster's skills — a team has no stack of its own. */
+  skillIds: z.array(z.number().int().positive()).optional(),
+  recruiting: z.boolean().optional(),
+  hasShipped: z.boolean().optional(),
+};
+
+type TeamFilterInput = {
+  [K in keyof typeof teamFacetSchema]?: z.infer<(typeof teamFacetSchema)[K]>;
+};
+
+/**
+ * Shared WHERE builder for the directory listing and its facet counts, so
+ * a number on the stack picker can never disagree with the list it
+ * labels. Pass `{ ...input, skillIds: undefined }` to count across stacks.
+ */
+function buildTeamFilter(input: TeamFilterInput) {
+  const conditions = [eq(teams.status, "active")];
+  if (input.search) {
+    const pattern = `%${escapeLike(input.search)}%`;
+    conditions.push(or(ilike(teams.name, pattern), ilike(teams.tagline, pattern))!);
+  }
+  if (input.recruiting) conditions.push(eq(teams.recruiting, true));
+  if (input.hasShipped) {
+    conditions.push(
+      sql`exists (select 1 from ${teamProjects} where ${teamProjects.teamId} = ${teams.id})`,
+    );
+  }
+  if (input.skillIds && input.skillIds.length > 0) {
+    conditions.push(
+      sql`exists (
+        select 1 from ${teamMembers}
+        join ${userSkills} on ${userSkills.userId} = ${teamMembers.userId}
+        where ${teamMembers.teamId} = ${teams.id}
+          and ${inArray(userSkills.skillId, input.skillIds)}
+      )`,
+    );
+  }
+  return and(...conditions);
+}
+
+/**
+ * Per-skill team counts for the stack picker — see `countPostsBySkill`.
+ * A team is counted once per distinct skill on its roster, however many
+ * members hold it: the picker's question is "how many teams would this
+ * turn up", not "how many people there know it".
+ */
+export const countTeamsBySkill = os
+  .route({ method: "GET" })
+  .input(z.object(teamFacetSchema))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({ skillId: userSkills.skillId, count: countDistinct(teams.id) })
+      .from(userSkills)
+      .innerJoin(teamMembers, eq(teamMembers.userId, userSkills.userId))
+      .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+      .where(buildTeamFilter({ ...input, skillIds: undefined }))
+      .groupBy(userSkills.skillId);
+
+    return Object.fromEntries(rows.map((row) => [row.skillId, Number(row.count)]));
+  });
+
 export const listTeams = os
   .route({ method: "GET" })
   .input(
     z.object({
-      search: z.string().trim().max(100).optional(),
-      /** Derived from the roster's skills — a team has no stack of its own. */
-      skillIds: z.array(z.number().int().positive()).optional(),
-      recruiting: z.boolean().optional(),
-      hasShipped: z.boolean().optional(),
+      ...teamFacetSchema,
       sort: z.enum(["active", "shipped", "newest"]).default("active"),
       limit: z.number().min(1).max(50).default(24),
       offset: z.number().min(0).default(0),
     }),
   )
   .handler(async ({ input }) => {
-    const conditions = [eq(teams.status, "active")];
-    if (input.search) {
-      const pattern = `%${escapeLike(input.search)}%`;
-      conditions.push(or(ilike(teams.name, pattern), ilike(teams.tagline, pattern))!);
-    }
-    if (input.recruiting) conditions.push(eq(teams.recruiting, true));
-    if (input.hasShipped) {
-      conditions.push(
-        sql`exists (select 1 from ${teamProjects} where ${teamProjects.teamId} = ${teams.id})`,
-      );
-    }
-    if (input.skillIds && input.skillIds.length > 0) {
-      conditions.push(
-        sql`exists (
-          select 1 from ${teamMembers}
-          join ${userSkills} on ${userSkills.userId} = ${teamMembers.userId}
-          where ${teamMembers.teamId} = ${teams.id}
-            and ${inArray(userSkills.skillId, input.skillIds)}
-        )`,
-      );
-    }
-    const where = and(...conditions);
+    const where = buildTeamFilter(input);
 
     // Ship date falls back to when the row landed: `released_at` is
     // owner-entered and mostly null on older showcase entries, and a

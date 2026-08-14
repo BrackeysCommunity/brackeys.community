@@ -1029,6 +1029,31 @@ export const countPostsByType = os
   });
 
 /**
+ * Per-skill post counts for the stack picker, under every filter *except*
+ * the stack itself. Excluding it is what makes the numbers answer "how
+ * many would ticking this add" rather than "how many survived what I've
+ * already ticked" — and since the stack facet is an OR, that's the only
+ * reading that stays true as selections pile up.
+ *
+ * Skills absent from the result are absent from the map, not zero rows:
+ * the vocabulary runs to dozens of entries and most boards use a handful,
+ * so the caller treats "missing" as zero.
+ */
+export const countPostsBySkill = os
+  .route({ method: "GET" })
+  .input(z.object(postFilterSchema))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({ skillId: collabPostSkills.skillId, count: count() })
+      .from(collabPostSkills)
+      .innerJoin(collabPosts, eq(collabPosts.id, collabPostSkills.postId))
+      .where(buildPostFilter({ ...input, skillIds: undefined }))
+      .groupBy(collabPostSkills.skillId);
+
+    return Object.fromEntries(rows.map((row) => [row.skillId, Number(row.count)]));
+  });
+
+/**
  * The readout behind the board's idle sidebar: what's open, what those
  * open posts are built in, and which seats they're hiring for. Every
  * figure counts *recruiting* posts only — a stack that's only present on

@@ -40,6 +40,7 @@ const PUBLIC_PROCEDURES = new Set([
   // Public community directory (explicit product decision — see
   // docs/plans/01-admin-surface-hardening.md §"Confirm-intent").
   "listMembers",
+  "countMembersBySkill",
   "listAvailableUsers",
   // Public profile/project/team pages; viewer-specific fields degrade
   // to their anonymous shape via authMiddleware.
@@ -49,12 +50,14 @@ const PUBLIC_PROCEDURES = new Set([
   "resolveProjectForGame",
   "getTeam",
   "listTeams",
+  "countTeamsBySkill",
   "getTeamStats",
   "listUserTeams",
   // Collab board reads.
   "getPost",
   "listPosts",
   "countPostsByType",
+  "countPostsBySkill",
   "countPostsForJam",
   "getBoardStats",
   // Shared taxonomies.

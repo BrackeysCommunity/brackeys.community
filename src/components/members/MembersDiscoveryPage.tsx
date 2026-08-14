@@ -21,7 +21,12 @@ import { client } from "@/orpc/client";
 
 import { ActiveMembersRail } from "./ActiveMembersRail";
 import { MemberDirectoryCard } from "./MemberDirectoryCard";
-import { CLEARED_MEMBER_FILTERS, DEFAULT_SORT, type MembersSearch } from "./members-filters";
+import {
+  CLEARED_MEMBER_FILTERS,
+  DEFAULT_SORT,
+  memberFacetInput,
+  type MembersSearch,
+} from "./members-filters";
 import { MembersActiveFilters } from "./MembersActiveFilters";
 import { MembersFilterClearButton, MembersFilterPanel } from "./MembersFilterPanel";
 import { MembersFloatingControls, MembersToolbar } from "./MembersToolbar";
@@ -69,8 +74,6 @@ export function MembersDiscoveryPage() {
   useReleaseFocusOnOpen(filtersOpen);
 
   const sort = search.sort ?? DEFAULT_SORT;
-  const skillIds = useMemo(() => search.skills ?? [], [search.skills]);
-  const availability = useMemo(() => search.availability ?? [], [search.availability]);
 
   // The current search, read through a ref so the writer below can stay
   // referentially stable — the debounced search box keys its timer on the
@@ -96,14 +99,7 @@ export function MembersDiscoveryPage() {
     [navigate],
   );
 
-  const listInput = {
-    search: search.q?.trim() || undefined,
-    skillIds: skillIds.length > 0 ? skillIds : undefined,
-    availability: availability.length > 0 ? availability : undefined,
-    openToWork: search.open || undefined,
-    maxHourlyRate: search.rate,
-    sort,
-  };
+  const listInput = { ...memberFacetInput(search), sort };
 
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
     queryKey: ["listMembers", listInput],

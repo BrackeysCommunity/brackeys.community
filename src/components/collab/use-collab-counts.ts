@@ -26,6 +26,23 @@ export function useCollabTypeCounts() {
 }
 
 /**
+ * Per-skill post counts for the stack picker, under every active filter
+ * *except* the stack itself — so each number reads "how many ticking this
+ * adds", which is the only true reading when the facet ORs.
+ */
+export function useCollabSkillCounts() {
+  const filters = useStore(collabStore, (s) => s.filters);
+  const { skillIds: _skillIds, ...facets } = collabFilterInput(filters);
+
+  return useQuery({
+    queryKey: ["collabSkillCounts", facets],
+    queryFn: () => client.countPostsBySkill(facets),
+    staleTime: 15 * 1000,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
  * Live result count for what the feed is currently showing — free from
  * the type-count facets, which are computed under every filter but the
  * type itself.

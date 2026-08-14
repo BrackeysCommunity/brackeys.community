@@ -25,6 +25,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   // Community directory. `getProfile` is the anonymous view; the owner's
   // own extras come from the private `getMyProfile`.
   "listMembers",
+  "countMembersBySkill",
   "listAvailableUsers",
   "getProfile",
   // Shared taxonomies — rarely written, but see their TTLs below.
@@ -33,6 +34,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   // Teams and projects (list/aggregate reads only; the detail pages carry
   // viewer overlays and stay private).
   "listTeams",
+  "countTeamsBySkill",
   "getTeam",
   "getTeamStats",
   "listUserTeams",
@@ -44,6 +46,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "listPosts",
   "getPost",
   "countPostsByType",
+  "countPostsBySkill",
   "countPostsForJam",
   "getBoardStats",
   // GitHub contribution calendar — a live GraphQL call per request today.
@@ -85,9 +88,11 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   // Member-written. A minute for listings; detail pages are where someone
   // clicks straight through after saving, so they get the shortest budget.
   listMembers: 60,
+  countMembersBySkill: 60,
   listAvailableUsers: 60,
   getProfile: 30,
   listTeams: 60,
+  countTeamsBySkill: 60,
   getTeam: 30,
   listUserTeams: 60,
   getTeamStats: 60,
@@ -100,6 +105,7 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   listPosts: 30,
   getPost: 30,
   countPostsByType: 30,
+  countPostsBySkill: 30,
   countPostsForJam: 30,
   getBoardStats: 30,
 

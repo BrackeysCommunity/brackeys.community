@@ -13,12 +13,12 @@ import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FacetPicker } from "@/components/ui/facet-picker";
 import { SearchField } from "@/components/ui/search-field";
 import {
   type CollabCompensationType,
@@ -33,6 +33,8 @@ import {
 } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+
+import { useCollabSkillCounts } from "./use-collab-counts";
 
 export const COLLAB_SEARCH_INPUT_ID = "collab-search";
 
@@ -295,59 +297,33 @@ export function CollabSearchInput({ className }: { className?: string }) {
 /**
  * Tech stack, on both lanes — "which projects run on Godot" and "who
  * knows Godot" are the same question asked of the same vocabulary, so
- * they get the same control. Multi-select, hence a checkbox menu rather
- * than the radio `FilterMenu` the single-choice facets use.
+ * they get the same control. See {@link FacetPicker} for why it isn't the
+ * plain checkbox menu the single-choice facets use.
  *
  * Renders nothing while the skills table is empty, which is the honest
  * state until the vocabulary is seeded — an always-empty menu button
  * just advertises a dead end.
  */
-function StackFilterMenu({ selected }: { selected: number[] }) {
+export function StackFilterMenu({ selected, inline }: { selected: number[]; inline?: boolean }) {
   const { data } = useQuery({
     ...orpc.listSkills.queryOptions({ input: {} }),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: counts } = useCollabSkillCounts();
   const skills = data ?? [];
   if (skills.length === 0) return null;
 
-  const toggle = (id: number) =>
-    setCollabFilters({
-      skillIds: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id],
-    });
-
-  const label =
-    selected.length === 0
-      ? "STACK"
-      : selected.length === 1
-        ? (skills.find((s) => s.id === selected[0])?.name.toUpperCase() ?? "STACK")
-        : `STACK · ${selected.length}`;
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn("tracking-widest", selected.length > 0 && "border-primary text-primary")}
-          />
-        }
-      >
-        {label}
-        <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-48 overflow-y-auto p-1">
-        {skills.map((skill) => (
-          <DropdownMenuCheckboxItem
-            key={skill.id}
-            checked={selected.includes(skill.id)}
-            onCheckedChange={() => toggle(skill.id)}
-          >
-            {skill.name}
-          </DropdownMenuCheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <FacetPicker
+      label="STACK"
+      options={skills}
+      selectedIds={selected}
+      onChange={(skillIds) => setCollabFilters({ skillIds })}
+      counts={counts}
+      searchPlaceholder="Search engines, languages, tools…"
+      hint="Shows posts using any of these."
+      inline={inline}
+    />
   );
 }
 

@@ -1,5 +1,17 @@
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -135,61 +147,93 @@ function escapeLike(str: string): string {
 export const MEMBER_AVAILABILITY = ["full_time", "part_time", "limited"] as const;
 export const MEMBER_SORTS = ["active", "newest", "rate"] as const;
 
+const memberFacetSchema = {
+  search: z.string().trim().max(100).optional(),
+  skillIds: z.array(z.number().int().positive()).optional(),
+  /** Any of these commitment levels — an OR, not a narrowing chain. */
+  availability: z.array(z.enum(MEMBER_AVAILABILITY)).optional(),
+  /** The profile's own "open to work" flag. */
+  openToWork: z.boolean().optional(),
+  /** Hourly ceiling in whole dollars. Implies "has an hourly rate". */
+  maxHourlyRate: z.number().int().positive().optional(),
+};
+
+type MemberFilterInput = {
+  [K in keyof typeof memberFacetSchema]?: z.infer<(typeof memberFacetSchema)[K]>;
+};
+
+/**
+ * Shared WHERE builder for the directory listing and its facet counts, so
+ * a number on the stack picker can never disagree with the list it
+ * labels. Pass `{ ...input, skillIds: undefined }` to count across stacks.
+ */
+function buildMemberFilter(input: MemberFilterInput) {
+  const conditions = [];
+
+  if (input.search) {
+    const pattern = `%${escapeLike(input.search)}%`;
+    conditions.push(
+      or(
+        ilike(developerProfiles.discordUsername, pattern),
+        ilike(developerProfiles.guildNickname, pattern),
+        ilike(developerProfiles.tagline, pattern),
+        ilike(developerProfiles.lookingFor, pattern),
+      )!,
+    );
+  }
+
+  // Same `exists` shape the team directory uses for its derived stack,
+  // so "who knows Godot" reads the same on both boards.
+  if (input.skillIds && input.skillIds.length > 0) {
+    conditions.push(
+      sql`exists (
+        select 1 from ${userSkills}
+        where ${userSkills.userId} = ${developerProfiles.id}
+          and ${inArray(userSkills.skillId, input.skillIds)}
+      )`,
+    );
+  }
+
+  if (input.openToWork) conditions.push(eq(developerProfiles.availableForWork, true));
+
+  if (input.availability && input.availability.length > 0) {
+    conditions.push(inArray(developerProfiles.availability, [...input.availability]));
+  }
+
+  if (input.maxHourlyRate != null) {
+    conditions.push(sql`${HOURLY_RATE} is not null and ${HOURLY_RATE} <= ${input.maxHourlyRate}`);
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+/** Per-skill member counts for the stack picker — see `countPostsBySkill`. */
+export const countMembersBySkill = os
+  .route({ method: "GET" })
+  .input(z.object(memberFacetSchema))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({ skillId: userSkills.skillId, count: countDistinct(developerProfiles.id) })
+      .from(userSkills)
+      .innerJoin(developerProfiles, eq(developerProfiles.id, userSkills.userId))
+      .where(buildMemberFilter({ ...input, skillIds: undefined }))
+      .groupBy(userSkills.skillId);
+
+    return Object.fromEntries(rows.map((row) => [row.skillId, Number(row.count)]));
+  });
+
 export const listMembers = os
   .route({ method: "GET" })
   .input(
     z.object({
-      search: z.string().trim().max(100).optional(),
-      skillIds: z.array(z.number().int().positive()).optional(),
-      /** Any of these commitment levels — an OR, not a narrowing chain. */
-      availability: z.array(z.enum(MEMBER_AVAILABILITY)).optional(),
-      /** The profile's own "open to work" flag. */
-      openToWork: z.boolean().optional(),
-      /** Hourly ceiling in whole dollars. Implies "has an hourly rate". */
-      maxHourlyRate: z.number().int().positive().optional(),
+      ...memberFacetSchema,
       sort: z.enum(MEMBER_SORTS).default("active"),
       limit: z.number().min(1).max(50).default(24),
       offset: z.number().min(0).default(0),
     }),
   )
   .handler(async ({ input }) => {
-    const conditions = [];
-
-    if (input.search) {
-      const pattern = `%${escapeLike(input.search)}%`;
-      conditions.push(
-        or(
-          ilike(developerProfiles.discordUsername, pattern),
-          ilike(developerProfiles.guildNickname, pattern),
-          ilike(developerProfiles.tagline, pattern),
-          ilike(developerProfiles.lookingFor, pattern),
-        )!,
-      );
-    }
-
-    // Same `exists` shape the team directory uses for its derived stack,
-    // so "who knows Godot" reads the same on both boards.
-    if (input.skillIds && input.skillIds.length > 0) {
-      conditions.push(
-        sql`exists (
-          select 1 from ${userSkills}
-          where ${userSkills.userId} = ${developerProfiles.id}
-            and ${inArray(userSkills.skillId, input.skillIds)}
-        )`,
-      );
-    }
-
-    if (input.openToWork) conditions.push(eq(developerProfiles.availableForWork, true));
-
-    if (input.availability && input.availability.length > 0) {
-      conditions.push(inArray(developerProfiles.availability, [...input.availability]));
-    }
-
-    if (input.maxHourlyRate != null) {
-      conditions.push(sql`${HOURLY_RATE} is not null and ${HOURLY_RATE} <= ${input.maxHourlyRate}`);
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const where = buildMemberFilter(input);
 
     // Ordered on the select-list alias so Postgres evaluates the score's
     // subqueries once per row rather than again for the sort. `id` is the

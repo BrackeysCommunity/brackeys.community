@@ -1,11 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Toggle } from "@/components/ui/toggle";
 import { Text } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
 
 import {
   AVAILABILITY_OPTIONS,
@@ -19,9 +16,7 @@ import {
   type SetMembersSearch,
   SORT_OPTIONS,
 } from "./members-filters";
-
-/** Skill chips shown before the user narrows with search. */
-const VISIBLE_SKILL_CHIPS = 18;
+import { MembersSkillPicker } from "./MembersSkillPicker";
 
 interface MembersFilterPanelProps {
   search: MembersSearch;
@@ -46,7 +41,6 @@ export function MembersFilterPanel({
   resultCount,
   onDone,
 }: MembersFilterPanelProps) {
-  const skillIds = search.skills ?? [];
   const availability = search.availability ?? [];
 
   const toggleAvailability = (value: MemberAvailability) => {
@@ -104,10 +98,7 @@ export function MembersFilterPanel({
       </FilterGroup>
 
       <FilterGroup label="SKILLS">
-        <SkillFilterChips
-          selected={skillIds}
-          onChange={(next) => setSearch({ skills: next.length > 0 ? next : undefined })}
-        />
+        <MembersSkillPicker search={search} setSearch={setSearch} inline />
       </FilterGroup>
 
       <FilterGroup label="SORT BY">
@@ -163,45 +154,6 @@ export function MembersFilterClearButton({
     >
       CLEAR
     </Button>
-  );
-}
-
-function SkillFilterChips({
-  selected,
-  onChange,
-}: {
-  selected: number[];
-  onChange: (next: number[]) => void;
-}) {
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
-  const skills = data ?? [];
-  if (skills.length === 0) return null;
-
-  // Selected chips first so a long vocabulary never hides the active
-  // constraint below the fold.
-  const ordered = [
-    ...skills.filter((s) => selected.includes(s.id)),
-    ...skills.filter((s) => !selected.includes(s.id)).slice(0, VISIBLE_SKILL_CHIPS),
-  ];
-
-  const toggle = (id: number) =>
-    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
-
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {ordered.map((skill) => (
-        <FilterChip
-          key={skill.id}
-          pressed={selected.includes(skill.id)}
-          onPressedChange={() => toggle(skill.id)}
-        >
-          {skill.name}
-        </FilterChip>
-      ))}
-    </div>
   );
 }
 

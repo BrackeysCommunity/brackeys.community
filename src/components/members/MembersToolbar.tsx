@@ -1,15 +1,12 @@
 import { SortByDown02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
@@ -22,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchField } from "@/components/ui/search-field";
-import { orpc } from "@/orpc/client";
 
 import {
   AVAILABILITY_OPTIONS,
@@ -35,6 +31,7 @@ import {
   type SetMembersSearch,
   SORT_OPTIONS,
 } from "./members-filters";
+import { MembersSkillPicker } from "./MembersSkillPicker";
 
 export const MEMBERS_SEARCH_INPUT_ID = "members-search";
 
@@ -61,8 +58,6 @@ export function MembersToolbar({
   onOpenFilters,
   controlsElsewhere,
 }: MembersToolbarProps) {
-  const skillIds = search.skills ?? [];
-
   const searchInput = (
     <MembersSearchInput
       value={search.q ?? ""}
@@ -99,10 +94,7 @@ export function MembersToolbar({
               selected={search.availability ?? []}
               onChange={(next) => setSearch({ availability: next.length > 0 ? next : undefined })}
             />
-            <SkillFilterCombobox
-              selected={skillIds}
-              onChange={(next) => setSearch({ skills: next.length > 0 ? next : undefined })}
-            />
+            <MembersSkillPicker search={search} setSearch={setSearch} />
             <RateMenu rate={search.rate} setSearch={setSearch} />
           </>
         )}
@@ -352,74 +344,5 @@ function MembersSearchInput({
       containerClassName={className}
       className="text-[11px] tracking-widest"
     />
-  );
-}
-
-/**
- * Skill filter. The roster's vocabulary runs to dozens of entries, which
- * is past the point where a checkbox menu is usable — so this is a combo
- * box: type to narrow, tick to select, ticks accumulate. The trigger
- * carries the same pressed treatment as the boolean filters beside it.
- */
-function SkillFilterCombobox({
-  selected,
-  onChange,
-}: {
-  selected: number[];
-  onChange: (next: number[]) => void;
-}) {
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
-  const skills = useMemo(() => data ?? [], [data]);
-  const value = useMemo(
-    () => skills.filter((skill) => selected.includes(skill.id)),
-    [skills, selected],
-  );
-
-  if (skills.length === 0) return null;
-
-  const label =
-    value.length === 0
-      ? "SKILLS"
-      : value.length === 1
-        ? value[0]!.name.toUpperCase()
-        : `SKILLS · ${value.length}`;
-
-  return (
-    <Combobox
-      items={skills}
-      multiple
-      value={value}
-      onValueChange={(next) => onChange(next.map((skill) => skill.id))}
-      itemToStringLabel={(skill) => skill.name}
-      isItemEqualToValue={(a, b) => a.id === b.id}
-    >
-      <ComboboxTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className={FILTER_TOGGLE}
-            aria-pressed={value.length > 0}
-            aria-label={`Filter by skill${value.length > 0 ? ` (${value.length} selected)` : ""}`}
-          />
-        }
-      >
-        {label}
-      </ComboboxTrigger>
-      <ComboboxContent align="start" className="w-56 min-w-56">
-        <ComboboxInput placeholder="Filter skills…" showTrigger={false} />
-        <ComboboxList>
-          {(skill: (typeof skills)[number]) => (
-            <ComboboxItem key={skill.id} value={skill}>
-              {skill.name}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-        <ComboboxEmpty>No match</ComboboxEmpty>
-      </ComboboxContent>
-    </Combobox>
   );
 }

@@ -23,6 +23,7 @@ import {
   getPostViewerState,
   listPosts,
   countPostsByType,
+  countPostsBySkill,
   countPostsForJam,
   getBoardStats,
   featurePost,
@@ -70,7 +71,7 @@ import {
   listJamsByHost,
   listRecentEntries,
 } from "./jam";
-import { listMembers } from "./member";
+import { countMembersBySkill, listMembers } from "./member";
 import {
   listNotifications,
   unreadCount,
@@ -119,6 +120,7 @@ import {
   getTeam,
   getTeamViewerState,
   listTeams,
+  countTeamsBySkill,
   getTeamStats,
   listMyTeams,
   listUserTeams,
@@ -173,6 +175,7 @@ export default {
   setUrlStub,
   listAvailableUsers,
   listMembers,
+  countMembersBySkill,
   syncGitHubLink,
   unlinkGitHub,
   getContributions,
@@ -191,6 +194,7 @@ export default {
   getPostViewerState,
   listPosts,
   countPostsByType,
+  countPostsBySkill,
   countPostsForJam,
   getBoardStats,
   featurePost,
@@ -248,6 +252,7 @@ export default {
   getTeam,
   getTeamViewerState,
   listTeams,
+  countTeamsBySkill,
   getTeamStats,
   listMyTeams,
   listUserTeams,

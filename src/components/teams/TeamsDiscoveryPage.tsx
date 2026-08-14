@@ -26,6 +26,7 @@ import {
   countActiveTeamFilters,
   DEFAULT_SORT,
   type TeamsSearch,
+  teamFacetInput,
 } from "./teams-filters";
 import { TeamsActiveFilters } from "./TeamsActiveFilters";
 import { TeamsFilterClearButton, TeamsFilterPanel } from "./TeamsFilterPanel";
@@ -69,7 +70,6 @@ export function TeamsDiscoveryPage() {
   useReleaseFocusOnOpen(filtersOpen);
 
   const sort = search.sort ?? DEFAULT_SORT;
-  const skillIds = useMemo(() => search.skills ?? [], [search.skills]);
 
   // The current search, read through a ref so the writer below can stay
   // referentially stable — the debounced search box keys its timer on the
@@ -112,13 +112,7 @@ export function TeamsDiscoveryPage() {
     setSearch({ new: undefined });
   }, [search.new, setSearch]);
 
-  const listInput = {
-    search: search.q?.trim() || undefined,
-    recruiting: search.recruiting || undefined,
-    hasShipped: search.shipped || undefined,
-    skillIds: skillIds.length > 0 ? skillIds : undefined,
-    sort,
-  };
+  const listInput = { ...teamFacetInput(search), sort };
 
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
     queryKey: ["listTeams", listInput],

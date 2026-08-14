@@ -49,6 +49,21 @@ export const DEFAULT_SORT: TeamsSort = "active";
 export const FILTER_TOGGLE =
   "tracking-widest aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
 
+/**
+ * URL search → the shape `listTeams` and its facet counts both take.
+ * Shared so a number on the stack picker can't be computed under a
+ * different filter set than the list it labels.
+ */
+export function teamFacetInput(search: TeamsSearch) {
+  const skills = search.skills ?? [];
+  return {
+    search: search.q?.trim() || undefined,
+    recruiting: search.recruiting || undefined,
+    hasShipped: search.shipped || undefined,
+    skillIds: skills.length > 0 ? skills : undefined,
+  };
+}
+
 /** Constraints in force, ignoring sort — sort narrows nothing. */
 export function countActiveTeamFilters(search: TeamsSearch): number {
   let count = 0;

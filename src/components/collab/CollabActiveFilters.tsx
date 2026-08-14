@@ -27,6 +27,9 @@ const EXPERIENCE_LABELS: Record<string, string> = {
   intermediate: "INTERMEDIATE",
   experienced: "EXPERIENCED",
 };
+/** Stack picks that still read as individual chips rather than a tally. */
+const VISIBLE_SKILL_CHIPS = 3;
+
 const COMP_LABELS: Record<string, string> = {
   hourly: "HOURLY",
   fixed: "FIXED",
@@ -118,13 +121,26 @@ export function CollabActiveFilters() {
       clear: () => setCollabFilters({ projectId: undefined }),
     });
   }
-  for (const skillId of filters.skillIds) {
-    const skill = skillData?.find((s) => s.id === skillId);
+  // The stack vocabulary is the one facet that can hold a dozen values at
+  // once, and a chip apiece pushed the board itself below the fold. Past
+  // a couple, they collapse into one chip that clears the lot — the
+  // picker is where an individual entry comes back off.
+  if (filters.skillIds.length > VISIBLE_SKILL_CHIPS) {
     chips.push({
-      key: `skill-${skillId}`,
-      label: (skill?.name ?? `#${skillId}`).toUpperCase(),
-      clear: () => setCollabFilters({ skillIds: filters.skillIds.filter((id) => id !== skillId) }),
+      key: "skills",
+      label: `STACK · ${filters.skillIds.length}`,
+      clear: () => setCollabFilters({ skillIds: [] }),
     });
+  } else {
+    for (const skillId of filters.skillIds) {
+      const skill = skillData?.find((s) => s.id === skillId);
+      chips.push({
+        key: `skill-${skillId}`,
+        label: (skill?.name ?? `#${skillId}`).toUpperCase(),
+        clear: () =>
+          setCollabFilters({ skillIds: filters.skillIds.filter((id) => id !== skillId) }),
+      });
+    }
   }
   if (filters.search) {
     chips.push({

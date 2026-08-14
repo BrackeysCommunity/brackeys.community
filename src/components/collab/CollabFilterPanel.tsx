@@ -3,7 +3,6 @@ import { useStore } from "@tanstack/react-store";
 
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Toggle } from "@/components/ui/toggle";
 import { Text } from "@/components/ui/typography";
 import {
   type CollabCompensationType,
@@ -17,9 +16,9 @@ import {
   resetCollabFilters,
   setCollabFilters,
 } from "@/lib/collab-store";
-import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
+import { StackFilterMenu } from "./CollabToolbar";
 import { useCollabResultCount, useCollabTypeCounts } from "./use-collab-counts";
 
 // SegmentedControl is single-select, so the optional filters use
@@ -30,9 +29,6 @@ const TYPE_OPTIONS = [
   { value: "paid", label: "PAID WORK" },
   { value: "hobby", label: "HOBBY" },
 ] as const;
-
-/** Skill chips shown before the user narrows with search. */
-const VISIBLE_SKILL_CHIPS = 18;
 
 const STATUS_OPTIONS = [
   { value: "any", label: "ANY" },
@@ -146,7 +142,7 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
       ) : null}
 
       <FilterGroup label="TECH STACK">
-        <SkillFilterChips selected={filters.skillIds} />
+        <StackFilterMenu selected={filters.skillIds} inline />
       </FilterGroup>
 
       <FilterGroup label="SORT BY">
@@ -230,50 +226,6 @@ function JamFilterChip({ jamId }: { jamId: number }) {
     >
       {jam?.title ?? `JAM #${jamId}`} ×
     </Button>
-  );
-}
-
-function SkillFilterChips({ selected }: { selected: number[] }) {
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
-  const skills = data ?? [];
-  if (skills.length === 0) return null;
-
-  // Selected chips first so a long vocabulary never hides the active
-  // constraint below the fold.
-  const ordered = [
-    ...skills.filter((s) => selected.includes(s.id)),
-    ...skills.filter((s) => !selected.includes(s.id)).slice(0, VISIBLE_SKILL_CHIPS),
-  ];
-
-  const toggle = (id: number) =>
-    setCollabFilters({
-      skillIds: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id],
-    });
-
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {ordered.map((skill) => {
-        const active = selected.includes(skill.id);
-        return (
-          <Toggle
-            key={skill.id}
-            variant="outline"
-            size="sm"
-            pressed={active}
-            onPressedChange={() => toggle(skill.id)}
-            className={cn(
-              "rounded bg-background px-2.5 text-xs tracking-widest dark:bg-emboss-surface",
-              active && "border-primary/50 text-primary",
-            )}
-          >
-            {skill.name}
-          </Toggle>
-        );
-      })}
-    </div>
   );
 }
 

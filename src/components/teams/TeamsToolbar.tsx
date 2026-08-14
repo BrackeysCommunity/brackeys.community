@@ -1,19 +1,9 @@
 import { SortByDown02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from "@/components/ui/combobox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchField } from "@/components/ui/search-field";
-import { orpc } from "@/orpc/client";
 
 import {
   DEFAULT_SORT,
@@ -32,6 +21,7 @@ import {
   type TeamsSearch,
   type TeamsSort,
 } from "./teams-filters";
+import { TeamsSkillPicker } from "./TeamsSkillPicker";
 
 export const TEAMS_SEARCH_INPUT_ID = "teams-search";
 
@@ -58,8 +48,6 @@ export function TeamsToolbar({
   onOpenFilters,
   controlsElsewhere,
 }: TeamsToolbarProps) {
-  const skillIds = search.skills ?? [];
-
   const searchInput = (
     <TeamsSearchInput
       value={search.q ?? ""}
@@ -101,10 +89,7 @@ export function TeamsToolbar({
             >
               HAS SHIPPED
             </Button>
-            <StackFilterCombobox
-              selected={skillIds}
-              onChange={(next) => setSearch({ skills: next.length > 0 ? next : undefined })}
-            />
+            <TeamsSkillPicker search={search} setSearch={setSearch} />
           </>
         )}
 
@@ -254,74 +239,5 @@ function TeamsSearchInput({
       containerClassName={className}
       className="text-[11px] tracking-widest"
     />
-  );
-}
-
-/**
- * Stack filter. The roster's vocabulary runs to dozens of entries, which
- * is past the point where a checkbox menu is usable — so this is a combo
- * box: type to narrow, tick to select, ticks accumulate. The trigger
- * carries the same pressed treatment as the boolean filters beside it.
- */
-function StackFilterCombobox({
-  selected,
-  onChange,
-}: {
-  selected: number[];
-  onChange: (next: number[]) => void;
-}) {
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
-  const skills = useMemo(() => data ?? [], [data]);
-  const value = useMemo(
-    () => skills.filter((skill) => selected.includes(skill.id)),
-    [skills, selected],
-  );
-
-  if (skills.length === 0) return null;
-
-  const label =
-    value.length === 0
-      ? "STACK"
-      : value.length === 1
-        ? value[0]!.name.toUpperCase()
-        : `STACK · ${value.length}`;
-
-  return (
-    <Combobox
-      items={skills}
-      multiple
-      value={value}
-      onValueChange={(next) => onChange(next.map((skill) => skill.id))}
-      itemToStringLabel={(skill) => skill.name}
-      isItemEqualToValue={(a, b) => a.id === b.id}
-    >
-      <ComboboxTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className={FILTER_TOGGLE}
-            aria-pressed={value.length > 0}
-            aria-label={`Filter by stack${value.length > 0 ? ` (${value.length} selected)` : ""}`}
-          />
-        }
-      >
-        {label}
-      </ComboboxTrigger>
-      <ComboboxContent align="start" className="w-56 min-w-56">
-        <ComboboxInput placeholder="Filter stack…" showTrigger={false} />
-        <ComboboxList>
-          {(skill: (typeof skills)[number]) => (
-            <ComboboxItem key={skill.id} value={skill}>
-              {skill.name}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-        <ComboboxEmpty>No match</ComboboxEmpty>
-      </ComboboxContent>
-    </Combobox>
   );
 }

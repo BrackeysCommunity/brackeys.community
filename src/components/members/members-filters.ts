@@ -79,6 +79,23 @@ export function availabilityLabel(value: string | null | undefined): string | nu
 export const FILTER_TOGGLE =
   "tracking-widest aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
 
+/**
+ * URL search → the shape `listMembers` and its facet counts both take.
+ * Shared so a number on the stack picker can't be computed under a
+ * different filter set than the list it labels.
+ */
+export function memberFacetInput(search: MembersSearch) {
+  const skills = search.skills ?? [];
+  const availability = search.availability ?? [];
+  return {
+    search: search.q?.trim() || undefined,
+    skillIds: skills.length > 0 ? skills : undefined,
+    availability: availability.length > 0 ? availability : undefined,
+    openToWork: search.open || undefined,
+    maxHourlyRate: search.rate,
+  };
+}
+
 /** Constraints in force, ignoring sort — sort narrows nothing. */
 export function countActiveMemberFilters(search: MembersSearch): number {
   let count = 0;
