@@ -13,12 +13,12 @@
         "@fontsource-variable/space-grotesk": "^5.3.0",
         "@hugeicons/core-free-icons": "^3.1.1",
         "@hugeicons/react": "^1.1.5",
-        "@orpc/client": "^1.13.14",
-        "@orpc/json-schema": "^1.13.14",
-        "@orpc/openapi": "^1.13.14",
-        "@orpc/server": "^1.13.14",
-        "@orpc/tanstack-query": "^1.13.14",
-        "@orpc/zod": "^1.13.14",
+        "@orpc/client": "^1.15.0",
+        "@orpc/json-schema": "^1.15.0",
+        "@orpc/openapi": "^1.15.0",
+        "@orpc/server": "^1.15.0",
+        "@orpc/tanstack-query": "^1.15.0",
+        "@orpc/zod": "^1.15.0",
         "@react-email/components": "^1.0.12",
         "@react-email/render": "^2.0.8",
         "@react-three/fiber": "^9.3.0",
@@ -92,6 +92,7 @@
         "@chromatic-com/storybook": "^5.1.2",
         "@commitlint/cli": "^20.5.0",
         "@commitlint/config-conventional": "^20.5.0",
+        "@electric-sql/pglite": "^0.5.5",
         "@inlang/paraglide-js": "^2.8.0",
         "@tailwindcss/typography": "^0.5.19",
         "@tanstack/devtools-event-client": "0.4.0",
@@ -270,6 +271,8 @@
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.12.0", "", {}, "sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ=="],
+
+    "@electric-sql/pglite": ["@electric-sql/pglite@0.5.5", "", {}, "sha512-QeZ+oB7QaU4EJj2awrB8hwFZ5TXxLRBQ9Gfq0dQauYDdWsRtuWRCERgtri35vRfL07KQHlVlc/4Qxvn7a5AXeA=="],
 
     "@emnapi/core": ["@emnapi/core@1.8.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.1.0", "tslib": "^2.4.0" } }, "sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg=="],
 

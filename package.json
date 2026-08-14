@@ -131,6 +131,7 @@
     "@chromatic-com/storybook": "^5.1.2",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
+    "@electric-sql/pglite": "^0.5.5",
     "@inlang/paraglide-js": "^2.8.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/devtools-event-client": "0.4.0",
