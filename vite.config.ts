@@ -248,6 +248,33 @@ const config = defineConfig({
         "/api/public/rpc/getContributions": {
           headers: { "cache-control": "public, max-age=300, s-maxage=900" },
         },
+        // The board is the one public read users actively write to, and
+        // creating or editing a post invalidates the listing query
+        // client-side. max-age=0 keeps the *browser* out of it, so that
+        // refetch always leaves the machine instead of being answered from
+        // the local HTTP cache with the pre-write body; the edge still
+        // absorbs the load for everyone else.
+        "/api/public/rpc/listPosts": {
+          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
+        },
+        // Same reasoning as listPosts: responding to a post bumps its
+        // response count, and the owner edits it in place.
+        "/api/public/rpc/getPost": {
+          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
+        },
+        // Owners edit the team, manage the roster, and accept invites from
+        // this page and expect to see the result.
+        "/api/public/rpc/getTeam": {
+          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
+        },
+        // Members edit their own profile in place — same reasoning again.
+        "/api/public/rpc/getProfile": {
+          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
+        },
+        // Editors change credits, covers and links from the page itself.
+        "/api/public/rpc/getProject": {
+          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
+        },
         // Stored-image proxy (src/routes/images.$.ts): keys are
         // nanoid-unique per upload and replacements mint a new key, so
         // responses are immutable. Deleted objects can outlive deletion at

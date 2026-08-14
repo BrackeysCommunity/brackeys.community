@@ -6,9 +6,11 @@ import {
   PencilIcon,
   Robot01Icon,
   Share01Icon,
+  Shield02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
 import { useKeyPress } from "ahooks";
 
 import {
@@ -23,7 +25,8 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
-import { signInWithDiscord } from "@/lib/auth-client";
+import { activeUserStore } from "@/lib/active-user-store";
+import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 
@@ -31,6 +34,8 @@ export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const navigate = useNavigate();
   const { themeId, setTheme, themes } = useAppTheme();
+  const { data: session } = authClient.useSession();
+  const isStaff = useStore(activeUserStore, (s) => s.profile?.isStaff ?? false);
 
   useKeyPress(
     ["ctrl.k", "meta.k"],
@@ -62,10 +67,23 @@ export function CommandPalette() {
 
           {/* Quick Actions */}
           <CommandGroup heading="ACTIONS">
-            <CommandItem onSelect={() => run(() => signInWithDiscord())}>
-              <HugeiconsIcon icon={Login01Icon} className="text-primary" />
-              <span>Login</span>
-            </CommandItem>
+            {!session?.user && (
+              <CommandItem onSelect={() => run(() => signInWithDiscord())}>
+                <HugeiconsIcon icon={Login01Icon} className="text-primary" />
+                <span>Login</span>
+              </CommandItem>
+            )}
+            {/* Staff only, and a shortcut like the user-menu entry — the route
+                loader and every procedure behind it re-check server-side. */}
+            {isStaff && (
+              <CommandItem
+                value="admin staff moderation"
+                onSelect={() => run(() => navigate({ to: "/admin" }))}
+              >
+                <HugeiconsIcon icon={Shield02Icon} className="text-primary" />
+                <span>Admin</span>
+              </CommandItem>
+            )}
             <CommandItem
               onSelect={() =>
                 run(() =>

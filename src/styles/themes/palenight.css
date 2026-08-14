@@ -1,0 +1,69 @@
+/* Palenight — https://github.com/whizkydee/vscode-material-palenight-theme
+   ─────────────────────────────────────────────────────────────────────
+   Base:      #292d3e (bg)     #333747 (surface)   #232635 (deep)
+   Content:   #a6accd (fg)     #babed8 (bright)    #676e95 (comment)
+   Accents:   #ff5370 (red)    #f78c6c (orange)    #ffcb6b (yellow)
+              #c3e88d (green)  #89ddff (cyan)      #82aaff (blue)
+              #c792ea (purple) #f07178 (coral)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="palenight"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #292d3e;
+  --foreground: #babed8;
+  --card: #333747;
+  --card-foreground: #babed8;
+  --popover: #333747;
+  --popover-foreground: #babed8;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #c792ea;
+  --primary-foreground: #292d3e;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #82aaff;
+  --accent-foreground: #292d3e;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #3d4260;
+  --muted-foreground: #9aa0c4;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #ff5370;
+  --destructive-foreground: #292d3e;
+  --success: #c3e88d;
+  --success-foreground: #292d3e;
+  --warning: #ffcb6b;
+  --warning-foreground: #292d3e;
+  --info: #89ddff;
+  --info-foreground: #292d3e;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(103, 110, 149, 0.45);
+  --input: rgba(103, 110, 149, 0.55);
+  --ring: #c792ea;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #c792ea;
+  --chart-2: #82aaff;
+  --chart-3: #89ddff;
+  --chart-4: #c3e88d;
+  --chart-5: #ffcb6b;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #232635;
+  --sidebar-foreground: #babed8;
+  --sidebar-primary: #c792ea;
+  --sidebar-primary-foreground: #292d3e;
+  --sidebar-accent: #82aaff;
+  --sidebar-accent-foreground: #292d3e;
+  --sidebar-border: rgba(103, 110, 149, 0.45);
+  --sidebar-ring: #c792ea;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #3d4260;
+  --emboss-shadow: #1b1e2b;
+  --deboss-surface: #23263a;
+  --deboss-shadow: #171a25;
+  --deboss-highlight: rgba(186, 190, 216, 0.05);
+}

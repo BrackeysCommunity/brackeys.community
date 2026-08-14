@@ -1,0 +1,74 @@
+/* Gruvbox Light — https://github.com/morhetz/gruvbox
+   ─────────────────────────────────────────────────────────────────────
+   Bases:     #f9f5d7 (bg0_h)  #fbf1c7 (bg0)   #f2e5bc (bg0_s)
+              #ebdbb2 (bg1)    #d5c4a1 (bg2)   #bdae93 (bg3)
+   Content:   #3c3836 (fg1)    #504945 (fg2)   #7c6f64 (fg3)
+   Accents:   #9d0006 (red)    #af3a03 (orange)  #b57614 (yellow)
+              #79740e (green)  #427b58 (aqua)    #076678 (blue)
+              #8f3f71 (purple)
+   ─────────────────────────────────────────────────────────────────────
+   The shell always carries `.dark` on <html> — the class is the app's
+   only palette hook, not a light/dark switch — so a light theme states
+   its values in the same place every other theme does.
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="gruvbox-light"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #fbf1c7;
+  --foreground: #3c3836;
+  --card: #f2e5bc;
+  --card-foreground: #3c3836;
+  --popover: #f9f5d7;
+  --popover-foreground: #3c3836;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #af3a03;
+  --primary-foreground: #fbf1c7;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #076678;
+  --accent-foreground: #fbf1c7;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #ebdbb2;
+  --muted-foreground: #7c6f64;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #9d0006;
+  --destructive-foreground: #fbf1c7;
+  --success: #79740e;
+  --success-foreground: #fbf1c7;
+  --warning: #b57614;
+  --warning-foreground: #fbf1c7;
+  --info: #076678;
+  --info-foreground: #fbf1c7;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(124, 111, 100, 0.35);
+  --input: rgba(124, 111, 100, 0.45);
+  --ring: #af3a03;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #af3a03;
+  --chart-2: #076678;
+  --chart-3: #427b58;
+  --chart-4: #b57614;
+  --chart-5: #8f3f71;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #f2e5bc;
+  --sidebar-foreground: #3c3836;
+  --sidebar-primary: #af3a03;
+  --sidebar-primary-foreground: #fbf1c7;
+  --sidebar-accent: #076678;
+  --sidebar-accent-foreground: #fbf1c7;
+  --sidebar-border: rgba(124, 111, 100, 0.35);
+  --sidebar-ring: #af3a03;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #f9f5d7;
+  --emboss-shadow: #bdae93;
+  --deboss-surface: #ebdbb2;
+  --deboss-shadow: #d5c4a1;
+  --deboss-highlight: rgba(255, 255, 255, 0.7);
+}

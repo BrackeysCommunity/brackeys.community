@@ -146,6 +146,8 @@ describe("AppHeader navigation", () => {
       avatarUrl: null,
       guildNickname: null,
       urlStub: "joshe",
+      isStaff: false,
+      isAdmin: false,
     });
 
     render(<AppHeader />);

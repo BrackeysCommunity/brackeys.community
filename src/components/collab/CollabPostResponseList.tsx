@@ -59,9 +59,12 @@ export function CollabPostResponseList({
   needsTeamLink = false,
 }: CollabPostResponseListProps) {
   const queryClient = useQueryClient();
+  // Accepting or declining changes the applicant rows, which live in
+  // `listResponses` — the post itself is untouched, so `getPost` (now the
+  // anonymous, cacheable core) has nothing to re-read.
   const invalidatePost = () =>
     queryClient.invalidateQueries({
-      queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
+      queryKey: orpc.listResponses.queryOptions({ input: { postId } }).queryKey,
     });
 
   const [statusError, setStatusError] = useState<string | null>(null);

@@ -1,4 +1,10 @@
-import { Logout03Icon, Settings02Icon, Share01Icon, UserIcon } from "@hugeicons/core-free-icons";
+import {
+  Logout03Icon,
+  Settings02Icon,
+  Share01Icon,
+  Shield02Icon,
+  UserIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
@@ -27,9 +33,13 @@ interface UserMenuProps {
     name?: string | null;
     image?: string | null;
   };
+  /** Drop the public-profile and settings rows. The desktop header sits this
+      menu next to its own settings cog, so both rows are already covered
+      there; the mobile menu has no such cluster and keeps them. */
+  compact?: boolean;
 }
 
-export function UserMenu({ user }: UserMenuProps) {
+export function UserMenu({ user, compact = false }: UserMenuProps) {
   const navigate = useNavigate();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
@@ -61,25 +71,42 @@ export function UserMenu({ user }: UserMenuProps) {
               and no hover. base-ui requires it to sit inside a Group, which
               it then labels. */}
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="border-b border-muted/40 text-xs text-foreground">
+            <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
               {truncateMiddle(user.name ?? "USER", 18)}
             </DropdownMenuLabel>
             <DropdownMenuItem render={<Link to="/profile" />}>
               <HugeiconsIcon icon={UserIcon} size={14} />
               My profile
             </DropdownMenuItem>
-            <DropdownMenuItem
-              render={
-                <Link data-testid="view-public-link" to="/profile/$userId" params={profileParams} />
-              }
-            >
-              <HugeiconsIcon icon={Share01Icon} size={14} />
-              View public
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-              <HugeiconsIcon icon={Settings02Icon} size={14} />
-              Settings
-            </DropdownMenuItem>
+            {!compact && (
+              <>
+                <DropdownMenuItem
+                  render={
+                    <Link
+                      data-testid="view-public-link"
+                      to="/profile/$userId"
+                      params={profileParams}
+                    />
+                  }
+                >
+                  <HugeiconsIcon icon={Share01Icon} size={14} />
+                  View public
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <HugeiconsIcon icon={Settings02Icon} size={14} />
+                  Settings
+                </DropdownMenuItem>
+              </>
+            )}
+            {/* Staff-only, and only ever a shortcut: the route loader and
+                every procedure behind it re-check server-side, so a stale
+                or forged flag here buys a 404, not access. */}
+            {activeProfile?.isStaff && (
+              <DropdownMenuItem render={<Link data-testid="admin-link" to="/admin" />}>
+                <HugeiconsIcon icon={Shield02Icon} size={14} />
+                Admin
+              </DropdownMenuItem>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -97,7 +124,7 @@ export function UserMenu({ user }: UserMenuProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      {!compact && <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />}
     </>
   );
 }

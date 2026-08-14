@@ -1,15 +1,19 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useMemo } from "react";
 
 import { collabFilterInput, collabStore } from "@/lib/collab-store";
-import { client } from "@/orpc/client";
+import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
+import { client, orpc } from "@/orpc/client";
 
 const PAGE_SIZE = 20;
 
 type PostsPage = Awaited<ReturnType<typeof client.listPosts>>;
 
-export type CollabListingItem = { post: PostsPage["posts"][number]; pinned: boolean };
+export type CollabListingItem = {
+  post: PostsPage["posts"][number] & { viewerOverlap: StackOverlap | null };
+  pinned: boolean;
+};
 
 /**
  * The board's listing query, shared by the lane that renders it and the
@@ -19,10 +23,23 @@ export type CollabListingItem = { post: PostsPage["posts"][number]; pinned: bool
  * Posts authored by the current viewer are hoisted to the top — they
  * render first regardless of sort, keeping server ordering within each
  * bucket so nothing else reshuffles.
+ *
+ * The "you match 3/5" badge is computed here rather than served: the
+ * listing itself is anonymous and edge-cached, so the one viewer-dependent
+ * part is a single private read of the viewer's own skill ids, intersected
+ * against each post's stack in the browser.
  */
 export function useCollabListing(currentUserId?: string | null) {
   const filters = useStore(collabStore, (s) => s.filters);
   const filterInput = collabFilterInput(filters);
+
+  // One request per session, not per page of posts — skills change about
+  // as often as someone edits their profile.
+  const viewerSkillsQuery = useQuery({
+    ...orpc.getMySkillIds.queryOptions({ input: {} }),
+    enabled: Boolean(currentUserId),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const postsQuery = useInfiniteQuery({
     queryKey: ["listPosts", filterInput, filters.sortBy, filters.sortOrder],
@@ -47,16 +64,33 @@ export function useCollabListing(currentUserId?: string | null) {
     [postsQuery.data],
   );
 
+  const viewerSkillIds = useMemo(
+    () => (viewerSkillsQuery.data ? new Set(viewerSkillsQuery.data) : undefined),
+    [viewerSkillsQuery.data],
+  );
+
   const items: CollabListingItem[] = useMemo(() => {
-    if (!currentUserId) return allPosts.map((post) => ({ post, pinned: false }));
+    const withOverlap = (post: PostsPage["posts"][number]) => ({
+      ...post,
+      viewerOverlap: viewerStackOverlap({
+        stack: post.skills,
+        viewerSkillIds,
+        authorId: post.authorId,
+        viewerId: currentUserId,
+      }),
+    });
+
+    if (!currentUserId) {
+      return allPosts.map((post) => ({ post: withOverlap(post), pinned: false }));
+    }
     const mine: CollabListingItem[] = [];
     const others: CollabListingItem[] = [];
     for (const post of allPosts) {
       const pinned = post.authorId === currentUserId;
-      (pinned ? mine : others).push({ post, pinned });
+      (pinned ? mine : others).push({ post: withOverlap(post), pinned });
     }
     return [...mine, ...others];
-  }, [allPosts, currentUserId]);
+  }, [allPosts, currentUserId, viewerSkillIds]);
 
   /** Selection order for keyboard navigation. */
   const postIds = useMemo(() => items.map((item) => item.post.id), [items]);

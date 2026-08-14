@@ -33,11 +33,11 @@ const TABS: { key: View; label: string }[] = [
 const TAB_IDS = TABS.map((t) => t.key);
 
 /**
- * The staff surface. Deliberately not linked from any nav — staff bookmark
- * it; everyone else (and any error in the staff lookup) gets a 404, never a
- * 500, so the page's existence leaks nothing and a bug can't lock staff
- * tooling into an error screen loop. The real gate is on every procedure
- * this page calls — this check is UX.
+ * The staff surface. Linked from the user menu for staff only; everyone else
+ * (and any error in the staff lookup) gets a 404, never a 500, so the page's
+ * existence leaks nothing and a bug can't lock staff tooling into an error
+ * screen loop. The real gate is on every procedure this page calls — both
+ * this check and the menu item are UX.
  */
 export const Route = createFileRoute("/admin")({
   validateSearch: searchSchema,

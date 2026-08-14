@@ -27,7 +27,7 @@ vi.mock("@hugeicons/core-free-icons", () => ({
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
-    useSession: () => ({ data: null }),
+    useSession: () => ({ data: __sessionUserId ? { user: { id: __sessionUserId } } : null }),
   },
 }));
 
@@ -56,7 +56,10 @@ vi.mock("@/orpc/client", () => ({
 }));
 
 let __pathname = "/";
-let __viewedProfile: { isOwner: boolean } | undefined;
+let __sessionUserId: string | null = null;
+// Ownership is decided by comparing the session against the *resolved*
+// profile id, because `/profile/<param>` is a vanity stub as often as an id.
+let __viewedProfile: { profile: { id: string } } | undefined;
 
 // ── Import after mocks ─────────────────────────────────────────────────────
 
@@ -66,6 +69,7 @@ afterEach(() => {
   cleanup();
   navigate.mockReset();
   __pathname = "/";
+  __sessionUserId = null;
   __viewedProfile = undefined;
 });
 
@@ -126,13 +130,15 @@ describe("MobileBottomNav", () => {
   });
 
   it("selects ME when the viewed profile is owned by the session user", () => {
-    __viewedProfile = { isOwner: true };
+    __sessionUserId = "user-1";
+    __viewedProfile = { profile: { id: "user-1" } };
     render(<MobileBottomNav pathnameOverride="/profile/some-stub" />);
     expect(screen.getByLabelText("Profile").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("does not select ME when viewing someone else's profile", () => {
-    __viewedProfile = { isOwner: false };
+    __sessionUserId = "user-1";
+    __viewedProfile = { profile: { id: "someone-else" } };
     render(<MobileBottomNav pathnameOverride="/profile/someone-else" />);
     expect(screen.getByLabelText("Profile").getAttribute("aria-pressed")).not.toBe("true");
   });

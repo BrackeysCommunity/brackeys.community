@@ -8,6 +8,8 @@ export type ActiveUserProfile = {
   avatarUrl: string | null;
   guildNickname: string | null;
   urlStub: string | null;
+  isStaff: boolean;
+  isAdmin: boolean;
 };
 
 type ActiveUserState = {
@@ -33,6 +35,8 @@ export async function fetchActiveUserProfile() {
             avatarUrl: data.profile.avatarUrl,
             guildNickname: data.profile.guildNickname,
             urlStub: data.urlStub,
+            isStaff: data.isStaff,
+            isAdmin: data.isAdmin,
           }
         : null,
       isPending: false,

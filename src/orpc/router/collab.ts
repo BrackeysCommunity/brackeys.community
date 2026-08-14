@@ -28,7 +28,6 @@ import {
   initialPostExpiry,
   REOPEN_EXTENSION_DAYS,
 } from "@/lib/collab-lifecycle";
-import { isStaffMember } from "@/lib/discord";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
@@ -39,11 +38,10 @@ import {
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { escapeLike } from "@/lib/sql-like";
-import { resolveUserRoles } from "@/lib/staff-roles";
+import { stackOverlap } from "@/lib/stack-overlap";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
-  authMiddleware,
   requireAuth,
   requireGuildMember,
   requireAuthWithPermissions,
@@ -646,10 +644,16 @@ export const extendPost = os
     return updated;
   });
 
+/**
+ * A post as everyone sees it. Viewer-specific state lives in companions —
+ * `getPostViewerState` for the viewer's own application, `listResponses`
+ * for the owner/staff applicant list — which is what lets this response be
+ * identical for every caller and cached at the edge.
+ */
 export const getPost = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(z.object({ postId: z.number() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const [post] = await db
       .select()
       .from(collabPosts)
@@ -774,88 +778,6 @@ export const getPost = os
       author = { ...authorProfile, skills: authorSkills };
     }
 
-    const isOwner = context.user?.id === post.authorId;
-    let responses:
-      | {
-          id: number;
-          responderId: string;
-          message: string;
-          portfolioUrl: string | null;
-          status: string;
-          createdAt: Date | null;
-          responderUsername: string | null;
-          responderAvatar: string | null;
-          stackOverlap: StackOverlap | null;
-          invite: ResponseInvite | null;
-        }[]
-      | null = null;
-
-    if (isOwner || (context.user && (await userIsStaff(context.user.id)))) {
-      const rows = await db
-        .select({
-          id: collabResponses.id,
-          responderId: collabResponses.responderId,
-          message: collabResponses.message,
-          portfolioUrl: collabResponses.portfolioUrl,
-          status: collabResponses.status,
-          createdAt: collabResponses.createdAt,
-          responderUsername: developerProfiles.discordUsername,
-          responderAvatar: developerProfiles.avatarUrl,
-        })
-        .from(collabResponses)
-        .leftJoin(developerProfiles, eq(collabResponses.responderId, developerProfiles.id))
-        .where(eq(collabResponses.postId, input.postId))
-        .orderBy(desc(collabResponses.createdAt));
-
-      // Applicant triage: which of the post's stack each responder
-      // already knows, so a long list is scannable as chips instead of
-      // paragraphs.
-      const skillsByResponder = await skillIdsByUser(rows.map((r) => r.responderId));
-      const invitesByResponse = await latestInvitesByResponse(rows.map((r) => r.id));
-      responses = rows.map((r) => ({
-        ...r,
-        stackOverlap: stackOverlap(postSkills, skillsByResponder.get(r.responderId)),
-        invite: invitesByResponse.get(r.id) ?? null,
-      }));
-    }
-
-    // Match hint for a signed-in browser looking at someone else's post.
-    let viewerOverlap: StackOverlap | null = null;
-    if (context.user && !isOwner && postSkills.length > 0) {
-      const viewerSkills = await skillIdsByUser([context.user.id]);
-      viewerOverlap = stackOverlap(postSkills, viewerSkills.get(context.user.id));
-    }
-
-    // The viewer's own application, so a returning responder sees what
-    // they sent and its status instead of a blank form (responses stay
-    // owner/staff-only otherwise).
-    let viewerResponse: {
-      id: number;
-      message: string;
-      portfolioUrl: string | null;
-      status: string;
-      createdAt: Date | null;
-    } | null = null;
-    if (context.user && !isOwner) {
-      const [own] = await db
-        .select({
-          id: collabResponses.id,
-          message: collabResponses.message,
-          portfolioUrl: collabResponses.portfolioUrl,
-          status: collabResponses.status,
-          createdAt: collabResponses.createdAt,
-        })
-        .from(collabResponses)
-        .where(
-          and(
-            eq(collabResponses.postId, input.postId),
-            eq(collabResponses.responderId, context.user.id),
-          ),
-        )
-        .limit(1);
-      viewerResponse = own ?? null;
-    }
-
     // Re-presign each image's URL — `images.url` was generated at
     // upload time and the presigned link inside it has likely expired.
     const presignedImages = await Promise.all(
@@ -874,12 +796,39 @@ export const getPost = os
       project,
       images: presignedImages,
       responseCount: responseCount?.count ?? 0,
-      responses,
-      viewerResponse,
-      viewerOverlap,
-      isOwner,
       author,
     };
+  });
+
+/**
+ * The viewer's own application to a post, so a returning responder sees
+ * what they sent and its status instead of a blank form. The companion to
+ * `getPost`'s anonymous core, and deliberately narrow: whether the viewer
+ * owns the post follows from the post's public `authorId`, and the match
+ * badge is a set intersection the browser does itself.
+ */
+export const getPostViewerState = os
+  .use(requireAuth)
+  .input(z.object({ postId: z.number() }))
+  .handler(async ({ input, context }) => {
+    const [own] = await db
+      .select({
+        id: collabResponses.id,
+        message: collabResponses.message,
+        portfolioUrl: collabResponses.portfolioUrl,
+        status: collabResponses.status,
+        createdAt: collabResponses.createdAt,
+      })
+      .from(collabResponses)
+      .where(
+        and(
+          eq(collabResponses.postId, input.postId),
+          eq(collabResponses.responderId, context.user.id),
+        ),
+      )
+      .limit(1);
+
+    return { viewerResponse: own ?? null };
   });
 
 /** The team-invite handoff state of an accepted response. */
@@ -914,21 +863,6 @@ async function latestInvitesByResponse(
   return latest;
 }
 
-/** How a person's skills line up with a post's stack. */
-export type StackOverlap = { matched: string[]; missing: string[]; total: number };
-
-function stackOverlap(
-  stack: { id: number; name: string }[],
-  userSkillIds: Set<number> | undefined,
-): StackOverlap {
-  const matched: string[] = [];
-  const missing: string[] = [];
-  for (const s of stack) {
-    (userSkillIds?.has(s.id) ? matched : missing).push(s.name);
-  }
-  return { matched, missing, total: stack.length };
-}
-
 async function skillIdsByUser(userIds: string[]): Promise<Map<string, Set<number>>> {
   const unique = [...new Set(userIds)];
   const byUser = new Map<string, Set<number>>();
@@ -945,10 +879,6 @@ async function skillIdsByUser(userIds: string[]): Promise<Map<string, Set<number
     byUser.set(row.userId, set);
   }
   return byUser;
-}
-
-async function userIsStaff(userId: string): Promise<boolean> {
-  return isStaffMember(await resolveUserRoles(userId));
 }
 
 /** Filters that apply across types — the facets a count can vary over. */
@@ -1134,7 +1064,7 @@ export const countPostsForJam = os
   });
 
 export const listPosts = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(
     z.object({
       ...postFilterSchema,
@@ -1144,7 +1074,7 @@ export const listPosts = os
       offset: z.number().min(0).default(0),
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const query = db.select().from(collabPosts);
     const where = buildPostFilter(input);
 
@@ -1196,9 +1126,10 @@ export const listPosts = os
       }
     }
 
-    // Jam chips and stack chips for the whole page in one query each,
-    // plus the viewer's own skills once — the card's "you match 4/5"
-    // hint is a set intersection, not a per-row round trip.
+    // Jam chips and stack chips for the whole page in one query each. The
+    // card's "you match 4/5" hint is computed in the browser from the
+    // viewer's own skill ids (`getMySkillIds`), which is what keeps this
+    // response identical for every caller and therefore edge-cacheable.
     const jamIds = [...new Set(posts.map((p) => p.jamId).filter((id): id is number => id != null))];
     const teamIds = [
       ...new Set(posts.map((p) => p.teamId).filter((id): id is string => id != null)),
@@ -1206,7 +1137,7 @@ export const listPosts = os
     const projectIds = [
       ...new Set(posts.map((p) => p.projectId).filter((id): id is string => id != null)),
     ];
-    const [jamRows, teamRows, projectRows, skillRows, viewerSkills] = await Promise.all([
+    const [jamRows, teamRows, projectRows, skillRows] = await Promise.all([
       jamIds.length > 0
         ? db
             .select({
@@ -1268,7 +1199,6 @@ export const listPosts = os
             .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
             .where(inArray(collabPostSkills.postId, postIds))
         : Promise.resolve([]),
-      context.user ? skillIdsByUser([context.user.id]) : Promise.resolve(null),
     ]);
 
     const jamById = new Map(jamRows.map((j) => [j.jamId, j]));
@@ -1280,7 +1210,6 @@ export const listPosts = os
       list.push({ id: row.id, name: row.name });
       skillsByPost.set(row.postId, list);
     }
-    const viewerSkillIds = context.user ? viewerSkills?.get(context.user.id) : undefined;
 
     return {
       posts: posts.map((p) => {
@@ -1296,10 +1225,6 @@ export const listPosts = os
           team: p.teamId != null ? (teamById.get(p.teamId) ?? null) : null,
           project,
           skills: postSkills,
-          viewerOverlap:
-            context.user && p.authorId !== context.user.id && postSkills.length > 0
-              ? stackOverlap(postSkills, viewerSkillIds)
-              : null,
         };
       }),
       total: totalResult?.count ?? 0,
@@ -1535,13 +1460,39 @@ export const listResponses = os
     }
 
     const rows = await db
-      .select()
+      .select({
+        id: collabResponses.id,
+        responderId: collabResponses.responderId,
+        message: collabResponses.message,
+        portfolioUrl: collabResponses.portfolioUrl,
+        status: collabResponses.status,
+        createdAt: collabResponses.createdAt,
+        responderUsername: developerProfiles.discordUsername,
+        responderAvatar: developerProfiles.avatarUrl,
+      })
       .from(collabResponses)
+      .leftJoin(developerProfiles, eq(collabResponses.responderId, developerProfiles.id))
       .where(eq(collabResponses.postId, input.postId))
       .orderBy(desc(collabResponses.createdAt));
 
-    const invitesByResponse = await latestInvitesByResponse(rows.map((r) => r.id));
-    return rows.map((r) => ({ ...r, invite: invitesByResponse.get(r.id) ?? null }));
+    // Applicant triage: which of the post's stack each responder already
+    // knows, so a long list is scannable as chips instead of paragraphs.
+    const postSkills = await db
+      .select({ id: skills.id, name: skills.name })
+      .from(collabPostSkills)
+      .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
+      .where(eq(collabPostSkills.postId, input.postId));
+
+    const [skillsByResponder, invitesByResponse] = await Promise.all([
+      skillIdsByUser(rows.map((r) => r.responderId)),
+      latestInvitesByResponse(rows.map((r) => r.id)),
+    ]);
+
+    return rows.map((r) => ({
+      ...r,
+      stackOverlap: stackOverlap(postSkills, skillsByResponder.get(r.responderId)),
+      invite: invitesByResponse.get(r.id) ?? null,
+    }));
   });
 
 export const updateResponseStatus = os

@@ -5,7 +5,7 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useState } from "react";
@@ -112,9 +112,8 @@ const MAX_STACK_CHIPS = 12;
  * A tile that isn't clickable stays a `Well` — deboss for readouts,
  * emboss for links, same as on the tiles in `/teams`.
  */
-export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly unknown[] }) {
+export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: () => void }) {
   const { session } = useStore(authStore);
-  const queryClient = useQueryClient();
   const [manageOpen, setManageOpen] = useState(false);
 
   const isMember = team.viewerRole !== null;
@@ -125,7 +124,7 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
   const respondMutation = useMutation({
     mutationFn: (accept: boolean) =>
       client.respondToInvite({ inviteId: team.viewerInvite!.id, accept }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: onInvalidate,
   });
 
   return (
@@ -366,7 +365,7 @@ export function TeamPage({ team, queryKey }: { team: RpcTeam; queryKey: readonly
           open={manageOpen}
           onClose={() => setManageOpen(false)}
           team={team}
-          queryKey={queryKey}
+          onInvalidate={onInvalidate}
         />
       ) : null}
     </div>

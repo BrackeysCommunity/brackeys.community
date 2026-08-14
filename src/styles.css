@@ -173,6 +173,9 @@
 @import "./styles/themes/catppuccin.css";
 @import "./styles/themes/one-dark.css";
 @import "./styles/themes/solarized.css";
+@import "./styles/themes/palenight.css";
+@import "./styles/themes/gruvbox-dark.css";
+@import "./styles/themes/gruvbox-light.css";
 
 @layer base {
   * {

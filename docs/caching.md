@@ -141,6 +141,15 @@ Per-procedure TTLs are plain route rules, since RPC paths are
 `max-age=3600, s-maxage=86400` (taxonomies change when a moderator edits the
 vocabulary), `getContributions` gets `max-age=300, s-maxage=900`.
 
+`listPosts`, `getPost`, `getTeam`, `getProfile` and `getProject` get
+`max-age=0, s-maxage=30` — deliberately **no browser cache**. It is the one public read users actively write to, and creating or
+editing a post invalidates the listing query client-side; with a non-zero
+`max-age` that refetch would be answered from the browser's own HTTP cache
+with the pre-write body, so the author would not see their own post appear.
+`max-age=0` forces the request onto the network while the edge still absorbs
+it for everyone else. Apply the same reasoning to any future public read
+that sits behind a write the same user performs.
+
 **Still required to actually cache at the edge** (one-time, dashboard): a
 Cache Rule `starts_with(http.request.uri.path, "/api/public/")` → _Eligible
 for cache, respect origin TTL_. JSON paths are not cacheable by extension

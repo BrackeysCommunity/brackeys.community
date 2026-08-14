@@ -44,7 +44,7 @@ export function HeroSplit({ hero, isLoading, now }: HeroSplitProps) {
           <HeroWordmark primary={<CyclingWord />} secondary="GAMES" />
         </div>
 
-        <p className="max-w-xl font-sans text-sm text-foreground [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] lg:text-base">
+        <p className="max-w-xl font-sans text-sm text-foreground [text-shadow:0_1px_2px_rgba(0,0,0,0.3)] lg:text-base">
           The central neural network for the Brackeys game dev community. Find your squad, browse
           every jam on itch, and deploy your build with a crew that ships.
         </p>

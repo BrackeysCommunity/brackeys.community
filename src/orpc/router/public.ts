@@ -1,4 +1,11 @@
-import { countPostsByType, countPostsForJam, getBoardStats, listCollabRoles } from "./collab";
+import {
+  countPostsByType,
+  countPostsForJam,
+  getBoardStats,
+  getPost,
+  listCollabRoles,
+  listPosts,
+} from "./collab";
 import { getContributions } from "./github";
 import {
   archiveJams,
@@ -11,9 +18,9 @@ import {
   listRecentEntries,
 } from "./jam";
 import { listMembers } from "./member";
-import { listAvailableUsers, listSkills } from "./profile";
-import { listProjectsForGames } from "./project";
-import { getTeamStats, listTeams, listUserTeams } from "./team";
+import { getProfile, listAvailableUsers, listSkills } from "./profile";
+import { getProject, listProjectsForGames } from "./project";
+import { getTeam, getTeamStats, listTeams, listUserTeams } from "./team";
 
 /**
  * The cacheable public tier, mounted at `/api/public/rpc`
@@ -49,12 +56,17 @@ export const publicRouter = {
   listJamsByHost,
   listMembers,
   listAvailableUsers,
+  getProfile,
   listSkills,
   listCollabRoles,
   listTeams,
+  getTeam,
   getTeamStats,
   listUserTeams,
   listProjectsForGames,
+  getProject,
+  listPosts,
+  getPost,
   countPostsByType,
   countPostsForJam,
   getBoardStats,

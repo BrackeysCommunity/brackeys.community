@@ -147,7 +147,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           cursorRadius={500}
           cursorForce={0.0075}
           bulgeOnly={false}
-          className="pointer-events-none fixed inset-0 z-0 opacity-40"
+          className="pointer-events-none fixed inset-0 z-0 opacity-50"
         />
         {/* CRT scanline overlay */}
         <div

@@ -23,18 +23,24 @@ function resetStore() {
   activeUserStore.setState(() => ({ profile: null, isPending: false }));
 }
 
-const mockProfile = {
+const mockProfileRow = {
   discordUsername: "joshcomplex",
   discordId: "123456789",
   avatarUrl: "https://cdn.discordapp.com/avatars/123/abc.png",
   guildNickname: "Josh",
+};
+
+const mockProfile = {
+  ...mockProfileRow,
   urlStub: null as string | null,
+  isStaff: false,
+  isAdmin: false,
 };
 
 const fullProfileResponse = {
   profile: {
     id: "user-1",
-    ...mockProfile,
+    ...mockProfileRow,
     bio: "Hello",
     tagline: "Dev",
     guildRoles: ["Admin"],
@@ -56,6 +62,8 @@ const fullProfileResponse = {
   urlStub: null,
   isOwner: true,
   linkedAccounts: [],
+  isStaff: false,
+  isAdmin: false,
 };
 
 afterEach(() => {
@@ -103,7 +111,15 @@ describe("fetchActiveUserProfile", () => {
 
     const profile = activeUserStore.state.profile!;
     expect(Object.keys(profile).sort()).toEqual(
-      ["avatarUrl", "discordId", "discordUsername", "guildNickname", "urlStub"].sort(),
+      [
+        "avatarUrl",
+        "discordId",
+        "discordUsername",
+        "guildNickname",
+        "urlStub",
+        "isStaff",
+        "isAdmin",
+      ].sort(),
     );
   });
 
@@ -170,6 +186,8 @@ describe("fetchActiveUserProfile", () => {
       avatarUrl: null,
       guildNickname: null,
       urlStub: null,
+      isStaff: false,
+      isAdmin: false,
     });
   });
 });

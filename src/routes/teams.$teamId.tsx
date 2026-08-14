@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { TeamPage, type RpcTeam } from "@/components/teams/TeamPage";
+import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
 import { Text } from "@/components/ui/typography";
+import { authStore } from "@/lib/auth-store";
 import { orpc } from "@/orpc/client";
 
 export const Route = createFileRoute("/teams/$teamId")({
@@ -17,13 +20,20 @@ export const Route = createFileRoute("/teams/$teamId")({
  */
 function TeamById() {
   const { teamId } = Route.useParams();
+  const { session } = useStore(authStore);
   const queryOptions = orpc.getTeam.queryOptions({ input: { teamId } });
   const { data, isLoading } = useQuery({ ...queryOptions, staleTime: 30 * 1000 });
+
+  // The anonymous core and the viewer's standing are two reads; the page
+  // and everything under it still see one team object.
+  const { viewerState, invalidate } = useTeamViewerState(teamId, Boolean(session?.user));
 
   if (isLoading) return <TeamLoadingState />;
   if (!data) return <TeamNotFoundState />;
 
-  return <TeamPage team={data as unknown as RpcTeam} queryKey={queryOptions.queryKey} />;
+  const team = { ...data, ...viewerState } as unknown as RpcTeam;
+
+  return <TeamPage team={team} onInvalidate={invalidate} />;
 }
 
 function TeamLoadingState() {

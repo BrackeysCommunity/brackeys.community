@@ -1,0 +1,70 @@
+/* Gruvbox Dark — https://github.com/morhetz/gruvbox
+   ─────────────────────────────────────────────────────────────────────
+   Bases:     #1d2021 (bg0_h)  #282828 (bg0)   #3c3836 (bg1)
+              #504945 (bg2)    #665c54 (bg3)   #928374 (gray)
+   Content:   #ebdbb2 (fg1)    #d5c4a1 (fg2)   #bdae93 (fg3)
+   Accents:   #fb4934 (red)    #fe8019 (orange)  #fabd2f (yellow)
+              #b8bb26 (green)  #8ec07c (aqua)    #83a598 (blue)
+              #d3869b (purple)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="gruvbox-dark"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #282828;
+  --foreground: #ebdbb2;
+  --card: #3c3836;
+  --card-foreground: #ebdbb2;
+  --popover: #3c3836;
+  --popover-foreground: #ebdbb2;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #fabd2f;
+  --primary-foreground: #282828;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #fe8019;
+  --accent-foreground: #282828;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #504945;
+  --muted-foreground: #bdae93;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #fb4934;
+  --destructive-foreground: #282828;
+  --success: #b8bb26;
+  --success-foreground: #282828;
+  --warning: #fabd2f;
+  --warning-foreground: #282828;
+  --info: #83a598;
+  --info-foreground: #282828;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(146, 131, 116, 0.45);
+  --input: rgba(146, 131, 116, 0.55);
+  --ring: #fabd2f;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #fabd2f;
+  --chart-2: #fe8019;
+  --chart-3: #83a598;
+  --chart-4: #b8bb26;
+  --chart-5: #d3869b;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #1d2021;
+  --sidebar-foreground: #ebdbb2;
+  --sidebar-primary: #fabd2f;
+  --sidebar-primary-foreground: #282828;
+  --sidebar-accent: #fe8019;
+  --sidebar-accent-foreground: #282828;
+  --sidebar-border: rgba(146, 131, 116, 0.45);
+  --sidebar-ring: #fabd2f;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #504945;
+  --emboss-shadow: #171818;
+  --deboss-surface: #1d2021;
+  --deboss-shadow: #141515;
+  --deboss-highlight: rgba(235, 219, 178, 0.05);
+}

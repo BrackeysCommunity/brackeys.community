@@ -183,7 +183,7 @@ export function AppHeader() {
             <div className="flex items-center gap-2">
               <SettingsMenu />
               <NotificationBell />
-              <UserMenu user={session.user} />
+              <UserMenu user={session.user} compact />
             </div>
           ) : (
             <Button

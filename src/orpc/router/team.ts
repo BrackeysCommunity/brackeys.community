@@ -39,7 +39,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { escapeLike } from "@/lib/sql-like";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
-import { authMiddleware, requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
+import { requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
 
 /** Postgres `unique_violation`. */
 function isUniqueViolation(err: unknown): boolean {
@@ -327,19 +327,30 @@ async function serializeTeamProject<T extends { imageKey: string | null; imageUr
   return { ...project, imageUrl: presigned ?? project.imageUrl };
 }
 
+/** Direct id first, then slug — same resolution order as getProfile. */
+async function resolveTeam(idOrSlug: string) {
+  const [byId] = await db.select().from(teams).where(eq(teams.id, idOrSlug)).limit(1);
+  if (byId) return byId;
+
+  const [bySlug] = await db
+    .select()
+    .from(teams)
+    .where(eq(teams.slug, idOrSlug.toLowerCase()))
+    .limit(1);
+  return bySlug ?? null;
+}
+
+/**
+ * A team as everyone sees it. The viewer's own standing — their role, a
+ * pending invite, the owner's invite queue — lives in
+ * `getTeamViewerState`, which is what lets this response be identical for
+ * every caller and cached at the edge.
+ */
 export const getTeam = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(z.object({ teamId: z.string() }))
-  .handler(async ({ input, context }) => {
-    // Direct id first, then slug — same resolution order as getProfile.
-    let [team] = await db.select().from(teams).where(eq(teams.id, input.teamId)).limit(1);
-    if (!team) {
-      [team] = await db
-        .select()
-        .from(teams)
-        .where(eq(teams.slug, input.teamId.toLowerCase()))
-        .limit(1);
-    }
+  .handler(async ({ input }) => {
+    const team = await resolveTeam(input.teamId);
     if (!team) return null;
 
     const [memberRows, projectRows, openPostRows] = await Promise.all([
@@ -439,46 +450,6 @@ export const getTeam = os
       rolesByPost.set(row.postId, list);
     }
 
-    const viewerId = context.user?.id ?? null;
-    const viewerMembership = viewerId
-      ? (memberRows.find((m) => m.userId === viewerId) ?? null)
-      : null;
-    const isOwner = viewerMembership?.role === "owner";
-
-    // A signed-in non-member sees their own pending invite so the page
-    // can offer the accept/decline bar; the owner sees all of them.
-    const [viewerInvite, pendingInvites] = await Promise.all([
-      viewerId && !viewerMembership
-        ? db
-            .select()
-            .from(teamInvites)
-            .where(
-              and(
-                eq(teamInvites.teamId, team.id),
-                eq(teamInvites.inviteeId, viewerId),
-                eq(teamInvites.status, "pending"),
-              ),
-            )
-            .limit(1)
-            .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      isOwner
-        ? db
-            .select({
-              id: teamInvites.id,
-              inviteeId: teamInvites.inviteeId,
-              status: teamInvites.status,
-              createdAt: teamInvites.createdAt,
-              inviteeUsername: developerProfiles.discordUsername,
-              inviteeAvatar: developerProfiles.avatarUrl,
-            })
-            .from(teamInvites)
-            .innerJoin(developerProfiles, eq(teamInvites.inviteeId, developerProfiles.id))
-            .where(and(eq(teamInvites.teamId, team.id), eq(teamInvites.status, "pending")))
-            .orderBy(desc(teamInvites.createdAt))
-        : Promise.resolve([]),
-    ]);
-
     // Rows that carry no jam facts of their own (post-step-6 placements)
     // coalesce them from the canonical row's `project_jam_links` — fetched
     // separately so a project with several links can't multiply the tiles.
@@ -575,10 +546,73 @@ export const getTeam = os
         ),
       ),
       openPosts: openPostRows.map((p) => ({ ...p, roles: rolesByPost.get(p.id) ?? [] })),
-      viewerRole: viewerMembership?.role ?? null,
+    };
+  });
+
+/**
+ * Where the viewer stands with a team: their role on the roster, a pending
+ * invite waiting for them, and — for the owner — the invites still
+ * outstanding. The companion to `getTeam`'s anonymous core.
+ *
+ * The owner gate stays here rather than in the caller: `pendingInvites`
+ * names people who have been invited but haven't answered, which is the
+ * owner's business alone.
+ */
+export const getTeamViewerState = os
+  .use(requireAuth)
+  .input(z.object({ teamId: z.string() }))
+  .handler(async ({ input, context }) => {
+    const team = await resolveTeam(input.teamId);
+    if (!team) return null;
+
+    const viewerId = context.user.id;
+    const [membership] = await db
+      .select({ role: teamMembers.role })
+      .from(teamMembers)
+      .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, viewerId)))
+      .limit(1);
+
+    const isOwner = membership?.role === "owner";
+
+    // A signed-in non-member sees their own pending invite so the page can
+    // offer the accept/decline bar; the owner sees all of them.
+    const [viewerInvite, pendingInvites] = await Promise.all([
+      !membership
+        ? db
+            .select()
+            .from(teamInvites)
+            .where(
+              and(
+                eq(teamInvites.teamId, team.id),
+                eq(teamInvites.inviteeId, viewerId),
+                eq(teamInvites.status, "pending"),
+              ),
+            )
+            .limit(1)
+            .then((rows) => rows[0] ?? null)
+        : Promise.resolve(null),
+      isOwner
+        ? db
+            .select({
+              id: teamInvites.id,
+              inviteeId: teamInvites.inviteeId,
+              status: teamInvites.status,
+              createdAt: teamInvites.createdAt,
+              inviteeUsername: developerProfiles.discordUsername,
+              inviteeAvatar: developerProfiles.avatarUrl,
+            })
+            .from(teamInvites)
+            .innerJoin(developerProfiles, eq(teamInvites.inviteeId, developerProfiles.id))
+            .where(and(eq(teamInvites.teamId, team.id), eq(teamInvites.status, "pending")))
+            .orderBy(desc(teamInvites.createdAt))
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      viewerRole: membership?.role ?? null,
+      isOwner,
       viewerInvite,
       pendingInvites,
-      isOwner,
     };
   });
 

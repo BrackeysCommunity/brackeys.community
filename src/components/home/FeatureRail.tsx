@@ -68,7 +68,15 @@ function FeatureTile({ to, icon, title, stat, statLabel }: FeatureTileProps) {
       aria-label={title}
       className="group/tile align-start flex min-h-28 min-w-0 flex-col justify-between gap-4 overflow-hidden p-4"
     >
-      <GraphPaper fade="bottom-right" fadeStop="90%" size={12} />
+      {/* Scaled from the top-left inset corner so the ruling grows away from
+          the two edges it's held clear of. */}
+      <GraphPaper
+        fade="top-left"
+        fadeStop="90%"
+        size={16}
+        inset
+        className="origin-top-left transition-transform duration-300 ease-out group-hover/tile:scale-102"
+      />
       <div className="relative flex min-w-0 items-center gap-2.5">
         <HugeiconsIcon
           icon={icon}

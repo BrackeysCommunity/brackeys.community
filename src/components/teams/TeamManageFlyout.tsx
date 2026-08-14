@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
@@ -27,15 +27,14 @@ export function TeamManageFlyout({
   open,
   onClose,
   team,
-  queryKey,
+  onInvalidate,
 }: {
   open: boolean;
   onClose: () => void;
   team: RpcTeam;
-  queryKey: readonly unknown[];
+  onInvalidate: () => void;
 }) {
-  const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey });
+  const invalidate = onInvalidate;
   const isOwner = team.isOwner;
 
   return (

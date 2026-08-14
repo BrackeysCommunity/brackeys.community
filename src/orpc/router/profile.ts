@@ -21,6 +21,7 @@ import {
   threads,
   userSkills,
 } from "@/db/schema";
+import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
 import { jamUrl } from "@/lib/jam-links";
 import { checkProfanity } from "@/lib/profanity";
 import {
@@ -37,7 +38,7 @@ import {
 import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { authMiddleware, requireAuth } from "@/orpc/middleware/auth";
+import { requireAuth } from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
   return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
@@ -345,10 +346,17 @@ async function serializeProfileProjects<
   return Promise.all(projects.map(serializeProfileProject));
 }
 
+/**
+ * A member's profile as everyone sees it: approved, published work only,
+ * and nothing about the viewer. The owner's own view is `getMyProfile`,
+ * which the profile page layers on top when you are looking at yourself —
+ * that split is what lets this response be identical for every caller and
+ * cached at the edge.
+ */
 export const getProfile = os
-  .use(authMiddleware)
+  .route({ method: "GET" })
   .input(z.object({ userId: z.string() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     // Try direct ID lookup first, then fall back to URL stub resolution
     let [profile] = await db
       .select()
@@ -375,62 +383,47 @@ export const getProfile = os
     if (!profile) return null;
 
     const profileId = profile.id;
-    const isOwner = context.user?.id === profileId;
 
-    const [
-      skillList,
-      projects,
-      urlStub,
-      pendingSkillRequests,
-      linkedAccountsList,
-      creditRows,
-      wallThread,
-    ] = await Promise.all([
-      queryUserSkills(profileId),
-      isOwner
-        ? queryProfileProjects(eq(profileProjects.profileId, profileId))
-        : queryProfileProjects(
-            and(
-              eq(profileProjects.profileId, profileId),
-              eq(profileProjects.status, "approved"),
-              // Unpublished titles (e.g. itch.io drafts) are owner-only.
-              eq(profileProjects.published, true),
-              // itch.io "Restricted" pages report published=true from the
-              // API but 404 for anonymous visitors; the library-sync
-              // sweep's URL probe records that here. Owner-only too.
-              isNull(profileProjects.restrictedAt),
-              // Games that vanished from the linked library (deleted on
-              // itch, or access lost) are owner-only until removed.
-              isNull(profileProjects.missingSince),
-            ),
+    const [skillList, projects, urlStub, linkedAccountsList, creditRows, wallThread] =
+      await Promise.all([
+        queryUserSkills(profileId),
+        queryProfileProjects(
+          and(
+            eq(profileProjects.profileId, profileId),
+            eq(profileProjects.status, "approved"),
+            // Unpublished titles (e.g. itch.io drafts) are owner-only.
+            eq(profileProjects.published, true),
+            // itch.io "Restricted" pages report published=true from the
+            // API but 404 for anonymous visitors; the library-sync
+            // sweep's URL probe records that here. Owner-only too.
+            isNull(profileProjects.restrictedAt),
+            // Games that vanished from the linked library (deleted on
+            // itch, or access lost) are owner-only until removed.
+            isNull(profileProjects.missingSince),
           ),
-      db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
-      isOwner
-        ? db
-            .select()
-            .from(skillRequests)
-            .where(and(eq(skillRequests.userId, profileId), eq(skillRequests.status, "pending")))
-        : Promise.resolve([]),
-      db
-        .select({
-          id: linkedAccounts.id,
-          provider: linkedAccounts.provider,
-          providerUserId: linkedAccounts.providerUserId,
-          providerUsername: linkedAccounts.providerUsername,
-          providerAvatarUrl: linkedAccounts.providerAvatarUrl,
-          providerProfileUrl: linkedAccounts.providerProfileUrl,
-          tokenInvalidAt: linkedAccounts.tokenInvalidAt,
-          linkedAt: linkedAccounts.linkedAt,
-        })
-        .from(linkedAccounts)
-        .where(eq(linkedAccounts.profileId, profileId)),
-      queryProfileCredits(profileId),
-      db
-        .select({ commentCount: threads.commentCount })
-        .from(threads)
-        .where(eq(threads.profileUserId, profileId))
-        .limit(1),
-    ]);
+        ),
+        db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
+        // Display-safe columns only. `tokenInvalidAt` says whether someone's
+        // linked account needs reconnecting, which is between them and the
+        // provider — only the owner's own `getMyProfile` carries it, and the
+        // page's "reconnect" prompt already reads it from there.
+        db
+          .select({
+            id: linkedAccounts.id,
+            provider: linkedAccounts.provider,
+            providerUsername: linkedAccounts.providerUsername,
+            providerProfileUrl: linkedAccounts.providerProfileUrl,
+            linkedAt: linkedAccounts.linkedAt,
+          })
+          .from(linkedAccounts)
+          .where(eq(linkedAccounts.profileId, profileId)),
+        queryProfileCredits(profileId),
+        db
+          .select({ commentCount: threads.commentCount })
+          .from(threads)
+          .where(eq(threads.profileUserId, profileId))
+          .limit(1),
+      ]);
 
     // A credit on a project the member already showcases would repeat the
     // SHIPPED WORK card one section down; the credits list is for the work
@@ -444,9 +437,7 @@ export const getProfile = os
       skills: skillList,
       projects: await serializeProfileProjects(projects),
       credits: creditRows.filter((credit) => !placedProjectIds.has(credit.projectId)).slice(0, 12),
-      isOwner,
       urlStub: urlStub[0]?.stub ?? null,
-      pendingSkillRequests,
       linkedAccounts: linkedAccountsList,
       wallNotesCount: wallThread[0]?.commentCount ?? 0,
     };
@@ -465,6 +456,8 @@ export const getMyProfile = os
       .limit(1);
 
     if (!profile) return null;
+
+    const roleNames = applyRoleOverrides(profile.discordId, profile.guildRoles ?? []);
 
     const [skillList, projects, pendingSkillRequests, urlStub, linkedAccountsList] =
       await Promise.all([
@@ -498,7 +491,30 @@ export const getMyProfile = os
       urlStub: urlStub[0]?.stub ?? null,
       isOwner: true,
       linkedAccounts: linkedAccountsList,
+      // Rides along on the row we already read so the nav can offer /admin
+      // without a second round trip. UX only — every staff procedure and the
+      // route's own loader re-check server-side.
+      isStaff: isStaffMember(roleNames),
+      isAdmin: checkIsAdmin(roleNames),
     };
+  });
+
+/**
+ * Just the viewer's own skill ids — the smallest private read that lets an
+ * anonymous, edge-cached `listPosts` still render "you match 3/5" on the
+ * board. Fetched once per session rather than folded into every listing
+ * response, which is what keeps that listing identical for every caller.
+ */
+export const getMySkillIds = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    const rows = await db
+      .select({ skillId: userSkills.skillId })
+      .from(userSkills)
+      .where(eq(userSkills.userId, context.user.id));
+
+    return rows.map((row) => row.skillId);
   });
 
 const rateTypeSchema = z.enum(["hourly", "fixed", "negotiable"]);

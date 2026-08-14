@@ -22,19 +22,27 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "getJamResults",
   "getJamCommunity",
   "listJamsByHost",
-  // Community directory.
+  // Community directory. `getProfile` is the anonymous view; the owner's
+  // own extras come from the private `getMyProfile`.
   "listMembers",
   "listAvailableUsers",
+  "getProfile",
   // Shared taxonomies — near-static, longest TTLs.
   "listSkills",
   "listCollabRoles",
   // Teams and projects (list/aggregate reads only; the detail pages carry
   // viewer overlays and stay private).
   "listTeams",
+  "getTeam",
   "getTeamStats",
   "listUserTeams",
   "listProjectsForGames",
-  // Collab board aggregates.
+  "getProject",
+  // Collab board. `listPosts` is the board's hottest query; its match
+  // badge moved to the browser (`getMySkillIds`) so the listing itself is
+  // caller-independent.
+  "listPosts",
+  "getPost",
   "countPostsByType",
   "countPostsForJam",
   "getBoardStats",

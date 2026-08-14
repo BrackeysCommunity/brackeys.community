@@ -52,10 +52,18 @@ export function ViewerResponseCard({
   const [portfolioUrl, setPortfolioUrl] = useState(response.portfolioUrl ?? "");
   const [error, setError] = useState("");
 
-  const invalidatePost = () =>
-    queryClient.invalidateQueries({
-      queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
-    });
+  // Editing or withdrawing changes the viewer's own application, and a
+  // withdrawal also moves the post's response count.
+  const invalidatePost = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: orpc.getPostViewerState.queryOptions({ input: { postId } }).queryKey,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
+      }),
+    ]);
+  };
 
   const update = useMutation({
     mutationFn: () =>
@@ -214,9 +222,16 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
       setSuccess(true);
       setMessage("");
       setPortfolioUrl("");
-      await queryClient.invalidateQueries({
-        queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
-      });
+      // The new application is the viewer's own state; the post's public
+      // core only moves by its response count.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.getPostViewerState.queryOptions({ input: { postId } }).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.getPost.queryOptions({ input: { postId } }).queryKey,
+        }),
+      ]);
     },
     onError: (err: Error) => setError(err.message),
   });

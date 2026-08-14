@@ -35,6 +35,21 @@ export const themes: Theme[] = [
     name: "Solarized Dark",
     description: "Precision colors for machines and people",
   },
+  {
+    id: "palenight",
+    name: "Palenight",
+    description: "Material's soft indigo night",
+  },
+  {
+    id: "gruvbox-dark",
+    name: "Gruvbox Dark",
+    description: "Retro groove, warm and low contrast",
+  },
+  {
+    id: "gruvbox-light",
+    name: "Gruvbox Light",
+    description: "Retro groove on cream paper",
+  },
 ];
 
 export const DEFAULT_THEME_ID = "nord";

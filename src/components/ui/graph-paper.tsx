@@ -5,6 +5,7 @@ const FADE = {
   bottom: "to bottom",
   "bottom-left": "to bottom left",
   "bottom-right": "to bottom right",
+  "top-left": "to top left",
 } as const;
 
 export interface GraphPaperProps {
@@ -14,6 +15,9 @@ export interface GraphPaperProps {
   fadeStop?: string;
   /** Ruling pitch. */
   size?: number;
+  /** Start the ruling half a cell in from the top-left, so no line lands on
+      top of the panel's own border. */
+  inset?: boolean;
   className?: string;
 }
 
@@ -33,9 +37,11 @@ export function GraphPaper({
   fade = "bottom",
   fadeStop = "60%",
   size = 18,
+  inset = false,
   className,
 }: GraphPaperProps) {
   const mask = `linear-gradient(${FADE[fade]}, #000 0%, transparent ${fadeStop})`;
+  const half = size / 2;
   return (
     <div
       aria-hidden
@@ -44,6 +50,7 @@ export function GraphPaper({
         backgroundImage:
           "linear-gradient(to right, var(--color-muted-foreground) 1px, transparent 1px), linear-gradient(to bottom, var(--color-muted-foreground) 1px, transparent 1px)",
         backgroundSize: `${size}px ${size}px`,
+        backgroundPosition: inset ? `${half}px ${half}px` : undefined,
         opacity: 0.1,
         maskImage: mask,
         WebkitMaskImage: mask,

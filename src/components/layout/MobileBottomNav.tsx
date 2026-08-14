@@ -133,7 +133,9 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
     !profileParam ||
     profileParam === "preview" ||
     profileParam === session?.user?.id ||
-    (viewedProfile.data?.isOwner ?? false);
+    // The param is a vanity stub as often as an id, so fall back to the
+    // resolved profile rather than comparing against the URL.
+    (viewedProfile.data?.profile.id != null && viewedProfile.data.profile.id === session?.user?.id);
 
   const active: TabValue | "none" = pathname.startsWith("/collab")
     ? "collab"

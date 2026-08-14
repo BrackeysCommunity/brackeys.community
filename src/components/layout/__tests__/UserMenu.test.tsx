@@ -45,6 +45,7 @@ vi.mock("@hugeicons/core-free-icons", () => ({
   Logout03Icon: "logout-icon",
   Settings02Icon: "settings-icon",
   Share01Icon: "share-icon",
+  Shield02Icon: "shield-icon",
   UserIcon: "user-icon",
 }));
 
@@ -127,6 +128,8 @@ describe("UserMenu profile links", () => {
       avatarUrl: null,
       guildNickname: null,
       urlStub: "my-custom-slug",
+      isStaff: false,
+      isAdmin: false,
     });
 
     render(<UserMenu user={defaultUser} />);
@@ -142,6 +145,8 @@ describe("UserMenu profile links", () => {
       avatarUrl: null,
       guildNickname: null,
       urlStub: null,
+      isStaff: false,
+      isAdmin: false,
     });
 
     render(<UserMenu user={defaultUser} />);
@@ -155,5 +160,37 @@ describe("UserMenu profile links", () => {
 
     const link = screen.getByTestId("view-public-link");
     expect(link.getAttribute("href")).toBe("/profile/user-123");
+  });
+});
+
+describe("UserMenu admin link", () => {
+  const base = {
+    discordUsername: "testuser",
+    discordId: "123",
+    avatarUrl: null,
+    guildNickname: null,
+    urlStub: null,
+  };
+
+  it("shows the admin link for staff", () => {
+    setActiveProfile({ ...base, isStaff: true, isAdmin: false });
+
+    render(<UserMenu user={defaultUser} />);
+
+    expect(screen.getByTestId("admin-link").getAttribute("href")).toBe("/admin");
+  });
+
+  it("hides the admin link for non-staff", () => {
+    setActiveProfile({ ...base, isStaff: false, isAdmin: false });
+
+    render(<UserMenu user={defaultUser} />);
+
+    expect(screen.queryByTestId("admin-link")).toBeNull();
+  });
+
+  it("hides the admin link when the profile has not loaded", () => {
+    render(<UserMenu user={defaultUser} />);
+
+    expect(screen.queryByTestId("admin-link")).toBeNull();
   });
 });

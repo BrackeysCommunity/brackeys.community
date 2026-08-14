@@ -38,6 +38,7 @@ import { client, orpc } from "@/orpc/client";
 import { CollabPostResponseForm, ViewerResponseCard } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { useCollabPostActions } from "./use-collab-post-actions";
+import { usePostViewerState } from "./use-post-viewer-state";
 
 export const TYPE_LABELS: Record<string, string> = {
   paid: "PAID WORK",
@@ -120,7 +121,11 @@ export function CollabPostDetail({
   const [reportReason, setReportReason] = useState("");
   const [reportSuccess, setReportSuccess] = useState(false);
 
-  const isOwner = post?.isOwner ?? (!!currentUserId && post?.authorId === currentUserId);
+  const { isOwner, responses, viewerResponse, viewerOverlap } = usePostViewerState(
+    postId,
+    post,
+    currentUserId,
+  );
   // Owner-closed and sweep-expired are both "no longer taking responses";
   // the badge tells them apart, everything else treats them the same.
   const isExpired = post?.status === "expired";
@@ -395,15 +400,15 @@ export function CollabPostDetail({
                   {/* The viewer's own skills against this stack. Shown
                       only to signed-in non-owners — the author already
                       knows what they picked. */}
-                  {post.viewerOverlap && post.viewerOverlap.matched.length > 0 ? (
+                  {viewerOverlap && viewerOverlap.matched.length > 0 ? (
                     <Text size="xs" variant="success" className="tracking-widest uppercase">
-                      You match {post.viewerOverlap.matched.length}/{post.viewerOverlap.total}
+                      You match {viewerOverlap.matched.length}/{viewerOverlap.total}
                     </Text>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {post.skills.map((s) => {
-                    const matched = post.viewerOverlap?.matched.includes(s.name) ?? false;
+                    const matched = viewerOverlap?.matched.includes(s.name) ?? false;
                     return (
                       <Badge
                         key={s.id}
@@ -454,14 +459,14 @@ export function CollabPostDetail({
             ) : null}
 
             {/* Owner: responses + actions */}
-            {isOwner && post.responses ? (
+            {isOwner && responses ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
                 <Text size="xs" variant="muted" className="tracking-widest uppercase">
-                  Responses ({post.responses.length})
+                  Responses ({responses.length})
                 </Text>
-                {post.responses.length > 0 ? (
+                {responses.length > 0 ? (
                   <CollabPostResponseList
-                    responses={post.responses}
+                    responses={responses}
                     postId={postId}
                     team={post.team}
                     needsTeamLink={!post.isIndividual && !post.team}
@@ -475,9 +480,9 @@ export function CollabPostDetail({
             ) : null}
 
             {/* Non-owner: respond, or the response they already sent */}
-            {!isOwner && currentUserId && post.viewerResponse ? (
+            {!isOwner && currentUserId && viewerResponse ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">
-                <ViewerResponseCard response={post.viewerResponse} postId={postId} />
+                <ViewerResponseCard response={viewerResponse} postId={postId} />
               </div>
             ) : !isOwner && currentUserId && !isClosed ? (
               <div className="flex flex-col gap-3 border-t border-muted/40 pt-4">

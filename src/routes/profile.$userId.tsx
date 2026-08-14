@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { adaptProfile, type RpcProfile } from "@/components/profile/ProfilePage/profile-adapter";
+import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-overlay";
 import { Text } from "@/components/ui/typography";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/orpc/client";
@@ -31,11 +32,29 @@ function ProfileById() {
     staleTime: 60 * 1000,
   });
 
+  // Ownership follows the *resolved* profile id, not the route param — the
+  // param is a vanity stub as often as an id, and comparing the session
+  // against a stub never matches.
+  const { isOwner, overlay } = useProfileOwnerOverlay({
+    profileId: data?.profile.id,
+    currentUserId: session?.user?.id,
+    profileQueryKey: queryOptions.queryKey,
+  });
+
   if (isLoading) return <ProfileLoadingState />;
   if (!data) return <ProfileNotFoundState />;
 
-  const profile = adaptProfile(data as unknown as RpcProfile);
-  const isOwner = data.isOwner || session?.user?.id === userId;
+  // The anonymous core, plus what only the owner may see. Until the overlay
+  // lands the page renders the public view of your own profile, which is
+  // the correct intermediate state rather than a flash of missing sections.
+  const profile = adaptProfile({
+    ...data,
+    isOwner,
+    pendingSkillRequests: overlay?.pendingSkillRequests ?? [],
+    projects: overlay?.projects ?? data.projects,
+    linkedAccounts: overlay?.linkedAccounts ?? data.linkedAccounts,
+  } as unknown as RpcProfile);
+
   return <ProfilePage profile={profile} isOwner={isOwner} queryKey={queryOptions.queryKey} />;
 }
 

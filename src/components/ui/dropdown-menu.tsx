@@ -219,7 +219,10 @@ function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Separator.
   return (
     <MenuPrimitive.Separator
       data-slot="dropdown-menu-separator"
-      className={cn("-mx-1 h-px bg-border", className)}
+      // Full-bleed horizontally, but never flush with the items: without the
+      // vertical margin a hovered neighbour's highlight runs straight into the
+      // rule and the two read as one block.
+      className={cn("-mx-1 my-1.5 h-px bg-border", className)}
       {...props}
     />
   );

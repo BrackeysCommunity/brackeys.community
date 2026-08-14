@@ -15,11 +15,23 @@ import { client } from "@/orpc/client";
  */
 export const Route = createFileRoute("/projects/$projectSlug")({
   loader: async ({ params }) => {
-    const detail = await client.getProject({ idOrSlug: params.projectSlug });
+    // Two reads: the anonymous page, and where the viewer stands with it.
+    // The public one is edge-cacheable and serves published rows only; the
+    // private one carries `viewerCanEdit` and, for an editor of an
+    // unpublished project, the page the public read withholds.
+    const [publicDetail, viewer] = await Promise.all([
+      client.getProject({ idOrSlug: params.projectSlug }),
+      // Throws UNAUTHORIZED for a signed-out visitor, which is just "no
+      // edit rights" — not an error the page should surface.
+      client.getProjectViewerState({ idOrSlug: params.projectSlug }).catch(() => null),
+    ]);
+
+    const detail = publicDetail ?? viewer?.detail;
     // Null covers both "no such project" and "unpublished, and you're not one
     // of its editors" — the page shouldn't distinguish those to a stranger.
     if (!detail) throw notFound();
-    return detail;
+
+    return { ...detail, viewerCanEdit: viewer?.viewerCanEdit ?? false };
   },
   head: ({ loaderData }) => {
     const project = loaderData?.project;

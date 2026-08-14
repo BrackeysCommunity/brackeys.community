@@ -55,6 +55,7 @@ import {
 } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { useCollabPostActions } from "./use-collab-post-actions";
+import { usePostViewerState } from "./use-post-viewer-state";
 
 /** Status → the chip on the banner. Same vocabulary as the board's card
  * badges, so a post reads as the same post on both surfaces. */
@@ -92,7 +93,11 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
   const [editOpen, setEditOpen] = useState(false);
 
-  const isOwner = post.isOwner ?? (!!currentUserId && post.authorId === currentUserId);
+  const { isOwner, responses, viewerResponse, viewerOverlap } = usePostViewerState(
+    postId,
+    post,
+    currentUserId,
+  );
   const isClosed = post.status !== "recruiting";
   const closesIn = !isClosed && post.expiresAt ? formatCountdown(post.expiresAt) : null;
   const rateDisplay =
@@ -173,15 +178,15 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                   <ChipGroup
                     label="TECH STACK"
                     aside={
-                      post.viewerOverlap && post.viewerOverlap.matched.length > 0 ? (
+                      viewerOverlap && viewerOverlap.matched.length > 0 ? (
                         <Text size="xs" variant="success" className="tracking-widest uppercase">
-                          You match {post.viewerOverlap.matched.length}/{post.viewerOverlap.total}
+                          You match {viewerOverlap.matched.length}/{viewerOverlap.total}
                         </Text>
                       ) : null
                     }
                   >
                     {post.skills.map((skill) => {
-                      const matched = post.viewerOverlap?.matched.includes(skill.name) ?? false;
+                      const matched = viewerOverlap?.matched.includes(skill.name) ?? false;
                       return (
                         <Badge
                           key={skill.id}
@@ -212,9 +217,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                     : `${post.responseCount} people have responded.`
               }
             >
-              {post.responses && post.responses.length > 0 ? (
+              {responses && responses.length > 0 ? (
                 <CollabPostResponseList
-                  responses={post.responses}
+                  responses={responses}
                   postId={postId}
                   team={post.team}
                   needsTeamLink={!post.isIndividual && !post.team}
@@ -233,7 +238,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
               postId={postId}
               isClosed={isClosed}
               signedIn={currentUserId !== null}
-              viewerResponse={post.viewerResponse ?? null}
+              viewerResponse={viewerResponse}
             />
           )}
         </div>
