@@ -12,6 +12,7 @@ import { Well } from "@/components/ui/well";
 import { client, orpc } from "@/orpc/client";
 
 import { TeamPickerField } from "./CollabCreateFlyout/TeamPickerField";
+import { ResponseThreadPanel } from "./ResponseThreadPanel";
 
 interface ResponseItem {
   id: number;
@@ -30,6 +31,9 @@ interface ResponseItem {
   /** Latest team invite spawned from this response, if any — the INVITE
    *  button renders from this so its state survives reloads. */
   invite: { status: string; teamId: string } | null;
+  /** Messages in the private thread on this application — 0 until someone
+   *  asks something, since the thread is created lazily. */
+  threadCommentCount: number;
 }
 
 interface CollabPostResponseListProps {
@@ -162,6 +166,14 @@ export function CollabPostResponseList({
               Portfolio
             </a>
           ) : null}
+          {/* Available at every status, not just pending: the questions that
+              settle a match ("can you also do UI?") come before the decision,
+              and an accepted pair still uses it until they move to Discord. */}
+          <ResponseThreadPanel
+            responseId={resp.id}
+            commentCount={resp.threadCommentCount}
+            counterpartyLabel={resp.responderUsername ? `@${resp.responderUsername}` : undefined}
+          />
           {resp.status === "pending" ? (
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">

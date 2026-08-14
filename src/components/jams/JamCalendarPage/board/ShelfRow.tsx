@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 
+import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
 import { Text } from "@/components/ui/typography";
 
 import type { JamFromList } from "../helpers";
@@ -69,9 +70,12 @@ export function ShelfRow({
           <div className="flex flex-wrap items-center gap-2 sm:hidden">
             <MilestoneHeadline jam={jam} now={now} compact />
           </div>
-          <Text bold size="lg" className="truncate leading-snug whitespace-nowrap">
-            {jam.title}
-          </Text>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Text bold size="lg" className="truncate leading-snug whitespace-nowrap">
+              {jam.title}
+            </Text>
+            <JamWatchMarker jamId={jam.jamId} className="shrink-0" />
+          </div>
           <HostLine jam={jam} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <LifecycleDates jam={jam} now={now} />

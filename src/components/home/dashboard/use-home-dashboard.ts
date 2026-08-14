@@ -38,9 +38,15 @@ export function useHomeDashboard() {
     enabled: attention.signedIn,
     staleTime: STALE_TIME_MS,
   });
+  const watchedJams = useQuery({
+    ...orpc.listMyJamWatches.queryOptions({ input: { scope: "upcoming", limit: 8 } }),
+    enabled: attention.signedIn,
+    staleTime: STALE_TIME_MS,
+  });
 
   const applicationList = useMemo(() => applications.data ?? [], [applications.data]);
   const teamList = useMemo(() => teams.data ?? [], [teams.data]);
+  const watchedJamList = useMemo(() => watchedJams.data?.jams ?? [], [watchedJams.data]);
 
   // Both halves of "jams I'm on the hook for": a jam the viewer is recruiting
   // for, and one they applied to someone else's post about.
@@ -50,13 +56,15 @@ export function useHomeDashboard() {
   );
 
   const isPending =
-    attention.signedIn && (attention.isPending || applications.isPending || teams.isPending);
+    attention.signedIn &&
+    (attention.isPending || applications.isPending || teams.isPending || watchedJams.isPending);
 
   const hasContent =
     attention.invites.length > 0 ||
     applicationList.length > 0 ||
     attention.posts.length > 0 ||
-    teamList.length > 0;
+    teamList.length > 0 ||
+    watchedJamList.length > 0;
 
   return {
     /** False until the session resolves, so `/` never stalls on auth. */
@@ -68,6 +76,7 @@ export function useHomeDashboard() {
     posts: attention.posts,
     teams: teamList,
     jamDeadlines,
+    watchedJams: watchedJamList,
   };
 }
 

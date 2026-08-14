@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 
 import { JamTeamCta } from "@/components/jams/JamTeamCta";
+import { JamWatchToggle } from "@/components/jams/JamWatchToggle";
 import { Badge } from "@/components/ui/badge";
 import { Grainient } from "@/components/ui/grainient";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
@@ -14,7 +15,7 @@ import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
 
-import { type JamFromList, jamStats } from "./helpers";
+import { type JamFromList, jamPhase, jamStats } from "./helpers";
 
 interface JamDetailModalProps {
   jam: JamFromList | null;
@@ -225,6 +226,8 @@ function ModalContent({
                 No description provided.
               </Text>
             )}
+
+            <JamWatchToggle jamId={jam.jamId} phase={jamPhase(jam, new Date())} className="mt-3" />
 
             <JamTeamCta jam={jam} className="mt-3" />
 

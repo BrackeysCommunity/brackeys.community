@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 
+import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
 import { MediaCardFloatingBadge } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
@@ -62,6 +63,7 @@ export function FeaturedCard({
         <MediaCardFloatingBadge>
           <SignalInline jam={jam} now={now} size="sm" />
         </MediaCardFloatingBadge>
+        <JamWatchMarker jamId={jam.jamId} className="absolute top-2 left-2" />
       </div>
       <div className="flex flex-1 flex-col gap-1 px-3 pt-2.5 pb-2.5">
         <Text bold size="lg" className="truncate leading-snug whitespace-nowrap">

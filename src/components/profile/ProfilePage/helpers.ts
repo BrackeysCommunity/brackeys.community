@@ -182,6 +182,9 @@ export interface ProfileStats {
   streakStatus: string;
   /** Notes on the profile wall (thread comment count, tombstones included). */
   wallNotesCount: number;
+  /** Distinct people met through the collab loop — a teammate on a roster
+   * where either seat came from an accepted response. */
+  collabsCount: number;
 }
 
 /** Label vocabulary for a project card. The first seven are the canonical

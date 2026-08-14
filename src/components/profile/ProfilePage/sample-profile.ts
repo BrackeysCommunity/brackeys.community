@@ -56,6 +56,7 @@ export const SAMPLE_PROFILE: ProfileViewModel = {
     streakDays: 42,
     streakStatus: "online now",
     wallNotesCount: 3,
+    collabsCount: 2,
   },
 
   projects: [

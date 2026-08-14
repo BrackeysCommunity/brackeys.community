@@ -23,12 +23,17 @@ export const ONGOING_DAYS = 90;
  * them is what made the old timeline unusable. */
 export const SIGNAL_THRESHOLD = 10;
 
+/** The three dates a phase is derived from — anything carrying them can be
+ *  phased, not just a full `listJams` row. Watched-jam rows and the detail
+ *  page's row are narrower and equally phaseable. */
+export type JamDates = Pick<JamFromList, "startsAt" | "endsAt" | "votingEndsAt">;
+
 /**
  * Like `effectiveJamState` but also recognizes the post-deadline voting
  * window via `votingEndsAt`. The DB `status` column lags reality, so we
  * derive from dates instead.
  */
-export function jamPhase(jam: JamFromList, now: Date): JamPhase {
+export function jamPhase(jam: JamDates, now: Date): JamPhase {
   const t = now.getTime();
   const s = jam.startsAt ? new Date(jam.startsAt).getTime() : null;
   const e = jam.endsAt ? new Date(jam.endsAt).getTime() : null;

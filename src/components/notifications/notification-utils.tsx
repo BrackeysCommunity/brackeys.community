@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
-import { NOTIFICATION_CATEGORY } from "@/lib/notification-copy";
+import { NOTIFICATION_CATEGORY, type NotificationCategory } from "@/lib/notification-copy";
 import { cn } from "@/lib/utils";
 
 export type NotificationItem = {
@@ -21,12 +21,8 @@ export type NotificationItem = {
 
 /** Category lives with the rest of the per-type copy data; an unknown
  *  type simply matches no inbox tab. */
-export function categoryOf(type: string): "collab" | "teams" | "comments" | "moderation" | null {
-  return (
-    (NOTIFICATION_CATEGORY as Record<string, "collab" | "teams" | "comments" | "moderation">)[
-      type
-    ] ?? null
-  );
+export function categoryOf(type: string): NotificationCategory | null {
+  return (NOTIFICATION_CATEGORY as Record<string, NotificationCategory>)[type] ?? null;
 }
 
 export function renderCopy(n: NotificationItem): {
@@ -41,8 +37,26 @@ export function renderCopy(n: NotificationItem): {
   const teamSlug = n.data.teamSlug as string | undefined;
   const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
   const teamEm = <em className="font-medium not-italic">{teamName}</em>;
+  const jamTitle = (n.data.jamTitle as string | undefined) ?? "a jam";
+  const jamHref = (n.data.jamUrl as string | undefined) ?? null;
+  const jamEm = <em className="font-medium not-italic">{jamTitle}</em>;
 
   switch (n.type) {
+    case "jam_starting":
+      return { line: <>{jamEm} starts soon</>, href: jamHref };
+    case "jam_voting_open":
+      return { line: <>Voting is open for {jamEm}</>, href: jamHref };
+    case "jam_results_posted":
+      return { line: <>Results are up for {jamEm}</>, href: jamHref };
+    case "jam_team_post_created":
+      return {
+        line: (
+          <>
+            {actor} is crewing up for {jamEm}
+          </>
+        ),
+        href,
+      };
     case "collab_response_received":
       return {
         line: (
@@ -67,6 +81,16 @@ export function renderCopy(n: NotificationItem): {
         line: (
           <>
             {actor} declined your response on{" "}
+            <em className="font-medium not-italic">{postTitle}</em>
+          </>
+        ),
+        href,
+      };
+    case "collab_response_withdrawn":
+      return {
+        line: (
+          <>
+            {actor} withdrew their response to{" "}
             <em className="font-medium not-italic">{postTitle}</em>
           </>
         ),

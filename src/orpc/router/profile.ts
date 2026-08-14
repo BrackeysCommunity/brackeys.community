@@ -1,6 +1,22 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -17,6 +33,7 @@ import {
   projects,
   skillRequests,
   skills,
+  teamMembers,
   teams,
   threads,
   userSkills,
@@ -250,6 +267,37 @@ async function queryProfileCredits(profileId: string) {
     }));
 }
 
+/**
+ * People this member met through the collab loop: distinct teammates on a
+ * roster where *either* side's seat came from an accepted collab response.
+ *
+ * Symmetric on purpose. The plan specced "distinct accepted-response team
+ * joins", which only ever counts the applicant — a post author who matched
+ * ten people but never joined anyone else's team would read 0, which is
+ * backwards for the person doing the recruiting. Counting the edge instead
+ * of the seat gives both sides the same number for the same collaboration.
+ *
+ * Not a reputation score: it counts introductions that stuck, and the ship
+ * is still the proof (`project_contributors` renders the actual credits).
+ */
+async function countCollabCollaborators(profileId: string): Promise<number> {
+  const theirs = alias(teamMembers, "theirs");
+  const [row] = await db
+    .select({ value: countDistinct(theirs.userId) })
+    .from(teamMembers)
+    .innerJoin(
+      theirs,
+      and(eq(theirs.teamId, teamMembers.teamId), ne(theirs.userId, teamMembers.userId)),
+    )
+    .where(
+      and(
+        eq(teamMembers.userId, profileId),
+        or(isNotNull(teamMembers.sourceResponseId), isNotNull(theirs.sourceResponseId)),
+      ),
+    );
+  return row?.value ?? 0;
+}
+
 function queryUserSkills(userId: string) {
   return db
     .select({
@@ -384,7 +432,7 @@ export const getProfile = os
 
     const profileId = profile.id;
 
-    const [skillList, projects, urlStub, linkedAccountsList, creditRows, wallThread] =
+    const [skillList, projects, urlStub, linkedAccountsList, creditRows, wallThread, collabsCount] =
       await Promise.all([
         queryUserSkills(profileId),
         queryProfileProjects(
@@ -423,6 +471,7 @@ export const getProfile = os
           .from(threads)
           .where(eq(threads.profileUserId, profileId))
           .limit(1),
+        countCollabCollaborators(profileId),
       ]);
 
     // A credit on a project the member already showcases would repeat the
@@ -440,6 +489,7 @@ export const getProfile = os
       urlStub: urlStub[0]?.stub ?? null,
       linkedAccounts: linkedAccountsList,
       wallNotesCount: wallThread[0]?.commentCount ?? 0,
+      collabsCount,
     };
   });
 

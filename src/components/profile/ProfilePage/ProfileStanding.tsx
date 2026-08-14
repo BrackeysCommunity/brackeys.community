@@ -35,6 +35,7 @@ export function ProfileStandingSection({ index, badges, stats }: ProfileStanding
           <DetailRow label="Jams entered" value={stats.jamsEntered} />
           {stats.jamsBestRank ? <DetailRow label="Best finish" value={stats.jamsBestRank} /> : null}
           <DetailRow label="Skills listed" value={stats.skillsListed} />
+          {stats.collabsCount > 0 ? <DetailRow label="Collabs" value={stats.collabsCount} /> : null}
           {stats.wallNotesCount > 0 ? (
             <DetailRow label="Wall notes" value={stats.wallNotesCount} />
           ) : null}

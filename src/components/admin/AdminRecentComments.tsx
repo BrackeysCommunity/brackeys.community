@@ -176,6 +176,17 @@ function CommentContext({ comment }: { comment: RecentComment }) {
       </Link>
     );
   }
+  if (comment.subjectType === "collab_response" && comment.subjectResponsePostId != null) {
+    return (
+      <Link
+        to="/collab/$postId"
+        params={{ postId: String(comment.subjectResponsePostId) }}
+        className="w-fit text-xs text-muted-foreground hover:text-primary hover:underline"
+      >
+        in a private application thread on “{comment.subjectResponsePostTitle ?? "a collab post"}” →
+      </Link>
+    );
+  }
   if (comment.subjectType === "profile" && comment.subjectProfileUserId != null) {
     return (
       <Link

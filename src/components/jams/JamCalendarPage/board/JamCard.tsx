@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 
+import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
 import {
   MediaCardFloatingBadge,
   MediaCardScrim,
@@ -55,6 +56,7 @@ export function JamCard({
         <MediaCardFloatingBadge>
           <SignalInline jam={jam} now={now} size="sm" />
         </MediaCardFloatingBadge>
+        <JamWatchMarker jamId={jam.jamId} className="absolute top-2 left-2" />
       </div>
       <div className={mediaCardClasses.body}>
         <Text bold size="lg" className="line-clamp-2 leading-snug">

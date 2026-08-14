@@ -64,4 +64,16 @@ describe("notification type tables", () => {
       );
     }
   });
+
+  it("gives every type its own copy instead of the generic fallback", () => {
+    // Adding a type to the tables but forgetting the `renderNotificationText`
+    // switch is silent: the row still renders, just as "You have a new
+    // notification". This is the assertion that makes it loud.
+    for (const type of NOTIFICATION_TYPES) {
+      const { headline } = renderNotificationText({ type, actorUsername: "someone", data: {} });
+      expect(headline, `${type} falls through to the default headline`).not.toBe(
+        "You have a new notification",
+      );
+    }
+  });
 });

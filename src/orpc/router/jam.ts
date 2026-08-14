@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import * as z from "zod";
@@ -9,14 +10,17 @@ import {
   itchJamEntries,
   itchJamEntryResults,
   itchJams,
+  jamWatches,
   linkedAccounts,
   profileProjects,
   profileUrlStubs,
   teamProjects,
   teams,
+  type JamWatchIntent,
 } from "@/db/schema";
 import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";
 import { likeContains } from "@/lib/sql-like";
+import { requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
 
 /** How far back the "calendar" filter keeps archived jams. */
 const CALENDAR_ARCHIVE_MONTHS = 12;
@@ -692,7 +696,7 @@ export const getJamCommunity = os
   .route({ method: "GET" })
   .input(z.object({ jamId: z.number().int().min(1).max(MAX_INT4) }))
   .handler(async ({ input }) => {
-    const [memberRows, teamRows, [postRow]] = await Promise.all([
+    const [memberRows, teamRows, [postRow], declared] = await Promise.all([
       db
         .select({
           placementId: profileProjects.id,
@@ -745,6 +749,7 @@ export const getJamCommunity = os
         .select({ count: count() })
         .from(collabPosts)
         .where(and(eq(collabPosts.jamId, input.jamId), eq(collabPosts.status, "recruiting"))),
+      queryDeclaredMembers(input.jamId),
     ]);
 
     // Overall placement for the imported rows, keyed on the itch entry id
@@ -795,8 +800,55 @@ export const getJamCommunity = os
       })),
     );
 
-    return { members, teams: teamShelf, openPostCount: postRow?.count ?? 0 };
+    return {
+      members,
+      teams: teamShelf,
+      openPostCount: postRow?.count ?? 0,
+      declared,
+      declaredCount: declared.length,
+    };
   });
+
+/** Faces shown in the declared tier before it collapses to a count. */
+const COMMUNITY_DECLARED_MAX = 24;
+
+/**
+ * Members who said they're entering — the pre-jam half of participation.
+ *
+ * This is the section's answer to the problem that made it worth building:
+ * for an *upcoming* jam the shipped tier is empty by construction (it comes
+ * from the post-jam entries scrape), which is precisely when someone reading
+ * the page is looking for people to team up with.
+ *
+ * Declared intent is never promoted into participation. After the jam,
+ * `itchio-jam-sync` remains the only source of who actually shipped, and
+ * this tier stops being rendered — "declared but didn't ship" is not a
+ * status this app displays about anyone.
+ */
+async function queryDeclaredMembers(jamId: number) {
+  return db
+    .select({
+      profileId: developerProfiles.id,
+      username: developerProfiles.guildNickname,
+      discordUsername: developerProfiles.discordUsername,
+      avatarUrl: developerProfiles.avatarUrl,
+      urlStub: profileUrlStubs.stub,
+    })
+    .from(jamWatches)
+    .innerJoin(developerProfiles, eq(jamWatches.userId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+    .where(and(eq(jamWatches.jamId, jamId), eq(jamWatches.intent, "entering")))
+    .orderBy(asc(jamWatches.createdAt))
+    .limit(COMMUNITY_DECLARED_MAX)
+    .then((rows) =>
+      rows.map((row) => ({
+        profileId: row.profileId,
+        username: row.username ?? row.discordUsername,
+        avatarUrl: row.avatarUrl,
+        urlStub: row.urlStub,
+      })),
+    );
+}
 
 /** Jams in a host's series, beside the one being viewed. */
 const HOST_SERIES_MAX = 6;
@@ -847,4 +899,125 @@ export const listJamsByHost = os
       .limit(input.limit);
 
     return { jams };
+  });
+
+// ── Jam engagement (the one user-declared thing about a jam) ────────────────
+
+/**
+ * Watch a jam, declare you're entering it, or drop both.
+ *
+ * One endpoint rather than watch/unwatch/enter/unenter: the UI is a single
+ * control with three states, and modelling it as three writes invites the
+ * combination where a member is somehow entering a jam they don't watch.
+ *
+ * `requireAuth` covers watching — it's a read affinity, no more public than
+ * a bookmark. Declaring is a public claim on a community surface, so it
+ * carries the same guild bar as posting; checked as a predicate rather than
+ * middleware so that un-declaring and un-watching keep working for someone
+ * who has since left the server. (Trapping a member in a declaration they
+ * can no longer retract is the failure mode `03`'s Phase 1 hit with contact.)
+ */
+export const setJamWatch = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      jamId: z.number().int().min(1).max(MAX_INT4),
+      intent: z.enum(["watching", "entering"]).nullable(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    if (input.intent === null) {
+      await db
+        .delete(jamWatches)
+        .where(and(eq(jamWatches.userId, context.user.id), eq(jamWatches.jamId, input.jamId)));
+      return { intent: null };
+    }
+
+    if (input.intent === "entering" && !(await userIsGuildMember(context.user.id))) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "Join the Discord server to declare that you're entering.",
+      });
+    }
+
+    // A tombstoned jam is one the scraper stopped finding; there is nothing
+    // to watch and the sweep skips it anyway.
+    const [jam] = await db
+      .select({ jamId: itchJams.jamId })
+      .from(itchJams)
+      .where(and(eq(itchJams.jamId, input.jamId), isNull(itchJams.missingSince)))
+      .limit(1);
+    if (!jam) throw new ORPCError("NOT_FOUND", { message: "Jam not found." });
+
+    await db
+      .insert(jamWatches)
+      .values({ userId: context.user.id, jamId: input.jamId, intent: input.intent })
+      .onConflictDoUpdate({
+        target: [jamWatches.userId, jamWatches.jamId],
+        // Only the intent moves. The notification stamps stay put, so
+        // toggling watch → entering can't replay a start reminder.
+        set: { intent: input.intent },
+      });
+
+    return { intent: input.intent };
+  });
+
+/** The viewer's own relationship to one jam. Private and per-viewer, which
+ *  is exactly why it is not folded into the edge-cached `getJam`. */
+export const getJamViewerState = os
+  .use(requireAuth)
+  .input(z.object({ jamId: z.number().int().min(1).max(MAX_INT4) }))
+  .handler(async ({ input, context }) => {
+    const [row] = await db
+      .select({ intent: jamWatches.intent })
+      .from(jamWatches)
+      .where(and(eq(jamWatches.userId, context.user.id), eq(jamWatches.jamId, input.jamId)))
+      .limit(1);
+    return { intent: (row?.intent as JamWatchIntent | undefined) ?? null };
+  });
+
+/**
+ * The viewer's watched jams — the dashboard strip's whole payload.
+ *
+ * Defaults to jams that still have an event ahead of them, because a strip
+ * of finished jams is a list, not a countdown. Tombstoned jams are returned
+ * rather than filtered: the strip renders them struck-through, which tells
+ * the member their jam vanished instead of silently dropping the row.
+ */
+export const listMyJamWatches = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      scope: z.enum(["upcoming", "all"]).default("upcoming"),
+      limit: z.number().int().min(1).max(50).default(12),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const rows = await db
+      .select({
+        jamId: itchJams.jamId,
+        slug: itchJams.slug,
+        title: itchJams.title,
+        bannerUrl: itchJams.bannerUrl,
+        themeColor: itchJams.themeColor,
+        startsAt: itchJams.startsAt,
+        endsAt: itchJams.endsAt,
+        votingEndsAt: itchJams.votingEndsAt,
+        missingSince: itchJams.missingSince,
+        intent: jamWatches.intent,
+        watchedAt: jamWatches.createdAt,
+      })
+      .from(jamWatches)
+      .innerJoin(itchJams, eq(jamWatches.jamId, itchJams.jamId))
+      .where(
+        and(
+          eq(jamWatches.userId, context.user.id),
+          input.scope === "upcoming" ? gt(lastEventAt, sql`now()`) : undefined,
+        ),
+      )
+      // Soonest next event first — the strip is ordered by urgency, so the
+      // jam you have to act on is the one you read first.
+      .orderBy(asc(lastEventAt))
+      .limit(input.limit);
+
+    return { jams: rows.map((r) => ({ ...r, intent: r.intent as JamWatchIntent })) };
   });

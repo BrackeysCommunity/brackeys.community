@@ -7,6 +7,7 @@ import { MyApplications } from "./MyApplications";
 import { MyPosts } from "./MyPosts";
 import { MyTeams } from "./MyTeams";
 import type { HomeDashboardData } from "./use-home-dashboard";
+import { WatchedJams } from "./WatchedJams";
 
 /**
  * The signed-in home: what's waiting on you, what you sent, what you posted,
@@ -39,6 +40,8 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
         <MyTeams teams={data.teams} />
         <JamDeadlines deadlines={data.jamDeadlines} />
       </div>
+
+      <WatchedJams jams={data.watchedJams} />
     </div>
   );
 }

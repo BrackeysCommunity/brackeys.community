@@ -2,6 +2,7 @@ import { ArrowDown01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { JamTeamCta } from "@/components/jams/JamTeamCta";
+import { JamWatchToggle } from "@/components/jams/JamWatchToggle";
 import { Button } from "@/components/ui/button";
 import { Well } from "@/components/ui/well";
 import { jamUrl } from "@/lib/jam-links";
@@ -102,6 +103,8 @@ export function JamCtaRail({
           <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
         </Button>
       ) : null}
+
+      <JamWatchToggle jamId={jam.jamId} phase={phase} />
 
       <JamTeamCta jam={jam} className="ml-auto items-end" />
     </Well>

@@ -39,6 +39,10 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
   const teams = data?.teams ?? [];
   const openPostCount = data?.openPostCount ?? 0;
   const joinable = phase === "upcoming" || phase === "running";
+  // Declared intent is a *pre*-jam signal. Once the jam is over, who
+  // actually shipped is the only claim worth rendering, and "said they'd
+  // enter, didn't" is not a thing this page says about anyone.
+  const declared = joinable ? (data?.declared ?? []) : [];
 
   // Nothing to say, and nothing to invite — most jams. The section
   // disappears rather than announcing its own emptiness.
@@ -51,11 +55,46 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
       blurb={
         members.length > 0
           ? `${members.length} member${members.length === 1 ? "" : "s"} shipped in this jam.`
-          : joinable
-            ? "Nobody from here has joined yet."
-            : undefined
+          : declared.length > 0
+            ? `${declared.length} member${declared.length === 1 ? "" : "s"} entering.`
+            : joinable
+              ? "Nobody from here has joined yet."
+              : undefined
       }
     >
+      {declared.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <MicroLabel>ENTERING</MicroLabel>
+          <div className="flex flex-wrap gap-2">
+            {declared.map((member) => (
+              <Chonk
+                key={member.profileId}
+                variant="surface"
+                size="sm"
+                className="items-center gap-2 bg-card px-2.5 py-1.5 backdrop-blur-none"
+                render={
+                  <Link
+                    to="/profile/$userId"
+                    params={profileLinkParams({ id: member.profileId, urlStub: member.urlStub })}
+                    aria-label={member.username ?? "Unknown member"}
+                  />
+                }
+              >
+                <UserAvatar
+                  avatarUrl={member.avatarUrl}
+                  username={member.username}
+                  shape="round"
+                  size={20}
+                />
+                <Text as="span" size="xs" bold className="tracking-wider">
+                  {member.username ?? "Unknown"}
+                </Text>
+              </Chonk>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {members.length > 0 ? (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {members.map((member) => (
@@ -138,9 +177,14 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
           <div className="flex items-center gap-2">
             <HugeiconsIcon icon={UserGroupIcon} size={14} className="text-muted-foreground" />
             <Text size="xs" variant="muted" className="tracking-widest uppercase">
+              {/* The declared count is the stronger hook when nobody has
+                  posted yet — "12 members entering" is a reason to be the
+                  first to post, where "no teams recruiting" is a dead end. */}
               {openPostCount > 0
                 ? `${openPostCount} team ${openPostCount === 1 ? "post" : "posts"} recruiting for this jam`
-                : "No teams recruiting for this jam yet"}
+                : declared.length > 0
+                  ? `${declared.length} member${declared.length === 1 ? "" : "s"} entering — nobody recruiting yet`
+                  : "No teams recruiting for this jam yet"}
             </Text>
           </div>
           <Link

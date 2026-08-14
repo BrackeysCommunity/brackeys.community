@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import {
+  canViewSubject,
+  canWriteSubject,
+  subjectRefOfThread,
+  type SubjectContext,
+} from "@/lib/comment-subjects";
 import router from "@/orpc/router";
 import { deriveChildPlacement, serializeComments } from "@/orpc/router/comments";
 
@@ -146,5 +152,77 @@ describe("serializeComments render contract", () => {
   it("flags truncated chains with hasMoreReplies", () => {
     const out = serializeOne(row(), { truncatedRoots: new Set([1]) });
     expect(out.hasMoreReplies).toBe(true);
+  });
+});
+
+describe("private subject visibility", () => {
+  const publicSubject = (): SubjectContext => ({
+    exists: true,
+    ownerId: "author",
+    commentingEnabled: true,
+    title: "a post",
+    url: "/collab/1",
+    maxCommentLength: 2000,
+    participantIds: null,
+  });
+
+  const responseSubject = (): SubjectContext => ({
+    ...publicSubject(),
+    title: 'your application to "a post"',
+    maxCommentLength: 500,
+    participantIds: ["author", "responder"],
+  });
+
+  it("leaves public subjects open to everyone, signed out included", () => {
+    expect(canViewSubject(publicSubject(), null, false)).toBe(true);
+    expect(canViewSubject(publicSubject(), "stranger", false)).toBe(true);
+    expect(canWriteSubject(publicSubject(), "stranger")).toBe(true);
+  });
+
+  it("admits both parties of a response thread and nobody else", () => {
+    expect(canViewSubject(responseSubject(), "author", false)).toBe(true);
+    expect(canViewSubject(responseSubject(), "responder", false)).toBe(true);
+    // The case the plan's staging pass checks: a third account.
+    expect(canViewSubject(responseSubject(), "stranger", false)).toBe(false);
+    expect(canViewSubject(responseSubject(), null, false)).toBe(false);
+  });
+
+  it("lets staff read a private thread so the report queue works", () => {
+    expect(canViewSubject(responseSubject(), "moderator", true)).toBe(true);
+  });
+
+  it("does not let staff write into a two-person thread", () => {
+    expect(canWriteSubject(responseSubject(), "moderator")).toBe(false);
+    expect(canWriteSubject(responseSubject(), "author")).toBe(true);
+    expect(canWriteSubject(responseSubject(), "responder")).toBe(true);
+  });
+});
+
+describe("comment subject registry", () => {
+  it("round-trips every subject type through subjectRefOfThread", () => {
+    const base = {
+      id: 1,
+      lockedAt: null,
+      lockedById: null,
+      commentCount: 0,
+      lastCommentAt: null,
+      createdAt: new Date(),
+      collabPostId: null,
+      profileUserId: null,
+      collabResponseId: null,
+    };
+    expect(subjectRefOfThread({ ...base, subjectType: "collab_post", collabPostId: 42 })).toEqual({
+      type: "collab_post",
+      id: 42,
+    });
+    expect(subjectRefOfThread({ ...base, subjectType: "profile", profileUserId: "u7" })).toEqual({
+      type: "profile",
+      id: "u7",
+    });
+    // The branch a new subject type most easily forgets: without it a
+    // response thread reverse-resolves as a profile wall on `null`.
+    expect(
+      subjectRefOfThread({ ...base, subjectType: "collab_response", collabResponseId: 9 }),
+    ).toEqual({ type: "collab_response", id: 9 });
   });
 });

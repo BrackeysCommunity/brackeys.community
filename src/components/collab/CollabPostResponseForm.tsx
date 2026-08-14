@@ -13,6 +13,8 @@ import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
 import { client, orpc } from "@/orpc/client";
 
+import { ResponseThreadPanel } from "./ResponseThreadPanel";
+
 interface CollabPostResponseFormProps {
   postId: number;
 }
@@ -23,6 +25,8 @@ export interface ViewerResponse {
   portfolioUrl: string | null;
   status: string;
   createdAt: Date | string | null;
+  /** Messages in the private thread with the post author. */
+  threadCommentCount: number;
 }
 
 const RESPONSE_STATUS_BADGE: Record<
@@ -142,6 +146,15 @@ export function ViewerResponseCard({
           {error}
         </Text>
       ) : null}
+
+      {/* The responder's half of the private channel. Offered while pending
+          too — that is when a question is worth asking, and it is the only
+          way to reach the author before a decision without public comments. */}
+      <ResponseThreadPanel
+        responseId={response.id}
+        commentCount={response.threadCommentCount}
+        counterpartyLabel="the author"
+      />
 
       {response.status === "accepted" ? (
         <DiscordMessageButton

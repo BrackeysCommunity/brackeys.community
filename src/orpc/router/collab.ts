@@ -14,11 +14,13 @@ import {
   collabPostReports,
   developerProfiles,
   itchJams,
+  jamWatches,
   profileUrlStubs,
   projects,
   teamInvites,
   teamMembers,
   teams,
+  threads,
   userSkills,
   skills,
 } from "@/db/schema";
@@ -28,6 +30,7 @@ import {
   initialPostExpiry,
   REOPEN_EXTENSION_DAYS,
 } from "@/lib/collab-lifecycle";
+import { jamSlug } from "@/lib/jam-links";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
@@ -216,7 +219,14 @@ async function resolveReferences(input: PostContent) {
       : Promise.resolve([] as { id: number }[]),
     input.jamId != null
       ? db
-          .select({ jamId: itchJams.jamId, status: itchJams.status, endsAt: itchJams.endsAt })
+          .select({
+            jamId: itchJams.jamId,
+            status: itchJams.status,
+            endsAt: itchJams.endsAt,
+            // For the watcher fan-out's notification snapshot.
+            title: itchJams.title,
+            slug: itchJams.slug,
+          })
           .from(itchJams)
           .where(eq(itchJams.jamId, input.jamId))
           .limit(1)
@@ -395,8 +405,60 @@ export const createPost = os
         .values(skillIds.map((skillId) => ({ postId: post.id, skillId })));
     }
 
+    // The funnel-closer: watch a jam, get told the moment someone starts
+    // forming a crew for it. Fire-and-forget by the same rule the comment
+    // fan-out follows — post creation latency must not scale with the
+    // watcher count, and a failed ping must never fail the post.
+    if (jam) {
+      void notifyJamWatchersOfPost({
+        jam,
+        postId: post.id,
+        postTitle: post.title,
+        actorId: context.user.id,
+      }).catch((err: unknown) => {
+        console.warn("[collab] jam watcher fan-out failed", { postId: post.id, err });
+      });
+    }
+
     return { ...post, jamWarning };
   });
+
+/**
+ * Tell everyone watching a jam that someone is recruiting for it.
+ *
+ * The author is skipped by `notify()` itself (actor === recipient), and the
+ * per-type preference gate runs inside `recordNotification`, so a member who
+ * turned this off never gets a row. Watcher counts are community-scale
+ * (hundreds at most), not itch-scale, which is why this is a plain loop.
+ */
+async function notifyJamWatchersOfPost(params: {
+  jam: { jamId: number; title: string; slug: string };
+  postId: number;
+  postTitle: string;
+  actorId: string;
+}): Promise<void> {
+  const watchers = await db
+    .select({ userId: jamWatches.userId })
+    .from(jamWatches)
+    .where(eq(jamWatches.jamId, params.jam.jamId));
+
+  for (const { userId } of watchers) {
+    await notify({
+      userId,
+      type: "jam_team_post_created",
+      actorId: params.actorId,
+      entityType: "collab_post",
+      entityId: String(params.postId),
+      data: {
+        postId: params.postId,
+        postTitle: params.postTitle,
+        jamId: params.jam.jamId,
+        jamTitle: params.jam.title,
+        jamUrl: `/jams/${jamSlug(params.jam)}`,
+      },
+    });
+  }
+}
 
 export const updatePost = os
   .use(requireAuthWithPermissions)
@@ -867,8 +929,12 @@ export const getPostViewerState = os
       authorDiscordId = author?.discordId ?? null;
     }
 
+    // Same signal the author gets on their triage list: whether the private
+    // thread on this application has anything in it yet.
+    const threadCommentCount = own ? ((await responseThreadCounts([own.id])).get(own.id) ?? 0) : 0;
+
     return {
-      viewerResponse: own ?? null,
+      viewerResponse: own ? { ...own, threadCommentCount } : null,
       authorDiscordId,
       contact: canSeeContact
         ? { contactType: post.contactType, contactMethod: post.contactMethod }
@@ -1536,7 +1602,29 @@ export const withdrawResponse = os
       });
     }
 
+    const [post] = await db
+      .select({ authorId: collabPosts.authorId, title: collabPosts.title })
+      .from(collabPosts)
+      .where(eq(collabPosts.id, response.postId))
+      .limit(1);
+
     await db.delete(collabResponses).where(eq(collabResponses.id, response.id));
+
+    // Read the post *before* the delete: nothing here cascades the post
+    // away, but the owner is about to open an applicant list one shorter
+    // than the badge said, and a silent withdraw is how they end up acting
+    // on a ghost.
+    if (post) {
+      await notify({
+        userId: post.authorId,
+        type: "collab_response_withdrawn",
+        actorId: context.user.id,
+        entityType: "collab_post",
+        entityId: String(response.postId),
+        data: { postId: response.postId, postTitle: post.title, responseId: response.id },
+      });
+    }
+
     return { success: true };
   });
 
@@ -1589,17 +1677,38 @@ export const listResponses = os
       .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
       .where(eq(collabPostSkills.postId, input.postId));
 
-    const [skillsByResponder, invitesByResponse] = await Promise.all([
+    const [skillsByResponder, invitesByResponse, threadCounts] = await Promise.all([
       skillIdsByUser(rows.map((r) => r.responderId)),
       latestInvitesByResponse(rows.map((r) => r.id)),
+      responseThreadCounts(rows.map((r) => r.id)),
     ]);
 
     return rows.map((r) => ({
       ...r,
       stackOverlap: stackOverlap(postSkills, skillsByResponder.get(r.responderId)),
       invite: invitesByResponse.get(r.id) ?? null,
+      threadCommentCount: threadCounts.get(r.id) ?? 0,
     }));
   });
+
+/**
+ * Comment counts for the private threads hanging off these responses, so
+ * each row's entry point can say whether there is a conversation to open.
+ * One query for the page, zero rows for the (common) case where nobody has
+ * asked anything — a thread is only created on the first message.
+ */
+async function responseThreadCounts(responseIds: number[]): Promise<Map<number, number>> {
+  if (responseIds.length === 0) return new Map();
+  const rows = await db
+    .select({ responseId: threads.collabResponseId, commentCount: threads.commentCount })
+    .from(threads)
+    .where(inArray(threads.collabResponseId, responseIds));
+  return new Map(
+    rows
+      .filter((r): r is { responseId: number; commentCount: number } => r.responseId != null)
+      .map((r) => [r.responseId, r.commentCount]),
+  );
+}
 
 /** Team identity for a chip beside an application row. */
 async function teamChipsByIds(teamIds: string[]) {

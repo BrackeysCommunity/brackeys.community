@@ -110,6 +110,7 @@ export interface RpcProfile {
     linkedAt: Date;
   }[];
   wallNotesCount: number;
+  collabsCount: number;
 }
 
 /**
@@ -295,6 +296,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       streakDays: 0,
       streakStatus: "—",
       wallNotesCount: rpc.wallNotesCount,
+      collabsCount: rpc.collabsCount,
     },
     itch,
     projects,

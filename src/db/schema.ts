@@ -294,6 +294,7 @@ export type NotificationType =
   | "collab_response_received"
   | "collab_response_accepted"
   | "collab_response_declined"
+  | "collab_response_withdrawn"
   | "collab_post_featured"
   | "collab_post_closed_by_staff"
   | "collab_post_expiring"
@@ -308,7 +309,11 @@ export type NotificationType =
   | "comment_reply"
   | "comment_removed_by_staff"
   | "skill_request_approved"
-  | "skill_request_rejected";
+  | "skill_request_rejected"
+  | "jam_starting"
+  | "jam_voting_open"
+  | "jam_results_posted"
+  | "jam_team_post_created";
 
 export type NotificationEntityType =
   | "collab_post"
@@ -317,7 +322,8 @@ export type NotificationEntityType =
   | "team_invite"
   | "thread"
   | "comment"
-  | "skill_request";
+  | "skill_request"
+  | "jam";
 
 export const notifications = userSchema.table(
   "notifications",
@@ -748,8 +754,22 @@ export const teamMembers = teamSchema.table(
     title: text("title"),
     sortOrder: integer("sort_order").default(0),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
+    // Provenance: this roster seat came from accepting a collab response.
+    // Mirrors `team_invites.sourceResponseId` — the invite records the
+    // handoff, this records that it stuck, which is the durable
+    // "we worked together" fact the invite row can't carry (a revoked or
+    // superseded invite looks identical to an accepted one after the fact).
+    // `set null`, not cascade: deleting the post must not delete the roster.
+    sourceResponseId: integer("source_response_id").references(() => collabResponses.id, {
+      onDelete: "set null",
+    }),
   },
-  (table) => [unique().on(table.teamId, table.userId)],
+  (table) => [
+    unique().on(table.teamId, table.userId),
+    // Every profile read counts this member's collabs, and the unique above
+    // leads with `team_id`, so a by-user lookup had no index to use.
+    index("team_members_user_idx").on(table.userId),
+  ],
 );
 
 export const teamInvites = teamSchema.table(
@@ -946,6 +966,54 @@ export const itchJamEntryResults = itchSchema.table(
   },
   (table) => [primaryKey({ columns: [table.entryId, table.criterion] })],
 );
+
+/**
+ * A member's relationship to a jam — the only user-declared thing about a
+ * jam anywhere in the app. Everything else on a jam is scraped.
+ *
+ * Lives in `user`, not `itch`, and that placement is load-bearing: the
+ * scraper owns the `itch.*` tables and reconciles them (soft-delete,
+ * re-scrape, tombstone), so app columns bolted onto `itch.jams` would be
+ * fighting it. The notification stamps below are the same argument in
+ * miniature — they are per-watcher facts, not per-jam ones, so they belong
+ * on the watch row even though "this jam started" is a property of the jam.
+ *
+ * Defined down here rather than up with the other `user` tables so the FK
+ * to `itch.jams` reads in declaration order.
+ */
+export const jamWatches = userSchema.table(
+  "jam_watches",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    jamId: integer("jam_id")
+      .notNull()
+      .references(() => itchJams.jamId, { onDelete: "cascade" }),
+    /**
+     * 'watching' | 'entering'. One column rather than a second table: they
+     * are the same affinity at two strengths, and a member who declares and
+     * then backs off should downgrade, not leave a tombstone in a
+     * participation table. Declared intent is never promoted into actual
+     * participation — `itchio-jam-sync` stays the only source of *shipped*.
+     */
+    intent: text("intent").notNull().default("watching"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Claimed-timestamp idempotency for the sweep, one per phase event, in
+    // the same shape as `collab_posts.expiryNotifiedAt`.
+    startNotifiedAt: timestamp("start_notified_at"),
+    votingNotifiedAt: timestamp("voting_notified_at"),
+    resultsNotifiedAt: timestamp("results_notified_at"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.jamId] }),
+    // The fan-out direction: "everyone watching jam X". The PK leads with
+    // user_id, so it cannot serve this.
+    index("jam_watches_jam_idx").on(table.jamId),
+  ],
+);
+
+export type JamWatchIntent = "watching" | "entering";
 
 // ── Projects as a canonical entity (project schema) ─────────────────────────
 
@@ -1199,6 +1267,7 @@ export const projectJamLinks = projectSchema.table(
 export const threadSubjectType = socialSchema.enum("thread_subject_type", [
   "collab_post",
   "profile",
+  "collab_response",
 ]);
 
 /**
@@ -1224,6 +1293,14 @@ export const threads = socialSchema.table(
     profileUserId: text("profile_user_id").references(() => user.id, {
       onDelete: "cascade",
     }),
+    // Private two-party thread hanging off one application. Cascade is the
+    // whole lifecycle: withdrawing the response takes the conversation with
+    // it, so a private thread can never outlive the thing that scoped it.
+    // Visibility is *not* a column — it derives from the response's two
+    // parties in `comment-subjects.ts`, so it can't drift from the roster.
+    collabResponseId: integer("collab_response_id").references(() => collabResponses.id, {
+      onDelete: "cascade",
+    }),
     lockedAt: timestamp("locked_at"),
     lockedById: text("locked_by_id").references(() => user.id, { onDelete: "set null" }),
     commentCount: integer("comment_count").notNull().default(0),
@@ -1231,11 +1308,25 @@ export const threads = socialSchema.table(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
-    check("threads_one_subject", sql`num_nonnulls(${t.collabPostId}, ${t.profileUserId}) = 1`),
+    check(
+      "threads_one_subject",
+      sql`num_nonnulls(${t.collabPostId}, ${t.profileUserId}, ${t.collabResponseId}) = 1`,
+    ),
+    // The `::text` casts are load-bearing, not noise. Comparing the column
+    // against a bare literal makes Postgres resolve that literal as an enum
+    // *value*, and it refuses to do that for a value added earlier in the
+    // same transaction (55P04, "New enum values must be committed before
+    // they can be used"). Drizzle's migrator runs every pending migration
+    // inside one transaction, so the migration that adds a subject type can
+    // never also write a constraint mentioning it — unless the comparison is
+    // string-to-string, which is what these casts make it. Cast all three so
+    // the next subject type is a plain schema edit rather than a deploy
+    // failure someone has to rediscover.
     check(
       "threads_subject_type_matches",
-      sql`(${t.subjectType} = 'collab_post') = (${t.collabPostId} IS NOT NULL)
-      AND (${t.subjectType} = 'profile') = (${t.profileUserId} IS NOT NULL)`,
+      sql`(${t.subjectType}::text = 'collab_post') = (${t.collabPostId} IS NOT NULL)
+      AND (${t.subjectType}::text = 'profile') = (${t.profileUserId} IS NOT NULL)
+      AND (${t.subjectType}::text = 'collab_response') = (${t.collabResponseId} IS NOT NULL)`,
     ),
     // Partial unique indexes make lazy get-or-create race-safe.
     uniqueIndex("threads_collab_post_uq")
@@ -1244,6 +1335,9 @@ export const threads = socialSchema.table(
     uniqueIndex("threads_profile_uq")
       .on(t.profileUserId)
       .where(sql`${t.profileUserId} IS NOT NULL`),
+    uniqueIndex("threads_collab_response_uq")
+      .on(t.collabResponseId)
+      .where(sql`${t.collabResponseId} IS NOT NULL`),
   ],
 );
 

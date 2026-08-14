@@ -82,11 +82,17 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   getJam: 300,
   listJamEntries: 300,
   getJamResults: 300,
-  getJamCommunity: 300,
   listJamsByHost: 300,
 
   // Member-written. A minute for listings; detail pages are where someone
   // clicks straight through after saving, so they get the shortest budget.
+  //
+  // `getJamCommunity` moved down here from the scraped block: it used to be
+  // pure scrape output, but it now also carries the members who declared
+  // they're entering, and that list changes the instant someone clicks the
+  // toggle on the same page. At the scraped tier's 300s they'd have watched
+  // their own name fail to appear for five minutes.
+  getJamCommunity: 60,
   listMembers: 60,
   countMembersBySkill: 60,
   listAvailableUsers: 60,

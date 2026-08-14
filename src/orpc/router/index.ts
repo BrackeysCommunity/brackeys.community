@@ -68,10 +68,13 @@ import {
   getJam,
   getJamCommunity,
   getJamResults,
+  getJamViewerState,
   listJamEntries,
   listJams,
   listJamsByHost,
+  listMyJamWatches,
   listRecentEntries,
+  setJamWatch,
 } from "./jam";
 import { countMembersBySkill, listMembers } from "./member";
 import {
@@ -150,6 +153,9 @@ export default {
   getJamResults,
   getJamCommunity,
   listJamsByHost,
+  setJamWatch,
+  getJamViewerState,
+  listMyJamWatches,
   getProject,
   getProjectViewerState,
   listEditableProjects,

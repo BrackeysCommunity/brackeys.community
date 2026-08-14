@@ -10,7 +10,9 @@ import { cn } from "@/lib/utils";
 
 const searchSchema = z.object({
   view: z.enum(["inbox", "preferences"]).default("inbox"),
-  filter: z.enum(["all", "unread", "collab", "teams", "comments", "moderation"]).default("all"),
+  filter: z
+    .enum(["all", "unread", "collab", "teams", "jams", "comments", "moderation"])
+    .default("all"),
 });
 
 type View = "inbox" | "preferences";

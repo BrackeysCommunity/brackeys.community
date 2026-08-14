@@ -1,11 +1,13 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import * as z from "zod";
 
 import { db } from "@/db";
 import {
   collabPosts,
+  collabResponses,
   commentReports,
   comments,
   developerProfiles,
@@ -15,6 +17,8 @@ import {
   userBlocks,
 } from "@/db/schema";
 import {
+  canViewSubject,
+  canWriteSubject,
   findThread,
   loadSubject,
   resolveThread,
@@ -40,7 +44,15 @@ import {
 const subjectRefSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("collab_post"), id: z.number().int().positive() }),
   z.object({ type: z.literal("profile"), id: z.string().min(1) }),
+  z.object({ type: z.literal("collab_response"), id: z.number().int().positive() }),
 ]) satisfies z.ZodType<SubjectRef>;
+
+/**
+ * A private subject refused to an outsider must be indistinguishable from
+ * one that doesn't exist: "you can't see this thread" confirms that a named
+ * person applied to a named post, which is the fact the thread is hiding.
+ */
+const SUBJECT_NOT_FOUND = "Not found.";
 
 /** Replies are flattened for display beyond this depth; storage caps at 8. */
 const MAX_DEPTH = 8;
@@ -200,7 +212,16 @@ export const listComments = os
     const viewerId = context.user?.id ?? null;
     const subject = await loadSubject(input.subject);
     if (!subject?.exists) {
-      throw new ORPCError("NOT_FOUND", { message: "Not found." });
+      throw new ORPCError("NOT_FOUND", { message: SUBJECT_NOT_FOUND });
+    }
+
+    // Resolved once: it gates the private-subject check, both empty-shape
+    // returns, and the per-comment `canDelete` below. Each call is its own
+    // profile read, and this is the site's hottest read path.
+    const isStaff = await viewerIsStaff(viewerId);
+
+    if (!canViewSubject(subject, viewerId, isStaff)) {
+      throw new ORPCError("NOT_FOUND", { message: SUBJECT_NOT_FOUND });
     }
 
     // A disabled surface (a wall whose owner turned notes off) stays
@@ -211,7 +232,7 @@ export const listComments = os
         thread: null,
         commentCount: 0,
         commentingEnabled: false,
-        viewerIsStaff: await viewerIsStaff(viewerId),
+        viewerIsStaff: isStaff,
         comments: [] as SerializedComment[],
         nextCursor: null as number | null,
       };
@@ -223,7 +244,7 @@ export const listComments = os
         thread: null,
         commentCount: 0,
         commentingEnabled: subject.commentingEnabled,
-        viewerIsStaff: await viewerIsStaff(viewerId),
+        viewerIsStaff: isStaff,
         comments: [] as SerializedComment[],
         nextCursor: null as number | null,
       };
@@ -273,10 +294,9 @@ export const listComments = os
     }
 
     const allRows = [...topLevel, ...replies];
-    const [authors, blocked, isStaff, subscription] = await Promise.all([
+    const [authors, blocked, subscription] = await Promise.all([
       authorsByIds(allRows.map((r) => r.authorId).filter((id): id is string => id != null)),
       blockedByViewer(viewerId),
-      viewerIsStaff(viewerId),
       viewerId
         ? db
             .select({ muted: threadSubscriptions.muted })
@@ -332,6 +352,11 @@ export const listReplies = os
     const [thread] = await db.select().from(threads).where(eq(threads.id, root.threadId)).limit(1);
     if (!thread) throw new ORPCError("NOT_FOUND", { message: "Thread not found." });
     const subject = await loadSubjectOrThrow(subjectRefOfThread(thread));
+    // Reached by comment id rather than by subject, so it needs its own
+    // gate — a leaked root id must not open a private thread's replies.
+    if (!canViewSubject(subject, viewerId, await viewerIsStaff(viewerId))) {
+      throw new ORPCError("NOT_FOUND", { message: SUBJECT_NOT_FOUND });
+    }
 
     const where = [eq(comments.rootId, input.rootId)];
     if (input.cursor) where.push(gt(comments.id, input.cursor));
@@ -375,6 +400,11 @@ export const createComment = os
   )
   .handler(async ({ input, context }) => {
     const subject = await loadSubjectOrThrow(input.subject);
+    // Before the enabled check: an outsider must not learn the difference
+    // between a private thread that exists and one that is switched off.
+    if (!canWriteSubject(subject, context.user.id)) {
+      throw new ORPCError("NOT_FOUND", { message: SUBJECT_NOT_FOUND });
+    }
     if (!subject.commentingEnabled) {
       throw new ORPCError("FORBIDDEN", { message: "Comments are turned off here." });
     }
@@ -385,7 +415,7 @@ export const createComment = os
     }
     checkProfanity(input.content, "Comment");
 
-    const thread = await resolveThread(input.subject, subject.ownerId);
+    const thread = await resolveThread(input.subject, subject);
     if (thread.lockedAt) {
       throw new ORPCError("FORBIDDEN", { message: "This thread is locked." });
     }
@@ -711,7 +741,12 @@ export const setThreadSubscription = os
   .input(z.object({ subject: subjectRefSchema, muted: z.boolean() }))
   .handler(async ({ input, context }) => {
     const subject = await loadSubjectOrThrow(input.subject);
-    const thread = await resolveThread(input.subject, subject.ownerId);
+    // Subscribing creates the thread, so an outsider could otherwise
+    // materialize (and get notified about) a conversation they can't read.
+    if (!canWriteSubject(subject, context.user.id)) {
+      throw new ORPCError("NOT_FOUND", { message: SUBJECT_NOT_FOUND });
+    }
+    const thread = await resolveThread(input.subject, subject);
     // Unlike auto-subscribe, this endpoint IS allowed to flip `muted`.
     await db
       .insert(threadSubscriptions)
@@ -730,7 +765,7 @@ export const lockThread = os
   .input(z.object({ subject: subjectRefSchema, locked: z.boolean() }))
   .handler(async ({ input, context }) => {
     const subject = await loadSubjectOrThrow(input.subject);
-    const thread = await resolveThread(input.subject, subject.ownerId);
+    const thread = await resolveThread(input.subject, subject);
     await db
       .update(threads)
       .set(
@@ -781,6 +816,9 @@ export const listCommentReports = os
     }));
   });
 
+/** The post behind a private response thread, two joins out from the comment. */
+const responsePosts = alias(collabPosts, "response_posts");
+
 /**
  * Everything said site-wide, newest first. The report queue is reactive —
  * this is the pass staff make when nobody has reported anything yet.
@@ -812,10 +850,17 @@ export const listRecentComments = os
           subjectCollabPostId: threads.collabPostId,
           subjectProfileUserId: threads.profileUserId,
           postTitle: collabPosts.title,
+          // A private response thread has neither of the FKs above, so
+          // without these it renders as text with no context — the one
+          // case where a moderator most needs to know where it was said.
+          subjectResponsePostId: responsePosts.id,
+          subjectResponsePostTitle: responsePosts.title,
         })
         .from(comments)
         .innerJoin(threads, eq(comments.threadId, threads.id))
         .leftJoin(collabPosts, eq(threads.collabPostId, collabPosts.id))
+        .leftJoin(collabResponses, eq(threads.collabResponseId, collabResponses.id))
+        .leftJoin(responsePosts, eq(collabResponses.postId, responsePosts.id))
         .where(where)
         .orderBy(desc(comments.id))
         .limit(input.pageSize)

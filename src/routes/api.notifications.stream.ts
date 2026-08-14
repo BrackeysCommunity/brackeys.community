@@ -31,11 +31,33 @@ async function handle({ request }: { request: Request }) {
 
   const channel = presenceChannel(userId);
   let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let closed = false;
+  let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
+
+  const cleanup = async () => {
+    if (closed) return;
+    closed = true;
+    if (heartbeat) clearInterval(heartbeat);
+    try {
+      controllerRef?.close();
+    } catch {
+      // Already closed or errored by the adapter.
+    }
+    try {
+      await subscriber.unsubscribe(channel);
+    } catch {
+      // ignore
+    }
+    await subscriber.quit().catch(() => {});
+    await unregisterConnection(userId, connectionId).catch(() => {});
+  };
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      controllerRef = controller;
       const encoder = new TextEncoder();
       const send = (chunk: string) => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(chunk));
         } catch {
@@ -64,23 +86,21 @@ async function handle({ request }: { request: Request }) {
       }, HEARTBEAT_MS);
     },
     async cancel() {
-      if (heartbeat) clearInterval(heartbeat);
-      try {
-        await subscriber.unsubscribe(channel);
-      } catch {
-        // ignore
-      }
-      await subscriber.quit().catch(() => {});
-      await unregisterConnection(userId, connectionId).catch(() => {});
+      await cleanup();
     },
   });
 
-  // If the client aborts, the ReadableStream's cancel runs — we also
-  // close on `request.signal` for fast cleanup behind proxies that don't
-  // surface the cancel promptly.
-  request.signal?.addEventListener("abort", () => {
-    void stream.cancel();
-  });
+  // If the client aborts, the ReadableStream's cancel runs — we also listen
+  // on `request.signal` for fast cleanup behind proxies that don't surface
+  // the cancel promptly. The stream is locked to the adapter's reader by
+  // then, so tear down the subscriber directly rather than cancelling it.
+  request.signal?.addEventListener(
+    "abort",
+    () => {
+      void cleanup();
+    },
+    { once: true },
+  );
 
   return new Response(stream, {
     status: 200,

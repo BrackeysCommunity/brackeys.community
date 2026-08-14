@@ -8,6 +8,7 @@ import {
 } from "@/components/notifications/notification-utils";
 import { Button } from "@/components/ui/button";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
+import { type NotificationCategory } from "@/lib/notification-copy";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -16,13 +17,14 @@ const PAGE_SIZE = 20;
 /** One comfortable row — 36px avatar inside `py-3` — before measurement. */
 const ROW_ESTIMATE = 68;
 
-export type InboxFilter = "all" | "unread" | "collab" | "teams" | "comments" | "moderation";
+export type InboxFilter = "all" | "unread" | NotificationCategory;
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
   { value: "collab", label: "Collab" },
   { value: "teams", label: "Teams" },
+  { value: "jams", label: "Jams" },
   { value: "comments", label: "Comments" },
   { value: "moderation", label: "Moderation" },
 ];
@@ -70,11 +72,10 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
 
   const items = useMemo(() => {
     const flat = (pages?.pages ?? []).flatMap((p) => p.items) as NotificationItem[];
-    if (filter === "collab") return flat.filter((n) => categoryOf(n.type) === "collab");
-    if (filter === "teams") return flat.filter((n) => categoryOf(n.type) === "teams");
-    if (filter === "comments") return flat.filter((n) => categoryOf(n.type) === "comments");
-    if (filter === "moderation") return flat.filter((n) => categoryOf(n.type) === "moderation");
-    return flat;
+    // Every non-"all"/"unread" filter *is* a category, so match on that
+    // rather than restating one branch per tab.
+    if (filter === "all" || filter === "unread") return flat;
+    return flat.filter((n) => categoryOf(n.type) === filter);
   }, [pages, filter]);
 
   useEffect(() => {

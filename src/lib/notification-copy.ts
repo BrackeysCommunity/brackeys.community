@@ -27,6 +27,11 @@ export function renderNotificationText(input: {
   const moderationReason = input.data.reason as string | undefined;
   const skillName = input.data.skillName as string | undefined;
   const requestedName = input.data.requestedName as string | undefined;
+  // Jam notifications carry their own snapshot for the same reason comment
+  // ones do: the copy must render without joining back to `itch.jams`, which
+  // the scraper may have tombstoned since.
+  const jamTitle = (input.data.jamTitle as string | undefined) ?? "a jam";
+  const jamHref = (input.data.jamUrl as string | undefined) ?? null;
 
   switch (input.type) {
     case "collab_response_received":
@@ -35,6 +40,8 @@ export function renderNotificationText(input: {
       return { headline: `${actor} accepted your response on "${postTitle}"`, href };
     case "collab_response_declined":
       return { headline: `${actor} declined your response on "${postTitle}"`, href };
+    case "collab_response_withdrawn":
+      return { headline: `${actor} withdrew their response to "${postTitle}"`, href };
     case "collab_post_featured":
       return { headline: `Your post "${postTitle}" was featured`, href };
     case "collab_post_closed_by_staff":
@@ -87,6 +94,14 @@ export function renderNotificationText(input: {
           : `Your "${requestedName ?? "skill"}" request wasn't approved`,
         href: "/profile",
       };
+    case "jam_starting":
+      return { headline: `${jamTitle} starts soon`, href: jamHref };
+    case "jam_voting_open":
+      return { headline: `Voting is open for ${jamTitle}`, href: jamHref };
+    case "jam_results_posted":
+      return { headline: `Results are up for ${jamTitle}`, href: jamHref };
+    case "jam_team_post_created":
+      return { headline: `${actor} is crewing up for ${jamTitle}`, href };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -96,6 +111,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   collab_response_received: "Collab — someone responded to your post",
   collab_response_accepted: "Collab — your response was accepted",
   collab_response_declined: "Collab — your response was declined",
+  collab_response_withdrawn: "Collab — an applicant withdrew",
   collab_post_featured: "Collab — your post was featured",
   collab_post_closed_by_staff: "Collab — staff closed your post",
   collab_post_expiring: "Collab — your post closes soon",
@@ -111,12 +127,17 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   comment_removed_by_staff: "Moderation — your comment was removed",
   skill_request_approved: "Moderation — your skill request was approved",
   skill_request_rejected: "Moderation — your skill request wasn't approved",
+  jam_starting: "Jams — a jam you're watching starts soon",
+  jam_voting_open: "Jams — voting opened on a jam you're watching",
+  jam_results_posted: "Jams — results are up for a jam you're watching",
+  jam_team_post_created: "Jams — someone is crewing up for a jam you're watching",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
   "collab_response_received",
   "collab_response_accepted",
   "collab_response_declined",
+  "collab_response_withdrawn",
   "collab_post_featured",
   "collab_post_closed_by_staff",
   "collab_post_expiring",
@@ -132,6 +153,10 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "comment_removed_by_staff",
   "skill_request_approved",
   "skill_request_rejected",
+  "jam_starting",
+  "jam_voting_open",
+  "jam_results_posted",
+  "jam_team_post_created",
 ];
 
 /**
@@ -147,6 +172,10 @@ export const NOTIFICATION_DEFAULTS: Record<
   collab_response_received: { inApp: true, email: true, digest: false },
   collab_response_accepted: { inApp: true, email: true, digest: false },
   collab_response_declined: { inApp: true, email: false, digest: false },
+  // The owner's applicant list just changed under them; in-app is enough,
+  // and emailing "someone stopped wanting to work with you" is not a nudge
+  // worth landing in an inbox.
+  collab_response_withdrawn: { inApp: true, email: false, digest: false },
   collab_post_featured: { inApp: true, email: true, digest: false },
   collab_post_closed_by_staff: { inApp: true, email: true, digest: false },
   // Actionable deadlines: the email is the whole point — a user who
@@ -172,6 +201,16 @@ export const NOTIFICATION_DEFAULTS: Record<
   // Outcomes the user gets on their next visit anyway; in-app is enough.
   skill_request_approved: { inApp: true, email: false, digest: false },
   skill_request_rejected: { inApp: true, email: false, digest: false },
+  // The deadline you asked to be reminded about — email is why people watch
+  // a jam rather than bookmarking it.
+  jam_starting: { inApp: true, email: true, digest: false },
+  // Phase changes matter to entrants, but they are not deadlines you can
+  // miss the way a start is; in-app is the right volume.
+  jam_voting_open: { inApp: true, email: false, digest: false },
+  jam_results_posted: { inApp: true, email: false, digest: false },
+  // Fan-out scales with watchers × posts, so this one stays in-app only —
+  // it is the funnel-closer, not an announcement worth an inbox.
+  jam_team_post_created: { inApp: true, email: false, digest: false },
 };
 
 /**
@@ -179,13 +218,13 @@ export const NOTIFICATION_DEFAULTS: Record<
  * future per-category preference grouping. Adding a type without a row
  * here is a compile error, which is the point.
  */
-export const NOTIFICATION_CATEGORY: Record<
-  NotificationType,
-  "collab" | "teams" | "comments" | "moderation"
-> = {
+export type NotificationCategory = "collab" | "teams" | "comments" | "moderation" | "jams";
+
+export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategory> = {
   collab_response_received: "collab",
   collab_response_accepted: "collab",
   collab_response_declined: "collab",
+  collab_response_withdrawn: "collab",
   collab_post_featured: "collab",
   collab_post_closed_by_staff: "collab",
   collab_post_expiring: "collab",
@@ -201,6 +240,10 @@ export const NOTIFICATION_CATEGORY: Record<
   comment_removed_by_staff: "moderation",
   skill_request_approved: "moderation",
   skill_request_rejected: "moderation",
+  jam_starting: "jams",
+  jam_voting_open: "jams",
+  jam_results_posted: "jams",
+  jam_team_post_created: "jams",
 };
 
 /**
@@ -229,4 +272,5 @@ export const EMAIL_IMMEDIATE: ReadonlySet<NotificationType> = new Set([
   "team_invite_accepted",
   "team_archive_warning",
   "comment_removed_by_staff",
+  "jam_starting",
 ]);

@@ -1168,7 +1168,14 @@ export const respondToInvite = os
     if (input.accept) {
       await db
         .insert(teamMembers)
-        .values({ teamId: invite.teamId, userId: context.user.id })
+        .values({
+          teamId: invite.teamId,
+          userId: context.user.id,
+          // Carries the collab provenance onto the roster, where it
+          // outlives the invite row's `status` churn and becomes the
+          // "we worked together" fact both profiles count.
+          sourceResponseId: invite.sourceResponseId,
+        })
         .onConflictDoNothing();
       await touchTeamActivity(invite.teamId);
     }
