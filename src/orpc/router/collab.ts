@@ -1031,6 +1031,8 @@ export function stripContact<
 const postFacetSchema = {
   roleIds: z.array(z.number()).optional(),
   skillIds: z.array(z.number()).optional(),
+  /** Flips the skill facet from "any of these" to "all of these". */
+  matchAll: z.boolean().optional(),
   jamId: z.number().int().positive().optional(),
   teamId: z.string().optional(),
   projectId: z.string().optional(),
@@ -1104,13 +1106,25 @@ function buildPostFilter(input: PostFilterInput) {
     conditions.push(inArray(collabPosts.id, postIdsWithRoles));
   }
   // Same shape as roles: "uses any of these" rather than "uses all", so
-  // adding a second engine widens the board instead of emptying it.
+  // adding a second engine widens the board instead of emptying it —
+  // unless `matchAll`, which flips to one subquery per skill for
+  // narrowing a shortlist instead.
   if (input.skillIds && input.skillIds.length > 0) {
-    const postIdsWithSkills = db
-      .select({ postId: collabPostSkills.postId })
-      .from(collabPostSkills)
-      .where(inArray(collabPostSkills.skillId, input.skillIds));
-    conditions.push(inArray(collabPosts.id, postIdsWithSkills));
+    if (input.matchAll) {
+      for (const skillId of input.skillIds) {
+        const postIdsWithSkill = db
+          .select({ postId: collabPostSkills.postId })
+          .from(collabPostSkills)
+          .where(eq(collabPostSkills.skillId, skillId));
+        conditions.push(inArray(collabPosts.id, postIdsWithSkill));
+      }
+    } else {
+      const postIdsWithSkills = db
+        .select({ postId: collabPostSkills.postId })
+        .from(collabPostSkills)
+        .where(inArray(collabPostSkills.skillId, input.skillIds));
+      conditions.push(inArray(collabPosts.id, postIdsWithSkills));
+    }
   }
 
   return conditions.length > 0 ? and(...conditions) : undefined;
@@ -1149,7 +1163,9 @@ export const countPostsByType = os
  * the stack itself. Excluding it is what makes the numbers answer "how
  * many would ticking this add" rather than "how many survived what I've
  * already ticked" — and since the stack facet is an OR, that's the only
- * reading that stays true as selections pile up.
+ * reading that stays true as selections pile up. Under `matchAll` the
+ * facet ANDs instead, so the stack stays in force and each number reads
+ * "how many would remain".
  *
  * Skills absent from the result are absent from the map, not zero rows:
  * the vocabulary runs to dozens of entries and most boards use a handful,
@@ -1163,7 +1179,7 @@ export const countPostsBySkill = os
       .select({ skillId: collabPostSkills.skillId, count: count() })
       .from(collabPostSkills)
       .innerJoin(collabPosts, eq(collabPosts.id, collabPostSkills.postId))
-      .where(buildPostFilter({ ...input, skillIds: undefined }))
+      .where(buildPostFilter(input.matchAll ? input : { ...input, skillIds: undefined }))
       .groupBy(collabPostSkills.skillId);
 
     return Object.fromEntries(rows.map((row) => [row.skillId, Number(row.count)]));

@@ -25,6 +25,7 @@ const searchSchema = z.object({
   q: z.string().optional(),
   roles: z.array(z.coerce.number().int().positive()).optional(),
   skills: z.array(z.coerce.number().int().positive()).optional(),
+  matchAll: z.boolean().optional(),
   jam: z.coerce.number().int().positive().optional(),
   team: z.string().optional(),
   project: z.string().optional(),

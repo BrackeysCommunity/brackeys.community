@@ -28,15 +28,18 @@ export function useCollabTypeCounts() {
 /**
  * Per-skill post counts for the stack picker, under every active filter
  * *except* the stack itself — so each number reads "how many ticking this
- * adds", which is the only true reading when the facet ORs.
+ * adds", which is the only true reading when the facet ORs. Under
+ * `matchAll` the facet ANDs and narrows instead, so the stack stays in
+ * force and each number reads "how many would remain".
  */
 export function useCollabSkillCounts() {
   const { search } = useCollabBoardSearch();
-  const { skillIds: _skillIds, ...facets } = collabFacetInput(search);
+  const { skillIds, matchAll, ...facets } = collabFacetInput(search);
+  const input = matchAll ? { ...facets, skillIds, matchAll } : facets;
 
   return useQuery({
-    queryKey: ["collabSkillCounts", facets],
-    queryFn: () => client.countPostsBySkill(facets),
+    queryKey: ["collabSkillCounts", input],
+    queryFn: () => client.countPostsBySkill(input),
     staleTime: 15 * 1000,
     placeholderData: (previous) => previous,
   });

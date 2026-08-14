@@ -40,6 +40,11 @@ export interface CollabBoardSearch {
   q?: string;
   roles?: number[];
   skills?: number[];
+  /** Skills combine as all-of instead of the default any-of. A modifier
+   *  on `skills`, not a constraint of its own — it only reaches the
+   *  server alongside two or more picked skills, where the two modes
+   *  can actually disagree. */
+  matchAll?: boolean;
   jam?: number;
   team?: string;
   project?: string;
@@ -88,6 +93,7 @@ export function collabFacetInput(search: CollabBoardSearch) {
     isIndividual: search.solo,
     roleIds: roles.length > 0 ? roles : undefined,
     skillIds: skills.length > 0 ? skills : undefined,
+    matchAll: skills.length > 1 && search.matchAll ? true : undefined,
     jamId: search.jam,
     teamId: search.team,
     projectId: search.project,
@@ -122,6 +128,7 @@ export const CLEARED_COLLAB_FILTERS: Partial<CollabBoardSearch> = {
   q: undefined,
   roles: undefined,
   skills: undefined,
+  matchAll: undefined,
   jam: undefined,
   team: undefined,
   project: undefined,

@@ -6,6 +6,7 @@ import { MembersDiscoveryPage } from "@/components/members/MembersDiscoveryPage"
 // Validates the URL search params:
 //   `?q=…`            username/tagline/looking-for search
 //   `?skills=…`       skills the member has on their profile
+//   `?matchAll=true`  skills combine as all-of instead of the default any-of
 //   `?roles=…`        craft claims — the shared collab_roles vocabulary
 //   `?availability=…` commitment level, any of full_time/part_time/limited
 //   `?open=1`         only members flagged open to work
@@ -23,6 +24,7 @@ const searchSchema = z.object({
   // the page always writes arrays, but a hand-typed or trimmed link must
   // not throw the route into its error boundary.
   skills: z.union([z.array(facetId), facetId.transform((id) => [id])]).optional(),
+  matchAll: z.boolean().optional(),
   roles: z.union([z.array(facetId), facetId.transform((id) => [id])]).optional(),
   availability: z
     .union([z.array(availability), availability.transform((value) => [value])])

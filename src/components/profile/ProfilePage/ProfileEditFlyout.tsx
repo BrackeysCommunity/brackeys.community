@@ -72,6 +72,7 @@ const STEPS: StepDef[] = [
   { step: 2, title: "BIO & SKILLS", hint: "long-form bio + skill tags" },
   { step: 3, title: "AVAILABILITY", hint: "open to hire, rate, response time" },
   { step: 4, title: "LINKS", hint: "github, itch, portfolio" },
+  { step: 5, title: "ACCOUNT", hint: "delete account" },
 ];
 
 const STEP_IDS: readonly EditStep[] = STEPS.map((s) => s.step);
@@ -259,7 +260,7 @@ function FlyoutHeader({
             EDIT PROFILE
           </Heading>
           <Text size="xs" variant="muted" className="tracking-widest">
-            @{profile.handle.toLowerCase()} · STEP {step}/4
+            @{profile.handle.toLowerCase()} · STEP {step}/{STEPS.length}
           </Text>
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
@@ -276,7 +277,7 @@ function Stepper({ step, onSelect }: { step: EditStep; onSelect: (s: EditStep) =
     tabIds: STEP_IDS,
   });
   return (
-    <div ref={containerRef} className="relative grid grid-cols-4 border-b border-muted/30">
+    <div ref={containerRef} className="relative flex border-b border-muted/30">
       {STEPS.map((s) => {
         const isActive = s.step === step;
         return (
@@ -286,7 +287,9 @@ function Stepper({ step, onSelect }: { step: EditStep; onSelect: (s: EditStep) =
             type="button"
             onClick={() => onSelect(s.step)}
             className={cn(
-              "relative flex cursor-pointer flex-col items-center justify-center gap-1 px-2 py-3 transition-colors",
+              // flex-auto sizes each tab from its label so the long
+              // ones ("AVAILABILITY") keep room on narrow screens.
+              "relative flex flex-auto cursor-pointer flex-col items-center justify-center gap-1 px-1.5 py-3 transition-colors",
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -325,7 +328,7 @@ function FlyoutFooter({
   onStepChange: (s: EditStep) => void;
   onClose: () => void;
 }) {
-  const isLast = step === 4;
+  const isLast = step === STEPS.length;
   const isFirst = step === 1;
   return (
     <div className="flex items-center justify-between gap-3 border-t border-muted/30 px-5 py-3">
@@ -403,7 +406,8 @@ function StepBody({ step, profile, queryKey, save }: { step: EditStep } & StepPr
   if (step === 1) return <IdentityStep profile={profile} queryKey={queryKey} save={save} />;
   if (step === 2) return <BioSkillsStep profile={profile} queryKey={queryKey} save={save} />;
   if (step === 3) return <AvailabilityStep profile={profile} queryKey={queryKey} save={save} />;
-  return <LinksStep profile={profile} queryKey={queryKey} save={save} />;
+  if (step === 4) return <LinksStep profile={profile} queryKey={queryKey} save={save} />;
+  return <AccountStep />;
 }
 
 function IdentityStep({ profile, queryKey, save }: StepProps) {
@@ -1175,6 +1179,16 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
           placeholder="https://yoursite.dev"
         />
       </FieldRow>
+    </StepFrame>
+  );
+}
+
+function AccountStep() {
+  return (
+    <StepFrame title="ACCOUNT">
+      <Text size="sm" variant="muted">
+        Account-level actions live here, separate from your public profile.
+      </Text>
       <DeleteAccountZone />
     </StepFrame>
   );

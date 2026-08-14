@@ -552,6 +552,21 @@ describe("board filter input", () => {
     expect(countActiveCollabFilters({ sort: "oldest" })).toBe(0);
   });
 
+  it("sends matchAll only alongside two or more picked skills", () => {
+    expect(collabFacetInput({ skills: [1, 2], matchAll: true }).matchAll).toBe(true);
+    // On one skill the modes agree, and with none there's nothing to
+    // modify — a stale flag in the URL must not fork the query cache.
+    expect(collabFacetInput({ skills: [1], matchAll: true }).matchAll).toBeUndefined();
+    expect(collabFacetInput({ matchAll: true }).matchAll).toBeUndefined();
+    expect(collabFacetInput({ skills: [1, 2] }).matchAll).toBeUndefined();
+  });
+
+  it("counts matchAll as a modifier, not a constraint of its own", () => {
+    expect(countActiveCollabFilters({ skills: [1, 2], matchAll: true })).toBe(
+      countActiveCollabFilters({ skills: [1, 2] }),
+    );
+  });
+
   it("resolves sort presets, defaulting to newest", () => {
     expect(sortPreset(undefined)).toMatchObject({ by: "createdAt", order: "desc" });
     expect(sortPreset("oldest")).toMatchObject({ by: "createdAt", order: "asc" });

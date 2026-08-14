@@ -15,6 +15,11 @@ export type MemberAvailability = "full_time" | "part_time" | "limited";
 export interface MembersSearch {
   q?: string;
   skills?: number[];
+  /** Skills combine as all-of instead of the default any-of. A modifier
+   *  on `skills`, not a constraint of its own — it only reaches the
+   *  server alongside two or more picked skills, where the two modes
+   *  can actually disagree. */
+  matchAll?: boolean;
   /** Craft claims — the shared `collab_roles` vocabulary. */
   roles?: number[];
   availability?: MemberAvailability[];
@@ -108,6 +113,7 @@ export function memberFacetInput(search: MembersSearch) {
   return {
     search: search.q?.trim() || undefined,
     skillIds: skills.length > 0 ? skills : undefined,
+    matchAll: skills.length > 1 && search.matchAll ? true : undefined,
     roleIds: roles.length > 0 ? roles : undefined,
     availability: availability.length > 0 ? availability : undefined,
     openToWork: search.open || undefined,
@@ -136,6 +142,7 @@ export function countActiveMemberFilters(search: MembersSearch): number {
 export const CLEARED_MEMBER_FILTERS: Partial<MembersSearch> = {
   q: undefined,
   skills: undefined,
+  matchAll: undefined,
   roles: undefined,
   availability: undefined,
   open: undefined,

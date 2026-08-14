@@ -1,6 +1,6 @@
 import type { ProfileViewModel } from "./helpers";
 
-export type EditStep = 1 | 2 | 3 | 4;
+export type EditStep = 1 | 2 | 3 | 4 | 5;
 
 export interface ProfileLayoutProps {
   profile: ProfileViewModel;

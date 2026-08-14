@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
+import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { CLEARED_COLLAB_FILTERS, useCollabBoardSearch } from "./collab-filters";
@@ -215,6 +216,23 @@ export function CollabActiveFilters() {
               <HugeiconsIcon icon={Cancel01Icon} size={10} />
             </Button>
           ))}
+          {/* Only with two or more skills picked — the two modes can't
+              disagree on fewer. */}
+          {skillIds.length > 1 ? (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setSearch({ matchAll: search.matchAll ? undefined : true })}
+              aria-pressed={!!search.matchAll}
+              aria-label="Require every selected skill instead of any"
+              className={cn(
+                "tracking-widest",
+                search.matchAll ? "border-primary text-primary" : "text-muted-foreground",
+              )}
+            >
+              MATCH ALL
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="xs"

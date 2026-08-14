@@ -153,6 +153,8 @@ export const MEMBER_SORTS = ["active", "newest", "rate"] as const;
 const memberFacetSchema = {
   search: z.string().trim().max(100).optional(),
   skillIds: z.array(z.number().int().positive()).optional(),
+  /** Flips the skill facet from "any of these" to "all of these". */
+  matchAll: z.boolean().optional(),
   /** Craft claims — the shared `collab_roles` vocabulary. An OR, like skills. */
   roleIds: z.array(z.number().int().positive()).optional(),
   /** Any of these commitment levels — an OR, not a narrowing chain. */
@@ -195,20 +197,42 @@ function buildMemberFilter(input: MemberFilterInput) {
         ilike(developerProfiles.guildNickname, pattern),
         ilike(developerProfiles.tagline, pattern),
         ilike(developerProfiles.lookingFor, pattern),
+        // Typing "godot" finds the Godot people without opening the
+        // stack picker — the search reaches skill names too.
+        sql`exists (
+          select 1 from ${userSkills}
+          join ${skills} on ${skills.id} = ${userSkills.skillId}
+          where ${userSkills.userId} = ${developerProfiles.id}
+            and ${skills.name} ilike ${pattern}
+        )`,
       )!,
     );
   }
 
   // Same `exists` shape the team directory uses for its derived stack,
-  // so "who knows Godot" reads the same on both boards.
+  // so "who knows Godot" reads the same on both boards. `matchAll` flips
+  // the facet from one exists-any to an exists per skill — "all of
+  // these" — for narrowing a shortlist instead of widening one.
   if (input.skillIds && input.skillIds.length > 0) {
-    conditions.push(
-      sql`exists (
-        select 1 from ${userSkills}
-        where ${userSkills.userId} = ${developerProfiles.id}
-          and ${inArray(userSkills.skillId, input.skillIds)}
-      )`,
-    );
+    if (input.matchAll) {
+      for (const skillId of input.skillIds) {
+        conditions.push(
+          sql`exists (
+            select 1 from ${userSkills}
+            where ${userSkills.userId} = ${developerProfiles.id}
+              and ${userSkills.skillId} = ${skillId}
+          )`,
+        );
+      }
+    } else {
+      conditions.push(
+        sql`exists (
+          select 1 from ${userSkills}
+          where ${userSkills.userId} = ${developerProfiles.id}
+            and ${inArray(userSkills.skillId, input.skillIds)}
+        )`,
+      );
+    }
   }
 
   // "Find me a composer" — same shape as skills, same vocabulary as the
@@ -245,7 +269,10 @@ function buildMemberFilter(input: MemberFilterInput) {
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
-/** Per-skill member counts for the stack picker — see `countPostsBySkill`. */
+/** Per-skill member counts for the stack picker — see `countPostsBySkill`.
+ *  Under `matchAll` the selected stack stays in force instead of being
+ *  stripped: an all-of pick narrows, so the honest number is "how many
+ *  would remain", not "how many would this add". */
 export const countMembersBySkill = os
   .route({ method: "GET" })
   .input(z.object(memberFacetSchema))
@@ -254,7 +281,7 @@ export const countMembersBySkill = os
       .select({ skillId: userSkills.skillId, count: countDistinct(developerProfiles.id) })
       .from(userSkills)
       .innerJoin(developerProfiles, eq(developerProfiles.id, userSkills.userId))
-      .where(buildMemberFilter({ ...input, skillIds: undefined }))
+      .where(buildMemberFilter(input.matchAll ? input : { ...input, skillIds: undefined }))
       .groupBy(userSkills.skillId);
 
     return Object.fromEntries(rows.map((row) => [row.skillId, Number(row.count)]));

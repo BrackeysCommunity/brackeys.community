@@ -352,7 +352,7 @@ export function RoleFilterMenu({ selected, inline }: { selected: number[]; inlin
  * just advertises a dead end.
  */
 export function StackFilterMenu({ selected, inline }: { selected: number[]; inline?: boolean }) {
-  const { setSearch } = useCollabBoardSearch();
+  const { search, setSearch } = useCollabBoardSearch();
   const { data } = useQuery({
     ...orpc.listSkills.queryOptions({ input: {} }),
     staleTime: 5 * 60 * 1000,
@@ -360,6 +360,8 @@ export function StackFilterMenu({ selected, inline }: { selected: number[]; inli
   const { data: counts } = useCollabSkillCounts();
   const skills = data ?? [];
   if (skills.length === 0) return null;
+
+  const matchAll = Boolean(search.matchAll) && selected.length > 1;
 
   return (
     <FacetPicker
@@ -369,7 +371,7 @@ export function StackFilterMenu({ selected, inline }: { selected: number[]; inli
       onChange={(skills) => setSearch({ skills: skills.length > 0 ? skills : undefined })}
       counts={counts}
       searchPlaceholder="Search engines, languages, tools…"
-      hint="Shows posts using any of these."
+      hint={matchAll ? "Shows posts using all of these." : "Shows posts using any of these."}
       inline={inline}
     />
   );
