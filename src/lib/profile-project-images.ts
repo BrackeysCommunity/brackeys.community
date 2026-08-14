@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { z } from "zod";
 
 export const PROFILE_PROJECT_IMAGE_PREFIX = "profile-projects";
 export const PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
@@ -72,14 +73,63 @@ export function buildProjectImageObjectKey(projectId: string, filename: string) 
   return `${PROJECT_IMAGE_PREFIX}/${projectId}/${nanoid()}-${sanitizedFilename}`;
 }
 
+/**
+ * Collab post images are **post-scoped**, not uploader-scoped, for the same
+ * reason as project covers: the post outlives nothing about the uploader's
+ * account, and its images should be deletable with the post. Write access is
+ * the post-author check in the upload handler and `addPostImage`.
+ */
+export const COLLAB_POST_IMAGE_PREFIX = "collab-post-images";
+
+export function buildCollabPostImageObjectKey(postId: number, filename: string) {
+  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
+  return `${COLLAB_POST_IMAGE_PREFIX}/${postId}/${nanoid()}-${sanitizedFilename}`;
+}
+
+export function isCollabPostImageKey(postId: number, key: string) {
+  return key.startsWith(`${COLLAB_POST_IMAGE_PREFIX}/${postId}/`);
+}
+
+/**
+ * Team showcase (team_projects) covers are **team-scoped**: any member can
+ * add showcase rows, so the write check is membership, and the objects can
+ * be swept when the row or the team goes away. Imported placements that
+ * share an object with a source profile project keep their user-scoped key
+ * and are exempt from that sweep.
+ */
+export const TEAM_PROJECT_IMAGE_PREFIX = "team-projects";
+
+export function buildTeamProjectImageObjectKey(teamId: string, filename: string) {
+  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
+  return `${TEAM_PROJECT_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
+}
+
+export function isTeamProjectImageKey(teamId: string, key: string) {
+  return key.startsWith(`${TEAM_PROJECT_IMAGE_PREFIX}/${teamId}/`);
+}
+
 /** Root path of the stable serving route (src/routes/images.$.ts). */
 export const STORED_IMAGE_ROUTE_PREFIX = "/images/";
+
+/**
+ * Upload responses carry the app-relative `/images/<key>` URL, which
+ * `z.url()` rejects (it requires an absolute URL) — this accepts either.
+ */
+export const uploadedImageUrlSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) => value.startsWith(STORED_IMAGE_ROUTE_PREFIX) || z.url().safeParse(value).success,
+    { message: "Must be an absolute URL or a stored /images/ path." },
+  );
 
 const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${PROFILE_PROJECT_IMAGE_PREFIX}/`,
   `${TEAM_AVATAR_IMAGE_PREFIX}/`,
   `${TEAM_BANNER_IMAGE_PREFIX}/`,
   `${PROJECT_IMAGE_PREFIX}/`,
+  `${COLLAB_POST_IMAGE_PREFIX}/`,
+  `${TEAM_PROJECT_IMAGE_PREFIX}/`,
 ] as const;
 
 /**

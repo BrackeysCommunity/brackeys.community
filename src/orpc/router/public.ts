@@ -1,4 +1,5 @@
 import {
+  countPostsByRole,
   countPostsBySkill,
   countPostsByType,
   countPostsForJam,
@@ -72,6 +73,7 @@ export const publicRouter = {
   getPost,
   countPostsByType,
   countPostsBySkill,
+  countPostsByRole,
   countPostsForJam,
   getBoardStats,
   getContributions,

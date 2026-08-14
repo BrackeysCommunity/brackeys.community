@@ -39,30 +39,6 @@ export type UploadedImage = {
   alt?: string;
 };
 
-type CollabFilters = {
-  type: CollabPostType | undefined;
-  roleIds: number[];
-  /** Tech stack, shared vocabulary with `user.skills`. */
-  skillIds: number[];
-  jamId: number | undefined;
-  /** One team's posts — set from a team page's "see all" link. */
-  teamId: string | undefined;
-  /** One project's posts — set from a project page's RECRUITING section. */
-  projectId: string | undefined;
-  status: CollabStatus | undefined;
-  search: string;
-  sortBy: CollabSortBy;
-  sortOrder: CollabSortOrder;
-  experienceLevel: CollabExperienceLevel | undefined;
-  compensationType: CollabCompensationType | undefined;
-  isIndividual: boolean | undefined;
-};
-
-type CollabPagination = {
-  limit: number;
-  offset: number;
-};
-
 export type WizardDraft = {
   type: CollabPostType | undefined;
   jamId: number | undefined;
@@ -96,12 +72,15 @@ export type WizardDraft = {
   images: UploadedImage[];
 };
 
+/**
+ * The board's ephemera — presentation and the create-post wizard. The
+ * filters themselves live in the URL (`collab-filters.ts`), not here, so
+ * a narrowed board is shareable.
+ */
 type CollabState = {
-  filters: CollabFilters;
   /** How the feed renders — presentation, not a filter, so CLEAR ALL
    *  and filter resets never touch it. */
   layout: CollabLayout;
-  pagination: CollabPagination;
   wizard: {
     step: number;
     draft: WizardDraft;
@@ -117,22 +96,6 @@ type CollabState = {
      *  a form that refills itself says so. */
     draftRestored: boolean;
   };
-};
-
-const defaultFilters: CollabFilters = {
-  type: undefined,
-  roleIds: [],
-  skillIds: [],
-  jamId: undefined,
-  teamId: undefined,
-  projectId: undefined,
-  status: undefined,
-  search: "",
-  sortBy: "createdAt",
-  sortOrder: "desc",
-  experienceLevel: undefined,
-  compensationType: undefined,
-  isIndividual: undefined,
 };
 
 const defaultDraft: WizardDraft = {
@@ -162,9 +125,7 @@ const defaultDraft: WizardDraft = {
 };
 
 export const collabStore = new Store<CollabState>({
-  filters: { ...defaultFilters },
   layout: "cards",
-  pagination: { limit: 20, offset: 0 },
   wizard: {
     step: 0,
     draft: { ...defaultDraft },
@@ -176,83 +137,6 @@ export const collabStore = new Store<CollabState>({
 
 export function setCollabLayout(layout: CollabLayout) {
   collabStore.setState((s) => ({ ...s, layout }));
-}
-
-export function setCollabFilters(partial: Partial<CollabFilters>) {
-  collabStore.setState((s) => ({
-    ...s,
-    filters: { ...s.filters, ...partial },
-    pagination: { ...s.pagination, offset: 0 },
-  }));
-}
-
-/**
- * Clears every constraint but keeps the sort order — that's
- * presentation, not something "CLEAR ALL" should yank out from under
- * the user.
- */
-export function resetCollabFilters() {
-  collabStore.setState((s) => ({
-    ...s,
-    filters: {
-      ...defaultFilters,
-      sortBy: s.filters.sortBy,
-      sortOrder: s.filters.sortOrder,
-    },
-    pagination: { ...s.pagination, offset: 0 },
-  }));
-}
-
-/**
- * Maps the UI filter state onto the shape `listPosts` /
- * `countPostsByType` expect. The "any" experience sentinel is a UI
- * affordance meaning *no constraint* — passed through verbatim it would
- * match only posts whose stored level is literally "any", so it's
- * dropped here rather than at each call site.
- */
-export function collabFilterInput(filters: CollabFilters) {
-  return {
-    type: filters.type,
-    status: filters.status,
-    search: filters.search || undefined,
-    experienceLevel:
-      filters.experienceLevel && filters.experienceLevel !== "any"
-        ? filters.experienceLevel
-        : undefined,
-    compensationType: filters.compensationType,
-    isIndividual: filters.isIndividual,
-    roleIds: filters.roleIds.length > 0 ? filters.roleIds : undefined,
-    skillIds: filters.skillIds.length > 0 ? filters.skillIds : undefined,
-    jamId: filters.jamId,
-    teamId: filters.teamId,
-    projectId: filters.projectId,
-  };
-}
-
-/** Returns the number of active filter constraints, excluding sort —
- *  that's presentation, not a filter. */
-export function countActiveCollabFilters(filters: CollabFilters): number {
-  const input = collabFilterInput(filters);
-  return [
-    input.type,
-    input.status,
-    input.experienceLevel,
-    input.compensationType,
-    input.isIndividual !== undefined ? true : undefined,
-    input.search,
-    input.roleIds,
-    input.skillIds,
-    input.jamId,
-    input.teamId,
-    input.projectId,
-  ].filter(Boolean).length;
-}
-
-export function setCollabPage(offset: number) {
-  collabStore.setState((s) => ({
-    ...s,
-    pagination: { ...s.pagination, offset },
-  }));
 }
 
 export function setWizardStep(step: number) {

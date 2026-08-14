@@ -1,29 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
 
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/typography";
 import {
   type CollabCompensationType,
-  type CollabExperienceLevel,
   type CollabPostType,
-  type CollabSortBy,
-  type CollabSortOrder,
   type CollabStatus,
-  collabStore,
-  countActiveCollabFilters,
-  resetCollabFilters,
-  setCollabFilters,
 } from "@/lib/collab-store";
 import { orpc } from "@/orpc/client";
 
-import { StackFilterMenu } from "./CollabToolbar";
+import {
+  type CollabBoardSearch,
+  type CollabBoardSort,
+  CLEARED_COLLAB_FILTERS,
+  countActiveCollabFilters,
+  DEFAULT_SORT,
+  useCollabBoardSearch,
+} from "./collab-filters";
+import { posterToSolo, RoleFilterMenu, soloToPoster, StackFilterMenu } from "./CollabToolbar";
 import { useCollabResultCount, useCollabTypeCounts } from "./use-collab-counts";
 
 // SegmentedControl is single-select, so the optional filters use
 // sentinel "all" / "any" values and translate to/from `undefined` when
-// reading and writing the store.
+// reading and writing the URL.
 const TYPE_OPTIONS = [
   { value: "all", label: "ALL" },
   { value: "paid", label: "PAID WORK" },
@@ -51,12 +51,18 @@ const COMP_OPTIONS = [
   { value: "negotiable", label: "NEGOT." },
 ] as const;
 
+const POSTER_OPTIONS = [
+  { value: "all", label: "ANYONE" },
+  { value: "solo", label: "SOLO DEVS" },
+  { value: "team", label: "TEAMS" },
+] as const;
+
 // Sort presets pair a column with a direction, mirroring the toolbar's
-// sort menu — the value encodes both halves.
+// sort menu.
 const SORT_OPTIONS = [
-  { value: "createdAt:desc", label: "NEWEST" },
-  { value: "createdAt:asc", label: "OLDEST" },
-  { value: "updatedAt:desc", label: "ACTIVE" },
+  { value: "newest", label: "NEWEST" },
+  { value: "oldest", label: "OLDEST" },
+  { value: "active", label: "ACTIVE" },
 ] as const;
 
 interface CollabFilterPanelProps {
@@ -71,28 +77,30 @@ interface CollabFilterPanelProps {
  * know what you're about to see before dismissing the sheet.
  */
 export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
-  const filters = useStore(collabStore, (s) => s.filters);
+  const { search, setSearch } = useCollabBoardSearch();
   const { data: counts } = useCollabTypeCounts();
   const resultCount = useCollabResultCount();
 
   return (
     <div className="flex flex-col gap-5">
       <FilterGroup label="POST TYPE">
-        <PostTypeRow value={filters.type ?? "all"} options={TYPE_OPTIONS} counts={counts} />
+        <PostTypeRow value={search.type ?? "all"} options={TYPE_OPTIONS} counts={counts} />
       </FilterGroup>
 
-      {filters.jamId !== undefined ? (
+      {search.jam !== undefined ? (
         <FilterGroup label="JAM">
-          <JamFilterChip jamId={filters.jamId} />
+          <JamFilterChip jamId={search.jam} />
         </FilterGroup>
       ) : null}
 
+      <FilterGroup label="ROLE">
+        <RoleFilterMenu selected={search.roles ?? []} inline />
+      </FilterGroup>
+
       <FilterGroup label="STATUS">
         <SegmentedControl
-          value={filters.status ?? "any"}
-          onChange={(v) =>
-            setCollabFilters({ status: v === "any" ? undefined : (v as CollabStatus) })
-          }
+          value={search.status ?? "any"}
+          onChange={(v) => setSearch({ status: v === "any" ? undefined : (v as CollabStatus) })}
           size="sm"
         >
           {STATUS_OPTIONS.map((s) => (
@@ -105,10 +113,10 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
 
       <FilterGroup label="EXPERIENCE LEVEL">
         <SegmentedControl
-          value={filters.experienceLevel ?? "any"}
+          value={search.level ?? "any"}
           onChange={(v) =>
-            setCollabFilters({
-              experienceLevel: v === "any" ? undefined : (v as CollabExperienceLevel),
+            setSearch({
+              level: v === "any" ? undefined : (v as CollabBoardSearch["level"]),
             })
           }
           size="sm"
@@ -121,13 +129,13 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
         </SegmentedControl>
       </FilterGroup>
 
-      {filters.type === "paid" ? (
+      {search.type === "paid" ? (
         <FilterGroup label="COMPENSATION">
           <SegmentedControl
-            value={filters.compensationType ?? "all"}
+            value={search.comp ?? "all"}
             onChange={(v) =>
-              setCollabFilters({
-                compensationType: v === "all" ? undefined : (v as CollabCompensationType),
+              setSearch({
+                comp: v === "all" ? undefined : (v as CollabCompensationType),
               })
             }
             size="sm"
@@ -141,20 +149,30 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
         </FilterGroup>
       ) : null}
 
+      <FilterGroup label="POSTED BY">
+        <SegmentedControl
+          value={soloToPoster(search.solo)}
+          onChange={(v) => setSearch({ solo: posterToSolo(v as string) })}
+          size="sm"
+        >
+          {POSTER_OPTIONS.map((p) => (
+            <SegmentedControl.Item key={p.value} value={p.value}>
+              {p.label}
+            </SegmentedControl.Item>
+          ))}
+        </SegmentedControl>
+      </FilterGroup>
+
       <FilterGroup label="TECH STACK">
-        <StackFilterMenu selected={filters.skillIds} inline />
+        <StackFilterMenu selected={search.skills ?? []} inline />
       </FilterGroup>
 
       <FilterGroup label="SORT BY">
         <SegmentedControl
-          value={`${filters.sortBy}:${filters.sortOrder}`}
-          onChange={(v) => {
-            const [sortBy, sortOrder] = (v as string).split(":");
-            setCollabFilters({
-              sortBy: sortBy as CollabSortBy,
-              sortOrder: sortOrder as CollabSortOrder,
-            });
-          }}
+          value={search.sort ?? DEFAULT_SORT}
+          onChange={(v) =>
+            setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as CollabBoardSort) })
+          }
           size="sm"
         >
           {SORT_OPTIONS.map((s) => (
@@ -189,14 +207,14 @@ export function CollabFilterPanel({ onDone }: CollabFilterPanelProps) {
  * and greys out when there's nothing to clear.
  */
 export function CollabFilterClearButton() {
-  const filters = useStore(collabStore, (s) => s.filters);
-  const active = countActiveCollabFilters(filters);
+  const { search, setSearch } = useCollabBoardSearch();
+  const active = countActiveCollabFilters(search);
 
   return (
     <Button
       variant="ghost"
       size="sm"
-      onClick={resetCollabFilters}
+      onClick={() => setSearch(CLEARED_COLLAB_FILTERS)}
       disabled={active === 0}
       className="tracking-widest text-muted-foreground"
     >
@@ -211,6 +229,7 @@ export function CollabFilterClearButton() {
  * jam chip), so this only has to name it and let you drop it.
  */
 function JamFilterChip({ jamId }: { jamId: number }) {
+  const { setSearch } = useCollabBoardSearch();
   const { data } = useQuery({
     ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
     staleTime: 5 * 60 * 1000,
@@ -221,7 +240,7 @@ function JamFilterChip({ jamId }: { jamId: number }) {
     <Button
       variant="outline"
       size="sm"
-      onClick={() => setCollabFilters({ jamId: undefined })}
+      onClick={() => setSearch({ jam: undefined })}
       className="self-start border-primary/50 tracking-widest text-primary"
     >
       {jam?.title ?? `JAM #${jamId}`} ×
@@ -249,10 +268,11 @@ function PostTypeRow({
   options: readonly { value: string; label: string }[];
   counts: Record<string, number> | undefined;
 }) {
+  const { setSearch } = useCollabBoardSearch();
   return (
     <SegmentedControl
       value={value}
-      onChange={(v) => setCollabFilters({ type: v === "all" ? undefined : (v as CollabPostType) })}
+      onChange={(v) => setSearch({ type: v === "all" ? undefined : (v as CollabPostType) })}
       size="sm"
     >
       {options.map((t) => {

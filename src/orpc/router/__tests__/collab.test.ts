@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  collabFacetInput,
+  countActiveCollabFilters,
+  sortPreset,
+} from "@/components/collab/collab-filters";
+import {
   getPreflightChecks,
   getStepValidationError,
   projectLengthForJam,
@@ -8,12 +13,7 @@ import {
   type PickableProject,
   type WizardFormValues,
 } from "@/components/collab/CollabCreateFlyout/shared";
-import {
-  collabFilterInput,
-  countActiveCollabFilters,
-  draftFromPost,
-  isEditablePostType,
-} from "@/lib/collab-store";
+import { draftFromPost, isEditablePostType } from "@/lib/collab-store";
 import router from "@/orpc/router";
 import { assertTeamRequired, postContentSchema, stripContact } from "@/orpc/router/collab";
 
@@ -508,41 +508,54 @@ describe("draftFromPost", () => {
 });
 
 describe("board filter input", () => {
-  const base = {
-    type: undefined,
-    roleIds: [],
-    skillIds: [],
-    jamId: undefined,
-    teamId: undefined,
-    projectId: undefined,
-    status: undefined,
-    search: "",
-    sortBy: "createdAt" as const,
-    sortOrder: "desc" as const,
-    experienceLevel: undefined,
-    compensationType: undefined,
-    isIndividual: undefined,
-  };
-
-  it("passes jam and stack constraints through to listPosts", () => {
-    const input = collabFilterInput({ ...base, jamId: 42, skillIds: [1, 2] });
-    expect(input.jamId).toBe(42);
-    expect(input.skillIds).toEqual([1, 2]);
+  it("registers the role counter alongside the other facet counts", () => {
+    expect(router.countPostsByRole).toBeDefined();
   });
 
-  it("omits empty stack selections rather than sending an empty array", () => {
-    expect(collabFilterInput(base).skillIds).toBeUndefined();
+  it("maps URL search params onto the shape listPosts takes", () => {
+    const input = collabFacetInput({ jam: 42, skills: [1, 2], roles: [3] });
+    expect(input.jamId).toBe(42);
+    expect(input.skillIds).toEqual([1, 2]);
+    expect(input.roleIds).toEqual([3]);
+  });
+
+  it("omits empty facet selections rather than sending empty arrays", () => {
+    const input = collabFacetInput({});
+    expect(input.skillIds).toBeUndefined();
+    expect(input.roleIds).toBeUndefined();
   });
 
   it("passes the project constraint through and counts it as active", () => {
-    expect(collabFilterInput({ ...base, projectId: "proj-1" }).projectId).toBe("proj-1");
-    expect(countActiveCollabFilters({ ...base, projectId: "proj-1" })).toBe(1);
+    expect(collabFacetInput({ project: "proj-1" }).projectId).toBe("proj-1");
+    expect(countActiveCollabFilters({ project: "proj-1" })).toBe(1);
+  });
+
+  it("maps the solo flag to isIndividual and counts either value as active", () => {
+    expect(collabFacetInput({ solo: true }).isIndividual).toBe(true);
+    expect(collabFacetInput({ solo: false }).isIndividual).toBe(false);
+    expect(collabFacetInput({}).isIndividual).toBeUndefined();
+    expect(countActiveCollabFilters({ solo: false })).toBe(1);
+  });
+
+  it("trims the search string and drops it when blank", () => {
+    expect(collabFacetInput({ q: "  godot " }).search).toBe("godot");
+    expect(collabFacetInput({ q: "   " }).search).toBeUndefined();
   });
 
   it("counts jam and stack as active constraints", () => {
-    expect(countActiveCollabFilters(base)).toBe(0);
-    expect(countActiveCollabFilters({ ...base, jamId: 42 })).toBe(1);
-    expect(countActiveCollabFilters({ ...base, jamId: 42, skillIds: [1] })).toBe(2);
+    expect(countActiveCollabFilters({})).toBe(0);
+    expect(countActiveCollabFilters({ jam: 42 })).toBe(1);
+    expect(countActiveCollabFilters({ jam: 42, skills: [1] })).toBe(2);
+  });
+
+  it("ignores sort — it narrows nothing", () => {
+    expect(countActiveCollabFilters({ sort: "oldest" })).toBe(0);
+  });
+
+  it("resolves sort presets, defaulting to newest", () => {
+    expect(sortPreset(undefined)).toMatchObject({ by: "createdAt", order: "desc" });
+    expect(sortPreset("oldest")).toMatchObject({ by: "createdAt", order: "asc" });
+    expect(sortPreset("active")).toMatchObject({ by: "updatedAt", order: "desc" });
   });
 });
 

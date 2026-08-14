@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
 
-import { collabFilterInput, collabStore } from "@/lib/collab-store";
 import { client } from "@/orpc/client";
+
+import { collabFacetInput, useCollabBoardSearch } from "./collab-filters";
 
 /**
  * Per-type post counts under every active filter *except* the type
@@ -12,8 +12,8 @@ import { client } from "@/orpc/client";
  * that count when one is.
  */
 export function useCollabTypeCounts() {
-  const filters = useStore(collabStore, (s) => s.filters);
-  const { type: _type, ...facets } = collabFilterInput(filters);
+  const { search } = useCollabBoardSearch();
+  const { type: _type, ...facets } = collabFacetInput(search);
 
   return useQuery({
     queryKey: ["collabTypeCounts", facets],
@@ -31,12 +31,28 @@ export function useCollabTypeCounts() {
  * adds", which is the only true reading when the facet ORs.
  */
 export function useCollabSkillCounts() {
-  const filters = useStore(collabStore, (s) => s.filters);
-  const { skillIds: _skillIds, ...facets } = collabFilterInput(filters);
+  const { search } = useCollabBoardSearch();
+  const { skillIds: _skillIds, ...facets } = collabFacetInput(search);
 
   return useQuery({
     queryKey: ["collabSkillCounts", facets],
     queryFn: () => client.countPostsBySkill(facets),
+    staleTime: 15 * 1000,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * Per-role post counts for the role picker — same contract as the skill
+ * counts: every filter except the role facet itself applies.
+ */
+export function useCollabRoleCounts() {
+  const { search } = useCollabBoardSearch();
+  const { roleIds: _roleIds, ...facets } = collabFacetInput(search);
+
+  return useQuery({
+    queryKey: ["collabRoleCounts", facets],
+    queryFn: () => client.countPostsByRole(facets),
     staleTime: 15 * 1000,
     placeholderData: (previous) => previous,
   });
@@ -48,9 +64,9 @@ export function useCollabSkillCounts() {
  * type itself.
  */
 export function useCollabResultCount(): number | null {
-  const filters = useStore(collabStore, (s) => s.filters);
+  const { search } = useCollabBoardSearch();
   const { data: typeCounts } = useCollabTypeCounts();
 
   if (!typeCounts) return null;
-  return filters.type ? typeCounts[filters.type] : typeCounts.all;
+  return search.type ? typeCounts[search.type] : typeCounts.all;
 }

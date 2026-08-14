@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { projects, teamMembers, teams } from "@/db/schema";
+import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
 import {
@@ -18,9 +18,11 @@ import {
   uploadProfileProjectImageToStorage,
 } from "@/lib/profile-project-image-storage";
 import {
+  buildCollabPostImageObjectKey,
   buildProjectImageObjectKey,
   buildTeamAvatarObjectKey,
   buildTeamBannerObjectKey,
+  buildTeamProjectImageObjectKey,
   isProjectImageKey,
 } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
@@ -94,6 +96,9 @@ async function handle({ request }: { request: Request }) {
   if (pathname === "/api/project/image") {
     return handleProjectImageUpload(request);
   }
+  if (pathname === "/api/collab/post-image") {
+    return handleCollabPostImageUpload(request);
+  }
   if (isReferenceDocsPath(pathname) && !(await canViewReferenceDocs(request))) {
     return new Response("Not Found", { status: 404 });
   }
@@ -152,11 +157,13 @@ async function handleProfileProjectImageUpload(request: Request) {
 }
 
 /**
- * Team avatar/banner upload — the wizard's TEAM step and the manage
- * flyout both post here; a `kind` form field of `banner` targets the
- * banner (default `avatar`). Owner-only: the key is team-scoped, so
- * write access is a membership check rather than a key-prefix check.
- * Replacing an image deletes the old object best-effort.
+ * Team image upload — the wizard's TEAM step and the manage flyout both
+ * post here; the `kind` form field picks the target (default `avatar`).
+ * The key is team-scoped, so write access is a membership check rather
+ * than a key-prefix check: avatar/banner are owner-only and land on the
+ * `teams` row (replacing deletes the old object best-effort); `project`
+ * is member-level and only mints an object — the key is attached to a
+ * showcase row via `addTeamProject`/`updateTeamProject`.
  */
 async function handleTeamAvatarUpload(request: Request) {
   if (request.method !== "POST") {
@@ -188,10 +195,13 @@ async function handleTeamAvatarUpload(request: Request) {
   if (typeof teamId !== "string" || !teamId) {
     return Response.json({ message: 'Expected a "teamId" form field.' }, { status: 400 });
   }
-  if (kindField !== "avatar" && kindField !== "banner") {
-    return Response.json({ message: '"kind" must be "avatar" or "banner".' }, { status: 400 });
+  if (kindField !== "avatar" && kindField !== "banner" && kindField !== "project") {
+    return Response.json(
+      { message: '"kind" must be "avatar", "banner", or "project".' },
+      { status: 400 },
+    );
   }
-  const kind: "avatar" | "banner" = kindField;
+  const kind: "avatar" | "banner" | "project" = kindField;
 
   const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
   if (!team) {
@@ -202,14 +212,24 @@ async function handleTeamAvatarUpload(request: Request) {
     .from(teamMembers)
     .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, session.user.id)))
     .limit(1);
-  if (membership?.role !== "owner") {
+  if (kind === "project" ? !membership : membership?.role !== "owner") {
     return Response.json(
-      { message: `Only the team owner can change the ${kind}.` },
+      kind === "project"
+        ? { message: "Only team members can upload showcase images." }
+        : { message: `Only the team owner can change the ${kind}.` },
       { status: 403 },
     );
   }
 
   try {
+    if (kind === "project") {
+      const uploaded = await uploadImageToStorage({
+        file: image,
+        objectKey: buildTeamProjectImageObjectKey(teamId, image.name),
+      });
+      return Response.json(uploaded, { status: 201 });
+    }
+
     const uploaded = await uploadImageToStorage({
       file: image,
       objectKey:
@@ -325,6 +345,74 @@ async function handleProjectImageUpload(request: Request) {
 
     console.error(error);
     const message = error instanceof Error ? error.message : "Failed to upload project cover.";
+    return Response.json({ message }, { status: 500 });
+  }
+}
+
+/**
+ * A collab post's gallery image. The key is **post-scoped**
+ * (`collab-post-images/<postId>/…`) so the objects live and die with the
+ * post rather than the uploader — `removePostImage`/`deletePost` sweep the
+ * namespace, and account deletion (which only clears the uploader's own
+ * `profile-projects/` keys) leaves a live post's gallery intact. Author-only,
+ * matching `addPostImage`, which is where the returned key gets attached.
+ */
+async function handleCollabPostImageUpload(request: Request) {
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { Allow: "POST" },
+    });
+  }
+
+  const session = await readUploadSession(request);
+  if (!session) {
+    return Response.json({ message: "Authentication required." }, { status: 401 });
+  }
+  if (!(await imageUploadAllowed(session.user.id))) {
+    return UPLOAD_LIMIT_RESPONSE();
+  }
+
+  const formData = await request.formData().catch(() => null);
+  const image = formData?.get("image");
+  const postIdField = formData?.get("postId");
+  if (!(image instanceof File)) {
+    return Response.json(
+      { message: 'Expected an image file in the "image" form field.' },
+      { status: 400 },
+    );
+  }
+  const postId = typeof postIdField === "string" ? Number(postIdField) : NaN;
+  if (!Number.isInteger(postId)) {
+    return Response.json({ message: 'Expected a numeric "postId" form field.' }, { status: 400 });
+  }
+
+  const [post] = await db
+    .select({ authorId: collabPosts.authorId })
+    .from(collabPosts)
+    .where(eq(collabPosts.id, postId))
+    .limit(1);
+  if (!post) {
+    return Response.json({ message: "Post not found." }, { status: 404 });
+  }
+  if (post.authorId !== session.user.id) {
+    return Response.json({ message: "Only the post owner can upload images." }, { status: 403 });
+  }
+
+  try {
+    const uploaded = await uploadImageToStorage({
+      file: image,
+      objectKey: buildCollabPostImageObjectKey(postId, image.name),
+    });
+
+    return Response.json(uploaded, { status: 201 });
+  } catch (error) {
+    if (error instanceof ProfileProjectImageUploadError) {
+      return Response.json({ message: error.message }, { status: error.status });
+    }
+
+    console.error(error);
+    const message = error instanceof Error ? error.message : "Failed to upload post image.";
     return Response.json({ message }, { status: 500 });
   }
 }

@@ -1,3 +1,12 @@
+import {
+  BubbleChatIcon,
+  Calendar03Icon,
+  Megaphone01Icon,
+  Notification03Icon,
+  Shield02Icon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
 import { Text } from "@/components/ui/typography";
@@ -23,6 +32,31 @@ export type NotificationItem = {
  *  type simply matches no inbox tab. */
 export function categoryOf(type: string): NotificationCategory | null {
   return (NOTIFICATION_CATEGORY as Record<string, NotificationCategory>)[type] ?? null;
+}
+
+const CATEGORY_ICON: Record<NotificationCategory, IconSvgElement> = {
+  collab: Megaphone01Icon,
+  teams: UserGroupIcon,
+  jams: Calendar03Icon,
+  comments: BubbleChatIcon,
+  moderation: Shield02Icon,
+};
+
+/** System notifications have no actor, so the frame that would hold an
+ *  avatar shows the category's icon instead of the "?" initial fallback. */
+function CategoryGlyph({ type, size }: { type: string; size: number }) {
+  const category = categoryOf(type);
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center border border-border bg-muted text-muted-foreground"
+      style={{ width: size, height: size }}
+    >
+      <HugeiconsIcon
+        icon={category ? CATEGORY_ICON[category] : Notification03Icon}
+        size={Math.round(size * 0.5)}
+      />
+    </div>
+  );
 }
 
 export function renderCopy(n: NotificationItem): {
@@ -279,11 +313,15 @@ export function NotificationRow({
         !n.readAt && "bg-primary/5",
       )}
     >
-      <UserAvatar
-        avatarUrl={n.actorAvatarUrl}
-        username={n.actorUsername}
-        size={isComfortable ? 36 : 28}
-      />
+      {n.actorId ? (
+        <UserAvatar
+          avatarUrl={n.actorAvatarUrl}
+          username={n.actorUsername}
+          size={isComfortable ? 36 : 28}
+        />
+      ) : (
+        <CategoryGlyph type={n.type} size={isComfortable ? 36 : 28} />
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className={cn("leading-snug text-foreground/90", isComfortable ? "text-sm" : "text-xs")}>
           {line}

@@ -45,7 +45,10 @@ import {
   getProfileProjectImageUrl,
   removeProfileProjectImageFromStorage,
 } from "@/lib/profile-project-image-storage";
-import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
+import {
+  isOwnedProfileProjectImageKey,
+  uploadedImageUrlSchema,
+} from "@/lib/profile-project-images";
 import {
   PROFILE_PROJECT_SUBTYPES,
   type ProfileProjectSubType,
@@ -332,7 +335,7 @@ const projectLinksSchema = z
 const uploadedProjectImageSchema = z
   .object({
     key: z.string().min(1),
-    url: z.url(),
+    url: uploadedImageUrlSchema,
     filename: z.string().min(1),
     mimeType: z.string().min(1),
     sizeBytes: z.number().int().positive(),

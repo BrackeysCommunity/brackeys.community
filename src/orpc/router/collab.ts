@@ -36,8 +36,10 @@ import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
+  removeProfileProjectImageFromStorage,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
+import { isCollabPostImageKey, uploadedImageUrlSchema } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { escapeLike } from "@/lib/sql-like";
@@ -583,7 +585,21 @@ export const deletePost = os
       throw new ORPCError("FORBIDDEN", { message: "You can only delete your own posts." });
     }
 
+    // Gallery objects live outside the DB cascade; collect keys before the
+    // rows disappear. Only post-namespace keys are swept — legacy rows point
+    // into uploaders' profile namespaces. Best-effort, like every other sweep.
+    const images = await db
+      .select({ imageKey: collabPostImages.imageKey })
+      .from(collabPostImages)
+      .where(eq(collabPostImages.postId, input.postId));
     await db.delete(collabPosts).where(eq(collabPosts.id, input.postId));
+    for (const { imageKey } of images) {
+      if (imageKey && isCollabPostImageKey(input.postId, imageKey)) {
+        await removeProfileProjectImageFromStorage(imageKey).catch((error: unknown) => {
+          console.error("Failed to delete collab post image", { key: imageKey, error });
+        });
+      }
+    }
     return { success: true };
   });
 
@@ -841,8 +857,8 @@ export const getPost = os
       author = { ...authorProfile, skills: authorSkills };
     }
 
-    // Re-presign each image's URL — `images.url` was generated at
-    // upload time and the presigned link inside it has likely expired.
+    // Resolve each image's key to the stable `/images/` URL; the stored
+    // `url` column is only the fallback for rows whose key can't resolve.
     const presignedImages = await Promise.all(
       images.map(async (img) => ({
         ...img,
@@ -1154,6 +1170,25 @@ export const countPostsBySkill = os
   });
 
 /**
+ * Per-role post counts for the role picker — same contract as
+ * {@link countPostsBySkill}: every filter except the role facet itself
+ * applies, and roles absent from the result are absent from the map.
+ */
+export const countPostsByRole = os
+  .route({ method: "GET" })
+  .input(z.object(postFilterSchema))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({ roleId: collabPostRoles.roleId, count: count() })
+      .from(collabPostRoles)
+      .innerJoin(collabPosts, eq(collabPosts.id, collabPostRoles.postId))
+      .where(buildPostFilter({ ...input, roleIds: undefined }))
+      .groupBy(collabPostRoles.roleId);
+
+    return Object.fromEntries(rows.map((row) => [row.roleId, Number(row.count)]));
+  });
+
+/**
  * The readout behind the board's idle sidebar: what's open, what those
  * open posts are built in, and which seats they're hiring for. Every
  * figure counts *recruiting* posts only — a stack that's only present on
@@ -1260,10 +1295,8 @@ export const listPosts = os
     // Fetch the primary (first by sortOrder) image per post in a single
     // query, keyed by post id. The card view only needs one preview
     // image, so we don't bother joining the full images relation here.
-    // We presign each URL fresh here — the `url` column captured on
-    // upload is a presigned link that expires after 24h, and even when
-    // unexpired we re-stamp so the response always carries a usable
-    // link.
+    // Keys resolve to the stable `/images/` URL; the stored `url` column
+    // is only the fallback for rows whose key can't resolve.
     const postIds = posts.map((p) => p.id);
     const primaryImagesByPostId = new Map<number, string>();
     if (postIds.length > 0) {
@@ -2021,7 +2054,7 @@ export const addPostImage = os
     z.object({
       postId: z.number(),
       imageKey: z.string(),
-      url: z.url(),
+      url: uploadedImageUrlSchema,
       alt: z.string().max(500).optional(),
       sortOrder: z.number().optional(),
     }),
@@ -2039,6 +2072,14 @@ export const addPostImage = os
 
     if (post.authorId !== context.user.id) {
       throw new ORPCError("FORBIDDEN", { message: "Only the post owner can add images." });
+    }
+
+    // Post-scoped namespace (minted by `/api/collab/post-image`) — the guard
+    // that keeps a post from referencing somebody else's object.
+    if (!isCollabPostImageKey(input.postId, input.imageKey)) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Uploaded image does not belong to this post.",
+      });
     }
 
     const [image] = await db
@@ -2083,6 +2124,13 @@ export const removePostImage = os
     }
 
     await db.delete(collabPostImages).where(eq(collabPostImages.id, input.imageId));
+    // Same namespace-guarded sweep as `deletePost`: legacy keys in an
+    // uploader's profile namespace stay put.
+    if (isCollabPostImageKey(image.postId, image.imageKey)) {
+      await removeProfileProjectImageFromStorage(image.imageKey).catch((error: unknown) => {
+        console.error("Failed to delete collab post image", { key: image.imageKey, error });
+      });
+    }
     return { success: true };
   });
 

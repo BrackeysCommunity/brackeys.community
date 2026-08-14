@@ -1,10 +1,10 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
 import { useMemo } from "react";
 
-import { collabFilterInput, collabStore } from "@/lib/collab-store";
 import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
 import { client, orpc } from "@/orpc/client";
+
+import { collabFacetInput, sortPreset, useCollabBoardSearch } from "./collab-filters";
 
 const PAGE_SIZE = 20;
 
@@ -30,8 +30,9 @@ export type CollabListingItem = {
  * against each post's stack in the browser.
  */
 export function useCollabListing(currentUserId?: string | null) {
-  const filters = useStore(collabStore, (s) => s.filters);
-  const filterInput = collabFilterInput(filters);
+  const { search } = useCollabBoardSearch();
+  const filterInput = collabFacetInput(search);
+  const { by: sortBy, order: sortOrder } = sortPreset(search.sort);
 
   // One request per session, not per page of posts — skills change about
   // as often as someone edits their profile.
@@ -42,12 +43,12 @@ export function useCollabListing(currentUserId?: string | null) {
   });
 
   const postsQuery = useInfiniteQuery({
-    queryKey: ["listPosts", filterInput, filters.sortBy, filters.sortOrder],
+    queryKey: ["listPosts", filterInput, sortBy, sortOrder],
     queryFn: ({ pageParam = 0 }) =>
       client.listPosts({
         ...filterInput,
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder,
+        sortBy,
+        sortOrder,
         limit: PAGE_SIZE,
         offset: pageParam as number,
       }),

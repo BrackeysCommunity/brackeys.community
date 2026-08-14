@@ -37,7 +37,6 @@ function getMinioClient() {
 
   const url = new URL(endpoint.includes("://") ? endpoint : `https://${endpoint}`);
 
-  console.log(url);
   minioClient = new Client({
     endPoint: url.hostname,
     port: url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80,

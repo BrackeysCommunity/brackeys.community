@@ -172,24 +172,28 @@ export const COMP_SLIDER_CONFIG: Record<string, CompSliderConfig> = {
 
 // ── MinIO upload ───────────────────────────────────────────────────────────
 
-/** Server response from `/api/profile/project-image`. */
+/** Server response from the image-upload endpoints. */
 export interface UploadedImageRecord {
   key: string;
   url: string;
 }
 
 /**
- * Upload a single project image to MinIO via
- * `/api/profile/project-image`. Called at submit time once the user
- * actually finalises the post — see `CollabCreateForm`. While the
- * wizard is open the file lives in-memory as `UploadedImage.file` so
- * abandoned drafts never write to the bucket.
+ * Upload a single post image to MinIO via `/api/collab/post-image`
+ * (author-only, post-scoped key). Called at submit time once the post
+ * exists — see `CollabCreateForm`. While the wizard is open the file
+ * lives in-memory as `UploadedImage.file` so abandoned drafts never
+ * write to the bucket.
  */
-export async function uploadCollabPostImage(file: File): Promise<UploadedImageRecord> {
+export async function uploadCollabPostImage(
+  postId: number,
+  file: File,
+): Promise<UploadedImageRecord> {
   const formData = new FormData();
   formData.append("image", file);
+  formData.append("postId", String(postId));
 
-  const response = await fetch("/api/profile/project-image", {
+  const response = await fetch("/api/collab/post-image", {
     method: "POST",
     body: formData,
   });

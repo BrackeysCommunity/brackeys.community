@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -21,12 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import {
-  draftFromPost,
-  isEditablePostType,
-  setCollabFilters,
-  startWizardEdit,
-} from "@/lib/collab-store";
+import { draftFromPost, isEditablePostType, startWizardEdit } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
@@ -106,6 +101,20 @@ export function CollabPostDetail({
     staleTime: 30 * 1000,
     initialData: initialPost,
   });
+
+  // The "all posts for…" shortcuts are deep links to a filtered board.
+  // From the board itself the patch merges into the search in place (the
+  // selected post stays put); from the standalone post page or the admin
+  // surface it lands on /collab carrying just the one constraint — the
+  // destination schema strips whatever else the source route's search
+  // held.
+  const navigate = useNavigate();
+  const filterBoard = (patch: Record<string, unknown>) =>
+    navigate({
+      to: "/collab",
+      search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }),
+      resetScroll: false,
+    });
 
   const {
     close: closeMutation,
@@ -296,7 +305,7 @@ export function CollabPostDetail({
                   </Text>
                   <button
                     type="button"
-                    onClick={() => setCollabFilters({ jamId: post.jam!.jamId })}
+                    onClick={() => filterBoard({ jam: post.jam!.jamId })}
                     className="self-start font-mono text-[10px] tracking-widest text-primary uppercase outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     All posts for this jam →
@@ -334,7 +343,7 @@ export function CollabPostDetail({
                   </Text>
                   <button
                     type="button"
-                    onClick={() => setCollabFilters({ projectId: post.project!.id })}
+                    onClick={() => filterBoard({ project: post.project!.id })}
                     className="self-start font-mono text-[10px] tracking-widest text-primary uppercase outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     All posts for this project →
@@ -405,7 +414,7 @@ export function CollabPostDetail({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setCollabFilters({ skillIds: post.skills.map((s) => s.id) })}
+                  onClick={() => filterBoard({ skills: post.skills.map((s) => s.id) })}
                   className="self-start text-xs tracking-widest text-primary uppercase hover:underline"
                 >
                   Browse posts with this stack →

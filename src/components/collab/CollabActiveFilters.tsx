@@ -1,13 +1,12 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
-import { collabStore, resetCollabFilters, setCollabFilters } from "@/lib/collab-store";
 import { orpc } from "@/orpc/client";
 
+import { CLEARED_COLLAB_FILTERS, useCollabBoardSearch } from "./collab-filters";
 import { useCollabResultCount } from "./use-collab-counts";
 
 // Legacy playtest/mentor rows can still be on the board even though the
@@ -27,8 +26,8 @@ const EXPERIENCE_LABELS: Record<string, string> = {
   intermediate: "INTERMEDIATE",
   experienced: "EXPERIENCED",
 };
-/** Stack picks that still read as individual chips rather than a tally. */
-const VISIBLE_SKILL_CHIPS = 3;
+/** Facet picks that still read as individual chips rather than a tally. */
+const VISIBLE_FACET_CHIPS = 3;
 
 const COMP_LABELS: Record<string, string> = {
   hourly: "HOURLY",
@@ -44,109 +43,145 @@ const COMP_LABELS: Record<string, string> = {
  * the rail, and the only way to undo was to hunt for the right segment.
  */
 export function CollabActiveFilters() {
-  const filters = useStore(collabStore, (s) => s.filters);
+  const { search, setSearch } = useCollabBoardSearch();
   const count = useCollabResultCount();
 
-  // Only fetched to name the ids the chips carry — both lists are small
-  // and already cached by the pickers that set these filters.
+  const roleIds = search.roles ?? [];
+  const skillIds = search.skills ?? [];
+
+  // Only fetched to name the ids the chips carry — all these lists are
+  // small and already cached by the pickers that set these filters.
   const { data: jamData } = useQuery({
     ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
-    enabled: filters.jamId !== undefined,
+    enabled: search.jam !== undefined,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: roleData } = useQuery({
+    ...orpc.listCollabRoles.queryOptions({ input: {} }),
+    enabled: roleIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
   const { data: skillData } = useQuery({
     ...orpc.listSkills.queryOptions({ input: {} }),
-    enabled: filters.skillIds.length > 0,
+    enabled: skillIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
   const { data: teamData } = useQuery({
-    ...orpc.getTeam.queryOptions({ input: { teamId: filters.teamId ?? "" } }),
-    enabled: filters.teamId !== undefined,
+    ...orpc.getTeam.queryOptions({ input: { teamId: search.team ?? "" } }),
+    enabled: search.team !== undefined,
     staleTime: 5 * 60 * 1000,
   });
   const { data: projectData } = useQuery({
-    ...orpc.getProject.queryOptions({ input: { idOrSlug: filters.projectId ?? "" } }),
-    enabled: filters.projectId !== undefined,
+    ...orpc.getProject.queryOptions({ input: { idOrSlug: search.project ?? "" } }),
+    enabled: search.project !== undefined,
     staleTime: 5 * 60 * 1000,
   });
 
   const chips: { key: string; label: string; clear: () => void }[] = [];
-  if (filters.type) {
+  if (search.type) {
     chips.push({
       key: "type",
-      label: TYPE_LABELS[filters.type] ?? filters.type,
-      clear: () => setCollabFilters({ type: undefined }),
+      label: TYPE_LABELS[search.type] ?? search.type,
+      clear: () => setSearch({ type: undefined }),
     });
   }
-  if (filters.status) {
+  if (search.status) {
     chips.push({
       key: "status",
-      label: STATUS_LABELS[filters.status] ?? filters.status,
-      clear: () => setCollabFilters({ status: undefined }),
+      label: STATUS_LABELS[search.status] ?? search.status,
+      clear: () => setSearch({ status: undefined }),
     });
   }
-  if (filters.experienceLevel && filters.experienceLevel !== "any") {
+  if (search.level) {
     chips.push({
       key: "level",
-      label: EXPERIENCE_LABELS[filters.experienceLevel] ?? filters.experienceLevel,
-      clear: () => setCollabFilters({ experienceLevel: undefined }),
+      label: EXPERIENCE_LABELS[search.level] ?? search.level,
+      clear: () => setSearch({ level: undefined }),
     });
   }
-  if (filters.compensationType) {
+  if (search.comp) {
     chips.push({
       key: "comp",
-      label: COMP_LABELS[filters.compensationType] ?? filters.compensationType,
-      clear: () => setCollabFilters({ compensationType: undefined }),
+      label: COMP_LABELS[search.comp] ?? search.comp,
+      clear: () => setSearch({ comp: undefined }),
     });
   }
-  if (filters.jamId !== undefined) {
-    const jam = jamData?.jams.find((j) => j.jamId === filters.jamId);
+  if (search.solo !== undefined) {
+    chips.push({
+      key: "solo",
+      label: search.solo ? "SOLO DEVS" : "TEAMS",
+      clear: () => setSearch({ solo: undefined }),
+    });
+  }
+  if (search.jam !== undefined) {
+    const jam = jamData?.jams.find((j) => j.jamId === search.jam);
     chips.push({
       key: "jam",
-      label: (jam?.title ?? `JAM #${filters.jamId}`).toUpperCase(),
-      clear: () => setCollabFilters({ jamId: undefined }),
+      label: (jam?.title ?? `JAM #${search.jam}`).toUpperCase(),
+      clear: () => setSearch({ jam: undefined }),
     });
   }
-  if (filters.teamId !== undefined) {
+  if (search.team !== undefined) {
     chips.push({
       key: "team",
       label: `TEAM: ${(teamData?.name ?? "…").toUpperCase()}`,
-      clear: () => setCollabFilters({ teamId: undefined }),
+      clear: () => setSearch({ team: undefined }),
     });
   }
-  if (filters.projectId !== undefined) {
+  if (search.project !== undefined) {
     chips.push({
       key: "project",
       label: `PROJECT: ${(projectData?.project.title ?? "…").toUpperCase()}`,
-      clear: () => setCollabFilters({ projectId: undefined }),
+      clear: () => setSearch({ project: undefined }),
     });
   }
-  // The stack vocabulary is the one facet that can hold a dozen values at
-  // once, and a chip apiece pushed the board itself below the fold. Past
-  // a couple, they collapse into one chip that clears the lot — the
-  // picker is where an individual entry comes back off.
-  if (filters.skillIds.length > VISIBLE_SKILL_CHIPS) {
+  // Multi-value facets can hold a dozen values at once, and a chip apiece
+  // pushed the board itself below the fold. Past a couple, they collapse
+  // into one chip that clears the lot — the picker is where an individual
+  // entry comes back off.
+  if (roleIds.length > VISIBLE_FACET_CHIPS) {
     chips.push({
-      key: "skills",
-      label: `STACK · ${filters.skillIds.length}`,
-      clear: () => setCollabFilters({ skillIds: [] }),
+      key: "roles",
+      label: `ROLES · ${roleIds.length}`,
+      clear: () => setSearch({ roles: undefined }),
     });
   } else {
-    for (const skillId of filters.skillIds) {
+    for (const roleId of roleIds) {
+      const role = roleData?.find((r) => r.id === roleId);
+      chips.push({
+        key: `role-${roleId}`,
+        label: (role?.name ?? `#${roleId}`).toUpperCase(),
+        clear: () => {
+          const remaining = roleIds.filter((id) => id !== roleId);
+          setSearch({ roles: remaining.length > 0 ? remaining : undefined });
+        },
+      });
+    }
+  }
+  if (skillIds.length > VISIBLE_FACET_CHIPS) {
+    chips.push({
+      key: "skills",
+      label: `STACK · ${skillIds.length}`,
+      clear: () => setSearch({ skills: undefined }),
+    });
+  } else {
+    for (const skillId of skillIds) {
       const skill = skillData?.find((s) => s.id === skillId);
       chips.push({
         key: `skill-${skillId}`,
         label: (skill?.name ?? `#${skillId}`).toUpperCase(),
-        clear: () =>
-          setCollabFilters({ skillIds: filters.skillIds.filter((id) => id !== skillId) }),
+        clear: () => {
+          const remaining = skillIds.filter((id) => id !== skillId);
+          setSearch({ skills: remaining.length > 0 ? remaining : undefined });
+        },
       });
     }
   }
-  if (filters.search) {
+  if (search.q) {
     chips.push({
       key: "search",
-      label: `“${filters.search}”`,
-      clear: () => setCollabFilters({ search: "" }),
+      label: `“${search.q}”`,
+      clear: () => setSearch({ q: undefined }),
     });
   }
 
@@ -183,7 +218,7 @@ export function CollabActiveFilters() {
           <Button
             variant="ghost"
             size="xs"
-            onClick={resetCollabFilters}
+            onClick={() => setSearch(CLEARED_COLLAB_FILTERS)}
             className="tracking-widest text-muted-foreground"
           >
             CLEAR ALL

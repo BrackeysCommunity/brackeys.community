@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { draftFromPost, collabFilterInput } from "@/lib/collab-store";
+import { collabFacetInput } from "@/components/collab/collab-filters";
+import { draftFromPost } from "@/lib/collab-store";
 import router from "@/orpc/router";
 import { postContentSchema } from "@/orpc/router/collab";
 import { slugifyTeamName } from "@/orpc/router/team";
@@ -101,22 +102,7 @@ describe("team link on posts", () => {
   });
 
   it("passes the team constraint through the board filter input", () => {
-    const base = {
-      type: undefined,
-      roleIds: [],
-      skillIds: [],
-      jamId: undefined,
-      teamId: undefined,
-      projectId: undefined,
-      status: undefined,
-      search: "",
-      sortBy: "createdAt" as const,
-      sortOrder: "desc" as const,
-      experienceLevel: undefined,
-      compensationType: undefined,
-      isIndividual: undefined,
-    };
-    expect(collabFilterInput({ ...base, teamId: "team-uuid" }).teamId).toBe("team-uuid");
-    expect(collabFilterInput(base).teamId).toBeUndefined();
+    expect(collabFacetInput({ team: "team-uuid" }).teamId).toBe("team-uuid");
+    expect(collabFacetInput({}).teamId).toBeUndefined();
   });
 });

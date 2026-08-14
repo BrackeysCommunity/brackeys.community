@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -15,15 +15,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
-import {
-  beginWizardCreate,
-  collabStore,
-  resetWizard,
-  setCollabFilters,
-  updateWizardDraft,
-} from "@/lib/collab-store";
+import { beginWizardCreate, collabStore, resetWizard, updateWizardDraft } from "@/lib/collab-store";
 import { orpc } from "@/orpc/client";
 
+import { type CollabBoardSearch } from "./collab-filters";
 import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
 import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel";
@@ -32,24 +27,6 @@ import { CollabPostFeed } from "./CollabPostFeed";
 import { CollabPostPopover } from "./CollabPostPopover";
 import { COLLAB_SEARCH_INPUT_ID, CollabFloatingControls, CollabToolbar } from "./CollabToolbar";
 import { useCollabListing } from "./use-collab-listing";
-
-interface CollabSearch {
-  new?: boolean;
-  /** The selected post. Drives the inspector pane on desktop and the
-   *  detail overlay on narrow screens, so selection is shareable. */
-  post?: number;
-  /** With `new`: the jam to preselect in the wizard. On its own: the
-   *  jam the board is filtered to. */
-  jam?: number;
-  /** Tech-stack filter, so a narrowed board is shareable. */
-  skills?: number[];
-  /** With `new`: the team to pre-link in the wizard. On its own: the
-   *  team the board is filtered to. */
-  team?: string;
-  /** With `new`: the project to pre-link in the wizard. On its own: the
-   *  project the board is filtered to. */
-  project?: string;
-}
 
 /** Matches the `lg` breakpoint that switches the board to two panes. */
 const SPLIT_QUERY = "(min-width: 1024px)";
@@ -149,7 +126,7 @@ function useIsSplitView() {
 export function CollabBrowsePage() {
   const { session, isPending } = useStore(authStore);
   const navigate = useNavigate();
-  const search = (useSearch({ strict: false }) as CollabSearch) ?? {};
+  const search = (useSearch({ strict: false }) as CollabBoardSearch) ?? {};
   const isSplit = useIsSplitView();
   // Keyed on the shell's breakpoint, not this board's: the floating controls
   // sit above the bottom nav island, which only the mobile shell mounts.
@@ -176,7 +153,9 @@ export function CollabBrowsePage() {
   // redirects here with `?new=1`), or via a jam's "FIND A TEAM" CTA
   // (`?new=1&jam=<id>`), which additionally preselects that jam. After
   // consuming the flags we strip them from the URL so back-navigation
-  // doesn't loop — `jam` means "preselect", not "filter", in this pair.
+  // doesn't loop — with `new`, `jam`/`team`/`project` mean "preselect",
+  // not "filter", so they're consumed too. Everything else in the search
+  // (the board's filters) survives.
   //
   // The split is deliberate: opening is local state adjusted during render off
   // a routing input, while seeding the wizard store and rewriting the URL are
@@ -206,53 +185,19 @@ export function CollabBrowsePage() {
     if (projectForNewPost !== undefined) {
       updateWizardDraft({ projectId: projectForNewPost });
     }
-    navigate({ to: "/collab", search: {}, replace: true, resetScroll: false });
-  }, [search.new, jamForNewPost, teamForNewPost, projectForNewPost, navigate]);
-
-  // Board filters that live in the URL are read once, on arrival; from
-  // then on the store owns them and pushes back (below). Skipped when
-  // `new` is present, where `jam` addresses the wizard instead.
-  const hydratedFromUrl = useRef(false);
-  useEffect(() => {
-    if (hydratedFromUrl.current || search.new) return;
-    hydratedFromUrl.current = true;
-    if (
-      search.jam !== undefined ||
-      search.team !== undefined ||
-      search.project !== undefined ||
-      (search.skills?.length ?? 0) > 0
-    ) {
-      setCollabFilters({
-        jamId: search.jam,
-        teamId: search.team,
-        projectId: search.project,
-        skillIds: search.skills ?? [],
-      });
-    }
-  }, [search.new, search.jam, search.team, search.project, search.skills]);
-
-  // …and the reverse: filter changes rewrite the URL so any narrowed
-  // board can be linked. `replace` because filtering is refinement, not
-  // navigation — Back should leave the board, not undo one chip.
-  const jamFilter = useStore(collabStore, (s) => s.filters.jamId);
-  const teamFilter = useStore(collabStore, (s) => s.filters.teamId);
-  const projectFilter = useStore(collabStore, (s) => s.filters.projectId);
-  const skillFilters = useStore(collabStore, (s) => s.filters.skillIds);
-  useEffect(() => {
-    if (!hydratedFromUrl.current) return;
     navigate({
-      to: "/collab",
-      search: (prev: CollabSearch) => ({
+      from: "/collab/",
+      search: (prev) => ({
         ...prev,
-        jam: jamFilter,
-        team: teamFilter,
-        project: projectFilter,
-        skills: skillFilters.length > 0 ? skillFilters : undefined,
+        new: undefined,
+        jam: undefined,
+        team: undefined,
+        project: undefined,
       }),
       replace: true,
       resetScroll: false,
     });
-  }, [jamFilter, teamFilter, projectFilter, skillFilters, navigate]);
+  }, [search.new, jamForNewPost, teamForNewPost, projectForNewPost, navigate]);
 
   // Selection lives in the URL so it survives reload, back/forward, and
   // sharing. Clicking pushes (back returns to the idle pane); walking
@@ -267,8 +212,8 @@ export function CollabBrowsePage() {
   const selectPost = useCallback(
     (postId: number, replace = false) => {
       navigate({
-        to: "/collab",
-        search: (prev: CollabSearch) => ({ ...prev, post: postId }),
+        from: "/collab/",
+        search: (prev) => ({ ...prev, post: postId }),
         replace,
         resetScroll: false,
       });
@@ -277,8 +222,8 @@ export function CollabBrowsePage() {
   );
   const clearSelection = useCallback(() => {
     navigate({
-      to: "/collab",
-      search: (prev: CollabSearch) => ({ ...prev, post: undefined }),
+      from: "/collab/",
+      search: (prev) => ({ ...prev, post: undefined }),
       replace: false,
       resetScroll: false,
     });

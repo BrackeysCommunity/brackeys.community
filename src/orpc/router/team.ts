@@ -31,7 +31,7 @@ import {
   resolveTeamAvatarUrl,
   resolveTeamBannerUrl,
 } from "@/lib/profile-project-image-storage";
-import { isOwnedProfileProjectImageKey } from "@/lib/profile-project-images";
+import { isTeamProjectImageKey, uploadedImageUrlSchema } from "@/lib/profile-project-images";
 import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
 import { checkRateLimit } from "@/lib/rate-limit";
 // The house home for LIKE escaping — this file carried its own copy, which
@@ -304,11 +304,21 @@ export const deleteTeam = os
   .handler(async ({ input, context }) => {
     const team = await getTeamRow(input.teamId);
     await requireOwnership(input.teamId, context.user.id);
+    // Showcase covers in the team's namespace go down with the team; the
+    // rows cascade, so collect keys first. Imported rows keep user-scoped
+    // keys and are filtered out by the namespace check.
+    const showcaseImages = await db
+      .select({ imageKey: teamProjects.imageKey })
+      .from(teamProjects)
+      .where(eq(teamProjects.teamId, input.teamId));
+    const showcaseKeys = showcaseImages
+      .map(({ imageKey }) => imageKey)
+      .filter((key): key is string => !!key && isTeamProjectImageKey(input.teamId, key));
     await db.delete(teams).where(eq(teams.id, input.teamId));
     // Replaced images are cleaned at replace time, so the current keys are
     // the only objects this team owns. Best-effort — an orphaned object is
     // a storage leak, not a correctness problem.
-    for (const key of [team.avatarKey, team.bannerKey]) {
+    for (const key of [team.avatarKey, team.bannerKey, ...showcaseKeys]) {
       if (key) {
         await removeProfileProjectImageFromStorage(key).catch((error: unknown) => {
           console.error("Failed to delete team image on team delete", { key, error });
@@ -1345,7 +1355,7 @@ const teamProjectShape = {
   image: z
     .object({
       key: z.string().min(1),
-      url: z.url(),
+      url: uploadedImageUrlSchema,
       filename: z.string().min(1),
       mimeType: z.string().min(1),
       sizeBytes: z.number().int().positive(),
@@ -1371,9 +1381,12 @@ export const addTeamProject = os
     await requireMembership(input.teamId, context.user.id);
     checkProfanity(input.title, "Title");
     if (input.description) checkProfanity(input.description, "Description");
-    if (input.image && !isOwnedProfileProjectImageKey(context.user.id, input.image.key)) {
+    // Team-scoped namespace (minted by `/api/team/avatar` kind=project), so
+    // the showcase image survives the uploader's account and can be swept
+    // with the row — never a user-scoped key.
+    if (input.image && !isTeamProjectImageKey(input.teamId, input.image.key)) {
       throw new ORPCError("BAD_REQUEST", {
-        message: "Uploaded image does not belong to the current user.",
+        message: "Uploaded image does not belong to this team.",
       });
     }
 
@@ -1530,6 +1543,17 @@ export const updateTeamProject = os
       title: z.string().trim().min(1).max(200).optional(),
       description: z.string().max(2000).optional().nullable(),
       url: optionalUrlSchema.nullable(),
+      // `null` clears the cover; omitted leaves it untouched.
+      image: z
+        .object({
+          key: z.string().min(1),
+          url: uploadedImageUrlSchema,
+          filename: z.string().min(1),
+          mimeType: z.string().min(1),
+          sizeBytes: z.number().int().positive(),
+        })
+        .optional()
+        .nullable(),
       pinned: z.boolean().optional(),
       sortOrder: z.number().int().optional(),
     }),
@@ -1553,6 +1577,11 @@ export const updateTeamProject = os
     }
     if (input.title) checkProfanity(input.title, "Title");
     if (input.description) checkProfanity(input.description, "Description");
+    if (input.image && !isTeamProjectImageKey(input.teamId, input.image.key)) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Uploaded image does not belong to this team.",
+      });
+    }
 
     const [updated] = await db
       .update(teamProjects)
@@ -1560,11 +1589,35 @@ export const updateTeamProject = os
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description || null } : {}),
         ...(input.url !== undefined ? { url: input.url || null } : {}),
+        ...(input.image !== undefined
+          ? {
+              imageUrl: null,
+              imageKey: input.image?.key ?? null,
+              imageFilename: input.image?.filename ?? null,
+              imageMimeType: input.image?.mimeType ?? null,
+              imageSizeBytes: input.image?.sizeBytes ?? null,
+            }
+          : {}),
         ...(input.pinned !== undefined ? { pinned: input.pinned } : {}),
         ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
       })
       .where(eq(teamProjects.id, input.projectId))
       .returning();
+
+    // Only objects in this team's namespace are swept — an imported row can
+    // share its key with the source profile project, and that object belongs
+    // to the member's own placement.
+    const previousKey = project.imageKey;
+    if (
+      input.image !== undefined &&
+      previousKey &&
+      previousKey !== input.image?.key &&
+      isTeamProjectImageKey(input.teamId, previousKey)
+    ) {
+      await removeProfileProjectImageFromStorage(previousKey).catch((error: unknown) => {
+        console.error("Failed to delete replaced team project cover", { key: previousKey, error });
+      });
+    }
 
     // Identity lives on the canonical row and the showcase reads it from
     // there, so the edit has to land there to be visible — same write-through
@@ -1604,7 +1657,11 @@ export const removeTeamProject = os
     const membership = await requireMembership(input.teamId, context.user.id);
 
     const [project] = await db
-      .select({ id: teamProjects.id, addedBy: teamProjects.addedBy })
+      .select({
+        id: teamProjects.id,
+        addedBy: teamProjects.addedBy,
+        imageKey: teamProjects.imageKey,
+      })
       .from(teamProjects)
       .where(and(eq(teamProjects.id, input.projectId), eq(teamProjects.teamId, input.teamId)))
       .limit(1);
@@ -1617,8 +1674,14 @@ export const removeTeamProject = os
       });
     }
 
-    // Imported rows may share their image object with the source profile
-    // project, so storage cleanup is deliberately skipped here.
     await db.delete(teamProjects).where(eq(teamProjects.id, input.projectId));
+    // Only team-namespace objects are swept: imported rows share their image
+    // object with the source profile project, and that key stays theirs.
+    if (project.imageKey && isTeamProjectImageKey(input.teamId, project.imageKey)) {
+      const key = project.imageKey;
+      await removeProfileProjectImageFromStorage(key).catch((error: unknown) => {
+        console.error("Failed to delete team project cover", { key, error });
+      });
+    }
     return { success: true };
   });

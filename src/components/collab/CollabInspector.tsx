@@ -8,11 +8,12 @@ import { GraphPaper } from "@/components/ui/graph-paper";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import { type CollabPostType, collabStore, setCollabFilters } from "@/lib/collab-store";
+import { type CollabPostType } from "@/lib/collab-store";
 import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
+import { useCollabBoardSearch } from "./collab-filters";
 import { CollabPostDetail } from "./CollabPostDetail";
 
 interface CollabInspectorProps {
@@ -65,6 +66,7 @@ const TYPE_ROWS: { value: CollabPostType; label: string }[] = [
  * filters the board to it, so the readout doubles as navigation.
  */
 function InspectorIdle({ compact }: { compact?: boolean }) {
+  const { search, setSearch } = useCollabBoardSearch();
   const { data: stats } = useQuery({
     ...orpc.getBoardStats.queryOptions({ input: {} }),
     staleTime: 60 * 1000,
@@ -75,6 +77,13 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
     }),
     staleTime: 60 * 1000,
   });
+
+  // Facet rows toggle rather than replace, so two clicks read as "either".
+  const toggleFacet = (key: "skills" | "roles", id: number) => {
+    const selected = search[key] ?? [];
+    const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+    setSearch({ [key]: next.length > 0 ? next : undefined });
+  };
 
   const total = stats?.open.all ?? 0;
   const topSkills = stats?.topSkills ?? [];
@@ -122,7 +131,7 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
               key={row.value}
               type="button"
               disabled={n === 0}
-              onClick={() => setCollabFilters({ type: row.value, status: "recruiting" })}
+              onClick={() => setSearch({ type: row.value, status: "recruiting" })}
               className="group flex flex-col gap-1 py-1 text-left transition-colors outline-none hover:text-primary focus-visible:text-primary disabled:pointer-events-none disabled:opacity-40"
             >
               <span className="flex items-baseline justify-between gap-3">
@@ -151,7 +160,7 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
             <button
               key={skill.id}
               type="button"
-              onClick={() => toggleSkillFilter(skill.id)}
+              onClick={() => toggleFacet("skills", skill.id)}
               className="group flex items-center gap-2 py-0.5 text-left outline-none"
             >
               <Text
@@ -184,12 +193,30 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
         <div className={cn("flex flex-col gap-2 border-b border-muted/40 py-3", pad)}>
           <SectionLabel>seats being hired for</SectionLabel>
           <div className="flex flex-wrap gap-1">
-            {topRoles.map((role) => (
-              <Badge key={role.id} variant="outline" size="label" className="gap-1.5 uppercase">
-                {role.name}
-                <span className="text-muted-foreground tabular-nums">{role.count}</span>
-              </Badge>
-            ))}
+            {topRoles.map((role) => {
+              const active = (search.roles ?? []).includes(role.id);
+              return (
+                <button
+                  key={role.id}
+                  type="button"
+                  onClick={() => toggleFacet("roles", role.id)}
+                  aria-pressed={active}
+                  className="outline-none"
+                >
+                  <Badge
+                    variant="outline"
+                    size="label"
+                    className={cn(
+                      "gap-1.5 uppercase transition-colors hover:border-primary/50 hover:text-primary",
+                      active && "border-primary text-primary",
+                    )}
+                  >
+                    {role.name}
+                    <span className="text-muted-foreground tabular-nums">{role.count}</span>
+                  </Badge>
+                </button>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -241,14 +268,4 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       {children}
     </Text>
   );
-}
-
-/** Stack rows toggle rather than replace, so two clicks read as "either". */
-function toggleSkillFilter(skillId: number) {
-  const selected = collabStore.state.filters.skillIds;
-  setCollabFilters({
-    skillIds: selected.includes(skillId)
-      ? selected.filter((id) => id !== skillId)
-      : [...selected, skillId],
-  });
 }

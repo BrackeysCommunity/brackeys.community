@@ -22,19 +22,23 @@ import { FacetPicker } from "@/components/ui/facet-picker";
 import { SearchField } from "@/components/ui/search-field";
 import {
   type CollabCompensationType,
-  type CollabExperienceLevel,
   type CollabPostType,
-  type CollabSortBy,
-  type CollabSortOrder,
   type CollabStatus,
   collabStore,
-  setCollabFilters,
   setCollabLayout,
 } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
-import { useCollabSkillCounts } from "./use-collab-counts";
+import {
+  type CollabBoardSearch,
+  type CollabBoardSort,
+  DEFAULT_SORT,
+  SORT_OPTIONS,
+  sortPreset,
+  useCollabBoardSearch,
+} from "./collab-filters";
+import { useCollabRoleCounts, useCollabSkillCounts } from "./use-collab-counts";
 
 export const COLLAB_SEARCH_INPUT_ID = "collab-search";
 
@@ -68,13 +72,21 @@ const COMP_OPTIONS: Option[] = [
   { value: "negotiable", label: "NEGOTIABLE" },
 ];
 
-/** Sort presets pair a column with a direction — one choice, no
- *  separate order toggle to keep in sync. */
-const SORT_OPTIONS: { value: string; label: string; by: CollabSortBy; order: CollabSortOrder }[] = [
-  { value: "createdAt:desc", label: "NEWEST", by: "createdAt", order: "desc" },
-  { value: "createdAt:asc", label: "OLDEST", by: "createdAt", order: "asc" },
-  { value: "updatedAt:desc", label: "RECENTLY ACTIVE", by: "updatedAt", order: "desc" },
+/** Solo devs and teams — the board's two kinds of poster. */
+const POSTER_OPTIONS: Option[] = [
+  { value: "all", label: "ANYONE" },
+  { value: "solo", label: "SOLO DEVS" },
+  { value: "team", label: "TEAMS" },
 ];
+
+/** The `solo` search value behind each poster menu choice. */
+export function posterToSolo(value: string): boolean | undefined {
+  return value === "all" ? undefined : value === "solo";
+}
+
+export function soloToPoster(solo: boolean | undefined): string {
+  return solo === undefined ? "all" : solo ? "solo" : "team";
+}
 
 interface CollabToolbarProps {
   /** Narrow layouts render search + a sheet trigger instead of the menu row. */
@@ -93,7 +105,7 @@ interface CollabToolbarProps {
  * hero's job, not the toolbar's.
  */
 export function CollabToolbar({ onOpenFilters, controlsElsewhere }: CollabToolbarProps) {
-  const filters = useStore(collabStore, (s) => s.filters);
+  const { search, setSearch } = useCollabBoardSearch();
 
   if (controlsElsewhere) return <CollabSearchInput className="h-10 w-full" />;
 
@@ -113,42 +125,45 @@ export function CollabToolbar({ onOpenFilters, controlsElsewhere }: CollabToolba
             <FilterMenu
               label="TYPE"
               options={TYPE_OPTIONS}
-              value={filters.type ?? "all"}
-              onChange={(v) =>
-                setCollabFilters({ type: v === "all" ? undefined : (v as CollabPostType) })
-              }
+              value={search.type ?? "all"}
+              onChange={(v) => setSearch({ type: v === "all" ? undefined : (v as CollabPostType) })}
             />
+            <RoleFilterMenu selected={search.roles ?? []} />
             <FilterMenu
               label="STATUS"
               options={STATUS_OPTIONS}
-              value={filters.status ?? "any"}
-              onChange={(v) =>
-                setCollabFilters({ status: v === "any" ? undefined : (v as CollabStatus) })
-              }
+              value={search.status ?? "any"}
+              onChange={(v) => setSearch({ status: v === "any" ? undefined : (v as CollabStatus) })}
             />
             <FilterMenu
               label="LEVEL"
               options={EXPERIENCE_OPTIONS}
-              value={filters.experienceLevel ?? "any"}
+              value={search.level ?? "any"}
               onChange={(v) =>
-                setCollabFilters({
-                  experienceLevel: v === "any" ? undefined : (v as CollabExperienceLevel),
+                setSearch({
+                  level: v === "any" ? undefined : (v as CollabBoardSearch["level"]),
                 })
               }
             />
-            {filters.type === "paid" ? (
+            {search.type === "paid" ? (
               <FilterMenu
                 label="PAY"
                 options={COMP_OPTIONS}
-                value={filters.compensationType ?? "all"}
+                value={search.comp ?? "all"}
                 onChange={(v) =>
-                  setCollabFilters({
-                    compensationType: v === "all" ? undefined : (v as CollabCompensationType),
+                  setSearch({
+                    comp: v === "all" ? undefined : (v as CollabCompensationType),
                   })
                 }
               />
             ) : null}
-            <StackFilterMenu selected={filters.skillIds} />
+            <StackFilterMenu selected={search.skills ?? []} />
+            <FilterMenu
+              label="POSTED BY"
+              options={POSTER_OPTIONS}
+              value={soloToPoster(search.solo)}
+              onChange={(v) => setSearch({ solo: posterToSolo(v) })}
+            />
           </>
         )}
 
@@ -166,11 +181,10 @@ export function CollabToolbar({ onOpenFilters, controlsElsewhere }: CollabToolba
  * trigger and would nest a button in a button.
  */
 function CollabDisplayControls({ large }: { large?: boolean }) {
-  const filters = useStore(collabStore, (s) => s.filters);
+  const { search, setSearch } = useCollabBoardSearch();
   const layout = useStore(collabStore, (s) => s.layout);
 
-  const sortValue = `${filters.sortBy}:${filters.sortOrder}`;
-  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortValue)?.label ?? "NEWEST";
+  const sortLabel = sortPreset(search.sort).label;
   const nextLayout = layout === "cards" ? "list" : "cards";
   const size = large ? "icon-lg" : "icon-sm";
   const iconSize = large ? 18 : 14;
@@ -192,11 +206,10 @@ function CollabDisplayControls({ large }: { large?: boolean }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-auto min-w-44 p-1">
           <DropdownMenuRadioGroup
-            value={sortValue}
-            onValueChange={(v) => {
-              const preset = SORT_OPTIONS.find((o) => o.value === v);
-              if (preset) setCollabFilters({ sortBy: preset.by, sortOrder: preset.order });
-            }}
+            value={search.sort ?? DEFAULT_SORT}
+            onValueChange={(v) =>
+              setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as CollabBoardSort) })
+            }
           >
             {SORT_OPTIONS.map((option) => (
               <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
@@ -259,26 +272,28 @@ export function CollabFloatingControls({ onOpenFilters }: { onOpenFilters: () =>
 }
 
 /**
- * Debounced search box. Owned here rather than in the store so
- * keystrokes don't refire the listing query on every character.
+ * Debounced search box. The keystrokes live here rather than in the URL
+ * so typing doesn't refire the listing query (or rewrite history) on
+ * every character.
  */
 export function CollabSearchInput({ className }: { className?: string }) {
-  const storeSearch = useStore(collabStore, (s) => s.filters.search);
-  const [value, setValue] = useState(storeSearch);
+  const { search, setSearch } = useCollabBoardSearch();
+  const urlSearch = search.q ?? "";
+  const [value, setValue] = useState(urlSearch);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setCollabFilters({ search: value }), 300);
+    debounceRef.current = setTimeout(() => setSearch({ q: value || undefined }), 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [value]);
+  }, [value, setSearch]);
 
   // Pull external resets (CLEAR ALL, chip ×) back into the local input.
   useEffect(() => {
-    setValue((current) => (current === storeSearch ? current : storeSearch));
-  }, [storeSearch]);
+    setValue((current) => (current === urlSearch ? current : urlSearch));
+  }, [urlSearch]);
 
   return (
     <SearchField
@@ -295,6 +310,38 @@ export function CollabSearchInput({ className }: { className?: string }) {
 }
 
 /**
+ * The seats posts are hiring for — the board's headline vocabulary, in
+ * the same picker idiom as the stack so "find me a composer" is one
+ * click, not a free-text search.
+ *
+ * Renders nothing while the roles table is empty, like the stack menu —
+ * an always-empty menu button just advertises a dead end.
+ */
+export function RoleFilterMenu({ selected, inline }: { selected: number[]; inline?: boolean }) {
+  const { setSearch } = useCollabBoardSearch();
+  const { data } = useQuery({
+    ...orpc.listCollabRoles.queryOptions({ input: {} }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: counts } = useCollabRoleCounts();
+  const roles = data ?? [];
+  if (roles.length === 0) return null;
+
+  return (
+    <FacetPicker
+      label="ROLE"
+      options={roles}
+      selectedIds={selected}
+      onChange={(roles) => setSearch({ roles: roles.length > 0 ? roles : undefined })}
+      counts={counts}
+      searchPlaceholder="Search roles…"
+      hint="Shows posts hiring any of these."
+      inline={inline}
+    />
+  );
+}
+
+/**
  * Tech stack, on both lanes — "which projects run on Godot" and "who
  * knows Godot" are the same question asked of the same vocabulary, so
  * they get the same control. See {@link FacetPicker} for why it isn't the
@@ -305,6 +352,7 @@ export function CollabSearchInput({ className }: { className?: string }) {
  * just advertises a dead end.
  */
 export function StackFilterMenu({ selected, inline }: { selected: number[]; inline?: boolean }) {
+  const { setSearch } = useCollabBoardSearch();
   const { data } = useQuery({
     ...orpc.listSkills.queryOptions({ input: {} }),
     staleTime: 5 * 60 * 1000,
@@ -318,7 +366,7 @@ export function StackFilterMenu({ selected, inline }: { selected: number[]; inli
       label="STACK"
       options={skills}
       selectedIds={selected}
-      onChange={(skillIds) => setCollabFilters({ skillIds })}
+      onChange={(skills) => setSearch({ skills: skills.length > 0 ? skills : undefined })}
       counts={counts}
       searchPlaceholder="Search engines, languages, tools…"
       hint="Shows posts using any of these."

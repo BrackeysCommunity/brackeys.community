@@ -58,6 +58,7 @@ const PUBLIC_PROCEDURES = new Set([
   "listPosts",
   "countPostsByType",
   "countPostsBySkill",
+  "countPostsByRole",
   "countPostsForJam",
   "getBoardStats",
   // Shared taxonomies.

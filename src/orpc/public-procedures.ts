@@ -47,6 +47,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "getPost",
   "countPostsByType",
   "countPostsBySkill",
+  "countPostsByRole",
   "countPostsForJam",
   "getBoardStats",
   // GitHub contribution calendar — a live GraphQL call per request today.
@@ -112,6 +113,7 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   getPost: 30,
   countPostsByType: 30,
   countPostsBySkill: 30,
+  countPostsByRole: 30,
   countPostsForJam: 30,
   getBoardStats: 30,
 

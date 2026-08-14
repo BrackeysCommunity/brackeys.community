@@ -384,7 +384,7 @@ async function savePost(v: WizardFormValues, editingPostId: number | null): Prom
  * live, which is why the caller keeps a retry path open.
  */
 async function attachImages(postId: number, images: UploadedImage[], isEdit: boolean) {
-  const uploaded = await Promise.all(images.map((img) => uploadCollabPostImage(img.file)));
+  const uploaded = await Promise.all(images.map((img) => uploadCollabPostImage(postId, img.file)));
   await Promise.all(
     uploaded.map((rec, idx) =>
       client.addPostImage({

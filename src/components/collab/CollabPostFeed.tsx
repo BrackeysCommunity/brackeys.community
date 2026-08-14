@@ -6,9 +6,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
-import { collabStore, countActiveCollabFilters, resetCollabFilters } from "@/lib/collab-store";
+import { collabStore } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
 
+import {
+  CLEARED_COLLAB_FILTERS,
+  countActiveCollabFilters,
+  useCollabBoardSearch,
+} from "./collab-filters";
 import { CollabPostCard, CollabPostGridCard } from "./CollabPostCard";
 import { useCollabListing } from "./use-collab-listing";
 
@@ -41,7 +46,7 @@ export function CollabPostFeed({
   selectedPostId,
   onSelectPost,
 }: CollabPostFeedProps) {
-  const filters = useStore(collabStore, (s) => s.filters);
+  const { search } = useCollabBoardSearch();
   const layout = useStore(collabStore, (s) => s.layout);
   const { items, isLoading, hasNextPage, isFetchingNext, fetchNext } =
     useCollabListing(currentUserId);
@@ -64,7 +69,7 @@ export function CollabPostFeed({
 
   if (isLoading) return <FeedSkeleton cards={isCards} />;
   if (items.length === 0) {
-    return <FeedEmptyState filtered={countActiveCollabFilters(filters) > 0} />;
+    return <FeedEmptyState filtered={countActiveCollabFilters(search) > 0} />;
   }
 
   return (
@@ -113,6 +118,7 @@ export function CollabPostFeed({
  * other just says the board is quiet.
  */
 function FeedEmptyState({ filtered }: { filtered: boolean }) {
+  const { setSearch } = useCollabBoardSearch();
   return (
     <Well className="items-center justify-center gap-3 px-4 py-12 text-center">
       <Text variant="muted" className="text-4xl opacity-40">
@@ -125,7 +131,7 @@ function FeedEmptyState({ filtered }: { filtered: boolean }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={resetCollabFilters}
+          onClick={() => setSearch(CLEARED_COLLAB_FILTERS)}
           className="tracking-widest"
         >
           CLEAR ALL FILTERS
