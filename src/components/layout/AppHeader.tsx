@@ -4,6 +4,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 
+import { AttentionMenu } from "@/components/attention/AttentionMenu";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -182,6 +183,9 @@ export function AppHeader() {
             // cluster rather than three more nav destinations.
             <div className="flex items-center gap-2">
               <SettingsMenu />
+              {/* Before the bell: an outstanding decision outranks an unread
+                  event, and this one renders only when there is one. */}
+              <AttentionMenu />
               <NotificationBell />
               <UserMenu user={session.user} compact />
             </div>

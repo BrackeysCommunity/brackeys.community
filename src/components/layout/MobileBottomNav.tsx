@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { useAttention } from "@/components/attention/use-attention";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -117,7 +118,11 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
-  const hasUnread = (unread.data?.count ?? 0) > 0;
+  // The dot means "there is something here", which unread notifications are
+  // only half of: answering an invite is still outstanding after you've read
+  // the notification announcing it, and reading is what empties `unreadCount`.
+  const { count: attentionCount } = useAttention();
+  const hasUnread = (unread.data?.count ?? 0) > 0 || attentionCount > 0;
 
   // `/profile/<param>` may be someone else's profile — ME only
   // highlights when the viewed profile is the session user's own.

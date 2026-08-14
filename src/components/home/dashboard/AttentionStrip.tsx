@@ -1,7 +1,15 @@
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { inviteAttentionKey, triageAttentionKey } from "@/components/attention/attention-items";
+import {
+  dismissAttentionItem,
+  restoreDismissedAttention,
+} from "@/components/attention/dismissed-attention";
+import type { AttentionData } from "@/components/attention/use-attention";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
@@ -11,44 +19,34 @@ import { Well } from "@/components/ui/well";
 import { teamLinkParams } from "@/lib/team-links";
 import { client } from "@/orpc/client";
 
-import { pendingInvites, postsAwaitingTriage } from "./dashboard-derive";
-import type { HomeDashboardData } from "./use-home-dashboard";
-
-interface AttentionStripProps {
-  invites: HomeDashboardData["invites"];
-  posts: HomeDashboardData["posts"];
-  onInviteResponded: () => void;
-}
-
 /**
- * The reason the dashboard exists: the two things that are waiting on the
- * viewer personally and that nothing else in the app will clear for them —
- * an unanswered team invite, and applicants nobody has triaged.
+ * The reason the dashboard exists: the two things waiting on the viewer
+ * personally that nothing else in the app will clear for them — an unanswered
+ * team invite, and applicants nobody has triaged.
  *
  * Both were previously reachable only by remembering to go and look: an
  * invite through the team page or a notification that scrolls away, an
  * applicant through opening each of your own posts in turn.
  */
-export function AttentionStrip({ invites, posts, onInviteResponded }: AttentionStripProps) {
-  const waiting = pendingInvites(invites);
-  const triage = postsAwaitingTriage(posts);
-  if (waiting.length === 0 && triage.length === 0) return null;
+export function AttentionStrip({ attention }: { attention: AttentionData }) {
+  const { visibleInvites, visibleTriage, hiddenCount } = attention;
+  if (visibleInvites.length === 0 && visibleTriage.length === 0 && hiddenCount === 0) return null;
 
   return (
-    <Section title="NEEDS YOU" blurb="Answers only you can give.">
+    <Section id="attention" title="NEEDS YOU" blurb="Answers only you can give.">
       <Well className="overflow-hidden">
         <ul className="divide-y divide-muted/20">
-          {waiting.map((invite) => (
+          {visibleInvites.map((invite) => (
             <li key={`invite-${invite.id}`}>
-              <InviteRow invite={invite} onResponded={onInviteResponded} />
+              <InviteRow invite={invite} onResponded={attention.invalidateInvites} />
             </li>
           ))}
-          {triage.map((post) => (
-            <li key={`post-${post.id}`}>
+          {visibleTriage.map((post) => (
+            <li key={`post-${post.id}`} className="group flex items-center">
               <RouterLink
                 to="/collab/$postId"
                 params={{ postId: String(post.id) }}
-                className="group flex items-center gap-3 px-3 py-2.5 text-inherit transition-colors hover:bg-muted/40"
+                className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-inherit transition-colors hover:bg-muted/40"
               >
                 <Badge variant="warning" size="label" className="shrink-0">
                   {post.pendingResponseCount} NEW
@@ -66,11 +64,55 @@ export function AttentionStrip({ invites, posts, onInviteResponded }: AttentionS
                   REVIEW
                 </MicroLabel>
               </RouterLink>
+              <DismissButton
+                label={`Hide ${post.title} until someone else applies`}
+                onDismiss={() => dismissAttentionItem(triageAttentionKey(post))}
+              />
             </li>
           ))}
         </ul>
+
+        {/* A dismissal must be visibly reversible. Without this line the strip
+            is a place where things quietly disappear, which is the one thing
+            an "only you can clear this" list must never be. */}
+        {hiddenCount > 0 ? (
+          <div className="flex items-center justify-between gap-2 border-t border-muted/20 px-3 py-2">
+            <MicroLabel>
+              {hiddenCount} HIDDEN{" "}
+              {visibleInvites.length === 0 && visibleTriage.length === 0
+                ? "· NOTHING ELSE OPEN"
+                : ""}
+            </MicroLabel>
+            <button
+              type="button"
+              onClick={restoreDismissedAttention}
+              className="transition-colors hover:text-primary"
+            >
+              <MicroLabel>SHOW</MicroLabel>
+            </button>
+          </div>
+        ) : null}
       </Well>
     </Section>
+  );
+}
+
+/**
+ * Hiding a row, not resolving it: the count in the header drops with it, and
+ * a triage row comes back on its own the moment another applicant lands (its
+ * dismissal key carries the count). Invites have no such trigger, so theirs
+ * is only undone through SHOW.
+ */
+function DismissButton({ label, onDismiss }: { label: string; onDismiss: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onDismiss}
+      className="mr-2 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+    >
+      <HugeiconsIcon icon={Cancel01Icon} size={12} />
+    </button>
   );
 }
 
@@ -83,7 +125,7 @@ function InviteRow({
   invite,
   onResponded,
 }: {
-  invite: HomeDashboardData["invites"][number];
+  invite: AttentionData["visibleInvites"][number];
   onResponded: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +139,7 @@ function InviteRow({
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+    <div className="group flex flex-wrap items-center gap-3 px-3 py-2.5">
       <UserAvatar avatarUrl={invite.team.avatarUrl} username={invite.team.name} size={28} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Text as="div" size="md" ellipsis>
@@ -121,7 +163,7 @@ function InviteRow({
           </Text>
         ) : null}
       </div>
-      <div className="flex shrink-0 gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <Button
           size="xs"
           className="tracking-widest"
@@ -139,6 +181,10 @@ function InviteRow({
         >
           DECLINE
         </Button>
+        <DismissButton
+          label={`Hide the invite from ${invite.team.name}`}
+          onDismiss={() => dismissAttentionItem(inviteAttentionKey(invite))}
+        />
       </div>
     </div>
   );

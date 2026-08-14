@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  attentionCount,
   isExpiringSoon,
-  pendingInvites,
-  postsAwaitingTriage,
   selectJamDeadlines,
   type DashboardJamRef,
   type DashboardPost,
@@ -33,32 +30,6 @@ function jam(jamId: number, startDays: number, endDays: number): DashboardJamRef
     endsAt: new Date(NOW.getTime() + endDays * DAY_MS),
   };
 }
-
-describe("attention items", () => {
-  it("counts only invites still awaiting an answer", () => {
-    const invites = [
-      { id: 1, status: "pending" },
-      { id: 2, status: "accepted" },
-      { id: 3, status: "declined" },
-    ];
-    expect(pendingInvites(invites)).toHaveLength(1);
-    expect(attentionCount(invites, [])).toBe(1);
-  });
-
-  it("adds every waiting applicant, not every post that has one", () => {
-    const posts = [
-      post({ id: 1, pendingResponseCount: 3 }),
-      post({ id: 2, pendingResponseCount: 2 }),
-      post({ id: 3, pendingResponseCount: 0 }),
-    ];
-    expect(postsAwaitingTriage(posts)).toHaveLength(2);
-    expect(attentionCount([], posts)).toBe(5);
-  });
-
-  it("is zero when nothing is outstanding", () => {
-    expect(attentionCount([{ id: 1, status: "accepted" }], [post()])).toBe(0);
-  });
-});
 
 describe("expiry nudge window", () => {
   it("offers EXTEND inside the sweep's own nudge window", () => {

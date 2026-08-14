@@ -32,6 +32,7 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useQuery: (opts: { queryKey?: unknown[] }) => {
     // The nav queries `getProfile` for `/profile/<param>` routes to
     // decide whether ME should highlight — serve the stubbed
@@ -46,6 +47,13 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/orpc/client", () => ({
   orpc: {
     unreadCount: { queryOptions: () => ({ queryKey: ["unreadCount"], queryFn: vi.fn() }) },
+    // The ME dot merges unread notifications with outstanding attention
+    // items, so `useAttention` runs for real here against these stubs.
+    listMyInvites: { queryOptions: () => ({ queryKey: ["listMyInvites"], queryFn: vi.fn() }) },
+    listMyPostsSummary: {
+      queryOptions: () => ({ queryKey: ["listMyPostsSummary"], queryFn: vi.fn() }),
+    },
+    listMyTeams: { queryOptions: () => ({ queryKey: ["listMyTeams"], queryFn: vi.fn() }) },
     getProfile: {
       queryOptions: ({ input }: { input: { userId: string } }) => ({
         queryKey: ["getProfile", input],

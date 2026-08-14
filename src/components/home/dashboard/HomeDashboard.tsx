@@ -28,15 +28,11 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <AttentionStrip
-        invites={data.invites}
-        posts={data.posts}
-        onInviteResponded={data.invalidateInvites}
-      />
+      <AttentionStrip attention={data.attention} />
 
       <div className="grid gap-8 lg:grid-cols-2">
         <MyApplications applications={data.applications} />
-        <MyPosts posts={data.posts} onExtended={data.invalidatePosts} />
+        <MyPosts posts={data.posts} onExtended={data.attention.invalidatePosts} />
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
