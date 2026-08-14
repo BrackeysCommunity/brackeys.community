@@ -110,36 +110,47 @@ export const verification = authSchema.table("verification", {
 
 // ── User profile tables (user schema) ───────────────────────────────────────
 
-export const developerProfiles = userSchema.table("developer_profiles", {
-  id: text("id").primaryKey(),
-  discordId: text("discord_id").unique(),
-  discordUsername: text("discord_username"),
-  avatarUrl: text("avatar_url"),
-  guildNickname: text("guild_nickname"),
-  guildJoinedAt: timestamp("guild_joined_at"),
-  guildRoles: text("guild_roles").array(),
-  bio: text("bio"),
-  tagline: text("tagline"),
-  githubUrl: text("github_url"),
-  twitterUrl: text("twitter_url"),
-  websiteUrl: text("website_url"),
-  availableForWork: boolean("available_for_work").default(false),
-  availability: text("availability"),
-  rateType: text("rate_type"),
-  rateMin: integer("rate_min"),
-  rateMax: integer("rate_max"),
-  // The people lane is the individual-availability surface (there is no
-  // "I'm available" post type — a profile flag maintains itself, a post
-  // goes stale the moment its author finds work). These two carry what
-  // such a post would have said.
-  lookingFor: text("looking_for"),
-  collabPreference: text("collab_preference"),
-  // Gates the profile-wall composer/list for non-owners. Disabling hides
-  // existing notes from visitors but never deletes them.
-  profileNotesEnabled: boolean("profile_notes_enabled").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const developerProfiles = userSchema.table(
+  "developer_profiles",
+  {
+    id: text("id").primaryKey(),
+    discordId: text("discord_id").unique(),
+    discordUsername: text("discord_username"),
+    avatarUrl: text("avatar_url"),
+    guildNickname: text("guild_nickname"),
+    guildJoinedAt: timestamp("guild_joined_at"),
+    guildRoles: text("guild_roles").array(),
+    bio: text("bio"),
+    tagline: text("tagline"),
+    githubUrl: text("github_url"),
+    twitterUrl: text("twitter_url"),
+    websiteUrl: text("website_url"),
+    availableForWork: boolean("available_for_work").default(false),
+    availability: text("availability"),
+    rateType: text("rate_type"),
+    rateMin: integer("rate_min"),
+    rateMax: integer("rate_max"),
+    // The people lane is the individual-availability surface (there is no
+    // "I'm available" post type — a profile flag maintains itself, a post
+    // goes stale the moment its author finds work). These two carry what
+    // such a post would have said.
+    lookingFor: text("looking_for"),
+    collabPreference: text("collab_preference"),
+    /** IANA zone name ("Europe/Madrid"). Offsets are derived at read time —
+     *  storing an offset would go stale every DST transition. */
+    timezone: text("timezone"),
+    /** Free text, not geodata — "Lisbon-ish" is a valid answer. */
+    location: text("location"),
+    // Gates the profile-wall composer/list for non-owners. Disabling hides
+    // existing notes from visitors but never deletes them.
+    profileNotesEnabled: boolean("profile_notes_enabled").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  // The directory's timezone facet filters on it — indexed up front
+  // because `listMembers` is already the heaviest query in the codebase.
+  (table) => [index("developer_profiles_timezone_idx").on(table.timezone)],
+);
 
 export const skills = userSchema.table("skills", {
   id: serial("id").primaryKey(),
@@ -156,6 +167,32 @@ export const userSkills = userSchema.table("user_skills", {
     .notNull()
     .references(() => skills.id, { onDelete: "cascade" }),
 });
+
+/**
+ * A member's craft ("I am a Composer"), drawn from the same curated
+ * `collab.collab_roles` vocabulary the board hires against — deliberately
+ * shared, so "I am a Composer" and "we need a Composer" can ever meet; a
+ * separate profile-role vocabulary would drift. Capped at 3 per profile
+ * server-side to keep it a claim, not a tag cloud.
+ */
+export const userRoles = userSchema.table(
+  "user_roles",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    roleId: integer("role_id")
+      .notNull()
+      .references(() => collabRoles.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    unique().on(table.userId, table.roleId),
+    // Role-vocabulary removals check usage here, and the directory's role
+    // facet EXISTS-joins on it.
+    index("user_roles_role_idx").on(table.roleId),
+  ],
+);
 
 export const skillRequests = userSchema.table("skill_requests", {
   id: serial("id").primaryKey(),

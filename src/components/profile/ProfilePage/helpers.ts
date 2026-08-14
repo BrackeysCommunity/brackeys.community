@@ -48,6 +48,10 @@ export interface ProfileViewModel {
   credits: ProfileCredit[];
 
   skills: ProfileSkill[];
+  /** Craft claims ("Composer") — the shared `collab_roles` vocabulary,
+   * capped at 3 server-side. Distinct from skills: a role is what you
+   * are, a skill is what you use. */
+  roles: { id: number; name: string }[];
   links: ProfileLink[];
   /** Raw profile-level URLs (LINKS-step editable); the LINKED section
    * renders them as virtual accounts when no provider is connected. */
@@ -108,7 +112,8 @@ export interface ProfileAvailability {
   lookingFor: string | null;
   /** `paid` / `hobby` / `either` — filters the people lane. */
   collabPreference: string | null;
-  /** Display string ("UTC+0", "America/New_York"). */
+  /** IANA name ("Europe/Madrid"). Render via `timezoneOffsetLabel` —
+   * offsets are derived at read time, never stored. */
   timezone: string | null;
 }
 

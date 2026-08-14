@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 
 import { DetailRow } from "./DetailRow";
@@ -94,7 +95,15 @@ export function ProfileAvailabilitySection({
             <DetailRow label="Response time" value={availability.responseTime} />
           ) : null}
           {availability.timezone ? (
-            <DetailRow label="Timezone" value={availability.timezone} />
+            // Zone name plus its *current* offset — never local-time math.
+            <DetailRow
+              label="Timezone"
+              value={
+                [availability.timezone, timezoneOffsetLabel(availability.timezone)]
+                  .filter(Boolean)
+                  .join(" · ") || "—"
+              }
+            />
           ) : null}
         </div>
 

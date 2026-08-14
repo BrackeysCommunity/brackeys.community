@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
+import { markWrite } from "@/orpc/recent-write";
 
 import { ProjectDetailsEditor } from "./ProjectDetailsEditor";
 import type { ProjectRow } from "./types";
@@ -222,6 +223,10 @@ function CoverUploadControl({ projectId }: { projectId: string }) {
         const body = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(body?.message ?? "Upload failed.");
       }
+      // Not a useMutation and not an oRPC write, so neither automatic
+      // stamp fires — without this the invalidated loader re-reads the
+      // edge's pre-upload getProject.
+      markWrite();
       await router.invalidate();
       toast.success("Cover updated");
     } catch (error) {

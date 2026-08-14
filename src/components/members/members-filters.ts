@@ -15,11 +15,17 @@ export type MemberAvailability = "full_time" | "part_time" | "limited";
 export interface MembersSearch {
   q?: string;
   skills?: number[];
+  /** Craft claims — the shared `collab_roles` vocabulary. */
+  roles?: number[];
   availability?: MemberAvailability[];
   /** The profile's own "open to work" flag. */
   open?: boolean;
   /** Hourly ceiling in whole dollars — implies "has an hourly rate". */
   rate?: number;
+  /** Timezone window in hours: "within ±N hours of me". Viewer-relative —
+   *  the viewer's own offset is derived from the browser at query time,
+   *  so the same link means the same thing to whoever opens it. */
+  tz?: number;
   sort?: MembersSort;
 }
 
@@ -31,9 +37,9 @@ export type SetMembersSearch = (next: Partial<MembersSearch>) => void;
  * options share one row and the menu's full phrasing doesn't fit.
  */
 export const SORT_OPTIONS: { value: MembersSort; label: string; short: string }[] = [
-  { value: "active", label: "MOST ACTIVE", short: "ACTIVE" },
-  { value: "newest", label: "NEWEST MEMBERS", short: "NEWEST" },
-  { value: "rate", label: "LOWEST RATE", short: "RATE" },
+  { value: "active", label: "Most active", short: "ACTIVE" },
+  { value: "newest", label: "Newest members", short: "NEWEST" },
+  { value: "rate", label: "Lowest rate", short: "RATE" },
 ];
 
 export const DEFAULT_SORT: MembersSort = "active";
@@ -44,9 +50,9 @@ export const DEFAULT_SORT: MembersSort = "active";
  * same most-to-least order everywhere.
  */
 export const AVAILABILITY_OPTIONS: { value: MemberAvailability; label: string }[] = [
-  { value: "full_time", label: "FULL-TIME" },
-  { value: "part_time", label: "PART-TIME" },
-  { value: "limited", label: "LIMITED" },
+  { value: "full_time", label: "Full-time" },
+  { value: "part_time", label: "Part-time" },
+  { value: "limited", label: "Limited" },
 ];
 
 /**
@@ -57,14 +63,25 @@ export const AVAILABILITY_OPTIONS: { value: MemberAvailability; label: string }[
  * hourly rate are not points on one scale.
  */
 export const RATE_OPTIONS: { value: number; label: string }[] = [
-  { value: 25, label: "UNDER $25/HR" },
-  { value: 50, label: "UNDER $50/HR" },
-  { value: 100, label: "UNDER $100/HR" },
+  { value: 25, label: "Under $25/hr" },
+  { value: 50, label: "Under $50/hr" },
+  { value: 100, label: "Under $100/hr" },
 ];
 
 export function availabilityLabel(value: string | null | undefined): string | null {
   return AVAILABILITY_OPTIONS.find((o) => o.value === value)?.label ?? null;
 }
+
+/**
+ * Timezone windows. Small and round on purpose: the question is "can we
+ * pair-program", and ±3/±6/±9 hours are the three honest answers between
+ * "same working day" and "we hand off overnight".
+ */
+export const TZ_OPTIONS: { value: number; label: string }[] = [
+  { value: 3, label: "Within ±3h of me" },
+  { value: 6, label: "Within ±6h of me" },
+  { value: 9, label: "Within ±9h of me" },
+];
 
 /**
  * Shared look for the filter row's toggles. The depressed-while-on state
@@ -77,7 +94,7 @@ export function availabilityLabel(value: string | null | undefined): string | nu
  * the cards scrolling under the sticky toolbar show through the toggle.
  */
 export const FILTER_TOGGLE =
-  "tracking-widest aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
+  "tracking-widest uppercase aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
 
 /**
  * URL search → the shape `listMembers` and its facet counts both take.
@@ -86,13 +103,19 @@ export const FILTER_TOGGLE =
  */
 export function memberFacetInput(search: MembersSearch) {
   const skills = search.skills ?? [];
+  const roles = search.roles ?? [];
   const availability = search.availability ?? [];
   return {
     search: search.q?.trim() || undefined,
     skillIds: skills.length > 0 ? skills : undefined,
+    roleIds: roles.length > 0 ? roles : undefined,
     availability: availability.length > 0 ? availability : undefined,
     openToWork: search.open || undefined,
     maxHourlyRate: search.rate,
+    // The URL stores only the window; the viewer's own offset is computed
+    // here, at query time, from the browser — DST-correct by construction.
+    tzOffset: search.tz != null ? -new Date().getTimezoneOffset() : undefined,
+    tzWithinHours: search.tz,
   };
 }
 
@@ -102,7 +125,9 @@ export function countActiveMemberFilters(search: MembersSearch): number {
   if (search.q?.trim()) count += 1;
   if (search.open) count += 1;
   if (search.rate != null) count += 1;
+  if (search.tz != null) count += 1;
   count += search.skills?.length ?? 0;
+  count += search.roles?.length ?? 0;
   count += search.availability?.length ?? 0;
   return count;
 }
@@ -111,7 +136,9 @@ export function countActiveMemberFilters(search: MembersSearch): number {
 export const CLEARED_MEMBER_FILTERS: Partial<MembersSearch> = {
   q: undefined,
   skills: undefined,
+  roles: undefined,
   availability: undefined,
   open: undefined,
   rate: undefined,
+  tz: undefined,
 };

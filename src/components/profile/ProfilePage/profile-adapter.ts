@@ -39,11 +39,15 @@ export interface RpcProfile {
     rateType: string | null;
     rateMin: number | null;
     rateMax: number | null;
+    timezone: string | null;
+    location: string | null;
     createdAt: Date;
     guildJoinedAt: Date | null;
     profileNotesEnabled: boolean;
   };
   skills: { id: number; skillId: number; name: string; category: string | null }[];
+  /** Craft claims — the shared `collab_roles` vocabulary, capped at 3. */
+  roles: { id: number; name: string; category: string | null }[];
   projects: {
     id: string;
     type: string;
@@ -116,11 +120,9 @@ export interface RpcProfile {
 /**
  * Adapt the `getProfile` oRPC response into the typed view model the
  * redesigned profile page consumes. Fields that don't exist on
- * `developer_profiles` yet (pronouns, location, timezone, response
- * time, streak, activity) come back as `null` / sensible empty
- * defaults so the page's empty states + "—" formatting kick in
- * automatically. Phase 5 lands the migrations and this adapter
- * starts pulling those values for real.
+ * `developer_profiles` yet (pronouns, response time, streak, activity)
+ * come back as `null` / sensible empty defaults so the page's empty
+ * states + "—" formatting kick in automatically.
  */
 export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const { profile } = rpc;
@@ -259,7 +261,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     name: displayName.toUpperCase(),
     tag,
     pronouns: null,
-    location: null,
+    location: profile.location,
     joinedAt: profile.guildJoinedAt ?? profile.createdAt,
     oneLiner: null,
     bio: profile.bio,
@@ -276,7 +278,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       rateMin: profile.rateMin,
       rateMax: profile.rateMax,
       responseTime: null,
-      timezone: null,
+      timezone: profile.timezone,
       lookingFor: profile.lookingFor,
       collabPreference: profile.collabPreference,
     },
@@ -315,6 +317,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       year: credit.releasedAt?.getUTCFullYear() ?? null,
     })),
     skills,
+    roles: rpc.roles.map((r) => ({ id: r.id, name: r.name })),
     links,
     socialUrls: {
       githubUrl: profile.githubUrl,

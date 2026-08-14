@@ -6,6 +6,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatRate } from "@/lib/format-rate";
 import { profileLinkParams } from "@/lib/profile-links";
+import { timezoneOffsetLabel } from "@/lib/timezones";
 import type { client } from "@/orpc/client";
 
 import { availabilityLabel } from "./members-filters";
@@ -33,6 +34,8 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
     negotiableLabel: "NEGOTIABLE",
   });
   const commitment = availabilityLabel(member.availability);
+  // Rendered as an offset, never local time — see the timezones lib.
+  const tz = member.timezone ? timezoneOffsetLabel(member.timezone) : null;
   // The one-liner is the profile's own; `lookingFor` is what an "I'm
   // available" post would have said, and is the more useful sentence
   // when someone has written both — but only while they're open to work.
@@ -77,8 +80,13 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
           <span className="flex items-center gap-2">
             {member.urlStub ? <MicroLabel>/{member.urlStub}</MicroLabel> : null}
             {commitment ? (
-              <Badge variant="outline" size="label">
+              <Badge variant="outline" size="label" className="uppercase">
                 {commitment}
+              </Badge>
+            ) : null}
+            {tz ? (
+              <Badge variant="outline" size="label" className="text-muted-foreground">
+                {tz}
               </Badge>
             ) : null}
           </span>
@@ -91,8 +99,14 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
         </Text>
       ) : null}
 
-      {member.skills.length > 0 ? (
+      {member.roles.length > 0 || member.skills.length > 0 ? (
         <span className="flex flex-wrap gap-1">
+          {/* Roles lead: "Composer" is the claim, the stack is the detail. */}
+          {member.roles.map((role) => (
+            <Badge key={`role-${role.id}`} variant="secondary" size="label" className="uppercase">
+              {role.name}
+            </Badge>
+          ))}
           {member.skills.map((skill) => (
             <Badge key={skill.id} variant="outline" size="label" className="uppercase">
               {skill.name}

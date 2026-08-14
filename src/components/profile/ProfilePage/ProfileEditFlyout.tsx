@@ -15,6 +15,14 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,6 +41,7 @@ import { Well } from "@/components/ui/well";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { startItchOAuth } from "@/lib/itchio-oauth";
+import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -59,7 +68,7 @@ interface StepDef {
 }
 
 const STEPS: StepDef[] = [
-  { step: 1, title: "IDENTITY", hint: "name, role, profile URL" },
+  { step: 1, title: "IDENTITY", hint: "name, roles, timezone, profile URL" },
   { step: 2, title: "BIO & SKILLS", hint: "long-form bio + skill tags" },
   { step: 3, title: "AVAILABILITY", hint: "open to hire, rate, response time" },
   { step: 4, title: "LINKS", hint: "github, itch, portfolio" },
@@ -401,11 +410,16 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
   const setStub = useSetUrlStub(queryKey, save);
   const [tagline, setTagline] = useState(profile.tag ?? "");
+  const [location, setLocation] = useState(profile.location ?? "");
   const [stub, setStub_] = useState(profile.handle);
   const [stubError, setStubError] = useState<string | null>(null);
 
   const debouncedSaveTagline = useDebouncedCallback((value: string) => {
     update.mutate({ tagline: value });
+  });
+
+  const debouncedSaveLocation = useDebouncedCallback((value: string) => {
+    update.mutate({ location: value.trim() || null });
   });
 
   const debouncedSaveStub = useDebouncedCallback((value: string) => {
@@ -422,7 +436,7 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
       <FieldRow label="DISPLAY NAME" hint="comes from your discord profile">
         <Input value={profile.name} disabled />
       </FieldRow>
-      <FieldRow label="TAG / ROLE" hint="shows under your name in the hero">
+      <FieldRow label="TAG" hint="shows under your name in the hero">
         <Input
           value={tagline}
           onChange={(e) => {
@@ -431,6 +445,24 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
             debouncedSaveTagline(v);
           }}
           placeholder="dev, designer, etc."
+        />
+      </FieldRow>
+      <RolesField profile={profile} queryKey={queryKey} save={save} />
+      <FieldRow label="TIMEZONE" hint="powers the directory's “within ±3h of me” filter">
+        <TimezoneField
+          value={profile.availability.timezone}
+          onChange={(tz) => update.mutate({ timezone: tz })}
+        />
+      </FieldRow>
+      <FieldRow label="LOCATION" hint="optional, free text — “Lisbon-ish” counts">
+        <Input
+          value={location}
+          onChange={(e) => {
+            const v = e.target.value;
+            setLocation(v);
+            debouncedSaveLocation(v);
+          }}
+          placeholder="city, country, or vibe"
         />
       </FieldRow>
       <FieldRow
@@ -456,6 +488,169 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
         </div>
       </FieldRow>
     </StepFrame>
+  );
+}
+
+/** Mirrors the server's cap (`MAX_PROFILE_ROLES` in the profile router). */
+const MAX_ROLES = 3;
+
+/**
+ * The member's craft claims — up to three picks from the same curated
+ * `collab_roles` vocabulary the board hires against. A replace-set
+ * mutation rather than add/remove pairs: the chip row always knows the
+ * whole intended set.
+ */
+function RolesField({ profile, queryKey, save }: StepProps) {
+  const qc = useQueryClient();
+  const { data: allRoles } = useQuery({
+    ...orpc.listCollabRoles.queryOptions({ input: {} }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const setRoles = useMutation({
+    mutationFn: (roleIds: number[]) => client.setMyRoles({ roleIds }),
+    onMutate: () => save.setStatus("saving"),
+    onSuccess: () => {
+      save.setStatus("saved");
+      if (queryKey) void qc.invalidateQueries({ queryKey });
+    },
+    onError: () => save.setStatus("error"),
+  });
+
+  const selected = profile.roles;
+  const selectedIds = new Set(selected.map((r) => r.id));
+  const options = (allRoles ?? []).filter((r) => !selectedIds.has(r.id));
+  const atCap = selected.length >= MAX_ROLES;
+
+  return (
+    <FieldRow
+      label="ROLES"
+      hint={`what you are, up to ${MAX_ROLES} — the board hires against the same list`}
+    >
+      <div className="flex flex-col gap-2">
+        {selected.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {selected.map((role) => (
+              <Badge
+                key={role.id}
+                variant="secondary"
+                className="gap-1.5 font-mono text-[11px] tracking-widest uppercase"
+              >
+                {role.name}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRoles.mutate(selected.filter((r) => r.id !== role.id).map((r) => r.id))
+                  }
+                  aria-label={`Remove ${role.name}`}
+                  className="-mr-0.5 inline-flex cursor-pointer items-center text-secondary-foreground/60 transition-colors hover:text-destructive"
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} size={10} />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+        {!atCap ? (
+          <Combobox
+            items={options}
+            value={null}
+            onValueChange={(next: (typeof options)[number] | null) => {
+              if (next) setRoles.mutate([...selected.map((r) => r.id), next.id]);
+            }}
+            itemToStringLabel={(role: (typeof options)[number]) => role.name}
+            isItemEqualToValue={(a: (typeof options)[number], b: (typeof options)[number]) =>
+              a.id === b.id
+            }
+          >
+            <ComboboxInput placeholder="Add a role — composer, pixel artist…" className="w-full" />
+            <ComboboxContent>
+              <ComboboxList>
+                {(role: (typeof options)[number]) => (
+                  <ComboboxItem key={role.id} value={role}>
+                    <span className="flex-1">{role.name}</span>
+                    {role.category ? (
+                      <span className="text-[10px] tracking-widest text-muted-foreground uppercase">
+                        {role.category}
+                      </span>
+                    ) : null}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+              <ComboboxEmpty>No matching role</ComboboxEmpty>
+            </ComboboxContent>
+          </Combobox>
+        ) : null}
+      </div>
+    </FieldRow>
+  );
+}
+
+/**
+ * IANA zone picker. Offsets in the option rows are *current* (DST-aware),
+ * derived per render — never stored. The shortcut chip fills in the
+ * browser's own zone, which is the right answer for nearly everyone.
+ */
+function TimezoneField({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (tz: string | null) => void;
+}) {
+  const zones = allTimezones();
+  const detected = browserTimezone();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <Combobox
+          items={zones}
+          value={value}
+          onValueChange={(next: string | null) => {
+            // The combobox clears itself while typing; only a real pick
+            // (or the explicit × button) should write the profile.
+            if (next) onChange(next);
+          }}
+          itemToStringLabel={(tz: string) => tz}
+        >
+          <ComboboxInput placeholder="Europe/Madrid, America/Chicago…" className="w-full" />
+          <ComboboxContent>
+            <ComboboxList>
+              {(tz: string) => (
+                <ComboboxItem key={tz} value={tz}>
+                  <span className="flex-1">{tz}</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    {timezoneOffsetLabel(tz)}
+                  </span>
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+            <ComboboxEmpty>No matching zone</ComboboxEmpty>
+          </ComboboxContent>
+        </Combobox>
+        {value ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onChange(null)}
+            aria-label="Clear timezone"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={12} />
+          </Button>
+        ) : null}
+      </div>
+      {detected && detected !== value ? (
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => onChange(detected)}
+          className="self-start tracking-widest"
+        >
+          USE {detected.toUpperCase()} · {timezoneOffsetLabel(detected)}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

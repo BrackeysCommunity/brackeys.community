@@ -175,12 +175,31 @@ rules cover every procedure and never carry a non-zero `max-age`.
 
 **What `max-age=0` does not buy.** It guarantees the request leaves the
 browser, not that the answer is fresh — Cloudflare still serves its copy for
-`s-maxage` seconds. Edge staleness is a separate, deliberate choice. Purging
-it on write is mostly unavailable to us: purge-by-prefix and purge-by-tag are
-Enterprise-only, and RPC GET URLs embed the input in the query string, so
-purge-by-URL only works for procedures called with one fixed input
-(`listSkills`, `listCollabRoles`, `getBoardStats`, `getTeamStats`). If long
-taxonomy TTLs ever become worth it again, that is the route.
+`s-maxage` seconds. Edge staleness is a separate, deliberate choice — for
+everyone except the writer. Purging it on write is mostly unavailable to us:
+purge-by-prefix and purge-by-tag are Enterprise-only, and RPC GET URLs embed
+the input in the query string, so purge-by-URL only works for procedures
+called with one fixed input (`listSkills`, `listCollabRoles`, `getBoardStats`,
+`getTeamStats`). If long taxonomy TTLs ever become worth it again, that is
+the route.
+
+**Writer-sees-own-write: the recent-write bypass.** The one reader `s-maxage`
+must never serve stale is the person who just wrote — they upload a cover or
+create a post, the app invalidates and refetches, and the edge answers with
+the pre-write body (this shipped as a real bug the day the Cache Rule went
+live: uploaded images "not appearing" until a manual refresh). The fix is
+client-side, in `src/orpc/recent-write.ts` + `src/orpc/client.ts`: every
+successful write stamps a 45 s window (30 s max TTL + headroom) during which
+the client Proxy routes public procedures through the private `no-store`
+mount — same procedure instances, origin-fresh, only for that browser.
+Writes are recognized three ways: any oRPC call whose name doesn't follow
+the get/list/count/search read convention (an `apply` trap on the client
+Proxy — the naming convention is load-bearing), any successful `useMutation`
+(a global `MutationCache` callback in
+`src/integrations/tanstack-query/root-provider.tsx`, which covers mutations
+whose write is a raw `fetch` to an upload endpoint), and an explicit
+`markWrite()` in the one flow that is neither (the project cover control in
+`ProjectHero`).
 
 **The edge Cache Rule is in place and hitting** (2026-08-13): a Cache Rule
 `starts_with(http.request.uri.path, "/api/public/")` → _Eligible for cache,

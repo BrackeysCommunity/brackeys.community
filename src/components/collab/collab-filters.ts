@@ -59,9 +59,9 @@ export const SORT_OPTIONS: {
   by: CollabSortBy;
   order: CollabSortOrder;
 }[] = [
-  { value: "newest", label: "NEWEST", by: "createdAt", order: "desc" },
-  { value: "oldest", label: "OLDEST", by: "createdAt", order: "asc" },
-  { value: "active", label: "RECENTLY ACTIVE", by: "updatedAt", order: "desc" },
+  { value: "newest", label: "Newest", by: "createdAt", order: "desc" },
+  { value: "oldest", label: "Oldest", by: "createdAt", order: "asc" },
+  { value: "active", label: "Recently active", by: "updatedAt", order: "desc" },
 ];
 
 export const DEFAULT_SORT: CollabBoardSort = "newest";

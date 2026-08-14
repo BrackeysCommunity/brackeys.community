@@ -15,7 +15,9 @@ import {
   RATE_OPTIONS,
   type SetMembersSearch,
   SORT_OPTIONS,
+  TZ_OPTIONS,
 } from "./members-filters";
+import { MembersRolePicker } from "./MembersRolePicker";
 import { MembersSkillPicker } from "./MembersSkillPicker";
 
 interface MembersFilterPanelProps {
@@ -97,8 +99,30 @@ export function MembersFilterPanel({
         </div>
       </FilterGroup>
 
+      <FilterGroup label="ROLE">
+        <MembersRolePicker search={search} setSearch={setSearch} inline />
+      </FilterGroup>
+
       <FilterGroup label="SKILLS">
         <MembersSkillPicker search={search} setSearch={setSearch} inline />
+      </FilterGroup>
+
+      {/* A window, so exactly one — "within ±6h" already contains "±3h".
+          Tapping the pressed band clears it. */}
+      <FilterGroup label="TIMEZONE">
+        <div className="flex flex-wrap gap-1.5">
+          {TZ_OPTIONS.map((option) => (
+            <FilterChip
+              key={option.value}
+              pressed={search.tz === option.value}
+              onPressedChange={() =>
+                setSearch({ tz: search.tz === option.value ? undefined : option.value })
+              }
+            >
+              {option.label}
+            </FilterChip>
+          ))}
+        </div>
       </FilterGroup>
 
       <FilterGroup label="SORT BY">

@@ -72,7 +72,10 @@ function Well({
       <div
         data-slot="well"
         data-notched="true"
-        className={cn("flex w-full overflow-hidden rounded-lg bg-emboss-surface", className)}
+        className={cn(
+          "flex w-full overflow-hidden rounded-lg bg-emboss-surface outline-[0.5px] -outline-offset-[0.5px] outline-deboss-shadow",
+          className,
+        )}
         style={style}
       >
         <div

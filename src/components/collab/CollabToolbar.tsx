@@ -46,37 +46,37 @@ export const COLLAB_SEARCH_INPUT_ID = "collab-search";
 type Option = { value: string; label: string };
 
 const TYPE_OPTIONS: Option[] = [
-  { value: "all", label: "ALL" },
-  { value: "paid", label: "PAID WORK" },
-  { value: "hobby", label: "HOBBY" },
+  { value: "all", label: "All" },
+  { value: "paid", label: "Paid work" },
+  { value: "hobby", label: "Hobby" },
 ];
 
 const STATUS_OPTIONS: Option[] = [
-  { value: "any", label: "ANY STATUS" },
-  { value: "recruiting", label: "OPEN" },
-  { value: "party_full", label: "CLOSED" },
+  { value: "any", label: "Any status" },
+  { value: "recruiting", label: "Open" },
+  { value: "party_full", label: "Closed" },
 ];
 
 const EXPERIENCE_OPTIONS: Option[] = [
-  { value: "any", label: "ANY LEVEL" },
-  { value: "beginner", label: "BEGINNER" },
-  { value: "intermediate", label: "INTERMEDIATE" },
-  { value: "experienced", label: "EXPERIENCED" },
+  { value: "any", label: "Any level" },
+  { value: "beginner", label: "Beginner" },
+  { value: "intermediate", label: "Intermediate" },
+  { value: "experienced", label: "Experienced" },
 ];
 
 const COMP_OPTIONS: Option[] = [
-  { value: "all", label: "ANY PAY" },
-  { value: "hourly", label: "HOURLY" },
-  { value: "fixed", label: "FIXED" },
-  { value: "rev_share", label: "REV SHARE" },
-  { value: "negotiable", label: "NEGOTIABLE" },
+  { value: "all", label: "Any pay" },
+  { value: "hourly", label: "Hourly" },
+  { value: "fixed", label: "Fixed" },
+  { value: "rev_share", label: "Rev share" },
+  { value: "negotiable", label: "Negotiable" },
 ];
 
 /** Solo devs and teams — the board's two kinds of poster. */
 const POSTER_OPTIONS: Option[] = [
-  { value: "all", label: "ANYONE" },
-  { value: "solo", label: "SOLO DEVS" },
-  { value: "team", label: "TEAMS" },
+  { value: "all", label: "Anyone" },
+  { value: "solo", label: "Solo devs" },
+  { value: "team", label: "Teams" },
 ];
 
 /** The `solo` search value behind each poster menu choice. */
@@ -393,7 +393,10 @@ function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
           <Button
             variant="outline"
             size="sm"
-            className={cn("tracking-widest", isConstrained && "border-primary text-primary")}
+            className={cn(
+              "tracking-widest uppercase",
+              isConstrained && "border-primary text-primary",
+            )}
           />
         }
       >

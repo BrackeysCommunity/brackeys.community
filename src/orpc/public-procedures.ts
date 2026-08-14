@@ -26,6 +26,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   // own extras come from the private `getMyProfile`.
   "listMembers",
   "countMembersBySkill",
+  "countMembersByRole",
   "listAvailableUsers",
   "getProfile",
   // Shared taxonomies — rarely written, but see their TTLs below.
@@ -96,6 +97,7 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   getJamCommunity: 60,
   listMembers: 60,
   countMembersBySkill: 60,
+  countMembersByRole: 60,
   listAvailableUsers: 60,
   getProfile: 30,
   listTeams: 60,

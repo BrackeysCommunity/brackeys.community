@@ -32,6 +32,7 @@ export function MembersActiveFilters({
   count: number | null;
 }) {
   const skillIds = search.skills ?? [];
+  const roleIds = search.roles ?? [];
   const availability = search.availability ?? [];
 
   // Only fetched to name the ids the chips carry — already cached by the
@@ -39,6 +40,11 @@ export function MembersActiveFilters({
   const { data: skillData } = useQuery({
     ...orpc.listSkills.queryOptions({ input: {} }),
     enabled: skillIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: roleData } = useQuery({
+    ...orpc.listCollabRoles.queryOptions({ input: {} }),
+    enabled: roleIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -53,7 +59,7 @@ export function MembersActiveFilters({
   for (const value of availability) {
     chips.push({
       key: `availability-${value}`,
-      label: availabilityLabel(value) ?? value.toUpperCase(),
+      label: availabilityLabel(value) ?? value,
       clear: () => setSearch({ availability: availability.filter((v) => v !== value) }),
     });
   }
@@ -62,6 +68,24 @@ export function MembersActiveFilters({
       key: "rate",
       label: `UNDER $${search.rate}/HR`,
       clear: () => setSearch({ rate: undefined }),
+    });
+  }
+  if (search.tz != null) {
+    chips.push({
+      key: "tz",
+      label: `WITHIN ±${search.tz}H`,
+      clear: () => setSearch({ tz: undefined }),
+    });
+  }
+  for (const roleId of roleIds) {
+    const role = roleData?.find((r) => r.id === roleId);
+    chips.push({
+      key: `role-${roleId}`,
+      label: (role?.name ?? `#${roleId}`).toUpperCase(),
+      clear: () => {
+        const remaining = roleIds.filter((id) => id !== roleId);
+        setSearch({ roles: remaining.length > 0 ? remaining : undefined });
+      },
     });
   }
   for (const skillId of skillIds) {
@@ -104,7 +128,7 @@ export function MembersActiveFilters({
               size="xs"
               onClick={chip.clear}
               aria-label={`Remove filter ${chip.label}`}
-              className="border-primary/50 tracking-widest text-primary"
+              className="border-primary/50 tracking-widest text-primary uppercase"
             >
               {chip.label}
               <HugeiconsIcon icon={Cancel01Icon} size={10} />

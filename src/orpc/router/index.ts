@@ -77,7 +77,7 @@ import {
   listRecentEntries,
   setJamWatch,
 } from "./jam";
-import { countMembersBySkill, listMembers } from "./member";
+import { countMembersByRole, countMembersBySkill, listMembers } from "./member";
 import {
   listNotifications,
   unreadCount,
@@ -91,6 +91,7 @@ import {
   getMyProfile,
   getMySkillIds,
   updateProfile,
+  setMyRoles,
   syncDiscordData,
   listSkills,
   addUserSkill,
@@ -171,6 +172,7 @@ export default {
   getMyProfile,
   getMySkillIds,
   updateProfile,
+  setMyRoles,
   syncDiscordData,
   listSkills,
   addUserSkill,
@@ -186,6 +188,7 @@ export default {
   listAvailableUsers,
   listMembers,
   countMembersBySkill,
+  countMembersByRole,
   syncGitHubLink,
   unlinkGitHub,
   getContributions,

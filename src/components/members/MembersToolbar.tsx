@@ -30,7 +30,9 @@ import {
   RATE_OPTIONS,
   type SetMembersSearch,
   SORT_OPTIONS,
+  TZ_OPTIONS,
 } from "./members-filters";
+import { MembersRolePicker } from "./MembersRolePicker";
 import { MembersSkillPicker } from "./MembersSkillPicker";
 
 export const MEMBERS_SEARCH_INPUT_ID = "members-search";
@@ -90,12 +92,14 @@ export function MembersToolbar({
             >
               OPEN TO WORK
             </Button>
+            <MembersRolePicker search={search} setSearch={setSearch} />
             <AvailabilityMenu
               selected={search.availability ?? []}
               onChange={(next) => setSearch({ availability: next.length > 0 ? next : undefined })}
             />
             <MembersSkillPicker search={search} setSearch={setSearch} />
             <RateMenu rate={search.rate} setSearch={setSearch} />
+            <TimezoneMenu tz={search.tz} setSearch={setSearch} />
           </>
         )}
 
@@ -284,9 +288,52 @@ function RateMenu({ rate, setSearch }: { rate?: number; setSearch: SetMembersSea
           }
         >
           <DropdownMenuRadioItem value="any" closeOnClick>
-            ANY RATE
+            Any rate
           </DropdownMenuRadioItem>
           {RATE_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={String(option.value)} closeOnClick>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * Timezone as a window around the viewer — a ceiling like the rate menu,
+ * so a radio group: "within ±6h" already contains "within ±3h". The URL
+ * stores only the window; the viewer's own offset is derived from the
+ * browser at query time.
+ */
+function TimezoneMenu({ tz, setSearch }: { tz?: number; setSearch: SetMembersSearch }) {
+  const label = TZ_OPTIONS.find((o) => o.value === tz)?.label ?? "TIMEZONE";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className={FILTER_TOGGLE}
+            aria-pressed={tz != null}
+            aria-label={`Filter by timezone${tz != null ? ` (within ±${tz} hours)` : ""}`}
+          />
+        }
+      >
+        {label}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-auto min-w-48 p-1">
+        <DropdownMenuRadioGroup
+          value={tz != null ? String(tz) : "any"}
+          onValueChange={(value) => setSearch({ tz: value === "any" ? undefined : Number(value) })}
+        >
+          <DropdownMenuRadioItem value="any" closeOnClick>
+            Any timezone
+          </DropdownMenuRadioItem>
+          {TZ_OPTIONS.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={String(option.value)} closeOnClick>
               {option.label}
             </DropdownMenuRadioItem>

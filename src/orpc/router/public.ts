@@ -19,7 +19,7 @@ import {
   listJamsByHost,
   listRecentEntries,
 } from "./jam";
-import { countMembersBySkill, listMembers } from "./member";
+import { countMembersByRole, countMembersBySkill, listMembers } from "./member";
 import { getProfile, listAvailableUsers, listSkills } from "./profile";
 import { getProject, listProjectsForGames } from "./project";
 import { countTeamsBySkill, getTeam, getTeamStats, listTeams, listUserTeams } from "./team";
@@ -58,6 +58,7 @@ export const publicRouter = {
   listJamsByHost,
   listMembers,
   countMembersBySkill,
+  countMembersByRole,
   listAvailableUsers,
   getProfile,
   listSkills,

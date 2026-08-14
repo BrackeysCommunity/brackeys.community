@@ -41,6 +41,7 @@ const PUBLIC_PROCEDURES = new Set([
   // docs/plans/01-admin-surface-hardening.md §"Confirm-intent").
   "listMembers",
   "countMembersBySkill",
+  "countMembersByRole",
   "listAvailableUsers",
   // Public profile/project/team pages; viewer-specific fields degrade
   // to their anonymous shape via authMiddleware.

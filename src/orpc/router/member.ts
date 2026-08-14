@@ -17,14 +17,17 @@ import * as z from "zod";
 import { db } from "@/db";
 import {
   collabPosts,
+  collabRoles,
   developerProfiles,
   profileProjects,
   profileUrlStubs,
   skills,
   teamMembers,
   teams,
+  userRoles,
   userSkills,
 } from "@/db/schema";
+import { timezonesWithinOffset } from "@/lib/timezones";
 
 /**
  * The member directory behind `/members`. Distinct from
@@ -150,12 +153,26 @@ export const MEMBER_SORTS = ["active", "newest", "rate"] as const;
 const memberFacetSchema = {
   search: z.string().trim().max(100).optional(),
   skillIds: z.array(z.number().int().positive()).optional(),
+  /** Craft claims — the shared `collab_roles` vocabulary. An OR, like skills. */
+  roleIds: z.array(z.number().int().positive()).optional(),
   /** Any of these commitment levels — an OR, not a narrowing chain. */
   availability: z.array(z.enum(MEMBER_AVAILABILITY)).optional(),
   /** The profile's own "open to work" flag. */
   openToWork: z.boolean().optional(),
   /** Hourly ceiling in whole dollars. Implies "has an hourly rate". */
   maxHourlyRate: z.number().int().positive().optional(),
+  /**
+   * The timezone facet — "within ±N hours of me". The caller sends its own
+   * current UTC offset in minutes (`tzOffset`, browser-derived) and the
+   * window in hours; both or neither. Implies "has a timezone set".
+   */
+  tzOffset: z
+    .number()
+    .int()
+    .min(-14 * 60)
+    .max(14 * 60)
+    .optional(),
+  tzWithinHours: z.number().int().min(1).max(12).optional(),
 };
 
 type MemberFilterInput = {
@@ -194,6 +211,27 @@ function buildMemberFilter(input: MemberFilterInput) {
     );
   }
 
+  // "Find me a composer" — same shape as skills, same vocabulary as the
+  // board's role facet.
+  if (input.roleIds && input.roleIds.length > 0) {
+    conditions.push(
+      sql`exists (
+        select 1 from ${userRoles}
+        where ${userRoles.userId} = ${developerProfiles.id}
+          and ${inArray(userRoles.roleId, input.roleIds)}
+      )`,
+    );
+  }
+
+  // The zone names inside the window are enumerated here rather than
+  // joined against pg_timezone_names, so the condition stays an
+  // index-friendly IN over the timezone column. Offsets are *current*
+  // (DST-aware) — coarse is fine for "when are we both awake".
+  if (input.tzOffset != null && input.tzWithinHours != null) {
+    const names = timezonesWithinOffset(input.tzOffset, input.tzWithinHours * 60);
+    conditions.push(names.length > 0 ? inArray(developerProfiles.timezone, names) : sql`false`);
+  }
+
   if (input.openToWork) conditions.push(eq(developerProfiles.availableForWork, true));
 
   if (input.availability && input.availability.length > 0) {
@@ -220,6 +258,22 @@ export const countMembersBySkill = os
       .groupBy(userSkills.skillId);
 
     return Object.fromEntries(rows.map((row) => [row.skillId, Number(row.count)]));
+  });
+
+/** Per-role member counts for the role picker — same contract as skills:
+ *  every filter except the role facet itself applies. */
+export const countMembersByRole = os
+  .route({ method: "GET" })
+  .input(z.object(memberFacetSchema))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({ roleId: userRoles.roleId, count: countDistinct(developerProfiles.id) })
+      .from(userRoles)
+      .innerJoin(developerProfiles, eq(developerProfiles.id, userRoles.userId))
+      .where(buildMemberFilter({ ...input, roleIds: undefined }))
+      .groupBy(userRoles.roleId);
+
+    return Object.fromEntries(rows.map((row) => [row.roleId, Number(row.count)]));
   });
 
 export const listMembers = os
@@ -265,6 +319,8 @@ export const listMembers = os
           rateType: developerProfiles.rateType,
           rateMin: developerProfiles.rateMin,
           rateMax: developerProfiles.rateMax,
+          timezone: developerProfiles.timezone,
+          location: developerProfiles.location,
           createdAt: developerProfiles.createdAt,
           shipCount: selectable(shipsTotal),
           teamCount: selectable(teamsTotal),
@@ -291,7 +347,7 @@ async function withMemberCardExtras<T extends { id: string }>(rows: T[]) {
   const userIds = rows.map((r) => r.id);
   if (userIds.length === 0) return [];
 
-  const [stubRows, skillRows] = await Promise.all([
+  const [stubRows, skillRows, roleRows] = await Promise.all([
     db
       .select({ profileId: profileUrlStubs.profileId, stub: profileUrlStubs.stub })
       .from(profileUrlStubs)
@@ -302,6 +358,12 @@ async function withMemberCardExtras<T extends { id: string }>(rows: T[]) {
       .innerJoin(skills, eq(userSkills.skillId, skills.id))
       .where(inArray(userSkills.userId, userIds))
       .orderBy(asc(skills.name)),
+    db
+      .select({ userId: userRoles.userId, id: collabRoles.id, name: collabRoles.name })
+      .from(userRoles)
+      .innerJoin(collabRoles, eq(userRoles.roleId, collabRoles.id))
+      .where(inArray(userRoles.userId, userIds))
+      .orderBy(asc(collabRoles.name)),
   ]);
 
   const stubByUser = new Map(stubRows.map((r) => [r.profileId, r.stub]));
@@ -311,12 +373,20 @@ async function withMemberCardExtras<T extends { id: string }>(rows: T[]) {
     list.push({ id: row.id, name: row.name });
     skillsByUser.set(row.userId, list);
   }
+  const rolesByUser = new Map<string, { id: number; name: string }[]>();
+  for (const row of roleRows) {
+    const list = rolesByUser.get(row.userId) ?? [];
+    list.push({ id: row.id, name: row.name });
+    rolesByUser.set(row.userId, list);
+  }
 
   return rows.map((row) => {
     const stack = skillsByUser.get(row.id) ?? [];
     return {
       ...row,
       urlStub: stubByUser.get(row.id) ?? null,
+      // Capped server-side at 3, so no hidden-count treatment needed.
+      roles: rolesByUser.get(row.id) ?? [],
       skills: stack.slice(0, CARD_SKILLS),
       // The card says "+3" rather than dropping them silently.
       hiddenSkillCount: Math.max(0, stack.length - CARD_SKILLS),

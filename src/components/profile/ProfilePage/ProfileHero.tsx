@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
+import { timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
@@ -178,17 +179,25 @@ function AvailabilityPill({ availability }: { availability: ProfileAvailability 
  * mono line under the name — mirrors the reference layout's single
  * dotted meta row rather than a chip pile. */
 function MetaLine({ profile }: { profile: ProfileViewModel }) {
+  // Roles lead — "Composer" is the claim, the stack is the detail — and
+  // the skills give back the room the roles take.
+  const roles = profile.roles.slice(0, 2).map((r) => r.name);
   const topSkills = profile.skills
     .filter((s) => s.state === "active")
-    .slice(0, 2)
+    .slice(0, Math.max(0, 2 - roles.length))
     .map((s) => s.name);
+  // The offset, not the zone name — compact, and comparable at a glance.
+  const tz = profile.availability.timezone
+    ? timezoneOffsetLabel(profile.availability.timezone)
+    : null;
   const joinedYear = profile.joinedAt.getUTCFullYear();
   const parts: string[] = [
     `@${profile.handle}`,
+    ...roles,
     ...topSkills,
     ...(profile.pronouns ? [profile.pronouns] : []),
     ...(profile.location ? [profile.location] : []),
-    ...(profile.availability.timezone ? [profile.availability.timezone] : []),
+    ...(tz ? [tz] : []),
     `Member since ${joinedYear}`,
   ];
   return (

@@ -29,9 +29,9 @@ export type SetTeamsSearch = (next: Partial<TeamsSearch>) => void;
  * options share one row and the menu's full phrasing doesn't fit.
  */
 export const SORT_OPTIONS: { value: TeamsSort; label: string; short: string }[] = [
-  { value: "active", label: "RECRUITING FIRST", short: "ACTIVE" },
-  { value: "shipped", label: "RECENTLY SHIPPED", short: "SHIPPED" },
-  { value: "newest", label: "NEWEST", short: "NEWEST" },
+  { value: "active", label: "Recruiting first", short: "ACTIVE" },
+  { value: "shipped", label: "Recently shipped", short: "SHIPPED" },
+  { value: "newest", label: "Newest", short: "NEWEST" },
 ];
 
 export const DEFAULT_SORT: TeamsSort = "active";
@@ -47,7 +47,7 @@ export const DEFAULT_SORT: TeamsSort = "active";
  * the cards scrolling under the sticky toolbar show through the toggle.
  */
 export const FILTER_TOGGLE =
-  "tracking-widest aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
+  "tracking-widest uppercase aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
 
 /**
  * URL search → the shape `listTeams` and its facet counts both take.

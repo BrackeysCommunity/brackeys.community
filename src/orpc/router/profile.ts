@@ -21,6 +21,7 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import {
+  collabRoles,
   developerProfiles,
   itchJamEntryResults,
   itchJams,
@@ -36,6 +37,7 @@ import {
   teamMembers,
   teams,
   threads,
+  userRoles,
   userSkills,
 } from "@/db/schema";
 import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
@@ -58,6 +60,7 @@ import {
 import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { isValidTimezone } from "@/lib/timezones";
 import { requireAuth } from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
@@ -314,6 +317,20 @@ function queryUserSkills(userId: string) {
     .where(eq(userSkills.userId, userId));
 }
 
+/** The member's craft claims — same `collab_roles` vocabulary the board
+ *  hires against. */
+function queryUserRoles(userId: string) {
+  return db
+    .select({
+      id: collabRoles.id,
+      name: collabRoles.name,
+      category: collabRoles.category,
+    })
+    .from(userRoles)
+    .innerJoin(collabRoles, eq(userRoles.roleId, collabRoles.id))
+    .where(eq(userRoles.userId, userId));
+}
+
 const optionalUrlSchema = z.url().optional().or(z.literal(""));
 /** The *canonical* kind the member picked. The placement stores a lossy
  * stand-in for it (`placementTypeForProjectType`) because its column is a pg
@@ -435,47 +452,56 @@ export const getProfile = os
 
     const profileId = profile.id;
 
-    const [skillList, projects, urlStub, linkedAccountsList, creditRows, wallThread, collabsCount] =
-      await Promise.all([
-        queryUserSkills(profileId),
-        queryProfileProjects(
-          and(
-            eq(profileProjects.profileId, profileId),
-            eq(profileProjects.status, "approved"),
-            // Unpublished titles (e.g. itch.io drafts) are owner-only.
-            eq(profileProjects.published, true),
-            // itch.io "Restricted" pages report published=true from the
-            // API but 404 for anonymous visitors; the library-sync
-            // sweep's URL probe records that here. Owner-only too.
-            isNull(profileProjects.restrictedAt),
-            // Games that vanished from the linked library (deleted on
-            // itch, or access lost) are owner-only until removed.
-            isNull(profileProjects.missingSince),
-          ),
+    const [
+      skillList,
+      roleList,
+      projects,
+      urlStub,
+      linkedAccountsList,
+      creditRows,
+      wallThread,
+      collabsCount,
+    ] = await Promise.all([
+      queryUserSkills(profileId),
+      queryUserRoles(profileId),
+      queryProfileProjects(
+        and(
+          eq(profileProjects.profileId, profileId),
+          eq(profileProjects.status, "approved"),
+          // Unpublished titles (e.g. itch.io drafts) are owner-only.
+          eq(profileProjects.published, true),
+          // itch.io "Restricted" pages report published=true from the
+          // API but 404 for anonymous visitors; the library-sync
+          // sweep's URL probe records that here. Owner-only too.
+          isNull(profileProjects.restrictedAt),
+          // Games that vanished from the linked library (deleted on
+          // itch, or access lost) are owner-only until removed.
+          isNull(profileProjects.missingSince),
         ),
-        db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
-        // Display-safe columns only. `tokenInvalidAt` says whether someone's
-        // linked account needs reconnecting, which is between them and the
-        // provider — only the owner's own `getMyProfile` carries it, and the
-        // page's "reconnect" prompt already reads it from there.
-        db
-          .select({
-            id: linkedAccounts.id,
-            provider: linkedAccounts.provider,
-            providerUsername: linkedAccounts.providerUsername,
-            providerProfileUrl: linkedAccounts.providerProfileUrl,
-            linkedAt: linkedAccounts.linkedAt,
-          })
-          .from(linkedAccounts)
-          .where(eq(linkedAccounts.profileId, profileId)),
-        queryProfileCredits(profileId),
-        db
-          .select({ commentCount: threads.commentCount })
-          .from(threads)
-          .where(eq(threads.profileUserId, profileId))
-          .limit(1),
-        countCollabCollaborators(profileId),
-      ]);
+      ),
+      db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
+      // Display-safe columns only. `tokenInvalidAt` says whether someone's
+      // linked account needs reconnecting, which is between them and the
+      // provider — only the owner's own `getMyProfile` carries it, and the
+      // page's "reconnect" prompt already reads it from there.
+      db
+        .select({
+          id: linkedAccounts.id,
+          provider: linkedAccounts.provider,
+          providerUsername: linkedAccounts.providerUsername,
+          providerProfileUrl: linkedAccounts.providerProfileUrl,
+          linkedAt: linkedAccounts.linkedAt,
+        })
+        .from(linkedAccounts)
+        .where(eq(linkedAccounts.profileId, profileId)),
+      queryProfileCredits(profileId),
+      db
+        .select({ commentCount: threads.commentCount })
+        .from(threads)
+        .where(eq(threads.profileUserId, profileId))
+        .limit(1),
+      countCollabCollaborators(profileId),
+    ]);
 
     // A credit on a project the member already showcases would repeat the
     // SHIPPED WORK card one section down; the credits list is for the work
@@ -487,6 +513,7 @@ export const getProfile = os
     return {
       profile,
       skills: skillList,
+      roles: roleList,
       projects: await serializeProfileProjects(projects),
       credits: creditRows.filter((credit) => !placedProjectIds.has(credit.projectId)).slice(0, 12),
       urlStub: urlStub[0]?.stub ?? null,
@@ -512,9 +539,10 @@ export const getMyProfile = os
 
     const roleNames = applyRoleOverrides(profile.discordId, profile.guildRoles ?? []);
 
-    const [skillList, projects, pendingSkillRequests, urlStub, linkedAccountsList] =
+    const [skillList, roleList, projects, pendingSkillRequests, urlStub, linkedAccountsList] =
       await Promise.all([
         queryUserSkills(userId),
+        queryUserRoles(userId),
         queryProfileProjects(eq(profileProjects.profileId, userId)),
         db
           .select()
@@ -539,6 +567,7 @@ export const getMyProfile = os
     return {
       profile,
       skills: skillList,
+      roles: roleList,
       projects: await serializeProfileProjects(projects),
       pendingSkillRequests,
       urlStub: urlStub[0]?.stub ?? null,
@@ -593,6 +622,10 @@ export const updateProfile = os
       lookingFor: z.string().max(280).optional().nullable(),
       collabPreference: collabPreferenceSchema.optional().nullable(),
       profileNotesEnabled: z.boolean().optional(),
+      // IANA name, validated below — a zod enum over ~430 zone names would
+      // hard-code one runtime's list into the API contract.
+      timezone: z.string().max(64).optional().nullable(),
+      location: z.string().trim().max(100).optional().nullable(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -601,6 +634,13 @@ export const updateProfile = os
     checkProfanity(input.bio, "Bio");
     checkProfanity(input.tagline, "Tagline");
     checkProfanity(input.lookingFor, "Looking for");
+    checkProfanity(input.location, "Location");
+
+    if (input.timezone != null && !isValidTimezone(input.timezone)) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Unknown timezone — pick an IANA zone like Europe/Madrid.",
+      });
+    }
 
     // Anti-runaway, not anti-user — the editor autosaves field by field.
     if (!(await checkRateLimit("profile-update", userId, 120))) {
@@ -616,6 +656,41 @@ export const updateProfile = os
       .returning();
 
     return updated;
+  });
+
+/** How many craft claims a profile can carry — a claim, not a tag cloud. */
+export const MAX_PROFILE_ROLES = 3;
+
+/**
+ * Replace-set of the member's role claims. One mutation rather than
+ * add/remove pairs because the editor is a chip row with a hard cap —
+ * the client always knows the whole intended set.
+ */
+export const setMyRoles = os
+  .use(requireAuth)
+  .input(z.object({ roleIds: z.array(z.number().int().positive()).max(MAX_PROFILE_ROLES) }))
+  .handler(async ({ input, context }) => {
+    const userId = context.user.id;
+    const roleIds = [...new Set(input.roleIds)];
+
+    if (roleIds.length > 0) {
+      const found = await db
+        .select({ id: collabRoles.id })
+        .from(collabRoles)
+        .where(inArray(collabRoles.id, roleIds));
+      if (found.length !== roleIds.length) {
+        throw new ORPCError("BAD_REQUEST", { message: "One or more roles do not exist." });
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userRoles).where(eq(userRoles.userId, userId));
+      if (roleIds.length > 0) {
+        await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId, roleId })));
+      }
+    });
+
+    return queryUserRoles(userId);
   });
 
 export const syncDiscordData = os
