@@ -1,0 +1,69 @@
+/* Rosé Pine — https://rosepinetheme.com
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #191724 (base)  #1f1d2e (surface)  #26233a (overlay)
+   Highlight: #21202e (low)   #403d52 (med)      #524f67 (high)
+   Content:   #e0def4 (text)  #908caa (subtle)   #6e6a86 (muted)
+   Accents:   #eb6f92 (love)  #f6c177 (gold)     #ebbcba (rose)
+              #31748f (pine)  #9ccfd8 (foam)     #c4a7e7 (iris)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="rose-pine"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #191724;
+  --foreground: #e0def4;
+  --card: #1f1d2e;
+  --card-foreground: #e0def4;
+  --popover: #1f1d2e;
+  --popover-foreground: #e0def4;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #c4a7e7;
+  --primary-foreground: #191724;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #9ccfd8;
+  --accent-foreground: #191724;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #26233a;
+  --muted-foreground: #908caa;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #eb6f92;
+  --destructive-foreground: #191724;
+  --success: #9ccfd8;
+  --success-foreground: #191724;
+  --warning: #f6c177;
+  --warning-foreground: #191724;
+  --info: #31748f;
+  --info-foreground: #e0def4;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(110, 106, 134, 0.45);
+  --input: rgba(110, 106, 134, 0.55);
+  --ring: #c4a7e7;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #c4a7e7;
+  --chart-2: #9ccfd8;
+  --chart-3: #ebbcba;
+  --chart-4: #f6c177;
+  --chart-5: #31748f;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #1f1d2e;
+  --sidebar-foreground: #e0def4;
+  --sidebar-primary: #c4a7e7;
+  --sidebar-primary-foreground: #191724;
+  --sidebar-accent: #9ccfd8;
+  --sidebar-accent-foreground: #191724;
+  --sidebar-border: rgba(110, 106, 134, 0.45);
+  --sidebar-ring: #c4a7e7;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #26233a;
+  --emboss-shadow: #100e17;
+  --deboss-surface: #21202e;
+  --deboss-shadow: #13111c;
+  --deboss-highlight: rgba(224, 222, 244, 0.05);
+}

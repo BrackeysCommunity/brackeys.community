@@ -33,7 +33,7 @@ import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const navigate = useNavigate();
-  const { themeId, setTheme, themes } = useAppTheme();
+  const { themeId, setTheme, sections } = useAppTheme();
   const { data: session } = authClient.useSession();
   const isStaff = useStore(activeUserStore, (s) => s.profile?.isStaff ?? false);
 
@@ -105,23 +105,26 @@ export function CommandPalette() {
 
           <CommandSeparator />
 
-          {/* Theme Switcher */}
-          <CommandGroup heading="THEMES">
-            {themes.map((t) => (
-              <CommandItem
-                key={t.id}
-                value={`theme ${t.name} ${t.description}`}
-                onSelect={() => run(() => setTheme(t.id))}
-              >
-                <HugeiconsIcon
-                  icon={PaintBrush04Icon}
-                  className={t.id === themeId ? "text-primary" : "text-muted-foreground"}
-                />
-                <span>{t.name}</span>
-                {t.id === themeId && <CommandShortcut>active</CommandShortcut>}
-              </CommandItem>
-            ))}
-          </CommandGroup>
+          {/* Theme Switcher — the mode rides along in `value` so typing
+              "light" filters down to the light themes. */}
+          {sections.map((section) => (
+            <CommandGroup key={section.mode} heading={`THEMES · ${section.label.toUpperCase()}`}>
+              {section.themes.map((t) => (
+                <CommandItem
+                  key={t.id}
+                  value={`theme ${section.mode} ${t.name} ${t.description}`}
+                  onSelect={() => run(() => setTheme(t.id))}
+                >
+                  <HugeiconsIcon
+                    icon={PaintBrush04Icon}
+                    className={t.id === themeId ? "text-primary" : "text-muted-foreground"}
+                  />
+                  <span>{t.name}</span>
+                  {t.id === themeId && <CommandShortcut>active</CommandShortcut>}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
 
           <CommandSeparator />
 

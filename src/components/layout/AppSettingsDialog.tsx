@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Heading, Text } from "@/components/ui/typography";
+import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { useAppSettings } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,7 @@ interface AppSettingsDialogProps {
  * there's no save step.
  */
 export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps) {
-  const { themeId, setTheme, themes } = useAppTheme();
+  const { themeId, setTheme, themes, sections } = useAppTheme();
   const { reduceMotion, setReduceMotion, muted, setMuted } = useAppSettings();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -42,36 +42,45 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
         <div className="flex flex-col gap-5 pt-2">
           <SettingsBlock label="THEME" hint={`${themes.length} variants · pick the look you like`}>
-            <div className="grid grid-cols-2 gap-2">
-              {themes.map((t) => {
-                const isActive = t.id === themeId;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTheme(t.id)}
-                    className={cn(
-                      "flex flex-col items-start gap-0.5 rounded border px-3 py-2 text-left transition-colors",
-                      isActive
-                        ? "border-accent bg-accent/10"
-                        : "border-muted/40 bg-card/40 hover:border-muted",
-                    )}
-                  >
-                    <Text
-                      size="xs"
-                      className={cn(
-                        "tracking-widest uppercase",
-                        isActive ? "text-accent" : "text-foreground",
-                      )}
-                    >
-                      {t.name}
-                    </Text>
-                    <Text size="xs" variant="muted" className="line-clamp-1">
-                      {t.description}
-                    </Text>
-                  </button>
-                );
-              })}
+            <div className="flex flex-col gap-3">
+              {sections.map((section) => (
+                <div key={section.mode} className="flex flex-col gap-1.5">
+                  <MicroLabel className="uppercase">
+                    {section.label} · {section.themes.length}
+                  </MicroLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    {section.themes.map((t) => {
+                      const isActive = t.id === themeId;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTheme(t.id)}
+                          className={cn(
+                            "flex flex-col items-start gap-0.5 rounded border px-3 py-2 text-left transition-colors",
+                            isActive
+                              ? "border-accent bg-accent/10"
+                              : "border-muted/40 bg-card/40 hover:border-muted",
+                          )}
+                        >
+                          <Text
+                            size="xs"
+                            className={cn(
+                              "tracking-widest uppercase",
+                              isActive ? "text-accent" : "text-foreground",
+                            )}
+                          >
+                            {t.name}
+                          </Text>
+                          <Text size="xs" variant="muted" className="line-clamp-1">
+                            {t.description}
+                          </Text>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </SettingsBlock>
 

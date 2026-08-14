@@ -1,0 +1,72 @@
+/* Tokyo Night — https://github.com/folke/tokyonight.nvim
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #1a1b26 (night bg)  #16161e (night bg_dark)
+              #292e42 (highlight)  #3b4261 (gutter)  #414868 (term black)
+              #1f2335 — Storm's bg_dark, borrowed for the card lift that
+              Night's own ramp jumps straight past.
+   Content:   #c0caf5 (fg)   #a9b1d6 (fg dim)  #565f89 (comment)
+   Accents:   #f7768e (red)  #ff9e64 (orange)  #e0af68 (yellow)
+              #9ece6a (green)  #7dcfff (cyan)  #7aa2f7 (blue)
+              #bb9af7 (magenta)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="tokyo-night"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #1a1b26;
+  --foreground: #c0caf5;
+  --card: #1f2335;
+  --card-foreground: #c0caf5;
+  --popover: #1f2335;
+  --popover-foreground: #c0caf5;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #7aa2f7;
+  --primary-foreground: #1a1b26;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #bb9af7;
+  --accent-foreground: #1a1b26;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #292e42;
+  --muted-foreground: #a9b1d6;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #f7768e;
+  --destructive-foreground: #1a1b26;
+  --success: #9ece6a;
+  --success-foreground: #1a1b26;
+  --warning: #e0af68;
+  --warning-foreground: #1a1b26;
+  --info: #7dcfff;
+  --info-foreground: #1a1b26;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(65, 72, 104, 0.6);
+  --input: rgba(65, 72, 104, 0.7);
+  --ring: #7aa2f7;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #7aa2f7;
+  --chart-2: #bb9af7;
+  --chart-3: #7dcfff;
+  --chart-4: #9ece6a;
+  --chart-5: #ff9e64;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #16161e;
+  --sidebar-foreground: #c0caf5;
+  --sidebar-primary: #7aa2f7;
+  --sidebar-primary-foreground: #1a1b26;
+  --sidebar-accent: #bb9af7;
+  --sidebar-accent-foreground: #1a1b26;
+  --sidebar-border: rgba(65, 72, 104, 0.6);
+  --sidebar-ring: #7aa2f7;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #292e42;
+  --emboss-shadow: #0f0f16;
+  --deboss-surface: #16161e;
+  --deboss-shadow: #0d0d12;
+  --deboss-highlight: rgba(192, 202, 245, 0.05);
+}

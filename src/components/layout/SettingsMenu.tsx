@@ -23,7 +23,7 @@ import { useAppTheme } from "@/lib/hooks/use-app-theme";
  * control persists immediately via its own provider hook.
  */
 export function SettingsMenu() {
-  const { themeId, setTheme, themes } = useAppTheme();
+  const { themeId, setTheme, sections } = useAppTheme();
   const { reduceMotion, setReduceMotion, muted, setMuted } = useAppSettings();
 
   return (
@@ -36,21 +36,26 @@ export function SettingsMenu() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" sideOffset={8} className="min-w-[200px]">
-        {/* The label registers itself with the enclosing group — base-ui
-            throws outside one, and RadioGroup is not that group. */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={themeId}
-            onValueChange={(value) => setTheme(String(value))}
-          >
-            {themes.map((t) => (
-              <DropdownMenuRadioItem key={t.id} value={t.id}>
-                {t.name}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
+        {/* One group per mode. The label registers itself with the
+            enclosing group — base-ui throws outside one, and RadioGroup
+            is not that group. Each RadioGroup carries the same value, so
+            only the section holding the active theme renders a check. */}
+        {sections.map((section, i) => (
+          <DropdownMenuGroup key={section.mode}>
+            {i > 0 ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuLabel>Theme · {section.label}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={themeId}
+              onValueChange={(value) => setTheme(String(value))}
+            >
+              {section.themes.map((t) => (
+                <DropdownMenuRadioItem key={t.id} value={t.id}>
+                  {t.name}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+        ))}
 
         <DropdownMenuSeparator />
 

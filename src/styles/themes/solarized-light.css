@@ -1,0 +1,78 @@
+/* Solarized Light — https://ethanschoonover.com/solarized
+   ─────────────────────────────────────────────────────────────────────
+   Bases:     #fdf6e3 (base3)  #eee8d5 (base2)  #93a1a1 (base1)
+   Content:   #839496 (base0)  #657b83 (base00) #586e75 (base01)
+              #073642 (base02) #002b36 (base03)
+   Accents:   #dc322f (red)    #cb4b16 (orange)  #b58900 (yellow)
+              #859900 (green)  #2aa198 (cyan)    #268bd2 (blue)
+              #6c71c4 (violet) #d33682 (magenta)
+   ─────────────────────────────────────────────────────────────────────
+   The shell always carries `.dark` on <html> — the class is the app's
+   only palette hook, not a light/dark switch — so a light theme states
+   its values in the same place every other theme does.
+
+   Solarized ships two light bases and the app needs three fill levels,
+   so the muted/deboss tones are derived by darkening base2. Accents too
+   light to carry base3 as their label color take base02 instead.
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="solarized-light"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #fdf6e3;
+  --foreground: #586e75;
+  --card: #eee8d5;
+  --card-foreground: #586e75;
+  --popover: #eee8d5;
+  --popover-foreground: #586e75;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #268bd2;
+  --primary-foreground: #fdf6e3;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #6c71c4;
+  --accent-foreground: #fdf6e3;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #e4dcc6;
+  --muted-foreground: #657b83;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #dc322f;
+  --destructive-foreground: #fdf6e3;
+  --success: #859900;
+  --success-foreground: #073642;
+  --warning: #b58900;
+  --warning-foreground: #073642;
+  --info: #2aa198;
+  --info-foreground: #073642;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(147, 161, 161, 0.5);
+  --input: rgba(147, 161, 161, 0.6);
+  --ring: #268bd2;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #268bd2;
+  --chart-2: #6c71c4;
+  --chart-3: #2aa198;
+  --chart-4: #b58900;
+  --chart-5: #d33682;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #eee8d5;
+  --sidebar-foreground: #586e75;
+  --sidebar-primary: #268bd2;
+  --sidebar-primary-foreground: #fdf6e3;
+  --sidebar-accent: #6c71c4;
+  --sidebar-accent-foreground: #fdf6e3;
+  --sidebar-border: rgba(147, 161, 161, 0.5);
+  --sidebar-ring: #268bd2;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #fdf6e3;
+  --emboss-shadow: #93a1a1;
+  --deboss-surface: #e4dcc6;
+  --deboss-shadow: #d5cbb0;
+  --deboss-highlight: rgba(255, 255, 255, 0.7);
+}

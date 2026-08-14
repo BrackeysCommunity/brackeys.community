@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { DEFAULT_THEME_ID, type Theme, themes } from "@/lib/themes";
+import { DEFAULT_THEME_ID, type Theme, themeSections, themes } from "@/lib/themes";
 
 const STORAGE_KEY = "brackeys-theme";
 
@@ -9,6 +9,8 @@ interface ThemeContextValue {
   theme: Theme;
   setTheme: (id: string) => void;
   themes: Theme[];
+  /** `themes` split into "Dark" / "Light" blocks, in picker order. */
+  sections: typeof themeSections;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -45,7 +47,7 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const theme = themes.find((t) => t.id === themeId) ?? themes[0];
 
   return (
-    <ThemeContext.Provider value={{ themeId, theme, setTheme, themes }}>
+    <ThemeContext.Provider value={{ themeId, theme, setTheme, themes, sections: themeSections }}>
       {children}
     </ThemeContext.Provider>
   );

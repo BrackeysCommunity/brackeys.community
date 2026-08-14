@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 
+import { MediaCardFloatingBadge } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
@@ -58,9 +59,9 @@ export function FeaturedCard({
         {/* Over the art rather than in the text block — the count is a
             glanceable badge, not part of the jam's description. Sits at
             the bottom edge, where the scrim already darkens the art. */}
-        <div className="absolute bottom-2 left-2 rounded bg-background/75 px-1.5 py-0.5 backdrop-blur-sm">
+        <MediaCardFloatingBadge>
           <SignalInline jam={jam} now={now} size="sm" />
-        </div>
+        </MediaCardFloatingBadge>
       </div>
       <div className="flex flex-1 flex-col gap-1 px-3 pt-2.5 pb-2.5">
         <Text bold size="lg" className="truncate leading-snug whitespace-nowrap">

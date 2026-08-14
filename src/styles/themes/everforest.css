@@ -1,0 +1,71 @@
+/* Everforest Dark (medium) — https://github.com/sainnhe/everforest
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #232a2e (dim)   #2d353b (bg0)   #343f44 (bg1)
+              #3d484d (bg2)   #475258 (bg3)   #4f585e (bg4)
+   Content:   #d3c6aa (fg)    #9da9a0 (grey2)  #859289 (grey1)
+              #7a8478 (grey0)
+   Accents:   #e67e80 (red)   #e69875 (orange)  #dbbc7f (yellow)
+              #a7c080 (green) #83c092 (aqua)    #7fbbb3 (blue)
+              #d699b6 (purple)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="everforest"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #2d353b;
+  --foreground: #d3c6aa;
+  --card: #343f44;
+  --card-foreground: #d3c6aa;
+  --popover: #343f44;
+  --popover-foreground: #d3c6aa;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #a7c080;
+  --primary-foreground: #2d353b;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #d699b6;
+  --accent-foreground: #2d353b;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #3d484d;
+  --muted-foreground: #9da9a0;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #e67e80;
+  --destructive-foreground: #2d353b;
+  --success: #83c092;
+  --success-foreground: #2d353b;
+  --warning: #dbbc7f;
+  --warning-foreground: #2d353b;
+  --info: #7fbbb3;
+  --info-foreground: #2d353b;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(122, 132, 120, 0.5);
+  --input: rgba(122, 132, 120, 0.6);
+  --ring: #a7c080;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #a7c080;
+  --chart-2: #83c092;
+  --chart-3: #7fbbb3;
+  --chart-4: #dbbc7f;
+  --chart-5: #e69875;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #232a2e;
+  --sidebar-foreground: #d3c6aa;
+  --sidebar-primary: #a7c080;
+  --sidebar-primary-foreground: #2d353b;
+  --sidebar-accent: #d699b6;
+  --sidebar-accent-foreground: #2d353b;
+  --sidebar-border: rgba(122, 132, 120, 0.5);
+  --sidebar-ring: #a7c080;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #3d484d;
+  --emboss-shadow: #1c2225;
+  --deboss-surface: #272f33;
+  --deboss-shadow: #1a1f22;
+  --deboss-highlight: rgba(211, 198, 170, 0.06);
+}

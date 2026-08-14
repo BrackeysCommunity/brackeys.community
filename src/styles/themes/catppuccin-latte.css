@@ -1,0 +1,75 @@
+/* Catppuccin Latte — https://catppuccin.com
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #eff1f5 (base)   #e6e9ef (mantle)  #dce0e8 (crust)
+              #ccd0da (surface0)  #bcc0cc (surface1)  #acb0be (surface2)
+   Content:   #4c4f69 (text)   #5c5f77 (subtext1)  #6c6f85 (subtext0)
+              #9ca0b0 (overlay0)
+   Accents:   #d20f39 (red)    #fe640b (peach)   #df8e1d (yellow)
+              #40a02b (green)  #179299 (teal)    #1e66f5 (blue)
+              #8839ef (mauve)  #ea76cb (pink)
+   ─────────────────────────────────────────────────────────────────────
+   The shell always carries `.dark` on <html> — the class is the app's
+   only palette hook, not a light/dark switch — so a light theme states
+   its values in the same place every other theme does.
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="catppuccin-latte"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #eff1f5;
+  --foreground: #4c4f69;
+  --card: #e6e9ef;
+  --card-foreground: #4c4f69;
+  --popover: #e6e9ef;
+  --popover-foreground: #4c4f69;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #8839ef;
+  --primary-foreground: #eff1f5;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #1e66f5;
+  --accent-foreground: #eff1f5;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #ccd0da;
+  --muted-foreground: #6c6f85;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #d20f39;
+  --destructive-foreground: #eff1f5;
+  --success: #40a02b;
+  --success-foreground: #eff1f5;
+  --warning: #df8e1d;
+  --warning-foreground: #4c4f69;
+  --info: #179299;
+  --info-foreground: #eff1f5;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(156, 160, 176, 0.45);
+  --input: rgba(156, 160, 176, 0.55);
+  --ring: #8839ef;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #8839ef;
+  --chart-2: #1e66f5;
+  --chart-3: #179299;
+  --chart-4: #df8e1d;
+  --chart-5: #ea76cb;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #e6e9ef;
+  --sidebar-foreground: #4c4f69;
+  --sidebar-primary: #8839ef;
+  --sidebar-primary-foreground: #eff1f5;
+  --sidebar-accent: #1e66f5;
+  --sidebar-accent-foreground: #eff1f5;
+  --sidebar-border: rgba(156, 160, 176, 0.45);
+  --sidebar-ring: #8839ef;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #eff1f5;
+  --emboss-shadow: #acb0be;
+  --deboss-surface: #dce0e8;
+  --deboss-shadow: #ccd0da;
+  --deboss-highlight: rgba(255, 255, 255, 0.8);
+}

@@ -32,11 +32,28 @@ export function MediaCardScrim() {
  * Floating chip pinned to the banner's bottom-left, where the scrim
  * already darkens the art — for glanceable stats, not description.
  */
-export function MediaCardFloatingBadge({ children }: { children: React.ReactNode }) {
+export function MediaCardFloatingBadge({
+  children,
+  as: Tag = "div",
+  className,
+}: {
+  children: React.ReactNode;
+  /** `span` for chips nested inside a phrasing-content-only ancestor. */
+  as?: "div" | "span";
+  className?: string;
+}) {
   return (
-    <div className="absolute bottom-2 left-2 rounded bg-background/75 px-1.5 py-0.5 backdrop-blur-sm">
+    // `flex` rather than the default inline layout: a line box would size
+    // itself to the inherited strut, not the 10px chip text, padding the
+    // chip's top edge well past its bottom one.
+    <Tag
+      className={cn(
+        "absolute bottom-2 left-2 flex items-center rounded bg-background/75 px-1.5 py-0.5 backdrop-blur-sm",
+        className,
+      )}
+    >
       {children}
-    </div>
+    </Tag>
   );
 }
 

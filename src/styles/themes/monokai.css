@@ -1,0 +1,69 @@
+/* Monokai (classic) — Wimer Hazenberg's Textmate palette
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #272822 (bg)   #31322b (lifted)  #1e1f1c (gutter)
+              #49483e (selection)
+   Content:   #f8f8f2 (fg)   #bcbbb0 (dim)     #75715e (comment)
+   Accents:   #f92672 (pink) #fd971f (orange)  #e6db74 (yellow)
+              #a6e22e (green) #66d9ef (cyan)   #ae81ff (purple)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="monokai"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #272822;
+  --foreground: #f8f8f2;
+  --card: #31322b;
+  --card-foreground: #f8f8f2;
+  --popover: #31322b;
+  --popover-foreground: #f8f8f2;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #66d9ef;
+  --primary-foreground: #272822;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #ae81ff;
+  --accent-foreground: #272822;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #49483e;
+  --muted-foreground: #bcbbb0;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #f92672;
+  --destructive-foreground: #272822;
+  --success: #a6e22e;
+  --success-foreground: #272822;
+  --warning: #fd971f;
+  --warning-foreground: #272822;
+  --info: #66d9ef;
+  --info-foreground: #272822;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(117, 113, 94, 0.6);
+  --input: rgba(117, 113, 94, 0.7);
+  --ring: #66d9ef;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #66d9ef;
+  --chart-2: #ae81ff;
+  --chart-3: #f92672;
+  --chart-4: #a6e22e;
+  --chart-5: #fd971f;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #1e1f1c;
+  --sidebar-foreground: #f8f8f2;
+  --sidebar-primary: #66d9ef;
+  --sidebar-primary-foreground: #272822;
+  --sidebar-accent: #ae81ff;
+  --sidebar-accent-foreground: #272822;
+  --sidebar-border: rgba(117, 113, 94, 0.6);
+  --sidebar-ring: #66d9ef;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #3e3d32;
+  --emboss-shadow: #16170f;
+  --deboss-surface: #1e1f1c;
+  --deboss-shadow: #131410;
+  --deboss-highlight: rgba(248, 248, 242, 0.05);
+}

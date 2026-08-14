@@ -1,0 +1,76 @@
+/* Rosé Pine Dawn — https://rosepinetheme.com
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #faf4ed (base)  #fffaf3 (surface)  #f2e9e1 (overlay)
+   Highlight: #f4ede8 (low)   #dfdad9 (med)      #cecacd (high)
+   Content:   #464261 (text)  #797593 (subtle)   #9893a5 (muted)
+   Accents:   #b4637a (love)  #ea9d34 (gold)     #d7827e (rose)
+              #286983 (pine)  #56949f (foam)     #907aa9 (iris)
+   ─────────────────────────────────────────────────────────────────────
+   The shell always carries `.dark` on <html> — the class is the app's
+   only palette hook, not a light/dark switch — so a light theme states
+   its values in the same place every other theme does.
+
+   Dawn's accents are mid-tone by design; the ones too light to carry
+   `base` as their label color take `text` instead.
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="rose-pine-dawn"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #faf4ed;
+  --foreground: #464261;
+  --card: #fffaf3;
+  --card-foreground: #464261;
+  --popover: #fffaf3;
+  --popover-foreground: #464261;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #286983;
+  --primary-foreground: #faf4ed;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #907aa9;
+  --accent-foreground: #faf4ed;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #f2e9e1;
+  --muted-foreground: #797593;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #b4637a;
+  --destructive-foreground: #faf4ed;
+  --success: #56949f;
+  --success-foreground: #faf4ed;
+  --warning: #ea9d34;
+  --warning-foreground: #464261;
+  --info: #286983;
+  --info-foreground: #faf4ed;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: rgba(152, 147, 165, 0.4);
+  --input: rgba(152, 147, 165, 0.5);
+  --ring: #286983;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #907aa9;
+  --chart-2: #286983;
+  --chart-3: #56949f;
+  --chart-4: #ea9d34;
+  --chart-5: #d7827e;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #fffaf3;
+  --sidebar-foreground: #464261;
+  --sidebar-primary: #286983;
+  --sidebar-primary-foreground: #faf4ed;
+  --sidebar-accent: #907aa9;
+  --sidebar-accent-foreground: #faf4ed;
+  --sidebar-border: rgba(152, 147, 165, 0.4);
+  --sidebar-ring: #286983;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #fffaf3;
+  --emboss-shadow: #cecacd;
+  --deboss-surface: #f2e9e1;
+  --deboss-shadow: #dfdad9;
+  --deboss-highlight: rgba(255, 255, 255, 0.7);
+}

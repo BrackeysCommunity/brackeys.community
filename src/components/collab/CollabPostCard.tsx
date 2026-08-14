@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
-import { MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
+import { MediaCardFloatingBadge, MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
@@ -238,11 +238,11 @@ export function CollabPostGridCard({ post, selected, pinned, onSelect }: CollabP
         <span className="relative block h-36 w-full shrink-0 overflow-hidden bg-muted/20">
           {post.primaryImageUrl ? <MediaCardImage src={post.primaryImageUrl} /> : <DotField />}
           <MediaCardScrim />
-          <span className="absolute bottom-2 left-2 rounded bg-background/75 px-1.5 py-0.5 backdrop-blur-sm">
+          <MediaCardFloatingBadge as="span">
             <Text as="span" size="xs" className="tracking-widest text-foreground uppercase">
               {TYPE_LABELS[post.type] ?? post.type}
             </Text>
-          </span>
+          </MediaCardFloatingBadge>
         </span>
 
         <span data-emboss-reset className="flex min-h-0 flex-1 flex-col gap-2 p-4">
