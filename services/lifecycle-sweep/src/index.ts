@@ -23,7 +23,7 @@ import { db, pool } from "./db/client.ts";
 import { closeQueue, notify } from "./notify.ts";
 
 /**
- * Daily lifecycle sweep — the counterweight to the two rot vectors the
+ * Lifecycle sweep (every 6h) — the counterweight to the two rot vectors the
  * board and /teams discovery are exposed to: recruiting posts nobody
  * closes, and husk teams the required-team quick-create mints.
  *

@@ -3,8 +3,24 @@ builder = "DOCKERFILE"
 dockerfilePath = "services/lifecycle-sweep/Dockerfile"
 
 [deploy]
-# Railway cron: runs to completion on each tick and exits. Daily 09:00 UTC.
+# Railway cron: runs to completion on each tick and exits.
 # NEVER restart and no PORT — the jam-scraper lessons.
+#
+# Every 6h, not daily. The sweep's steps split two ways: most watch for a
+# *persisting* condition (a post past its expiry, a team quiet for 60 days,
+# a jam that has results) and can only ever be run late. But three watch for
+# a condition inside a *window*, and a window narrower than the interval is
+# missed outright rather than delayed — the stamp stays null forever.
+#
+# The narrowest window is not one of ours: `jam_voting_open` fires between a
+# jam's `ends_at` and its `voting_ends_at`, and the host picks both. A jam
+# with a half-day rating period is invisible to a daily sweep. 6h catches
+# anything down to a 6h window and, as a bonus, turns `jam_starting` from
+# "somewhere in the next 48h" into a consistent ~2-day heads-up.
+#
+# Safe to run this often because every step is idempotent: notifications
+# claim a timestamp before sending, and the archive steps compare against
+# date cutoffs, so extra ticks archive nothing early.
 startCommand = "bun run start"
-cronSchedule = "0 9 * * *"
+cronSchedule = "0 */6 * * *"
 restartPolicyType = "NEVER"
