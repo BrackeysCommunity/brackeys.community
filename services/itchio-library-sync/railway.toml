@@ -6,5 +6,5 @@ dockerfilePath = "services/itchio-library-sync/Dockerfile"
 # Railway cron: this service runs to completion on each tick and exits.
 # Daily 03:00 UTC.
 startCommand = "bun run start"
-cronSchedule = "0 3 * * *"
+cronSchedule = "*/15 * * * *"
 restartPolicyType = "NEVER"
