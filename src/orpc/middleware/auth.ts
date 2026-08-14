@@ -71,6 +71,21 @@ export const requireAuth = os.middleware(async ({ context, next }) => {
   });
 });
 
+/**
+ * The guild bar as a predicate, for handlers that vary a payload by it
+ * rather than refusing the call outright (the gated contact block on
+ * `getPostViewerState`).
+ */
+export async function userIsGuildMember(userId: string): Promise<boolean> {
+  const [profile] = await db
+    .select({ discordId: developerProfiles.discordId })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+
+  return profile?.discordId ? await isGuildMember(profile.discordId) : false;
+}
+
 /** Requires auth + verifies the user is a member of the Brackeys Discord server. */
 export const requireGuildMember = os.middleware(async ({ context, next }) => {
   const session = await readSession(context);
@@ -80,13 +95,7 @@ export const requireGuildMember = os.middleware(async ({ context, next }) => {
   }
   assertNotBanned(session);
 
-  const [profile] = await db
-    .select({ discordId: developerProfiles.discordId })
-    .from(developerProfiles)
-    .where(eq(developerProfiles.id, session.user.id))
-    .limit(1);
-
-  if (!profile?.discordId || !(await isGuildMember(profile.discordId))) {
+  if (!(await userIsGuildMember(session.user.id))) {
     throw new ORPCError("FORBIDDEN", {
       message: "You must be a member of the Brackeys Discord server to perform this action.",
     });

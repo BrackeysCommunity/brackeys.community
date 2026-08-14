@@ -21,8 +21,9 @@ type ViewedPost = { authorId: string; skills: { id: number; name: string }[] } |
  * - **The applicant list** comes from `listResponses`, which enforces
  *   owner-or-staff server-side. It is only requested when the viewer plausibly
  *   passes that gate, so ordinary visitors never provoke a 403.
- * - **The viewer's own application** comes from `getPostViewerState`, and only
- *   for a signed-in non-owner — an owner cannot apply to their own post.
+ * - **The viewer's own application** and **the contact block** come from
+ *   `getPostViewerState`. Owners fetch it too — they cannot apply to their own
+ *   post, but they should see the contact details they published.
  */
 export function usePostViewerState(
   postId: number,
@@ -40,7 +41,7 @@ export function usePostViewerState(
 
   const viewerStateQuery = useQuery({
     ...orpc.getPostViewerState.queryOptions({ input: { postId } }),
-    enabled: Boolean(currentUserId) && !isOwner,
+    enabled: Boolean(currentUserId),
   });
 
   const skillIdsQuery = useQuery({
@@ -63,7 +64,8 @@ export function usePostViewerState(
     isOwner,
     canTriage,
     responses: responsesQuery.data ?? null,
-    viewerResponse: viewerStateQuery.data?.viewerResponse ?? null,
+    viewerResponse: isOwner ? null : (viewerStateQuery.data?.viewerResponse ?? null),
+    contact: viewerStateQuery.data?.contact ?? null,
     viewerOverlap,
   };
 }

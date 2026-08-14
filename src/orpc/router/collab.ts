@@ -45,6 +45,7 @@ import {
   requireAuth,
   requireGuildMember,
   requireAuthWithPermissions,
+  userIsGuildMember,
   requireStaff,
   requireAdmin,
 } from "@/orpc/middleware/auth";
@@ -787,8 +788,17 @@ export const getPost = os
       })),
     );
 
+    // Contact details never ride this response. It carries no auth
+    // middleware and is edge-cached, so anything in it is public to the
+    // internet by construction — `getPostViewerState` serves the contact
+    // block to signed-in guild members instead.
+    const { contactType: _contactType, contactMethod: _contactMethod, ...publicPost } = post;
+
     return {
-      ...post,
+      ...publicPost,
+      // Whether there is a contact block behind the gate, so the anonymous
+      // render can offer the sign-in affordance only when it leads somewhere.
+      hasContact: Boolean(post.contactType || post.contactMethod),
       roles,
       skills: postSkills,
       jam,
@@ -801,34 +811,62 @@ export const getPost = os
   });
 
 /**
- * The viewer's own application to a post, so a returning responder sees
- * what they sent and its status instead of a blank form. The companion to
- * `getPost`'s anonymous core, and deliberately narrow: whether the viewer
- * owns the post follows from the post's public `authorId`, and the match
- * badge is a set intersection the browser does itself.
+ * The viewer's own application to a post plus the gated contact block, so a
+ * returning responder sees what they sent and its status instead of a blank
+ * form. The companion to `getPost`'s anonymous core, and deliberately
+ * narrow: whether the viewer owns the post follows from the post's public
+ * `authorId`, and the match badge is a set intersection the browser does
+ * itself.
+ *
+ * The guild check is a predicate here rather than `requireGuildMember`
+ * middleware: someone who applied and later left the server still needs to
+ * see their own application, they just stop seeing contact details.
  */
 export const getPostViewerState = os
   .use(requireAuth)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [own] = await db
-      .select({
-        id: collabResponses.id,
-        message: collabResponses.message,
-        portfolioUrl: collabResponses.portfolioUrl,
-        status: collabResponses.status,
-        createdAt: collabResponses.createdAt,
-      })
-      .from(collabResponses)
-      .where(
-        and(
-          eq(collabResponses.postId, input.postId),
-          eq(collabResponses.responderId, context.user.id),
-        ),
-      )
-      .limit(1);
+    const [[own], [post], inGuild] = await Promise.all([
+      db
+        .select({
+          id: collabResponses.id,
+          message: collabResponses.message,
+          portfolioUrl: collabResponses.portfolioUrl,
+          status: collabResponses.status,
+          createdAt: collabResponses.createdAt,
+        })
+        .from(collabResponses)
+        .where(
+          and(
+            eq(collabResponses.postId, input.postId),
+            eq(collabResponses.responderId, context.user.id),
+          ),
+        )
+        .limit(1),
+      db
+        .select({
+          authorId: collabPosts.authorId,
+          contactType: collabPosts.contactType,
+          contactMethod: collabPosts.contactMethod,
+        })
+        .from(collabPosts)
+        .where(eq(collabPosts.id, input.postId))
+        .limit(1),
+      userIsGuildMember(context.user.id),
+    ]);
 
-    return { viewerResponse: own ?? null };
+    // The author always sees their own contact block, guild or not. Not a
+    // courtesy: `updatePost` writes the post's complete state, so an author
+    // who left the server would otherwise open the edit wizard to a blank
+    // contact step and silently wipe the field on save.
+    const canSeeContact = post != null && (inGuild || post.authorId === context.user.id);
+
+    return {
+      viewerResponse: own ?? null,
+      contact: canSeeContact
+        ? { contactType: post.contactType, contactMethod: post.contactMethod }
+        : null,
+    };
   });
 
 /** The team-invite handoff state of an accepted response. */

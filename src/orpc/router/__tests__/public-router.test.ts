@@ -8,7 +8,12 @@ import {
   requireGuildMember,
   requireStaff,
 } from "@/orpc/middleware/auth";
-import { PUBLIC_PROCEDURE_NAMES, isPublicProcedure } from "@/orpc/public-procedures";
+import {
+  PUBLIC_EDGE_TTL,
+  PUBLIC_PROCEDURE_NAMES,
+  isPublicProcedure,
+  publicCacheRouteRules,
+} from "@/orpc/public-procedures";
 import router from "@/orpc/router";
 import { publicRouter } from "@/orpc/router/public";
 import { anonymousContext } from "@/routes/api.public.rpc.$";
@@ -89,6 +94,54 @@ describe("public router", () => {
     // Cloudflare refusing to cache Set-Cookie responses).
     const { headers } = anonymousContext();
     expect([...headers.keys()]).toEqual([]);
+  });
+
+  it("gives every procedure an explicit, deliberate edge TTL", () => {
+    // The `Record<PublicProcedureName, number>` type already makes a missing
+    // entry a compile error; this catches the reverse — a TTL left behind
+    // for a procedure that has since left the tier — and states the rule
+    // where someone adding a procedure will read it.
+    expect(Object.keys(PUBLIC_EDGE_TTL).sort()).toEqual([...PUBLIC_PROCEDURE_NAMES].sort());
+
+    for (const [name, ttl] of Object.entries(PUBLIC_EDGE_TTL)) {
+      expect(Number.isInteger(ttl), `"${name}" needs a whole number of seconds`).toBe(true);
+      expect(
+        ttl,
+        `"${name}" has a non-positive TTL — drop it from the tier instead`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("never lets a public response sit in the browser cache", () => {
+    // `max-age` governs the browser, and a browser answering a `fetch` from
+    // its own store makes no request at all — which silently defeats the
+    // `invalidateQueries` the app relies on to show a user their own write.
+    // Caching belongs to `s-maxage`, where the origin protection is.
+    const rules = publicCacheRouteRules();
+
+    expect(Object.keys(rules)).toHaveLength(PUBLIC_PROCEDURE_NAMES.length);
+
+    for (const [path, rule] of Object.entries(rules)) {
+      const header = rule.headers["cache-control"];
+      const name = path.replace("/api/public/rpc/", "");
+
+      expect(header, `${path} must not be browser-cacheable`).toContain("max-age=0");
+      expect(header, `${path} must be shared-cacheable`).toContain("public,");
+      expect(header).toContain(`s-maxage=${PUBLIC_EDGE_TTL[name as keyof typeof PUBLIC_EDGE_TTL]}`);
+      // `max-age=30` would satisfy a naive `toContain("max-age=0")` check
+      // only if it read `s-maxage=0`, so pin the exact prefix too.
+      expect(header.startsWith("public, max-age=0, s-maxage=")).toBe(true);
+    }
+  });
+
+  it("routes every public procedure through a rule of its own", () => {
+    // The catch-all `/api/public/**` is `no-store`, so a procedure missing
+    // from the generated rules is uncached rather than cached for a
+    // duration nobody chose. This asserts none are missing.
+    const rules = publicCacheRouteRules();
+    for (const name of PUBLIC_PROCEDURE_NAMES) {
+      expect(rules[`/api/public/rpc/${name}`], `"${name}" has no cache rule`).toBeDefined();
+    }
   });
 
   it("is a subset of the procedures the lockdown test allows anonymously", () => {

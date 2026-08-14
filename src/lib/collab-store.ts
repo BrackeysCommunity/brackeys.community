@@ -338,8 +338,10 @@ export type EditableCollabPost = {
   platforms: string[] | null;
   experienceLevel: string | null;
   portfolioUrl: string | null;
-  contactMethod: string | null;
-  contactType: string | null;
+  /** Optional because the public post payload no longer carries contact —
+   *  see `draftFromPost`'s second argument. */
+  contactMethod?: string | null;
+  contactType?: string | null;
   isIndividual: boolean | null;
   roles: { id: number }[];
   skills: { id: number }[];
@@ -354,7 +356,19 @@ export type EditableCollabPost = {
  * The narrowing casts are safe by construction: the server only accepts
  * these enums, and anything older simply isn't offered an EDIT button.
  */
-export function draftFromPost(post: EditableCollabPost): WizardDraft {
+export function draftFromPost(
+  post: EditableCollabPost,
+  /**
+   * Contact details, which no longer ride the post itself — that payload is
+   * anonymous and edge-cached, so the page fetches them from
+   * `getPostViewerState` and hands them back in here. Without this the edit
+   * wizard would blank the author's own contact block on every save.
+   */
+  contact?: { contactType: string | null; contactMethod: string | null } | null,
+): WizardDraft {
+  const contactType = contact?.contactType ?? post.contactType ?? null;
+  const contactMethod = contact?.contactMethod ?? post.contactMethod ?? null;
+
   return {
     type: post.type as CollabPostType,
     jamId: post.jamId ?? undefined,
@@ -370,8 +384,8 @@ export function draftFromPost(post: EditableCollabPost): WizardDraft {
     platforms: post.platforms ?? [],
     experienceLevel: (post.experienceLevel as CollabExperienceLevel | null) ?? undefined,
     portfolioUrl: post.portfolioUrl ?? "",
-    contactMethod: post.contactMethod ?? "",
-    contactType: (post.contactType as CollabContactType | null) ?? undefined,
+    contactMethod: contactMethod ?? "",
+    contactType: (contactType as CollabContactType | null) ?? undefined,
     isIndividual: post.isIndividual ?? false,
     roleIds: post.roles.map((r) => r.id),
     skillIds: post.skills.map((s) => s.id),

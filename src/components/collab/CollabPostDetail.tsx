@@ -37,6 +37,7 @@ import { client, orpc } from "@/orpc/client";
 
 import { CollabPostResponseForm, ViewerResponseCard } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
+import { ContactValue } from "./ContactValue";
 import { useCollabPostActions } from "./use-collab-post-actions";
 import { usePostViewerState } from "./use-post-viewer-state";
 
@@ -54,12 +55,7 @@ export const COMP_TYPE_LABELS: Record<string, string> = {
   negotiable: "Negotiable",
 };
 
-export const CONTACT_TYPE_LABELS: Record<string, string> = {
-  discord_dm: "Discord DM",
-  discord_server: "Discord Server",
-  email: "Email",
-  other: "Other",
-};
+export { CONTACT_TYPE_LABELS } from "./ContactValue";
 
 /** What `getPost` resolves for an existing post — the shape the detail
  *  renders, and what the dedicated page's loader passes back in. */
@@ -121,7 +117,7 @@ export function CollabPostDetail({
   const [reportReason, setReportReason] = useState("");
   const [reportSuccess, setReportSuccess] = useState(false);
 
-  const { isOwner, responses, viewerResponse, viewerOverlap } = usePostViewerState(
+  const { isOwner, responses, viewerResponse, contact, viewerOverlap } = usePostViewerState(
     postId,
     post,
     currentUserId,
@@ -374,19 +370,10 @@ export function CollabPostDetail({
                 />
               ) : null}
               {rateDisplay ? <DetailRow label="RATE" value={rateDisplay} /> : null}
-              {post.contactType || post.contactMethod ? (
+              {post.hasContact ? (
                 <DetailRow
                   label="CONTACT"
-                  value={
-                    [
-                      post.contactType
-                        ? (CONTACT_TYPE_LABELS[post.contactType] ?? post.contactType)
-                        : null,
-                      post.contactMethod,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"
-                  }
+                  value={<ContactValue contact={contact} isSignedIn={Boolean(currentUserId)} />}
                 />
               ) : null}
             </DetailGrid>
@@ -557,7 +544,7 @@ export function CollabPostDetail({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      startWizardEdit(post.id, draftFromPost(post));
+                      startWizardEdit(post.id, draftFromPost(post, contact));
                       onEdit();
                     }}
                     title="Edit this post"
@@ -712,7 +699,7 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-col">{items}</div>;
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-dashed border-muted/30 py-1.5 last:border-b-0">
       <Text as="span" size="xs" variant="muted" className="shrink-0 tracking-widest uppercase">

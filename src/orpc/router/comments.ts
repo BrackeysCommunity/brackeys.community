@@ -514,7 +514,10 @@ export const createComment = os
   });
 
 export const editComment = os
-  .use(requireAuth)
+  // Same guild bar as createComment: editing publishes new public text.
+  // Removal, reports and blocks stay on requireAuth — leaving the guild must
+  // not trap your content or cost you the safety tools.
+  .use(requireGuildMember)
   .input(
     z.object({
       commentId: z.number().int().positive(),

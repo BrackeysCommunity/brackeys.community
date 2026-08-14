@@ -14,6 +14,7 @@ import wasm from "vite-plugin-wasm";
 import { createLogger, defineConfig } from "vite-plus";
 
 import pkg from "./package.json" with { type: "json" };
+import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
 // The counter comes from package.json, bumped by the `version-bump` GitLab job
 // on every merge to main, so it is committed and therefore present in every
@@ -234,47 +235,15 @@ const config = defineConfig({
         // The public RPC tier (src/routes/api.public.rpc.$.ts): served with
         // no cookies read and identical output for every caller, so it is
         // the one /api subtree that is shared-cacheable.
-        "/api/public/**": { headers: { "cache-control": "public, max-age=30, s-maxage=60" } },
-        // Taxonomies change when a moderator edits the vocabulary — rare
-        // enough for a day at the edge.
-        "/api/public/rpc/listSkills": {
-          headers: { "cache-control": "public, max-age=3600, s-maxage=86400" },
-        },
-        "/api/public/rpc/listCollabRoles": {
-          headers: { "cache-control": "public, max-age=3600, s-maxage=86400" },
-        },
-        // A live GitHub GraphQL call per request otherwise; the calendar
-        // only moves once a day anyway.
-        "/api/public/rpc/getContributions": {
-          headers: { "cache-control": "public, max-age=300, s-maxage=900" },
-        },
-        // The board is the one public read users actively write to, and
-        // creating or editing a post invalidates the listing query
-        // client-side. max-age=0 keeps the *browser* out of it, so that
-        // refetch always leaves the machine instead of being answered from
-        // the local HTTP cache with the pre-write body; the edge still
-        // absorbs the load for everyone else.
-        "/api/public/rpc/listPosts": {
-          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
-        },
-        // Same reasoning as listPosts: responding to a post bumps its
-        // response count, and the owner edits it in place.
-        "/api/public/rpc/getPost": {
-          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
-        },
-        // Owners edit the team, manage the roster, and accept invites from
-        // this page and expect to see the result.
-        "/api/public/rpc/getTeam": {
-          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
-        },
-        // Members edit their own profile in place — same reasoning again.
-        "/api/public/rpc/getProfile": {
-          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
-        },
-        // Editors change credits, covers and links from the page itself.
-        "/api/public/rpc/getProject": {
-          headers: { "cache-control": "public, max-age=0, s-maxage=30" },
-        },
+        //
+        // The catch-all stays `no-store` so caching is opt-in per procedure:
+        // a public read that ships before someone picks its staleness budget
+        // is merely uncached, never cached for a duration nobody chose.
+        "/api/public/**": { headers: { "cache-control": "no-store" } },
+        // …and the per-procedure rules, generated from the TTL table so this
+        // file cannot drift from it. All `max-age=0`: the edge does the
+        // caching, the browser always revalidates.
+        ...publicCacheRouteRules(),
         // Stored-image proxy (src/routes/images.$.ts): keys are
         // nanoid-unique per upload and replacements mint a new key, so
         // responses are immutable. Deleted objects can outlive deletion at

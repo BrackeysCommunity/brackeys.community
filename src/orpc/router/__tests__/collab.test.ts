@@ -413,6 +413,29 @@ describe("draftFromPost", () => {
     expect(draftFromPost(post).projectId).toBeUndefined();
   });
 
+  it("seeds contact from the gated companion, not the post", () => {
+    // The real shape now: `getPost` is anonymous and edge-cached, so it
+    // carries no contact at all and the page passes it in separately.
+    const { contactMethod: _m, contactType: _t, ...publicPost } = post;
+    const draft = draftFromPost(publicPost, {
+      contactType: "discord_server",
+      contactMethod: "https://discord.gg/example",
+    });
+    expect(draft.contactType).toBe("discord_server");
+    expect(draft.contactMethod).toBe("https://discord.gg/example");
+  });
+
+  it("falls back to an empty contact step when the gate withheld it", () => {
+    // Only reachable for a viewer who is not the author — `getPostViewerState`
+    // always serves the author their own contact precisely because
+    // `updatePost` writes the post's complete state and a blank step here
+    // would clear the field on save.
+    const { contactMethod: _m, contactType: _t, ...publicPost } = post;
+    const draft = draftFromPost(publicPost, null);
+    expect(draft.contactMethod).toBe("");
+    expect(draft.contactType).toBeUndefined();
+  });
+
   it("produces a draft the server schema accepts", () => {
     const draft = draftFromPost(post);
     const parsed = postContentSchema.safeParse({

@@ -66,17 +66,23 @@ function FeatureTile({ to, icon, title, stat, statLabel }: FeatureTileProps) {
       variant="surface"
       render={<Link to={to} />}
       aria-label={title}
-      className="group/tile align-start flex min-h-28 min-w-0 flex-col justify-between gap-4 overflow-hidden p-4"
+      className="group/tile align-start flex min-h-28 min-w-0 flex-col justify-between gap-4 p-4"
     >
-      {/* Scaled from the top-left inset corner so the ruling grows away from
-          the two edges it's held clear of. */}
-      <GraphPaper
-        fade="top-left"
-        fadeStop="90%"
-        size={16}
-        inset
-        className="origin-top-left transition-transform duration-300 ease-out group-hover/tile:scale-102"
-      />
+      {/* The clip lives on this layer rather than on the tile: `overflow-hidden`
+          on a `.chonk-emboss` cuts off its ::before hover pad, and without that
+          pad the hit box moves with the lift — a pointer resting on the bottom
+          edge oscillates in and out of :hover at the transition's cadence. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+        {/* Scaled from the top-left inset corner so the ruling grows away from
+            the two edges it's held clear of. */}
+        <GraphPaper
+          fade="top-left"
+          fadeStop="90%"
+          size={16}
+          inset
+          className="origin-top-left transition-transform duration-300 ease-out group-hover/tile:scale-102"
+        />
+      </div>
       <div className="relative flex min-w-0 items-center gap-2.5">
         <HugeiconsIcon
           icon={icon}

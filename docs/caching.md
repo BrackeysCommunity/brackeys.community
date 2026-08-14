@@ -7,15 +7,15 @@ and survives zone migrations.
 
 ## Origin policy (implemented in `vite.config.ts`)
 
-| Path                        | Cache-Control                                          | Why                                                                                                                                                             |
-| --------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/assets/**`                | `public, max-age=31536000, immutable`                  | Content-hashed bundles; URL changes on every deploy. Cloudflare edge-caches these.                                                                              |
-| files in `public/`          | `public, max-age=86400, stale-while-revalidate=604800` | Unhashed, root-served (logos, favicon, manifest, robots). Rules are generated from the directory listing at build time, so new files are covered automatically. |
-| `/api/**`                   | `no-store`                                             | Per-user JSON (oRPC, better-auth, uploads).                                                                                                                     |
-| `/api/public/**`            | `public, max-age=30, s-maxage=60`                      | The public RPC tier — GET, no cookies read, identical response for every caller. Beats `/api/**` on specificity. Per-procedure overrides below.                 |
-| `/images/**`                | `public, max-age=31536000, immutable`                  | Stable proxy for MinIO uploads (`src/routes/images.$.ts`). Keys are nanoid-unique per upload; replacements mint a new key, so URLs never change content.        |
-| `/api/notifications/stream` | `no-cache, no-transform`                               | SSE; `no-transform` keeps proxies from buffering the stream.                                                                                                    |
-| `/**` (SSR documents)       | `private, no-cache`                                    | Pages embed the viewer's session, so shared caches must never hold them. `no-cache` (vs `no-store`) still allows browser revalidation and bfcache.              |
+| Path                        | Cache-Control                                                    | Why                                                                                                                                                             |
+| --------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/assets/**`                | `public, max-age=31536000, immutable`                            | Content-hashed bundles; URL changes on every deploy. Cloudflare edge-caches these.                                                                              |
+| files in `public/`          | `public, max-age=86400, stale-while-revalidate=604800`           | Unhashed, root-served (logos, favicon, manifest, robots). Rules are generated from the directory listing at build time, so new files are covered automatically. |
+| `/api/**`                   | `no-store`                                                       | Per-user JSON (oRPC, better-auth, uploads).                                                                                                                     |
+| `/api/public/**`            | `no-store`, then `public, max-age=0, s-maxage=<n>` per procedure | The public RPC tier — GET, no cookies read, identical response for every caller. Caching is opt-in per procedure; see the section below.                        |
+| `/images/**`                | `public, max-age=31536000, immutable`                            | Stable proxy for MinIO uploads (`src/routes/images.$.ts`). Keys are nanoid-unique per upload; replacements mint a new key, so URLs never change content.        |
+| `/api/notifications/stream` | `no-cache, no-transform`                                         | SSE; `no-transform` keeps proxies from buffering the stream.                                                                                                    |
+| `/**` (SSR documents)       | `private, no-cache`                                              | Pages embed the viewer's session, so shared caches must never hold them. `no-cache` (vs `no-store`) still allows browser revalidation and bfcache.              |
 
 Two Nitro/h3 sharp edges encoded in the config comments:
 
@@ -136,27 +136,61 @@ Mechanics worth knowing:
 - `resolveProjectForGame` is excluded: it mints a project row on first read,
   and a side effect behind a cacheable GET silently stops happening.
 
-Per-procedure TTLs are plain route rules, since RPC paths are
-`/api/public/rpc/<name>`: `listSkills` and `listCollabRoles` get
-`max-age=3600, s-maxage=86400` (taxonomies change when a moderator edits the
-vocabulary), `getContributions` gets `max-age=300, s-maxage=900`.
+### TTLs: `max-age=0` everywhere, `s-maxage` does the work
 
-`listPosts`, `getPost`, `getTeam`, `getProfile` and `getProject` get
-`max-age=0, s-maxage=30` — deliberately **no browser cache**. It is the one public read users actively write to, and creating or
-editing a post invalidates the listing query client-side; with a non-zero
-`max-age` that refetch would be answered from the browser's own HTTP cache
-with the pre-write body, so the author would not see their own post appear.
-`max-age=0` forces the request onto the network while the edge still absorbs
-it for everyone else. Apply the same reasoning to any future public read
-that sits behind a write the same user performs.
+Every rule on this tier is `public, max-age=0, s-maxage=<n>`, generated from
+`PUBLIC_EDGE_TTL` in `src/orpc/public-procedures.ts` — `vite.config.ts`
+spreads `publicCacheRouteRules()` rather than listing paths by hand, so the
+config cannot drift from the table.
 
-**Still required to actually cache at the edge** (one-time, dashboard): a
-Cache Rule `starts_with(http.request.uri.path, "/api/public/")` → _Eligible
-for cache, respect origin TTL_. JSON paths are not cacheable by extension
-default, so without this the tier serves `cf-cache-status: DYNAMIC` and the
-origin absorbs every read. Verify after enabling: a second `curl` of
-`/api/public/rpc/listJams?…` shows `HIT`; a request carrying a session
-cookie returns the same cached object; `/api/rpc/*` still says `no-store`.
+**Why no browser cache at all.** `max-age` governs the browser, and a browser
+serving a stored copy answers a `fetch` without any request leaving the
+machine. That silently defeats `invalidateQueries`, which is what the app
+uses to show someone their own write: TanStack drops its entry, refetches,
+and the browser hands back the pre-write body. `s-maxage` governs Cloudflare,
+which is where the origin protection actually comes from — so the edge keeps
+the real TTL and the browser always revalidates. The cost is close to nothing
+because TanStack's own `staleTime` (15 s–5 min) already prevents refetch
+spam.
+
+This bit us once in the sketch: `listSkills`/`listCollabRoles` were
+`max-age=3600, s-maxage=86400` on the reasoning that taxonomies are
+near-static. But `/admin` invalidates exactly those two after a vocabulary
+edit, and `approveSkillRequest` leaves a member waiting on the result — so
+the editor's own browser would have shown the stale list for an hour, and
+everyone else for a day. **Pick a TTL by asking "how stale may this look to
+someone who did _not_ make the change?", not "how often does it change".**
+
+Current budgets: jam archive 300 s (scraper-written, nobody waits on it);
+member/team/project listings 60 s; detail pages (`getProfile`, `getTeam`,
+`getProject`) and the whole collab board (`listPosts`, `getPost`, and the
+counters beside them) 30 s; taxonomies 300 s; `getContributions` 900 s.
+
+The catch-all `/api/public/**` is **`no-store`**, so caching is opt-in per
+procedure: a public read that ships before someone picks its budget is merely
+uncached, never cached for a duration nobody chose. `PUBLIC_EDGE_TTL` is
+typed as a total `Record<PublicProcedureName, number>`, so omitting one is a
+compile error, and `__tests__/public-router.test.ts` asserts the generated
+rules cover every procedure and never carry a non-zero `max-age`.
+
+**What `max-age=0` does not buy.** It guarantees the request leaves the
+browser, not that the answer is fresh — Cloudflare still serves its copy for
+`s-maxage` seconds. Edge staleness is a separate, deliberate choice. Purging
+it on write is mostly unavailable to us: purge-by-prefix and purge-by-tag are
+Enterprise-only, and RPC GET URLs embed the input in the query string, so
+purge-by-URL only works for procedures called with one fixed input
+(`listSkills`, `listCollabRoles`, `getBoardStats`, `getTeamStats`). If long
+taxonomy TTLs ever become worth it again, that is the route.
+
+**The edge Cache Rule is in place and hitting** (2026-08-13): a Cache Rule
+`starts_with(http.request.uri.path, "/api/public/")` → _Eligible for cache,
+respect origin TTL_. It is load-bearing — JSON paths are not cacheable by
+extension default, so without it the tier serves `cf-cache-status: DYNAMIC`
+and the origin absorbs every read. If cache behaviour ever looks wrong, check
+that the rule still exists before suspecting headers. Re-verify with: a second
+`curl` of `/api/public/rpc/listJams?…` shows `HIT`; a request carrying a
+session cookie returns the same cached object; `/api/rpc/*` still says
+`no-store`.
 
 Never mix authenticated and anonymous responses on one URL: Cloudflare
 ignores `Vary` for cache keying, so split by URL. A future CLI's

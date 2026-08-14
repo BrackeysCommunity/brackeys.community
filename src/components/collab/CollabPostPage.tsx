@@ -9,7 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { CommentThread } from "@/components/comments/CommentThread";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,6 @@ import { orpc } from "@/orpc/client";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
 import {
   COMP_TYPE_LABELS,
-  CONTACT_TYPE_LABELS,
   type CollabPostDetailData,
   ReportInline,
   TYPE_LABELS,
@@ -54,6 +53,7 @@ import {
   type ViewerResponse,
 } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
+import { ContactValue } from "./ContactValue";
 import { useCollabPostActions } from "./use-collab-post-actions";
 import { usePostViewerState } from "./use-post-viewer-state";
 
@@ -93,7 +93,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
   const [editOpen, setEditOpen] = useState(false);
 
-  const { isOwner, responses, viewerResponse, viewerOverlap } = usePostViewerState(
+  const { isOwner, responses, viewerResponse, contact, viewerOverlap } = usePostViewerState(
     postId,
     post,
     currentUserId,
@@ -126,7 +126,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           currentUserId={currentUserId}
           actions={actions}
           onEdit={() => {
-            startWizardEdit(post.id, draftFromPost(post));
+            startWizardEdit(post.id, draftFromPost(post, contact));
             setEditOpen(true);
           }}
         />
@@ -261,19 +261,10 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                 />
               ) : null}
               {rateDisplay ? <SpecRow label="RATE" value={rateDisplay} /> : null}
-              {post.contactType || post.contactMethod ? (
+              {post.hasContact ? (
                 <SpecRow
                   label="CONTACT"
-                  value={
-                    [
-                      post.contactType
-                        ? (CONTACT_TYPE_LABELS[post.contactType] ?? post.contactType)
-                        : null,
-                      post.contactMethod,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"
-                  }
+                  value={<ContactValue contact={contact} isSignedIn={Boolean(currentUserId)} />}
                 />
               ) : null}
               {post.portfolioUrl ? (
@@ -746,7 +737,7 @@ function ChipGroup({
 }
 
 /** Label left, value right, on the house dashed rule. */
-function SpecRow({ label, value }: { label: string; value: string }) {
+function SpecRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
       <MicroLabel as="span" className="shrink-0">
