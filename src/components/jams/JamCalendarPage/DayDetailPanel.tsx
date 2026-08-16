@@ -8,6 +8,7 @@ import { Heading, Text } from "@/components/ui/typography";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams } from "@/lib/jam-links";
+import { EASE_OUT } from "@/lib/motion";
 
 import {
   type ChipKind,
@@ -106,7 +107,7 @@ export function DayDetailModal({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
+              transition={{ duration: 0.25, ease: EASE_OUT, delay: 0.08 }}
               className="flex max-h-[80vh] flex-col overflow-y-auto pb-3"
             >
               <DayDetailContent day={day} buckets={buckets} />

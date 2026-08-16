@@ -83,7 +83,9 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         id="main-content"
         data-scroll-root
         data-scroll-restoration-id="main-scroll"
-        className="pointer-events-auto fixed inset-x-0 top-0 bottom-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // `view-transition-name: page` — see the desktop shell in
+        // `routes/__root.tsx`; only one of the two is ever mounted.
+        className="pointer-events-auto fixed inset-x-0 top-0 bottom-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [view-transition-name:page] [&::-webkit-scrollbar]:hidden"
         style={{
           // Reaches the top edge and carries the bar's height as padding
           // rather than starting below it: the padding scrolls away with the

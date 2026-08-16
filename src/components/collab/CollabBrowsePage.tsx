@@ -3,12 +3,14 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { Kbd } from "@/components/ui/kbd";
+import { PageStack } from "@/components/ui/page-motion";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -16,6 +18,7 @@ import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { beginWizardCreate, collabStore, resetWizard, updateWizardDraft } from "@/lib/collab-store";
+import { fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
 
 import { type CollabBoardSearch } from "./collab-filters";
@@ -317,14 +320,19 @@ export function CollabBrowsePage() {
   );
 
   return (
-    <div className="flex flex-col gap-5 selection:bg-primary selection:text-white">
-      <CollabHero authenticated={!!session?.user} onCreate={handleCreate} />
+    <PageStack className="flex flex-col gap-5 selection:bg-primary selection:text-white">
+      <motion.div variants={fadeUp}>
+        <CollabHero authenticated={!!session?.user} onCreate={handleCreate} />
+      </motion.div>
       {isSplit ? (
         <>
           {/* `items-start` is what lets the inspector stick: a stretched
               grid item is already as tall as the lane, so it would have
               nothing to travel through. */}
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(360px,360px)] items-start gap-6">
+          <motion.div
+            variants={fadeUp}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(360px,360px)] items-start gap-6"
+          >
             <section className="flex flex-col gap-3">
               {lane}
               <CollabPostFeed
@@ -353,27 +361,27 @@ export function CollabBrowsePage() {
                 compact
               />
             </aside>
-          </div>
+          </motion.div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-4">
             <Text size="sm" variant="muted" className="flex items-center gap-1.5">
               Press <Kbd>/</Kbd> to search.
             </Text>
             <Text size="sm" variant="muted" className="flex items-center gap-1.5">
               <Kbd>↑</Kbd> <Kbd>↓</Kbd> to walk posts.
             </Text>
-          </div>
+          </motion.div>
         </>
       ) : (
         /* No room for two panes: the lane is the page, detail opens over it. */
-        <div className="flex flex-col gap-3">
+        <motion.div variants={fadeUp} className="flex flex-col gap-3">
           {lane}
           <CollabPostFeed
             currentUserId={currentUserId}
             selectedPostId={selectedPostId}
             onSelectPost={selectPost}
           />
-        </div>
+        </motion.div>
       )}
 
       {isMobile && !isSplit ? (
@@ -424,7 +432,7 @@ export function CollabBrowsePage() {
           </div>
         </DrawerContent>
       </Drawer>
-    </div>
+    </PageStack>
   );
 }
 

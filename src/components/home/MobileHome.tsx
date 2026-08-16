@@ -1,3 +1,5 @@
+import { motion } from "framer-motion";
+
 import { HomeDashboard } from "@/components/home/dashboard/HomeDashboard";
 import { FeaturedJamPanel, FeaturedJamPanelSkeleton } from "@/components/home/FeaturedJamPanel";
 import { JamShowcaseBand } from "@/components/home/JamShowcaseBand";
@@ -6,7 +8,9 @@ import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
 import { useHomeContent } from "@/components/home/use-home-content";
 import { useHomeDestinations } from "@/components/home/use-home-destinations";
+import { PageStack } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
+import { fadeUp } from "@/lib/motion";
 
 /**
  * The mobile landing page.
@@ -42,11 +46,11 @@ export function MobileHome() {
   }));
 
   return (
-    <div className="flex flex-col gap-8">
+    <PageStack className="flex flex-col gap-8">
       {/* No wordmark here. On a phone it filled most of the first screen
           to say something the header already says, pushing the live jam —
           the reason anyone opens this on a phone — below the fold. */}
-      <div className="flex flex-col gap-3">
+      <motion.div variants={fadeUp} className="flex flex-col gap-3">
         {isLoading ? (
           <FeaturedJamPanelSkeleton density="compact" />
         ) : hero ? (
@@ -54,22 +58,34 @@ export function MobileHome() {
         ) : null}
 
         <ShortcutTiles tiles={navTiles} />
-      </div>
+      </motion.div>
 
-      {showDashboard ? <HomeDashboard data={dashboard} /> : null}
+      {showDashboard ? (
+        <motion.div variants={fadeUp}>
+          <HomeDashboard data={dashboard} />
+        </motion.div>
+      ) : null}
 
-      <Section
-        id="jams"
-        title="JAMS"
-        blurb={`${liveCount} live · ${upcomingCount} upcoming.`}
-        action={<SectionAction to="/jams">FULL</SectionAction>}
-      >
-        <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
-      </Section>
+      <motion.div variants={fadeUp}>
+        <Section
+          id="jams"
+          title="JAMS"
+          blurb={`${liveCount} live · ${upcomingCount} upcoming.`}
+          action={<SectionAction to="/jams">FULL</SectionAction>}
+        >
+          <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
+        </Section>
+      </motion.div>
 
-      <RecentCollabPosts />
+      <motion.div variants={fadeUp}>
+        <RecentCollabPosts />
+      </motion.div>
 
-      {showDashboard ? null : <NewestSignups />}
-    </div>
+      {showDashboard ? null : (
+        <motion.div variants={fadeUp}>
+          <NewestSignups />
+        </motion.div>
+      )}
+    </PageStack>
   );
 }

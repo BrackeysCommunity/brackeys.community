@@ -1,3 +1,8 @@
+import { motion } from "framer-motion";
+
+import { PageStack } from "@/components/ui/page-motion";
+import { fadeLeft, fadeUp } from "@/lib/motion";
+
 import { ProfileAbout } from "./ProfileAbout";
 import { ProfileActivitySection } from "./ProfileActivity";
 import { ProfileAvailabilitySection } from "./ProfileAvailability";
@@ -26,16 +31,18 @@ import type { ProfileLayoutProps } from "./shared-types";
  */
 export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: ProfileLayoutProps) {
   return (
-    <div className="flex flex-col gap-8">
-      <ProfileHero
-        profile={profile}
-        isOwner={isOwner}
-        onEditProfile={() => openEdit(1)}
-        queryKey={queryKey}
-      />
+    <PageStack className="flex flex-col gap-8">
+      <motion.div variants={fadeUp}>
+        <ProfileHero
+          profile={profile}
+          isOwner={isOwner}
+          onEditProfile={() => openEdit(1)}
+          queryKey={queryKey}
+        />
+      </motion.div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2.4fr)_minmax(19rem,1fr)]">
-        <div className="flex min-w-0 flex-col gap-8">
+        <motion.div variants={fadeUp} className="flex min-w-0 flex-col gap-8">
           <ProfileSyncBar itch={profile.itch} isOwner={isOwner} queryKey={queryKey} />
           <ProfileActivitySection
             index="01"
@@ -52,9 +59,9 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
           />
           <ProfileJamLogSection index="03" best={profile.jamLogBest} entries={profile.jamLog} />
           <ProfileCreditsSection index="04" credits={profile.credits} />
-        </div>
+        </motion.div>
 
-        <div className="flex flex-col gap-6">
+        <motion.div variants={fadeLeft} className="flex flex-col gap-6">
           <ProfileAbout
             index="A"
             bio={profile.bio}
@@ -84,17 +91,19 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             onEdit={() => openEdit(4)}
             queryKey={queryKey}
           />
-        </div>
+        </motion.div>
       </div>
 
-      <ProfileWallSection
-        index="05"
-        profileId={profile.profileId}
-        profileName={profile.handle}
-        isOwner={isOwner}
-        notesEnabled={profile.notesEnabled}
-        queryKey={queryKey}
-      />
-    </div>
+      <motion.div variants={fadeUp}>
+        <ProfileWallSection
+          index="05"
+          profileId={profile.profileId}
+          profileName={profile.handle}
+          isOwner={isOwner}
+          notesEnabled={profile.notesEnabled}
+          queryKey={queryKey}
+        />
+      </motion.div>
+    </PageStack>
   );
 }

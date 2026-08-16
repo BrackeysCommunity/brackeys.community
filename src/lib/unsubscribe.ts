@@ -81,6 +81,39 @@ export async function resolveUnsubscribeToken(db: DbHandle, token: string): Prom
 }
 
 /**
+ * Reads the global email kill switch. Absent row means the user has never
+ * touched email settings, which is opt-in-by-default — hence `false`.
+ *
+ * Every email path calls this, including at send time: a job can be
+ * enqueued before the user flips the switch and then sit in retry
+ * backoff, so the enqueue-time check alone would still deliver it.
+ */
+export async function isEmailGloballyDisabled(db: DbHandle, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ emailsDisabled: userNotificationSettings.emailsDisabled })
+    .from(userNotificationSettings)
+    .where(eq(userNotificationSettings.userId, userId))
+    .limit(1);
+  return row?.emailsDisabled === true;
+}
+
+/** Flips the global kill switch, creating the settings row when absent. */
+export async function setEmailsDisabled(
+  db: DbHandle,
+  userId: string,
+  disabled: boolean,
+): Promise<void> {
+  const now = new Date();
+  await db
+    .insert(userNotificationSettings)
+    .values({ userId, emailsDisabled: disabled, updatedAt: now })
+    .onConflictDoUpdate({
+      target: userNotificationSettings.userId,
+      set: { emailsDisabled: disabled, updatedAt: now },
+    });
+}
+
+/**
  * Turns off email for one type (when scope is a specific type) or
  * every type (when scope === "all"). Digest is switched off with the
  * same scope — "stop emailing me about this" must cover the weekly
@@ -118,6 +151,12 @@ export async function applyUnsubscribe(
         },
       });
   }
+
+  // Scope "all" is what the RFC 8058 one-click header hits, and it has to
+  // mean "forever", not "every type that exists today" — clearing only the
+  // current matrix would silently resubscribe them when a type is added.
+  if (scope === "all") await setEmailsDisabled(db, userId, true);
+
   return { scope };
 }
 

@@ -28,6 +28,9 @@ interface DotFieldProps {
   gradientFrom?: string;
   gradientTo?: string;
   glowColor?: string;
+  /** Draw the field once at rest and stop — no RAF loop, no cursor
+   * tracking, `waveAmplitude` treated as 0. For reduced motion. */
+  static?: boolean;
   className?: string;
   [key: string]: unknown;
 }
@@ -46,6 +49,7 @@ const DotField = memo(
     gradientFrom = "rgba(168, 85, 247, 0.35)",
     gradientTo = "rgba(180, 151, 207, 0.25)",
     glowColor = "#120F17",
+    static: isStatic = false,
     className,
     ...rest
   }: DotFieldProps) => {
@@ -67,7 +71,7 @@ const DotField = memo(
       bulgeOnly,
       bulgeStrength,
       sparkle,
-      waveAmplitude,
+      waveAmplitude: isStatic ? 0 : waveAmplitude,
       gradientFrom,
       gradientTo,
     };
@@ -107,6 +111,9 @@ const DotField = memo(
         };
 
         buildDots(w, h);
+        // The loop would repaint on its own; a static field has to be
+        // redrawn by hand once the new grid exists.
+        if (isStatic) tick();
       }
 
       function buildDots(w: number, h: number) {
@@ -146,7 +153,7 @@ const DotField = memo(
         m.prevY = m.y;
       }
 
-      const speedInterval = setInterval(updateMouseSpeed, 20);
+      const speedInterval = isStatic ? undefined : setInterval(updateMouseSpeed, 20);
 
       let frameCount = 0;
 
@@ -244,27 +251,32 @@ const DotField = memo(
 
         ctx!.fill();
 
-        rafRef.current = requestAnimationFrame(tick);
+        if (!isStatic) rafRef.current = requestAnimationFrame(tick);
       }
 
       doResize();
       window.addEventListener("resize", resize);
-      window.addEventListener("mousemove", onMouseMove, { passive: true });
-      rafRef.current = requestAnimationFrame(tick);
+      if (!isStatic) {
+        window.addEventListener("mousemove", onMouseMove, { passive: true });
+        rafRef.current = requestAnimationFrame(tick);
+      }
 
       rebuildRef.current = () => {
         const { w, h } = sizeRef.current;
-        if (w > 0 && h > 0) buildDots(w, h);
+        if (w > 0 && h > 0) {
+          buildDots(w, h);
+          if (isStatic) tick();
+        }
       };
 
       return () => {
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        clearInterval(speedInterval);
+        if (speedInterval) clearInterval(speedInterval);
         clearTimeout(resizeTimer);
         window.removeEventListener("resize", resize);
         window.removeEventListener("mousemove", onMouseMove);
       };
-    }, []);
+    }, [isStatic]);
 
     useEffect(() => {
       rebuildRef.current?.();

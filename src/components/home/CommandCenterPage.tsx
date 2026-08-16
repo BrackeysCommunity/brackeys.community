@@ -1,6 +1,5 @@
 import { LegalHammerIcon, PencilIcon, Robot01Icon } from "@hugeicons/core-free-icons";
 import { useStore } from "@tanstack/react-store";
-import type { Variants } from "framer-motion";
 import { animate, motion, useMotionValue } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -10,10 +9,12 @@ import { HeroWordmark } from "@/components/home/HeroWordmark";
 import { NodeCard } from "@/components/home/NodeCard";
 import { SectionRule } from "@/components/home/SectionRule";
 import { Hotkey } from "@/components/ui/hotkey";
+import { PageStack } from "@/components/ui/page-motion";
 import { hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
 import type { BotId } from "@/data/commands";
 import { activeUserStore } from "@/lib/active-user-store";
 import { buildCopyText } from "@/lib/command-copy";
+import { cardRow, fadeLeft, fadeUp } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type ActiveBot = "all" | BotId;
@@ -322,39 +323,6 @@ function MarcoGraphic({ active }: { active: boolean }) {
   );
 }
 
-// ── Animation variants ───────────────────────────────────────────────
-
-const container: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.25 },
-  },
-};
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
-  },
-};
-
-const fadeLeft: Variants = {
-  hidden: { opacity: 0, x: 24 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-  },
-};
-
-const cardRow: Variants = {
-  hidden: { opacity: 1 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
-};
-
 // ── Page ─────────────────────────────────────────────────────────────
 
 export function CommandCenterPage() {
@@ -390,12 +358,7 @@ export function CommandCenterPage() {
   );
 
   return (
-    <motion.div
-      className="flex flex-col gap-8 pb-10 lg:gap-10"
-      variants={container}
-      initial="hidden"
-      animate="visible"
-    >
+    <PageStack className="flex flex-col gap-8 pb-10 lg:gap-10">
       <div className="grid grid-cols-1 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:gap-10">
         {/* LEFT: status + hero + bot cards */}
         <div className="flex flex-col gap-8">
@@ -470,6 +433,6 @@ export function CommandCenterPage() {
           />
         </motion.div>
       </div>
-    </motion.div>
+    </PageStack>
   );
 }

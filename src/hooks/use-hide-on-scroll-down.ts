@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { useReducedMotion } from "@/lib/hooks/use-app-settings";
+
 // Don't start hiding until scrolled past this — keeps the bar pinned at the top.
 const REVEAL_AT = 150;
 // Pixels of continuous travel in one direction before the bar reacts. Without
@@ -26,6 +28,7 @@ const BUFFER = 24;
  */
 export function useHideOnScrollDown(resetKey?: string): boolean {
   const [hidden, setHidden] = useState(false);
+  const reduced = useReducedMotion();
 
   // Reset during render rather than in an effect — no wasted paint of the
   // hidden bar on the page you just navigated to.
@@ -36,7 +39,11 @@ export function useHideOnScrollDown(resetKey?: string): boolean {
   }
 
   useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduced) {
+      // Leave the bar open if the pref flips while it's tucked away.
+      setHidden(false);
+      return;
+    }
 
     // Last observed position, the direction we're travelling, and the position
     // where that direction last began (the turning point the buffer measures
@@ -75,7 +82,7 @@ export function useHideOnScrollDown(resetKey?: string): boolean {
 
     document.addEventListener("scroll", onScroll, true);
     return () => document.removeEventListener("scroll", onScroll, true);
-  }, []);
+  }, [reduced]);
 
   return hidden;
 }

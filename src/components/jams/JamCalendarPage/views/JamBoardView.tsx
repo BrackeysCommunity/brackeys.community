@@ -1,4 +1,8 @@
+import { motion } from "framer-motion";
 import { useEffect } from "react";
+
+import { PageStack } from "@/components/ui/page-motion";
+import { fadeUp } from "@/lib/motion";
 
 import { JamBoard } from "../JamBoard";
 import { useJamsPage } from "../jams-context";
@@ -13,18 +17,25 @@ export function JamBoardView() {
   usePendingShelfScroll(pendingShelf, board.isLoading, clearPendingShelf);
 
   return (
-    <JamBoard
-      jams={board.jams}
-      now={now}
-      isLoading={board.isLoading}
-      searching={search.trim() !== ""}
-      sort={boardSort}
-      layout={boardLayout}
-      // The toolbar sits *inside* the board, below the featured rail —
-      // featured jams are the page's headline and shouldn't be pushed
-      // under a filter row.
-      toolbar={<JamsToolbar />}
-    />
+    // Single child: the board owns its own internal rhythm (featured rail,
+    // toolbar, shelves), and its rows carry the `layoutId` morphs into the
+    // detail modal — tagging inside would animate the morph targets.
+    <PageStack>
+      <motion.div variants={fadeUp}>
+        <JamBoard
+          jams={board.jams}
+          now={now}
+          isLoading={board.isLoading}
+          searching={search.trim() !== ""}
+          sort={boardSort}
+          layout={boardLayout}
+          // The toolbar sits *inside* the board, below the featured rail —
+          // featured jams are the page's headline and shouldn't be pushed
+          // under a filter row.
+          toolbar={<JamsToolbar />}
+        />
+      </motion.div>
+    </PageStack>
   );
 }
 

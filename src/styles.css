@@ -580,3 +580,66 @@
 .animate-scanlines {
   animation: scanlines-scroll 0.2s linear infinite;
 }
+
+.animate-terminal-blink {
+  animation: terminal-blink 1.1s step-end infinite;
+}
+
+/* ── Cross-route page transition ──────────────────────────────────────
+   The shells tag their persistent scroller `view-transition-name: page`
+   (exactly one is mounted at a time), so the fade+rise is scoped to the
+   content pane while the frozen root keeps the backgrounds, header,
+   scanlines, and cursor rock-still. ~350ms total: the view transition
+   blocks input for its duration, and longer reads as sticky. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(page) {
+  animation: vt-page-out 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+::view-transition-new(page) {
+  animation: vt-page-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+@keyframes vt-page-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vt-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────
+   Primary rules key off `data-reduce-motion`, which the pre-paint script
+   in `routes/__root.tsx` stamps from the stored pref coalesced with the
+   native query. The `@media` block below is only a no-JS fallback:
+   `:not([data-reduce-motion="false"])` means an explicit in-app "On" is
+   never fought by the OS setting.
+
+   `animate-pulse` is deliberately left alone — it's the loading
+   indicator, and it's opacity-only. The static scanline texture also
+   stays; only its 0.2s scroll stops. */
+html[data-reduce-motion="true"]::view-transition-old(*),
+html[data-reduce-motion="true"]::view-transition-new(*),
+html[data-reduce-motion="true"]::view-transition-group(*) {
+  animation: none !important;
+}
+html[data-reduce-motion="true"] .animate-scanlines,
+html[data-reduce-motion="true"] .animate-terminal-blink {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduce-motion="false"])::view-transition-old(*),
+  html:not([data-reduce-motion="false"])::view-transition-new(*),
+  html:not([data-reduce-motion="false"])::view-transition-group(*),
+  html:not([data-reduce-motion="false"]) .animate-scanlines,
+  html:not([data-reduce-motion="false"]) .animate-terminal-blink {
+    animation: none !important;
+  }
+}

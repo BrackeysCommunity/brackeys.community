@@ -18,13 +18,16 @@ COPY services/lifecycle-sweep/src ./services/lifecycle-sweep/src
 
 # Shared with the main app so schema and lifecycle windows have one source
 # of truth: the sweep reads the same drizzle tables and the same day-count
-# constants the write paths stamp with. Neither file imports the app's `db`
-# or its `@/` alias.
+# constants the write paths stamp with. None of these import the app's `db`
+# or its `@/` alias — that's what keeps them copyable. This list is the
+# service's whole view of the repo root: anything `src/index.ts` reaches
+# through `../../../src/` has to be here or the container dies on start.
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
 COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/jam-watch.ts ./src/lib/jam-watch.ts
+COPY src/lib/jam-watch-sweep.ts ./src/lib/jam-watch-sweep.ts
 
 RUN ln -s /app/services/lifecycle-sweep/node_modules /app/node_modules
 

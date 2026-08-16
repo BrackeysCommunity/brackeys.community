@@ -3,11 +3,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { GraphPaper } from "@/components/ui/graph-paper";
+import { PageStack } from "@/components/ui/page-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
@@ -17,6 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
+import { fadeUp } from "@/lib/motion";
 import { client, orpc } from "@/orpc/client";
 
 import { TeamCreateDrawer } from "./TeamCreateDrawer";
@@ -153,12 +156,18 @@ export function TeamsDiscoveryPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 selection:bg-primary selection:text-white">
-      <TeamsHero authenticated={!!session?.user} onStart={startTeam} />
+    <PageStack className="flex flex-col gap-8 selection:bg-primary selection:text-white">
+      <motion.div variants={fadeUp}>
+        <TeamsHero authenticated={!!session?.user} onStart={startTeam} />
+      </motion.div>
 
-      {session?.user ? <YourTeamsShelf onStart={startTeam} /> : null}
+      {session?.user ? (
+        <motion.div variants={fadeUp}>
+          <YourTeamsShelf onStart={startTeam} />
+        </motion.div>
+      ) : null}
 
-      <section className="flex flex-col gap-3">
+      <motion.section variants={fadeUp} className="flex flex-col gap-3">
         {/* The controls pin to the top of the scrollport, just under the app
             header — they're the one thing you always want reachable while
             walking a long directory. `--app-header-shift` takes them up into
@@ -219,7 +228,7 @@ export function TeamsDiscoveryPage() {
             }
           />
         )}
-      </section>
+      </motion.section>
 
       {isMobile && !isWide ? (
         <TeamsFloatingControls
@@ -257,7 +266,7 @@ export function TeamsDiscoveryPage() {
           </div>
         </DrawerContent>
       </Drawer>
-    </div>
+    </PageStack>
   );
 }
 

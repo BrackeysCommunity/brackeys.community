@@ -41,6 +41,7 @@ import { Well } from "@/components/ui/well";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { startItchOAuth } from "@/lib/itchio-oauth";
+import { EASE_OUT } from "@/lib/motion";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -81,7 +82,7 @@ const DESKTOP_TRANSITION = { type: "spring" as const, stiffness: 480, damping: 3
 const MOBILE_TRANSITION = { type: "spring" as const, stiffness: 420, damping: 32, mass: 0.65 };
 // Step body cross-fade: short ease-out on opacity/scale so the swap
 // reads as a single soft cut rather than two distinct animations.
-const STEP_BODY_TRANSITION = { duration: 0.16, ease: [0.22, 1, 0.36, 1] as const };
+const STEP_BODY_TRANSITION = { duration: 0.16, ease: EASE_OUT };
 // Horizontal nudge a step's body picks up on enter/exit — direction
 // is the sign of (new step - previous step), so a 1→2 move enters
 // from the right and a 2→1 move enters from the left.

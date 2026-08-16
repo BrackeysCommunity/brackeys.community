@@ -94,8 +94,8 @@ export function CommandTerminal({
             />
             {focused && (
               <span
-                className="pointer-events-none absolute top-1/2 h-[1.15em] w-[0.55em] -translate-y-1/2 bg-brackeys-yellow"
-                style={{ left: cursorX, animation: "terminal-blink 1.1s step-end infinite" }}
+                className="animate-terminal-blink pointer-events-none absolute top-1/2 h-[1.15em] w-[0.55em] -translate-y-1/2 bg-brackeys-yellow"
+                style={{ left: cursorX }}
               />
             )}
           </div>

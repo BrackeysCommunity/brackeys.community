@@ -66,10 +66,17 @@ export async function handleWeeklyDigests(): Promise<void> {
     if (!recipient?.email) continue;
 
     const [settings] = await db
-      .select({ lastDigestAt: userNotificationSettings.lastDigestAt })
+      .select({
+        lastDigestAt: userNotificationSettings.lastDigestAt,
+        emailsDisabled: userNotificationSettings.emailsDisabled,
+      })
       .from(userNotificationSettings)
       .where(eq(userNotificationSettings.userId, userId))
       .limit(1);
+
+    // Skip without bumping the watermark: if they re-enable email, the
+    // window they were away for is still theirs to receive.
+    if (settings?.emailsDisabled) continue;
 
     const since = settings?.lastDigestAt
       ? new Date(Math.max(settings.lastDigestAt.getTime(), fallbackSince.getTime()))

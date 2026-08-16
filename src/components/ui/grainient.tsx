@@ -1,5 +1,5 @@
 import { Mesh, Program, Renderer, Triangle } from "ogl";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import FRAGMENT from "@/shaders/grainient.frag.glsl?raw";
@@ -31,6 +31,9 @@ export interface GrainientProps {
   /** When true, output animated grayscale grain only — designed for use as
    * an overlay over photo backdrops with `mix-blend-mode: overlay`. */
   grainOnly?: boolean;
+  /** Freeze the animation: colors snap to their targets and the surface is
+   * rendered once instead of every frame. For reduced motion. */
+  paused?: boolean;
   className?: string;
 }
 
@@ -73,10 +76,31 @@ export function Grainient({
   centerY = 0,
   zoom = 0.9,
   grainOnly = false,
+  paused = false,
   className,
 }: GrainientProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const programRef = useRef<Program | null>(null);
+  // The renderer and its mesh outlive the init effect: the render loop
+  // lives in its own effect so pausing never touches the WebGL context.
+  const rendererRef = useRef<Renderer | null>(null);
+  const meshRef = useRef<Mesh | null>(null);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+
+  /** One frame at the target colors — the ease is skipped so a frozen
+   * surface shows where it was heading, not where the loop stopped. */
+  const renderPausedFrame = useCallback(() => {
+    const renderer = rendererRef.current;
+    const mesh = meshRef.current;
+    const program = programRef.current;
+    if (!renderer || !mesh || !program) return;
+    const targets = targetsRef.current;
+    (program.uniforms.uColor1 as { value: Float32Array }).value.set(targets.c1);
+    (program.uniforms.uColor2 as { value: Float32Array }).value.set(targets.c2);
+    (program.uniforms.uColor3 as { value: Float32Array }).value.set(targets.c3);
+    renderer.render({ scene: mesh });
+  }, []);
   // Color uniforms are eased toward these targets each frame so prop
   // changes morph smoothly (e.g. swapping jams in the carousel) instead
   // of snapping. Initialized lazily on first prop apply.
@@ -139,6 +163,8 @@ export function Grainient({
     programRef.current = program;
 
     const mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
+    rendererRef.current = renderer;
+    meshRef.current = mesh;
 
     // Use `clientWidth/clientHeight` rather than `getBoundingClientRect`
     // so a CSS transform on the container (e.g. framer-motion's
@@ -154,39 +180,15 @@ export function Grainient({
       res[0] = gl.drawingBufferWidth;
       res[1] = gl.drawingBufferHeight;
     };
-    const ro = new ResizeObserver(setSize);
+    // A paused surface still has to repaint when its box changes.
+    const ro = new ResizeObserver(() => {
+      setSize();
+      if (pausedRef.current) renderer.render({ scene: mesh });
+    });
     ro.observe(container);
     setSize();
 
-    let raf = 0;
-    const t0 = performance.now();
-    let last = t0;
-    const loop = (t: number) => {
-      const dt = Math.min(0.1, (t - last) / 1000);
-      last = t;
-      (program.uniforms.iTime as { value: number }).value = (t - t0) * 0.001;
-
-      // Exponential ease toward target colors. `1 - exp(-k*dt)` is the
-      // frame-rate-independent equivalent of `lerp(curr, target, alpha)`.
-      const k = 4;
-      const ease = 1 - Math.exp(-k * dt);
-      const targets = targetsRef.current;
-      const c1 = (program.uniforms.uColor1 as { value: Float32Array }).value;
-      const c2 = (program.uniforms.uColor2 as { value: Float32Array }).value;
-      const c3 = (program.uniforms.uColor3 as { value: Float32Array }).value;
-      for (let i = 0; i < 3; i++) {
-        c1[i]! += (targets.c1[i]! - c1[i]!) * ease;
-        c2[i]! += (targets.c2[i]! - c2[i]!) * ease;
-        c3[i]! += (targets.c3[i]! - c3[i]!) * ease;
-      }
-
-      renderer.render({ scene: mesh });
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-
     return () => {
-      cancelAnimationFrame(raf);
       ro.disconnect();
       try {
         container.removeChild(canvas);
@@ -200,6 +202,8 @@ export function Grainient({
       const lose = gl.getExtension("WEBGL_lose_context");
       lose?.loseContext();
       programRef.current = null;
+      rendererRef.current = null;
+      meshRef.current = null;
     };
   }, []);
 
@@ -241,6 +245,9 @@ export function Grainient({
       (u.uColor3!.value as Float32Array).set(targets.c3);
       targets.initialized = true;
     }
+
+    // Nothing is looping to pick these up while paused, so repaint here.
+    if (pausedRef.current) renderPausedFrame();
   }, [
     timeSpeed,
     colorBalance,
@@ -265,7 +272,54 @@ export function Grainient({
     color1,
     color2,
     color3,
+    renderPausedFrame,
   ]);
+
+  // Render loop — start/stop only, and deliberately separate from the init
+  // effect: recreating the WebGL context on every pause would burn through
+  // the browser's ~16-context budget. Declared after the uniform effect so
+  // a paused mount paints real values rather than the initial white.
+  useEffect(() => {
+    if (paused) {
+      renderPausedFrame();
+      return;
+    }
+
+    const renderer = rendererRef.current;
+    const mesh = meshRef.current;
+    const program = programRef.current;
+    if (!renderer || !mesh || !program) return;
+
+    const targets = targetsRef.current;
+    const c1 = (program.uniforms.uColor1 as { value: Float32Array }).value;
+    const c2 = (program.uniforms.uColor2 as { value: Float32Array }).value;
+    const c3 = (program.uniforms.uColor3 as { value: Float32Array }).value;
+
+    let raf = 0;
+    const t0 = performance.now();
+    let last = t0;
+    const loop = (t: number) => {
+      const dt = Math.min(0.1, (t - last) / 1000);
+      last = t;
+      (program.uniforms.iTime as { value: number }).value = (t - t0) * 0.001;
+
+      // Exponential ease toward target colors. `1 - exp(-k*dt)` is the
+      // frame-rate-independent equivalent of `lerp(curr, target, alpha)`.
+      const k = 4;
+      const ease = 1 - Math.exp(-k * dt);
+      for (let i = 0; i < 3; i++) {
+        c1[i]! += (targets.c1[i]! - c1[i]!) * ease;
+        c2[i]! += (targets.c2[i]! - c2[i]!) * ease;
+        c3[i]! += (targets.c3[i]! - c3[i]!) * ease;
+      }
+
+      renderer.render({ scene: mesh });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => cancelAnimationFrame(raf);
+  }, [paused, renderPausedFrame]);
 
   return (
     <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden", className)} />

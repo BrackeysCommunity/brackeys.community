@@ -408,6 +408,11 @@ export const userNotificationSettings = userSchema.table("user_notification_sett
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   lastDigestAt: timestamp("last_digest_at"),
+  // Global "email me nothing" switch, checked independently of the per-type
+  // matrix so a type added later can't reopen a channel the user closed.
+  // Covers notification + digest mail only; account-security mail (verify,
+  // password reset, deletion confirmation) ignores it.
+  emailsDisabled: boolean("emails_disabled").notNull().default(false),
   // Stable random token used for one-click unsubscribe links in emails.
   // Issued lazily on first email send; remains valid until the user
   // explicitly regenerates it. Indexed unique so the unsub route can

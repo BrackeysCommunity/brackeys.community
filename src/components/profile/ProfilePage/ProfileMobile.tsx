@@ -1,4 +1,8 @@
+import { motion } from "framer-motion";
 import { useState } from "react";
+
+import { PageStack } from "@/components/ui/page-motion";
+import { fadeUp } from "@/lib/motion";
 
 import { ProfileAbout } from "./ProfileAbout";
 import { ProfileActivitySection } from "./ProfileActivity";
@@ -26,8 +30,10 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
   const [tab, setTab] = useState<ProfileMobileTab>("overview");
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col gap-4 pb-5">
+    // The tab strip is sticky, so it stays untagged — it still fades in
+    // with the container, just without a transform of its own.
+    <PageStack className="flex flex-col">
+      <motion.div variants={fadeUp} className="flex flex-col gap-4 pb-5">
         <ProfileHero
           profile={profile}
           isOwner={isOwner}
@@ -35,11 +41,11 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
           queryKey={queryKey}
           compact
         />
-      </div>
+      </motion.div>
 
       <ProfileMobileTabs active={tab} onChange={setTab} />
 
-      <div className="flex flex-col gap-6 pt-5">
+      <motion.div variants={fadeUp} className="flex flex-col gap-6 pt-5">
         {tab === "overview" ? (
           <>
             <ProfileAbout
@@ -108,7 +114,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
             onEdit={() => openEdit(2)}
           />
         ) : null}
-      </div>
-    </div>
+      </motion.div>
+    </PageStack>
   );
 }

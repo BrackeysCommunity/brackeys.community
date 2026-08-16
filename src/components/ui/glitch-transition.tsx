@@ -134,11 +134,19 @@ const GLITCH_CSS = `
   mix-blend-mode: overlay;
   animation: bk-gt-scanlines 1.2s linear infinite;
 }
+/* Keyed on the app's coalesced attribute, with a native-query fallback for
+   the no-JS case. The :not() guard keeps an explicit in-app "On" from being
+   overridden by the OS setting. */
+html[data-reduce-motion="true"] .bk-gt-root[data-glitch="on"],
+html[data-reduce-motion="true"] .bk-gt-root[data-glitch="on"] .bk-gt-layer,
+html[data-reduce-motion="true"] .bk-gt-scanlines { animation: none !important; }
+html[data-reduce-motion="true"] .bk-gt-layer { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .bk-gt-root[data-glitch="on"],
-  .bk-gt-root[data-glitch="on"] .bk-gt-layer,
-  .bk-gt-scanlines { animation: none !important; }
-  .bk-gt-layer { display: none; }
+  html:not([data-reduce-motion="false"]) .bk-gt-root[data-glitch="on"],
+  html:not([data-reduce-motion="false"]) .bk-gt-root[data-glitch="on"] .bk-gt-layer,
+  html:not([data-reduce-motion="false"]) .bk-gt-scanlines { animation: none !important; }
+  html:not([data-reduce-motion="false"]) .bk-gt-layer { display: none; }
 }
 `;
 

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
-import { useAppSettings } from "@/lib/hooks/use-app-settings";
+import { useAppSettings, type MotionPref } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { cn } from "@/lib/utils";
 
@@ -26,9 +26,15 @@ interface AppSettingsDialogProps {
  * Each control persists immediately via its own provider hook so
  * there's no save step.
  */
+const MOTION_OPTIONS: { value: MotionPref; label: string; description: string }[] = [
+  { value: "system", label: "System", description: "Follow the OS setting" },
+  { value: "full", label: "On", description: "Always animate" },
+  { value: "reduced", label: "Off", description: "Skip decorative motion" },
+];
+
 export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps) {
   const { themeId, setTheme, themes, sections } = useAppTheme();
-  const { reduceMotion, setReduceMotion, muted, setMuted } = useAppSettings();
+  const { motionPref, setMotionPref, muted, setMuted } = useAppSettings();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -84,12 +90,39 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
             </div>
           </SettingsBlock>
 
-          <SettingsToggle
-            label="REDUCE MOTION"
-            hint="Skip layout-morph animations and shared-element transitions."
-            checked={reduceMotion}
-            onCheckedChange={setReduceMotion}
-          />
+          <SettingsBlock label="MOTION" hint="Page transitions, staggers, and background effects">
+            <div className="grid grid-cols-3 gap-2">
+              {MOTION_OPTIONS.map((o) => {
+                const isActive = o.value === motionPref;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setMotionPref(o.value)}
+                    className={cn(
+                      "flex flex-col items-start gap-0.5 rounded border px-3 py-2 text-left transition-colors",
+                      isActive
+                        ? "border-accent bg-accent/10"
+                        : "border-muted/40 bg-card/40 hover:border-muted",
+                    )}
+                  >
+                    <Text
+                      size="xs"
+                      className={cn(
+                        "tracking-widest uppercase",
+                        isActive ? "text-accent" : "text-foreground",
+                      )}
+                    >
+                      {o.label}
+                    </Text>
+                    <Text size="xs" variant="muted" className="line-clamp-1">
+                      {o.description}
+                    </Text>
+                  </button>
+                );
+              })}
+            </div>
+          </SettingsBlock>
           <SettingsToggle
             label="MUTE"
             hint="Silence any in-app audio cues."

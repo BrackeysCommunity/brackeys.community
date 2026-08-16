@@ -1,11 +1,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 
 import { Grainient } from "@/components/ui/grainient";
+import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { EASE_OUT } from "@/lib/motion";
 
 /** Shared by the backdrop's fades and the carousel's slide motion, so the
  * art and the wash behind it move on the same clock. */
-export const BANNER_TRANSITION = { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const };
+export const BANNER_TRANSITION = { duration: 0.45, ease: EASE_OUT };
 
 interface JamBannerBackdropProps {
   /** Identity of the jam being shown — drives the cross-fade when it changes. */
@@ -36,6 +38,8 @@ export function JamBannerBackdrop({
   bgColor1,
   bgColor2,
 }: JamBannerBackdropProps) {
+  const reduced = useReducedMotion();
+
   return (
     <div className="absolute inset-0 overflow-hidden">
       <motion.div
@@ -43,7 +47,7 @@ export function JamBannerBackdrop({
         animate={{ opacity: bannerUrl ? 0 : 1 }}
         transition={BANNER_TRANSITION}
       >
-        <Grainient color1={bgColor1} color2={bgColor2} color3={bgColor1} />
+        <Grainient color1={bgColor1} color2={bgColor2} color3={bgColor1} paused={reduced} />
       </motion.div>
       <AnimatePresence initial={false}>
         {bannerUrl && (
@@ -64,7 +68,7 @@ export function JamBannerBackdrop({
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-60 mix-blend-overlay"
       >
-        <Grainient grainOnly grainAmount={0.45} grainScale={3} />
+        <Grainient grainOnly grainAmount={0.45} grainScale={3} paused={reduced} />
       </div>
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-background/20" />
     </div>

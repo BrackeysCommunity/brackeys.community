@@ -85,6 +85,7 @@ import {
   markAllRead,
   getPreferences,
   updatePreference,
+  setEmailsDisabled,
 } from "./notifications";
 import {
   getProfile,
@@ -246,6 +247,7 @@ export default {
   markAllRead,
   getPreferences,
   updatePreference,
+  setEmailsDisabled,
   listComments,
   listReplies,
   createComment,

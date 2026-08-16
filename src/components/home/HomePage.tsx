@@ -1,3 +1,5 @@
+import { motion } from "framer-motion";
+
 import { CommandCenterTeaser } from "@/components/home/CommandCenterTeaser";
 import { HomeDashboard } from "@/components/home/dashboard/HomeDashboard";
 import { FeatureRail } from "@/components/home/FeatureRail";
@@ -6,7 +8,9 @@ import { JamShowcaseBand } from "@/components/home/JamShowcaseBand";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { useHomeContent } from "@/components/home/use-home-content";
+import { PageStack } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
+import { fadeUp } from "@/lib/motion";
 
 /**
  * The desktop landing page — "command deck" layout.
@@ -43,23 +47,39 @@ export function HomePage() {
   return (
     // `data-content-pane` tells the shell's readability pane how wide this
     // page's measure is — keep it in step with the max-width beside it.
-    <div data-content-pane="6xl" className="mx-auto flex w-full max-w-7xl flex-col gap-12">
-      <HeroSplit hero={hero} isLoading={isLoading} now={nowDate} />
+    <PageStack data-content-pane="6xl" className="mx-auto flex w-full max-w-7xl flex-col gap-12">
+      <motion.div variants={fadeUp}>
+        <HeroSplit hero={hero} isLoading={isLoading} now={nowDate} />
+      </motion.div>
 
-      <FeatureRail liveCount={liveCount} upcomingCount={upcomingCount} isLoadingJams={isLoading} />
+      <motion.div variants={fadeUp}>
+        <FeatureRail
+          liveCount={liveCount}
+          upcomingCount={upcomingCount}
+          isLoadingJams={isLoading}
+        />
+      </motion.div>
 
-      {showDashboard ? <HomeDashboard data={dashboard} /> : null}
+      {showDashboard ? (
+        <motion.div variants={fadeUp}>
+          <HomeDashboard data={dashboard} />
+        </motion.div>
+      ) : null}
 
-      <Section
-        id="jams"
-        title="JAMS"
-        blurb={`Tracking ${liveCount} live and ${upcomingCount} upcoming jams across itch.io.`}
-        action={<SectionAction to="/jams">JAM BOARD</SectionAction>}
-      >
-        <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
-      </Section>
+      <motion.div variants={fadeUp}>
+        <Section
+          id="jams"
+          title="JAMS"
+          blurb={`Tracking ${liveCount} live and ${upcomingCount} upcoming jams across itch.io.`}
+          action={<SectionAction to="/jams">JAM BOARD</SectionAction>}
+        >
+          <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
+        </Section>
+      </motion.div>
 
-      <RecentCollabPosts />
+      <motion.div variants={fadeUp}>
+        <RecentCollabPosts />
+      </motion.div>
 
       {/* Community band: the two quietest sections share a row so neither
           gets a full-width slot it can't fill. The columns stretch (the
@@ -68,10 +88,13 @@ export function HomePage() {
           panel clips itself to that height instead of running past it.
           The signup rail is a welcome mat, so it steps aside for the
           dashboard and the command panel takes the full row. */}
-      <div className={showDashboard ? "grid gap-8" : "grid gap-8 lg:grid-cols-2"}>
+      <motion.div
+        variants={fadeUp}
+        className={showDashboard ? "grid gap-8" : "grid gap-8 lg:grid-cols-2"}
+      >
         {showDashboard ? null : <NewestSignups />}
         <CommandCenterTeaser />
-      </div>
-    </div>
+      </motion.div>
+    </PageStack>
   );
 }

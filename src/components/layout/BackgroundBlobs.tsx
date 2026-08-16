@@ -2,8 +2,9 @@ import { motion } from "framer-motion";
 
 /**
  * Subtle drifting color blobs that sit behind the dot-field, adding a soft
- * fuchsia/yellow wash to the page. Non-interactive, reduced-motion-aware via
- * framer's defaults.
+ * fuchsia/yellow wash to the page. Non-interactive; the drift stops under
+ * reduced motion via the app-level `MotionConfig` in `routes/__root.tsx`
+ * (framer's own default is to animate regardless).
  */
 export function BackgroundBlobs() {
   return (

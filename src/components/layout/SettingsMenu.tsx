@@ -13,18 +13,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAppSettings } from "@/lib/hooks/use-app-settings";
+import { useAppSettings, type MotionPref } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
+
+const MOTION_OPTIONS: { value: MotionPref; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "full", label: "On" },
+  { value: "reduced", label: "Off" },
+];
 
 /**
  * Header cog — the same prefs the mobile shell shows in
- * `AppSettingsDialog` (theme, reduce motion, mute), inline in a dropdown
+ * `AppSettingsDialog` (theme, motion, mute), inline in a dropdown
  * so the desktop header doesn't need a modal to flip a switch. Each
  * control persists immediately via its own provider hook.
  */
 export function SettingsMenu() {
   const { themeId, setTheme, sections } = useAppTheme();
-  const { reduceMotion, setReduceMotion, muted, setMuted } = useAppSettings();
+  const { motionPref, setMotionPref, muted, setMuted } = useAppSettings();
 
   return (
     <DropdownMenu>
@@ -57,11 +63,23 @@ export function SettingsMenu() {
           </DropdownMenuGroup>
         ))}
 
+        <DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Motion</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={motionPref}
+            onValueChange={(value) => setMotionPref(value as MotionPref)}
+          >
+            {MOTION_OPTIONS.map((o) => (
+              <DropdownMenuRadioItem key={o.value} value={o.value}>
+                {o.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+
         <DropdownMenuSeparator />
 
-        <DropdownMenuCheckboxItem checked={reduceMotion} onCheckedChange={setReduceMotion}>
-          Reduce motion
-        </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem checked={muted} onCheckedChange={setMuted}>
           <HugeiconsIcon icon={muted ? VolumeMute02Icon : VolumeHighIcon} size={14} />
           Mute

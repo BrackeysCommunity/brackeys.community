@@ -11,6 +11,7 @@ import {
   updateWizardDraft,
   type UploadedImage,
 } from "@/lib/collab-store";
+import { EASE_OUT } from "@/lib/motion";
 import { client } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";
@@ -35,7 +36,7 @@ import { StepTeam } from "./StepTeam";
 // Step body cross-fade matches the profile flyout: a short ease-out on
 // opacity/scale plus a directional x nudge so 1→2 enters from the
 // right and 2→1 enters from the left.
-const STEP_BODY_TRANSITION = { duration: 0.16, ease: [0.22, 1, 0.36, 1] as const };
+const STEP_BODY_TRANSITION = { duration: 0.16, ease: EASE_OUT };
 const STEP_SHIFT_PX = 28;
 const STEP_VARIANTS = {
   enter: (dir: number) => ({

@@ -9,6 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
+import { motion } from "framer-motion";
 import { type ReactNode, useState } from "react";
 
 import { CommentThread } from "@/components/comments/CommentThread";
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
+import { PageStack } from "@/components/ui/page-motion";
 import { Section } from "@/components/ui/section";
 import { Heading, Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -34,6 +36,7 @@ import { timeAgo } from "@/lib/format-time";
 import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
+import { fadeLeft, fadeUp } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
 import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { teamLinkParams } from "@/lib/team-links";
@@ -103,8 +106,8 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
     "";
 
   return (
-    <div className="flex flex-col gap-8 pb-8 selection:bg-primary selection:text-white">
-      <nav aria-label="Breadcrumb">
+    <PageStack className="flex flex-col gap-8 pb-8 selection:bg-primary selection:text-white">
+      <motion.nav variants={fadeUp} aria-label="Breadcrumb">
         <RouterLink
           to="/collab"
           search={{}}
@@ -112,29 +115,31 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
         >
           ← COLLAB BOARD
         </RouterLink>
-      </nav>
+      </motion.nav>
 
-      <PostHero post={post} isClosed={isClosed} closesIn={closesIn} rateDisplay={rateDisplay}>
-        <HeroActions
-          post={post}
-          isOwner={isOwner}
-          isClosed={isClosed}
-          closesIn={closesIn}
-          currentUserId={currentUserId}
-          actions={actions}
-          onEdit={() => {
-            startWizardEdit(post.id, draftFromPost(post, contact));
-            setEditOpen(true);
-          }}
-        />
-      </PostHero>
+      <motion.div variants={fadeUp}>
+        <PostHero post={post} isClosed={isClosed} closesIn={closesIn} rateDisplay={rateDisplay}>
+          <HeroActions
+            post={post}
+            isOwner={isOwner}
+            isClosed={isClosed}
+            closesIn={closesIn}
+            currentUserId={currentUserId}
+            actions={actions}
+            onEdit={() => {
+              startWizardEdit(post.id, draftFromPost(post, contact));
+              setEditOpen(true);
+            }}
+          />
+        </PostHero>
+      </motion.div>
 
       {/* Two-column body, same split as the profile page: the prose the
           poster wrote reads in the main column under display headings,
           while the fact-shaped stuff — spec sheet, linked pages — rides
           a rail of micro-labeled cards beside it. */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2.4fr)_minmax(19rem,1fr)]">
-        <div className="flex min-w-0 flex-col gap-8">
+        <motion.div variants={fadeUp} className="flex min-w-0 flex-col gap-8">
           <Section
             id="brief"
             title="THE BRIEF"
@@ -239,9 +244,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
               authorDiscordId={authorDiscordId}
             />
           )}
-        </div>
+        </motion.div>
 
-        <div className="flex flex-col gap-6">
+        <motion.div variants={fadeLeft} className="flex flex-col gap-6">
           <Section id="details" title="THE DETAILS" size="sm">
             <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
               {post.projectName ? <SpecRow label="PROJECT" value={post.projectName} /> : null}
@@ -377,7 +382,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
               ) : null}
             </div>
           </Section>
-        </div>
+        </motion.div>
       </div>
 
       {/* Full-width below the grid, like the profile wall: the column
@@ -385,26 +390,28 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           response form), discussion is page-level commentary underneath.
           Keeping the two composers apart is deliberate — responses are
           private applications, comments are public. */}
-      <CommentThread
-        subject={{ type: "collab_post", id: postId }}
-        maxLength={2000}
-        placeholder="Ask a question or leave a note for the poster…"
-        emptyHint="Questions and discussion land here — applying to the post goes through the response form."
-        shell={(content, count) => (
-          <Section
-            id="comments"
-            title="COMMENTS"
-            size="sm"
-            blurb={
-              count === 0
-                ? "Public discussion about this post."
-                : `${count} ${count === 1 ? "comment" : "comments"} so far.`
-            }
-          >
-            {content}
-          </Section>
-        )}
-      />
+      <motion.div variants={fadeUp}>
+        <CommentThread
+          subject={{ type: "collab_post", id: postId }}
+          maxLength={2000}
+          placeholder="Ask a question or leave a note for the poster…"
+          emptyHint="Questions and discussion land here — applying to the post goes through the response form."
+          shell={(content, count) => (
+            <Section
+              id="comments"
+              title="COMMENTS"
+              size="sm"
+              blurb={
+                count === 0
+                  ? "Public discussion about this post."
+                  : `${count} ${count === 1 ? "comment" : "comments"} so far.`
+              }
+            >
+              {content}
+            </Section>
+          )}
+        />
+      </motion.div>
 
       {/* Mounted so the owner's EDIT lands in the same wizard the board
           uses — the detail panel elsewhere relies on the board's mount. */}
@@ -416,7 +423,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
         }}
         onCreated={() => setEditOpen(false)}
       />
-    </div>
+    </PageStack>
   );
 }
 

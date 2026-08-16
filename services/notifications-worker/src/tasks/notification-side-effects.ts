@@ -8,6 +8,7 @@ import {
   user,
 } from "../../../../src/db/schema.ts";
 import { EMAIL_IMMEDIATE, NOTIFICATION_DEFAULTS } from "../../../../src/lib/notification-copy.ts";
+import { isEmailGloballyDisabled } from "../../../../src/lib/unsubscribe.ts";
 import { db } from "../db/client.ts";
 import {
   emailQueue,
@@ -71,11 +72,16 @@ export async function handleSideEffects(data: NotificationSideEffectsJob): Promi
     }
   }
 
-  // 2. Email decision: only transactional types are eligible; check the
-  //    user's per-type pref; and *suppress* if any tab is currently
-  //    streaming the bell (presence registry). When suppressed we still
-  //    log so we can audit how often it kicks in.
+  // 2. Email decision: only transactional types are eligible; honour the
+  //    global kill switch and the user's per-type pref; and *suppress* if
+  //    any tab is currently streaming the bell (presence registry). When
+  //    suppressed we still log so we can audit how often it kicks in.
   if (!EMAIL_IMMEDIATE.has(row.type)) {
+    return;
+  }
+
+  if (await isEmailGloballyDisabled(db, row.userId)) {
+    console.log("[side_effects] emails disabled by user", { id: row.id, userId: row.userId });
     return;
   }
 

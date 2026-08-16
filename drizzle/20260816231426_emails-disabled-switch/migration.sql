@@ -1,0 +1,1 @@
+ALTER TABLE "user"."user_notification_settings" ADD COLUMN "emails_disabled" boolean DEFAULT false NOT NULL;

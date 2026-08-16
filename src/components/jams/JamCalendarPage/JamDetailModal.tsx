@@ -9,11 +9,13 @@ import { JamWatchToggle } from "@/components/jams/JamWatchToggle";
 import { Badge } from "@/components/ui/badge";
 import { Grainient } from "@/components/ui/grainient";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
+import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
 import { BACKDROP_TRANSFORM, BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
+import { EASE_OUT } from "@/lib/motion";
 
 import { type JamFromList, jamPhase, jamStats } from "./helpers";
 
@@ -31,7 +33,7 @@ const MODAL_TRANSITION = { type: "spring" as const, duration: 0.45, bounce: 0.18
 // During the layout transition the banner cross-frames between two very
 // different aspect ratios. A short blur masks any sub-pixel jank, then
 // fades to clean — the same trick iOS uses on detail-from-list pushes.
-const BLUR_TRANSITION = { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const };
+const BLUR_TRANSITION = { duration: 0.35, ease: EASE_OUT };
 
 /**
  * Spotlight detail surface for a single jam, launched from a timeline
@@ -166,7 +168,7 @@ function ModalContent({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 4 }}
-        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+        transition={{ duration: 0.3, ease: EASE_OUT, delay: 0.1 }}
         className="flex min-h-0 flex-1 flex-col"
       >
         <OverlayScrollbarsComponent
@@ -274,6 +276,7 @@ function JamStatsLine({ jam }: { jam: JamFromList }) {
  * modal's full-width banner slot. */
 function ModalGrainientBanner({ layoutKey, jamId }: { layoutKey: string; jamId: number }) {
   const palette = useThemeChartColors();
+  const reduced = useReducedMotion();
   const colors = useMemo(() => jamPaletteColors(palette, jamId), [palette, jamId]);
   return (
     <motion.div
@@ -281,7 +284,7 @@ function ModalGrainientBanner({ layoutKey, jamId }: { layoutKey: string; jamId: 
       transition={MODAL_TRANSITION}
       className="absolute inset-0"
     >
-      <Grainient color1={colors[0]} color2={colors[1]} color3={colors[0]} />
+      <Grainient color1={colors[0]} color2={colors[1]} color3={colors[0]} paused={reduced} />
     </motion.div>
   );
 }

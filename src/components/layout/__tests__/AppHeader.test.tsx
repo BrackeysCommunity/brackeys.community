@@ -122,8 +122,19 @@ vi.mock("@/lib/hooks/use-cursor", () => ({
 // ── Import after mocks ─────────────────────────────────────────────────────
 
 const { AppHeader } = await import("../AppHeader");
+const { AppSettingsProvider } = await import("@/lib/hooks/use-app-settings");
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+// The header's auto-hide reads the effective motion pref, so it needs the
+// same provider the root document mounts around the whole shell.
+function renderHeader() {
+  return render(
+    <AppSettingsProvider>
+      <AppHeader />
+    </AppSettingsProvider>,
+  );
+}
 
 function setActiveProfile(profile: ActiveUserProfile | null) {
   activeUserStore.setState(() => ({ profile, isPending: false }));
@@ -154,7 +165,7 @@ describe("AppHeader navigation", () => {
       isAdmin: false,
     });
 
-    render(<AppHeader />);
+    renderHeader();
 
     expect(screen.getByTestId("desktop-members-link").getAttribute("href")).toBe("/members");
   });
@@ -162,7 +173,7 @@ describe("AppHeader navigation", () => {
   it("mobile menu links to the member directory", () => {
     sessionData = mockSession;
 
-    render(<AppHeader />);
+    renderHeader();
     fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
 
     expect(screen.getByTestId("mobile-members-link").getAttribute("href")).toBe("/members");
@@ -171,7 +182,7 @@ describe("AppHeader navigation", () => {
   it("members link is public — it renders signed out too", () => {
     sessionData = null;
 
-    render(<AppHeader />);
+    renderHeader();
 
     expect(screen.getByTestId("desktop-members-link").getAttribute("href")).toBe("/members");
   });
@@ -182,7 +193,7 @@ describe("AppHeader navigation", () => {
   it("does not carry its own profile link", () => {
     sessionData = mockSession;
 
-    render(<AppHeader />);
+    renderHeader();
     fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
 
     expect(screen.queryByTestId("desktop-profile-link")).toBeNull();

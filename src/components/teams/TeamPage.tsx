@@ -8,6 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
+import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
+import { PageStack } from "@/components/ui/page-motion";
 import { MicroLabel, Heading, Link as TextLink, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -22,6 +24,7 @@ import { authStore } from "@/lib/auth-store";
 import { timeAgo } from "@/lib/format-time";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
+import { fadeUp } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
 
@@ -128,7 +131,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
   });
 
   return (
-    <div className="flex flex-col gap-8 selection:bg-primary selection:text-white">
+    <PageStack className="flex flex-col gap-8 selection:bg-primary selection:text-white">
       {isArchived ? (
         <Well variant="ghost" className="border-warning/40 bg-warning/5 p-3 backdrop-blur-none">
           <Text size="xs" className="tracking-widest text-warning uppercase">
@@ -176,179 +179,191 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
         </Well>
       ) : null}
 
-      <TeamMasthead
-        team={team}
-        isMember={isMember}
-        isArchived={isArchived}
-        jamCount={jamLog.length}
-        onManage={() => setManageOpen(true)}
-      />
+      <motion.div variants={fadeUp}>
+        <TeamMasthead
+          team={team}
+          isMember={isMember}
+          isArchived={isArchived}
+          jamCount={jamLog.length}
+          onManage={() => setManageOpen(true)}
+        />
+      </motion.div>
 
       {/* Roster */}
-      <Section title="ROSTER" count={team.members.length}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {team.members.map((m) => (
-            <Chonk
-              key={m.id}
-              variant="surface"
-              size="lg"
-              className="items-center gap-3 bg-card p-3 backdrop-blur-none"
-              render={
-                <Link
-                  to="/profile/$userId"
-                  params={profileLinkParams({ id: m.userId, urlStub: m.urlStub })}
-                  aria-label={m.username ?? "Unknown"}
-                />
-              }
-            >
-              <UserAvatar avatarUrl={m.avatarUrl} username={m.username} shape="round" size={36} />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex items-center gap-2">
-                  <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
-                    {m.username ?? "Unknown"}
-                  </Text>
-                  {m.role === "owner" ? (
-                    <Badge variant="outline" size="label">
-                      OWNER
-                    </Badge>
-                  ) : null}
-                </span>
-                <Text as="span" size="xs" variant="muted" ellipsis>
-                  {m.title ?? m.tagline ?? "—"}
-                </Text>
-              </span>
-            </Chonk>
-          ))}
-        </div>
-      </Section>
-
-      {/* Stack — derived from the roster's skills. */}
-      {team.skills.length > 0 ? (
-        <Section title="STACK" hint="WHAT THE ROSTER WORKS IN">
-          <div className="flex flex-wrap gap-1.5">
-            {team.skills.slice(0, MAX_STACK_CHIPS).map((s) => (
-              <Badge key={s.id} variant="outline" size="label" className="uppercase">
-                {s.name}
-                {s.memberCount > 1 ? (
-                  <span className="text-muted-foreground"> ×{s.memberCount}</span>
-                ) : null}
-              </Badge>
-            ))}
-          </div>
-        </Section>
-      ) : null}
-
-      {/* Open positions */}
-      {team.openPosts.length > 0 ? (
-        <Section
-          title="OPEN POSITIONS"
-          count={team.openPosts.length}
-          action={
-            <Link
-              to="/collab"
-              search={{ team: team.id }}
-              className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:underline"
-            >
-              ALL POSTS
-              <HugeiconsIcon icon={ArrowRight01Icon} size={11} />
-            </Link>
-          }
-        >
-          <div className="flex flex-col gap-3">
-            {team.openPosts.map((p) => (
+      <motion.div variants={fadeUp}>
+        <Section title="ROSTER" count={team.members.length}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {team.members.map((m) => (
               <Chonk
-                key={p.id}
+                key={m.id}
                 variant="surface"
                 size="lg"
-                className="flex-wrap items-center gap-2 bg-card p-3 backdrop-blur-none"
-                render={<Link to="/collab" search={{ post: p.id }} aria-label={p.title} />}
+                className="items-center gap-3 bg-card p-3 backdrop-blur-none"
+                render={
+                  <Link
+                    to="/profile/$userId"
+                    params={profileLinkParams({ id: m.userId, urlStub: m.urlStub })}
+                    aria-label={m.username ?? "Unknown"}
+                  />
+                }
               >
-                <Text as="span" size="sm" bold ellipsis className="min-w-0 flex-1 tracking-wider">
-                  {p.title}
-                </Text>
-                <Badge variant="secondary" size="label" className="uppercase">
-                  {p.type}
-                </Badge>
-                {p.roles.slice(0, 3).map((r) => (
-                  <Badge key={r.id} variant="outline" size="label" className="uppercase">
-                    {r.name}
-                  </Badge>
-                ))}
-                <MicroLabel>{timeAgo(p.createdAt)}</MicroLabel>
+                <UserAvatar avatarUrl={m.avatarUrl} username={m.username} shape="round" size={36} />
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-center gap-2">
+                    <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
+                      {m.username ?? "Unknown"}
+                    </Text>
+                    {m.role === "owner" ? (
+                      <Badge variant="outline" size="label">
+                        OWNER
+                      </Badge>
+                    ) : null}
+                  </span>
+                  <Text as="span" size="xs" variant="muted" ellipsis>
+                    {m.title ?? m.tagline ?? "—"}
+                  </Text>
+                </span>
               </Chonk>
             ))}
           </div>
         </Section>
+      </motion.div>
+
+      {/* Stack — derived from the roster's skills. */}
+      {team.skills.length > 0 ? (
+        <motion.div variants={fadeUp}>
+          <Section title="STACK" hint="WHAT THE ROSTER WORKS IN">
+            <div className="flex flex-wrap gap-1.5">
+              {team.skills.slice(0, MAX_STACK_CHIPS).map((s) => (
+                <Badge key={s.id} variant="outline" size="label" className="uppercase">
+                  {s.name}
+                  {s.memberCount > 1 ? (
+                    <span className="text-muted-foreground"> ×{s.memberCount}</span>
+                  ) : null}
+                </Badge>
+              ))}
+            </div>
+          </Section>
+        </motion.div>
+      ) : null}
+
+      {/* Open positions */}
+      {team.openPosts.length > 0 ? (
+        <motion.div variants={fadeUp}>
+          <Section
+            title="OPEN POSITIONS"
+            count={team.openPosts.length}
+            action={
+              <Link
+                to="/collab"
+                search={{ team: team.id }}
+                className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest text-primary uppercase hover:underline"
+              >
+                ALL POSTS
+                <HugeiconsIcon icon={ArrowRight01Icon} size={11} />
+              </Link>
+            }
+          >
+            <div className="flex flex-col gap-3">
+              {team.openPosts.map((p) => (
+                <Chonk
+                  key={p.id}
+                  variant="surface"
+                  size="lg"
+                  className="flex-wrap items-center gap-2 bg-card p-3 backdrop-blur-none"
+                  render={<Link to="/collab" search={{ post: p.id }} aria-label={p.title} />}
+                >
+                  <Text as="span" size="sm" bold ellipsis className="min-w-0 flex-1 tracking-wider">
+                    {p.title}
+                  </Text>
+                  <Badge variant="secondary" size="label" className="uppercase">
+                    {p.type}
+                  </Badge>
+                  {p.roles.slice(0, 3).map((r) => (
+                    <Badge key={r.id} variant="outline" size="label" className="uppercase">
+                      {r.name}
+                    </Badge>
+                  ))}
+                  <MicroLabel>{timeAgo(p.createdAt)}</MicroLabel>
+                </Chonk>
+              ))}
+            </div>
+          </Section>
+        </motion.div>
       ) : null}
 
       {/* Showcase */}
       {showcase.length > 0 ? (
-        <Section title="SHOWCASE" count={showcase.length}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {showcase.map((p) => (
-              <ShowcaseCard key={p.id} project={p} />
-            ))}
-          </div>
-        </Section>
+        <motion.div variants={fadeUp}>
+          <Section title="SHOWCASE" count={showcase.length}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {showcase.map((p) => (
+                <ShowcaseCard key={p.id} project={p} />
+              ))}
+            </div>
+          </Section>
+        </motion.div>
       ) : null}
 
       {/* Jam log */}
       {jamLog.length > 0 ? (
-        <Section title="JAM LOG" count={jamLog.length}>
-          <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
-            {jamLog.map((p) => (
-              <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                {/* A tracked jam links to its page here; an off-itch jam
+        <motion.div variants={fadeUp}>
+          <Section title="JAM LOG" count={jamLog.length}>
+            <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
+              {jamLog.map((p) => (
+                <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                  {/* A tracked jam links to its page here; an off-itch jam
                     with only a free-text URL still links out, and one with
                     neither stays plain text. */}
-                {p.jamSlug || p.jamId != null ? (
-                  <Link
-                    to="/jams/$jamSlug"
-                    params={jamLinkParams({ jamId: p.jamId ?? 0, slug: p.jamSlug })}
-                    className="min-w-0 flex-1 text-xs font-bold hover:text-primary hover:underline"
-                  >
-                    {p.jamName ?? p.title}
-                  </Link>
-                ) : p.jamUrl ? (
-                  <TextLink
-                    href={p.jamUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    size="sm"
-                    bold
-                    className="min-w-0 flex-1 hover:text-primary hover:underline"
-                  >
-                    {p.jamName ?? p.title}
-                  </TextLink>
-                ) : (
-                  <Text as="span" size="sm" bold className="min-w-0 flex-1">
-                    {p.jamName ?? p.title}
-                  </Text>
-                )}
-                {p.result ? (
-                  <Badge variant="warning" size="label" className="uppercase">
-                    {p.result}
-                  </Badge>
-                ) : null}
-                {p.participatedAt ? (
-                  <MicroLabel tabular>
-                    {/* Jam dates are UTC everywhere in this app. */}
-                    {new Date(p.participatedAt)
-                      .toLocaleDateString("en-US", {
-                        month: "short",
-                        year: "numeric",
-                        timeZone: "UTC",
-                      })
-                      .toUpperCase()}
-                  </MicroLabel>
-                ) : null}
-                {(p.submissionUrl ?? p.url) ? (
-                  <ExternalLink href={(p.submissionUrl ?? p.url)!} label="ENTRY" />
-                ) : null}
-              </div>
-            ))}
-          </Well>
-        </Section>
+                  {p.jamSlug || p.jamId != null ? (
+                    <Link
+                      to="/jams/$jamSlug"
+                      params={jamLinkParams({ jamId: p.jamId ?? 0, slug: p.jamSlug })}
+                      className="min-w-0 flex-1 text-xs font-bold hover:text-primary hover:underline"
+                    >
+                      {p.jamName ?? p.title}
+                    </Link>
+                  ) : p.jamUrl ? (
+                    <TextLink
+                      href={p.jamUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      size="sm"
+                      bold
+                      className="min-w-0 flex-1 hover:text-primary hover:underline"
+                    >
+                      {p.jamName ?? p.title}
+                    </TextLink>
+                  ) : (
+                    <Text as="span" size="sm" bold className="min-w-0 flex-1">
+                      {p.jamName ?? p.title}
+                    </Text>
+                  )}
+                  {p.result ? (
+                    <Badge variant="warning" size="label" className="uppercase">
+                      {p.result}
+                    </Badge>
+                  ) : null}
+                  {p.participatedAt ? (
+                    <MicroLabel tabular>
+                      {/* Jam dates are UTC everywhere in this app. */}
+                      {new Date(p.participatedAt)
+                        .toLocaleDateString("en-US", {
+                          month: "short",
+                          year: "numeric",
+                          timeZone: "UTC",
+                        })
+                        .toUpperCase()}
+                    </MicroLabel>
+                  ) : null}
+                  {(p.submissionUrl ?? p.url) ? (
+                    <ExternalLink href={(p.submissionUrl ?? p.url)!} label="ENTRY" />
+                  ) : null}
+                </div>
+              ))}
+            </Well>
+          </Section>
+        </motion.div>
       ) : null}
 
       {team.members.length === 0 && showcase.length === 0 ? (
@@ -368,7 +383,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
           onInvalidate={onInvalidate}
         />
       ) : null}
-    </div>
+    </PageStack>
   );
 }
 

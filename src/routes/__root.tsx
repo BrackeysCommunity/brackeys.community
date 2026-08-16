@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import { MotionConfig } from "framer-motion";
 import { lazy, Suspense } from "react";
 
 import { SiteFooter } from "@/components/home/SiteFooter";
@@ -28,7 +29,7 @@ import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
+import { AppSettingsProvider, useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
@@ -126,65 +127,114 @@ function RoutePendingFallback() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark" data-theme="nord">
+    // The pre-paint script below rewrites `data-theme` and
+    // `data-reduce-motion` from storage before React hydrates, so these
+    // values are the server's best guess by design — suppress the
+    // mismatch warning rather than give up correcting them pre-paint.
+    <html
+      lang="en"
+      className="dark"
+      data-theme="nord"
+      data-reduce-motion="false"
+      suppressHydrationWarning
+    >
       <head>
         <HeadContent />
+        {/* Pre-paint prefs: theme, then the effective reduced-motion value —
+            the same legacy migration + coalescing as `use-app-settings`, so
+            CSS keyed on `data-reduce-motion` is right on the first frame. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("brackeys-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}`,
+            __html:
+              `try{var t=localStorage.getItem("brackeys-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}` +
+              `try{var m=localStorage.getItem("brackeys-reduce-motion");var p=m==="1"||m==="reduced"?"reduced":m==="full"?"full":"system";var r=p==="reduced"||(p==="system"&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);document.documentElement.dataset.reduceMotion=r?"true":"false"}catch(e){}`,
+          }}
+        />
+        {/* Owns the view-transition promises the router drops on the floor.
+            router-core (1.160.2) calls `document.startViewTransition(fn)` and
+            discards the handle, so when the browser *skips* a transition —
+            a backgrounded tab, or a second navigation landing inside the
+            ~350ms window the page animation opens — its `ready`/`finished`
+            promises reject with nothing attached, and each one surfaces as an
+            uncaught InvalidStateError. Only that skip signature is swallowed;
+            anything else is rethrown so it stays visible. Drop this once the
+            router attaches its own handler. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var d=document,s=d.startViewTransition;if(typeof s==="function"){d.startViewTransition=function(a){var t=s.call(d,a);var k=function(e){if(!(e instanceof DOMException)||(e.name!=="InvalidStateError"&&e.name!=="AbortError"))throw e};t.ready.catch(k);t.finished.catch(k);t.updateCallbackDone.catch(k);return t}}}catch(e){}`,
           }}
         />
       </head>
       <body className="flex h-screen flex-col overflow-hidden">
-        <Cursor />
-        <BackgroundBlobs />
-        <ThemedDotField
-          dotRadius={1}
-          dotSpacing={20}
-          bulgeStrength={20}
-          glowRadius={60}
-          waveAmplitude={2}
-          cursorRadius={500}
-          cursorForce={0.0075}
-          bulgeOnly={false}
-          className="pointer-events-none fixed inset-0 z-0 opacity-50"
-        />
-        {/* CRT scanline overlay */}
-        <div
-          className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-7"
-          style={{
-            background:
-              "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
-            backgroundSize: "100% 4px",
-          }}
-        />
-        <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <a
-            href="#main-content"
-            className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
-          >
-            Skip to content
-          </a>
-          <TanStackQueryProvider>
-            <AppThemeProvider>
-              <AppSettingsProvider>
-                <TooltipProvider>
-                  <CommandPaletteProvider>
-                    <PageLayoutProvider>
-                      <CommandPalette />
-                      <ResponsiveShell>{children}</ResponsiveShell>
-                    </PageLayoutProvider>
-                  </CommandPaletteProvider>
-                </TooltipProvider>
-              </AppSettingsProvider>
-            </AppThemeProvider>
-          </TanStackQueryProvider>
-        </div>
+        {/* AppSettingsProvider sits above the decorative layers so the
+            backgrounds can read the effective reduced-motion value. */}
+        <AppSettingsProvider>
+          <AppMotionConfig>
+            <Cursor />
+            <BackgroundBlobs />
+            <BackgroundDotField />
+            {/* CRT scanline overlay */}
+            <div
+              className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-7"
+              style={{
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
+                backgroundSize: "100% 4px",
+              }}
+            />
+            <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
+              <a
+                href="#main-content"
+                className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
+              >
+                Skip to content
+              </a>
+              <TanStackQueryProvider>
+                <AppThemeProvider>
+                  <TooltipProvider>
+                    <CommandPaletteProvider>
+                      <PageLayoutProvider>
+                        <CommandPalette />
+                        <ResponsiveShell>{children}</ResponsiveShell>
+                      </PageLayoutProvider>
+                    </CommandPaletteProvider>
+                  </TooltipProvider>
+                </AppThemeProvider>
+              </TanStackQueryProvider>
+            </div>
+          </AppMotionConfig>
+        </AppSettingsProvider>
         <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
         <ConfirmPortal />
         <Scripts />
       </body>
     </html>
+  );
+}
+
+/** App-level framer defaults. `"always"` (not `"user"`) because the
+ * effective value already coalesces the native query with the in-app
+ * pref — an explicit "On" must override an OS-level reduce. */
+function AppMotionConfig({ children }: { children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  return <MotionConfig reducedMotion={reduced ? "always" : "never"}>{children}</MotionConfig>;
+}
+
+function BackgroundDotField() {
+  const reduced = useReducedMotion();
+  return (
+    <ThemedDotField
+      dotRadius={1}
+      dotSpacing={20}
+      bulgeStrength={20}
+      glowRadius={60}
+      waveAmplitude={2}
+      cursorRadius={500}
+      cursorForce={0.0075}
+      bulgeOnly={false}
+      static={reduced}
+      className="pointer-events-none fixed inset-0 z-0 opacity-50"
+    />
   );
 }
 
@@ -244,7 +294,10 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         // scrolling contents to the scroll extent, so nothing the footer paints
         // reaches the bounce gutter — the fixed dot field behind the scroller
         // shows through instead.
-        className="flex flex-1 flex-col overflow-y-auto overscroll-y-none pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // `view-transition-name: page` scopes the cross-route fade+rise to
+        // the scroller (see `styles.css`). Exactly one shell branch is
+        // mounted at a time, so the name is never duplicated in a snapshot.
+        className="flex flex-1 flex-col overflow-y-auto overscroll-y-none pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [view-transition-name:page] [&::-webkit-scrollbar]:hidden"
       >
         {/* `grow shrink-0` rather than a `min-h-full` on the inner box: the
             wrapper is a flex item of an auto-height column, so a percentage
@@ -282,7 +335,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         // The header inset lives on the parent here, outside the scroller, so
         // a hidden bar leaves nothing for sticky content to reclaim.
         style={{ "--app-header-shift": "0px" } as React.CSSProperties}
-        className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
+        className={`flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-none [-ms-overflow-style:none] [scrollbar-width:none] [view-transition-name:page] [&::-webkit-scrollbar]:hidden ${showContentOnMobile ? "" : "hidden lg:flex"}`}
       >
         <div
           className="content-pane flex w-full shrink-0 flex-col justify-center p-4 pb-16 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 sm:[--content-pane-fade:1.5rem] lg:px-12 lg:pt-12 lg:[--content-pane-fade:3rem] xl:px-16 xl:pt-16 xl:[--content-pane-fade:4rem]"

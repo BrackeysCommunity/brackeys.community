@@ -13,6 +13,7 @@ import { NOTIFICATION_TYPE_LABEL } from "../../../../src/lib/notification-copy.t
 import {
   buildUnsubscribeUrl,
   getOrCreateUnsubscribeToken,
+  isEmailGloballyDisabled,
 } from "../../../../src/lib/unsubscribe.ts";
 import { db } from "../db/client.ts";
 import { APP_URL, sendEmail } from "../email.ts";
@@ -68,6 +69,13 @@ async function sendTransactional(notificationId: number): Promise<void> {
     return;
   }
 
+  // Re-checked here and not just at enqueue: this job may have been queued
+  // before the switch was flipped, or be a retry from before it.
+  if (await isEmailGloballyDisabled(db, row.userId)) {
+    console.log("[send_email:transactional] emails disabled by user", { id: row.id });
+    return;
+  }
+
   let actorUsername: string | null = null;
   if (row.actorId) {
     const [actor] = await db
@@ -117,6 +125,11 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
 
   if (!recipient?.email) {
     console.warn("[send_email:digest] no email on file", { userId });
+    return;
+  }
+
+  if (await isEmailGloballyDisabled(db, userId)) {
+    console.log("[send_email:digest] emails disabled by user", { userId });
     return;
   }
 

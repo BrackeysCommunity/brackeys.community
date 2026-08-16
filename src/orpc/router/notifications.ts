@@ -10,6 +10,10 @@ import {
   type NotificationType,
 } from "@/db/schema";
 import { NOTIFICATION_DEFAULTS, NOTIFICATION_TYPES } from "@/lib/notification-copy";
+import {
+  isEmailGloballyDisabled,
+  setEmailsDisabled as setEmailsDisabledForUser,
+} from "@/lib/unsubscribe";
 import { requireAuth } from "@/orpc/middleware/auth";
 
 const notificationTypeSchema = z.enum(
@@ -124,20 +128,25 @@ export const markAllRead = os
 
 /**
  * Returns one row per notification type, merged with the shared defaults
- * so the UI always sees a complete matrix even on first visit.
+ * so the UI always sees a complete matrix even on first visit, plus the
+ * global email kill switch that overrides the whole matrix.
  */
 export const getPreferences = os
   .use(requireAuth)
   .input(z.object({}))
   .handler(async ({ context }) => {
-    const rows = await db
-      .select()
-      .from(notificationPreferences)
-      .where(eq(notificationPreferences.userId, context.user.id));
+    const [rows, emailsDisabled] = await Promise.all([
+      db
+        .select()
+        .from(notificationPreferences)
+        .where(eq(notificationPreferences.userId, context.user.id)),
+      isEmailGloballyDisabled(db, context.user.id),
+    ]);
 
     const byType = new Map(rows.map((r) => [r.type as NotificationType, r]));
 
     return {
+      emailsDisabled,
       preferences: NOTIFICATION_TYPES.map((type) => {
         const existing = byType.get(type);
         const fallback = NOTIFICATION_DEFAULTS[type];
@@ -149,6 +158,19 @@ export const getPreferences = os
         };
       }),
     };
+  });
+
+/**
+ * Global email opt-out. Deliberately separate from the per-type matrix:
+ * turning it back off restores whatever the user had configured rather
+ * than resetting every type, so it reads as a pause, not a wipe.
+ */
+export const setEmailsDisabled = os
+  .use(requireAuth)
+  .input(z.object({ disabled: z.boolean() }))
+  .handler(async ({ input, context }) => {
+    await setEmailsDisabledForUser(db, context.user.id, input.disabled);
+    return { ok: true };
   });
 
 export const updatePreference = os
