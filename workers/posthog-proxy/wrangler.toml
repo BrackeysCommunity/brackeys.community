@@ -1,0 +1,15 @@
+name = "brackeys-posthog-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# Bound to the app's own zone — that is the entire point. A workers.dev
+# subdomain would be third-party again and blocked just as readily.
+#
+# Uncomment and deploy with `wrangler deploy`, then point the app at it by
+# setting VITE_POSTHOG_HOST=https://brackeys.community/ingest and
+# redeploying the web service (the value is inlined into the browser bundle
+# at build time, so a rebuild is required — see README).
+#
+# [[routes]]
+# pattern = "brackeys.community/ingest/*"
+# zone_name = "brackeys.community"

@@ -3,12 +3,14 @@ import { readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
+import posthogRollupPlugin from "@posthog/rollup-plugin";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
+import type { Plugin as RolldownPlugin } from "rollup";
 import wasm from "vite-plugin-wasm";
 import { createLogger, defineConfig } from "vite-plus";
 
@@ -39,6 +41,69 @@ const resolveCommitSha = () => {
 
 const commitSha = resolveCommitSha();
 const appVersion = commitSha ? `${pkg.version}+${commitSha}` : pkg.version;
+
+// Source-map upload is keyed off the credential being present, never off
+// NODE_ENV — MR previews build as `staging`, and the old Sentry gate on
+// `NODE_ENV === "production"` silently excluded them for exactly that reason.
+// A build without the key is a normal build with no maps.
+const posthogPersonalApiKey = process.env.POSTHOG_PERSONAL_API_KEY;
+const posthogSourcemapsEnabled = Boolean(posthogPersonalApiKey);
+
+/**
+ * Hardens the PostHog source-map plugin against two behaviours that are
+ * both wrong for a deploy pipeline. Verified against @posthog/rollup-plugin
+ * 1.4.9 by building with an unreachable host:
+ *
+ *  1. **A failed upload fails the build.** An expired key or a PostHog
+ *     outage would stop a deploy — un-minified stack traces are a debugging
+ *     nicety and must never be able to do that. Downgraded to a warning.
+ *  2. **A failed upload leaves the `.map` files behind.** `deleteAfterUpload`
+ *     only runs on the success path, so a failed build left 215 maps in
+ *     `.output/public/assets`, where they would be deployed and served —
+ *     publishing the app's source. The sweep below runs either way.
+ *
+ * Recheck both if the plugin is upgraded; if it grows a "don't fail the
+ * build" option and cleans up on failure, this wrapper can go.
+ */
+function resilientSourcemapUpload(plugin: RolldownPlugin): RolldownPlugin {
+  const hook = plugin.writeBundle;
+  if (typeof hook !== "object" || typeof hook.handler !== "function") {
+    throw new Error(
+      "@posthog/rollup-plugin no longer exposes writeBundle as an object hook — re-check resilientSourcemapUpload.",
+    );
+  }
+  const original = hook.handler;
+
+  return {
+    ...plugin,
+    writeBundle: {
+      ...hook,
+      async handler(this: unknown, options: { dir?: string }, bundle: unknown) {
+        try {
+          await (original as (...args: unknown[]) => unknown).call(this, options, bundle);
+        } catch (error) {
+          console.warn(
+            "[posthog] source-map upload failed; the build continues without un-minified stacks.",
+            error,
+          );
+        } finally {
+          if (options.dir) await removeSourceMaps(options.dir);
+        }
+      },
+    },
+  } as RolldownPlugin;
+}
+
+/** Belt-and-braces: a `.map` reaching the CDN publishes the source. */
+async function removeSourceMaps(dir: string) {
+  const { readdir, rm } = await import("node:fs/promises");
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []);
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".map"))
+      .map((entry) => rm(join(entry.parentPath, entry.name), { force: true })),
+  );
+}
 
 // Unhashed files in public/ are served at the site root, so nothing busts
 // their URLs on deploy: give browsers a day and let Cloudflare hold them at
@@ -196,6 +261,12 @@ const config = defineConfig({
       "services/",
     ],
   },
+  // "hidden" emits the maps without a `//# sourceMappingURL` comment: the
+  // upload below needs them, browsers must not fetch them, and the plugin
+  // deletes them after upload so they never reach the CDN either way.
+  build: {
+    sourcemap: posthogSourcemapsEnabled ? "hidden" : false,
+  },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
@@ -261,6 +332,30 @@ const config = defineConfig({
     }),
     tailwindcss(),
     viteReact(),
+    // Stamps each chunk with an id and uploads the matching map, so
+    // PostHog error tracking can un-minify a stack. Without it exceptions
+    // still arrive, just pointing into minified columns.
+    ...(posthogSourcemapsEnabled
+      ? [
+          {
+            ...resilientSourcemapUpload(
+              posthogRollupPlugin({
+                personalApiKey: posthogPersonalApiKey!,
+                projectId: process.env.POSTHOG_PROJECT_ID,
+                host: process.env.POSTHOG_HOST ?? "https://eu.posthog.com",
+                sourcemaps: {
+                  enabled: true,
+                  releaseVersion: appVersion,
+                  // The maps exist only to be uploaded; leaving them in
+                  // .output would publish the app's source to the CDN.
+                  deleteAfterUpload: true,
+                },
+              }),
+            ),
+            apply: "build" as const,
+          },
+        ]
+      : []),
   ],
 });
 

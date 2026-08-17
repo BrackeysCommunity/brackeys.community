@@ -164,6 +164,13 @@ export function initAnalytics() {
 
   posthog.init(env.VITE_POSTHOG_KEY, {
     api_host: env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com",
+    // Required as soon as `api_host` stops being a posthog.com domain — i.e.
+    // the moment `VITE_POSTHOG_HOST` points at the reverse proxy
+    // (`workers/posthog-proxy`). Without it the toolbar tries to reach the
+    // PostHog UI through the ingestion path and breaks. Harmless when the
+    // host is direct, so it is set unconditionally rather than left as a
+    // step someone has to remember during the proxy cutover.
+    ui_host: "https://eu.posthog.com",
     // Pinned rather than left to drift: it is the snapshot of every
     // default-behaviour breaking change, so bumping it is a decision.
     defaults: "2026-06-25",
