@@ -6,6 +6,11 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
+// Referenced only inside the `.server()` branch below, so the isomorphic
+// transform drops it from the browser bundle along with the router — the
+// same elimination the file comment describes. It must stay that way:
+// posthog-server pulls in posthog-node.
+import { reportProcedureErrors } from "@/orpc/error-reporting";
 import { isPublicProcedure } from "@/orpc/public-procedures";
 import { markWrite, shouldBypassPublicCache } from "@/orpc/recent-write";
 import router from "@/orpc/router";
@@ -30,6 +35,11 @@ const getORPCClient = createIsomorphicFn()
       context: () => ({
         headers: getRequestHeaders(),
       }),
+      // SSR loaders call the router in-process, never crossing the RPC
+      // mounts — so the interceptors installed on those handlers don't see
+      // any of this. Without a copy here, a procedure that throws while
+      // server-rendering is reported nowhere.
+      interceptors: [reportProcedureErrors("ssr")],
     }),
   )
   .client((): AppClient => {

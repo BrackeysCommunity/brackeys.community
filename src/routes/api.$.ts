@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
+import { withErrorReporting } from "@/lib/posthog-server";
 import {
   ProfileProjectImageUploadError,
   removeProfileProjectImageFromStorage,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { reportProcedureErrors } from "@/orpc/error-reporting";
 import router from "@/orpc/router";
 
 /**
@@ -57,6 +59,7 @@ const handler = new OpenAPIHandler(router, {
       console.error(error);
     }),
   ],
+  clientInterceptors: [reportProcedureErrors("openapi")],
   plugins: [
     new SmartCoercionPlugin({
       schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -417,15 +420,18 @@ async function handleCollabPostImageUpload(request: Request) {
   }
 }
 
+/** Reports an unhandled throw before it becomes an opaque 500. */
+const reportedHandle = withErrorReporting("/api/$", handle);
+
 export const Route = createFileRoute("/api/$")({
   server: {
     handlers: {
-      HEAD: handle,
-      GET: handle,
-      POST: handle,
-      PUT: handle,
-      PATCH: handle,
-      DELETE: handle,
+      HEAD: reportedHandle,
+      GET: reportedHandle,
+      POST: reportedHandle,
+      PUT: reportedHandle,
+      PATCH: reportedHandle,
+      DELETE: reportedHandle,
     },
   },
 });

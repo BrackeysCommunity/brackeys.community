@@ -196,7 +196,7 @@ export const Overview: Story = {
   theme: "brackeys",
   fonts: {
     body: "Rubik",
-    display: "Space Grotesk",
+    display: "Rubik",
     mono: "JetBrains Mono",
   },
 };`}</code>

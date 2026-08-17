@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { auth } from "@/lib/auth";
+import { withErrorReporting } from "@/lib/posthog-server";
 
-async function handle({ request }: { request: Request }) {
-  return auth.handler(request);
-}
+const handle = withErrorReporting("/api/auth/$", ({ request }: { request: Request }) =>
+  auth.handler(request),
+);
 
 export const Route = createFileRoute("/api/auth/$")({
   server: {

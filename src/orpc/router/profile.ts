@@ -40,8 +40,10 @@ import {
   userRoles,
   userSkills,
 } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
 import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
 import { jamUrl } from "@/lib/jam-links";
+import { captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -655,6 +657,16 @@ export const updateProfile = os
       .where(eq(developerProfiles.id, userId))
       .returning();
 
+    captureServerEvent(EVENTS.profileSaved, userId, {
+      // Which fields the save actually carried — the profile flyout saves
+      // per-step, so this is what makes "which step do people give up on"
+      // answerable from the outcome side as well as the client's step events.
+      has_bio: Boolean(input.bio),
+      has_tagline: Boolean(input.tagline),
+      has_location: Boolean(input.location),
+      has_timezone: input.timezone != null,
+    });
+
     return updated;
   });
 
@@ -1085,6 +1097,11 @@ export const addJamParticipation = os
         participatedAt,
       })
       .returning();
+
+    captureServerEvent(EVENTS.jamParticipationAdded, context.user.id, {
+      has_submission_url: Boolean(input.submissionUrl),
+      result: input.result,
+    });
 
     return serializeProfileProject(participation);
   });

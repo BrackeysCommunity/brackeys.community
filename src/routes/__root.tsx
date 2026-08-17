@@ -1,7 +1,8 @@
+import { PostHogProvider } from "@posthog/react";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { MotionConfig } from "framer-motion";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
@@ -17,12 +18,11 @@ const MobileShell = lazy(() =>
   import("@/components/layout/MobileShell").then((m) => ({ default: m.MobileShell })),
 );
 
-// The three latin subsets are needed on every page, and they are only
+// Both latin subsets are needed on every page, and they are only
 // discoverable once fonts.css has been fetched and parsed — preload them
 // alongside it so the swap happens in the first paint, not after it.
 import monoLatin from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url";
 import sansLatin from "@fontsource-variable/rubik/files/rubik-latin-wght-normal.woff2?url";
-import displayLatin from "@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2?url";
 
 import { ConfirmPortal } from "@/components/ui/confirm";
 import { Cursor } from "@/components/ui/cursor";
@@ -35,6 +35,7 @@ import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
+import { captureError, posthog } from "@/lib/posthog";
 
 import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
 
@@ -43,7 +44,7 @@ import appCss from "../styles.css?url";
 
 // `as const` keeps crossOrigin narrow: React types it as CrossOrigin, and a
 // mapped object literal would widen it to string.
-const fontPreloads = [sansLatin, displayLatin, monoLatin].map(
+const fontPreloads = [sansLatin, monoLatin].map(
   (href) =>
     ({
       rel: "preload",
@@ -95,6 +96,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 });
 
 function RouteErrorBoundary({ error }: { error: Error }) {
+  // The router catches this before it ever reaches window.onerror, so
+  // `capture_exceptions` never sees it — report it by hand.
+  useEffect(() => {
+    captureError(error);
+  }, [error]);
+
   return (
     <div className="pointer-events-auto flex flex-1 items-center justify-center p-12">
       <div className="max-w-md space-y-4 text-center">
@@ -161,44 +168,50 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         />
       </head>
       <body className="flex h-screen flex-col overflow-hidden">
-        {/* AppSettingsProvider sits above the decorative layers so the
+        {/* Outermost so `useFlag` works anywhere, decorative layers
+            included. The instance is initialised in `getRouter()`, not by
+            the provider — passing `client` keeps this a context-only mount
+            with no second init path. */}
+        <PostHogProvider client={posthog}>
+          {/* AppSettingsProvider sits above the decorative layers so the
             backgrounds can read the effective reduced-motion value. */}
-        <AppSettingsProvider>
-          <AppMotionConfig>
-            <Cursor />
-            <BackgroundBlobs />
-            <BackgroundDotField />
-            {/* CRT scanline overlay */}
-            <div
-              className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-2"
-              style={{
-                background:
-                  "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
-                backgroundSize: "100% 4px",
-              }}
-            />
-            <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
-              <a
-                href="#main-content"
-                className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
-              >
-                Skip to content
-              </a>
-              <TanStackQueryProvider>
-                <AppThemeProvider>
-                  <TooltipProvider>
-                    <CommandPaletteProvider>
-                      <PageLayoutProvider>
-                        <CommandPalette />
-                        <ResponsiveShell>{children}</ResponsiveShell>
-                      </PageLayoutProvider>
-                    </CommandPaletteProvider>
-                  </TooltipProvider>
-                </AppThemeProvider>
-              </TanStackQueryProvider>
-            </div>
-          </AppMotionConfig>
-        </AppSettingsProvider>
+          <AppSettingsProvider>
+            <AppMotionConfig>
+              <Cursor />
+              <BackgroundBlobs />
+              <BackgroundDotField />
+              {/* CRT scanline overlay */}
+              <div
+                className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-2"
+                style={{
+                  background:
+                    "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
+                  backgroundSize: "100% 4px",
+                }}
+              />
+              <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
+                <a
+                  href="#main-content"
+                  className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
+                >
+                  Skip to content
+                </a>
+                <TanStackQueryProvider>
+                  <AppThemeProvider>
+                    <TooltipProvider>
+                      <CommandPaletteProvider>
+                        <PageLayoutProvider>
+                          <CommandPalette />
+                          <ResponsiveShell>{children}</ResponsiveShell>
+                        </PageLayoutProvider>
+                      </CommandPaletteProvider>
+                    </TooltipProvider>
+                  </AppThemeProvider>
+                </TanStackQueryProvider>
+              </div>
+            </AppMotionConfig>
+          </AppSettingsProvider>
+        </PostHogProvider>
         <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
         <ConfirmPortal />
         <Scripts />

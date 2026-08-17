@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { withErrorReporting } from "@/lib/posthog-server";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
 import { isServableImageKey } from "@/lib/profile-project-images";
 
@@ -28,11 +29,14 @@ async function handle({ request }: { request: Request }) {
   return streamStoredImage(objectKey, request);
 }
 
+/** Reports an unhandled throw before it becomes an opaque 500. */
+const reportedHandle = withErrorReporting("/images/$", handle);
+
 export const Route = createFileRoute("/images/$")({
   server: {
     handlers: {
-      HEAD: handle,
-      GET: handle,
+      HEAD: reportedHandle,
+      GET: reportedHandle,
     },
   },
 });

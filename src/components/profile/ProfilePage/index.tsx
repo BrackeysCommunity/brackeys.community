@@ -1,12 +1,19 @@
 import { useState } from "react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
+import { captureEvent } from "@/lib/posthog";
 
 import type { ProfileViewModel } from "./helpers";
 import { ProfileDesktop } from "./ProfileDesktop";
 import { ProfileEditFlyout } from "./ProfileEditFlyout";
 import { ProfileMobile } from "./ProfileMobile";
-import type { EditStep, ProfileLayoutProps } from "./shared-types";
+import {
+  EDIT_STEP_COUNT,
+  EDIT_STEP_SLUGS,
+  type EditStep,
+  type ProfileLayoutProps,
+} from "./shared-types";
 
 interface ProfilePageProps {
   profile: ProfileViewModel;
@@ -32,13 +39,30 @@ export function ProfilePage({ profile, isOwner, queryKey }: ProfilePageProps) {
     step: 1,
   });
 
+  const stepProps = (step: EditStep) =>
+    flowStep(FLOWS.profileEdit, EDIT_STEP_SLUGS[step], step, EDIT_STEP_COUNT);
+
   const layoutProps: ProfileLayoutProps = {
     profile,
     isOwner,
     edit,
-    openEdit: (step) => setEdit({ open: true, step }),
+    openEdit: (step) => {
+      // `step` is the entry point, not always 1 — a section's own "edit"
+      // button deep-links into the step that owns it, and a funnel that
+      // assumed everyone starts at `identity` would read as mass drop-off
+      // on step 1.
+      captureEvent(EVENTS.profileEditStarted, stepProps(step));
+      setEdit({ open: true, step });
+    },
     closeEdit: () => setEdit((prev) => ({ ...prev, open: false })),
     queryKey,
+  };
+
+  const handleStepChange = (next: EditStep) => {
+    // Forward moves only. Stepping back is navigation, not progress, and
+    // counting it would let one person advance the same step repeatedly.
+    if (next > edit.step) captureEvent(EVENTS.profileEditStepAdvanced, stepProps(edit.step));
+    setEdit({ open: true, step: next });
   };
 
   return (
@@ -51,7 +75,7 @@ export function ProfilePage({ profile, isOwner, queryKey }: ProfilePageProps) {
           profile={profile}
           queryKey={queryKey}
           onClose={layoutProps.closeEdit}
-          onStepChange={(step) => setEdit({ open: true, step })}
+          onStepChange={handleStepChange}
         />
       ) : null}
     </>

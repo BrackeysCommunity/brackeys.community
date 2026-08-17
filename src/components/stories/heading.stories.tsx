@@ -100,9 +100,10 @@ export const Overview: Story = {
       <section className="flex flex-col gap-3">
         <h2 className="font-mono text-sm font-bold text-foreground">Display Font</h2>
         <p className="text-xs text-muted-foreground">
-          The <code className="text-primary">display</code> prop switches the font to Space Grotesk,
-          the display typeface. Without it, headings use Rubik (the body font). Use display for hero
-          headings, marketing text, or anywhere you want a more geometric look.
+          The <code className="text-primary">display</code> prop switches the font to whatever{" "}
+          <code className="text-primary">--font-display</code> resolves to. Rubik carries both roles
+          today, so the two render alike — the prop still marks a heading as display voice, and is
+          the seam a distinct display face would land on.
         </p>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <div className="flex flex-col gap-4">
@@ -111,9 +112,7 @@ export const Overview: Story = {
               <Heading as="h2">The quick brown fox jumps</Heading>
             </div>
             <div>
-              <span className="font-mono text-xs text-muted-foreground">
-                Space Grotesk (display)
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">Rubik (display)</span>
               <Heading as="h2" display>
                 The quick brown fox jumps
               </Heading>
@@ -121,7 +120,7 @@ export const Overview: Story = {
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
             {`<Heading as="h2">Rubik (default)</Heading>
-<Heading as="h2" display>Space Grotesk (display)</Heading>`}
+<Heading as="h2" display>Rubik (display)</Heading>`}
           </pre>
         </div>
       </section>

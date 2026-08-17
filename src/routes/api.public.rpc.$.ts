@@ -3,6 +3,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { StrictGetMethodPlugin } from "@orpc/server/plugins";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { reportProcedureErrors } from "@/orpc/error-reporting";
 import { publicRouter } from "@/orpc/router/public";
 
 /**
@@ -15,6 +16,7 @@ import { publicRouter } from "@/orpc/router/public";
  */
 const handler = new RPCHandler(publicRouter, {
   plugins: [new StrictGetMethodPlugin()],
+  clientInterceptors: [reportProcedureErrors("public")],
 });
 
 /**

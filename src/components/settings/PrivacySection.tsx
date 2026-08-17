@@ -1,6 +1,7 @@
-import { NoteIcon, UserBlock01Icon } from "@hugeicons/core-free-icons";
+import { Analytics01Icon, NoteIcon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +11,12 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
+import {
+  analyticsPreference,
+  analyticsPreferenceServerSnapshot,
+  setAnalyticsEnabled,
+  subscribeAnalyticsPreference,
+} from "@/lib/posthog";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -24,20 +31,38 @@ import { SettingRow, SettingsSection, SignedOutNotice } from "./SettingsUI";
 export function PrivacySection() {
   const { data: session } = authClient.useSession();
 
+  // Analytics is the one control here that isn't attached to an account, so
+  // it sits above the sign-in gate — a logged-out visitor is being measured
+  // too, and has the same right to say no.
+  const analytics = (
+    <SettingsSection
+      index="01"
+      title="Analytics"
+      hint="Anonymous usage measurement — which pages get opened, which features get used. It runs without cookies and stores nothing on this device, and it's how the app finds out what's worth building next."
+    >
+      <AnalyticsToggle />
+    </SettingsSection>
+  );
+
   if (!session?.user) {
     return (
-      <SettingsSection index="01" title="Privacy">
-        <SignedOutNotice>
-          Privacy settings are attached to an account — sign in to choose who can reach you.
-        </SignedOutNotice>
-      </SettingsSection>
+      <>
+        {analytics}
+        <SettingsSection index="02" title="Privacy">
+          <SignedOutNotice>
+            The rest of the privacy settings are attached to an account — sign in to choose who can
+            reach you.
+          </SignedOutNotice>
+        </SettingsSection>
+      </>
     );
   }
 
   return (
     <>
+      {analytics}
       <SettingsSection
-        index="01"
+        index="02"
         title="Profile wall"
         hint="The note wall on your public profile. Turning it off hides existing notes from visitors — it never deletes them, and turning it back on brings them straight back."
       >
@@ -45,13 +70,52 @@ export function PrivacySection() {
       </SettingsSection>
 
       <SettingsSection
-        index="02"
+        index="03"
         title="Blocked members"
         hint="Their comments are hidden from you, yours from them, and notifications stop travelling in either direction."
       >
         <BlockedMembers />
       </SettingsSection>
     </>
+  );
+}
+
+function AnalyticsToggle() {
+  // The preference lives in device storage and in a browser API, so the
+  // server cannot know it. `useSyncExternalStore` is what makes that safe:
+  // React renders the server snapshot through hydration and then swaps in
+  // the real value, where a `useState` initialiser would have produced a
+  // hydration mismatch for every opted-out visitor. It also keeps the
+  // switch honest when the choice is changed in another tab.
+  const preference = useSyncExternalStore(
+    subscribeAnalyticsPreference,
+    analyticsPreference,
+    analyticsPreferenceServerSnapshot,
+  );
+  const enabled = preference === "on";
+  // Only named while the signal is doing the deciding: once the switch has
+  // been touched, the stored choice wins and the signal is no longer why.
+  const viaGpc = preference === "off-gpc";
+
+  return (
+    <SettingRow
+      label="Usage analytics"
+      hint={
+        enabled
+          ? "Anonymous events are being sent."
+          : viaGpc
+            ? "Your browser sends Global Privacy Control, so this starts off. Nothing leaves this browser. Turning it on here overrides that signal."
+            : "Nothing leaves this browser. Features still under staged rollout stay off until you turn this back on."
+      }
+      icon={Analytics01Icon}
+      control={
+        <Switch
+          checked={enabled}
+          onCheckedChange={(next) => setAnalyticsEnabled(next)}
+          aria-label="Send anonymous usage analytics"
+        />
+      }
+    />
   );
 }
 

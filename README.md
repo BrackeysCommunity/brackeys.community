@@ -73,7 +73,7 @@ Optional but relevant depending on what you are working on:
 - itch.io client ID
 - Strapi instance for collab image uploads
 - MinIO credentials for profile image uploads
-- Sentry DSN
+- PostHog project API key
 
 ## Setup
 
@@ -155,7 +155,8 @@ The app runs on `http://localhost:3000`.
 
 - `VITE_APP_TITLE`: client title override
 - `SERVER_URL`: server-side absolute URL override
-- `VITE_SENTRY_DSN`: Sentry client/server instrumentation
+- `VITE_POSTHOG_KEY`: PostHog project API key — analytics, feature flags, error tracking (all off when unset)
+- `VITE_POSTHOG_HOST`: PostHog ingestion host, for example `https://eu.i.posthog.com`
 
 ## Railway CLI (optional)
 

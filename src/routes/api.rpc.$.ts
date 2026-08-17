@@ -2,9 +2,12 @@ import "@/polyfill";
 import { RPCHandler } from "@orpc/server/fetch";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { reportProcedureErrors } from "@/orpc/error-reporting";
 import router from "@/orpc/router";
 
-const handler = new RPCHandler(router);
+const handler = new RPCHandler(router, {
+  clientInterceptors: [reportProcedureErrors("private")],
+});
 
 async function handle({ request }: { request: Request }) {
   const { response } = await handler.handle(request, {

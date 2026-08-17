@@ -2,6 +2,7 @@ import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { auth } from "@/lib/auth";
+import { withErrorReporting } from "@/lib/posthog-server";
 import {
   presenceChannel,
   refreshConnection,
@@ -114,10 +115,13 @@ async function handle({ request }: { request: Request }) {
   });
 }
 
+/** Reports an unhandled throw before it becomes an opaque 500. */
+const reportedHandle = withErrorReporting("/api/notifications/stream", handle);
+
 export const Route = createFileRoute("/api/notifications/stream")({
   server: {
     handlers: {
-      GET: handle,
+      GET: reportedHandle,
     },
   },
 });

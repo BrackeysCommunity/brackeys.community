@@ -1,5 +1,7 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 
+import { captureEvent, initAnalytics } from "@/lib/posthog";
+
 import { NotFoundPage } from "./components/layout/NotFoundPage";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
@@ -27,6 +29,33 @@ export function getRouter() {
     defaultPreloadStaleTime: 0,
     defaultViewTransition: true,
   });
+
+  // Pageviews are captured here rather than by posthog-js, whose SPA
+  // heuristics watch the History API: with `defaultViewTransition` the URL
+  // changes before the route resolves, so autocapture would time pageviews
+  // against a page that isn't up yet. `onResolved` is the moment the new
+  // route is actually settled.
+  //
+  // Initialising in here (rather than in a provider effect) keeps analytics
+  // ready before the first of those fires.
+  if (typeof window !== "undefined") {
+    initAnalytics();
+
+    // Whether `onResolved` also fires for the initial load depends on how
+    // the app was entered (fresh SSR vs. a client-side transition), so the
+    // first pageview is sent outright and repeats of the same href are
+    // dropped — one pageview per URL, entered either way.
+    let lastHref: string | null = null;
+    const capturePageview = () => {
+      const href = window.location.href;
+      if (href === lastHref) return;
+      lastHref = href;
+      captureEvent("$pageview");
+    };
+
+    capturePageview();
+    router.subscribe("onResolved", capturePageview);
+  }
 
   return router;
 }

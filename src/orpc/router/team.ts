@@ -22,8 +22,10 @@ import {
   teams,
   userSkills,
 } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
 import { jamUrl } from "@/lib/jam-links";
 import { notify } from "@/lib/notifications";
+import { captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -183,6 +185,8 @@ export const createTeam = os
       userId: context.user.id,
       role: "owner",
     });
+
+    captureServerEvent(EVENTS.teamCreated, context.user.id, { team_id: team.id });
 
     return team;
   });
@@ -1141,6 +1145,8 @@ export const inviteToTeam = os
 
     await touchTeamActivity(input.teamId);
 
+    captureServerEvent(EVENTS.teamInviteSent, context.user.id, { team_id: input.teamId });
+
     return invite;
   });
 
@@ -1197,6 +1203,11 @@ export const respondToInvite = os
       entityType: "team",
       entityId: team.id,
       data: { teamId: team.id, teamSlug: team.slug, teamName: team.name, inviteId: invite.id },
+    });
+
+    captureServerEvent(EVENTS.teamInviteAnswered, context.user.id, {
+      team_id: team.id,
+      accepted: input.accept,
     });
 
     return { ...updated, teamSlug: team.slug };

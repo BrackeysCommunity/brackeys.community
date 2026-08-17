@@ -2,6 +2,20 @@ import type { ProfileViewModel } from "./helpers";
 
 export type EditStep = 1 | 2 | 3 | 4;
 
+/**
+ * Analytics slugs for the edit steps. Deliberately separate from the display
+ * titles in `ProfileEditFlyout` — those are copy and can be reworded, and a
+ * reworded label would silently split a funnel in two.
+ */
+export const EDIT_STEP_SLUGS: Record<EditStep, string> = {
+  1: "identity",
+  2: "bio_skills",
+  3: "availability",
+  4: "links",
+};
+
+export const EDIT_STEP_COUNT = 4;
+
 export interface ProfileLayoutProps {
   profile: ProfileViewModel;
   /** True when the viewer is the profile owner — controls "EDIT

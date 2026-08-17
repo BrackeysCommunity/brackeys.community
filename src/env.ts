@@ -31,10 +31,14 @@ export const env = createEnv({
     VITE_CF_IMAGES: z.string().min(1).optional(),
     VITE_ITCHIO_CLIENT_ID: z.string().min(1).optional(),
     VITE_OAUTH_PROXY_ORIGIN: z.string().min(1).optional(),
-    VITE_SENTRY_DSN: z.string().min(1).optional(),
-    VITE_SENTRY_AUTH_TOKEN: z.string().min(1).optional(),
-    VITE_SENTRY_ORG: z.string().min(1).optional(),
-    VITE_SENTRY_PROJECT: z.string().min(1).optional(),
+    // PostHog project API key — public by design (it can only write events).
+    // Absent means analytics is off entirely: nothing initialises, every
+    // capture is a no-op, and `useFlag` falls back to the defaults declared
+    // in `src/lib/flags.ts`.
+    VITE_POSTHOG_KEY: z.string().min(1).optional(),
+    // Ingestion host. EU cloud is `https://eu.i.posthog.com`; point it at the
+    // reverse proxy once one exists and set `ui_host` alongside it.
+    VITE_POSTHOG_HOST: z.url().optional(),
   },
 
   /**

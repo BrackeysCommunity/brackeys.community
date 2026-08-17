@@ -18,6 +18,8 @@ import {
   teams,
   type JamWatchIntent,
 } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
+import { captureServerEvent } from "@/lib/posthog-server";
 import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";
 import { likeContains } from "@/lib/sql-like";
 import { requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
@@ -930,6 +932,10 @@ export const setJamWatch = os
       await db
         .delete(jamWatches)
         .where(and(eq(jamWatches.userId, context.user.id), eq(jamWatches.jamId, input.jamId)));
+      captureServerEvent(EVENTS.jamWatchToggled, context.user.id, {
+        jam_id: input.jamId,
+        intent: null,
+      });
       return { intent: null };
     }
 
@@ -957,6 +963,11 @@ export const setJamWatch = os
         // toggling watch → entering can't replay a start reminder.
         set: { intent: input.intent },
       });
+
+    captureServerEvent(EVENTS.jamWatchToggled, context.user.id, {
+      jam_id: input.jamId,
+      intent: input.intent,
+    });
 
     return { intent: input.intent };
   });

@@ -2,6 +2,7 @@ import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { db } from "@/db";
+import { withErrorReporting } from "@/lib/posthog-server";
 import {
   applyUnsubscribe,
   isKnownNotificationType,
@@ -99,11 +100,14 @@ function escapeHtml(s: string): string {
   );
 }
 
+/** Reports an unhandled throw before it becomes an opaque 500. */
+const reportedHandle = withErrorReporting("/api/notifications/unsub", handle);
+
 export const Route = createFileRoute("/api/notifications/unsub")({
   server: {
     handlers: {
-      GET: handle,
-      POST: handle,
+      GET: reportedHandle,
+      POST: reportedHandle,
     },
   },
 });

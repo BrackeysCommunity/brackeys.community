@@ -24,6 +24,7 @@ import {
   userSkills,
   skills,
 } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
 import {
   daysFromNow,
   EXTEND_DAYS,
@@ -33,6 +34,7 @@ import {
 import { jamSlug } from "@/lib/jam-links";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
+import { captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -421,6 +423,15 @@ export const createPost = os
         console.warn("[collab] jam watcher fan-out failed", { postId: post.id, err });
       });
     }
+
+    captureServerEvent(EVENTS.collabPostCreated, context.user.id, {
+      post_id: post.id,
+      role_count: roleIds.length,
+      skill_count: skillIds.length,
+      has_team: post.teamId != null,
+      has_project: input.projectId != null,
+      has_jam: jam != null,
+    });
 
     return { ...post, jamWarning };
   });
@@ -1575,6 +1586,11 @@ export const respondToPost = os
       data: { postId: post.id, postTitle: post.title, responseId: response.id },
     });
 
+    captureServerEvent(EVENTS.collabResponseSubmitted, context.user.id, {
+      post_id: post.id,
+      has_portfolio_url: Boolean(input.portfolioUrl),
+    });
+
     return response;
   });
 
@@ -1939,6 +1955,14 @@ export const updateResponseStatus = os
         data: { postId: post.id, postTitle: post.title, responseId: response.id },
       });
     }
+
+    // Attributed to the responder, not the post author who clicked: the
+    // funnel this closes is the applicant's (responded → heard back), so
+    // the event has to land on their person to line up with the rest of it.
+    captureServerEvent(EVENTS.collabResponseStatusChanged, response.responderId, {
+      post_id: post.id,
+      status: input.status,
+    });
 
     return updated;
   });

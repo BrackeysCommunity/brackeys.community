@@ -22,6 +22,7 @@ import {
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
+import { resetIdentity } from "@/lib/posthog";
 import { profileLinkParams } from "@/lib/profile-links";
 import { truncateMiddle } from "@/lib/utils";
 
@@ -110,7 +111,13 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
           onClick={async () => {
             await authClient.signOut({
               fetchOptions: {
-                onSuccess: () => navigate({ reloadDocument: true }),
+                onSuccess: () => {
+                  // Drop the analytics identity before the reload, so the
+                  // next person on a shared device isn't attributed to this
+                  // one.
+                  resetIdentity();
+                  navigate({ reloadDocument: true });
+                },
               },
             });
           }}

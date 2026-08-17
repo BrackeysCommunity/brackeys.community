@@ -5,9 +5,7 @@ import { MicroLabel } from "@/components/ui/typography";
 
 /**
  * Every entry here resolves to something real: an app route, the Discord,
- * or itch.io (where the jams the site tracks actually live). The two
- * unwritten legal documents get placeholder pages rather than `href="#"`
- * — see `@/components/legal/LegalPlaceholderPage`.
+ * or itch.io (where the jams the site tracks actually live).
  */
 interface FooterLink {
   label: string;

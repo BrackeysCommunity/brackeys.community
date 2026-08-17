@@ -8,8 +8,10 @@ import { db } from "@/db";
 import { user, session, account, verification } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
 import { cleanupUserData } from "@/lib/account-deletion";
+import { EVENTS } from "@/lib/analytics-events";
 import { sendEmail } from "@/lib/email";
 import { syncDiscordProfile } from "@/lib/guild-sync";
+import { captureServerEvent } from "@/lib/posthog-server";
 import { purgePresence } from "@/lib/presence";
 
 export const auth = betterAuth({
@@ -82,6 +84,10 @@ export const auth = betterAuth({
       afterDelete: async (deletedUser) => {
         // Best-effort: the presence set's 60s TTL is the backstop.
         await purgePresence(deletedUser.id).catch(() => {});
+        // Records that the account is gone; it does *not* erase the person
+        // in PostHog. Erasure is still a manual step (PostHog UI, or the
+        // person-delete API) — see docs/plans/posthog-migration.md.
+        captureServerEvent(EVENTS.authAccountDeleted, deletedUser.id);
       },
     },
   },
@@ -124,9 +130,19 @@ export const auth = betterAuth({
     }),
   ],
   databaseHooks: {
+    user: {
+      create: {
+        // `emailAndPassword` is disabled, so a user row only ever appears on
+        // a first completed OAuth flow — this *is* signup.
+        after: async (created) => {
+          captureServerEvent(EVENTS.authSignedUp, created.id);
+        },
+      },
+    },
     session: {
       create: {
         after: async (session) => {
+          captureServerEvent(EVENTS.authSignedIn, session.userId);
           await syncDiscordProfile(session.userId);
         },
       },

@@ -1,5 +1,8 @@
 import { Store } from "@tanstack/store";
 
+import { EVENTS } from "@/lib/analytics-events";
+import { captureEvent } from "@/lib/posthog";
+
 /**
  * v1 ships paid + hobby only. Playtest and mentor are deferred, not
  * deleted — `collab_posts.type` is still free text server-side and every
@@ -189,6 +192,7 @@ export function beginWizardCreate() {
       draftRestored: false,
     },
   }));
+  captureEvent(EVENTS.collabPostFlowStarted, { mode: "create" });
   restorePersistedWizardDraft();
 }
 
@@ -204,6 +208,7 @@ export function startWizardEdit(postId: number, draft: WizardDraft) {
       draftRestored: false,
     },
   }));
+  captureEvent(EVENTS.collabPostFlowStarted, { mode: "edit" });
 }
 
 /** A post as `getPost` returns it, in the fields an edit round-trips. */

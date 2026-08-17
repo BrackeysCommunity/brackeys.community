@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { Heading, Text } from "@/components/ui/typography";
+import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
 import {
   collabStore,
   resetWizard,
@@ -12,6 +13,7 @@ import {
   type UploadedImage,
 } from "@/lib/collab-store";
 import { EASE_OUT } from "@/lib/motion";
+import { captureEvent } from "@/lib/posthog";
 import { client } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";
@@ -195,6 +197,9 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
   const validationOpts: StepValidationOpts = { legacyUnlinkedEdit: editingLegacyUnlinked };
 
+  const stepProps = () =>
+    flowStep(FLOWS.collabPost, currentTab, activeIndex + 1, WIZARD_TABS.length);
+
   const handleNext = () => {
     const validationError = getStepValidationError(
       validationStepId,
@@ -202,13 +207,27 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       validationOpts,
     );
     if (validationError) {
+      // Separating "wouldn't let them through" from "walked away" — both
+      // look like drop-off on the funnel, and they need opposite fixes.
+      // The message itself, not a code — the set is bounded by the
+      // validators in `shared.ts`, and it names the exact field that
+      // stopped them, which is the whole reason to record the block.
+      captureEvent(EVENTS.collabPostStepBlocked, {
+        ...stepProps(),
+        reason: validationError,
+      });
       setError(validationError);
       return;
     }
     setError(null);
     if (isLastStep) {
+      captureEvent(EVENTS.collabPostSubmitted, {
+        ...stepProps(),
+        mode: editingPostId !== null ? "edit" : "create",
+      });
       form.handleSubmit();
     } else {
+      captureEvent(EVENTS.collabPostStepAdvanced, stepProps());
       setWizardStep(activeIndex + 1);
     }
   };

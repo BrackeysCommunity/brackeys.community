@@ -4,7 +4,6 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 import babel from "@rolldown/plugin-babel";
-import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -262,18 +261,7 @@ const config = defineConfig({
     }),
     tailwindcss(),
     viteReact(),
-  ].concat(
-    // we don't want to mount Sentry outside of an actual build env because I don't want to pay for local errors
-    process.env.NODE_ENV !== "production"
-      ? []
-      : [
-          sentryTanstackStart({
-            org: process.env.VITE_SENTRY_ORG,
-            project: process.env.VITE_SENTRY_PROJECT,
-            authToken: process.env.VITE_SENTRY_AUTH_TOKEN,
-          }),
-        ],
-  ),
+  ],
 });
 
 export default config;

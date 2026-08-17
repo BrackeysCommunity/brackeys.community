@@ -4,12 +4,15 @@
    the full upright set, split by unicode-range — a subset is only fetched if
    the page renders a character in it. */
 @import "@fontsource-variable/rubik/index.css";
-@import "@fontsource-variable/space-grotesk/index.css";
 @import "@fontsource-variable/jetbrains-mono/index.css";
 
 :root {
   --font-sans: "Rubik Variable", "Rubik", sans-serif;
-  --font-display: "Space Grotesk Variable", "Space Grotesk", sans-serif;
+  /* Rubik carries the display voice too. `display` on a Heading is now a
+     weight-and-size decision rather than a typeface switch — the prop stays
+     so the intent is still marked, and so a future display face has one
+     token to land on. */
+  --font-display: "Rubik Variable", "Rubik", sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
 }
 
