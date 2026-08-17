@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { MicroLabel } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
+import { Well } from "@/components/ui/well";
 import type { NotificationType } from "@/db/schema";
 import { NOTIFICATION_TYPE_LABEL, NOTIFICATION_TYPES } from "@/lib/notification-copy";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,9 @@ const CHANNEL_LABELS = [
 
 /** Channels the global email switch overrides when it's off. */
 const EMAIL_CHANNELS = new Set(["email", "digest"]);
+
+/** Header and body rows share one track list so the columns line up. */
+const MATRIX_GRID = "grid grid-cols-[1fr_repeat(3,minmax(0,5rem))] gap-2 px-4";
 
 export function NotificationPreferences() {
   const queryClient = useQueryClient();
@@ -85,8 +90,9 @@ export function NotificationPreferences() {
 
   if (isLoading || !data) {
     return (
-      <div className="border border-muted/30 bg-card/40 px-4 py-12 text-center text-xs text-muted-foreground">
-        Loading preferences…
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-72 w-full" />
       </div>
     );
   }
@@ -96,32 +102,32 @@ export function NotificationPreferences() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] text-muted-foreground">
+      <Text size="xs" variant="muted" className="max-w-prose">
         Choose how you hear about each kind of activity. <strong>In-app</strong> shows in the bell
         and inbox. <strong>Email</strong> sends a transactional email (suppressed while you're
         actively online). <strong>Digest</strong> bundles into a weekly Monday email.
-      </p>
+      </Text>
 
-      <div className="flex items-center gap-4 border border-muted/30 bg-card/40 px-4 py-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <Well className="flex-row items-center gap-4 p-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <MicroLabel as="span" bold className="uppercase">
             Email notifications
           </MicroLabel>
-          <span className="text-[11px] text-muted-foreground">
+          <Text size="xs" variant="muted">
             {emailsOff
               ? "All notification email is off. Turn it back on to resume — check your per-event choices below."
               : "Master switch. Turning this off stops every notification and digest email — account and security mail still comes through."}
-          </span>
+          </Text>
         </div>
         <Switch
           checked={!emailsOff}
           onCheckedChange={(checked) => setEmailsEnabled(!!checked)}
           aria-label="Email notifications"
         />
-      </div>
+      </Well>
 
-      <div className="border border-muted/30 bg-card/40">
-        <div className="grid grid-cols-[1fr_repeat(3,minmax(0,5rem))] gap-2 border-b border-muted/40 px-4 py-2">
+      <Well className="divide-y divide-dashed divide-muted/40">
+        <div className={cn(MATRIX_GRID, "py-2.5")}>
           <MicroLabel as="span" bold className="uppercase">
             Event
           </MicroLabel>
@@ -143,11 +149,8 @@ export function NotificationPreferences() {
           const pref = byType.get(type);
           if (!pref) return null;
           return (
-            <div
-              key={type}
-              className="grid grid-cols-[1fr_repeat(3,minmax(0,5rem))] items-center gap-2 border-b border-muted/30 px-4 py-3 last:border-b-0"
-            >
-              <span className="text-xs text-foreground/90">{NOTIFICATION_TYPE_LABEL[type]}</span>
+            <div key={type} className={cn(MATRIX_GRID, "items-center py-3")}>
+              <Text size="xs">{NOTIFICATION_TYPE_LABEL[type]}</Text>
               {CHANNEL_LABELS.map((c) => {
                 const overridden = emailsOff && EMAIL_CHANNELS.has(c.key);
                 return (
@@ -169,7 +172,7 @@ export function NotificationPreferences() {
             </div>
           );
         })}
-      </div>
+      </Well>
     </div>
   );
 }

@@ -39,9 +39,18 @@ export function SettingsSection({
 }
 
 /**
- * A selectable tile — the motion modes and, in a richer form, the theme
- * gallery. The active one is bordered in accent rather than filled, so a
- * grid of them stays readable in the light themes too.
+ * Selected-tile classes for a `Button variant="outline"`. `--emboss-shadow`
+ * is what `chonk-emboss` paints both the border and the drop edge from, so
+ * one variable turns the whole frame primary; `aria-pressed` then flattens
+ * the lift, which is how every other toggle in the app reads as "on".
+ */
+const OPTION_ACTIVE =
+  "bg-primary/10 text-primary [--emboss-shadow:var(--primary)] hover:bg-primary/15 dark:bg-primary/10 dark:hover:bg-primary/15";
+
+/**
+ * A selectable tile — the theme gallery, and any option that needs a preview
+ * above its label. A real `Button` so it carries the house click cues, the
+ * emboss lift, and the depressed selected state.
  */
 export function OptionCard({
   active,
@@ -60,15 +69,13 @@ export function OptionCard({
   children?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex cursor-pointer flex-col items-stretch gap-2 rounded-lg border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-        active
-          ? "border-accent bg-accent/10"
-          : "border-muted/40 bg-card/40 hover:border-muted hover:bg-card/70",
+        "h-auto w-full flex-col items-stretch justify-start gap-2 p-3 text-left whitespace-normal",
+        active && OPTION_ACTIVE,
         className,
       )}
     >
@@ -78,7 +85,7 @@ export function OptionCard({
         <Text
           as="span"
           size="xs"
-          className={cn("tracking-widest uppercase", active ? "text-accent" : "text-foreground")}
+          className={cn("tracking-widest uppercase", active ? "text-primary" : "text-foreground")}
         >
           {title}
         </Text>
@@ -88,7 +95,51 @@ export function OptionCard({
           </Text>
         ) : null}
       </span>
-    </button>
+    </Button>
+  );
+}
+
+/**
+ * One segment of a joined choice group — the motion modes. Same selected
+ * read as {@link OptionCard}, laid out as a two-line button so a `ButtonGroup`
+ * can collapse the seams between them.
+ */
+export function OptionSegment({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description?: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant="outline"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        // `shrink` undoes the button's own `shrink-0` so the three segments
+        // split the row evenly instead of sizing to their longest label.
+        "h-auto flex-1 shrink flex-col items-start justify-start gap-0.5 px-3 py-2.5 text-left whitespace-normal",
+        active && OPTION_ACTIVE,
+      )}
+    >
+      <Text
+        as="span"
+        size="xs"
+        className={cn("tracking-widest uppercase", active ? "text-primary" : "text-foreground")}
+      >
+        {title}
+      </Text>
+      {description ? (
+        <Text as="span" size="xs" variant="muted">
+          {description}
+        </Text>
+      ) : null}
+    </Button>
   );
 }
 

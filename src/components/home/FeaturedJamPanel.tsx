@@ -94,7 +94,7 @@ export function FeaturedJamPanel({ hero, now, density = "comfortable" }: Feature
   const end = jamMonthDay(jam.endsAt);
 
   return (
-    <Well className="overflow-hidden">
+    <Well notchOpts className="overflow-hidden">
       <div className={`relative overflow-hidden ${BANNER_HEIGHT[density]}`}>
         <JamBannerBackdrop
           jamId={jam.jamId}

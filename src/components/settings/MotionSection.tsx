@@ -1,13 +1,14 @@
 import { VolumeHighIcon, VolumeLowIcon, VolumeMute02Icon } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
 import { MOTION_OPTIONS, useAppSettings } from "@/lib/hooks/use-app-settings";
 import { play } from "@/lib/sound";
 
-import { OptionCard, SettingRow, SettingsSection } from "./SettingsUI";
+import { OptionSegment, SettingRow, SettingsSection } from "./SettingsUI";
 
 export function MotionSection() {
   const { motionPref, setMotionPref, reduceMotion, muted, setMuted, volume, setVolume } =
@@ -28,9 +29,9 @@ export function MotionSection() {
             : "Page transitions, staggered lists, and the animated backdrop."
         }
       >
-        <div className="grid gap-3 sm:grid-cols-3">
+        <ButtonGroup className="w-full">
           {MOTION_OPTIONS.map((option) => (
-            <OptionCard
+            <OptionSegment
               key={option.value}
               active={option.value === motionPref}
               title={option.label}
@@ -38,7 +39,7 @@ export function MotionSection() {
               onClick={() => setMotionPref(option.value)}
             />
           ))}
-        </div>
+        </ButtonGroup>
       </SettingsSection>
 
       <SettingsSection index="02" title="Sound">
