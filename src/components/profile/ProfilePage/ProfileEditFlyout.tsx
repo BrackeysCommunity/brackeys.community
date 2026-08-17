@@ -42,6 +42,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { EASE_OUT } from "@/lib/motion";
+import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -286,6 +287,7 @@ function Stepper({ step, onSelect }: { step: EditStep; onSelect: (s: EditStep) =
             ref={registerTab(s.step)}
             type="button"
             onClick={() => onSelect(s.step)}
+            {...PAGE_CUES}
             className={cn(
               // flex-auto sizes each tab from its label so the long
               // ones ("AVAILABILITY") keep room on narrow screens.

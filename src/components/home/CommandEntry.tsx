@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InlineCode } from "@/components/ui/typography/inline-code";
 import { MarkedText } from "@/components/ui/typography/marked-text";
+import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 export interface CommandEntryData {
@@ -44,6 +45,7 @@ export function CommandEntry({ entry }: CommandEntryProps) {
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await navigator.clipboard.writeText(entry.copyText);
+    play("success");
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };

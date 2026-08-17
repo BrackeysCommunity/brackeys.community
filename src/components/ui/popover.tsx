@@ -1,14 +1,18 @@
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import * as React from "react";
 
+import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
 }
 
+// The header's bell and attention menus are popovers, not dropdowns, but they
+// sit in the same cluster as the settings dropdown and read as the same
+// control — so they open on the same cue.
 function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...PAGE_CUES} {...props} />;
 }
 
 function PopoverContent({

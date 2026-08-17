@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   categoryOf,
   NotificationRow,
+  NotificationRowsSkeleton,
   type NotificationItem,
 } from "@/components/notifications/notification-utils";
 import { Button } from "@/components/ui/button";
@@ -126,8 +127,8 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
       </div>
 
       {isLoading ? (
-        <div className="border border-muted/30 bg-card/40 px-4 py-10 text-center text-xs text-muted-foreground">
-          Loading…
+        <div className="border border-muted/30 bg-card/40">
+          <NotificationRowsSkeleton rows={8} density="comfortable" />
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center gap-1 border border-muted/30 bg-card/40 px-4 py-12 text-center">
@@ -153,7 +154,9 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
 
       <div ref={sentinelRef} className="h-8" aria-hidden />
       {isFetchingNextPage && (
-        <p className="text-center text-[10px] text-muted-foreground">Loading more…</p>
+        <div className="border border-muted/30 bg-card/40">
+          <NotificationRowsSkeleton rows={3} density="comfortable" />
+        </div>
       )}
     </div>
   );

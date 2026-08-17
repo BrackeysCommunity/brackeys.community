@@ -215,16 +215,8 @@ export function TeamsDiscoveryPage() {
             estimateRowHeight={CARD_ROW_ESTIMATE}
             footer={
               hasNextPage ? (
-                <div ref={sentinelRef} className="flex justify-center py-4">
-                  {isFetchingNextPage ? (
-                    <Text
-                      size="xs"
-                      variant="muted"
-                      className="animate-pulse tracking-widest uppercase"
-                    >
-                      Loading more…
-                    </Text>
-                  ) : null}
+                <div ref={sentinelRef} className="py-4">
+                  {isFetchingNextPage ? <DirectorySkeleton count={3} /> : null}
                 </div>
               ) : null
             }
@@ -398,10 +390,10 @@ function DirectoryEmptyState({
   );
 }
 
-function DirectorySkeleton() {
+function DirectorySkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => (
         <Skeleton key={i} className="h-42 w-full" />
       ))}
     </div>

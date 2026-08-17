@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
 import { useHomeDestinations, type HomeDestination } from "@/components/home/use-home-destinations";
+import { Button } from "@/components/ui/button";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { Heading, Text } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
@@ -62,11 +63,20 @@ function FeatureTile({ to, icon, title, stat, statLabel }: FeatureTileProps) {
   const isCount = /^[\d,]+$/.test(stat);
 
   return (
+    // A tile is a Button first and an embossed surface second: going through
+    // the shared Button means it picks up the press/keyboard handling and the
+    // interaction cues every other control in the app has, rather than a
+    // second hand-rolled set. `nativeButton={false}` keeps the anchor — these
+    // navigate, so the href, middle-click and open-in-new-tab stay.
+    //
+    // The Chonk classes land last, so the tile's own layout wins over the
+    // button's chip sizing; `h-auto`, `items-stretch` and `font-normal` undo
+    // the parts of that sizing a card doesn't want.
     <Chonk
       variant="surface"
-      render={<Link to={to} />}
+      render={<Button variant="ghost" nativeButton={false} render={<Link to={to} />} />}
       aria-label={title}
-      className="group/tile align-start flex min-h-28 min-w-0 flex-col justify-between gap-4 p-4"
+      className="group/tile flex h-auto min-h-28 min-w-0 flex-col items-stretch justify-between gap-4 p-4 font-normal"
     >
       {/* The clip lives on this layer rather than on the tile: `overflow-hidden`
           on a `.chonk-emboss` cuts off its ::before hover pad, and without that
@@ -84,10 +94,12 @@ function FeatureTile({ to, icon, title, stat, statLabel }: FeatureTileProps) {
         />
       </div>
       <div className="relative flex min-w-0 items-center gap-2.5">
+        {/* `size-6` carries the 24px, not just the attribute: the button's
+            `[&_svg:not([class*='size-'])]:size-4` would otherwise claim it. */}
         <HugeiconsIcon
           icon={icon}
           size={24}
-          className="shrink-0 text-muted-foreground transition-colors group-hover/tile:text-accent"
+          className="size-6 shrink-0 text-muted-foreground transition-colors group-hover/tile:text-accent"
         />
         <Heading
           as="h3"

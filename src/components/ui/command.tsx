@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group";
+import { HOVER_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
@@ -147,6 +148,7 @@ function CommandItem({
   return (
     <CommandPrimitive.Item
       data-slot="command-item"
+      {...HOVER_CUE}
       className={cn(
         // Same row geometry and accent highlight as `DropdownMenuItem`.
         // `data-[selected=true]`, not `data-selected` — cmdk writes the

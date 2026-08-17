@@ -1,6 +1,7 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 const toggleVariants = cva(
@@ -34,6 +35,7 @@ function Toggle({
   return (
     <TogglePrimitive
       data-slot="toggle"
+      {...TOGGLE_CUE}
       className={cn(toggleVariants({ variant, size, className }))}
       {...props}
     />

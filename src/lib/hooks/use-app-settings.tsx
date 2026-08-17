@@ -7,6 +7,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { initSound, setSoundEnabled } from "@/lib/sound";
+
 /** The stored motion preference. `system` defers to the OS-level
  * `prefers-reduced-motion`; `reduced`/`full` are explicit overrides. */
 export type MotionPref = "system" | "reduced" | "full";
@@ -34,9 +36,8 @@ interface AppSettingsValue {
    * of decorative motion (skip shared-layout transitions, drop
    * framer-motion animations, pause background canvases, etc). */
   reduceMotion: boolean;
-  /** App-wide mute toggle for any future audio cues — exposed
-   * here so settings can flip it without coupling to a specific
-   * audio system yet. */
+  /** App-wide mute toggle for the interaction cues in `@/lib/sound`.
+   * Persisted here; the sound layer itself stores nothing. */
   muted: boolean;
   setMuted: (next: boolean) => void;
 }
@@ -117,6 +118,17 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     document.documentElement.dataset.reduceMotion = reduceMotion ? "true" : "false";
   }, [reduceMotion]);
+
+  // Interaction sounds: one document-wide delegation, then the stored mute
+  // mirrored onto it. `muted` initializes synchronously from storage, so a
+  // persisted mute lands before anything is clickable.
+  useEffect(() => {
+    initSound();
+  }, []);
+
+  useEffect(() => {
+    setSoundEnabled(!muted);
+  }, [muted]);
 
   const setMotionPref = useCallback((next: MotionPref) => {
     setMotionPrefState(next);

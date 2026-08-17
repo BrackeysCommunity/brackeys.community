@@ -14,6 +14,7 @@ import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
+import { BUTTON_CUES } from "@/lib/sound";
 
 /** Matches the `pt-14` the shell reserves for the bar — see `--app-header-shift`. */
 const HEADER_SHIFT = "-3.5rem";
@@ -25,6 +26,9 @@ const springTransition = {
   mass: 0.1,
 } as const;
 
+// The wrapper carries the cues rather than the `Link` inside it: cuelume
+// delegates via `closest()`, so a hover anywhere in the magnet's box resolves
+// here, and the nav sounds like the buttons it sits beside.
 function MagneticLink({ children, className }: { children: React.ReactNode; className?: string }) {
   const { ref, position } = useMagnetic(HEADER_MAGNET_STRENGTH);
   return (
@@ -32,6 +36,7 @@ function MagneticLink({ children, className }: { children: React.ReactNode; clas
       ref={ref as React.RefObject<HTMLDivElement>}
       data-magnetic
       data-cursor-corner-size="8"
+      {...BUTTON_CUES}
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
       className={className}
@@ -233,6 +238,7 @@ export function AppHeader() {
               <Link
                 to="/collab"
                 onClick={() => setMobileMenuOpen(false)}
+                {...BUTTON_CUES}
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 COLLAB
@@ -240,6 +246,7 @@ export function AppHeader() {
               <Link
                 to="/jams"
                 onClick={() => setMobileMenuOpen(false)}
+                {...BUTTON_CUES}
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 JAMS
@@ -247,6 +254,7 @@ export function AppHeader() {
               <Link
                 to="/teams"
                 onClick={() => setMobileMenuOpen(false)}
+                {...BUTTON_CUES}
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 TEAMS
@@ -255,6 +263,7 @@ export function AppHeader() {
                 data-testid="mobile-members-link"
                 to="/members"
                 onClick={() => setMobileMenuOpen(false)}
+                {...BUTTON_CUES}
                 className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 MEMBERS

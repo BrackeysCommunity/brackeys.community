@@ -99,12 +99,8 @@ export function CollabPostFeed({
       estimateRowHeight={isCards ? CARD_ROW_ESTIMATE : LIST_ROW_ESTIMATE}
       footer={
         hasNextPage ? (
-          <div ref={sentinelRef} className="flex justify-center py-4">
-            {isFetchingNext ? (
-              <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
-                Loading more…
-              </Text>
-            ) : null}
+          <div ref={sentinelRef} className="py-4">
+            {isFetchingNext ? <FeedSkeleton cards={isCards} count={isCards ? 4 : 3} /> : null}
           </div>
         ) : null
       }
@@ -141,7 +137,7 @@ function FeedEmptyState({ filtered }: { filtered: boolean }) {
   );
 }
 
-function FeedSkeleton({ cards }: { cards: boolean }) {
+function FeedSkeleton({ cards, count = 6 }: { cards: boolean; count?: number }) {
   return (
     <div
       className={cn(
@@ -151,7 +147,7 @@ function FeedSkeleton({ cards }: { cards: boolean }) {
           : "flex flex-col gap-2",
       )}
     >
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => (
         <Skeleton key={i} className={cn("w-full", cards ? "h-[264px]" : "h-[86px]")} />
       ))}
     </div>

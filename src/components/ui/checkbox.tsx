@@ -5,6 +5,7 @@ import { MinusSignIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
+import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type CheckboxProps = CheckboxPrimitive.Root.Props & {
@@ -28,6 +29,7 @@ function Checkbox({ className, size = "sm", notchOpts, ...props }: CheckboxProps
   const checkbox = (
     <CheckboxPrimitive.Root
       data-slot="checkbox"
+      {...TOGGLE_CUE}
       className={cn(
         "chonk-emboss peer relative inline-flex shrink-0 items-center justify-center rounded border bg-background transition-colors outline-none select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:bg-emboss-surface",
         "data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground data-checked:[--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)] dark:data-checked:bg-primary",

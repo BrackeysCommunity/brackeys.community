@@ -48,24 +48,40 @@ function openMenu() {
 describe("SettingsMenu", () => {
   // The SETTINGS label is a base-ui group label, which throws outside a
   // <Menu.Group> — a crash that only surfaces on open, not on mount.
-  it("opens without throwing and deep-links every section", () => {
+  it("opens without throwing and deep-links every section but motion", () => {
     openMenu();
 
     for (const tab of SETTINGS_TABS) {
+      if (tab === "motion") continue;
       const item = screen.getByRole("menuitem", {
         name: new RegExp(SETTINGS_TAB_META[tab].label, "i"),
       });
       expect(item.getAttribute("href")).toBe(SETTINGS_TAB_META[tab].to);
     }
+    // Motion is a toggle down with mute, not a link to its pane.
+    expect(screen.queryByRole("menuitem", { name: /motion/i })).toBeNull();
     // The pickers themselves live on the page now — the menu only reports.
     expect(screen.queryAllByRole("menuitemradio")).toHaveLength(0);
   });
 
-  it("reads back the active theme and motion pref", () => {
+  it("reads back the active theme", () => {
     openMenu();
 
     expect(screen.getByRole("menuitem", { name: /appearance/i }).textContent).toContain("Nord");
-    expect(screen.getByRole("menuitem", { name: /motion/i }).textContent).toContain("System");
+  });
+
+  it("flips motion from the menu", () => {
+    openMenu();
+
+    const motion = screen.getByRole("menuitemcheckbox", { name: /motion/i });
+    // Checked is the effective value: `system` with no OS preference is on.
+    expect(motion.getAttribute("aria-checked")).toBe("true");
+
+    fireEvent.click(motion);
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: /motion/i }).getAttribute("aria-checked"),
+    ).toBe("false");
   });
 
   it("still flips mute from the menu", () => {

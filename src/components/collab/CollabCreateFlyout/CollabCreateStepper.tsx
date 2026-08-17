@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 
 import { useAnimatedUnderline } from "@/components/profile/ProfilePage/useAnimatedUnderline";
 import { Text } from "@/components/ui/typography";
+import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 import type { WizardTabDef } from "./shared";
@@ -41,6 +42,7 @@ export function CollabCreateStepper({ tabs, activeIndex, onSelect }: CollabCreat
             ref={registerTab(tab.id)}
             type="button"
             onClick={() => onSelect(i)}
+            {...PAGE_CUES}
             className={cn(
               "relative flex cursor-pointer flex-col items-center justify-center gap-1 px-2 py-3 transition-colors",
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",

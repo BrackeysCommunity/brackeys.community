@@ -4,8 +4,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { adaptProfile, type RpcProfile } from "@/components/profile/ProfilePage/profile-adapter";
+import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
 import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-overlay";
-import { Text } from "@/components/ui/typography";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/orpc/client";
 
@@ -41,7 +41,7 @@ function ProfileById() {
     profileQueryKey: queryOptions.queryKey,
   });
 
-  if (isLoading) return <ProfileLoadingState />;
+  if (isLoading) return <ProfilePageSkeleton />;
   if (!data) return <ProfileNotFoundState />;
 
   // The anonymous core, plus what only the owner may see. Until the overlay
@@ -56,16 +56,6 @@ function ProfileById() {
   } as unknown as RpcProfile);
 
   return <ProfilePage profile={profile} isOwner={isOwner} queryKey={queryOptions.queryKey} />;
-}
-
-function ProfileLoadingState() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
-        Loading profile…
-      </Text>
-    </div>
-  );
 }
 
 function ProfileNotFoundState() {

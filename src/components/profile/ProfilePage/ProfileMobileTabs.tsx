@@ -2,6 +2,7 @@ import { ChampionIcon, HashtagIcon, Note01Icon, Shield02Icon } from "@hugeicons/
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { motion } from "framer-motion";
 
+import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 import { useAnimatedUnderline } from "./useAnimatedUnderline";
@@ -94,6 +95,7 @@ function TabButton({ tab, isActive, onSelect, ref }: TabButtonProps) {
       role="tab"
       aria-selected={isActive}
       onClick={onSelect}
+      {...PAGE_CUES}
       className={cn(
         "relative flex w-full cursor-pointer flex-col items-center justify-center gap-1 px-2 py-3 transition-colors",
         isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",

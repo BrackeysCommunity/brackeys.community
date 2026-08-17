@@ -1,4 +1,9 @@
-import { Settings02Icon, VolumeHighIcon, VolumeMute02Icon } from "@hugeicons/core-free-icons";
+import {
+  MagicWand01Icon,
+  Settings02Icon,
+  VolumeHighIcon,
+  VolumeMute02Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 
@@ -19,18 +24,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MicroLabel } from "@/components/ui/typography";
-import { MOTION_LABEL, useAppSettings } from "@/lib/hooks/use-app-settings";
+import { useAppSettings } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 
 /**
  * Header cog — a readout, not a control panel. Each row states what the
  * pref is currently set to and opens the pane on `/settings` that changes
- * it; sixteen themes and a three-way motion switch don't belong in a
- * dropdown. Mute stays inline because it is genuinely one click.
+ * it; sixteen themes don't belong in a dropdown. Motion and mute stay
+ * inline because they are genuinely one click — the motion pane still owns
+ * the tri-state, this row only flips the effective value.
  */
 export function SettingsMenu() {
   const { theme } = useAppTheme();
-  const { motionPref, muted, setMuted } = useAppSettings();
+  const { muted, setMuted, reduceMotion, setMotionPref } = useAppSettings();
   // From anywhere else these rows are a page hop and should transition like
   // one. From inside `/settings` they're the same pane swap the rail does,
   // so they suppress the cross-route fade for the same reason it does.
@@ -40,8 +46,11 @@ export function SettingsMenu() {
 
   const values: Partial<Record<SettingsTab, string>> = {
     appearance: theme.name,
-    motion: MOTION_LABEL[motionPref],
   };
+
+  // Motion drops out of the link list — it toggles below instead. The
+  // `/settings` rail still carries it.
+  const linkTabs = SETTINGS_TABS.filter((id) => id !== "motion");
 
   return (
     <DropdownMenu>
@@ -55,7 +64,7 @@ export function SettingsMenu() {
       <DropdownMenuContent align="end" sideOffset={8} className="min-w-[240px]">
         <DropdownMenuGroup>
           <DropdownMenuLabel>Settings</DropdownMenuLabel>
-          {SETTINGS_TABS.map((id) => (
+          {linkTabs.map((id) => (
             <DropdownMenuItem
               key={id}
               render={<Link to={SETTINGS_TAB_META[id].to} viewTransition={!onSettings} />}
@@ -71,8 +80,18 @@ export function SettingsMenu() {
 
         <DropdownMenuSeparator />
 
-        {/* The one control that stays: a mute is a single click, and
-            routing to a page to make it is worse than the dropdown. */}
+        {/* The two controls that stay: both are a single click, and routing
+            to a page to make one is worse than the dropdown. Motion checks
+            the effective value, so `system` reads as whatever the OS
+            resolves to; flipping it writes an explicit override. */}
+        <DropdownMenuCheckboxItem
+          checked={!reduceMotion}
+          onCheckedChange={(next) => setMotionPref(next ? "full" : "reduced")}
+        >
+          <HugeiconsIcon icon={MagicWand01Icon} size={14} />
+          Motion
+        </DropdownMenuCheckboxItem>
+
         <DropdownMenuCheckboxItem checked={muted} onCheckedChange={setMuted}>
           <HugeiconsIcon icon={muted ? VolumeMute02Icon : VolumeHighIcon} size={14} />
           Mute

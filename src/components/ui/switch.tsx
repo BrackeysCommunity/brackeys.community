@@ -4,6 +4,7 @@ import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import * as React from "react";
 
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
+import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type SwitchProps = SwitchPrimitive.Root.Props & {
@@ -18,6 +19,7 @@ function Switch({ className, size = "sm", notchOpts, ...props }: SwitchProps) {
     <SwitchPrimitive.Root
       data-slot="switch"
       data-size={size}
+      {...TOGGLE_CUE}
       className={cn(
         "peer group/switch relative inline-flex shrink-0 items-center outline-none",
         // Deboss container — sunken track, neutral border

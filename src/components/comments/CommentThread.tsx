@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { ReportDialog } from "@/components/ui/report-dialog";
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -213,9 +214,7 @@ export function CommentThread({
       ) : null}
 
       {isLoading ? (
-        <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
-          <MicroLabel>LOADING…</MicroLabel>
-        </Well>
+        <CommentThreadSkeleton />
       ) : roots.length === 0 ? (
         <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
           <MicroLabel>{emptyLabel}</MicroLabel>
@@ -257,6 +256,35 @@ export function CommentThread({
   );
 
   return shell ? shell(content, commentCount) : content;
+}
+
+/**
+ * Holds the thread's height while the first page loads. Row 2 sits at
+ * reply indent so the placeholder reads as a conversation rather than a
+ * flat list — the same shape `CommentChain` renders into.
+ */
+function CommentThreadSkeleton() {
+  return (
+    <Well
+      className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none"
+      aria-hidden
+    >
+      {[0, 1, 0].map((depth, i) => (
+        <div
+          key={i}
+          className="flex flex-col gap-2 px-4 py-3"
+          style={{ paddingLeft: `${16 + depth * 24}px` }}
+        >
+          <div className="flex items-center gap-2">
+            <Skeleton className="size-6 shrink-0 rounded-full bg-muted/50" />
+            <Skeleton className="h-3 w-24 bg-muted/50" />
+            <Skeleton className="ml-auto h-3 w-12 shrink-0 bg-muted/50" />
+          </div>
+          <SkeletonText lines={depth ? 1 : 2} />
+        </div>
+      ))}
+    </Well>
+  );
 }
 
 function Composer({

@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type Size = "xs" | "sm" | "md" | "lg";
@@ -143,6 +144,7 @@ function SegmentedControlItem({
       value={value}
       disabled={disabled}
       data-slot="segmented-control-item"
+      {...TOGGLE_CUE}
       className={cn(itemVariants({ size, priority }), className)}
       {...props}
     >

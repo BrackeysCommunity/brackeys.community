@@ -4,8 +4,8 @@ import { useStore } from "@tanstack/react-store";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { TeamPage, type RpcTeam } from "@/components/teams/TeamPage";
+import { TeamPageSkeleton } from "@/components/teams/TeamPageSkeleton";
 import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
-import { Text } from "@/components/ui/typography";
 import { authStore } from "@/lib/auth-store";
 import { orpc } from "@/orpc/client";
 
@@ -28,22 +28,12 @@ function TeamById() {
   // and everything under it still see one team object.
   const { viewerState, invalidate } = useTeamViewerState(teamId, Boolean(session?.user));
 
-  if (isLoading) return <TeamLoadingState />;
+  if (isLoading) return <TeamPageSkeleton />;
   if (!data) return <TeamNotFoundState />;
 
   const team = { ...data, ...viewerState } as unknown as RpcTeam;
 
   return <TeamPage team={team} onInvalidate={invalidate} />;
-}
-
-function TeamLoadingState() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
-        Loading team…
-      </Text>
-    </div>
-  );
 }
 
 function TeamNotFoundState() {

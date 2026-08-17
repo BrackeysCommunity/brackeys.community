@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
+import { BUTTON_CUES, DESTRUCTIVE_BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -87,6 +88,8 @@ function Button({
   // no layout cost.
   const drifts = isMagnetic && magneticStrength !== 0;
 
+  const cues = variant === "destructive" ? DESTRUCTIVE_BUTTON_CUES : BUTTON_CUES;
+
   // ── Notched variant ──────────────────────────────────────────────
   if (notchOpts) {
     const resolved = resolveNotchOpts(notchOpts);
@@ -99,6 +102,7 @@ function Button({
       <ButtonPrimitive
         data-slot="button"
         data-magnetic={isMagnetic ? "" : undefined}
+        {...cues}
         className={cn(
           buttonVariants({ variant, size, className }),
           "translate-y-0! transform-none! border-0! shadow-none! transition-[background-color]!",
@@ -149,6 +153,7 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       data-magnetic={isMagnetic ? "" : undefined}
+      {...cues}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

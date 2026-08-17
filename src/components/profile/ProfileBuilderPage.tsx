@@ -1,12 +1,8 @@
 import { Login01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useNavigate } from "@tanstack/react-router";
-import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
-import { useEffect } from "react";
 
 import { signInWithDiscord } from "@/lib/auth-client";
-import { authStore } from "@/lib/auth-store";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
 
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
@@ -46,36 +42,12 @@ function DiscordSignInCTA() {
   );
 }
 
+/**
+ * The signed-out `/profile` landing — sign-in CTA only. `ProfileIndex`
+ * owns the session read and the hop to `/profile/$userId`, so this
+ * renders only once the viewer is known to be anonymous.
+ */
 export function ProfileBuilderPage() {
-  const { session, isPending } = useStore(authStore);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!isPending && session?.user?.id) {
-      navigate({ to: "/profile/$userId", params: { userId: session.user.id }, replace: true });
-    }
-  }, [isPending, session?.user?.id, navigate]);
-
-  if (isPending) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
-          Authenticating...
-        </span>
-      </div>
-    );
-  }
-
-  if (session?.user) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
-          Redirecting to your profile...
-        </span>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="mb-4 flex items-center gap-2 text-xs tracking-widest text-muted-foreground">

@@ -9,6 +9,7 @@ import {
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
@@ -339,5 +340,48 @@ export function NotificationRow({
     <Link to={href} onClick={onNavigate} className="block">
       {Body}
     </Link>
+  );
+}
+
+/**
+ * Placeholder rows in `NotificationRow`'s exact geometry — the popover
+ * and the inbox both open at their loaded height instead of snapping
+ * from a one-line message to a full list.
+ */
+export function NotificationRowsSkeleton({
+  rows = 4,
+  density = "condensed",
+}: {
+  rows?: number;
+  density?: NotificationRowProps["density"];
+}) {
+  const isComfortable = density === "comfortable";
+
+  return (
+    <div aria-hidden>
+      {Array.from({ length: rows }, (_, i) => (
+        <div
+          key={i}
+          className={cn(
+            "flex gap-2.5 border-b border-muted/30 last:border-b-0",
+            isComfortable ? "px-4 py-3" : "px-3 py-2.5",
+          )}
+        >
+          <Skeleton
+            className={cn("shrink-0 rounded-full bg-muted/50", isComfortable ? "size-9" : "size-7")}
+          />
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Skeleton
+              className={cn(
+                "bg-muted/50",
+                isComfortable ? "h-4" : "h-3.5",
+                i % 2 ? "w-3/5" : "w-4/5",
+              )}
+            />
+            <Skeleton className="h-3 w-14 bg-muted/50" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

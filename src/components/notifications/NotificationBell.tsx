@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   NotificationRow,
+  NotificationRowsSkeleton,
   type NotificationItem,
 } from "@/components/notifications/notification-utils";
 import { Button } from "@/components/ui/button";
@@ -106,7 +107,7 @@ export function NotificationBell() {
 
         <div className="max-h-96 overflow-y-auto">
           {list.isLoading ? (
-            <div className="px-3 py-6 text-center text-xs text-muted-foreground">Loading…</div>
+            <NotificationRowsSkeleton rows={4} />
           ) : items.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">
               You're all caught up.

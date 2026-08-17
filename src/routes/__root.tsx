@@ -7,6 +7,7 @@ import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { CommandPalette } from "@/components/layout/CommandPalette";
+import { PageSkeleton } from "@/components/layout/PageSkeleton";
 
 const AppHeader = lazy(() =>
   import("@/components/layout/AppHeader").then((m) => ({ default: m.AppHeader })),
@@ -116,13 +117,7 @@ function RouteErrorBoundary({ error }: { error: Error }) {
 }
 
 function RoutePendingFallback() {
-  return (
-    <div className="flex flex-1 items-center justify-center p-12">
-      <span className="animate-pulse text-xs tracking-widest text-muted-foreground uppercase">
-        Loading...
-      </span>
-    </div>
-  );
+  return <PageSkeleton />;
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {

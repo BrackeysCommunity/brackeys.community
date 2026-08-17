@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
+import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -276,6 +277,7 @@ function ActionRow({
     if (typeof window === "undefined") return;
     const url = `${window.location.origin}/profile/${profile.handle}`;
     void navigator.clipboard?.writeText(url);
+    play("success");
     toast.success("Profile link copied");
   };
 

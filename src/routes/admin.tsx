@@ -12,6 +12,7 @@ import { AdminHero } from "@/components/admin/AdminUI";
 import { AdminVocabulary } from "@/components/admin/AdminVocabulary";
 import { useAnimatedUnderline } from "@/components/profile/ProfilePage/useAnimatedUnderline";
 import { Badge } from "@/components/ui/badge";
+import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -131,6 +132,7 @@ function AdminRoute() {
                 type="button"
                 onClick={() => setView(tab.key)}
                 aria-current={active ? "page" : undefined}
+                {...PAGE_CUES}
                 className={cn(
                   "relative flex cursor-pointer items-center gap-1.5 px-3 py-3 font-mono text-[10px] tracking-widest whitespace-nowrap uppercase transition-colors",
                   active ? "text-foreground" : "text-muted-foreground hover:text-foreground",

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { ProfileBuilderPage } from "@/components/profile/ProfileBuilderPage";
-import { Text } from "@/components/ui/typography";
+import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/profile/")({
@@ -31,23 +31,11 @@ function ProfileIndex() {
     }
   }, [isPending, session?.user?.id, navigate]);
 
-  if (isPending) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
-          Authenticating…
-        </Text>
-      </div>
-    );
-  }
+  // Resolving the session and hopping to `/profile/$userId` are two
+  // waits in a row, and the destination opens on the same skeleton —
+  // so drawing it here makes the whole hop one continuous load rather
+  // than two announcements of it.
+  if (isPending || session?.user) return <ProfilePageSkeleton />;
 
-  if (!session?.user) return <ProfileBuilderPage />;
-
-  return (
-    <div className="flex items-center justify-center py-24">
-      <Text size="xs" variant="muted" className="animate-pulse tracking-widest uppercase">
-        Redirecting to your profile…
-      </Text>
-    </div>
-  );
+  return <ProfileBuilderPage />;
 }
