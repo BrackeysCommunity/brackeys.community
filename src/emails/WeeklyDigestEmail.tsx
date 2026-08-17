@@ -77,7 +77,7 @@ export function WeeklyDigestEmail({
           <Hr style={hrStyle} />
           <Text style={footerStyle}>
             You opted in to weekly digests.{" "}
-            <a href={`${appUrl}/notifications?view=preferences`} style={linkStyle}>
+            <a href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
               Manage preferences
             </a>{" "}
             ·{" "}

@@ -18,7 +18,8 @@ import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { beginWizardCreate, collabStore, resetWizard, updateWizardDraft } from "@/lib/collab-store";
-import { fadeUp } from "@/lib/motion";
+import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
+import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
 
 import { type CollabBoardSearch } from "./collab-filters";
@@ -131,6 +132,7 @@ export function CollabBrowsePage() {
   const navigate = useNavigate();
   const search = (useSearch({ strict: false }) as CollabBoardSearch) ?? {};
   const isSplit = useIsSplitView();
+  const isHydrated = useIsHydrated();
   // Keyed on the shell's breakpoint, not this board's: the floating controls
   // sit above the bottom nav island, which only the mobile shell mounts.
   // Between the two the board is stacked with its controls inline.
@@ -324,25 +326,40 @@ export function CollabBrowsePage() {
       <motion.div variants={fadeUp}>
         <CollabHero authenticated={!!session?.user} onCreate={handleCreate} />
       </motion.div>
-      {isSplit ? (
-        <>
-          {/* `items-start` is what lets the inspector stick: a stretched
+      {/* The board waits for hydration rather than rendering off `isSplit`
+          directly. That hook can't know the viewport on the server, so it
+          reports stacked every time and a desktop load paints the one-column
+          board, then swaps the whole thing for the two-column one — the
+          layout, the inspector, and the lane's measured overhang all
+          changing at once, which reads as the page rendering twice. Nothing
+          is lost by waiting: the server's copy of this board is a toolbar
+          over skeletons (the posts are client-fetched), and every child of
+          the stack is held at opacity 0 for its first 250ms anyway, so the
+          frame we skip was never on screen.
+
+          One tagged wrapper around both branches, too: a tag inside each
+          would remount on the swap and inherit this stack's `hidden`
+          initial, fading the body in a second time.
+
+          `fadeIn` rather than `fadeUp` because both the lane's toolbar and
+          the inspector are sticky — see the variant's own note. */}
+      <motion.div variants={fadeIn} className="flex flex-col gap-5">
+        {!isHydrated ? null : isSplit ? (
+          <>
+            {/* `items-start` is what lets the inspector stick: a stretched
               grid item is already as tall as the lane, so it would have
               nothing to travel through. */}
-          <motion.div
-            variants={fadeUp}
-            className="grid grid-cols-[minmax(0,1fr)_minmax(360px,360px)] items-start gap-6"
-          >
-            <section className="flex flex-col gap-3">
-              {lane}
-              <CollabPostFeed
-                currentUserId={currentUserId}
-                selectedPostId={selectedPostId}
-                onSelectPost={selectPost}
-              />
-            </section>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(360px,360px)] items-start gap-6">
+              <section className="flex flex-col gap-3">
+                {lane}
+                <CollabPostFeed
+                  currentUserId={currentUserId}
+                  selectedPostId={selectedPostId}
+                  onSelectPost={selectPost}
+                />
+              </section>
 
-            {/* Parked at the same inset as the toolbar so the two lanes line
+              {/* Parked at the same inset as the toolbar so the two lanes line
                 up along one edge, and travelling with the header — see
                 `--app-header-shift`. The cap is a constant: the room the pane
                 has when fully expanded — parked at its 1rem inset with the
@@ -352,37 +369,38 @@ export function CollabBrowsePage() {
                 past the fold rather than compressing the pane. A long post
                 detail scrolls inside it, while the idle readout stays short
                 instead of stretching to fill the viewport. */}
-            <aside className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20 flex max-h-[calc(100vh-2.5rem)] flex-col">
-              <CollabInspector
-                postId={selectedPostId}
-                currentUserId={currentUserId}
-                onClose={clearSelection}
-                onEdit={() => setCreateOpen(true)}
-                compact
-              />
-            </aside>
-          </motion.div>
+              <aside className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20 flex max-h-[calc(100vh-2.5rem)] flex-col">
+                <CollabInspector
+                  postId={selectedPostId}
+                  currentUserId={currentUserId}
+                  onClose={clearSelection}
+                  onEdit={() => setCreateOpen(true)}
+                  compact
+                />
+              </aside>
+            </div>
 
-          <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-4">
-            <Text size="sm" variant="muted" className="flex items-center gap-1.5">
-              Press <Kbd>/</Kbd> to search.
-            </Text>
-            <Text size="sm" variant="muted" className="flex items-center gap-1.5">
-              <Kbd>↑</Kbd> <Kbd>↓</Kbd> to walk posts.
-            </Text>
-          </motion.div>
-        </>
-      ) : (
-        /* No room for two panes: the lane is the page, detail opens over it. */
-        <motion.div variants={fadeUp} className="flex flex-col gap-3">
-          {lane}
-          <CollabPostFeed
-            currentUserId={currentUserId}
-            selectedPostId={selectedPostId}
-            onSelectPost={selectPost}
-          />
-        </motion.div>
-      )}
+            <div className="flex flex-wrap items-center gap-4">
+              <Text size="sm" variant="muted" className="flex items-center gap-1.5">
+                Press <Kbd>/</Kbd> to search.
+              </Text>
+              <Text size="sm" variant="muted" className="flex items-center gap-1.5">
+                <Kbd>↑</Kbd> <Kbd>↓</Kbd> to walk posts.
+              </Text>
+            </div>
+          </>
+        ) : (
+          /* No room for two panes: the lane is the page, detail opens over it. */
+          <div className="flex flex-col gap-3">
+            {lane}
+            <CollabPostFeed
+              currentUserId={currentUserId}
+              selectedPostId={selectedPostId}
+              onSelectPost={selectPost}
+            />
+          </div>
+        )}
+      </motion.div>
 
       {isMobile && !isSplit ? (
         <CollabFloatingControls onOpenFilters={() => setFiltersOpen(true)} />

@@ -23,6 +23,23 @@ export const fadeUp: Variants = {
   },
 };
 
+/**
+ * `fadeUp` without the travel — for a section that contains a
+ * `position: sticky` descendant.
+ *
+ * A transform on an ancestor re-resolves a sticky element's containing
+ * block, so a stuck child stops tracking the content it sits in: it holds
+ * still through the rise and then jumps by the travel distance at the end,
+ * when framer clears the transform. Opacity has no such effect.
+ */
+export const fadeIn: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.4, ease: EASE_OUT },
+  },
+};
+
 export const fadeLeft: Variants = {
   hidden: { opacity: 0, x: 24 },
   visible: {

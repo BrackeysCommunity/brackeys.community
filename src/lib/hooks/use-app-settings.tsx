@@ -11,6 +11,20 @@ import {
  * `prefers-reduced-motion`; `reduced`/`full` are explicit overrides. */
 export type MotionPref = "system" | "reduced" | "full";
 
+/** Copy for the tri-state, shared by the settings pane that edits it and
+ * the header readout that only reports it. */
+export const MOTION_OPTIONS: { value: MotionPref; label: string; description: string }[] = [
+  { value: "system", label: "System", description: "Follow the OS setting" },
+  { value: "full", label: "On", description: "Always animate" },
+  { value: "reduced", label: "Off", description: "Skip decorative motion" },
+];
+
+export const MOTION_LABEL: Record<MotionPref, string> = {
+  system: "System",
+  full: "On",
+  reduced: "Off",
+};
+
 interface AppSettingsValue {
   /** The stored tri-state preference — what the settings UIs edit. */
   motionPref: MotionPref;

@@ -9,9 +9,16 @@ import type { ActiveUserProfile } from "@/lib/active-user-store";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: (props: Record<string, unknown>) => {
-    const { to, params, children, ...rest } = props as {
+    const {
+      to,
+      params,
+      search: _search,
+      children,
+      ...rest
+    } = props as {
       to: string;
       params?: { userId?: string };
+      search?: unknown;
       children?: React.ReactNode;
       [key: string]: unknown;
     };
@@ -80,10 +87,6 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
     ),
   };
 });
-
-vi.mock("@/components/layout/AppSettingsDialog", () => ({
-  AppSettingsDialog: () => null,
-}));
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: { signOut: vi.fn() },

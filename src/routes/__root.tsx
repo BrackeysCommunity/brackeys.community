@@ -175,7 +175,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <BackgroundDotField />
             {/* CRT scanline overlay */}
             <div
-              className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-7"
+              className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-2"
               style={{
                 background:
                   "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",

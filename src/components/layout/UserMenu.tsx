@@ -8,9 +8,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useState } from "react";
 
-import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,88 +41,84 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
   const navigate = useNavigate();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <>
-      <DropdownMenu>
-        {/* Same button as the settings cog and the bell — same variant, same
-            size, so the emboss depth matches; only the padding comes off, to
-            let the avatar run to the border. */}
-        <DropdownMenuTrigger
-          aria-label="Account menu"
-          render={<Button variant="outline" size="icon-lg" className="overflow-hidden p-0" />}
-        >
-          <UserAvatar
-            avatarUrl={user.image}
-            username={user.name}
-            // 34px + the button's 1px border each side fills the 36px frame.
-            size={34}
-            // The button already draws the frame — the avatar's own hairline
-            // would read as a second border inside it.
-            className="rounded-none after:hidden"
-          />
-        </DropdownMenuTrigger>
+    <DropdownMenu>
+      {/* Same button as the settings cog and the bell — same variant, same
+          size, so the emboss depth matches; only the padding comes off, to
+          let the avatar run to the border. */}
+      <DropdownMenuTrigger
+        aria-label="Account menu"
+        render={<Button variant="outline" size="icon-lg" className="overflow-hidden p-0" />}
+      >
+        <UserAvatar
+          avatarUrl={user.image}
+          username={user.name}
+          // 34px + the button's 1px border each side fills the 36px frame.
+          size={34}
+          // The button already draws the frame — the avatar's own hairline
+          // would read as a second border inside it.
+          className="rounded-none after:hidden"
+        />
+      </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
-          {/* The name row is a group label, not an item — it takes no focus
+      <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+        {/* The name row is a group label, not an item — it takes no focus
               and no hover. base-ui requires it to sit inside a Group, which
               it then labels. */}
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
-              {truncateMiddle(user.name ?? "USER", 18)}
-            </DropdownMenuLabel>
-            <DropdownMenuItem render={<Link to="/profile" />}>
-              <HugeiconsIcon icon={UserIcon} size={14} />
-              My profile
-            </DropdownMenuItem>
-            {!compact && (
-              <>
-                <DropdownMenuItem
-                  render={
-                    <Link
-                      data-testid="view-public-link"
-                      to="/profile/$userId"
-                      params={profileParams}
-                    />
-                  }
-                >
-                  <HugeiconsIcon icon={Share01Icon} size={14} />
-                  View public
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-                  <HugeiconsIcon icon={Settings02Icon} size={14} />
-                  Settings
-                </DropdownMenuItem>
-              </>
-            )}
-            {/* Staff-only, and only ever a shortcut: the route loader and
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
+            {truncateMiddle(user.name ?? "USER", 18)}
+          </DropdownMenuLabel>
+          <DropdownMenuItem render={<Link to="/profile" />}>
+            <HugeiconsIcon icon={UserIcon} size={14} />
+            My profile
+          </DropdownMenuItem>
+          {!compact && (
+            <>
+              <DropdownMenuItem
+                render={
+                  <Link
+                    data-testid="view-public-link"
+                    to="/profile/$userId"
+                    params={profileParams}
+                  />
+                }
+              >
+                <HugeiconsIcon icon={Share01Icon} size={14} />
+                View public
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link to="/settings/appearance" />}>
+                <HugeiconsIcon icon={Settings02Icon} size={14} />
+                Settings
+              </DropdownMenuItem>
+            </>
+          )}
+          {/* Staff-only, and only ever a shortcut: the route loader and
                 every procedure behind it re-check server-side, so a stale
                 or forged flag here buys a 404, not access. */}
-            {activeProfile?.isStaff && (
-              <DropdownMenuItem render={<Link data-testid="admin-link" to="/admin" />}>
-                <HugeiconsIcon icon={Shield02Icon} size={14} />
-                Admin
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive"
-            onClick={async () => {
-              await authClient.signOut({
-                fetchOptions: {
-                  onSuccess: () => navigate({ reloadDocument: true }),
-                },
-              });
-            }}
-          >
-            <HugeiconsIcon icon={Logout03Icon} size={14} />
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {!compact && <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />}
-    </>
+          {activeProfile?.isStaff && (
+            <DropdownMenuItem render={<Link data-testid="admin-link" to="/admin" />}>
+              <HugeiconsIcon icon={Shield02Icon} size={14} />
+              Admin
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive"
+          onClick={async () => {
+            await authClient.signOut({
+              fetchOptions: {
+                onSuccess: () => navigate({ reloadDocument: true }),
+              },
+            });
+          }}
+        >
+          <HugeiconsIcon icon={Logout03Icon} size={14} />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

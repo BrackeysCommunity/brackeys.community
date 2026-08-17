@@ -47,7 +47,7 @@ async function handle({ request }: { request: Request }) {
     ok: true,
     headline: scope === "all" ? "You're unsubscribed from all email." : "Done — that one's off.",
     detail:
-      "You can change this any time at /notifications?view=preferences. In-app notifications stay on.",
+      "You can change this any time at /settings?tab=notifications. In-app notifications stay on.",
   });
 }
 
@@ -77,7 +77,7 @@ function renderResult(opts: {
 </style></head><body><div class="card">
   <h1>${escapeHtml(opts.headline)}</h1>
   <p>${escapeHtml(opts.detail)}</p>
-  <p><a href="/notifications?view=preferences">Manage preferences</a> · <a href="/">Back to Brackeys</a></p>
+  <p><a href="/settings?tab=notifications">Manage preferences</a> · <a href="/">Back to Brackeys</a></p>
 </div></body></html>`;
 
   return new Response(html, {

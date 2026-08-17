@@ -7,7 +7,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
@@ -280,15 +280,17 @@ export function CollabSearchInput({ className }: { className?: string }) {
   const { search, setSearch } = useCollabBoardSearch();
   const urlSearch = search.q ?? "";
   const [value, setValue] = useState(urlSearch);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Only write when the box has actually diverged from the URL. Without
+  // the guard the box commits its own initial value 300ms after mount,
+  // which is a router navigation — and the router runs every navigation
+  // through `document.startViewTransition`, same-URL ones included. That
+  // lands a second cross-route fade on top of the board's entrance.
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setSearch({ q: value || undefined }), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [value, setSearch]);
+    if (value === urlSearch) return;
+    const timer = setTimeout(() => setSearch({ q: value || undefined }), 300);
+    return () => clearTimeout(timer);
+  }, [value, urlSearch, setSearch]);
 
   // Pull external resets (CLEAR ALL, chip ×) back into the local input.
   useEffect(() => {

@@ -61,7 +61,7 @@ export function NotificationEmail({
           <Hr style={hrStyle} />
           <Text style={footerStyle}>
             You're getting this because your notification preferences include email for this event.{" "}
-            <a href={`${appUrl}/notifications?view=preferences`} style={linkStyle}>
+            <a href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
               Manage preferences
             </a>{" "}
             ·{" "}

@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
-import { fadeUp } from "@/lib/motion";
+import { fadeIn, fadeUp } from "@/lib/motion";
 import { client, orpc } from "@/orpc/client";
 
 import { TeamCreateDrawer } from "./TeamCreateDrawer";
@@ -167,7 +167,9 @@ export function TeamsDiscoveryPage() {
         </motion.div>
       ) : null}
 
-      <motion.section variants={fadeUp} className="flex flex-col gap-3">
+      {/* `fadeIn`, not `fadeUp`: the toolbar below is sticky, and a
+          transform on its ancestor makes it jump when the rise ends. */}
+      <motion.section variants={fadeIn} className="flex flex-col gap-3">
         {/* The controls pin to the top of the scrollport, just under the app
             header — they're the one thing you always want reachable while
             walking a long directory. `--app-header-shift` takes them up into

@@ -2,9 +2,7 @@ import { Settings02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useState } from "react";
 
-import { AppSettingsDialog } from "@/components/layout/AppSettingsDialog";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { BrackeysMark } from "@/components/ui/brackeys-mark";
 import { Button } from "@/components/ui/button";
@@ -23,7 +21,6 @@ export const BOTTOM_NAV_HEIGHT = "calc(6rem + env(safe-area-inset-bottom))";
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const { data: session } = authClient.useSession();
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Same auto-hide as the desktop bar. The scroller below starts at the very
   // top of the viewport and holds the bar's height as padding, so what the
@@ -62,7 +59,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
             variant="outline"
             size="icon-lg"
             aria-label="Settings"
-            onClick={() => setSettingsOpen(true)}
+            render={<Link to="/settings/appearance" />}
           >
             <HugeiconsIcon icon={Settings02Icon} size={16} />
           </Button>
@@ -77,7 +74,6 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           </Button>
         )}
       </motion.header>
-      <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <main
         id="main-content"

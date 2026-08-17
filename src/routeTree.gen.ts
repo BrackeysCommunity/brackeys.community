@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -23,11 +24,17 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TeamsIndexRouteImport } from './routes/teams.index'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
+import { Route as SettingsPrivacyRouteImport } from './routes/settings.privacy'
+import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications'
+import { Route as SettingsMotionRouteImport } from './routes/settings.motion'
+import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
+import { Route as SettingsAccountRouteImport } from './routes/settings.account'
 import { Route as ProjectsProjectSlugRouteImport } from './routes/projects.$projectSlug'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as JamsJamSlugRouteImport } from './routes/jams_.$jamSlug'
@@ -55,6 +62,11 @@ const TermsRoute = TermsRouteImport.update({
 const TeamsRoute = TeamsRouteImport.update({
   id: '/teams',
   path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -117,6 +129,11 @@ const TeamsIndexRoute = TeamsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => TeamsRoute,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -141,6 +158,31 @@ const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
   id: '/$teamId',
   path: '/$teamId',
   getParentRoute: () => TeamsRoute,
+} as any)
+const SettingsPrivacyRoute = SettingsPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsMotionRoute = SettingsMotionRouteImport.update({
+  id: '/motion',
+  path: '/motion',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAccountRoute = SettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => SettingsRoute,
 } as any)
 const ProjectsProjectSlugRoute = ProjectsProjectSlugRouteImport.update({
   id: '/projects/$projectSlug',
@@ -245,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/settings': typeof SettingsRouteWithChildren
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
@@ -257,11 +300,17 @@ export interface FileRoutesByFullPath {
   '/jams/$jamSlug': typeof JamsJamSlugRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
+  '/settings/account': typeof SettingsAccountRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/motion': typeof SettingsMotionRoute
+  '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
@@ -291,11 +340,17 @@ export interface FileRoutesByTo {
   '/jams/$jamSlug': typeof JamsJamSlugRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
+  '/settings/account': typeof SettingsAccountRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/motion': typeof SettingsMotionRoute
+  '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
   '/jams': typeof JamsIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/teams': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
@@ -319,6 +374,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/settings': typeof SettingsRouteWithChildren
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
@@ -331,11 +387,17 @@ export interface FileRoutesById {
   '/jams_/$jamSlug': typeof JamsJamSlugRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
+  '/settings/account': typeof SettingsAccountRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/motion': typeof SettingsMotionRoute
+  '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
@@ -360,6 +422,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/profile'
+    | '/settings'
     | '/teams'
     | '/terms'
     | '/api/$'
@@ -372,11 +435,17 @@ export interface FileRouteTypes {
     | '/jams/$jamSlug'
     | '/profile/$userId'
     | '/projects/$projectSlug'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/motion'
+    | '/settings/notifications'
+    | '/settings/privacy'
     | '/teams/$teamId'
     | '/collab/'
     | '/game/'
     | '/jams/'
     | '/profile/'
+    | '/settings/'
     | '/teams/'
     | '/api/auth/$'
     | '/api/notifications/stream'
@@ -406,11 +475,17 @@ export interface FileRouteTypes {
     | '/jams/$jamSlug'
     | '/profile/$userId'
     | '/projects/$projectSlug'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/motion'
+    | '/settings/notifications'
+    | '/settings/privacy'
     | '/teams/$teamId'
     | '/collab'
     | '/game'
     | '/jams'
     | '/profile'
+    | '/settings'
     | '/teams'
     | '/api/auth/$'
     | '/api/notifications/stream'
@@ -433,6 +508,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/profile'
+    | '/settings'
     | '/teams'
     | '/terms'
     | '/api/$'
@@ -445,11 +521,17 @@ export interface FileRouteTypes {
     | '/jams_/$jamSlug'
     | '/profile/$userId'
     | '/projects/$projectSlug'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/motion'
+    | '/settings/notifications'
+    | '/settings/privacy'
     | '/teams/$teamId'
     | '/collab/'
     | '/game/'
     | '/jams/'
     | '/profile/'
+    | '/settings/'
     | '/teams/'
     | '/api/auth/$'
     | '/api/notifications/stream'
@@ -473,6 +555,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRouteWithChildren
+  SettingsRoute: typeof SettingsRouteWithChildren
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
@@ -503,6 +586,13 @@ declare module '@tanstack/react-router' {
       path: '/teams'
       fullPath: '/teams'
       preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -589,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamsIndexRouteImport
       parentRoute: typeof TeamsRoute
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/profile/': {
       id: '/profile/'
       path: '/'
@@ -623,6 +720,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/teams/$teamId'
       preLoaderRoute: typeof TeamsTeamIdRouteImport
       parentRoute: typeof TeamsRoute
+    }
+    '/settings/privacy': {
+      id: '/settings/privacy'
+      path: '/privacy'
+      fullPath: '/settings/privacy'
+      preLoaderRoute: typeof SettingsPrivacyRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/notifications': {
+      id: '/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof SettingsNotificationsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/motion': {
+      id: '/settings/motion'
+      path: '/motion'
+      fullPath: '/settings/motion'
+      preLoaderRoute: typeof SettingsMotionRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/appearance': {
+      id: '/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof SettingsAppearanceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/account': {
+      id: '/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof SettingsAccountRouteImport
+      parentRoute: typeof SettingsRoute
     }
     '/projects/$projectSlug': {
       id: '/projects/$projectSlug'
@@ -807,6 +939,28 @@ const ProfileRouteChildren: ProfileRouteChildren = {
 const ProfileRouteWithChildren =
   ProfileRoute._addFileChildren(ProfileRouteChildren)
 
+interface SettingsRouteChildren {
+  SettingsAccountRoute: typeof SettingsAccountRoute
+  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsMotionRoute: typeof SettingsMotionRoute
+  SettingsNotificationsRoute: typeof SettingsNotificationsRoute
+  SettingsPrivacyRoute: typeof SettingsPrivacyRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAccountRoute: SettingsAccountRoute,
+  SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsMotionRoute: SettingsMotionRoute,
+  SettingsNotificationsRoute: SettingsNotificationsRoute,
+  SettingsPrivacyRoute: SettingsPrivacyRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 interface TeamsRouteChildren {
   TeamsTeamIdRoute: typeof TeamsTeamIdRoute
   TeamsIndexRoute: typeof TeamsIndexRoute
@@ -831,6 +985,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRouteWithChildren,
+  SettingsRoute: SettingsRouteWithChildren,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,

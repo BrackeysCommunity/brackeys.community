@@ -5,6 +5,7 @@ import {
   PaintBrush04Icon,
   PencilIcon,
   Robot01Icon,
+  Settings02Icon,
   Share01Icon,
   Shield02Icon,
 } from "@hugeicons/core-free-icons";
@@ -93,6 +94,13 @@ export function CommandPalette() {
             >
               <HugeiconsIcon icon={Share01Icon} className="text-cyan-400" />
               <span>Join Discord</span>
+            </CommandItem>
+            <CommandItem
+              value="settings preferences theme motion notifications privacy blocked account devices sessions"
+              onSelect={() => run(() => navigate({ to: "/settings/appearance" }))}
+            >
+              <HugeiconsIcon icon={Settings02Icon} className="text-muted-foreground" />
+              <span>Open Settings</span>
             </CommandItem>
             <CommandItem onSelect={() => run(() => navigate({ to: "/command-center" }))}>
               <HugeiconsIcon icon={ComputerTerminal01Icon} className="text-muted-foreground" />
