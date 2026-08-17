@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import {
   AdminEmpty,
@@ -18,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 type CommentReport = Awaited<ReturnType<typeof client.listCommentReports>>[number];

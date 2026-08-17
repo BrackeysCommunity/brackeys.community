@@ -11,7 +11,7 @@ vi.mock("cuelume", () => ({
   sounds: ["tick", "whisper", "droplet", "press", "release", "toggle", "success"],
 }));
 
-const { bindPullAway } = await import("../sound");
+const { bindPullAway, playDismiss, playReveal, playToast } = await import("../sound");
 
 /** Virtual clock, so the 150 ms throttle is steppable. */
 let now = 0;
@@ -125,5 +125,51 @@ describe("bindPullAway", () => {
     out(el("bogus"), el("outside"));
 
     expect(play).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("playDismiss", () => {
+  beforeEach(() => play.mockClear());
+
+  it("sounds for a dismissal the user performed", () => {
+    for (const reason of ["close-press", "outside-press", "escape-key", "trigger-press", "swipe"]) {
+      playDismiss(reason);
+    }
+
+    expect(play).toHaveBeenCalledTimes(5);
+    expect(play.mock.calls.every((call) => call[0] === "droplet")).toBe(true);
+  });
+
+  // The stutter this exists to prevent: a dialog closing on its own after a
+  // save would land droplet on top of the success toast's cue.
+  it("stays silent for a close the app performed", () => {
+    playDismiss("none");
+    playDismiss("imperative-action");
+    playDismiss("focus-out");
+
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("sounds unconditionally when the library reports no reason", () => {
+    playDismiss();
+
+    expect(play).toHaveBeenCalledWith("droplet", expect.anything());
+  });
+});
+
+describe("playReveal and playToast", () => {
+  beforeEach(() => play.mockClear());
+
+  it("blooms open and drops closed", () => {
+    playReveal(true);
+    playReveal(false);
+
+    expect(play.mock.calls.map((call) => call[0])).toEqual(["bloom", "droplet"]);
+  });
+
+  it("blooms a toast in, whatever the outcome was", () => {
+    playToast();
+
+    expect(play).toHaveBeenCalledWith("bloom", expect.anything());
   });
 });

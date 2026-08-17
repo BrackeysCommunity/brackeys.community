@@ -104,6 +104,8 @@ consolidated; new copies undo that.
 | Jam permalink, host name, date block                        | `jamUrl` / `hostName` / `jamMonthDay` from `@/lib/jam-links`                       | an inline template or `hosts[0]?.name ?? …` |
 | Jam fallback colors                                         | `@/lib/jam-palette`                                                                | a local random pick                         |
 | `/profile/$userId` links                                    | `profileSlug` / `profileLinkParams` from `@/lib/profile-links`                     | `urlStub ?? id` inline                      |
+| Toasts                                                      | `toast` from `@/lib/toast` (sonner plus the arrival cue)                           | `toast` from `sonner`                       |
+| Interaction sounds                                          | the cue bundles and `play*` helpers in `@/lib/sound`                               | importing `cuelume` directly                |
 
 **Monospace:** `font-mono` is reserved for the command-center surfaces,
 `Badge size="label"`, and `MicroLabel`. Everything else uses the sans and

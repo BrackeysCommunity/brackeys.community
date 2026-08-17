@@ -1,7 +1,6 @@
 import { NoteIcon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +10,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 import { SettingRow, SettingsSection, SignedOutNotice } from "./SettingsUI";

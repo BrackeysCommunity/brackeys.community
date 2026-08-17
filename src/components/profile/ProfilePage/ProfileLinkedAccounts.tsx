@@ -8,7 +8,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +22,7 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { startItchOAuth } from "@/lib/itchio-oauth";
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 import type { ProfileLink } from "./helpers";

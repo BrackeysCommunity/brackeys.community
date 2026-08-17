@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
+import { invalidateNotifications } from "@/components/notifications/notification-queries";
 import {
   NotificationRow,
   NotificationRowsSkeleton,
@@ -34,14 +35,7 @@ export function NotificationBell() {
 
   const { mutate: markAllReadMutate } = useMutation({
     mutationFn: (vars: { before?: number }) => client.markAllRead(vars),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: orpc.unreadCount.queryOptions({ input: {} }).queryKey,
-      });
-      void queryClient.invalidateQueries({
-        queryKey: orpc.listNotifications.queryOptions({ input: { limit: 20 } }).queryKey,
-      });
-    },
+    onSuccess: () => invalidateNotifications(queryClient),
   });
 
   // Auto-mark-read after the popover has been open for AUTO_MARK_DELAY_MS,

@@ -4,10 +4,23 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { PortalContainerProvider } from "@/components/ui/portal-container";
+import { DISMISS_CUES, playDismiss } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-function Drawer({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />;
+// vaul reports no reason for the close, unlike the Base UI overlays — but
+// every way a drawer closes (swipe, backdrop, close button) is the user
+// doing it, so an unfiltered `playDismiss()` is right here.
+function Drawer({ onOpenChange, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
+  return (
+    <DrawerPrimitive.Root
+      data-slot="drawer"
+      onOpenChange={(open) => {
+        if (!open) playDismiss();
+        onOpenChange?.(open);
+      }}
+      {...props}
+    />
+  );
 }
 
 function DrawerTrigger({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
@@ -19,7 +32,7 @@ function DrawerPortal({ ...props }: React.ComponentProps<typeof DrawerPrimitive.
 }
 
 function DrawerClose({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Close>) {
-  return <DrawerPrimitive.Close data-slot="drawer-close" {...props} />;
+  return <DrawerPrimitive.Close data-slot="drawer-close" {...DISMISS_CUES} {...props} />;
 }
 
 function DrawerOverlay({

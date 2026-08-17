@@ -1,14 +1,29 @@
 import { Accordion as AccordionPrimitive } from "@base-ui/react/accordion";
 import { ArrowDown01Icon, ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import * as React from "react";
 
+import { playReveal } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-function Accordion({ className, ...props }: AccordionPrimitive.Root.Props) {
+function Accordion({ className, onValueChange, ...props }: AccordionPrimitive.Root.Props) {
+  // The callback reports only the new set of open panels, not whether this
+  // change opened or closed one — which is the whole question the cue asks.
+  // Hence the previous set. With `openMultiple` off, switching panels reads
+  // as an open, which is what it sounds like.
+  const openRef = React.useRef(props.value ?? props.defaultValue ?? []);
+
   return (
     <AccordionPrimitive.Root
       data-slot="accordion"
       className={cn("flex w-full flex-col", className)}
+      onValueChange={(value, eventDetails) => {
+        const opened = value.some((item) => !openRef.current.includes(item));
+        openRef.current = value;
+        // Programmatic changes stay silent — only a press on the trigger.
+        if (eventDetails.reason === "trigger-press") playReveal(opened);
+        onValueChange?.(value, eventDetails);
+      }}
       {...props}
     />
   );

@@ -3,12 +3,15 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { Button } from "@/components/ui/button";
+import { Carousel, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PaginationNext } from "@/components/ui/pagination";
 
 afterEach(cleanup);
 
@@ -80,5 +83,57 @@ describe("interaction cue attributes", () => {
 
     expect(screen.getByText("Rename").getAttribute("data-cuelume-toggle")).toBe("");
     expect(screen.getByText("Delete").getAttribute("data-cuelume-toggle")).toBe("error");
+  });
+
+  // Same merge problem as the dropdown trigger: both of these are `Button`s
+  // underneath, so the step cue only wins if it unseats press/release.
+  it("resolves a pagination link to a single page cue", () => {
+    render(<PaginationNext href="#" />);
+
+    // An `<a>`, but Base UI's non-native Button stamps `role="button"` on it.
+    expect(cues(screen.getByRole("button", { name: "Go to next page" }))).toEqual({
+      hover: "tick",
+      press: null,
+      release: null,
+      toggle: "page",
+      pullAway: "",
+    });
+  });
+
+  it("resolves the carousel arrows to a single page cue", () => {
+    render(
+      <Carousel>
+        <CarouselPrevious />
+        <CarouselNext />
+      </Carousel>,
+    );
+
+    for (const name of ["Previous slide", "Next slide"]) {
+      expect(cues(screen.getByRole("button", { name }))).toEqual({
+        hover: "tick",
+        press: null,
+        release: null,
+        toggle: "page",
+        pullAway: "",
+      });
+    }
+  });
+
+  // The dismissal itself sounds from the dialog root, so the X has to stay
+  // quiet on click or closing reads as press + release + droplet.
+  it("leaves a dialog close button silent on click", () => {
+    render(
+      <Dialog open>
+        <DialogContent>Body</DialogContent>
+      </Dialog>,
+    );
+
+    expect(cues(screen.getByRole("button", { name: "Close" }))).toEqual({
+      hover: "tick",
+      press: null,
+      release: null,
+      toggle: null,
+      pullAway: "",
+    });
   });
 });

@@ -246,6 +246,31 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   jam_team_post_created: "jams",
 };
 
+export const NOTIFICATION_CATEGORIES: readonly NotificationCategory[] = [
+  "collab",
+  "teams",
+  "jams",
+  "comments",
+  "moderation",
+];
+
+/** The inverse of `NOTIFICATION_CATEGORY` — what the inbox's category filter
+ *  narrows to in SQL. Derived so the two can never disagree. */
+export const TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]> =
+  NOTIFICATION_TYPES.reduce(
+    (acc, type) => {
+      acc[NOTIFICATION_CATEGORY[type]].push(type);
+      return acc;
+    },
+    {
+      collab: [],
+      teams: [],
+      jams: [],
+      comments: [],
+      moderation: [],
+    } as Record<NotificationCategory, NotificationType[]>,
+  );
+
 /**
  * Types whose digest flag defaults on. Read paths that resolve a missing
  * `notification_preferences` row in SQL use this list; it must stay derived

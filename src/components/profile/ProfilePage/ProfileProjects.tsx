@@ -3,7 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import {
   type ManualProjectType,
   platformLabel,
 } from "@/lib/project-taxonomy";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 

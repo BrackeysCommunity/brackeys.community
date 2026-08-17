@@ -18,7 +18,6 @@ import {
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -32,6 +31,7 @@ import { authStore } from "@/lib/auth-store";
 import type { SubjectRef } from "@/lib/comment-subjects";
 import { timeAgo } from "@/lib/format-time";
 import { profileLinkParams } from "@/lib/profile-links";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 

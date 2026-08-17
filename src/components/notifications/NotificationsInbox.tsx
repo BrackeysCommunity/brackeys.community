@@ -1,17 +1,16 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import {
-  categoryOf,
   NotificationRow,
   NotificationRowsSkeleton,
   type NotificationItem,
 } from "@/components/notifications/notification-utils";
-import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
+import { Well } from "@/components/ui/well";
 import { type NotificationCategory } from "@/lib/notification-copy";
-import { cn } from "@/lib/utils";
-import { client, orpc } from "@/orpc/client";
+import { orpc } from "@/orpc/client";
 
 const PAGE_SIZE = 20;
 
@@ -20,28 +19,36 @@ const ROW_ESTIMATE = 68;
 
 export type InboxFilter = "all" | "unread" | NotificationCategory;
 
-const FILTERS: { value: InboxFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "unread", label: "Unread" },
-  { value: "collab", label: "Collab" },
-  { value: "teams", label: "Teams" },
-  { value: "jams", label: "Jams" },
-  { value: "comments", label: "Comments" },
-  { value: "moderation", label: "Moderation" },
-];
+/** Copy for a tab that has nothing in it. The generic line is a dead end on
+ *  a category tab — "no notifications yet" next to a filled Collab tab reads
+ *  as breakage rather than as a quiet corner. */
+const EMPTY_COPY: Record<InboxFilter, { title: string; hint: string }> = {
+  all: {
+    title: "No notifications yet.",
+    hint: "Responses, invites, jam deadlines and staff decisions land here.",
+  },
+  unread: { title: "Nothing unread.", hint: "Everything here has been seen." },
+  collab: {
+    title: "Nothing from the collab board.",
+    hint: "Responses to your posts show up here.",
+  },
+  teams: { title: "Nothing from your teams.", hint: "Invites and roster changes show up here." },
+  jams: { title: "Nothing from your jams.", hint: "Watch a jam to hear about its deadlines." },
+  comments: { title: "No replies yet.", hint: "Comments on threads you follow show up here." },
+  moderation: { title: "Nothing from staff.", hint: "Decisions on your reports and requests." },
+};
 
 export interface NotificationsInboxProps {
   filter: InboxFilter;
-  onFilterChange: (filter: InboxFilter) => void;
 }
 
-export function NotificationsInbox({ filter, onFilterChange }: NotificationsInboxProps) {
-  const queryClient = useQueryClient();
+export function NotificationsInbox({ filter }: NotificationsInboxProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // unread-only is enforced server-side; collab/system filter client-side
-  // off the type field since the server doesn't take a category yet.
   const unreadOnly = filter === "unread";
+  // Every filter that isn't "all"/"unread" *is* a category, so it goes to
+  // the server as one rather than being restated tab by tab.
+  const category = filter === "all" || filter === "unread" ? undefined : filter;
 
   const {
     data: pages,
@@ -49,35 +56,23 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
     isFetchingNextPage,
     isLoading,
     fetchNextPage,
-  } = useInfiniteQuery({
-    queryKey: ["listNotifications", { unreadOnly }],
-    queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
-      client.listNotifications({
-        cursor: pageParam,
+  } = useInfiniteQuery(
+    orpc.listNotifications.infiniteOptions({
+      input: (cursor: number | undefined) => ({
+        cursor,
         limit: PAGE_SIZE,
         unreadOnly: unreadOnly || undefined,
+        category,
       }),
-    initialPageParam: undefined as number | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-  });
+      initialPageParam: undefined as number | undefined,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    }),
+  );
 
-  const { mutate: markAllReadMutate } = useMutation({
-    mutationFn: () => client.markAllRead({}),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: orpc.unreadCount.queryOptions({ input: {} }).queryKey,
-      });
-      void queryClient.invalidateQueries({ queryKey: ["listNotifications"] });
-    },
-  });
-
-  const items = useMemo(() => {
-    const flat = (pages?.pages ?? []).flatMap((p) => p.items) as NotificationItem[];
-    // Every non-"all"/"unread" filter *is* a category, so match on that
-    // rather than restating one branch per tab.
-    if (filter === "all" || filter === "unread") return flat;
-    return flat.filter((n) => categoryOf(n.type) === filter);
-  }, [pages, filter]);
+  const items = useMemo(
+    () => (pages?.pages ?? []).flatMap((p) => p.items) as NotificationItem[],
+    [pages],
+  );
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -94,69 +89,44 @@ export function NotificationsInbox({ filter, onFilterChange }: NotificationsInbo
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const empty = EMPTY_COPY[filter];
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-sm font-bold tracking-widest text-foreground uppercase">Inbox</h1>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => markAllReadMutate()}
-          className="text-[10px] tracking-wider"
-        >
-          Mark all read
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => onFilterChange(f.value)}
-            className={cn(
-              "border px-3 py-1 text-[10px] font-bold tracking-widest uppercase transition-colors",
-              filter === f.value
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground",
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       {isLoading ? (
-        <div className="border border-muted/30 bg-card/40">
+        <Well className="overflow-hidden">
           <NotificationRowsSkeleton rows={8} density="comfortable" />
-        </div>
+        </Well>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center gap-1 border border-muted/30 bg-card/40 px-4 py-12 text-center">
-          <p className="text-sm text-foreground/80">
-            {filter === "unread" ? "Nothing unread." : "No notifications yet."}
-          </p>
-          <p className="text-[10px] text-muted-foreground">
-            You'll see activity from collab posts and staff actions here.
-          </p>
-        </div>
+        <Well className="items-center justify-center gap-1 px-4 py-14">
+          <Text size="md" variant="primary" align="center">
+            {empty.title}
+          </Text>
+          <Text size="sm" variant="muted" align="center">
+            {empty.hint}
+          </Text>
+        </Well>
       ) : (
-        // The inbox pages forever and never drops what it has paged in,
-        // so only the rows near the viewport stay mounted.
-        <VirtualGrid
-          items={items}
-          getItemKey={(n) => n.id}
-          renderItem={(n) => <NotificationRow notification={n} density="comfortable" />}
-          rowClassName="flex flex-col"
-          className="border border-muted/30 bg-card/40"
-          estimateRowHeight={ROW_ESTIMATE}
-        />
+        // The frame is the wrapper, not the grid: `VirtualGrid` measures row
+        // offsets from its own top edge, and it may not carry top padding.
+        <Well className="overflow-hidden">
+          {/* The inbox pages forever and never drops what it has paged in,
+              so only the rows near the viewport stay mounted. */}
+          <VirtualGrid
+            items={items}
+            getItemKey={(n) => n.id}
+            renderItem={(n) => <NotificationRow notification={n} density="comfortable" />}
+            rowClassName="flex flex-col"
+            estimateRowHeight={ROW_ESTIMATE}
+          />
+        </Well>
       )}
 
       <div ref={sentinelRef} className="h-8" aria-hidden />
       {isFetchingNextPage && (
-        <div className="border border-muted/30 bg-card/40">
+        <Well className="overflow-hidden">
           <NotificationRowsSkeleton rows={3} density="comfortable" />
-        </div>
+        </Well>
       )}
     </div>
   );

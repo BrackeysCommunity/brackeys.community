@@ -2,10 +2,24 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { DISMISS_CUES, playDismiss } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
+// Only a dismissal the user performed sounds — `playDismiss` filters on the
+// reason. That is what keeps `Confirm`'s happy path quiet: confirming closes
+// the dialog through the controlled `open` prop, which never reports a
+// dismissal at all, so the action's own toast is the only thing you hear.
+function AlertDialog({ onOpenChange, ...props }: AlertDialogPrimitive.Root.Props) {
+  return (
+    <AlertDialogPrimitive.Root
+      data-slot="alert-dialog"
+      onOpenChange={(open, eventDetails) => {
+        if (!open) playDismiss(eventDetails.reason);
+        onOpenChange?.(open, eventDetails);
+      }}
+      {...props}
+    />
+  );
 }
 
 function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
@@ -139,6 +153,7 @@ function AlertDialogCancel({
       data-slot="alert-dialog-cancel"
       className={cn(className)}
       render={<Button variant={variant} size={size} />}
+      {...DISMISS_CUES}
       {...props}
     />
   );

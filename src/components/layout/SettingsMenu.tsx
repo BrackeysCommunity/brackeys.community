@@ -8,6 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 
 import {
+  LOCAL_SETTINGS_TABS,
   SETTINGS_TAB_META,
   SETTINGS_TABS,
   type SettingsTab,
@@ -24,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MicroLabel } from "@/components/ui/typography";
+import { authClient } from "@/lib/auth-client";
 import { useAppSettings } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 
@@ -37,6 +39,7 @@ import { useAppTheme } from "@/lib/hooks/use-app-theme";
 export function SettingsMenu() {
   const { theme } = useAppTheme();
   const { muted, setMuted, reduceMotion, setMotionPref } = useAppSettings();
+  const { data: session } = authClient.useSession();
   // From anywhere else these rows are a page hop and should transition like
   // one. From inside `/settings` they're the same pane swap the rail does,
   // so they suppress the cross-route fade for the same reason it does.
@@ -49,8 +52,11 @@ export function SettingsMenu() {
   };
 
   // Motion drops out of the link list — it toggles below instead. The
-  // `/settings` rail still carries it.
-  const linkTabs = SETTINGS_TABS.filter((id) => id !== "motion");
+  // `/settings` rail still carries it. Signed out, so do the sections that
+  // are account-backed: they'd open on a notice rather than a control.
+  const linkTabs = SETTINGS_TABS.filter(
+    (id) => id !== "motion" && (session?.user != null || LOCAL_SETTINGS_TABS.includes(id)),
+  );
 
   return (
     <DropdownMenu>

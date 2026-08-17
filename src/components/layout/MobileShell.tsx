@@ -54,7 +54,9 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
 
-        {session?.user ? (
+        {/* The cog outlives the session: theme, motion, and sound are stored
+            in this browser, so signed-out visitors reach them the same way. */}
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="icon-lg"
@@ -63,16 +65,17 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           >
             <HugeiconsIcon icon={Settings02Icon} size={16} />
           </Button>
-        ) : (
-          <Button
-            variant="default"
-            size="sm"
-            className="px-4 text-xs font-bold tracking-widest"
-            onClick={() => signInWithDiscord()}
-          >
-            LOGIN
-          </Button>
-        )}
+          {session?.user ? null : (
+            <Button
+              variant="default"
+              size="sm"
+              className="px-4 text-xs font-bold tracking-widest"
+              onClick={() => signInWithDiscord()}
+            >
+              LOGIN
+            </Button>
+          )}
+        </div>
       </motion.header>
 
       <main

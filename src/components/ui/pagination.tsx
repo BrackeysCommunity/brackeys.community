@@ -7,6 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
@@ -53,10 +54,14 @@ function PaginationLink({
       className={cn(className)}
       nativeButton={false}
       render={
+        // Advancing a list is a `page` cue, not a press/release click — the
+        // explicit `undefined`s in the bundle are what unseat the ones
+        // `Button` already spread onto this element.
         <a
           aria-current={isActive ? "page" : undefined}
           data-slot="pagination-link"
           data-active={isActive}
+          {...PAGE_CUES}
           {...props}
         >
           {children}

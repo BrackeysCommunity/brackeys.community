@@ -2,10 +2,9 @@ import { ChampionIcon, HashtagIcon, Note01Icon, Shield02Icon } from "@hugeicons/
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { motion } from "framer-motion";
 
+import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
 import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
-
-import { useAnimatedUnderline } from "./useAnimatedUnderline";
 
 export type ProfileMobileTab = "overview" | "projects" | "jams" | "skills";
 

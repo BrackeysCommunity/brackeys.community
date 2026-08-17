@@ -3,7 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { AdminEmpty, AdminRow, AdminSection, Field, errText } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 /** How many search hits to offer at once — enough to find a post, not a board. */

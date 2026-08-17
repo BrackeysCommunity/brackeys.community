@@ -1,7 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
 import { describeLinkImport } from "@/lib/itchio-import-copy";
 import {
@@ -10,6 +9,7 @@ import {
   isAllowedPreviewOrigin,
   parseOAuthState,
 } from "@/lib/itchio-oauth";
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 export const Route = createFileRoute("/oauth/itchio/callback")({

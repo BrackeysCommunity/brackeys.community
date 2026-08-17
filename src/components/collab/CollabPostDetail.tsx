@@ -10,7 +10,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,7 @@ import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
 import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { teamLinkParams } from "@/lib/team-links";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 

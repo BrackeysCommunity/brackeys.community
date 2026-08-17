@@ -7,7 +7,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link as RouterLink, useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
+import { toast } from "@/lib/toast";
 import { markWrite } from "@/orpc/recent-write";
 
 import { ProjectDetailsEditor } from "./ProjectDetailsEditor";

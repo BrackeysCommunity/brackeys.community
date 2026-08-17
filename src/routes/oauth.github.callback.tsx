@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 export const Route = createFileRoute("/oauth/github/callback")({

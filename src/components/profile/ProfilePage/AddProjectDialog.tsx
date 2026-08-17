@@ -2,7 +2,6 @@ import { Add01Icon, Image01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
 import { type FileRejection, useDropzone } from "react-dropzone";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +37,7 @@ import {
 } from "@/lib/profile-projects";
 import { projectTypeLabel } from "@/lib/project-links";
 import { MANUAL_PROJECT_TYPES, type ManualProjectType } from "@/lib/project-taxonomy";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 interface AddProjectInput {

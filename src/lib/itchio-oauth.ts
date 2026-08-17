@@ -1,6 +1,5 @@
-import { toast } from "sonner";
-
 import { env } from "@/env";
+import { toast } from "@/lib/toast";
 
 /**
  * itch.io implicit-flow OAuth helpers, shared by the profile "connect"

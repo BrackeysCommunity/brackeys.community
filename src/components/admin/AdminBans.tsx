@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { AdminEmpty, AdminRow, AdminSection, errText } from "@/components/admin/AdminUI";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { timeAgo } from "@/lib/format-time";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 /**

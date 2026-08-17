@@ -2,10 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   EMAIL_IMMEDIATE,
+  NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,
   NOTIFICATION_DEFAULTS,
   NOTIFICATION_TYPES,
   renderNotificationText,
+  TYPES_BY_CATEGORY,
 } from "@/lib/notification-copy";
 
 describe("moderation notification copy", () => {
@@ -54,6 +56,18 @@ describe("notification type tables", () => {
     for (const type of NOTIFICATION_TYPES) {
       expect(NOTIFICATION_DEFAULTS[type], `defaults missing ${type}`).toBeDefined();
       expect(NOTIFICATION_CATEGORY[type], `category missing ${type}`).toBeDefined();
+    }
+  });
+
+  it("partitions every type into exactly one category bucket", () => {
+    // The inbox's category tab filters in SQL off these buckets, so a type
+    // missing from them is a notification the user can only find under All.
+    const bucketed = NOTIFICATION_CATEGORIES.flatMap((c) => TYPES_BY_CATEGORY[c]);
+    expect(bucketed.length).toBe(NOTIFICATION_TYPES.length);
+    for (const category of NOTIFICATION_CATEGORIES) {
+      for (const type of TYPES_BY_CATEGORY[category]) {
+        expect(NOTIFICATION_CATEGORY[type], `${type} bucketed under ${category}`).toBe(category);
+      }
     }
   });
 

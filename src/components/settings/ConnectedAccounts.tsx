@@ -2,7 +2,6 @@ import { DiscordIcon, GithubIcon, Link01Icon, UnavailableIcon } from "@hugeicons
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
+import { toast } from "@/lib/toast";
 
 /**
  * The OAuth identities that can *sign you in*, which is a different list

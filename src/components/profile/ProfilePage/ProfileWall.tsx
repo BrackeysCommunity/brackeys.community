@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import { CommentThread } from "@/components/comments/CommentThread";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 import { ProfileSectionHeader } from "./ProfileSectionHeader";

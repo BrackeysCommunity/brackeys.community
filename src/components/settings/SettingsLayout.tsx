@@ -8,6 +8,7 @@ import { Well } from "@/components/ui/well";
 import { MOTION_LABEL, useAppSettings, useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { EASE_OUT } from "@/lib/motion";
+import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 import { SETTINGS_TAB_META, SETTINGS_TABS } from "./settings-tabs";
@@ -46,6 +47,10 @@ function SettingsNav() {
             // pane — it animates itself in `SettingsPane`, and everything
             // around it holds still.
             viewTransition={false}
+            // The same cue the header cog's rows carry — these are the same
+            // five destinations. Click only: a rail you sweep past on the way
+            // to the pane shouldn't tick at you.
+            {...TOGGLE_CUE}
             className={cn(
               "relative flex items-center gap-2.5 rounded-t px-3 py-3 whitespace-nowrap transition-colors lg:rounded lg:rounded-l-none lg:pl-4",
               "text-muted-foreground hover:text-foreground",

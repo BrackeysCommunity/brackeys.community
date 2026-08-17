@@ -1,5 +1,5 @@
 import { os } from "@orpc/server";
-import { and, count, desc, eq, inArray, isNull, lt, lte, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -9,7 +9,14 @@ import {
   notifications,
   type NotificationType,
 } from "@/db/schema";
-import { NOTIFICATION_DEFAULTS, NOTIFICATION_TYPES } from "@/lib/notification-copy";
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY,
+  NOTIFICATION_DEFAULTS,
+  NOTIFICATION_TYPES,
+  TYPES_BY_CATEGORY,
+  type NotificationCategory,
+} from "@/lib/notification-copy";
 import {
   isEmailGloballyDisabled,
   setEmailsDisabled as setEmailsDisabledForUser,
@@ -38,6 +45,10 @@ const inAppVisible: SQL = or(
   eq(notificationPreferences.inApp, true),
 )!;
 
+const categorySchema = z.enum(
+  NOTIFICATION_CATEGORIES as [NotificationCategory, ...NotificationCategory[]],
+);
+
 export const listNotifications = os
   .use(requireAuth)
   .input(
@@ -45,12 +56,19 @@ export const listNotifications = os
       cursor: z.number().optional(),
       limit: z.number().min(1).max(50).default(20),
       unreadOnly: z.boolean().optional(),
+      /** Narrows to one inbox tab. Filtering here rather than over the
+       *  loaded pages is what keeps a quiet category from looking empty
+       *  until the reader has scrolled the busy ones into memory. */
+      category: categorySchema.optional(),
     }),
   )
   .handler(async ({ input, context }) => {
     const conditions = [eq(notifications.userId, context.user.id), inAppVisible];
     if (input.cursor !== undefined) conditions.push(lt(notifications.id, input.cursor));
     if (input.unreadOnly) conditions.push(isNull(notifications.readAt));
+    if (input.category) {
+      conditions.push(inArray(notifications.type, TYPES_BY_CATEGORY[input.category]));
+    }
 
     const rows = await db
       .select({
@@ -91,6 +109,49 @@ export const unreadCount = os
         and(eq(notifications.userId, context.user.id), isNull(notifications.readAt), inAppVisible),
       );
     return { count: row?.count ?? 0 };
+  });
+
+/**
+ * Totals for the inbox masthead and its tab badges, in one round trip. The
+ * grouping is by type — the category rollup happens here rather than in a
+ * SQL `CASE` so `NOTIFICATION_CATEGORY` stays the only place the mapping is
+ * written down.
+ */
+export const countNotifications = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    const rows = await db
+      .select({
+        type: notifications.type,
+        total: count(),
+        unread: sql<number>`count(*) filter (where ${notifications.readAt} is null)`.mapWith(
+          Number,
+        ),
+      })
+      .from(notifications)
+      .leftJoin(notificationPreferences, inAppPreferenceJoin)
+      .where(and(eq(notifications.userId, context.user.id), inAppVisible))
+      .groupBy(notifications.type);
+
+    const byCategory = Object.fromEntries(
+      NOTIFICATION_CATEGORIES.map((c) => [c, { total: 0, unread: 0 }]),
+    ) as Record<NotificationCategory, { total: number; unread: number }>;
+
+    let total = 0;
+    let unread = 0;
+    for (const row of rows) {
+      total += row.total;
+      unread += row.unread;
+      // A type retired from the copy tables can still have rows in the
+      // table; it counts toward the totals but belongs to no tab.
+      const category = NOTIFICATION_CATEGORY[row.type];
+      if (!category) continue;
+      byCategory[category].total += row.total;
+      byCategory[category].unread += row.unread;
+    }
+
+    return { total, unread, byCategory };
   });
 
 export const markRead = os

@@ -4,7 +4,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -17,6 +16,7 @@ import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { profileLinkParams } from "@/lib/profile-links";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 import type { ProjectContributor } from "./types";

@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { initSound, setSoundEnabled } from "@/lib/sound";
+import { initSound, setSoundEnabled, setSoundVolume } from "@/lib/sound";
 
 /** The stored motion preference. `system` defers to the OS-level
  * `prefers-reduced-motion`; `reduced`/`full` are explicit overrides. */
@@ -40,12 +40,18 @@ interface AppSettingsValue {
    * Persisted here; the sound layer itself stores nothing. */
   muted: boolean;
   setMuted: (next: boolean) => void;
+  /** Cue loudness, 0–1, where 1 is the app's tuned level rather than
+   * cuelume's raw output. Independent of `muted`: turning sound back on
+   * restores the volume it was at. */
+  volume: number;
+  setVolume: (next: number) => void;
 }
 
 const Ctx = createContext<AppSettingsValue | null>(null);
 
 const REDUCE_MOTION_KEY = "brackeys-reduce-motion";
 const MUTED_KEY = "brackeys-muted";
+const VOLUME_KEY = "brackeys-volume";
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
 /** Read the stored motion preference. Legacy boolean values migrate at
@@ -72,6 +78,22 @@ function readBool(key: string): boolean {
     return localStorage.getItem(key) === "1";
   } catch {
     return false;
+  }
+}
+
+/** Read the stored 0–1 volume, defaulting to full when missing or
+ * unparseable. SSR-safe. */
+function readVolume(): number {
+  if (typeof window === "undefined") return 1;
+  try {
+    // `Number(null)` is 0, so a missing key has to be ruled out before
+    // parsing — otherwise a first-time visitor lands on silent.
+    const raw = localStorage.getItem(VOLUME_KEY);
+    if (raw === null) return 1;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 1;
+  } catch {
+    return 1;
   }
 }
 
@@ -103,6 +125,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   // motion-on first render would flash animations at reduced-motion users.
   const [motionPref, setMotionPrefState] = useState<MotionPref>(readMotionPref);
   const [muted, setMutedState] = useState(() => readBool(MUTED_KEY));
+  const [volume, setVolumeState] = useState(readVolume);
 
   const nativeReduced = useSyncExternalStore(
     subscribeNativeReduce,
@@ -120,8 +143,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   }, [reduceMotion]);
 
   // Interaction sounds: one document-wide delegation, then the stored mute
-  // mirrored onto it. `muted` initializes synchronously from storage, so a
-  // persisted mute lands before anything is clickable.
+  // and volume mirrored onto it. Both initialize synchronously from storage,
+  // so a persisted preference lands before anything is clickable.
   useEffect(() => {
     initSound();
   }, []);
@@ -129,6 +152,10 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     setSoundEnabled(!muted);
   }, [muted]);
+
+  useEffect(() => {
+    setSoundVolume(volume);
+  }, [volume]);
 
   const setMotionPref = useCallback((next: MotionPref) => {
     setMotionPrefState(next);
@@ -140,8 +167,20 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     writeString(MUTED_KEY, next ? "1" : "0");
   }, []);
 
+  const setVolume = useCallback((next: number) => {
+    const clamped = Math.min(Math.max(next, 0), 1);
+    setVolumeState(clamped);
+    // Also applied here, not just in the effect above: the settings slider
+    // plays a cue to preview the level it just set, and that call happens in
+    // the same handler — before any effect has run.
+    setSoundVolume(clamped);
+    writeString(VOLUME_KEY, String(clamped));
+  }, []);
+
   return (
-    <Ctx.Provider value={{ motionPref, setMotionPref, reduceMotion, muted, setMuted }}>
+    <Ctx.Provider
+      value={{ motionPref, setMotionPref, reduceMotion, muted, setMuted, volume, setVolume }}
+    >
       {children}
     </Ctx.Provider>
   );

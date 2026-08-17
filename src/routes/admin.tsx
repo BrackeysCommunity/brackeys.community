@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { motion } from "framer-motion";
 import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
@@ -10,10 +9,7 @@ import { AdminReportQueue } from "@/components/admin/AdminReportQueue";
 import { AdminSkills } from "@/components/admin/AdminSkills";
 import { AdminHero } from "@/components/admin/AdminUI";
 import { AdminVocabulary } from "@/components/admin/AdminVocabulary";
-import { useAnimatedUnderline } from "@/components/profile/ProfilePage/useAnimatedUnderline";
-import { Badge } from "@/components/ui/badge";
-import { PAGE_CUES } from "@/lib/sound";
-import { cn } from "@/lib/utils";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { client, orpc } from "@/orpc/client";
 
 // Named `section` rather than `view` so it doesn't widen the router-wide
@@ -34,8 +30,6 @@ const TABS: { key: View; label: string }[] = [
   { key: "vocab", label: "Vocabulary" },
   { key: "bans", label: "Bans" },
 ];
-
-const TAB_IDS = TABS.map((t) => t.key);
 
 /**
  * The staff surface. Linked from the user menu for staff only; everyone else
@@ -91,10 +85,6 @@ function AdminRoute() {
   const { section } = Route.useSearch();
   const navigate = useNavigate();
   const counts = useQueueCounts();
-  const { containerRef, registerTab, motionStyle } = useAnimatedUnderline({
-    active: section,
-    tabIds: TAB_IDS,
-  });
 
   const setView = (next: View) =>
     navigate({
@@ -113,47 +103,12 @@ function AdminRoute() {
         ]}
       />
 
-      {/* Same animated-underline strip as the create-post wizard and the
-          profile flyout. The bar is one element pinned to the strip's
-          bottom, so a tab carrying a count badge can't drag its own
-          underline out of line with the rest.
-          The scroll box is the outer div: an absolutely-positioned child
-          of a scrolling container measures against a box that moves under
-          it, which would desync the bar once the tabs overflow. */}
-      <div className="overflow-x-auto border-b border-muted/30">
-        <div ref={containerRef} className="relative flex w-max min-w-full items-stretch gap-1">
-          {TABS.map((tab) => {
-            const active = section === tab.key;
-            const count = counts[tab.key] ?? 0;
-            return (
-              <button
-                key={tab.key}
-                ref={registerTab(tab.key)}
-                type="button"
-                onClick={() => setView(tab.key)}
-                aria-current={active ? "page" : undefined}
-                {...PAGE_CUES}
-                className={cn(
-                  "relative flex cursor-pointer items-center gap-1.5 px-3 py-3 font-mono text-[10px] tracking-widest whitespace-nowrap uppercase transition-colors",
-                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.label}
-                {count > 0 && (
-                  <Badge size="label" variant={active ? "default" : "secondary"}>
-                    {count}
-                  </Badge>
-                )}
-              </button>
-            );
-          })}
-          <motion.span
-            aria-hidden
-            style={motionStyle}
-            className="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-primary"
-          />
-        </div>
-      </div>
+      <UnderlineTabs
+        tabs={TABS.map((tab) => ({ ...tab, count: counts[tab.key] }))}
+        active={section}
+        label="Admin section"
+        onSelect={setView}
+      />
 
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}

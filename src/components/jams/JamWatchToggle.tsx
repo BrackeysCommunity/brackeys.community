@@ -2,10 +2,10 @@ import { CheckmarkCircle02Icon, EyeIcon, ViewOffSlashIcon } from "@hugeicons/cor
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { authStore } from "@/lib/auth-store";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 

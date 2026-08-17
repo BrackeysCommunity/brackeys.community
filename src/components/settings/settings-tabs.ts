@@ -19,6 +19,11 @@ export const SETTINGS_TABS = [
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
+/** The sections stored in this browser rather than on an account. The rest
+ * only have a signed-out notice to show, so surfaces that adapt to the
+ * viewer — the header cog — offer these alone. */
+export const LOCAL_SETTINGS_TABS: readonly SettingsTab[] = ["appearance", "motion"];
+
 /** `to` is a literal so `Link` keeps its path type-checking. Each entry is
  * a real child route under the `/settings` layout — the pane swaps under a
  * nav that never unmounts. */

@@ -26,6 +26,24 @@ const PULL_AWAY_VOLUME = 0.45;
 const PULL_AWAY_GAP_MS = 150;
 
 /**
+ * Per-play volumes for the imperative cues, all relative to the global
+ * `setVolume`. These sound on their own rather than answering a click, so
+ * they sit under the click palette.
+ */
+const AMBIENT_VOLUME = {
+  /** Overlay dismissal, accordion collapse. */
+  dismiss: 0.5,
+  /** Accordion / collapsible expand. */
+  reveal: 0.55,
+  /** Incoming notification — meant to be noticed across the room. */
+  notification: 0.7,
+  /** A slow user-initiated job starting. */
+  progress: 0.5,
+  /** A toast arriving. */
+  toast: 0.6,
+} as const;
+
+/**
  * Cue bundles for the shared primitives. Spread these _before_ `{...props}`
  * so a call site can override a cue or drop it entirely. Empty values mean
  * "the default sound for this interaction"; a sound name overrides it.
@@ -64,8 +82,26 @@ export const PAGE_CUES = {
   "data-sound-pull-away": "",
 } as const;
 
+/** Close controls inside an overlay. Silent on click on purpose: the
+ * dismissal already sounds from the overlay root's open-change, and a close
+ * X that fires press, release *and* droplet reads as a stumble. */
+export const DISMISS_CUES = {
+  "data-cuelume-hover": HOVER_SOUND,
+  "data-cuelume-press": undefined,
+  "data-cuelume-release": undefined,
+  "data-sound-pull-away": "",
+} as const;
+
 export const HOVER_CUE = {
   "data-cuelume-hover": HOVER_SOUND,
+} as const;
+
+/** Nav links: a tick on hover, and on click the same `toggle` the settings
+ * rows use. No press/release — that pair belongs to a control that acts in
+ * place, not to a link already tearing the page down. */
+export const NAV_LINK_CUES = {
+  "data-cuelume-hover": HOVER_SOUND,
+  "data-cuelume-toggle": "",
 } as const;
 
 export const TOGGLE_CUE = {
@@ -80,6 +116,68 @@ export const DESTRUCTIVE_TOGGLE_CUE = {
 
 function isSoundName(value: unknown): value is SoundName {
   return typeof value === "string" && (sounds as readonly string[]).includes(value);
+}
+
+/**
+ * Base UI reports *why* a popup closed. Only a dismissal the user performed
+ * sounds: a programmatic close is almost always the tail of an action that
+ * already made its own noise — a saved form, a confirmed alert — and
+ * droplet-on-top-of-success reads as a stutter. `focus-out` and
+ * `sibling-open` are incidental and stay silent too.
+ */
+const DISMISSAL_REASONS: readonly string[] = [
+  "close-press",
+  "outside-press",
+  "escape-key",
+  "close-watcher",
+  "trigger-press",
+  "swipe",
+];
+
+/** Dismissing an overlay: dialog, sheet, alert dialog, drawer. Pass the Base
+ * UI close reason where there is one; vaul and other libraries that don't
+ * report one pass nothing and always sound. */
+export function playDismiss(reason?: string) {
+  if (reason !== undefined && !DISMISSAL_REASONS.includes(reason)) return;
+  play("droplet", { volume: AMBIENT_VOLUME.dismiss });
+}
+
+/** Accordion and collapsible panels: `bloom` opening, `droplet` closing —
+ * the same fall the overlays use, so "something went away" is one sound
+ * across the app. */
+export function playReveal(open: boolean) {
+  if (open) play("bloom", { volume: AMBIENT_VOLUME.reveal });
+  else play("droplet", { volume: AMBIENT_VOLUME.dismiss });
+}
+
+/** A notification arrived over the stream. */
+export function playNotification() {
+  play("chime", { volume: AMBIENT_VOLUME.notification });
+}
+
+/**
+ * A slow user-initiated job starting — work the user actually waits on, like
+ * an itch.io library import. Never a sub-second mutation, where this just
+ * doubles the noise of the toast that lands a moment later.
+ *
+ * There is deliberately no matching `ready` cue: every slow flow we have
+ * finishes with a toast, and the toast already sounds. A `ready` on top of
+ * it is a stutter, not a pair. `ready` stays unassigned until something
+ * finishes silently.
+ */
+export function playJobStart() {
+  play("loading", { volume: AMBIENT_VOLUME.progress });
+}
+
+/**
+ * A toast arriving, played by `@/lib/toast` — nothing else should call this.
+ *
+ * One cue for every outcome, not `success`/`error` per kind: a toast is a
+ * thing appearing, and `bloom` is that shape. The toast's own words and icon
+ * carry whether it went well.
+ */
+export function playToast() {
+  play("bloom", { volume: AMBIENT_VOLUME.toast });
 }
 
 let pullAwayBound = false;
@@ -157,16 +255,23 @@ export function bindPullAway() {
   );
 }
 
-/** Wires document-level delegation and sets the base volume. Idempotent:
- * both binds no-op on a second call, so React strict-mode remounts are fine. */
+/** Wires document-level delegation. Idempotent: both binds no-op on a second
+ * call, so React strict-mode remounts are fine. Volume is not set here —
+ * `AppSettingsProvider` owns it, and sets it from storage on the same
+ * mount. */
 export function initSound() {
   bind();
   bindPullAway();
-  setVolume(BASE_VOLUME);
 }
 
 /** Mirrors the app's `muted` preference. cuelume never touches storage —
  * persistence stays with `AppSettingsProvider`. */
 export function setSoundEnabled(enabled: boolean) {
   setEnabled(enabled);
+}
+
+/** The stored 0–1 volume preference, scaled by `BASE_VOLUME` so the slider's
+ * top end is the app's tuned level rather than cuelume's raw output. */
+export function setSoundVolume(volume: number) {
+  setVolume(Math.min(Math.max(volume, 0), 1) * BASE_VOLUME);
 }

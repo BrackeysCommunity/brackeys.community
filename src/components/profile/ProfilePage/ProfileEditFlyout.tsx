@@ -11,7 +11,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,18 +37,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
+import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { EASE_OUT } from "@/lib/motion";
 import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
 import type { ProfileSkill, ProfileViewModel } from "./helpers";
 import type { EditStep } from "./shared-types";
-import { useAnimatedUnderline } from "./useAnimatedUnderline";
 
 interface ProfileEditFlyoutProps {
   open: boolean;

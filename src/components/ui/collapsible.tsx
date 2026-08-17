@@ -1,7 +1,19 @@
 import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible";
 
-function Collapsible({ ...props }: CollapsiblePrimitive.Root.Props) {
-  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />;
+import { playReveal } from "@/lib/sound";
+
+function Collapsible({ onOpenChange, ...props }: CollapsiblePrimitive.Root.Props) {
+  return (
+    <CollapsiblePrimitive.Root
+      data-slot="collapsible"
+      onOpenChange={(open, eventDetails) => {
+        // Programmatic opens stay silent — only a press on the trigger.
+        if (eventDetails.reason === "trigger-press") playReveal(open);
+        onOpenChange?.(open, eventDetails);
+      }}
+      {...props}
+    />
+  );
 }
 
 function CollapsibleTrigger({ ...props }: CollapsiblePrimitive.Trigger.Props) {

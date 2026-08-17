@@ -80,6 +80,7 @@ import {
 import { countMembersByRole, countMembersBySkill, listMembers } from "./member";
 import {
   listNotifications,
+  countNotifications,
   unreadCount,
   markRead,
   markAllRead,
@@ -242,6 +243,7 @@ export default {
   updateSkill,
   deleteSkill,
   listNotifications,
+  countNotifications,
   unreadCount,
   markRead,
   markAllRead,

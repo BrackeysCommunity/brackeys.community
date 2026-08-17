@@ -14,7 +14,8 @@ import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
-import { BUTTON_CUES } from "@/lib/sound";
+import { HOVER_CUE, NAV_LINK_CUES } from "@/lib/sound";
+import { cn } from "@/lib/utils";
 
 /** Matches the `pt-14` the shell reserves for the bar — see `--app-header-shift`. */
 const HEADER_SHIFT = "-3.5rem";
@@ -27,16 +28,24 @@ const springTransition = {
 } as const;
 
 // The wrapper carries the cues rather than the `Link` inside it: cuelume
-// delegates via `closest()`, so a hover anywhere in the magnet's box resolves
-// here, and the nav sounds like the buttons it sits beside.
-function MagneticLink({ children, className }: { children: React.ReactNode; className?: string }) {
+// delegates via `closest()`, so a hover or click anywhere in the magnet's box
+// resolves here.
+function MagneticLink({
+  children,
+  className,
+  cues = NAV_LINK_CUES,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  cues?: Record<string, string | undefined>;
+}) {
   const { ref, position } = useMagnetic(HEADER_MAGNET_STRENGTH);
   return (
     <motion.div
       ref={ref as React.RefObject<HTMLDivElement>}
       data-magnetic
       data-cursor-corner-size="8"
-      {...BUTTON_CUES}
+      {...cues}
       animate={{ x: position.x, y: position.y }}
       transition={springTransition}
       className={className}
@@ -44,6 +53,21 @@ function MagneticLink({ children, className }: { children: React.ReactNode; clas
       {children}
     </motion.div>
   );
+}
+
+const NAV_ITEMS = [
+  { to: "/collab", label: "COLLAB", slug: "collab" },
+  { to: "/jams", label: "JAMS", slug: "jams" },
+  { to: "/teams", label: "TEAMS", slug: "teams" },
+  // Where PROFILE used to sit. The viewer's own profile is one click away in
+  // the user menu, so the bar spends the slot on a destination that isn't
+  // reachable anywhere else.
+  { to: "/members", label: "MEMBERS", slug: "members" },
+] as const;
+
+/** A section stays lit on its detail pages — `/jams/foo` is still JAMS. */
+function isActivePath(pathname: string, to: string) {
+  return pathname === to || pathname.startsWith(`${to}/`);
 }
 
 export function AppHeader() {
@@ -145,64 +169,59 @@ export function AppHeader() {
         {/* Desktop nav */}
         <div className="pointer-events-auto hidden items-center gap-6 lg:flex">
           <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
-            <MagneticLink>
-              <Link
-                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to="/collab"
-              >
-                COLLAB
-              </Link>
-            </MagneticLink>
-            <MagneticLink>
-              <Link
-                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to="/jams"
-              >
-                JAMS
-              </Link>
-            </MagneticLink>
-            <MagneticLink>
-              <Link
-                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to="/teams"
-              >
-                TEAMS
-              </Link>
-            </MagneticLink>
-            {/* Where PROFILE used to sit. The viewer's own profile is one
-                click away in the user menu, so the bar spends the slot on
-                a destination that isn't reachable anywhere else. */}
-            <MagneticLink>
-              <Link
-                data-testid="desktop-members-link"
-                className="px-2 py-1 text-foreground transition-colors hover:text-primary"
-                to="/members"
-              >
-                MEMBERS
-              </Link>
-            </MagneticLink>
+            {NAV_ITEMS.map((item) => {
+              const active = isActivePath(pathname, item.to);
+              return (
+                // The active item keeps the hover tick but drops the page
+                // toggle: nothing is about to tear down.
+                <MagneticLink key={item.to} cues={active ? HOVER_CUE : NAV_LINK_CUES}>
+                  <Link
+                    data-testid={`desktop-${item.slug}-link`}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "relative px-2 py-1 transition-colors after:absolute after:inset-x-2 after:-bottom-0.5 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:content-['']",
+                      active
+                        ? "cursor-default text-primary after:scale-x-100"
+                        : "text-foreground after:scale-x-0 hover:text-primary",
+                    )}
+                    to={item.to}
+                    onClick={(e) => {
+                      // Re-navigating to where you already are restarts the
+                      // page transition for no reason.
+                      if (active) e.preventDefault();
+                    }}
+                  >
+                    {item.label}
+                  </Link>
+                </MagneticLink>
+              );
+            })}
           </nav>
 
-          {session?.user ? (
-            // Tighter than the nav's gap-6 — these three read as one control
-            // cluster rather than three more nav destinations.
-            <div className="flex items-center gap-2">
-              <SettingsMenu />
-              {/* Before the bell: an outstanding decision outranks an unread
-                  event, and this one renders only when there is one. */}
-              <AttentionMenu />
-              <NotificationBell />
-              <UserMenu user={session.user} compact />
-            </div>
-          ) : (
-            <Button
-              variant="default"
-              className="px-5 text-xs font-bold tracking-widest"
-              onClick={() => signInWithDiscord()}
-            >
-              LOGIN
-            </Button>
-          )}
+          {/* Tighter than the nav's gap-6 — these read as one control cluster
+              rather than more nav destinations. The cog sits outside the
+              session branch: theme, motion, and sound are browser-local, so
+              signed-out visitors get the same one-click access to them. */}
+          <div className="flex items-center gap-2">
+            <SettingsMenu />
+            {session?.user ? (
+              <>
+                {/* Before the bell: an outstanding decision outranks an unread
+                    event, and this one renders only when there is one. */}
+                <AttentionMenu />
+                <NotificationBell />
+                <UserMenu user={session.user} compact />
+              </>
+            ) : (
+              <Button
+                variant="default"
+                className="px-5 text-xs font-bold tracking-widest"
+                onClick={() => signInWithDiscord()}
+              >
+                LOGIN
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Mobile page title + menu button */}
@@ -235,55 +254,51 @@ export function AppHeader() {
             className="pointer-events-auto fixed inset-x-0 top-[57px] z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
           >
             <nav className="flex flex-col gap-1 p-4">
-              <Link
-                to="/collab"
-                onClick={() => setMobileMenuOpen(false)}
-                {...BUTTON_CUES}
-                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
-              >
-                COLLAB
-              </Link>
-              <Link
-                to="/jams"
-                onClick={() => setMobileMenuOpen(false)}
-                {...BUTTON_CUES}
-                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
-              >
-                JAMS
-              </Link>
-              <Link
-                to="/teams"
-                onClick={() => setMobileMenuOpen(false)}
-                {...BUTTON_CUES}
-                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
-              >
-                TEAMS
-              </Link>
-              <Link
-                data-testid="mobile-members-link"
-                to="/members"
-                onClick={() => setMobileMenuOpen(false)}
-                {...BUTTON_CUES}
-                className="px-4 py-3 text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
-              >
-                MEMBERS
-              </Link>
-              <div className="mt-2 flex items-center justify-end border-t border-muted/20 px-4 pt-3">
+              {NAV_ITEMS.map((item) => {
+                const active = isActivePath(pathname, item.to);
+                return (
+                  <Link
+                    key={item.to}
+                    data-testid={`mobile-${item.slug}-link`}
+                    to={item.to}
+                    aria-current={active ? "page" : undefined}
+                    onClick={(e) => {
+                      if (active) e.preventDefault();
+                      setMobileMenuOpen(false);
+                    }}
+                    {...(active ? HOVER_CUE : NAV_LINK_CUES)}
+                    className={cn(
+                      "border-l-2 px-4 py-3 text-sm font-bold tracking-widest transition-colors",
+                      active
+                        ? "cursor-default border-primary bg-primary/10 text-primary"
+                        : "border-transparent text-foreground hover:bg-primary/5 hover:text-primary",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <div className="mt-2 flex items-center justify-end gap-2 border-t border-muted/20 px-4 pt-3">
                 {session?.user ? (
+                  // The full user menu already carries a settings row; the
+                  // cog would be a second door to the same place.
                   <UserMenu user={session.user} />
                 ) : (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="text-xs font-bold tracking-widest"
-                    onClick={() => {
-                      void signInWithDiscord({
-                        fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },
-                      });
-                    }}
-                  >
-                    LOGIN
-                  </Button>
+                  <>
+                    <SettingsMenu />
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="text-xs font-bold tracking-widest"
+                      onClick={() => {
+                        void signInWithDiscord({
+                          fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },
+                        });
+                      }}
+                    >
+                      LOGIN
+                    </Button>
+                  </>
                 )}
               </div>
             </nav>

@@ -2,7 +2,6 @@ import { Edit02Icon, Share05Icon, UserBlock01Icon } from "@hugeicons/core-free-i
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 

@@ -9,7 +9,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,7 @@ import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { profileLinkParams } from "@/lib/profile-links";
+import { toast } from "@/lib/toast";
 
 import { ActiveSessions } from "./ActiveSessions";
 import { ConnectedAccounts } from "./ConnectedAccounts";

@@ -2,7 +2,6 @@ import { Add01Icon, Cancel01Icon, PencilEdit01Icon } from "@hugeicons/core-free-
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import {
   AdminEmpty,
@@ -19,6 +18,7 @@ import { Section } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 

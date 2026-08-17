@@ -1,13 +1,14 @@
 import { RefreshIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { describeResyncImport } from "@/lib/itchio-import-copy";
+import { playJobStart } from "@/lib/sound";
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 import type { ProfileItchSync } from "./helpers";
@@ -33,6 +34,10 @@ export function ProfileSyncBar({ itch, isOwner, queryKey }: ProfileSyncBarProps)
   const qc = useQueryClient();
   const resync = useMutation({
     mutationFn: () => client.importItchIoGames({}),
+    // A whole itch.io library import — long enough that the user is left
+    // waiting, which is the bar this cue has to clear. The toast at the end
+    // is the other half.
+    onMutate: playJobStart,
     onSuccess: (result) => {
       if (queryKey) void qc.invalidateQueries({ queryKey });
       toast.success(describeResyncImport(result));

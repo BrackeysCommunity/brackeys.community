@@ -10,7 +10,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
 import { NOTIFICATION_CATEGORY, type NotificationCategory } from "@/lib/notification-copy";
@@ -305,13 +305,21 @@ export function NotificationRow({
 }: NotificationRowProps) {
   const { line, href } = renderCopy(n);
   const isComfortable = density === "comfortable";
+  const category = categoryOf(n.type);
 
   const Body = (
     <div
       className={cn(
         "flex gap-2.5 border-b border-muted/30 transition-colors last:border-b-0 hover:bg-muted/20",
         isComfortable ? "px-4 py-3" : "px-3 py-2.5",
+        // Unread reads off the left edge in the inbox — a wash alone is
+        // hard to see against a full column of rows, and the accent scans
+        // as a stack of what's left to deal with.
         !n.readAt && "bg-primary/5",
+        // The rail is on every comfortable row, coloured only when unread,
+        // so a row changing state doesn't shift its own text sideways.
+        isComfortable && "border-l-2",
+        isComfortable && (n.readAt ? "border-l-transparent" : "border-l-primary"),
       )}
     >
       {n.actorId ? (
@@ -331,7 +339,17 @@ export function NotificationRow({
           {timeAgo(n.createdAt)}
         </Text>
       </div>
-      {!n.readAt && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+      {/* The category is already legible from the copy at popover width;
+          in the inbox it earns its place as the column that lets a reader
+          skim for one kind of thing without switching tabs. */}
+      {isComfortable && category && (
+        <MicroLabel as="span" className="mt-0.5 hidden shrink-0 uppercase sm:inline">
+          {category}
+        </MicroLabel>
+      )}
+      {!n.readAt && !isComfortable && (
+        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+      )}
     </div>
   );
 
@@ -364,7 +382,7 @@ export function NotificationRowsSkeleton({
           key={i}
           className={cn(
             "flex gap-2.5 border-b border-muted/30 last:border-b-0",
-            isComfortable ? "px-4 py-3" : "px-3 py-2.5",
+            isComfortable ? "border-l-2 border-l-transparent px-4 py-3" : "px-3 py-2.5",
           )}
         >
           <Skeleton

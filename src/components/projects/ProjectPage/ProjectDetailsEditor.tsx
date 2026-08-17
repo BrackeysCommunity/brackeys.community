@@ -3,7 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +29,7 @@ import {
   RELEASE_STATUSES,
   type ReleaseStatus,
 } from "@/lib/project-taxonomy";
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 import type { ProjectRow } from "./types";
