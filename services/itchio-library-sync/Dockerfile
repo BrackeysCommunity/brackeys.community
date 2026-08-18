@@ -29,6 +29,11 @@ COPY src/lib/project-taxonomy.ts ./src/lib/project-taxonomy.ts
 COPY src/lib/itch-urls.ts ./src/lib/itch-urls.ts
 COPY src/lib/itchio.ts ./src/lib/itchio.ts
 COPY src/lib/token-crypto.ts ./src/lib/token-crypto.ts
+COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
+
+# The copied root files under /app/src import bare specifiers (posthog-node,
+# drizzle-orm), which resolve up from /app — not from the service dir.
+RUN ln -s /app/services/itchio-library-sync/node_modules /app/node_modules
 
 WORKDIR /app/services/itchio-library-sync
 CMD ["bun", "run", "start"]

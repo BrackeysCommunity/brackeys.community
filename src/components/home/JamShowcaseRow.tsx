@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -97,13 +98,16 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
               className="absolute inset-0 h-full w-full object-contain"
             />
           ) : (
-            <Text
-              bold
-              density="dense"
-              className="absolute inset-0 flex items-center justify-center text-3xl tracking-tighter text-foreground/40"
-            >
-              {shortName(jam.title)}
-            </Text>
+            <>
+              <DotGrid className="absolute inset-0" />
+              <Text
+                bold
+                density="dense"
+                className="absolute inset-0 flex items-center justify-center text-3xl tracking-tighter text-foreground/40"
+              >
+                {shortName(jam.title)}
+              </Text>
+            </>
           )}
           <div className="absolute top-2 left-2">
             <Badge variant={badge.variant} size="label">
@@ -214,13 +218,16 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
             className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (
-          <Text
-            bold
-            density="dense"
-            className="absolute inset-0 flex items-center justify-center text-xl tracking-tighter text-foreground/40"
-          >
-            {shortName(jam.title)}
-          </Text>
+          <>
+            <DotGrid className="absolute inset-0" />
+            <Text
+              bold
+              density="dense"
+              className="absolute inset-0 flex items-center justify-center text-xl tracking-tighter text-foreground/40"
+            >
+              {shortName(jam.title)}
+            </Text>
+          </>
         )}
         <div className="absolute top-2 left-2">
           <Badge variant={badge.variant} size="label">
@@ -313,7 +320,7 @@ function EntryTile({ entry }: { entry: RecentEntry }) {
         className="relative aspect-[63/50] w-full overflow-hidden border border-muted/40 transition-colors group-hover/entry:border-primary"
         style={{ background: cover }}
       >
-        {entry.gameCoverUrl && (
+        {entry.gameCoverUrl ? (
           <img
             src={itchImageUrl(entry.gameCoverUrl, { width: 384 })}
             alt=""
@@ -321,6 +328,8 @@ function EntryTile({ entry }: { entry: RecentEntry }) {
             loading="lazy"
             className="h-full w-full object-cover"
           />
+        ) : (
+          <DotGrid />
         )}
         {entry.rank != null && (
           <div className="absolute top-1 left-1">

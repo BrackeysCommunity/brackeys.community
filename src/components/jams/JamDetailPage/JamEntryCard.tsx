@@ -1,6 +1,7 @@
 import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -48,7 +49,9 @@ export function JamEntryCard({
             decoding="async"
             className="h-full w-full object-cover"
           />
-        ) : null}
+        ) : (
+          <DotGrid />
+        )}
         {entry.rank != null ? (
           <div className="absolute top-1 left-1">
             <Badge variant={entry.rank <= 3 ? "default" : "secondary"} size="label">

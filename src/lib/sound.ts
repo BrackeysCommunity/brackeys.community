@@ -3,8 +3,8 @@ import { bind, play, setEnabled, setVolume, sounds, type SoundName } from "cuelu
 /**
  * The app's interaction-sound layer. Nothing outside this module imports
  * `cuelume` directly: the palette lives here, volume tuning happens here, and
- * so does the one cue cuelume has no attribute for — a hush when the pointer
- * pulls away from a button.
+ * so do the two cues we bind ourselves — the hover tick, and a hush when the
+ * pointer pulls away from a button.
  *
  * Playback is a no-op until `setSoundEnabled(true)`-equivalent state is right:
  * `AppSettingsProvider` owns that, mirroring the stored `muted` preference.
@@ -18,12 +18,19 @@ export type { SoundName };
 export const BASE_VOLUME = 0.5;
 
 const HOVER_SOUND: SoundName = "tick";
+const HOVER_ATTR = "data-sound-hover";
 const PULL_AWAY_SOUND: SoundName = "whisper";
+const PULL_AWAY_ATTR = "data-sound-pull-away";
 /** The pull-away sits under the press cue so an abandoned press ends on a
  * hush rather than a second equal beep. */
 const PULL_AWAY_VOLUME = 0.45;
-/** Same figure cuelume throttles its own hover cue by. */
-const PULL_AWAY_GAP_MS = 150;
+/** The minimum gap between two cues of the same kind. cuelume uses the same
+ * figure for its own hover cue. */
+const CUE_GAP_MS = 150;
+/** How long after a scroll a stationary pointer still counts as having
+ * arrived somewhere. Scroll events fire continuously while one is in
+ * progress, so the boundary events land well inside this. */
+const SCROLL_GRACE_MS = 100;
 
 /**
  * Per-play volumes for the imperative cues, all relative to the global
@@ -48,6 +55,9 @@ const AMBIENT_VOLUME = {
  * so a call site can override a cue or drop it entirely. Empty values mean
  * "the default sound for this interaction"; a sound name overrides it.
  *
+ * `data-cuelume-*` is the library's namespace; `data-sound-*` is ours, for
+ * the two cues `bindHover` and `bindPullAway` handle below.
+ *
  * The bundles that replace a button's click cue carry explicit `undefined`s
  * for `press`/`release`. That is what lets them win when they land on
  * something that is *already* a `Button` — a dropdown trigger rendered as
@@ -55,7 +65,7 @@ const AMBIENT_VOLUME = {
  * element the `undefined`s simply render nothing.
  */
 export const BUTTON_CUES = {
-  "data-cuelume-hover": HOVER_SOUND,
+  "data-sound-hover": HOVER_SOUND,
   "data-cuelume-press": "",
   "data-cuelume-release": "",
   "data-sound-pull-away": "",
@@ -65,7 +75,7 @@ export const BUTTON_CUES = {
  * pair, and a heavier pull-away, so a destructive control never sounds
  * like an ordinary one. */
 export const DESTRUCTIVE_BUTTON_CUES = {
-  "data-cuelume-hover": HOVER_SOUND,
+  "data-sound-hover": HOVER_SOUND,
   "data-cuelume-press": undefined,
   "data-cuelume-release": undefined,
   "data-cuelume-toggle": "error",
@@ -75,7 +85,7 @@ export const DESTRUCTIVE_BUTTON_CUES = {
 /** Anything that opens or advances a surface rather than committing an
  * action: dropdown triggers, submenu triggers, stepper and tab strips. */
 export const PAGE_CUES = {
-  "data-cuelume-hover": HOVER_SOUND,
+  "data-sound-hover": HOVER_SOUND,
   "data-cuelume-press": undefined,
   "data-cuelume-release": undefined,
   "data-cuelume-toggle": "page",
@@ -86,21 +96,21 @@ export const PAGE_CUES = {
  * dismissal already sounds from the overlay root's open-change, and a close
  * X that fires press, release *and* droplet reads as a stumble. */
 export const DISMISS_CUES = {
-  "data-cuelume-hover": HOVER_SOUND,
+  "data-sound-hover": HOVER_SOUND,
   "data-cuelume-press": undefined,
   "data-cuelume-release": undefined,
   "data-sound-pull-away": "",
 } as const;
 
 export const HOVER_CUE = {
-  "data-cuelume-hover": HOVER_SOUND,
+  "data-sound-hover": HOVER_SOUND,
 } as const;
 
 /** Nav links: a tick on hover, and on click the same `toggle` the settings
  * rows use. No press/release — that pair belongs to a control that acts in
  * place, not to a link already tearing the page down. */
 export const NAV_LINK_CUES = {
-  "data-cuelume-hover": HOVER_SOUND,
+  "data-sound-hover": HOVER_SOUND,
   "data-cuelume-toggle": "",
 } as const;
 
@@ -180,6 +190,90 @@ export function playToast() {
   play("bloom", { volume: AMBIENT_VOLUME.toast });
 }
 
+let hoverBound = false;
+/** When each element last ticked. cuelume keys its own hover throttle off a
+ * single module-level timestamp, which is what this replaces. */
+const lastHoverAt = new WeakMap<Element, number>();
+/** Where the pointer was last actually seen. NaN until the first event, so
+ * the first hover of a session always sounds. */
+let lastPointerX = Number.NaN;
+let lastPointerY = Number.NaN;
+let lastScrollAt = -Infinity;
+
+/**
+ * The hover cue, ours rather than cuelume's `data-cuelume-hover`. Same
+ * delegated shape and the same gap, but measured per element: the library's
+ * one shared timestamp means a pointer sweeping a toolbar or a card grid
+ * ticks on the first control and drops every one it crosses inside the
+ * window.
+ *
+ * A cue also requires the pointer to have *moved* since we last saw it —
+ * unless the page just scrolled. The browser fires a real `pointerenter`
+ * whenever the element under a stationary pointer is replaced, and the two
+ * ways that happens want opposite answers: a scroll carrying a fresh control
+ * under the cursor is a hover, while a re-render swapping out the control
+ * already there is the page catching up with a click that has already
+ * sounded. Position and a scroll stamp separate them; a grace period after
+ * the click can't, because a route change takes however long it takes.
+ *
+ * `pointerenter` doesn't bubble, so the listener has to be capture-phase to
+ * see it — and that in turn makes the `relatedTarget` containment check
+ * load-bearing, since a button holding an icon and a label would otherwise
+ * tick again each time the pointer crossed between them.
+ */
+export function bindHover() {
+  if (typeof document === "undefined" || hoverBound) return;
+  hoverBound = true;
+
+  // Keeps the position current across the stretches where nothing is
+  // hovered, so leaving a button and coming back to it still sounds.
+  document.addEventListener(
+    "pointermove",
+    (event) => {
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+    },
+    { capture: true, passive: true },
+  );
+
+  // Capture, because `scroll` doesn't bubble off a scroll container.
+  document.addEventListener(
+    "scroll",
+    () => {
+      lastScrollAt = performance.now();
+    },
+    { capture: true, passive: true },
+  );
+
+  document.addEventListener(
+    "pointerenter",
+    (event) => {
+      if (event.pointerType !== "mouse") return;
+      if (!(event.target instanceof Element)) return;
+
+      const element = event.target.closest(`[${HOVER_ATTR}]`);
+      if (!element) return;
+
+      const related = event.relatedTarget;
+      if (related instanceof Node && element.contains(related)) return;
+      if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+
+      const now = performance.now();
+      const moved = event.clientX !== lastPointerX || event.clientY !== lastPointerY;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      if (!moved && now - lastScrollAt > SCROLL_GRACE_MS) return;
+
+      if (now - (lastHoverAt.get(element) ?? -Infinity) < CUE_GAP_MS) return;
+      lastHoverAt.set(element, now);
+
+      const requested = element.getAttribute(HOVER_ATTR);
+      play(isSoundName(requested) ? requested : HOVER_SOUND);
+    },
+    true,
+  );
+}
+
 let pullAwayBound = false;
 let lastPullAwayAt = -Infinity;
 /** The element a mouse press started on, for as long as that press is held. */
@@ -193,8 +287,9 @@ let pressedPointerId: number | null = null;
  * hover-out stays quiet.
  *
  * Written in cuelume's own delegated style, since it ships no leave-side
- * attribute: document-level listeners, fine mouse pointers only, globally
- * throttled. `pointerout` rather than `pointerleave` because `pointerleave`
+ * attribute: document-level listeners, fine mouse pointers only. Throttled
+ * globally rather than per element — one abandoned press at a time is the
+ * only thing that can happen anyway. `pointerout` rather than `pointerleave` because `pointerleave`
  * doesn't bubble and so can't be delegated — which makes the `relatedTarget`
  * containment check load-bearing: without it, a button holding an icon and a
  * label would fire every time the pointer crossed between them mid-press.
@@ -219,7 +314,7 @@ export function bindPullAway() {
         return;
       }
       pressedElement =
-        event.target instanceof Element ? event.target.closest("[data-sound-pull-away]") : null;
+        event.target instanceof Element ? event.target.closest(`[${PULL_AWAY_ATTR}]`) : null;
       pressedPointerId = event.pointerId;
     },
     true,
@@ -237,7 +332,7 @@ export function bindPullAway() {
 
       // Leaving something other than the element being pressed — e.g. the
       // pointer was already off it and is now crossing other elements.
-      const element = event.target.closest("[data-sound-pull-away]");
+      const element = event.target.closest(`[${PULL_AWAY_ATTR}]`);
       if (element !== pressedElement) return;
 
       const related = event.relatedTarget;
@@ -245,22 +340,24 @@ export function bindPullAway() {
       if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
 
       const now = performance.now();
-      if (now - lastPullAwayAt < PULL_AWAY_GAP_MS) return;
+      if (now - lastPullAwayAt < CUE_GAP_MS) return;
       lastPullAwayAt = now;
 
-      const requested = element.getAttribute("data-sound-pull-away");
+      const requested = element.getAttribute(PULL_AWAY_ATTR);
       play(isSoundName(requested) ? requested : PULL_AWAY_SOUND, { volume: PULL_AWAY_VOLUME });
     },
     true,
   );
 }
 
-/** Wires document-level delegation. Idempotent: both binds no-op on a second
- * call, so React strict-mode remounts are fine. Volume is not set here —
+/** Wires document-level delegation. Idempotent: every bind no-ops on a second
+ * call, so React strict-mode remounts are fine. `bind()` still carries
+ * press, release and toggle; hover is ours. Volume is not set here —
  * `AppSettingsProvider` owns it, and sets it from storage on the same
  * mount. */
 export function initSound() {
   bind();
+  bindHover();
   bindPullAway();
 }
 

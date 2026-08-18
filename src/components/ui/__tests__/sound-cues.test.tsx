@@ -18,7 +18,7 @@ afterEach(cleanup);
 /** The cue attributes, as the DOM ends up carrying them. */
 function cues(el: Element) {
   return {
-    hover: el.getAttribute("data-cuelume-hover"),
+    hover: el.getAttribute("data-sound-hover"),
     press: el.getAttribute("data-cuelume-press"),
     release: el.getAttribute("data-cuelume-release"),
     toggle: el.getAttribute("data-cuelume-toggle"),

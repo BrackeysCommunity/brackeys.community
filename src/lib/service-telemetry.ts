@@ -4,9 +4,14 @@ import { PostHog } from "posthog-node";
  * Error reporting for the standalone Bun services (`services/*`).
  *
  * Lives at the repo root rather than in each service because they already
- * share code this way (`../../../src/lib/…`), and because the import
- * resolves `posthog-node` from the root's `node_modules` — so none of the
- * four services needs the dependency, or a lockfile change, of its own.
+ * share code this way (`../../../src/lib/…`).
+ *
+ * Each service does need `posthog-node` in its own `package.json`: the
+ * service images install only that service's `node_modules` and never copy
+ * the root's, so resolving through the repo root works locally and dies at
+ * container start. Each Dockerfile also has to `COPY` this file explicitly
+ * and expose a `/app/node_modules` symlink, since the bare specifier below
+ * resolves up from `/app`, not from the service directory.
  *
  * Separate from `@/lib/posthog-server` on purpose. That one is the web
  * app's: it hardcodes a distinct id, and its process handlers `exit(1)` on

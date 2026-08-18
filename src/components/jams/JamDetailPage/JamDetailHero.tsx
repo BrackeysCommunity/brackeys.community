@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { BACKDROP_TRANSFORM, itchImageSrcSet, itchImageUrl } from "@/lib/itch-image";
@@ -83,7 +84,9 @@ export function JamDetailHero({
             aria-hidden
             className="absolute inset-0"
             style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
-          />
+          >
+            <DotGrid />
+          </div>
         )}
         {/* Eases the art into the body so a light banner doesn't butt
             against the panel edge. */}

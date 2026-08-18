@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
+import { DotGrid } from "@/components/ui/dot-grid";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -57,7 +58,9 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
                     // cropping them destroys the poster.
                     className="h-full w-full object-contain"
                   />
-                ) : null}
+                ) : (
+                  <DotGrid />
+                )}
               </div>
               <Text
                 as="div"

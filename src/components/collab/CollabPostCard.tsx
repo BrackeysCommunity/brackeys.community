@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { MediaCardFloatingBadge, MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
@@ -248,7 +249,7 @@ export function CollabPostGridCard({
         className={cn(postCardClasses(selected, isClosed), "h-full flex-col overflow-hidden p-0")}
       >
         <span className="relative block h-36 w-full shrink-0 overflow-hidden bg-muted/20">
-          {post.primaryImageUrl ? <MediaCardImage src={post.primaryImageUrl} /> : <DotField />}
+          {post.primaryImageUrl ? <MediaCardImage src={post.primaryImageUrl} /> : <DotGrid />}
           <MediaCardScrim />
           <MediaCardFloatingBadge as="span">
             <Text as="span" size="xs" className="tracking-widest text-foreground uppercase">
@@ -325,29 +326,13 @@ function MatchBadge({ overlap }: { overlap?: { matched: string[]; total: number 
   );
 }
 
-/** Dotted placeholder for posts with no art. */
-function DotField() {
-  return (
-    <span
-      aria-hidden
-      className="block h-full w-full"
-      style={{
-        backgroundImage:
-          "radial-gradient(circle, var(--color-muted-foreground) 1px, transparent 1px)",
-        backgroundSize: "7px 7px",
-        opacity: 0.3,
-      }}
-    />
-  );
-}
-
 function CardThumb({ url }: { url: string | null }) {
   return (
     <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded border border-muted/40 bg-muted/30">
       {url ? (
         <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
       ) : (
-        <DotField />
+        <DotGrid />
       )}
     </span>
   );

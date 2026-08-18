@@ -16,6 +16,7 @@
     "drizzle-orm": "1.0.0-rc.4",
     "ioredis": "^5.4.2",
     "pg": "^8.20.0",
+    "posthog-node": "^5.49.1",
     "react": "^19.2.0",
     "resend": "^6.12.3",
     "zod": "^4.3.6"

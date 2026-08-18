@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { Text } from "@/components/ui/typography";
 import { itchImageUrl } from "@/lib/itch-image";
 import { type effectiveJamState } from "@/lib/jam-countdown";
@@ -18,6 +19,8 @@ type JamState = ReturnType<typeof effectiveJamState>;
 export function JamBannerArt({ jam, isCompact }: { jam: JamLike; isCompact: boolean }) {
   return (
     <>
+      {!jam.bannerUrl && <DotGrid className="absolute inset-0" />}
+
       {jam.bannerUrl && (
         <img
           src={itchImageUrl(jam.bannerUrl, { width: 960, quality: 70 })}

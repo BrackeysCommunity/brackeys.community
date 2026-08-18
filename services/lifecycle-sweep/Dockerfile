@@ -28,6 +28,7 @@ COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/jam-watch.ts ./src/lib/jam-watch.ts
 COPY src/lib/jam-watch-sweep.ts ./src/lib/jam-watch-sweep.ts
+COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 
 RUN ln -s /app/services/lifecycle-sweep/node_modules /app/node_modules
 

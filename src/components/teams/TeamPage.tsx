@@ -14,6 +14,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { PageStack } from "@/components/ui/page-motion";
@@ -593,20 +594,7 @@ function ShowcaseCard({ project }: { project: TeamProject }) {
   const body = (
     <>
       <span className="relative block h-32 w-full overflow-hidden border-b border-muted/40 bg-muted/20">
-        {project.imageUrl ? (
-          <MediaCardImage src={project.imageUrl} alt="" />
-        ) : (
-          <span
-            aria-hidden
-            className="block h-full w-full"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle, var(--color-muted-foreground) 1px, transparent 1px)",
-              backgroundSize: "7px 7px",
-              opacity: 0.3,
-            }}
-          />
-        )}
+        {project.imageUrl ? <MediaCardImage src={project.imageUrl} alt="" /> : <DotGrid />}
       </span>
       <span className="flex flex-1 flex-col gap-1 p-3">
         <span className="flex items-center gap-2">

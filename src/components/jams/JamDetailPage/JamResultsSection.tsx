@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { DotGrid } from "@/components/ui/dot-grid";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
@@ -131,7 +132,9 @@ function PodiumCard({
             decoding="async"
             className="h-full w-full object-cover"
           />
-        ) : null}
+        ) : (
+          <DotGrid />
+        )}
         <div className="absolute top-2 left-2">
           <Badge variant={place.rank === 1 ? "warning" : "secondary"} size="label">
             #{place.rank} / {entrantCount.toLocaleString()}

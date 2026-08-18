@@ -25,6 +25,7 @@ COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/unsubscribe.ts ./src/lib/unsubscribe.ts
 COPY src/lib/email.ts ./src/lib/email.ts
 COPY src/emails ./src/emails
+COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 
 RUN ln -s /app/services/notifications-worker/node_modules /app/node_modules
 
