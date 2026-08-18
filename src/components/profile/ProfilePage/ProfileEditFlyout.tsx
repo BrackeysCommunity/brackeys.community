@@ -766,6 +766,11 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
 
   const active = profile.skills.filter((s) => s.state === "active");
   const pending = profile.skills.filter((s) => s.state === "pending");
+  // Nothing stops the same skill being added twice server-side (no unique
+  // constraint on the join row), so the search has to be the guard —
+  // otherwise picking an already-listed skill again creates a second,
+  // indistinguishable chip.
+  const takenNames = new Set([...active, ...pending].map((s) => s.name.toLowerCase()));
 
   return (
     <FieldRow label="SKILLS" hint="add and remove tags inline">
@@ -788,6 +793,7 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
             />
           ))}
           <SkillSearch
+            takenNames={takenNames}
             onAdd={(skillId) => addSkill.mutate(skillId)}
             onRequest={(name) => requestSkill.mutate(name)}
           />
@@ -835,9 +841,13 @@ function PendingChip({ skill, onCancel }: { skill: ProfileSkill; onCancel: () =>
 }
 
 function SkillSearch({
+  takenNames,
   onAdd,
   onRequest,
 }: {
+  /** Lowercased names already active or pending for this profile —
+   * excluded from the add list so picking one twice isn't possible. */
+  takenNames: Set<string>;
   onAdd: (skillId: number) => void;
   onRequest: (name: string) => void;
 }) {
@@ -866,6 +876,7 @@ function SkillSearch({
 
   const trimmed = search.trim();
   const hasExact = results?.some((s) => s.name.toLowerCase() === trimmed.toLowerCase());
+  const addableResults = (results ?? []).filter((s) => !takenNames.has(s.name.toLowerCase()));
 
   return (
     <div ref={containerRef} className="relative">
@@ -882,7 +893,7 @@ function SkillSearch({
       />
       {open && trimmed ? (
         <div className="absolute top-full left-0 z-50 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-muted/60 bg-card shadow-lg">
-          {(results ?? []).map((skill) => (
+          {addableResults.map((skill) => (
             <button
               key={skill.id}
               type="button"

@@ -165,7 +165,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
 
   const skills: ProfileSkill[] = [
     ...rpc.skills.map<ProfileSkill>((s) => ({
-      id: s.skillId,
+      id: s.id,
       name: s.name,
       state: "active",
       category: s.category,

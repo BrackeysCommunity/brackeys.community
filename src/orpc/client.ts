@@ -72,11 +72,18 @@ const getORPCClient = createIsomorphicFn()
     // and its TanStack Query key (keys derive from the property path, not
     // from the client), and simply travels to the cached mount instead.
     //
-    // The decision is per property access, which is what lets the
-    // recent-write bypass work: a successful write (any non-read
-    // procedure, marked via the `apply` trap) flips public procedures
-    // onto the private `no-store` mount for the next window, so the
-    // writer reads their own write instead of the edge's pre-write copy
+    // The decision has to be made inside the `apply` trap — i.e. when the
+    // procedure is actually *called* — not inside `get`. `orpc.foo.queryOptions()`
+    // (createTanstackQueryUtils, @orpc/tanstack-query) reads `client.foo`
+    // once to build a `queryFn` closure, and that closure is only rebuilt
+    // when the component holding the `useQuery` call next renders. A write
+    // that lands in a sibling component (e.g. the profile edit flyout)
+    // doesn't re-render the page's own query — so `invalidateQueries`'s
+    // refetch runs whatever closure was captured on the *last* render,
+    // which can predate the write. Resolving `public` vs `private` at
+    // `get` time bakes that stale answer in; resolving it at `apply` time
+    // means every fetch, including a refetch from an old closure, checks
+    // `shouldBypassPublicCache()` fresh at the moment it actually goes out
     // (see src/orpc/recent-write.ts).
     //
     // Merging has to be a Proxy: an oRPC client is itself a Proxy with no
@@ -86,12 +93,20 @@ const getORPCClient = createIsomorphicFn()
         if (typeof name !== "string") {
           return (privateClient as Record<string | symbol, unknown>)[name];
         }
-        const source =
-          isPublicProcedure(name) && !shouldBypassPublicCache() ? publicClient : privateClient;
-        const procedure = (source as Record<string, unknown>)[name];
-        if (isPublicProcedure(name) || isReadName(name)) return procedure;
-        // The apply trap (vs. a plain wrapper function) keeps the oRPC
-        // procedure proxy's own properties reachable.
+        if (isPublicProcedure(name)) {
+          const publicProcedure = (publicClient as Record<string, unknown>)[name];
+          const privateProcedure = (privateClient as Record<string, unknown>)[name];
+          // The apply trap (vs. a plain wrapper function) keeps the oRPC
+          // procedure proxy's own properties reachable.
+          return new Proxy(publicProcedure as object, {
+            apply: (_target, thisArg, args: unknown[]) => {
+              const target = shouldBypassPublicCache() ? privateProcedure : publicProcedure;
+              return Reflect.apply(target as (...a: unknown[]) => unknown, thisArg, args);
+            },
+          });
+        }
+        const procedure = (privateClient as Record<string, unknown>)[name];
+        if (isReadName(name)) return procedure;
         return new Proxy(procedure as object, {
           apply: (target, thisArg, args: unknown[]) => {
             const result = Reflect.apply(target as (...a: unknown[]) => unknown, thisArg, args);
