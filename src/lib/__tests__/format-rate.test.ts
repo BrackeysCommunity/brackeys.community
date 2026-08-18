@@ -50,3 +50,31 @@ describe("formatRate", () => {
     expect(formatRate("rev_share", 0, 20)).toBe("0% - 20%");
   });
 });
+
+describe("formatRate — millions", () => {
+  it("collapses millions rather than printing a four-digit K", () => {
+    // Ten million used to render `$10000K`.
+    expect(formatRate("fixed", 10_000_000, null)).toBe("$10M+");
+    expect(formatRate("fixed", 1_000_000, null)).toBe("$1M+");
+    expect(formatRate("fixed", 1_500_000, null)).toBe("$1.5M+");
+  });
+
+  it("does not let one input round into both tiers", () => {
+    expect(formatRate("fixed", 999_949, null)).toBe("$999.9K+");
+    // `999.95K` would render as `$1000.0K`; it is a million instead.
+    expect(formatRate("fixed", 999_950, null)).toBe("$1M+");
+  });
+});
+
+describe("formatRate — reversed pairs", () => {
+  // Rows written before `updateProfile` validated the pair.
+  it("collapses a reversed range to the higher value", () => {
+    expect(formatRate("hourly", 10_000_000, 150_000)).toBe("$10M /hr");
+    expect(formatRate("fixed", 500, 100)).toBe("$500");
+    expect(formatRate("rev_share", 50, 10)).toBe("50%");
+  });
+
+  it("still renders an equal pair as a range", () => {
+    expect(formatRate("hourly", 50, 50)).toBe("$50 - $50 /hr");
+  });
+});

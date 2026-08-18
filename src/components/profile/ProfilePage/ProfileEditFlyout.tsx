@@ -506,7 +506,7 @@ const MAX_ROLES = 3;
  * whole intended set.
  */
 function RolesField({ profile, queryKey, save }: StepProps) {
-  const qc = useQueryClient();
+  const seedProfile = useSeedProfile(queryKey);
   const { data: allRoles } = useQuery({
     ...orpc.listCollabRoles.queryOptions({ input: {} }),
     staleTime: 5 * 60 * 1000,
@@ -515,9 +515,9 @@ function RolesField({ profile, queryKey, save }: StepProps) {
   const setRoles = useMutation({
     mutationFn: (roleIds: number[]) => client.setMyRoles({ roleIds }),
     onMutate: () => save.setStatus("saving"),
-    onSuccess: () => {
+    onSuccess: (roles) => {
       save.setStatus("saved");
-      if (queryKey) void qc.invalidateQueries({ queryKey });
+      seedProfile({ roles });
     },
     onError: () => save.setStatus("error"),
   });
@@ -722,6 +722,7 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
  */
 function SkillsField({ profile, queryKey, save }: StepProps) {
   const qc = useQueryClient();
+  const seedProfile = useSeedProfile(queryKey);
   const invalidate = () => {
     if (queryKey) void qc.invalidateQueries({ queryKey });
   };
@@ -729,18 +730,18 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
   const addSkill = useMutation({
     mutationFn: (skillId: number) => client.addUserSkill({ skillId }),
     onMutate: () => save.setStatus("saving"),
-    onSuccess: () => {
+    onSuccess: (skills) => {
       save.setStatus("saved");
-      invalidate();
+      seedProfile({ skills });
     },
     onError: () => save.setStatus("error"),
   });
   const removeSkill = useMutation({
     mutationFn: (userSkillId: number) => client.removeUserSkill({ userSkillId }),
     onMutate: () => save.setStatus("saving"),
-    onSuccess: () => {
+    onSuccess: (skills) => {
       save.setStatus("saved");
-      invalidate();
+      seedProfile({ skills });
     },
     onError: () => save.setStatus("error"),
   });
@@ -954,6 +955,19 @@ const COLLAB_PREFERENCE_OPTIONS: { value: "paid" | "hobby" | "either"; label: st
   { value: "either", label: "Either" },
 ];
 
+/** Mirrors `MAX_RATE` in the profile router. */
+const MAX_RATE = 1_000_000;
+
+/** What's wrong with the pair on screen, in the words the field shows. */
+function rateProblem(min: number | null, max: number | null): string | null {
+  const amounts = [min, max].filter((n): n is number => n != null);
+  if (amounts.some((n) => n < 0)) return "Rates can't be negative.";
+  if (amounts.some((n) => !Number.isInteger(n))) return "Whole numbers only.";
+  if (amounts.some((n) => n > MAX_RATE)) return "Rates cap out at $1,000,000.";
+  if (min != null && max != null && max < min) return "Maximum can't be below the minimum.";
+  return null;
+}
+
 function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
   const [open, setOpen] = useState(profile.availability.state === "open");
@@ -973,6 +987,19 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const [collabPreference, setCollabPreference] = useState<string | null>(
     profile.availability.collabPreference,
   );
+  const [rateError, setRateError] = useState<string | null>(null);
+
+  // Both bounds go in one save. Undebounced, typing `10000000` was eight
+  // POSTs, eight profile refetches and eight persisted half-numbers; sending
+  // the pair together is also the only way the server sees it as a pair.
+  const debouncedSaveRate = useDebouncedCallback((minText: string, maxText: string) => {
+    const min = minText ? Number(minText) : null;
+    const max = maxText ? Number(maxText) : null;
+    const problem = rateProblem(min, max);
+    setRateError(problem);
+    if (problem) return;
+    update.mutate({ rateMin: min, rateMax: max });
+  });
 
   return (
     <StepFrame title="AVAILABILITY">
@@ -1017,7 +1044,7 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
           </SelectContent>
         </Select>
       </FieldRow>
-      <FieldRow label="RATE">
+      <FieldRow label="RATE" error={rateError}>
         <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
           <Select
             value={rateType}
@@ -1047,24 +1074,26 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
           <Input
             type="number"
             min={0}
+            max={MAX_RATE}
             placeholder="min"
             value={rateMin}
             onChange={(e) => {
               const v = e.target.value;
               setRateMin(v);
-              update.mutate({ rateMin: v ? Number(v) : null });
+              debouncedSaveRate(v, rateMax);
             }}
           />
           <Text variant="muted">–</Text>
           <Input
             type="number"
             min={0}
+            max={MAX_RATE}
             placeholder="max"
             value={rateMax}
             onChange={(e) => {
               const v = e.target.value;
               setRateMax(v);
-              update.mutate({ rateMax: v ? Number(v) : null });
+              debouncedSaveRate(rateMin, v);
             }}
           />
         </div>
@@ -1314,6 +1343,27 @@ function FieldRow({
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────
+
+type CachedProfile = Awaited<ReturnType<typeof client.getProfile>>;
+
+/**
+ * Seed the `getProfile` cache with the server's own answer, then invalidate.
+ *
+ * Invalidating alone left the page showing roles the user had just removed:
+ * the refetch goes to the public, edge-cached mount, and when the
+ * recent-write bypass misses it answers `304` with the pre-write body. The
+ * mutation already knows the resulting set, so the writer's own screen
+ * doesn't have to take the network's word for it. Only the exact key is
+ * written — the owner overlay nests one level deeper and still refetches.
+ */
+function useSeedProfile(queryKey: readonly unknown[] | undefined) {
+  const qc = useQueryClient();
+  return (patch: Partial<NonNullable<CachedProfile>>) => {
+    if (!queryKey) return;
+    qc.setQueryData(queryKey, (prev: CachedProfile) => (prev ? { ...prev, ...patch } : prev));
+    void qc.invalidateQueries({ queryKey });
+  };
+}
 
 function useUpdateProfile(queryKey: readonly unknown[] | undefined, save: SaveContext) {
   const qc = useQueryClient();

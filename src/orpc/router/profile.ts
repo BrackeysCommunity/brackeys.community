@@ -605,30 +605,83 @@ const rateTypeSchema = z.enum(["hourly", "fixed", "negotiable"]);
 const availabilitySchema = z.enum(["full_time", "part_time", "limited"]);
 const collabPreferenceSchema = z.enum(["paid", "hobby", "either"]);
 
+/** Nobody on this board bills more than this, and the cap is what keeps
+ *  the display's million tier from being reachable by leaning on a key. */
+export const MAX_RATE = 1_000_000;
+const rateAmountSchema = z.number().int().min(0).max(MAX_RATE).optional().nullable();
+
+/**
+ * The rate bounds arrive as two independent saves, so the server never sees
+ * them together and a `$10000K – $150K` row was the result. Either half of
+ * the pair is therefore checked against whatever the other half already is.
+ */
+async function assertRatePairOrdered(
+  userId: string,
+  input: { rateMin?: number | null; rateMax?: number | null },
+) {
+  const touchesMin = input.rateMin !== undefined;
+  const touchesMax = input.rateMax !== undefined;
+  // Nothing to compare: the save skips the pair, or clears one side of it,
+  // or carries both (which the input schema already ordered).
+  if (!touchesMin && !touchesMax) return;
+  if (touchesMin && touchesMax) return;
+  if (input.rateMin === null || input.rateMax === null) return;
+
+  const [stored] = await db
+    .select({ rateMin: developerProfiles.rateMin, rateMax: developerProfiles.rateMax })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+  if (!stored) return;
+
+  const min = touchesMin ? input.rateMin! : stored.rateMin;
+  const max = touchesMax ? input.rateMax! : stored.rateMax;
+  if (min == null || max == null || max >= min) return;
+
+  throw new ORPCError("BAD_REQUEST", {
+    message: touchesMin
+      ? `Minimum rate can't be above your maximum of ${max}.`
+      : `Maximum rate can't be below your minimum of ${min}.`,
+  });
+}
+
 export const updateProfile = os
   .use(requireAuth)
   .input(
-    z.object({
-      bio: z.string().optional(),
-      tagline: z.string().optional(),
-      githubUrl: z.string().max(500).optional().nullable(),
-      twitterUrl: z.string().max(500).optional().nullable(),
-      websiteUrl: z.string().max(500).optional().nullable(),
-      availableForWork: z.boolean().optional(),
-      availability: availabilitySchema.optional().nullable(),
-      rateType: rateTypeSchema.optional().nullable(),
-      rateMin: z.number().int().min(0).optional().nullable(),
-      rateMax: z.number().int().min(0).optional().nullable(),
-      // The people lane is the availability listing, so what an "I'm
-      // available" post would have said lives on the profile instead.
-      lookingFor: z.string().max(280).optional().nullable(),
-      collabPreference: collabPreferenceSchema.optional().nullable(),
-      profileNotesEnabled: z.boolean().optional(),
-      // IANA name, validated below — a zod enum over ~430 zone names would
-      // hard-code one runtime's list into the API contract.
-      timezone: z.string().max(64).optional().nullable(),
-      location: z.string().trim().max(100).optional().nullable(),
-    }),
+    z
+      .object({
+        bio: z.string().optional(),
+        tagline: z.string().optional(),
+        githubUrl: z.string().max(500).optional().nullable(),
+        twitterUrl: z.string().max(500).optional().nullable(),
+        websiteUrl: z.string().max(500).optional().nullable(),
+        availableForWork: z.boolean().optional(),
+        availability: availabilitySchema.optional().nullable(),
+        rateType: rateTypeSchema.optional().nullable(),
+        rateMin: rateAmountSchema,
+        rateMax: rateAmountSchema,
+        // The people lane is the availability listing, so what an "I'm
+        // available" post would have said lives on the profile instead.
+        lookingFor: z.string().max(280).optional().nullable(),
+        collabPreference: collabPreferenceSchema.optional().nullable(),
+        profileNotesEnabled: z.boolean().optional(),
+        // IANA name, validated below — a zod enum over ~430 zone names would
+        // hard-code one runtime's list into the API contract.
+        timezone: z.string().max(64).optional().nullable(),
+        location: z.string().trim().max(100).optional().nullable(),
+      })
+      .superRefine((value, ctx) => {
+        // Only catches the pair when one save carries both. The editor saves
+        // field by field, so the usual shape is a partial update that has to
+        // be checked against the stored row — see the handler.
+        if (value.rateMin != null && value.rateMax != null && value.rateMax < value.rateMin) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["rateMax"],
+            message: "Maximum rate can't be below the minimum.",
+          });
+        }
+      }),
   )
   .handler(async ({ input, context }) => {
     const userId = context.user.id;
@@ -650,6 +703,8 @@ export const updateProfile = os
         message: "Too many profile updates — try again in a bit.",
       });
     }
+
+    await assertRatePairOrdered(userId, input);
 
     const [updated] = await db
       .update(developerProfiles)
@@ -747,16 +802,16 @@ export const listSkills = os
     return db.select().from(skills);
   });
 
+/** Returns the resulting set rather than the row it touched, so the editor
+ *  can seed its cache with it instead of trusting the refetch — see
+ *  `setMyRoles`. */
 export const addUserSkill = os
   .use(requireAuth)
   .input(z.object({ skillId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [inserted] = await db
-      .insert(userSkills)
-      .values({ userId: context.user.id, skillId: input.skillId })
-      .returning();
+    await db.insert(userSkills).values({ userId: context.user.id, skillId: input.skillId });
 
-    return inserted;
+    return queryUserSkills(context.user.id);
   });
 
 export const removeUserSkill = os
@@ -774,7 +829,7 @@ export const removeUserSkill = os
       });
     }
 
-    return { success: true };
+    return queryUserSkills(context.user.id);
   });
 
 export const requestSkill = os

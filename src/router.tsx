@@ -26,7 +26,15 @@ export function getRouter() {
     // shell replaces both — so a single selector is enough.
     scrollToTopSelectors: ["[data-scroll-root]"],
     defaultPreload: "intent",
-    defaultPreloadStaleTime: 0,
+    // Scaffold default was 0, which makes a preloaded match stale the
+    // instant it lands — so every hover over a `<Link>` re-runs that
+    // route's loader. The jam modal's title is the jam permalink, and
+    // that loader is three requests deep; a user reading the modal
+    // crossed it repeatedly and paid for it each time.
+    defaultPreloadStaleTime: 30_000,
+    // A cursor merely crossing a link on its way elsewhere shouldn't
+    // preload at all.
+    defaultPreloadDelay: 50,
     defaultViewTransition: true,
   });
 

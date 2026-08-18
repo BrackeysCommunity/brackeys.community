@@ -7,14 +7,17 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
+import { invalidateNotifications } from "@/components/notifications/notification-queries";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
 import { NOTIFICATION_CATEGORY, type NotificationCategory } from "@/lib/notification-copy";
 import { cn } from "@/lib/utils";
+import { client } from "@/orpc/client";
 
 export type NotificationItem = {
   id: number;
@@ -306,6 +309,20 @@ export function NotificationRow({
   const { line, href } = renderCopy(n);
   const isComfortable = density === "comfortable";
   const category = categoryOf(n.type);
+  const queryClient = useQueryClient();
+
+  // Opening a notification is the reader saying they've seen it. The bell's
+  // auto-mark can't stand in for this: clicking a row closes the popover
+  // long before that timer fires.
+  const { mutate: markReadMutate } = useMutation({
+    mutationFn: (id: number) => client.markRead({ ids: [id] }),
+    onSuccess: () => invalidateNotifications(queryClient),
+  });
+
+  const handleClick = () => {
+    if (!n.readAt) markReadMutate(n.id);
+    onNavigate?.();
+  };
 
   const Body = (
     <div
@@ -355,7 +372,7 @@ export function NotificationRow({
 
   if (!href) return <div>{Body}</div>;
   return (
-    <Link to={href} onClick={onNavigate} className="block">
+    <Link to={href} onClick={handleClick} className="block">
       {Body}
     </Link>
   );

@@ -13,6 +13,11 @@ import { markWrite } from "@/orpc/recent-write";
 function makeQueryClient() {
   return new QueryClient({
     mutationCache: new MutationCache({ onSuccess: markWrite }),
+    // The library default is 0 — every query stale on arrival, refetching
+    // on every mount and every window focus. 68 call sites were writing a
+    // staleTime by hand (15 s–5 min); this is that policy stated once.
+    // Explicit per-query values still win where they're set.
+    defaultOptions: { queries: { staleTime: 30_000 } },
   });
 }
 
