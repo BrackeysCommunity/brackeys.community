@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { db } from "@/db";
 import { user, session, account, verification } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
+import { env } from "@/env";
 import { cleanupUserData } from "@/lib/account-deletion";
 import { EVENTS } from "@/lib/analytics-events";
 import { sendEmail } from "@/lib/email";
@@ -126,7 +127,7 @@ export const auth = betterAuth({
   plugins: [
     tanstackStartCookies(),
     oAuthProxy({
-      productionURL: "https://staging.brackeys.dev",
+      productionURL: env.VITE_OAUTH_PROXY_ORIGIN ?? "https://staging.brackeys.dev",
     }),
   ],
   databaseHooks: {
