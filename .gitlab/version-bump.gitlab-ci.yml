@@ -1,6 +1,10 @@
 version-bump:
   stage: version
   image: node:22
+  # No dependency on earlier stages, so this still runs on merges to main
+  # even when lint/test/etc. fail — a version bump shouldn't be blocked by
+  # a broken build.
+  needs: []
   variables:
     GIT_STRATEGY: clone
     GIT_DEPTH: "1"

@@ -6,6 +6,12 @@ import { SETTINGS_TAB_META, SETTINGS_TABS } from "@/components/settings/settings
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 
+// Signed in, so the account-backed sections (notifications, privacy,
+// account) render alongside the local ones instead of being gated out.
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { useSession: () => ({ data: { user: { id: "test-user" } } }) },
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
