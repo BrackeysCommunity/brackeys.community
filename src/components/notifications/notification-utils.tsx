@@ -253,6 +253,21 @@ export function renderCopy(n: NotificationItem): {
         href: (n.data.subjectUrl as string | undefined) ?? null,
       };
     }
+    case "report_resolved": {
+      const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "something you flagged";
+      // Says the outcome, never what happened to the other account.
+      const actioned = n.data.outcome === "actioned";
+      return {
+        line: (
+          <>
+            Thanks — we reviewed your report on{" "}
+            <em className="font-medium not-italic">{subjectTitle}</em> and{" "}
+            {actioned ? "took action" : "left it up"}
+          </>
+        ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
     case "skill_request_approved": {
       const skillName = n.data.skillName as string | undefined;
       const requestedName = n.data.requestedName as string | undefined;

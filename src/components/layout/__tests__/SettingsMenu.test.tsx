@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { SETTINGS_TAB_META, SETTINGS_TABS } from "@/components/settings/settings-tabs";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
+import { DEFAULT_THEME_ID, themes } from "@/lib/themes";
 
 // Signed in, so the account-backed sections (notifications, privacy,
 // account) render alongside the local ones instead of being gated out.
@@ -73,7 +74,12 @@ describe("SettingsMenu", () => {
   it("reads back the active theme", () => {
     openMenu();
 
-    expect(screen.getByRole("menuitem", { name: /appearance/i }).textContent).toContain("Nord");
+    // Derived, not spelled out — the default theme is a product decision
+    // that has moved once already.
+    const defaultName = themes.find((t) => t.id === DEFAULT_THEME_ID)!.name;
+    expect(screen.getByRole("menuitem", { name: /appearance/i }).textContent).toContain(
+      defaultName,
+    );
   });
 
   it("flips motion from the menu", () => {

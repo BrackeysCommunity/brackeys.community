@@ -93,6 +93,7 @@ const STAFF_PROCEDURES = new Set([
   "removeCollabRole",
   "listReports",
   "resolvePostReport",
+  "reopenReport",
   "deleteReport",
   "lockThread",
   "listCommentReports",

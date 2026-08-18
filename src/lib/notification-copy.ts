@@ -25,6 +25,10 @@ export function renderNotificationText(input: {
   // Moderation outcomes: the reason is optional — staff write one when the
   // removal isn't self-evident, and the copy reads without it either way.
   const moderationReason = input.data.reason as string | undefined;
+  // A report outcome names the thing reported and nothing about the other
+  // account — what staff did to them is not the reporter's business.
+  const reportSubject = (input.data.subjectTitle as string | undefined) ?? "something you flagged";
+  const reportActioned = input.data.outcome === "actioned";
   const skillName = input.data.skillName as string | undefined;
   const requestedName = input.data.requestedName as string | undefined;
   // Jam notifications carry their own snapshot for the same reason comment
@@ -79,6 +83,13 @@ export function renderNotificationText(input: {
           : `A moderator removed your comment on "${subjectTitle}"`,
         href: subjectHref,
       };
+    case "report_resolved":
+      return {
+        headline: reportActioned
+          ? `Thanks — we reviewed your report on "${reportSubject}" and took action`
+          : `Thanks — we reviewed your report on "${reportSubject}" and left it up`,
+        href: (input.data.subjectUrl as string | undefined) ?? null,
+      };
     case "skill_request_approved":
       return {
         headline:
@@ -125,6 +136,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   comment_received: "Comments — new comment in a thread you follow",
   comment_reply: "Comments — someone replied to your comment",
   comment_removed_by_staff: "Moderation — your comment was removed",
+  report_resolved: "Moderation — a report you filed was reviewed",
   skill_request_approved: "Moderation — your skill request was approved",
   skill_request_rejected: "Moderation — your skill request wasn't approved",
   jam_starting: "Jams — a jam you're watching starts soon",
@@ -151,6 +163,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "comment_received",
   "comment_reply",
   "comment_removed_by_staff",
+  "report_resolved",
   "skill_request_approved",
   "skill_request_rejected",
   "jam_starting",
@@ -198,6 +211,9 @@ export const NOTIFICATION_DEFAULTS: Record<
   // sit unread for weeks, and "my comment vanished" is exactly the silence
   // that reads as the site being broken — or as staff being arbitrary.
   comment_removed_by_staff: { inApp: true, email: true, digest: false },
+  // Closing the loop on someone else's behaviour, not the reporter's own
+  // account — worth a bell, never an inbox.
+  report_resolved: { inApp: true, email: false, digest: false },
   // Outcomes the user gets on their next visit anyway; in-app is enough.
   skill_request_approved: { inApp: true, email: false, digest: false },
   skill_request_rejected: { inApp: true, email: false, digest: false },
@@ -238,6 +254,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   comment_received: "comments",
   comment_reply: "comments",
   comment_removed_by_staff: "moderation",
+  report_resolved: "moderation",
   skill_request_approved: "moderation",
   skill_request_rejected: "moderation",
   jam_starting: "jams",

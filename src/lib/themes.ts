@@ -115,4 +115,6 @@ export const themeSections: { mode: ThemeMode; label: string; themes: Theme[] }[
   { mode: "light", label: "Light", themes: lightThemes },
 ];
 
-export const DEFAULT_THEME_ID = "nord";
+/** The base `.dark` palette in `styles.css` *is* this theme — every other
+ *  theme is an override file layered on top of it. */
+export const DEFAULT_THEME_ID = "brackeys";

@@ -36,6 +36,7 @@ import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
 import { captureError, posthog } from "@/lib/posthog";
+import { DEFAULT_THEME_ID } from "@/lib/themes";
 
 import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
 
@@ -136,7 +137,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html
       lang="en"
       className="dark"
-      data-theme="nord"
+      data-theme={DEFAULT_THEME_ID}
       data-reduce-motion="false"
       suppressHydrationWarning
     >

@@ -44,6 +44,7 @@ import {
 import { isCollabPostImageKey, uploadedImageUrlSchema } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
 import { escapeLike } from "@/lib/sql-like";
 import { stackOverlap } from "@/lib/stack-overlap";
 import { touchTeamActivity } from "@/lib/team-activity";
@@ -2317,6 +2318,12 @@ export const resolvePostReport = os
     if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
     if (report.resolvedAt) return { success: true };
 
+    const [post] = await db
+      .select({ id: collabPosts.id, title: collabPosts.title })
+      .from(collabPosts)
+      .where(eq(collabPosts.id, report.postId))
+      .limit(1);
+
     if (input.action === "close_post") {
       const [closed] = await db
         .update(collabPosts)
@@ -2335,10 +2342,13 @@ export const resolvePostReport = os
       }
     }
 
-    await db
-      .update(collabPostReports)
-      .set({ resolvedAt: new Date(), resolvedById: context.user.id })
-      .where(eq(collabPostReports.id, report.id));
+    // Everyone who reported this post, not just the row that was clicked —
+    // see `resolveReportsForSubject`.
+    const resolved = await resolveReportsForSubject({
+      kind: "post",
+      subjectId: report.postId,
+      actorId: context.user.id,
+    });
 
     await recordModerationAction({
       action: input.action === "close_post" ? "post_closed" : "post_report_dismissed",
@@ -2347,8 +2357,40 @@ export const resolvePostReport = os
       targetId: input.action === "close_post" ? report.postId : report.id,
       subjectUserId: report.reporterId,
       reason: input.reason,
-      metadata: { reportId: report.id, postId: report.postId, reportReason: report.reason },
+      metadata: {
+        reportId: report.id,
+        postId: report.postId,
+        reportReason: report.reason,
+        ...(resolved.length > 1
+          ? { alsoResolved: resolved.filter((r) => r.id !== report.id).map((r) => r.id) }
+          : {}),
+      },
     });
+
+    // Each sibling gets its own row, pointing at the decision that closed it.
+    for (const sibling of resolved) {
+      if (sibling.id === report.id) continue;
+      await recordModerationAction({
+        action: input.action === "close_post" ? "post_closed" : "post_report_dismissed",
+        actorId: context.user.id,
+        targetType: "post_report",
+        targetId: sibling.id,
+        subjectUserId: sibling.reporterId,
+        reason: input.reason,
+        metadata: { postId: report.postId, resolvedVia: report.id },
+      });
+    }
+
+    await notifyReporters({
+      reports: resolved,
+      actorId: context.user.id,
+      outcome: input.action === "close_post" ? "actioned" : "no_action",
+      entityType: "collab_post",
+      entityId: report.postId,
+      subjectTitle: post?.title ?? "a post",
+      subjectUrl: `/collab/${report.postId}`,
+    });
+
     return { success: true };
   });
 

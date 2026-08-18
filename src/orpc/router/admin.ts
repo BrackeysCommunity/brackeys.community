@@ -1,12 +1,14 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
 import {
+  collabPostReports,
   collabPostRoles,
   collabRoles,
+  commentReports,
   developerProfiles,
   session,
   skillRequests,
@@ -538,4 +540,110 @@ export const deleteSkill = os
       metadata: { name: deleted.name, category: deleted.category },
     });
     return { success: true };
+  });
+
+/**
+ * Put a resolved report back in the queue.
+ *
+ * Dismissal is the decision staff make fastest and regret most, and it was
+ * the one the code treated as irreversible — both resolve handlers
+ * early-return on `resolvedAt` and nothing ever cleared it. Reopening
+ * returns the *report* to the queue; whatever the resolution did to the
+ * content (a removed comment, a closed post) stays done, and the copy on
+ * the button says so.
+ */
+export const reopenReport = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      reportId: z.number().int().positive(),
+      kind: z.enum(["post", "comment"]),
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const isPost = input.kind === "post";
+    const [report] = isPost
+      ? await db
+          .select({
+            id: collabPostReports.id,
+            subjectId: collabPostReports.postId,
+            reporterId: collabPostReports.reporterId,
+            resolvedAt: collabPostReports.resolvedAt,
+          })
+          .from(collabPostReports)
+          .where(eq(collabPostReports.id, input.reportId))
+          .limit(1)
+      : await db
+          .select({
+            id: commentReports.id,
+            subjectId: commentReports.commentId,
+            reporterId: commentReports.reporterId,
+            resolvedAt: commentReports.resolvedAt,
+          })
+          .from(commentReports)
+          .where(eq(commentReports.id, input.reportId))
+          .limit(1);
+
+    if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
+    if (!report.resolvedAt) {
+      return { success: true, reopened: false, message: "That report is already open." };
+    }
+
+    // `reportPost` and `reportComment` only block a duplicate while an *open*
+    // report exists, so the same person may have filed again since this one
+    // was resolved. Reopening would give staff two live rows from one
+    // reporter on one subject, which is the mess the dedupe exists to avoid.
+    const [newer] = isPost
+      ? await db
+          .select({ id: collabPostReports.id })
+          .from(collabPostReports)
+          .where(
+            and(
+              eq(collabPostReports.postId, report.subjectId),
+              eq(collabPostReports.reporterId, report.reporterId),
+              isNull(collabPostReports.resolvedAt),
+              ne(collabPostReports.id, report.id),
+            ),
+          )
+          .limit(1)
+      : await db
+          .select({ id: commentReports.id })
+          .from(commentReports)
+          .where(
+            and(
+              eq(commentReports.commentId, report.subjectId),
+              eq(commentReports.reporterId, report.reporterId),
+              isNull(commentReports.resolvedAt),
+              ne(commentReports.id, report.id),
+            ),
+          )
+          .limit(1);
+
+    if (newer) {
+      return {
+        success: true,
+        reopened: false,
+        message: "The same reporter already has a newer open report on this — handle that one.",
+      };
+    }
+
+    const cleared = { resolvedAt: null, resolvedById: null };
+    if (isPost) {
+      await db.update(collabPostReports).set(cleared).where(eq(collabPostReports.id, report.id));
+    } else {
+      await db.update(commentReports).set(cleared).where(eq(commentReports.id, report.id));
+    }
+
+    await recordModerationAction({
+      action: "report_reopened",
+      actorId: context.user.id,
+      targetType: isPost ? "post_report" : "comment_report",
+      targetId: report.id,
+      subjectUserId: report.reporterId,
+      reason: input.reason,
+      metadata: { kind: input.kind, subjectId: report.subjectId },
+    });
+
+    return { success: true, reopened: true, message: "Report is back in the queue." };
   });

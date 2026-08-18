@@ -31,6 +31,12 @@ import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
 import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  notifyReporters,
+  resolveReportsForSubject,
+  type ReportOutcome,
+  type ResolvedReport,
+} from "@/lib/report-resolution";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
@@ -938,10 +944,13 @@ export const resolveCommentReport = os
         });
       }
     }
-    await db
-      .update(commentReports)
-      .set({ resolvedAt: new Date(), resolvedById: context.user.id })
-      .where(eq(commentReports.id, report.id));
+    // Everyone who reported this comment, not just the row that was clicked —
+    // see `resolveReportsForSubject`.
+    const resolved = await resolveReportsForSubject({
+      kind: "comment",
+      subjectId: report.commentId,
+      actorId: context.user.id,
+    });
 
     if (input.action === "dismiss") {
       // Dismissals matter most of all: "nothing happened" is the decision
@@ -956,8 +965,66 @@ export const resolveCommentReport = os
         metadata: { commentId: report.commentId, reportReason: report.reason },
       });
     }
+
+    // Each sibling gets its own row, pointing at the decision that closed it.
+    for (const sibling of resolved) {
+      if (sibling.id === report.id) continue;
+      await recordModerationAction({
+        action: input.action === "remove_comment" ? "comment_removed" : "comment_report_dismissed",
+        actorId: context.user.id,
+        targetType: "comment_report",
+        targetId: sibling.id,
+        subjectUserId: sibling.reporterId,
+        reason: input.reason,
+        metadata: { commentId: report.commentId, resolvedVia: report.id },
+      });
+    }
+
+    await notifyReportersOfComment({
+      reports: resolved,
+      actorId: context.user.id,
+      outcome: input.action === "remove_comment" ? "actioned" : "no_action",
+      commentId: report.commentId,
+    });
+
     return { success: true };
   });
+
+/**
+ * The reporter-facing half of a comment resolution. Split out because the
+ * subject snapshot costs two joins the resolve itself doesn't need, and it
+ * must never fail the action that already landed.
+ */
+async function notifyReportersOfComment(params: {
+  reports: ResolvedReport[];
+  actorId: string;
+  outcome: ReportOutcome;
+  commentId: number;
+}): Promise<void> {
+  try {
+    const [comment] = await db
+      .select({ threadId: comments.threadId })
+      .from(comments)
+      .where(eq(comments.id, params.commentId))
+      .limit(1);
+    const [thread] = comment
+      ? await db.select().from(threads).where(eq(threads.id, comment.threadId)).limit(1)
+      : [];
+    const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
+
+    await notifyReporters({
+      reports: params.reports,
+      actorId: params.actorId,
+      outcome: params.outcome,
+      entityType: "comment",
+      entityId: params.commentId,
+      subjectTitle: subject?.title ?? "a comment you flagged",
+      subjectUrl: subject?.url ?? null,
+    });
+  } catch (err) {
+    console.warn("[comments] reporter notices failed", { commentId: params.commentId, err });
+  }
+}
 
 // ── Blocks ───────────────────────────────────────────────────────────────────
 
