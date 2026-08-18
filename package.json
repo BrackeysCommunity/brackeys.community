@@ -135,6 +135,7 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@electric-sql/pglite": "^0.5.5",
     "@inlang/paraglide-js": "^2.8.0",
+    "@posthog/rollup-plugin": "^1.4.9",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/devtools-event-client": "0.4.0",
     "@tanstack/devtools-vite": "0.3.12",

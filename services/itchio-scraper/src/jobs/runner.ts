@@ -1,3 +1,4 @@
+import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { pool } from "../db/client.ts";
 import { describeError } from "../http.ts";
 import { syncJam } from "./sync-jam.ts";
@@ -155,6 +156,7 @@ export async function syncSlugs(
  * couldn't run, which is a real alert.
  */
 export async function runTier(label: string, main: () => Promise<number>): Promise<void> {
+  const telemetry = createServiceTelemetry("itchio-scraper");
   const started = Date.now();
   try {
     const failures = await main();
@@ -162,8 +164,12 @@ export async function runTier(label: string, main: () => Promise<number>): Promi
     console.log(`[${label}] tick finished in ${mins}m — failures=${failures}`);
   } catch (err) {
     console.error(`[${label}] fatal: ${describeError(err)}`);
+    telemetry.captureException(err, { tier: label });
     process.exitCode = 1;
   } finally {
     await pool.end().catch(() => {});
+    // `process.exitCode` (not `exit()`) above, so the runtime drains this
+    // before leaving — but only because the await is inside the finally.
+    await telemetry.shutdown();
   }
 }

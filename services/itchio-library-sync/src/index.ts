@@ -15,6 +15,7 @@ import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
 import { fetchGames, ItchApiError, validateToken } from "../../../src/lib/itchio.ts";
 import { convergeJamPlacements, convergeLibraryPlacements } from "../../../src/lib/project-sync.ts";
 import { placementTypeFromClassification } from "../../../src/lib/project-taxonomy.ts";
+import { createServiceTelemetry } from "../../../src/lib/service-telemetry.ts";
 import { openToken } from "../../../src/lib/token-crypto.ts";
 import { config } from "./config.ts";
 import { db, pool } from "./db/client.ts";
@@ -724,6 +725,8 @@ async function runSweep() {
   );
 }
 
+const telemetry = createServiceTelemetry("itchio-library-sync");
+
 async function main() {
   try {
     await runSweep();
@@ -732,7 +735,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[boot] fatal", err);
-  process.exit(1);
-});
+main()
+  .catch(async (err: unknown) => {
+    console.error("[boot] fatal", err);
+    telemetry.captureException(err, { phase: "sweep" });
+    // Awaited before the exit — `process.exit` would otherwise discard the
+    // batch that was just queued, reporting nothing.
+    await telemetry.shutdown();
+    process.exit(1);
+  })
+  .then(() => telemetry.shutdown());

@@ -342,7 +342,11 @@ const config = defineConfig({
               posthogRollupPlugin({
                 personalApiKey: posthogPersonalApiKey!,
                 projectId: process.env.POSTHOG_PROJECT_ID,
-                host: process.env.POSTHOG_HOST ?? "https://eu.posthog.com",
+                // The API/UI host (eu.posthog.com), NOT the ingestion host
+                // (eu.i.posthog.com) that `POSTHOG_HOST` carries for the
+                // services. Two different hosts; a shared variable under one
+                // name would point uploads at the ingestion endpoint and fail.
+                host: process.env.POSTHOG_API_HOST ?? "https://eu.posthog.com",
                 sourcemaps: {
                   enabled: true,
                   releaseVersion: appVersion,

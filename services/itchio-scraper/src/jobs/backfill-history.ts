@@ -1,6 +1,7 @@
 import { eq, exists, sql } from "drizzle-orm";
 
 import { itchJamEntries, itchJams, itchMissingJams } from "../../../../src/db/schema.ts";
+import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { db, pool } from "../db/client.ts";
 import { isNotFound } from "../http.ts";
 import { fetchPastSortDatePage } from "../scrape/discover-listings.ts";
@@ -177,9 +178,14 @@ async function main() {
 }
 
 if (import.meta.main) {
+  const telemetry = createServiceTelemetry("itchio-scraper");
   try {
     await main();
+  } catch (err) {
+    telemetry.captureException(err, { job: "backfill-history" });
+    throw err;
   } finally {
     await pool.end().catch(() => {});
+    await telemetry.shutdown();
   }
 }

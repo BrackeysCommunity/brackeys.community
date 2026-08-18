@@ -1,11 +1,14 @@
 import { Queue, Worker } from "bullmq";
 
+import { createServiceTelemetry } from "../../../src/lib/service-telemetry.ts";
 import { config } from "./config.ts";
 import { pool } from "./db/client.ts";
 import { EMAIL_QUEUE, NOTIFICATIONS_QUEUE, publisher, redis, type SendEmailJob } from "./queue.ts";
 import { handleSideEffects } from "./tasks/notification-side-effects.ts";
 import { handleSendEmail } from "./tasks/send-email.ts";
 import { handleWeeklyDigests } from "./tasks/send-weekly-digests.ts";
+
+const telemetry = createServiceTelemetry("notifications-worker");
 
 const notificationsQueue = new Queue(NOTIFICATIONS_QUEUE, { connection: redis });
 
@@ -28,8 +31,12 @@ for (const w of [notificationsWorker, emailWorker]) {
   w.on("ready", () => console.log(`[worker:${w.name}] ready`));
   w.on("failed", (job, err) => {
     console.error(`[worker:${w.name}] job failed`, { id: job?.id, name: job?.name, err });
+    telemetry.captureException(err, { queue: w.name, job_name: job?.name, job_id: job?.id });
   });
-  w.on("error", (err) => console.error(`[worker:${w.name}] error`, err));
+  w.on("error", (err) => {
+    console.error(`[worker:${w.name}] error`, err);
+    telemetry.captureException(err, { queue: w.name, scope: "worker" });
+  });
 }
 
 // Repeatable job for weekly digests (Mondays 14:00 UTC). Stable jobId
@@ -55,6 +62,9 @@ async function shutdown(signal: string) {
   await redis.quit().catch(() => {});
   await publisher.quit().catch(() => {});
   await pool.end().catch(() => {});
+  // Before exit, not after: a job that failed in the last seconds of the
+  // drain is exactly the one worth keeping.
+  await telemetry.shutdown();
   process.exit(0);
 }
 

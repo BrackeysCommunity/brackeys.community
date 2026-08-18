@@ -156,7 +156,18 @@ The app runs on `http://localhost:3000`.
 - `VITE_APP_TITLE`: client title override
 - `SERVER_URL`: server-side absolute URL override
 - `VITE_POSTHOG_KEY`: PostHog project API key — analytics, feature flags, error tracking (all off when unset)
-- `VITE_POSTHOG_HOST`: PostHog ingestion host, for example `https://eu.i.posthog.com`
+- `VITE_POSTHOG_HOST`: PostHog ingestion host, for example `https://eu.i.posthog.com`, or the
+  reverse proxy path once `workers/posthog-proxy` is deployed. Inlined into the browser bundle
+  at build time — changing it needs a rebuild, not just a restart.
+- `POSTHOG_PERSONAL_API_KEY`: **build-time, server-only** — enables source-map upload so error
+  stacks are un-minified. Never give this a `VITE_` prefix: it is a write credential and the
+  prefix would inline it into the browser bundle. Absent means maps are simply not uploaded.
+- `POSTHOG_PROJECT_ID`: build-time, pairs with the personal API key
+- `POSTHOG_API_HOST`: build-time, optional — the PostHog **API/UI** host for source-map
+  upload (`https://eu.posthog.com`). Distinct from the ingestion host below; do not
+  set both to the same value.
+- `POSTHOG_KEY` / `POSTHOG_HOST`: read by the `services/*` workers for error reporting; they
+  fall back to the `VITE_`-prefixed names so one Railway shared variable can cover everything
 
 ## Railway CLI (optional)
 

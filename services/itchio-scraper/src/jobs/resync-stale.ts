@@ -1,6 +1,7 @@
 import { and, eq, isNull, lt, ne, sql } from "drizzle-orm";
 
 import { itchJamEntries, itchJams } from "../../../../src/db/schema.ts";
+import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { db, pool } from "../db/client.ts";
 import { describeError } from "../http.ts";
 import { syncJam } from "./sync-jam.ts";
@@ -144,9 +145,14 @@ async function main() {
 }
 
 if (import.meta.main) {
+  const telemetry = createServiceTelemetry("itchio-scraper");
   try {
     await main();
+  } catch (err) {
+    telemetry.captureException(err, { job: "resync-stale" });
+    throw err;
   } finally {
     await pool.end().catch(() => {});
+    await telemetry.shutdown();
   }
 }

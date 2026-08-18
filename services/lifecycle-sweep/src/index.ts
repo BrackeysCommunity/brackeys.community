@@ -15,6 +15,7 @@ import {
   TEAM_QUIET_DAYS,
 } from "../../../src/lib/collab-lifecycle.ts";
 import { sweepJamWatches } from "../../../src/lib/jam-watch-sweep.ts";
+import { createServiceTelemetry } from "../../../src/lib/service-telemetry.ts";
 import { db, pool } from "./db/client.ts";
 import { closeQueue, notify } from "./notify.ts";
 
@@ -220,9 +221,17 @@ async function main() {
   });
 }
 
+const telemetry = createServiceTelemetry("lifecycle-sweep");
+
 try {
   await main();
+} catch (err) {
+  // The sweep had no catch at all: a throw took the process down with the
+  // stack on stdout and nowhere else.
+  telemetry.captureException(err, { phase: "sweep" });
+  throw err;
 } finally {
   await closeQueue();
   await pool.end();
+  await telemetry.shutdown();
 }

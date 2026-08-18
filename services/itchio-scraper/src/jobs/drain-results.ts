@@ -1,3 +1,4 @@
+import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { config } from "../config.ts";
 import { pool } from "../db/client.ts";
 import { describeError } from "../http.ts";
@@ -133,9 +134,14 @@ async function main() {
 }
 
 if (import.meta.main) {
+  const telemetry = createServiceTelemetry("itchio-scraper");
   try {
     await main();
+  } catch (err) {
+    telemetry.captureException(err, { job: "drain-results" });
+    throw err;
   } finally {
     await pool.end().catch(() => {});
+    await telemetry.shutdown();
   }
 }
