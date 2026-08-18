@@ -18,8 +18,7 @@ export function JamBoardView() {
 
   return (
     // Single child: the board owns its own internal rhythm (featured rail,
-    // toolbar, shelves), and its rows carry the `layoutId` morphs into the
-    // detail modal — tagging inside would animate the morph targets.
+    // toolbar, shelves).
     <PageStack>
       <motion.div variants={fadeUp}>
         <JamBoard

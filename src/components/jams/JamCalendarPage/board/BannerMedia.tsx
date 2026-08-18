@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { DotGrid } from "@/components/ui/dot-grid";
@@ -6,13 +5,11 @@ import { BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
-import { ROW_CLOSE_TRANSITION } from "./transitions";
 import { useJamGradient } from "./use-jam-color";
 
 /**
  * Banner slot shared by every board surface (list-row thumb, shelf
- * card, featured card). Carries the `tl-banner-${layoutKey}` shared
- * layoutId so the detail modal's banner morph works from any of them.
+ * card, featured card).
  *
  * The no-image fallback is the house `DotGrid` over a static CSS
  * gradient, NOT a Grainient: even
@@ -23,11 +20,9 @@ import { useJamGradient } from "./use-jam-color";
  */
 export function JamBanner({
   jam,
-  layoutKey,
   fit = "cover",
 }: {
   jam: JamFromList;
-  layoutKey: string;
   /** `contain` letterboxes the full artwork against the container's
    * background (the jam's itch theme color) — the same look as the
    * jam's own itch page header. */
@@ -38,11 +33,7 @@ export function JamBanner({
 
   if (jam.bannerUrl && imageOk) {
     return (
-      <motion.img
-        layoutId={`tl-banner-${layoutKey}`}
-        transition={ROW_CLOSE_TRANSITION}
-        // BOARD_BANNER_TRANSFORM is shared with the modal's crisp layer:
-        // both ends of the layoutId morph must fetch the identical URL.
+      <img
         src={itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM)}
         alt=""
         aria-hidden
@@ -57,13 +48,11 @@ export function JamBanner({
     );
   }
   return (
-    <motion.div
-      layoutId={`tl-banner-${layoutKey}`}
-      transition={ROW_CLOSE_TRANSITION}
+    <div
       className="absolute inset-0"
       style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
     >
       <DotGrid />
-    </motion.div>
+    </div>
   );
 }

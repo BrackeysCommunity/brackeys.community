@@ -1,4 +1,3 @@
-import { LayoutGroup } from "framer-motion";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { ShelfHeader } from "@/components/ui/shelf-header";
@@ -12,7 +11,6 @@ import { FeaturedShelf } from "./board/FeaturedShelf";
 import { JamCard } from "./board/JamCard";
 import { ShelfRow } from "./board/ShelfRow";
 import { type JamFromList, type ShelfKind } from "./helpers";
-import { JamDetailModal } from "./JamDetailModal";
 
 interface ShelfMeta {
   kind: ShelfKind;
@@ -58,7 +56,6 @@ export function JamBoard({
   layout,
   toolbar,
 }: JamBoardProps) {
-  const [selected, setSelected] = useState<{ jam: JamFromList; layoutKey: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<ShelfKind, boolean>>({
     live: false,
     upcoming: false,
@@ -95,79 +92,57 @@ export function JamBoard({
   }
 
   return (
-    <LayoutGroup>
-      <div className="flex flex-col gap-10">
-        {featured.length > 0 && (
-          <FeaturedShelf
-            jams={featured}
-            now={now}
-            selectedKey={selected?.layoutKey ?? null}
-            onSelect={(jam, layoutKey) => setSelected({ jam, layoutKey })}
-          />
-        )}
+    <div className="flex flex-col gap-10">
+      {featured.length > 0 && <FeaturedShelf jams={featured} now={now} />}
 
-        {toolbar}
+      {toolbar}
 
-        {SHELVES.map((meta) => {
-          const shelf = shelves[meta.kind];
-          if (shelf.ranked.length === 0 && shelf.tail.length === 0) return null;
-          // ONGOING is all tail by design — perpetual jams never headline.
-          const showAll = searching || expanded[meta.kind];
-          const visible = showAll ? [...shelf.ranked, ...shelf.tail] : shelf.ranked;
-          const hidden = showAll ? 0 : shelf.tail.length;
-          return (
-            <section
-              key={meta.kind}
-              id={`shelf-${meta.kind}`}
-              className="flex scroll-mt-24 flex-col gap-3"
-            >
-              <ShelfHeader
-                title={meta.title}
-                blurb={meta.blurb}
-                count={shelf.ranked.length + shelf.tail.length}
-                unit="JAM"
-              />
-              {visible.length === 0 ? (
-                <Text size="xs" variant="muted" className="px-1 tracking-widest uppercase">
-                  Only small jams here —{" "}
-                  <button
-                    type="button"
-                    className="cursor-pointer underline decoration-accent/50 underline-offset-2 hover:decoration-accent"
-                    onClick={() => setExpanded((e) => ({ ...e, [meta.kind]: true }))}
-                  >
-                    show all {shelf.tail.length}
-                  </button>
-                </Text>
-              ) : (
-                <ShelfJams
-                  kind={meta.kind}
-                  jams={visible}
-                  now={now}
-                  layout={layout}
-                  selectedKey={selected?.layoutKey ?? null}
-                  onSelect={(jam, layoutKey) => setSelected({ jam, layoutKey })}
-                />
-              )}
-              {hidden > 0 && (
+      {SHELVES.map((meta) => {
+        const shelf = shelves[meta.kind];
+        if (shelf.ranked.length === 0 && shelf.tail.length === 0) return null;
+        // ONGOING is all tail by design — perpetual jams never headline.
+        const showAll = searching || expanded[meta.kind];
+        const visible = showAll ? [...shelf.ranked, ...shelf.tail] : shelf.ranked;
+        const hidden = showAll ? 0 : shelf.tail.length;
+        return (
+          <section
+            key={meta.kind}
+            id={`shelf-${meta.kind}`}
+            className="flex scroll-mt-24 flex-col gap-3"
+          >
+            <ShelfHeader
+              title={meta.title}
+              blurb={meta.blurb}
+              count={shelf.ranked.length + shelf.tail.length}
+              unit="JAM"
+            />
+            {visible.length === 0 ? (
+              <Text size="xs" variant="muted" className="px-1 tracking-widest uppercase">
+                Only small jams here —{" "}
                 <button
                   type="button"
+                  className="cursor-pointer underline decoration-accent/50 underline-offset-2 hover:decoration-accent"
                   onClick={() => setExpanded((e) => ({ ...e, [meta.kind]: true }))}
-                  className="cursor-pointer self-start rounded-md border border-muted/30 bg-card px-3 py-1.5 text-[11px] tracking-widest text-muted-foreground transition-colors hover:border-muted/60 hover:text-foreground"
                 >
-                  + {hidden} MORE SMALL JAM{hidden === 1 ? "" : "S"}
+                  show all {shelf.tail.length}
                 </button>
-              )}
-            </section>
-          );
-        })}
-
-        <JamDetailModal
-          jam={selected?.jam ?? null}
-          layoutKey={selected?.layoutKey ?? null}
-          onClose={() => setSelected(null)}
-        />
-      </div>
-    </LayoutGroup>
+              </Text>
+            ) : (
+              <ShelfJams jams={visible} now={now} layout={layout} />
+            )}
+            {hidden > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpanded((e) => ({ ...e, [meta.kind]: true }))}
+                className="cursor-pointer self-start rounded-md border border-muted/30 bg-card px-3 py-1.5 text-[11px] tracking-widest text-muted-foreground transition-colors hover:border-muted/60 hover:text-foreground"
+              >
+                + {hidden} MORE SMALL JAM{hidden === 1 ? "" : "S"}
+              </button>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -183,34 +158,10 @@ const LIST_ROW_ESTIMATE = 88;
  * `ONGOING` alone runs to four figures, and every tile carries a banner
  * image, so mounting the whole shelf costs hundreds of image decodes for
  * the two rows anyone is looking at. */
-function ShelfJams({
-  kind,
-  jams,
-  now,
-  layout,
-  selectedKey,
-  onSelect,
-}: {
-  kind: ShelfKind;
-  jams: JamFromList[];
-  now: Date;
-  layout: BoardLayout;
-  selectedKey: string | null;
-  onSelect: (jam: JamFromList, layoutKey: string) => void;
-}) {
+function ShelfJams({ jams, now, layout }: { jams: JamFromList[]; now: Date; layout: BoardLayout }) {
   const renderJam = (jam: JamFromList, index: number) => {
-    const layoutKey = `${kind}-${jam.jamId}`;
     const card = layout === "cards";
-    const row = (
-      <JamRow
-        card={card}
-        jam={jam}
-        now={now}
-        layoutKey={layoutKey}
-        isSelected={selectedKey === layoutKey}
-        onSelect={() => onSelect(jam, layoutKey)}
-      />
-    );
+    const row = <JamRow card={card} jam={jam} now={now} />;
     // The list layout draws its own separators: the rows sit in one
     // bordered frame, so every row but the first carries the hairline.
     return card ? row : <div className={cn(index > 0 && "border-t border-muted/20")}>{row}</div>;
@@ -241,16 +192,6 @@ function ShelfJams({
 }
 
 /** A jam in whichever shelf layout is active. */
-function JamRow({
-  card,
-  ...props
-}: {
-  card: boolean;
-  jam: JamFromList;
-  now: Date;
-  layoutKey: string;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
+function JamRow({ card, ...props }: { card: boolean; jam: JamFromList; now: Date }) {
   return card ? <JamCard {...props} /> : <ShelfRow {...props} />;
 }

@@ -58,9 +58,8 @@ export const BACKDROP_TRANSFORM: ItchImageOpts = { width: 64, quality: 40 };
 
 /**
  * Shared transform for the calendar board's `BannerMedia` and the crisp
- * layer of `JamDetailModal`. The two `<motion.img>`s share a framer-motion
- * `layoutId` (`tl-banner-*`), so both sides of the morph MUST resolve to the
- * identical URL or the animation swaps sources and re-fetches mid-flight.
+ * layer of `JamDetailModal` — one width for both so a jam already fetched
+ * on the board isn't re-fetched at a second size in the modal.
  */
 export const BOARD_BANNER_TRANSFORM: ItchImageOpts = { width: 640 };
 

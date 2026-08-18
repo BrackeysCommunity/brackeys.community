@@ -1,7 +1,8 @@
-import { motion } from "framer-motion";
+import { Link as RouterLink } from "@tanstack/react-router";
 
 import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
 import { Text } from "@/components/ui/typography";
+import { jamLinkParams } from "@/lib/jam-links";
 
 import type { JamFromList } from "../helpers";
 import { JamBanner } from "./BannerMedia";
@@ -9,7 +10,6 @@ import { HostLine } from "./HostLine";
 import { RowProgress } from "./JamProgress";
 import { LifecycleDates, MilestoneHeadline } from "./milestones";
 import { CountStat, SignalInline } from "./SignalStat";
-import { ROW_CLOSE_TRANSITION } from "./transitions";
 import { useJamColor } from "./use-jam-color";
 
 /**
@@ -20,33 +20,15 @@ import { useJamColor } from "./use-jam-color";
  * every thumb doubled the image decode/paint cost of the list for pure
  * atmosphere.
  */
-export function ShelfRow({
-  jam,
-  now,
-  layoutKey,
-  isSelected,
-  onSelect,
-}: {
-  jam: JamFromList;
-  now: Date;
-  layoutKey: string;
-  /** Hidden while its modal is open so framer's shared-layout morph has
-   * a single visible instance. */
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
+export function ShelfRow({ jam, now }: { jam: JamFromList; now: Date }) {
   const rowColor = useJamColor(jam);
   const entries = jam.entriesCount ?? 0;
 
   return (
-    <motion.button
-      type="button"
-      onClick={onSelect}
-      layoutId={`tl-row-${layoutKey}`}
-      layout={false}
-      transition={ROW_CLOSE_TRANSITION}
-      style={{ opacity: isSelected ? 0 : 1 }}
-      className="group relative block w-full cursor-pointer overflow-hidden text-left transition-colors"
+    <RouterLink
+      to="/jams/$jamSlug"
+      params={jamLinkParams(jam)}
+      className="group relative block w-full overflow-hidden text-left transition-colors"
     >
       <div
         aria-hidden
@@ -62,7 +44,7 @@ export function ShelfRow({
           className="relative h-full min-h-16 w-full shrink-0 overflow-hidden"
           style={{ backgroundColor: rowColor }}
         >
-          <JamBanner jam={jam} layoutKey={layoutKey} />
+          <JamBanner jam={jam} />
         </div>
         <div className="flex min-w-0 flex-col justify-center gap-1.5 py-2.5">
           {/* Countdown and count ride with the title on narrow screens;
@@ -105,6 +87,6 @@ export function ShelfRow({
           <MilestoneHeadline jam={jam} now={now} compact className="mt-auto" />
         </div>
       </div>
-    </motion.button>
+    </RouterLink>
   );
 }

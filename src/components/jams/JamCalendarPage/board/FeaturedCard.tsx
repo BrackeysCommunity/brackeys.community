@@ -1,9 +1,10 @@
-import { motion } from "framer-motion";
+import { Link as RouterLink } from "@tanstack/react-router";
 
 import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
 import { MediaCardFloatingBadge } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
+import { jamLinkParams } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
@@ -12,7 +13,6 @@ import { HostLine } from "./HostLine";
 import { CardProgressStrip } from "./JamProgress";
 import { MilestoneHeadline, SUPPORTING_TEXT } from "./milestones";
 import { SignalInline } from "./SignalStat";
-import { ROW_CLOSE_TRANSITION } from "./transitions";
 import { useJamColor } from "./use-jam-color";
 
 /**
@@ -21,38 +21,22 @@ import { useJamColor } from "./use-jam-color";
  * title. The participation count rides over the artwork so the text
  * block below stays a clean title / host / dates stack.
  */
-export function FeaturedCard({
-  jam,
-  now,
-  layoutKey,
-  isSelected,
-  onSelect,
-}: {
-  jam: JamFromList;
-  now: Date;
-  layoutKey: string;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
+export function FeaturedCard({ jam, now }: { jam: JamFromList; now: Date }) {
   const color = useJamColor(jam);
   const dates = formatJamShortDates(jam.startsAt, jam.endsAt);
   const duration = durationDays(jam.startsAt, jam.endsAt);
 
   return (
-    <motion.button
-      type="button"
-      onClick={onSelect}
-      layoutId={`tl-row-${layoutKey}`}
-      layout={false}
-      transition={ROW_CLOSE_TRANSITION}
-      style={{ opacity: isSelected ? 0 : 1, borderRadius: 8 }}
-      className="group relative flex w-80 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60 sm:w-96"
+    <RouterLink
+      to="/jams/$jamSlug"
+      params={jamLinkParams(jam)}
+      className="group relative flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60 sm:w-96"
     >
       <div
         className="relative h-52 w-full shrink-0 overflow-hidden"
         style={{ backgroundColor: color }}
       >
-        <JamBanner jam={jam} layoutKey={layoutKey} fit="contain" />
+        <JamBanner jam={jam} fit="contain" />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card/70 to-transparent"
@@ -83,6 +67,6 @@ export function FeaturedCard({
         </div>
       </div>
       <CardProgressStrip jam={jam} now={now} />
-    </motion.button>
+    </RouterLink>
   );
 }
