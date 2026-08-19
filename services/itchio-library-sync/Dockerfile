@@ -20,13 +20,14 @@ COPY services/itchio-library-sync/src ./services/itchio-library-sync/src
 # everything stays in a single source of truth under drizzle migrations —
 # and, for the same reason, the canonical-project writes: a placement this
 # sweep creates has to get its `project.projects` row from the same code the
-# app uses. `project-sync.ts` pulls in `project-taxonomy.ts` and
-# `itch-urls.ts`, and `itchio.ts` is the shared API client; none of them
+# app uses. `project-sync.ts` pulls in `project-taxonomy.ts`, `itch-urls.ts`,
+# and `member-name.ts`, and `itchio.ts` is the shared API client; none of them
 # imports the app's `db` or its `@/` alias.
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/lib/project-sync.ts ./src/lib/project-sync.ts
 COPY src/lib/project-taxonomy.ts ./src/lib/project-taxonomy.ts
 COPY src/lib/itch-urls.ts ./src/lib/itch-urls.ts
+COPY src/lib/member-name.ts ./src/lib/member-name.ts
 COPY src/lib/itchio.ts ./src/lib/itchio.ts
 COPY src/lib/token-crypto.ts ./src/lib/token-crypto.ts
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
