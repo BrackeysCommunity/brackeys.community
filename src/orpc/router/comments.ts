@@ -30,7 +30,6 @@ import { isStaffMember } from "@/lib/discord";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
-import { checkProfanity } from "@/lib/profanity";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   notifyReporters,
@@ -420,7 +419,6 @@ export const createComment = os
         message: `Keep it under ${subject.maxCommentLength} characters.`,
       });
     }
-    checkProfanity(input.content, "Comment");
 
     const thread = await resolveThread(input.subject, subject);
     if (thread.lockedAt) {
@@ -588,7 +586,6 @@ export const editComment = os
         message: `Keep it under ${subject.maxCommentLength} characters.`,
       });
     }
-    checkProfanity(input.content, "Comment");
 
     await db
       .update(comments)

@@ -45,6 +45,13 @@ interface AppSettingsValue {
    * restores the volume it was at. */
   volume: number;
   setVolume: (next: number) => void;
+  /** Whether prose is rendered with profanity asterisked out. Ships on:
+   * the person who never opens settings is the one to protect, and the
+   * person who wants it raw is the one who will go looking. Read through
+   * `useCensored` rather than directly — the hook also holds the render
+   * back until hydration, since the server can't know this. */
+  censorProfanity: boolean;
+  setCensorProfanity: (next: boolean) => void;
 }
 
 const Ctx = createContext<AppSettingsValue | null>(null);
@@ -52,6 +59,7 @@ const Ctx = createContext<AppSettingsValue | null>(null);
 const REDUCE_MOTION_KEY = "brackeys-reduce-motion";
 const MUTED_KEY = "brackeys-muted";
 const VOLUME_KEY = "brackeys-volume";
+const CENSOR_KEY = "brackeys-censor-profanity";
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
 /** Read the stored motion preference. Legacy boolean values migrate at
@@ -78,6 +86,17 @@ function readBool(key: string): boolean {
     return localStorage.getItem(key) === "1";
   } catch {
     return false;
+  }
+}
+
+/** Read a boolean preference that defaults to `true`. Only an explicit
+ * `"0"` turns it off, so a missing key reads as on. SSR-safe. */
+function readBoolOn(key: string): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return localStorage.getItem(key) !== "0";
+  } catch {
+    return true;
   }
 }
 
@@ -126,6 +145,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [motionPref, setMotionPrefState] = useState<MotionPref>(readMotionPref);
   const [muted, setMutedState] = useState(() => readBool(MUTED_KEY));
   const [volume, setVolumeState] = useState(readVolume);
+  const [censorProfanity, setCensorProfanityState] = useState(() => readBoolOn(CENSOR_KEY));
 
   const nativeReduced = useSyncExternalStore(
     subscribeNativeReduce,
@@ -167,6 +187,11 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     writeString(MUTED_KEY, next ? "1" : "0");
   }, []);
 
+  const setCensorProfanity = useCallback((next: boolean) => {
+    setCensorProfanityState(next);
+    writeString(CENSOR_KEY, next ? "1" : "0");
+  }, []);
+
   const setVolume = useCallback((next: number) => {
     const clamped = Math.min(Math.max(next, 0), 1);
     setVolumeState(clamped);
@@ -179,7 +204,17 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
 
   return (
     <Ctx.Provider
-      value={{ motionPref, setMotionPref, reduceMotion, muted, setMuted, volume, setVolume }}
+      value={{
+        motionPref,
+        setMotionPref,
+        reduceMotion,
+        muted,
+        setMuted,
+        volume,
+        setVolume,
+        censorProfanity,
+        setCensorProfanity,
+      }}
     >
       {children}
     </Ctx.Provider>
@@ -190,6 +225,12 @@ export function useAppSettings(): AppSettingsValue {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useAppSettings must be used within AppSettingsProvider");
   return ctx;
+}
+
+/** The same value, or null outside the provider. For the one consumer that
+ * must not crash a subtree over a cosmetic preference — see `useCensored`. */
+export function useOptionalAppSettings(): AppSettingsValue | null {
+  return useContext(Ctx);
 }
 
 /** The effective reduced-motion boolean — stored pref coalesced with the

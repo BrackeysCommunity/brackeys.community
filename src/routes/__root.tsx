@@ -61,12 +61,6 @@ interface MyRouterContext {
 }
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
-  beforeLoad: async () => {
-    if (typeof document !== "undefined") {
-      document.documentElement.setAttribute("lang", "en");
-    }
-  },
-
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -157,7 +151,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             router-core (1.160.2) calls `document.startViewTransition(fn)` and
             discards the handle, so when the browser *skips* a transition —
             a backgrounded tab, or a second navigation landing inside the
-            ~350ms window the page animation opens — its `ready`/`finished`
+            window the page animation opens — its `ready`/`finished`
             promises reject with nothing attached, and each one surfaces as an
             uncaught InvalidStateError. Only that skip signature is swallowed;
             anything else is rethrown so it stays visible. Drop this once the

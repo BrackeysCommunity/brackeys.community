@@ -30,6 +30,7 @@ import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import type { SubjectRef } from "@/lib/comment-subjects";
 import { timeAgo } from "@/lib/format-time";
+import { Censored } from "@/lib/hooks/use-censored";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -767,7 +768,7 @@ function CommentItem({
         </Text>
       ) : (
         <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-          {comment.content}
+          <Censored>{comment.content}</Censored>
         </Text>
       )}
 

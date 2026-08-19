@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { useMemo } from "react";
 
+import { useCensorFn } from "@/lib/hooks/use-censored";
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
 import { cn } from "@/lib/utils";
 
@@ -261,11 +262,15 @@ function sanitize(html: string): string {
  * *Summary headings:* a heading nested in a `<summary>` is a block box,
  * which drops the label onto the line below the disclosure triangle.
  *
+ * *Censoring:* the viewer's profanity preference is applied to text nodes
+ * here rather than to the string, so nothing in an `href` or a `src` can
+ * be rewritten into a broken link.
+ *
  * Runs on the sanitized string, so nothing here can reintroduce markup
  * DOMPurify rejected: the parse only sees what already survived, and the
  * one attribute we write (`href`) is re-checked for scheme first.
  */
-function normalizeBody(html: string): string {
+function normalizeBody(html: string, censor: (text: string) => string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
 
   // Class names are read for intent, then dropped. They are never left on
@@ -428,6 +433,16 @@ function normalizeBody(html: string): string {
     el.dataset.slot = "rich-html-gallery";
   }
 
+  // Text nodes only, so a host's URL or class-derived data attribute can't
+  // be mangled into a broken link by the censor.
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.nodeValue;
+    if (!text) continue;
+    const clean = censor(text);
+    if (clean !== text) node.nodeValue = clean;
+  }
+
   for (const summary of doc.querySelectorAll("summary")) {
     for (const heading of summary.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
       const inline = doc.createElement("span");
@@ -495,12 +510,16 @@ interface RichHtmlProps {
  */
 export function RichHtml({ html, className }: RichHtmlProps) {
   const canSanitize = useIsHydrated();
+  const censor = useCensorFn();
 
   const safe = useMemo(
-    () => (canSanitize ? normalizeBody(sanitize(html)) : null),
-    [canSanitize, html],
+    () => (canSanitize ? normalizeBody(sanitize(html), censor) : null),
+    [canSanitize, html, censor],
   );
-  const paragraphs = useMemo(() => (safe == null ? htmlToParagraphs(html) : []), [safe, html]);
+  const paragraphs = useMemo(
+    () => (safe == null ? htmlToParagraphs(html).map(censor) : []),
+    [safe, html, censor],
+  );
 
   if (safe == null) {
     return (

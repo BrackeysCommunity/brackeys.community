@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { Censored } from "@/lib/hooks/use-censored";
 import { cn } from "@/lib/utils";
 import type { client } from "@/orpc/client";
 
@@ -115,7 +116,7 @@ export function TeamDirectoryCard({
 
       {team.tagline ? (
         <Text as="span" size="xs" variant="muted" className="line-clamp-2">
-          {team.tagline}
+          <Censored>{team.tagline}</Censored>
         </Text>
       ) : null}
 

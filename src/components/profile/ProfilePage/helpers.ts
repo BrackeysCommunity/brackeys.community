@@ -76,6 +76,9 @@ export interface ProfileViewModel {
   /** Discord user id — drives the visitor "Message on Discord" deep
    * link. Null for profiles without a linked Discord id. */
   discordId: string | null;
+  /** Their Discord handle, copied when the deep link is followed — the
+   * link resolves to nothing outside a signed-in Discord client. */
+  discordUsername: string | null;
   /** Whether the profile wall accepts and shows notes to visitors. */
   notesEnabled: boolean;
 }

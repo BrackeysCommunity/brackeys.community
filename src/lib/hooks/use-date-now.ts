@@ -1,18 +1,39 @@
 import { useEffect, useState } from "react";
 
+/** Wall-clock minute in ms. */
+const MINUTE = 60_000;
+
+/**
+ * The current time, re-read once a minute.
+ *
+ * A minute is the resolution every consumer actually renders at:
+ * `formatRelativeMs` stops at `03h 04m`, `timeAgo` at `12m ago`, and the
+ * jam progress strips span days. This used to tick every second, which
+ * bought nothing visible and cost a re-render of whatever sat under it —
+ * on the jam board that is the provider, the board build, and every
+ * mounted card, once a second, forever.
+ *
+ * The first tick is aligned to the wall-clock minute so everything on
+ * screen rolls over together rather than each mount drifting on its own
+ * schedule.
+ */
 function useDateNow(): number {
-  // 1. Keep track of the current date's state. `useState` receives an initializer function as its
-  //    initial state. It only runs once when the hook is called, so only the current date at the
-  //    time the hook is called is set first.
   const [time, setTime] = useState(() => Date.now());
 
   useEffect(() => {
-    // 2. Update the current date every second using `setInterval`.
-    const id = setInterval(() => {
-      setTime(Date.now()); // ✅ Good: non-idempotent code no longer runs in render
-    }, 1000);
-    // 3. Return a cleanup function so we don't leak the `setInterval` timer.
-    return () => clearInterval(id);
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const align = setTimeout(
+      () => {
+        setTime(Date.now());
+        interval = setInterval(() => setTime(Date.now()), MINUTE);
+      },
+      MINUTE - (Date.now() % MINUTE),
+    );
+
+    return () => {
+      clearTimeout(align);
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
   return time;

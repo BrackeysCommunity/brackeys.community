@@ -211,6 +211,7 @@ function ContributorCard({
             size="icon-xs"
             variant="ghost"
             aria-label={`Edit ${contributor.displayName}'s credit`}
+            title={`Edit ${contributor.displayName}'s credit`}
             onClick={onEdit}
           >
             <HugeiconsIcon icon={Edit02Icon} size={12} />
@@ -226,6 +227,7 @@ function ContributorCard({
               size="icon-xs"
               variant="ghost"
               aria-label={`Remove ${contributor.displayName}'s credit`}
+              title={`Remove ${contributor.displayName}'s credit`}
             >
               <HugeiconsIcon icon={Delete02Icon} size={12} />
             </Button>

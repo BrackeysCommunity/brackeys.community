@@ -3,6 +3,7 @@ import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { captureEvent, initAnalytics } from "@/lib/posthog";
 
 import { NotFoundPage } from "./components/layout/NotFoundPage";
+import { PageSkeleton } from "./components/layout/PageSkeleton";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
@@ -15,6 +16,20 @@ export function getRouter() {
     // Every `notFound()` a loader throws lands on the same page unless the
     // route names its own copy — see `@/components/layout/NotFoundPage`.
     defaultNotFoundComponent: () => <NotFoundPage />,
+
+    // Without a *default* pending component only the root route had one,
+    // so a route whose loader was in flight (the jam, project and post
+    // pages all load server-side) held the page the user was leaving,
+    // motionless, until the data landed. Any route that can't commit
+    // immediately now says so.
+    defaultPendingComponent: () => <PageSkeleton />,
+    // Router defaults are 1000/500: a whole second of the previous page
+    // before the placeholder is allowed to appear, which is most of the
+    // "clicking does nothing" window. 120ms is past the point where a
+    // fast navigation would flash a skeleton it doesn't need, and well
+    // inside the ~200ms an interaction has to acknowledge a click.
+    defaultPendingMs: 120,
+    defaultPendingMinMs: 220,
 
     scrollRestoration: true,
     // The document body is `h-screen overflow-hidden`; the real scroller is

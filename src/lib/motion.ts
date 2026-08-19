@@ -4,22 +4,25 @@ import type { Variants } from "framer-motion";
  * deliberate transition in the app. */
 export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
-/** Page-level stagger. The 0.25 delay hands off from the cross-route view
- * transition: the pane finishes its fade+rise as the first child starts. */
+/** Page-level stagger. No `delayChildren`: the cross-route view
+ * transition runs *over* the new pane, so anything held back until it
+ * finishes is a page that reads as empty for as long as the handoff
+ * lasts. The sections start immediately and the stagger is short enough
+ * that a six-section page is fully settled inside ~400ms. */
 export const pageContainer: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.25 },
+    transition: { duration: 0.12, ease: EASE_OUT, staggerChildren: 0.035 },
   },
 };
 
 export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 8 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: EASE_OUT },
+    transition: { duration: 0.22, ease: EASE_OUT },
   },
 };
 
@@ -36,16 +39,16 @@ export const fadeIn: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { duration: 0.4, ease: EASE_OUT },
+    transition: { duration: 0.22, ease: EASE_OUT },
   },
 };
 
 export const fadeLeft: Variants = {
-  hidden: { opacity: 0, x: 24 },
+  hidden: { opacity: 0, x: 12 },
   visible: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.45, ease: EASE_OUT },
+    transition: { duration: 0.24, ease: EASE_OUT },
   },
 };
 
@@ -53,5 +56,5 @@ export const fadeLeft: Variants = {
  * stagger — opacity stays at 1 so the row itself never dips. */
 export const cardRow: Variants = {
   hidden: { opacity: 1 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
+  visible: { opacity: 1, transition: { staggerChildren: 0.04 } },
 };

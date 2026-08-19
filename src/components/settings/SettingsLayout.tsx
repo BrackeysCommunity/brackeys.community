@@ -97,9 +97,12 @@ function SettingsPane() {
   return (
     <motion.div
       key={pathname}
-      initial={reduced ? false : { opacity: 0, y: 10 }}
+      initial={reduced ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: EASE_OUT }}
+      // Short enough that the pane reads as already there. The rail is
+      // instant to click and nothing here has to load, so a longer entry
+      // is time the section is legible but unreadable.
+      transition={{ duration: 0.18, ease: EASE_OUT }}
       className="flex min-w-0 flex-col gap-8"
     >
       <Outlet />

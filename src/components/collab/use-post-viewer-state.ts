@@ -67,6 +67,7 @@ export function usePostViewerState(
     viewerResponse: isOwner ? null : (viewerStateQuery.data?.viewerResponse ?? null),
     contact: viewerStateQuery.data?.contact ?? null,
     authorDiscordId: viewerStateQuery.data?.authorDiscordId ?? null,
+    authorDiscordUsername: viewerStateQuery.data?.authorDiscordUsername ?? null,
     viewerOverlap,
   };
 }

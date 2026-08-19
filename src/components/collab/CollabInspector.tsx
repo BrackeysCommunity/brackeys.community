@@ -9,6 +9,7 @@ import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { type CollabPostType } from "@/lib/collab-store";
+import { Censored } from "@/lib/hooks/use-censored";
 import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
@@ -243,7 +244,7 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
                     </Text>
                     {user.tagline ? (
                       <Text as="span" size="xs" variant="muted" className="truncate">
-                        {user.tagline}
+                        <Censored>{user.tagline}</Censored>
                       </Text>
                     ) : null}
                   </span>

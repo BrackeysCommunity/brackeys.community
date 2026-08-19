@@ -1,4 +1,4 @@
-import { Edit02Icon, Share05Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
+import { Edit02Icon, Link01Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
+import { Censored } from "@/lib/hooks/use-censored";
 import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
@@ -101,13 +102,13 @@ export function ProfileHero({
           </div>
           {profile.tag ? (
             <span className="text-lg leading-tight font-semibold tracking-tight text-accent">
-              {profile.tag}
+              <Censored>{profile.tag}</Censored>
             </span>
           ) : null}
           <MetaLine profile={profile} />
           {profile.oneLiner ? (
             <Text size="sm" variant="muted" className="max-w-prose tracking-wide">
-              {profile.oneLiner}
+              <Censored>{profile.oneLiner}</Censored>
             </Text>
           ) : null}
         </div>
@@ -290,11 +291,24 @@ function ActionRow({
         </Button>
       ) : null}
       {!isOwner ? (
-        <DiscordMessageButton discordId={profile.discordId} personLabel={profile.name} />
+        <DiscordMessageButton
+          discordId={profile.discordId}
+          discordUsername={profile.discordUsername}
+          personLabel={profile.name}
+        />
       ) : null}
-      <Button variant="outline" size="sm" onClick={onShare} aria-label="Share profile">
-        <HugeiconsIcon icon={Share05Icon} size={14} />
-        {isOwner ? null : <span className="tracking-widest">SHARE</span>}
+      {/* A chain link, not an outbound-share arrow: this copies a URL, it
+          never navigates. The label stays for the owner too — hiding the
+          only word on the button is what made it a mystery. */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onShare}
+        aria-label="Copy profile link"
+        title="Copy profile link"
+      >
+        <HugeiconsIcon icon={Link01Icon} size={14} />
+        <span className="tracking-widest">COPY LINK</span>
       </Button>
       {!isOwner && signedIn ? <BlockToggle profileId={profile.profileId} /> : null}
     </div>

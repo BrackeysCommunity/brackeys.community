@@ -7,7 +7,7 @@ import { orpc } from "@/orpc/client";
 
 import { SelectField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
-import { CONTACT_PLACEHOLDERS, CONTACT_TYPE_OPTIONS, profanityCheck } from "./shared";
+import { CONTACT_PLACEHOLDERS, CONTACT_TYPE_OPTIONS } from "./shared";
 
 /**
  * How responders reach the poster. Solo posts default to a Discord DM
@@ -55,12 +55,7 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
           const ct = ctField.state.value as CollabContactType | undefined;
           if (!ct) return null;
           return (
-            <form.Field
-              name="contactMethod"
-              validators={{
-                onChange: ({ value }: { value: string }) => profanityCheck(value, "Contact method"),
-              }}
-            >
+            <form.Field name="contactMethod">
               {(field) => (
                 <>
                   <TextField

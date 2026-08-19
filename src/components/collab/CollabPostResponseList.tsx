@@ -9,6 +9,7 @@ import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { Censored } from "@/lib/hooks/use-censored";
 import { client, orpc } from "@/orpc/client";
 
 import { TeamPickerField } from "./CollabCreateFlyout/TeamPickerField";
@@ -153,7 +154,7 @@ export function CollabPostResponseList({
           </div>
           <StackOverlapLine overlap={resp.stackOverlap} />
           <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-            {resp.message}
+            <Censored>{resp.message}</Censored>
           </Text>
           {resp.portfolioUrl ? (
             <a
@@ -233,6 +234,7 @@ export function CollabPostResponseList({
           {resp.status === "accepted" ? (
             <DiscordMessageButton
               discordId={resp.responderDiscordId}
+              discordUsername={resp.responderUsername}
               label="MESSAGE ON DISCORD"
               size="xs"
               className="self-start"

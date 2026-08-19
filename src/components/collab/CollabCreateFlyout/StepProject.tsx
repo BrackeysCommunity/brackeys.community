@@ -8,7 +8,6 @@ import { useWizardForm } from "./form-context";
 import { JamPickerField } from "./JamPickerField";
 import { ProjectPickerField } from "./ProjectPickerField";
 import {
-  profanityCheck,
   projectLengthForJam,
   projectPrefillValues,
   type AnyFormStore,
@@ -73,7 +72,7 @@ export function StepProject() {
           onChange: ({ value }: { value: string }) => {
             if (value.trim().length > 0 && value.trim().length < 3)
               return "Project name must be at least 3 characters.";
-            return profanityCheck(value, "Project name");
+            return undefined;
           },
         }}
       >

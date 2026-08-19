@@ -102,6 +102,7 @@ export function ProjectPickerField({
             variant="outline"
             size="icon-sm"
             aria-label="Unlink project"
+            title="Unlink project"
             onClick={() => onChange(null)}
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />

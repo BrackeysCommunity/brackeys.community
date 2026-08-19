@@ -14,6 +14,28 @@ const useIsoLayoutEffect = typeof document === "undefined" ? useEffect : useLayo
  */
 const UNMEASURED_ITEMS = 12;
 
+/**
+ * How far past each edge of the viewport rows stay mounted, as a
+ * distance rather than a row count.
+ *
+ * A fixed row count buffers whatever that surface's rows happen to be
+ * tall, which is backwards: the inbox's 68px rows got 136px of runway
+ * and the jam board's cards got 528px, when a fast flick covers the same
+ * pixels either way and the short-row list is the one people throw
+ * hardest. Roughly a phone viewport, which is what a flick outruns
+ * between frames.
+ *
+ * It self-limits on cost, too. The reason not to overscan is image
+ * decodes, and a pixel budget buys about the same area of artwork per
+ * surface no matter how the rows are cut — a row that is short is short
+ * because it carries a thumbnail instead of a banner.
+ */
+const OVERSCAN_PX = 900;
+
+/** Runaway guard only — a list of near-zero-height rows shouldn't mount
+ * hundreds of them because the arithmetic said so. */
+const OVERSCAN_ROW_CAP = 12;
+
 interface VirtualGridProps<T> {
   items: T[];
   /** Stable identity per item — also keys the virtualizer's rows. */
@@ -29,7 +51,8 @@ interface VirtualGridProps<T> {
   rowClassName: string;
   /** Row height in px before a real row has been measured. */
   estimateRowHeight: number;
-  /** Rows kept mounted past each edge of the viewport. */
+  /** Rows kept mounted past each edge of the viewport. Defaults to
+   * whatever covers `OVERSCAN_PX` at this list's row height. */
   overscan?: number;
   /** Classes for the container itself — frame, border, rounding. Must
    * not add top padding: the row offsets are measured from its top edge. */
@@ -68,10 +91,13 @@ export function VirtualGrid<T>({
   renderItem,
   rowClassName,
   estimateRowHeight,
-  overscan = 2,
+  overscan,
   className,
   footer,
 }: VirtualGridProps<T>) {
+  const rowOverscan =
+    overscan ?? Math.min(OVERSCAN_ROW_CAP, Math.max(2, Math.ceil(OVERSCAN_PX / estimateRowHeight)));
+
   const wrapperRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const probeRef = useRef<HTMLDivElement>(null);
@@ -134,7 +160,7 @@ export function VirtualGrid<T>({
     // Rows are absolutely positioned, so the CSS row gap between them
     // never applies — the virtualizer adds it to the offsets instead.
     gap: rowGap,
-    overscan,
+    overscan: rowOverscan,
     scrollMargin,
     getItemKey: (rowIndex) => {
       const first = items[rowIndex * columns];

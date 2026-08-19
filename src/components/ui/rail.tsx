@@ -183,6 +183,7 @@ function PageButton({
       onClick={onClick}
       disabled={!enabled}
       aria-label={`Scroll ${label.toLowerCase()} ${side === "start" ? "left" : "right"}`}
+      title={`Scroll ${label.toLowerCase()} ${side === "start" ? "left" : "right"}`}
       className={cn(
         // Pointer-only: touch users swipe the rail directly. Stated as
         // a hide-on-coarse variant rather than a show-on-fine one — a

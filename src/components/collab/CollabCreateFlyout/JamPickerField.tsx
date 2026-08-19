@@ -78,6 +78,7 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
             variant="outline"
             size="icon-sm"
             aria-label="Remove jam link"
+            title="Remove jam link"
             onClick={() => onChange(null)}
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />

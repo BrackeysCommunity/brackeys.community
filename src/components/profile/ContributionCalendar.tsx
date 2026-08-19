@@ -623,6 +623,7 @@ function SnakeFullscreenOverlay({
             variant="outline"
             size="icon-sm"
             aria-label="Close"
+            title="Close"
             onClick={onClose}
             className="font-mono"
           >
@@ -679,6 +680,7 @@ function SnakeKeyboardControls() {
           variant="default"
           size="icon-lg"
           aria-label="Up"
+          title="Up"
           onClick={() => dispatch("ArrowUp")}
           className="h-12 w-14"
         >
@@ -689,6 +691,7 @@ function SnakeKeyboardControls() {
             variant="default"
             size="icon-lg"
             aria-label="Left"
+            title="Left"
             onClick={() => dispatch("ArrowLeft")}
             className="h-12 w-14"
           >
@@ -698,6 +701,7 @@ function SnakeKeyboardControls() {
             variant="default"
             size="icon-lg"
             aria-label="Down"
+            title="Down"
             onClick={() => dispatch("ArrowDown")}
             className="h-12 w-14"
           >
@@ -707,6 +711,7 @@ function SnakeKeyboardControls() {
             variant="default"
             size="icon-lg"
             aria-label="Right"
+            title="Right"
             onClick={() => dispatch("ArrowRight")}
             className="h-12 w-14"
           >

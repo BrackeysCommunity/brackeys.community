@@ -686,11 +686,6 @@ export const updateProfile = os
   .handler(async ({ input, context }) => {
     const userId = context.user.id;
 
-    checkProfanity(input.bio, "Bio");
-    checkProfanity(input.tagline, "Tagline");
-    checkProfanity(input.lookingFor, "Looking for");
-    checkProfanity(input.location, "Location");
-
     if (input.timezone != null && !isValidTimezone(input.timezone)) {
       throw new ORPCError("BAD_REQUEST", {
         message: "Unknown timezone — pick an IANA zone like Europe/Madrid.",

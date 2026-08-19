@@ -264,6 +264,7 @@ export function VocabularyManager({
                         size="icon-xs"
                         onClick={() => setEditingId(item.id)}
                         aria-label={`Rename ${item.name}`}
+                        title={`Rename ${item.name}`}
                       >
                         <HugeiconsIcon icon={PencilEdit01Icon} strokeWidth={2} />
                       </Button>
@@ -286,6 +287,7 @@ export function VocabularyManager({
                             size="icon-xs"
                             disabled={remove.isPending}
                             aria-label={`Remove ${item.name}`}
+                            title={`Remove ${item.name}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
                             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
@@ -336,8 +338,32 @@ function EditRow({
       null,
     [siblings, item.id, trimmed],
   );
-  const changed = trimmed !== item.name || category.trim() !== (item.category ?? "");
+  const nextCategory = category.trim();
+  const renamed = trimmed !== item.name;
+  const recategorised = nextCategory !== (item.category ?? "");
+  const changed = renamed || recategorised;
   const canSave = trimmed.length > 0 && !clash && changed && !busy;
+
+  // The dialog used to announce a rename whichever field had changed, so
+  // moving an entry between categories asked whether to rename “Kotlin” to
+  // “Kotlin”. Three edits, three sentences.
+  const confirmTitle = renamed
+    ? recategorised
+      ? `Rename “${item.name}” to “${trimmed}” and move it to ${nextCategory || UNCATEGORISED}?`
+      : `Rename “${item.name}” to “${trimmed}”?`
+    : `Move “${item.name}” to ${nextCategory || UNCATEGORISED}?`;
+
+  const confirmMessage = renamed
+    ? item.usageCount > 0
+      ? `Everything already using it follows the new name — ${USAGE[kind](item.usageCount)}.`
+      : "Nothing is using it yet, so this only changes the catalogue."
+    : // A category is only ever a grouping in the picker; nothing that
+      // already carries the entry changes at all.
+      `A category decides where it sorts in the picker and nothing else — ${
+        item.usageCount > 0
+          ? `the ${USAGE[kind](item.usageCount)} using it are unaffected`
+          : "nothing is using it yet"
+      }.`;
 
   return (
     <Well className="w-full gap-2 p-3">
@@ -362,16 +388,12 @@ function EditRow({
         </Field>
         <div className="flex items-center gap-2">
           <Confirm
-            title={`Rename “${item.name}” to “${trimmed}”?`}
-            message={
-              item.usageCount > 0
-                ? `Everything already using it follows the new name — ${USAGE[kind](item.usageCount)}.`
-                : "Nothing is using it yet, so this only changes the catalogue."
-            }
+            title={confirmTitle}
+            message={confirmMessage}
             confirmText="Save"
             disabled={!canSave}
             onConfirm={async () => {
-              await onSave({ name: trimmed, category: category.trim() || null });
+              await onSave({ name: trimmed, category: nextCategory || null });
             }}
           >
             <Button size="xs" disabled={!canSave}>

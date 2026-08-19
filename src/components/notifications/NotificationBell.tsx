@@ -71,6 +71,7 @@ export function NotificationBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
+        title={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
         render={<Button variant="outline" size="icon-lg" className="relative" />}
       >
         <HugeiconsIcon icon={Notification03Icon} size={16} />

@@ -72,6 +72,7 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogClose
+            title="Close"
             render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />

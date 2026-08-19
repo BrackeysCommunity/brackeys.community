@@ -266,6 +266,7 @@ function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void 
           variant="ghost"
           size="icon-sm"
           aria-label={`Remove ${link.label}`}
+          title={`Remove ${link.label}`}
           onClick={onRemove}
           className="relative z-10 text-muted-foreground hover:text-destructive"
         >

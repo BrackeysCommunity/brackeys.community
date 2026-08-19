@@ -30,7 +30,7 @@ export const LOCAL_SETTINGS_TABS: readonly SettingsTab[] = ["appearance", "motio
 export const SETTINGS_TAB_META = {
   appearance: {
     label: "Appearance",
-    hint: "Theme",
+    hint: "Theme, language",
     icon: ColorsIcon,
     to: "/settings/appearance",
   },

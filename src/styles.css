@@ -620,18 +620,23 @@
    The shells tag their persistent scroller `view-transition-name: page`
    (exactly one is mounted at a time), so the fade+rise is scoped to the
    content pane while the frozen root keeps the backgrounds, header,
-   scanlines, and cursor rock-still. ~350ms total: the view transition
-   blocks input for its duration, and longer reads as sticky. */
+   scanlines, and cursor rock-still.
+
+   ~180ms total, and the halves overlap rather than queueing. The
+   transition blocks input for its whole duration and it runs *over* the
+   arriving page's own section stagger (`lib/motion.ts`), so every
+   millisecond here is one the new page can't be read in — short enough
+   to register as a cut with a soft edge, not as a wait. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
 }
 ::view-transition-old(page) {
-  animation: vt-page-out 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: vt-page-out 0.08s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 ::view-transition-new(page) {
-  animation: vt-page-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+  animation: vt-page-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes vt-page-out {
   to {
@@ -641,7 +646,7 @@
 @keyframes vt-page-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
 }
 

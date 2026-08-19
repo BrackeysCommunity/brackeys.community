@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import {
   AdminEmpty,
   AdminPager,
+  AdminPersonLink,
   AdminRow,
   AdminSection,
   CategoryCombobox,
@@ -204,11 +205,13 @@ function RequestRow({
   return (
     <AdminRow muted={!pending}>
       <div className="flex flex-wrap items-center gap-3">
-        <UserAvatar
-          avatarUrl={request.requester?.avatarUrl}
-          username={request.requester?.displayName}
-          size={28}
-        />
+        <AdminPersonLink user={request.requester}>
+          <UserAvatar
+            avatarUrl={request.requester?.avatarUrl}
+            username={request.requester?.displayName}
+            size={28}
+          />
+        </AdminPersonLink>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <Text size="sm" className="font-medium">
@@ -226,7 +229,10 @@ function RequestRow({
             ) : null}
           </div>
           <Text size="xs" variant="muted">
-            {request.requester?.displayName ?? "Unknown"} · {timeAgo(request.createdAt)}
+            <AdminPersonLink user={request.requester}>
+              {request.requester?.displayName ?? "Unknown"}
+            </AdminPersonLink>{" "}
+            · {timeAgo(request.createdAt)}
           </Text>
         </div>
 

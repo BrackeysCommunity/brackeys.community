@@ -13,7 +13,13 @@ import { hasProfanity } from "@/lib/profanity";
 
 // ── Profanity ──────────────────────────────────────────────────────────────
 
-/** Form-validation shape over the shared matcher: message or undefined. */
+/**
+ * Form-validation shape over the shared matcher: message or undefined.
+ *
+ * Only for the fields that still hard-reject — the post title and a new
+ * team's name, both of which become the subject line of a notification.
+ * Prose is stored as written and censored at render (`useCensored`).
+ */
 export function profanityCheck(value: string, fieldName: string): string | undefined {
   if (hasProfanity(value)) {
     return `${fieldName} contains inappropriate language.`;
@@ -357,12 +363,6 @@ export function getStepValidationError(
       }
       const titleCheck = profanityCheck(v.title, "Title");
       if (titleCheck) return titleCheck;
-      const descCheck = profanityCheck(v.description, "Description");
-      if (descCheck) return descCheck;
-      if (v.contactMethod) {
-        const contactCheck = profanityCheck(v.contactMethod, "Contact method");
-        if (contactCheck) return contactCheck;
-      }
       break;
     }
     case "team": {
@@ -377,8 +377,6 @@ export function getStepValidationError(
       if (name.length < 2) return "Team name must be at least 2 characters.";
       const teamNameCheck = profanityCheck(v.newTeamName, "Team name");
       if (teamNameCheck) return teamNameCheck;
-      const teamDescCheck = profanityCheck(v.newTeamDescription, "Team description");
-      if (teamDescCheck) return teamDescCheck;
       break;
     }
     // Only what the project entity itself owns. Everything else the step
@@ -392,10 +390,6 @@ export function getStepValidationError(
       if (v.projectId === undefined) {
         if (!v.projectName.trim()) return "Project name is required.";
         if (v.projectName.trim().length < 3) return "Project name must be at least 3 characters.";
-        // Only the typed name is profanity-checked; a canonical title was
-        // already checked when the project was named or renamed.
-        const nameCheck = profanityCheck(v.projectName, "Project name");
-        if (nameCheck) return nameCheck;
       }
       break;
     }

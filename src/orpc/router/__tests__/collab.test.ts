@@ -249,13 +249,16 @@ describe("wizard step validation", () => {
     expect(getStepValidationError("team", validWizardValues({ newTeamName: "x" }))).not.toBeNull();
   });
 
-  it("profanity-checks the new-team name and description", () => {
+  it("profanity-checks the new-team name but not its description", () => {
+    // The name is the team's identity and titles every invite notification,
+    // so it still hard-rejects. The description is prose — stored as
+    // written, censored at render for viewers who asked for that.
     expect(getStepValidationError("team", validWizardValues({ newTeamName: "shit" }))).toMatch(
       /inappropriate/,
     );
     expect(
       getStepValidationError("team", validWizardValues({ newTeamDescription: "shit" })),
-    ).toMatch(/inappropriate/);
+    ).toBeNull();
   });
 
   it("exempts a legacy unlinked edit — but still validates a typed name", () => {

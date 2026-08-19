@@ -5,7 +5,7 @@ import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { cn } from "@/lib/utils";
 
-import { BoardSkeleton } from "./board/BoardSkeleton";
+import { BoardShelvesSkeleton, FeaturedShelfSkeleton } from "./board/BoardSkeleton";
 import { type BoardLayout, type BoardSort, buildBoard } from "./board/build-board";
 import { FeaturedShelf } from "./board/FeaturedShelf";
 import { JamCard } from "./board/JamCard";
@@ -65,11 +65,16 @@ export function JamBoard({
 
   const { featured, shelves } = useMemo(() => buildBoard(jams, now, sort), [jams, now, sort]);
 
+  // Same running order as the loaded board below — featured rail, then
+  // toolbar, then shelves. Placing the toolbar first here instead made
+  // the rail appear to drop in over it on arrival, shoving the toolbar
+  // and every shelf down the page.
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-10">
+        <FeaturedShelfSkeleton />
         {toolbar}
-        <BoardSkeleton />
+        <BoardShelvesSkeleton />
       </div>
     );
   }

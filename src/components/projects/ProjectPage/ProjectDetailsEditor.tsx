@@ -267,6 +267,7 @@ export function ProjectDetailsEditor({
                     variant="ghost"
                     size="icon-xs"
                     aria-label={`Remove link ${index + 1}`}
+                    title={`Remove link ${index + 1}`}
                     onClick={() => setLinks(links.filter((_, i) => i !== index))}
                   >
                     ✕

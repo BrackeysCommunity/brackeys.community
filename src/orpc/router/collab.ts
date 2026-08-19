@@ -205,11 +205,14 @@ const updatePostSchema = z
 
 type PostContent = z.infer<typeof postContentSchema>;
 
+/**
+ * Only the title. A post's title is carried verbatim into every
+ * notification the post generates (`postTitle`), where there is nothing
+ * to censor it — the description, project name and contact line are prose
+ * and are censored at render instead.
+ */
 function checkPostProfanity(input: PostContent) {
   checkProfanity(input.title, "Title");
-  checkProfanity(input.description, "Description");
-  checkProfanity(input.projectName, "Project name");
-  if (input.contactMethod) checkProfanity(input.contactMethod, "Contact method");
 }
 
 /** Ids the caller supplied but that don't exist, as a clean 400 rather
@@ -949,13 +952,21 @@ export const getPostViewerState = os
     // application is accepted — that is the moment the two of them need to
     // talk, and it keeps the author's Discord id off every other response.
     let authorDiscordId: string | null = null;
+    // The handle travels with the id: `discord.com/users/<id>` doesn't
+    // resolve for everyone, and a handle they can search for is the only
+    // fallback that always works.
+    let authorDiscordUsername: string | null = null;
     if (post && own?.status === "accepted" && post.authorId !== context.user.id) {
       const [author] = await db
-        .select({ discordId: developerProfiles.discordId })
+        .select({
+          discordId: developerProfiles.discordId,
+          discordUsername: developerProfiles.discordUsername,
+        })
         .from(developerProfiles)
         .where(eq(developerProfiles.id, post.authorId))
         .limit(1);
       authorDiscordId = author?.discordId ?? null;
+      authorDiscordUsername = author?.discordUsername ?? null;
     }
 
     // Same signal the author gets on their triage list: whether the private
@@ -965,6 +976,7 @@ export const getPostViewerState = os
     return {
       viewerResponse: own ? { ...own, threadCommentCount } : null,
       authorDiscordId,
+      authorDiscordUsername,
       contact: canSeeContact
         ? { contactType: post.contactType, contactMethod: post.contactMethod }
         : null,
@@ -1508,8 +1520,6 @@ export const respondToPost = os
     }),
   )
   .handler(async ({ input, context }) => {
-    checkProfanity(input.message, "Message");
-
     const [post] = await db
       .select()
       .from(collabPosts)
@@ -1611,8 +1621,6 @@ export const updateMyResponse = os
     }),
   )
   .handler(async ({ input, context }) => {
-    checkProfanity(input.message, "Message");
-
     const [response] = await db
       .select()
       .from(collabResponses)

@@ -62,6 +62,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
             size="icon-xs"
             onClick={() => onChange("")}
             aria-label="Clear search"
+            title="Clear search"
             className="size-5 text-muted-foreground"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />

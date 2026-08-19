@@ -2,6 +2,7 @@ import { marked, type Tokens } from "marked";
 import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } from "react";
 
 import { InlineCode } from "@/components/ui/typography/inline-code";
+import { useCensorFn } from "@/lib/hooks/use-censored";
 import { cn } from "@/lib/utils";
 
 type MarkedTextElement = "p" | "span" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
@@ -10,9 +11,17 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
   as?: MarkedTextElement;
   children: string;
   inline?: boolean;
+  /** Opt out of the viewer's profanity censor. For an author looking at a
+   * preview of their own draft — censoring what someone is in the middle
+   * of writing is worse than refusing it outright. */
+  censor?: boolean;
 };
 
 type AnyToken = Tokens.Generic;
+
+/** Applied to every text leaf on the way out. Identity when the viewer
+ * has the censor off, which is the common case for the app's own copy. */
+type Censor = (text: string) => string;
 
 function decodeEntities(s: string): string {
   return s
@@ -24,36 +33,67 @@ function decodeEntities(s: string): string {
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
 }
 
-function renderTokens(tokens: AnyToken[] | undefined): ReactNode {
+function renderTokens(tokens: AnyToken[] | undefined, censor: Censor): ReactNode {
   if (!tokens) return null;
-  return tokens.map((t, i) => <Fragment key={i}>{renderToken(t)}</Fragment>);
+  return tokens.map((t, i) => <Fragment key={i}>{renderToken(t, censor)}</Fragment>);
 }
 
-function renderToken(t: AnyToken): ReactNode {
+/** A table cell's own tokens, so a bolded or linked cell keeps its markup. */
+function renderCells(cells: Tokens.TableCell[], Tag: "th" | "td", censor: Censor): ReactNode {
+  return cells.map((cell, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length row
+    <Tag key={i} style={cell.align ? { textAlign: cell.align } : undefined}>
+      {renderTokens(cell.tokens as AnyToken[], censor)}
+    </Tag>
+  ));
+}
+
+function renderToken(t: AnyToken, censor: Censor): ReactNode {
   switch (t.type) {
     case "space":
       return null;
     case "paragraph":
-      return <p>{renderTokens(t.tokens as AnyToken[])}</p>;
+      return <p>{renderTokens(t.tokens as AnyToken[], censor)}</p>;
     case "heading": {
       const depth = Math.min(6, Math.max(1, (t as Tokens.Heading).depth)) as 1 | 2 | 3 | 4 | 5 | 6;
       const Tag = `h${depth}` as const;
-      return <Tag>{renderTokens(t.tokens as AnyToken[])}</Tag>;
+      return <Tag>{renderTokens(t.tokens as AnyToken[], censor)}</Tag>;
     }
     case "list": {
       const list = t as Tokens.List;
       const items = list.items.map((item, i) => (
-        <li key={i}>{renderTokens(item.tokens as AnyToken[])}</li>
+        <li key={i}>{renderTokens(item.tokens as AnyToken[], censor)}</li>
       ));
-      return list.ordered ? <ol>{items}</ol> : <ul>{items}</ul>;
+      return list.ordered ? <ol start={list.start || undefined}>{items}</ol> : <ul>{items}</ul>;
+    }
+    case "table": {
+      const table = t as Tokens.Table;
+      // The wrapper is what makes a wide table survivable: the bio editor
+      // renders this inside a flyout, and an unwrapped 6-column table
+      // pushes the whole panel sideways.
+      return (
+        <div data-slot="marked-table">
+          <table>
+            <thead>
+              <tr>{renderCells(table.header, "th", censor)}</tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static render of an immutable string
+                <tr key={i}>{renderCells(row, "td", censor)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
     }
     case "blockquote":
-      return <blockquote>{renderTokens(t.tokens as AnyToken[])}</blockquote>;
+      return <blockquote>{renderTokens(t.tokens as AnyToken[], censor)}</blockquote>;
     case "code": {
       const block = t as Tokens.Code;
       return (
         <pre>
-          <code>{block.text}</code>
+          <code>{censor(block.text)}</code>
         </pre>
       );
     }
@@ -63,44 +103,66 @@ function renderToken(t: AnyToken): ReactNode {
       return <br />;
     case "text": {
       const text = t as Tokens.Text;
-      if (text.tokens) return <>{renderTokens(text.tokens as AnyToken[])}</>;
-      return decodeEntities(text.text);
+      if (text.tokens) return <>{renderTokens(text.tokens as AnyToken[], censor)}</>;
+      return censor(decodeEntities(text.text));
     }
     case "strong":
-      return <strong>{renderTokens(t.tokens as AnyToken[])}</strong>;
+      return <strong>{renderTokens(t.tokens as AnyToken[], censor)}</strong>;
     case "em":
-      return <em>{renderTokens(t.tokens as AnyToken[])}</em>;
+      return <em>{renderTokens(t.tokens as AnyToken[], censor)}</em>;
     case "del":
-      return <del>{renderTokens(t.tokens as AnyToken[])}</del>;
+      return <del>{renderTokens(t.tokens as AnyToken[], censor)}</del>;
     case "codespan": {
       const code = t as Tokens.Codespan;
-      return <InlineCode className="translate-y-px">{decodeEntities(code.text)}</InlineCode>;
+      return (
+        <InlineCode className="translate-y-px">{censor(decodeEntities(code.text))}</InlineCode>
+      );
     }
     case "link": {
       const link = t as Tokens.Link;
       return (
-        <a href={link.href} rel="noreferrer noopener" target="_blank">
-          {renderTokens(link.tokens as AnyToken[])}
+        <a
+          href={link.href}
+          rel="noreferrer noopener"
+          target="_blank"
+          title={link.title ?? undefined}
+        >
+          {renderTokens(link.tokens as AnyToken[], censor)}
         </a>
       );
     }
+    case "image": {
+      const image = t as Tokens.Image;
+      // Alt text is the author's own words, so it goes through the censor
+      // like any other leaf. The `src` never does — mangling a URL breaks
+      // the image instead of cleaning it.
+      return (
+        <img src={image.href} alt={censor(image.text ?? "")} title={image.title ?? undefined} />
+      );
+    }
     case "escape":
-      return (t as Tokens.Escape).text;
+      return censor((t as Tokens.Escape).text);
+    // `html` stays dropped on purpose: this renderer's whole safety story
+    // is that it never emits markup the author wrote.
     default:
       return null;
   }
 }
 
 const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
-  ({ as: Tag = "div", children, inline, className, ...props }, ref) => {
+  ({ as: Tag = "div", children, inline, censor = true, className, ...props }, ref) => {
+    const censorFn = useCensorFn();
+    const identity = useMemo(() => (text: string) => text, []);
+    const apply = censor ? censorFn : identity;
+
     const rendered = useMemo(() => {
       if (inline) {
         const tokens = marked.Lexer.lexInline(children) as AnyToken[];
-        return renderTokens(tokens);
+        return renderTokens(tokens, apply);
       }
       const tokens = marked.lexer(children) as AnyToken[];
-      return renderTokens(tokens);
-    }, [children, inline]);
+      return renderTokens(tokens, apply);
+    }, [children, inline, apply]);
 
     return (
       <Tag
@@ -117,6 +179,11 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
           "[&_li]:mb-1",
           "[&_p]:mb-2 [&_p:last-child]:mb-0",
           "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-accent [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_blockquote]:italic",
+          "[&_img]:my-3 [&_img]:h-auto [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded",
+          "[&_[data-slot=marked-table]]:my-3 [&_[data-slot=marked-table]]:overflow-x-auto",
+          "[&_table]:w-full [&_table]:border-collapse [&_table]:text-xs",
+          "[&_th]:border [&_th]:border-border [&_th]:bg-card [&_th]:p-2 [&_th]:text-left [&_th]:font-semibold",
+          "[&_td]:border [&_td]:border-border [&_td]:p-2 [&_td]:align-top",
           inline && "[&_p]:mb-0 [&_p]:inline",
           className,
         )}

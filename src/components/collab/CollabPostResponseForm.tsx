@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
+import { Censored } from "@/lib/hooks/use-censored";
 import { client, orpc } from "@/orpc/client";
 
 import { ResponseThreadPanel } from "./ResponseThreadPanel";
@@ -48,12 +49,14 @@ export function ViewerResponseCard({
   response,
   postId,
   authorDiscordId,
+  authorDiscordUsername,
 }: {
   response: ViewerResponse;
   postId: number;
   /** The post author's Discord id — the server only sends it once this
    *  response is accepted, so no extra gate is needed here. */
   authorDiscordId?: string | null;
+  authorDiscordUsername?: string | null;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -125,7 +128,7 @@ export function ViewerResponseCard({
       ) : (
         <>
           <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-            {response.message}
+            <Censored>{response.message}</Censored>
           </Text>
           {response.portfolioUrl ? (
             <TextLink
@@ -159,6 +162,7 @@ export function ViewerResponseCard({
       {response.status === "accepted" ? (
         <DiscordMessageButton
           discordId={authorDiscordId}
+          discordUsername={authorDiscordUsername}
           label="MESSAGE ON DISCORD"
           size="xs"
           className="mt-1 self-start"

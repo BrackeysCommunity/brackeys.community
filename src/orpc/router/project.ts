@@ -466,7 +466,6 @@ export const updateProjectDetails = os
   .handler(async ({ input, context }) => {
     const project = await requireProjectEditor(input.projectId, context.user.id);
     checkProfanity(input.title, "Title");
-    checkProfanity(input.description, "Description");
 
     // `release_status` is provider truth for an imported project — the itch
     // API says whether a game is in development, and the next sync would

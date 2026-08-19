@@ -62,6 +62,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
             variant="outline"
             size="icon-lg"
             aria-label="Settings"
+            title="Settings"
             render={<Link to="/settings/appearance" />}
           >
             <HugeiconsIcon icon={Settings02Icon} size={16} />

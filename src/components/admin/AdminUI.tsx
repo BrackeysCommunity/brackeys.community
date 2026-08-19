@@ -1,5 +1,6 @@
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,9 @@ import {
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { Textarea } from "@/components/ui/textarea";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 
 /** Shared furniture for the `/admin` sections — one voice across all five tabs. */
@@ -139,6 +142,65 @@ export function AdminEmpty({ children }: { children: React.ReactNode }) {
         {children}
       </Text>
     </Well>
+  );
+}
+
+/** The shape every admin surface hydrates a person into. `urlStub` is
+ * optional because the link falls back to the raw id — see
+ * `profileLinkParams`. */
+export type AdminPersonRef = {
+  id: string;
+  avatarUrl?: string | null;
+  urlStub?: string | null;
+} | null;
+
+/**
+ * Wraps anything in a link to a person's profile, and in a plain span when
+ * there is nobody to link to (a deleted account, a guild-gate ban with no
+ * actor). Triage is "who is this and what else have they done", and every
+ * admin queue used to answer it with markup that did nothing.
+ */
+export function AdminPersonLink({
+  user,
+  children,
+  className,
+}: {
+  user: AdminPersonRef;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  if (!user) return <span className={className}>{children}</span>;
+  return (
+    <Link
+      to="/profile/$userId"
+      params={profileLinkParams(user)}
+      className={cn("text-inherit hover:text-primary", className)}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** Avatar and name as one link, for the rows where they sit together. */
+export function AdminPerson({
+  user,
+  name,
+  size = 28,
+  className,
+}: {
+  user: AdminPersonRef;
+  /** What to call them when there is no row to link to. */
+  name: string;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <AdminPersonLink user={user} className={cn("flex min-w-0 items-center gap-2", className)}>
+      <UserAvatar avatarUrl={user?.avatarUrl ?? null} username={name} size={size} />
+      <Text as="span" size="sm" className="truncate font-medium">
+        {name}
+      </Text>
+    </AdminPersonLink>
   );
 }
 

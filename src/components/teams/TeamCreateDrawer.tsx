@@ -51,8 +51,7 @@ export function TeamCreateDrawer({ open, onClose }: { open: boolean; onClose: ()
   }, [avatar]);
 
   const nameError = profanityCheck(name, "Team name");
-  const taglineError = profanityCheck(tagline, "Tagline");
-  const canSubmit = name.trim().length >= 2 && !nameError && !taglineError;
+  const canSubmit = name.trim().length >= 2 && !nameError;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -116,6 +115,7 @@ export function TeamCreateDrawer({ open, onClose }: { open: boolean; onClose: ()
                       variant="outline"
                       size="icon-sm"
                       aria-label="Remove team image"
+                      title="Remove team image"
                       onClick={() => setAvatar(null)}
                     >
                       <HugeiconsIcon icon={Delete02Icon} size={12} />
@@ -164,11 +164,7 @@ export function TeamCreateDrawer({ open, onClose }: { open: boolean; onClose: ()
               />
             </Field>
 
-            <Field
-              label="ONE-LINER"
-              hint="optional · what your crew makes"
-              error={taglineError ?? null}
-            >
+            <Field label="ONE-LINER" hint="optional · what your crew makes">
               <Textarea
                 value={tagline}
                 onChange={(e) => setTagline(e.target.value)}

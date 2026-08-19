@@ -70,6 +70,7 @@ function SheetContent({
         {children}
         {showCloseButton && (
           <SheetClose
+            title="Close"
             render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />

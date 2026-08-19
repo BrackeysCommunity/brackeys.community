@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 
 import {
   AdminEmpty,
+  AdminPerson,
+  AdminPersonLink,
+  type AdminPersonRef,
   AdminRow,
   AdminSection,
   ReasonField,
@@ -15,7 +18,6 @@ import { Confirm } from "@/components/ui/confirm";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
-import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -29,6 +31,10 @@ type ReportEntry = {
   reason: string;
   createdAt: Date | null;
   reporterName: string | null;
+  /** The row behind the name, so the reporter is one click from triage.
+   * The two report kinds hydrate their reporter differently — this is the
+   * shared part. */
+  reporter: AdminPersonRef;
 };
 
 /**
@@ -145,6 +151,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           reason: r.reason,
           createdAt: r.createdAt,
           reporterName: r.reporter?.name ?? null,
+          reporter: r.reporter,
         },
       );
     }
@@ -165,6 +172,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           reason: r.reason,
           createdAt: r.createdAt,
           reporterName: r.reporter?.displayName ?? null,
+          reporter: r.reporter,
         },
       );
     }
@@ -244,9 +252,14 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                     <Text size="xs" variant="muted">
                       {row.entries.length > 1 ? "last reported " : "reported "}
                       {head.createdAt ? timeAgo(head.createdAt) : "—"}
-                      {row.entries.length === 1 && head.reporterName
-                        ? ` by ${head.reporterName}`
-                        : ""}
+                      {row.entries.length === 1 && head.reporterName ? (
+                        <>
+                          {" by "}
+                          <AdminPersonLink user={head.reporter}>
+                            {head.reporterName}
+                          </AdminPersonLink>
+                        </>
+                      ) : null}
                     </Text>
                   </div>
 
@@ -258,8 +271,10 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                         </Text>
                         {row.entries.length > 1 ? (
                           <Text size="xs" variant="muted">
-                            {entry.reporterName ?? "Unknown"} ·{" "}
-                            {entry.createdAt ? timeAgo(entry.createdAt) : "—"}
+                            <AdminPersonLink user={entry.reporter}>
+                              {entry.reporterName ?? "Unknown"}
+                            </AdminPersonLink>{" "}
+                            · {entry.createdAt ? timeAgo(entry.createdAt) : "—"}
                           </Text>
                         ) : null}
                       </div>
@@ -421,12 +436,13 @@ function CommentTarget({ report }: { report: CommentReport }) {
   const author = report.commentAuthor;
   return (
     <div className="flex items-start gap-2 border-l-2 border-muted pl-3">
-      <UserAvatar avatarUrl={author?.avatarUrl} username={author?.name} size={24} />
       <div className="flex min-w-0 flex-col gap-0.5">
-        <Text size="xs" variant="muted">
-          {author?.name ?? "Deleted user"}
-          {report.commentDeletedAt ? " · already removed" : ""}
-        </Text>
+        <AdminPerson user={author} name={author?.name ?? "Deleted user"} size={24} />
+        {report.commentDeletedAt ? (
+          <Text size="xs" variant="muted">
+            already removed
+          </Text>
+        ) : null}
         <Text size="sm" className="break-words">
           {report.commentContent ?? "(content unavailable)"}
         </Text>
@@ -467,14 +483,14 @@ function ReportTargetLink({ report }: { report: CommentReport }) {
 function PostTarget({ report }: { report: PostReport }) {
   return (
     <div className="flex items-start gap-2 border-l-2 border-muted pl-3">
-      <UserAvatar
-        avatarUrl={report.postAuthor?.avatarUrl}
-        username={report.postAuthor?.displayName}
-        size={24}
-      />
       <div className="flex min-w-0 flex-col gap-0.5">
+        <AdminPerson
+          user={report.postAuthor}
+          name={report.postAuthor?.displayName ?? "Unknown"}
+          size={24}
+        />
         <Text size="xs" variant="muted">
-          {report.postAuthor?.displayName ?? "Unknown"} · post is {report.postStatus}
+          post is {report.postStatus}
         </Text>
         <Link
           to="/collab/$postId"

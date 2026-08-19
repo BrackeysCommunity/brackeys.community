@@ -508,6 +508,7 @@ function LinksField({
               variant="ghost"
               size="icon-xs"
               aria-label={`Remove link ${index + 1}`}
+              title={`Remove link ${index + 1}`}
               onClick={() => onChange(links.filter((_, i) => i !== index))}
             >
               ✕

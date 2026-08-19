@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { Censored } from "@/lib/hooks/use-censored";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 
@@ -82,7 +83,7 @@ export function ProfileAvailabilitySection({
             its author can see what everyone else does. */}
         {availability.lookingFor && showHireTerms ? (
           <Text size="sm" className="text-foreground/90 italic">
-            “{availability.lookingFor}”
+            “<Censored>{availability.lookingFor}</Censored>”
           </Text>
         ) : null}
 

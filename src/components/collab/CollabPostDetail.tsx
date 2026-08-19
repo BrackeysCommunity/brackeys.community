@@ -22,6 +22,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { draftFromPost, isEditablePostType, startWizardEdit } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
+import { Censored } from "@/lib/hooks/use-censored";
 import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
@@ -124,8 +125,15 @@ export function CollabPostDetail({
     report: reportMutation,
   } = useCollabPostActions(postId, { onDeleted: onClose });
 
-  const { isOwner, responses, viewerResponse, contact, authorDiscordId, viewerOverlap } =
-    usePostViewerState(postId, post, currentUserId);
+  const {
+    isOwner,
+    responses,
+    viewerResponse,
+    contact,
+    authorDiscordId,
+    authorDiscordUsername,
+    viewerOverlap,
+  } = usePostViewerState(postId, post, currentUserId);
   // Owner-closed and sweep-expired are both "no longer taking responses";
   // the badge tells them apart, everything else treats them the same.
   const isExpired = post?.status === "expired";
@@ -353,7 +361,7 @@ export function CollabPostDetail({
             ) : null}
 
             <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-              {post.description}
+              <Censored>{post.description}</Censored>
             </Text>
 
             <DetailGrid>
@@ -477,6 +485,7 @@ export function CollabPostDetail({
                   response={viewerResponse}
                   postId={postId}
                   authorDiscordId={authorDiscordId}
+                  authorDiscordUsername={authorDiscordUsername}
                 />
               </div>
             ) : !isOwner && currentUserId && !isClosed ? (

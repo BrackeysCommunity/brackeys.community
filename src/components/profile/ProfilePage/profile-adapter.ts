@@ -330,6 +330,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     githubUsername,
     profileId: profile.id,
     discordId: profile.discordId,
+    discordUsername: profile.discordUsername,
     notesEnabled: profile.profileNotesEnabled,
   };
 }

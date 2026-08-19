@@ -7,6 +7,8 @@ import { useState } from "react";
 import {
   AdminEmpty,
   AdminPager,
+  AdminPerson,
+  AdminPersonLink,
   AdminRow,
   AdminSection,
   Field,
@@ -149,18 +151,9 @@ function BanRow({
 
   return (
     <AdminRow className="flex-row items-center gap-3" muted={!entry.isActive}>
-      <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.displayName} size={28} />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            className="hover:text-primary"
-            to="/profile/$userId"
-            params={profileLinkParams(entry.user)}
-          >
-            <Text size="sm" className="font-medium">
-              {entry.user.displayName}
-            </Text>
-          </Link>
+          <AdminPerson user={entry.user} name={entry.user.displayName} />
           {entry.isActive ? (
             <Badge size="label" variant="outline">
               {entry.bannedUntil == null
@@ -177,7 +170,10 @@ function BanRow({
         </div>
         <Text size="xs" variant="muted">
           banned {entry.bannedAt ? timeAgo(entry.bannedAt) : "—"}
-          {entry.bannedBy ? ` by ${entry.bannedBy.displayName}` : " by the guild gate"}
+          {entry.bannedBy ? " by " : " by the guild gate"}
+          {entry.bannedBy ? (
+            <AdminPersonLink user={entry.bannedBy}>{entry.bannedBy.displayName}</AdminPersonLink>
+          ) : null}
           {entry.unbannedAt ? ` · lifted ${timeAgo(entry.unbannedAt)}` : ""}
           {entry.banReason ? ` — ${entry.banReason}` : ""}
         </Text>

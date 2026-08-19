@@ -36,6 +36,7 @@ export function AttentionMenu() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label={`${count} ${count === 1 ? "thing needs" : "things need"} you`}
+        title={`${count} ${count === 1 ? "thing needs" : "things need"} you`}
         render={<Button variant="outline" size="icon-lg" className="relative" />}
       >
         <HugeiconsIcon icon={CheckListIcon} size={16} />

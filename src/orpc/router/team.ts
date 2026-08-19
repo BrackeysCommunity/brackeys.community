@@ -137,12 +137,6 @@ const teamContentShape = {
   recruiting: z.boolean().optional(),
 };
 
-function checkTeamProfanity(input: { name?: string; tagline?: string; bio?: string }) {
-  checkProfanity(input.name, "Team name");
-  checkProfanity(input.tagline, "Tagline");
-  checkProfanity(input.bio, "Bio");
-}
-
 /**
  * Creating a team is deliberately cheap — a name is enough — because the
  * wizard's quick-create path must not turn posting into a detour. The
@@ -152,7 +146,10 @@ export const createTeam = os
   .use(requireGuildMember)
   .input(z.object(teamContentShape))
   .handler(async ({ input, context }) => {
-    checkTeamProfanity(input);
+    // The name only: it is the team's identity and it titles every invite
+    // and membership notification. Tagline and bio are prose, stored as
+    // written and censored at render.
+    checkProfanity(input.name, "Team name");
 
     // A slug race between the pre-check and the insert lands on the
     // unique constraint; retry once with a fresh suffix before giving up.
@@ -208,11 +205,7 @@ export const updateTeam = os
   .handler(async ({ input, context }) => {
     await getTeamRow(input.teamId);
     await requireOwnership(input.teamId, context.user.id);
-    checkTeamProfanity({
-      name: input.name,
-      tagline: input.tagline ?? undefined,
-      bio: input.bio ?? undefined,
-    });
+    checkProfanity(input.name, "Team name");
 
     const { teamId: _teamId, ...fields } = input;
     const [updated] = await db
@@ -1071,7 +1064,6 @@ export const inviteToTeam = os
       throw new ORPCError("BAD_REQUEST", { message: "This team is archived." });
     }
     await requireMembership(input.teamId, context.user.id);
-    if (input.message) checkProfanity(input.message, "Message");
 
     if (input.inviteeId === context.user.id) {
       throw new ORPCError("BAD_REQUEST", { message: "You are already on this team." });
@@ -1345,7 +1337,6 @@ export const updateMemberTitle = os
   .handler(async ({ input, context }) => {
     await getTeamRow(input.teamId);
     const membership = await requireMembership(input.teamId, context.user.id);
-    if (input.title) checkProfanity(input.title, "Title");
 
     const [updated] = await db
       .update(teamMembers)
@@ -1390,8 +1381,6 @@ export const addTeamProject = os
       throw new ORPCError("BAD_REQUEST", { message: "This team is archived." });
     }
     await requireMembership(input.teamId, context.user.id);
-    checkProfanity(input.title, "Title");
-    if (input.description) checkProfanity(input.description, "Description");
     // Team-scoped namespace (minted by `/api/team/avatar` kind=project), so
     // the showcase image survives the uploader's account and can be swept
     // with the row — never a user-scoped key.
@@ -1586,8 +1575,6 @@ export const updateTeamProject = os
         message: "Only the owner or whoever added this project can edit it.",
       });
     }
-    if (input.title) checkProfanity(input.title, "Title");
-    if (input.description) checkProfanity(input.description, "Description");
     if (input.image && !isTeamProjectImageKey(input.teamId, input.image.key)) {
       throw new ORPCError("BAD_REQUEST", {
         message: "Uploaded image does not belong to this team.",

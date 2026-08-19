@@ -264,7 +264,7 @@ function FlyoutHeader({
             @{profile.handle.toLowerCase()} · STEP {step}/{STEPS.length}
           </Text>
         </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
+        <Button variant="ghost" size="icon-sm" aria-label="Close" title="Close" onClick={onClose}>
           <HugeiconsIcon icon={Cancel01Icon} size={14} />
         </Button>
       </div>
@@ -640,6 +640,7 @@ function TimezoneField({
             size="icon-sm"
             onClick={() => onChange(null)}
             aria-label="Clear timezone"
+            title="Clear timezone"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />
           </Button>
@@ -686,7 +687,9 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
         {preview ? (
           <Well className="min-h-32 p-3">
             {bio.trim() ? (
-              <MarkedText className="text-foreground">{bio}</MarkedText>
+              <MarkedText censor={false} className="text-foreground">
+                {bio}
+              </MarkedText>
             ) : (
               <Text size="sm" variant="muted" className="italic">
                 Nothing to preview yet — switch back to EDIT.

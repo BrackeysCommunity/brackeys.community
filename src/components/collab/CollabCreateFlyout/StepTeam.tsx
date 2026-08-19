@@ -139,6 +139,7 @@ function NewTeamForm() {
                     onClick={() => field.handleChange(null)}
                     className="absolute -top-1 -right-1 opacity-0 transition-opacity group-hover:opacity-100"
                     aria-label="Remove team image"
+                    title="Remove team image"
                   >
                     <HugeiconsIcon icon={Delete02Icon} size={10} />
                   </Button>
@@ -200,12 +201,7 @@ function NewTeamForm() {
         )}
       </form.Field>
 
-      <form.Field
-        name="newTeamDescription"
-        validators={{
-          onChange: ({ value }: { value: string }) => profanityCheck(value, "Team description"),
-        }}
-      >
+      <form.Field name="newTeamDescription">
         {(field) => (
           <TextAreaField
             label="DESCRIPTION"

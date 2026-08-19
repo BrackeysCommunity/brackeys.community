@@ -5,6 +5,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatRate } from "@/lib/format-rate";
+import { Censored } from "@/lib/hooks/use-censored";
 import { memberName } from "@/lib/member-name";
 import { profileLinkParams } from "@/lib/profile-links";
 import { timezoneOffsetLabel } from "@/lib/timezones";
@@ -99,7 +100,7 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
 
       {blurb ? (
         <Text as="span" size="xs" variant="muted" className="line-clamp-2">
-          {blurb}
+          <Censored>{blurb}</Censored>
         </Text>
       ) : null}
 

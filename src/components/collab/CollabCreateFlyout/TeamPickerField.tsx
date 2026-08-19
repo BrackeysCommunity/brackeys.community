@@ -65,6 +65,7 @@ export function TeamPickerField({
             variant="outline"
             size="icon-sm"
             aria-label="Unlink team"
+            title="Unlink team"
             onClick={() => onChange(undefined)}
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />

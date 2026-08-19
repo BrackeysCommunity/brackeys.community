@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { JamDetailPage } from "@/components/jams/JamDetailPage";
+import { JamDetailSkeleton } from "@/components/jams/JamDetailPage/JamDetailSkeleton";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { htmlToPlainText } from "@/components/ui/typography";
 import { client } from "@/orpc/client";
@@ -60,6 +61,10 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
     };
   },
   component: JamDetailRoute,
+  // The board's most-clicked destination, and the loader is a round trip:
+  // the generic page placeholder would be the wrong shape for the whole
+  // wait, so this route names its own.
+  pendingComponent: JamDetailSkeleton,
   notFoundComponent: JamNotFound,
 });
 

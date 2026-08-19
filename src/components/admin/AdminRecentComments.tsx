@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   AdminEmpty,
   AdminPager,
+  AdminPerson,
   AdminRow,
   AdminSection,
   ReasonField,
@@ -16,7 +17,6 @@ import { Confirm } from "@/components/ui/confirm";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
-import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -95,16 +95,12 @@ export function AdminRecentComments() {
           {items.map((comment) => (
             <AdminRow key={comment.id} muted={comment.deletedAt != null}>
               <div className="flex items-start gap-3">
-                <UserAvatar
-                  avatarUrl={comment.author?.avatarUrl}
-                  username={comment.author?.name}
-                  size={28}
-                />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Text size="sm" className="font-medium">
-                      {comment.author?.name ?? "Deleted user"}
-                    </Text>
+                    <AdminPerson
+                      user={comment.author}
+                      name={comment.author?.name ?? "Deleted user"}
+                    />
                     <Text size="xs" variant="muted">
                       {timeAgo(comment.createdAt)}
                       {comment.editedAt ? " · edited" : ""}

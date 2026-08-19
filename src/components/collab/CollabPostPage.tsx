@@ -96,8 +96,15 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
   const [editOpen, setEditOpen] = useState(false);
 
-  const { isOwner, responses, viewerResponse, contact, authorDiscordId, viewerOverlap } =
-    usePostViewerState(postId, post, currentUserId);
+  const {
+    isOwner,
+    responses,
+    viewerResponse,
+    contact,
+    authorDiscordId,
+    authorDiscordUsername,
+    viewerOverlap,
+  } = usePostViewerState(postId, post, currentUserId);
   const isClosed = post.status !== "recruiting";
   const closesIn = !isClosed && post.expiresAt ? formatCountdown(post.expiresAt) : null;
   const rateDisplay =
@@ -242,6 +249,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
               signedIn={currentUserId !== null}
               viewerResponse={viewerResponse}
               authorDiscordId={authorDiscordId}
+              authorDiscordUsername={authorDiscordUsername}
             />
           )}
         </motion.div>
@@ -786,12 +794,14 @@ function RespondSection({
   signedIn,
   viewerResponse,
   authorDiscordId,
+  authorDiscordUsername,
 }: {
   postId: number;
   isClosed: boolean;
   signedIn: boolean;
   viewerResponse: ViewerResponse | null;
   authorDiscordId: string | null;
+  authorDiscordUsername: string | null;
 }) {
   if (viewerResponse) {
     return (
@@ -806,6 +816,7 @@ function RespondSection({
             response={viewerResponse}
             postId={postId}
             authorDiscordId={authorDiscordId}
+            authorDiscordUsername={authorDiscordUsername}
           />
         </Well>
       </Section>

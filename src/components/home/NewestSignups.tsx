@@ -7,6 +7,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { timeAgo } from "@/lib/format-time";
+import { Censored } from "@/lib/hooks/use-censored";
 import { memberName } from "@/lib/member-name";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
@@ -80,7 +81,7 @@ export function NewestSignups() {
                         {memberName(u, handle)}
                       </Text>
                       <MicroLabel as="div" ellipsis>
-                        {u.tagline ?? `@${handle}`}
+                        {u.tagline ? <Censored>{u.tagline}</Censored> : `@${handle}`}
                       </MicroLabel>
                     </div>
                     {/* When they turned up — the one fact a "newest" list is

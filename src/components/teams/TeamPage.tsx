@@ -23,6 +23,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { timeAgo } from "@/lib/format-time";
+import { Censored } from "@/lib/hooks/use-censored";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeUp } from "@/lib/motion";
@@ -154,7 +155,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
             </Text>
             {team.viewerInvite.message ? (
               <Text size="xs" variant="muted">
-                “{team.viewerInvite.message}”
+                “<Censored>{team.viewerInvite.message}</Censored>”
               </Text>
             ) : null}
           </div>
@@ -221,7 +222,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                     ) : null}
                   </span>
                   <Text as="span" size="xs" variant="muted" ellipsis>
-                    {m.title ?? m.tagline ?? "—"}
+                    <Censored>{m.title ?? m.tagline ?? "—"}</Censored>
                   </Text>
                 </span>
               </Chonk>
@@ -479,7 +480,7 @@ function TeamMasthead({
               </div>
               {team.tagline ? (
                 <Text size="sm" variant="muted" className="max-w-prose">
-                  {team.tagline}
+                  <Censored>{team.tagline}</Censored>
                 </Text>
               ) : null}
               {team.websiteUrl || team.itchUrl ? (

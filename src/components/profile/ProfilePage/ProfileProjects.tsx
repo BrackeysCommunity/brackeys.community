@@ -233,6 +233,7 @@ function OwnerProjectsBody({
                 variant="outline"
                 size="icon-xs"
                 aria-label={`Edit ${project.title}`}
+                title={`Edit ${project.title}`}
                 onClick={() => onEditClick(project)}
               >
                 <HugeiconsIcon icon={Edit02Icon} size={12} />
@@ -248,6 +249,7 @@ function OwnerProjectsBody({
                   variant="outline"
                   size="icon-xs"
                   aria-label={`Remove ${project.title}`}
+                  title={`Remove ${project.title}`}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <HugeiconsIcon icon={Delete02Icon} size={12} />

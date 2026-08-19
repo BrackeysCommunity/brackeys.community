@@ -16,6 +16,7 @@ import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { Censored } from "@/lib/hooks/use-censored";
 import { teamLinkParams } from "@/lib/team-links";
 import { client } from "@/orpc/client";
 
@@ -155,7 +156,13 @@ function InviteRow({
           </Text>
         </Text>
         <MicroLabel as="div" ellipsis>
-          {invite.message ? `“${invite.message}”` : `FROM ${invite.inviter.displayName}`}
+          {invite.message ? (
+            <>
+              “<Censored>{invite.message}</Censored>”
+            </>
+          ) : (
+            `FROM ${invite.inviter.displayName}`
+          )}
         </MicroLabel>
         {error ? (
           <Text size="xs" className="text-destructive">

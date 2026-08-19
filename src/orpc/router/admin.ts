@@ -50,7 +50,15 @@ import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/
  * individual procedures are the real gate — the route's own check is UX.
  */
 
-type ProfileSummary = { id: string; displayName: string; avatarUrl: string | null };
+/** `urlStub` is here so every admin surface can link a person to their
+ * profile under the handle they claimed — one left join, and `/admin`
+ * stops being the one page in the app where a name is not a link. */
+type ProfileSummary = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  urlStub: string | null;
+};
 
 async function profilesByIds(userIds: string[]): Promise<Map<string, ProfileSummary>> {
   const ids = [...new Set(userIds)];
@@ -61,8 +69,10 @@ async function profilesByIds(userIds: string[]): Promise<Map<string, ProfileSumm
       discordUsername: developerProfiles.discordUsername,
       guildNickname: developerProfiles.guildNickname,
       avatarUrl: developerProfiles.avatarUrl,
+      urlStub: profileUrlStubs.stub,
     })
     .from(developerProfiles)
+    .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
     .where(inArray(developerProfiles.id, ids));
   return new Map(
     rows.map((p) => [
@@ -71,6 +81,7 @@ async function profilesByIds(userIds: string[]): Promise<Map<string, ProfileSumm
         id: p.id,
         displayName: memberName(p, "Member"),
         avatarUrl: p.avatarUrl,
+        urlStub: p.urlStub,
       },
     ]),
   );

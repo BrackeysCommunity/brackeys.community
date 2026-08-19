@@ -1,9 +1,13 @@
+import { TextFontIcon } from "@hugeicons/core-free-icons";
+
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { MicroLabel } from "@/components/ui/typography";
+import { useAppSettings } from "@/lib/hooks/use-app-settings";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import type { Theme } from "@/lib/themes";
 
-import { OptionCard, SettingsSection } from "./SettingsUI";
+import { OptionCard, SettingRow, SettingsSection } from "./SettingsUI";
 
 /** Accent ramp under each preview — the colors a theme is recognised by. */
 const SWATCHES = ["--primary", "--accent", "--success", "--warning", "--destructive"];
@@ -70,6 +74,15 @@ function ThemePreview({ theme }: { theme: Theme }) {
  * which is the whole reason the picker moved off the header cog.
  */
 export function AppearanceSection() {
+  return (
+    <>
+      <ThemePicker />
+      <LanguageSection />
+    </>
+  );
+}
+
+function ThemePicker() {
   const { themeId, setTheme, themes, sections } = useAppTheme();
   const active = themes.find((t) => t.id === themeId);
 
@@ -108,6 +121,41 @@ export function AppearanceSection() {
           </div>
         ))}
       </div>
+    </SettingsSection>
+  );
+}
+
+/**
+ * Strong language is written, stored and shown — the filter only decides
+ * whether the viewer sees it spelled out. It used to refuse the write
+ * instead, which meant a bio nobody could save rather than one somebody
+ * could choose not to read.
+ */
+function LanguageSection() {
+  const { censorProfanity, setCensorProfanity } = useAppSettings();
+
+  return (
+    <SettingsSection
+      index="02"
+      title="Language"
+      hint="Also stored only in this browser. It changes what you see, never what anyone wrote."
+    >
+      <SettingRow
+        label="Hide strong language"
+        hint={
+          censorProfanity
+            ? "Swearing in bios, posts and comments renders as asterisks."
+            : "Bios, posts and comments render exactly as they were written."
+        }
+        icon={TextFontIcon}
+        control={
+          <Switch
+            checked={censorProfanity}
+            onCheckedChange={setCensorProfanity}
+            aria-label="Hide strong language"
+          />
+        }
+      />
     </SettingsSection>
   );
 }

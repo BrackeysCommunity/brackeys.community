@@ -158,7 +158,7 @@ export function StepBasics() {
           onChange: ({ value }: { value: string }) => {
             if (value.trim().length > 0 && value.trim().length < 30)
               return "Description must be at least 30 characters.";
-            return profanityCheck(value, "Description");
+            return undefined;
           },
         }}
       >

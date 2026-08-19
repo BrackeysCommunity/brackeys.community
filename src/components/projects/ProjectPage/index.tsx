@@ -7,6 +7,7 @@ import { Section } from "@/components/ui/section";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { Censored } from "@/lib/hooks/use-censored";
 import { jamLinkParams } from "@/lib/jam-links";
 import { teamLinkParams } from "@/lib/team-links";
 
@@ -92,7 +93,7 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
                   </Text>
                   {team.tagline ? (
                     <Text as="span" size="xs" variant="muted" ellipsis className="max-w-56">
-                      {team.tagline}
+                      <Censored>{team.tagline}</Censored>
                     </Text>
                   ) : null}
                 </span>
