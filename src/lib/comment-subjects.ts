@@ -9,6 +9,7 @@ import {
   threads,
   threadSubscriptions,
 } from "@/db/schema";
+import { memberName } from "@/lib/member-name";
 
 /**
  * The subject registry: every subject-specific behavior of the comment
@@ -152,7 +153,7 @@ const handlers: Record<SubjectRef["type"], SubjectHandler> = {
         .from(profileUrlStubs)
         .where(eq(profileUrlStubs.profileId, profile.id))
         .limit(1);
-      const name = profile.guildNickname ?? profile.discordUsername ?? "a member";
+      const name = memberName(profile, "a member");
       return {
         exists: true,
         ownerId: profile.id,

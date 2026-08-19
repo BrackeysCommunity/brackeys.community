@@ -7,6 +7,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { timeAgo } from "@/lib/format-time";
+import { memberName } from "@/lib/member-name";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
 
@@ -76,7 +77,7 @@ export function NewestSignups() {
                     <UserAvatar avatarUrl={u.avatarUrl} username={handle} shape="round" size={32} />
                     <div className="min-w-0 flex-1">
                       <Text as="div" bold ellipsis size="md" className="group-hover:text-primary">
-                        {u.guildNickname ?? handle}
+                        {memberName(u, handle)}
                       </Text>
                       <MicroLabel as="div" ellipsis>
                         {u.tagline ?? `@${handle}`}

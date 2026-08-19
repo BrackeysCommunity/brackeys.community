@@ -1,6 +1,19 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -10,18 +23,27 @@ import {
   collabRoles,
   commentReports,
   developerProfiles,
+  moderationActions,
+  profileUrlStubs,
   session,
   skillRequests,
   skills,
   user,
   userSkills,
+  type ModerationActionType,
 } from "@/db/schema";
-import { isAdmin as checkIsAdmin, isStaffMember as checkIsStaff } from "@/lib/discord";
+import { isActiveBan } from "@/lib/ban-state";
+import {
+  isAdmin as checkIsAdmin,
+  isStaffMember as checkIsStaff,
+  purgeGuildBanCache,
+} from "@/lib/discord";
+import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { escapeLike } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
-import { authMiddleware, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
+import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
 
 /**
  * Staff/admin surface. Everything here backs the `/admin` route; the
@@ -47,7 +69,7 @@ async function profilesByIds(userIds: string[]): Promise<Map<string, ProfileSumm
       p.id,
       {
         id: p.id,
-        displayName: p.guildNickname ?? p.discordUsername ?? "Member",
+        displayName: memberName(p, "Member"),
         avatarUrl: p.avatarUrl,
       },
     ]),
@@ -67,12 +89,22 @@ export const getStaffStatus = os.use(authMiddleware).handler(async ({ context })
 
 // ── Bans ────────────────────────────────────────────────────────────────────
 
+const banFields = {
+  bannedAt: user.bannedAt,
+  bannedUntil: user.bannedUntil,
+  unbannedAt: user.unbannedAt,
+  banReason: user.banReason,
+  bannedById: user.bannedById,
+};
+
 export const banUser = os
   .use(requireAdmin)
   .input(
     z.object({
       userId: z.string().min(1),
       reason: z.string().trim().min(1).max(1000),
+      /** Null is permanent. */
+      durationDays: z.number().int().positive().max(3650).nullable().default(null),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -81,12 +113,12 @@ export const banUser = os
     }
 
     const [target] = await db
-      .select({ id: user.id, bannedAt: user.bannedAt })
+      .select({ id: user.id, ...banFields })
       .from(user)
       .where(eq(user.id, input.userId))
       .limit(1);
     if (!target) throw new ORPCError("NOT_FOUND", { message: "User not found." });
-    if (target.bannedAt) {
+    if (isActiveBan(target)) {
       throw new ORPCError("BAD_REQUEST", { message: "This user is already banned." });
     }
 
@@ -96,13 +128,22 @@ export const banUser = os
       throw new ORPCError("BAD_REQUEST", { message: "Admins can't be banned." });
     }
 
+    const now = new Date();
+    const bannedUntil =
+      input.durationDays == null
+        ? null
+        : new Date(now.getTime() + input.durationDays * 24 * 60 * 60 * 1000);
+
     await db
       .update(user)
       .set({
-        bannedAt: new Date(),
+        bannedAt: now,
+        bannedUntil,
+        // Clear any earlier lift, or `isActiveBan` still reads "not banned".
+        unbannedAt: null,
         banReason: input.reason,
         bannedById: context.user.id,
-        updatedAt: new Date(),
+        updatedAt: now,
       })
       .where(eq(user.id, input.userId));
 
@@ -116,9 +157,13 @@ export const banUser = os
       targetId: input.userId,
       subjectUserId: input.userId,
       reason: input.reason,
+      metadata: {
+        durationDays: input.durationDays,
+        bannedUntil: bannedUntil?.toISOString() ?? null,
+      },
     });
 
-    return { success: true };
+    return { success: true, bannedUntil };
   });
 
 export const unbanUser = os
@@ -126,19 +171,30 @@ export const unbanUser = os
   .input(z.object({ userId: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const [target] = await db
-      .select({ id: user.id, bannedAt: user.bannedAt })
+      .select({ id: user.id, ...banFields })
       .from(user)
       .where(eq(user.id, input.userId))
       .limit(1);
     if (!target) throw new ORPCError("NOT_FOUND", { message: "User not found." });
-    if (!target.bannedAt) {
+    if (!isActiveBan(target)) {
       throw new ORPCError("BAD_REQUEST", { message: "This user isn't banned." });
     }
 
+    // Only the lifted-stamp is written; the ban fields stay as the history record.
     await db
       .update(user)
-      .set({ bannedAt: null, banReason: null, bannedById: null, updatedAt: new Date() })
+      .set({ unbannedAt: new Date(), updatedAt: new Date() })
       .where(eq(user.id, input.userId));
+
+    // A stale "yes" in the guild-ban cache would re-apply the ban on next sign-in.
+    const [profile] = await db
+      .select({ discordId: developerProfiles.discordId })
+      .from(developerProfiles)
+      .where(eq(developerProfiles.id, input.userId))
+      .limit(1);
+    if (profile?.discordId) {
+      await purgeGuildBanCache(profile.discordId).catch(() => {});
+    }
 
     await recordModerationAction({
       action: "user_unbanned",
@@ -146,19 +202,22 @@ export const unbanUser = os
       targetType: "user",
       targetId: input.userId,
       subjectUserId: input.userId,
+      metadata: {
+        banReason: target.banReason,
+        bannedAt: target.bannedAt?.toISOString() ?? null,
+      },
     });
 
     return { success: true };
   });
 
+/** Everyone who carries a ban record, in force or not. */
 export const listBans = os.use(requireStaff).handler(async () => {
   const rows = await db
     .select({
       userId: user.id,
       name: user.name,
-      bannedAt: user.bannedAt,
-      banReason: user.banReason,
-      bannedById: user.bannedById,
+      ...banFields,
     })
     .from(user)
     .where(isNotNull(user.bannedAt))
@@ -169,10 +228,146 @@ export const listBans = os.use(requireStaff).handler(async () => {
   );
   return rows.map((r) => ({
     ...r,
+    isActive: isActiveBan(r),
     user: profiles.get(r.userId) ?? { id: r.userId, displayName: r.name, avatarUrl: null },
     bannedBy: r.bannedById ? (profiles.get(r.bannedById) ?? null) : null,
   }));
 });
+
+/** Staff-only member lookup. Unlike `searchProfiles`, it carries ban state. */
+export const searchMembers = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      search: z.string().trim().min(1).max(100),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(25).default(8),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const pattern = `%${escapeLike(input.search)}%`;
+    const where = or(
+      ilike(developerProfiles.guildNickname, pattern),
+      ilike(developerProfiles.discordUsername, pattern),
+      eq(developerProfiles.id, input.search),
+      eq(developerProfiles.discordId, input.search),
+    );
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(developerProfiles).where(where),
+      db
+        .select({
+          id: developerProfiles.id,
+          username: developerProfiles.discordUsername,
+          guildNickname: developerProfiles.guildNickname,
+          avatarUrl: developerProfiles.avatarUrl,
+          guildJoinedAt: developerProfiles.guildJoinedAt,
+          memberSince: user.createdAt,
+          urlStub: profileUrlStubs.stub,
+          ...banFields,
+        })
+        .from(developerProfiles)
+        .innerJoin(user, eq(user.id, developerProfiles.id))
+        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+        .where(where)
+        .orderBy(asc(developerProfiles.discordUsername))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const total = totals?.total ?? 0;
+    return {
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+      results: rows.map(({ guildNickname, ...row }) => ({
+        ...row,
+        displayName: memberName({ guildNickname, discordUsername: row.username }, "Member"),
+        handle: row.username,
+        isBanned: isActiveBan(row),
+        wasBanned: row.bannedAt != null,
+      })),
+    };
+  });
+
+/**
+ * Outside `authMiddleware` on purpose: it resolves a banned session as anonymous,
+ * which is right everywhere but here. Anonymous and unbanned callers get a plain
+ * `{ banned: false }`, never an error.
+ */
+export const getBanStatus = os.handler(async ({ context }) => {
+  const session = await readSession(context);
+  if (!session || !isActiveBan(session.user)) return { banned: false as const };
+
+  const [row] = await db
+    .select({ ...banFields })
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+
+  return {
+    banned: true as const,
+    bannedAt: row?.bannedAt ?? null,
+    until: row?.bannedUntil ?? null,
+    reason: row?.banReason ?? null,
+  };
+});
+
+// ── Moderation log ──────────────────────────────────────────────────────────
+
+/** `action` is a free string, not an enum, so a new action type is filterable
+ * the day it ships; unknown values match nothing. */
+export const listModerationActions = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(25),
+      actorId: z.string().min(1).optional(),
+      subjectUserId: z.string().min(1).optional(),
+      action: z.string().min(1).max(64).optional(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const filters = [
+      input.actorId ? eq(moderationActions.actorId, input.actorId) : undefined,
+      input.subjectUserId ? eq(moderationActions.subjectUserId, input.subjectUserId) : undefined,
+      input.action ? eq(moderationActions.action, input.action as ModerationActionType) : undefined,
+    ].filter((f) => f != null);
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(moderationActions).where(where),
+      db
+        .select()
+        .from(moderationActions)
+        .where(where)
+        .orderBy(desc(moderationActions.createdAt))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const profiles = await profilesByIds(
+      rows.flatMap((r) => [
+        ...(r.actorId ? [r.actorId] : []),
+        ...(r.subjectUserId ? [r.subjectUserId] : []),
+      ]),
+    );
+
+    const total = totals?.total ?? 0;
+    return {
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+      actions: rows.map((row) => ({
+        ...row,
+        actor: row.actorId ? (profiles.get(row.actorId) ?? null) : null,
+        subject: row.subjectUserId ? (profiles.get(row.subjectUserId) ?? null) : null,
+      })),
+    };
+  });
 
 // ── Skill requests ──────────────────────────────────────────────────────────
 

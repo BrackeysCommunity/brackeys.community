@@ -105,7 +105,7 @@ function SectionSkeleton({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <Skeleton className="h-5 w-8 rounded bg-muted/50" />
+        <Skeleton className="h-5 w-8 bg-muted/50" />
         <Skeleton className="h-4 w-28 bg-muted/50" />
         <div aria-hidden className="flex-1 border-t border-dashed border-muted-foreground/30" />
       </div>

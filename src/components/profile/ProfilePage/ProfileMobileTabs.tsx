@@ -51,7 +51,7 @@ export function ProfileMobileTabs({ active, onChange, sticky = true }: ProfileMo
         "z-30 -mx-4 border-y border-muted/30 bg-background/95 backdrop-blur",
         // Rides up with the app bar when it auto-hides — see
         // `--app-header-shift`.
-        sticky && "sticky top-[var(--app-header-shift)]",
+        sticky && "header-follow sticky top-0",
       )}
     >
       <div

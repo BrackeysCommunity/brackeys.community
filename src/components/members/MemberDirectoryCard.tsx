@@ -5,6 +5,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatRate } from "@/lib/format-rate";
+import { memberName } from "@/lib/member-name";
 import { profileLinkParams } from "@/lib/profile-links";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import type { client } from "@/orpc/client";
@@ -29,11 +30,14 @@ export type DirectoryMember = MembersPage["members"][number];
  * `rank` is the standing on the most-active rail, shown nowhere else.
  */
 export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember; rank?: number }) {
-  const name = member.discordUsername ?? member.guildNickname ?? "Unknown";
-  const rate = formatRate(member.rateType, member.rateMin, member.rateMax, {
-    negotiableLabel: "NEGOTIABLE",
-  });
-  const commitment = availabilityLabel(member.availability);
+  const name = memberName(member, "Unknown");
+  // Hire terms, not profile facts: closed, they are not on offer.
+  const rate = member.availableForWork
+    ? formatRate(member.rateType, member.rateMin, member.rateMax, {
+        negotiableLabel: "NEGOTIABLE",
+      })
+    : null;
+  const commitment = member.availableForWork ? availabilityLabel(member.availability) : null;
   // Rendered as an offset, never local time — see the timezones lib.
   const tz = member.timezone ? timezoneOffsetLabel(member.timezone) : null;
   // The one-liner is the profile's own; `lookingFor` is what an "I'm

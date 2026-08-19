@@ -7,9 +7,9 @@ import { useEffect } from "react";
  * definition in `styles.css` for the full contract, and
  * {@link useHideOnScrollDown} for what flips `hidden`.
  *
- * It lands on the document element rather than the shell's own markup so the
- * one `transition` declared on `:root` animates it, and so the two shells
- * (desktop `AppHeader`, mobile `MobileShell`) can't both claim it at once.
+ * It lands on the document element so every rider inherits it, and so the two
+ * shells (desktop `AppHeader`, mobile `MobileShell`) can't both claim it. The
+ * value cuts straight to its new number; the travel is `.header-follow`.
  *
  * @param shift a negative length — how far up sticky surfaces move once the
  * bar is gone. Differs per shell: the mobile bar also eats the status-bar inset.

@@ -27,6 +27,7 @@ import {
   type SubjectRef,
 } from "@/lib/comment-subjects";
 import { isStaffMember } from "@/lib/discord";
+import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { checkProfanity } from "@/lib/profanity";
@@ -115,7 +116,7 @@ async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAutho
       p.id,
       {
         id: p.id,
-        name: p.guildNickname ?? p.discordUsername ?? "Member",
+        name: memberName(p, "Member"),
         avatarUrl: p.avatarUrl,
         urlStub: stubByUser.get(p.id) ?? null,
       },

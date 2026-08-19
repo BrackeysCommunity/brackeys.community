@@ -1,37 +1,42 @@
+import type { Transition } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 
-// Don't start hiding until scrolled past this — keeps the bar pinned at the top.
-const REVEAL_AT = 150;
-// Pixels of continuous travel in one direction before the bar reacts. Without
-// this buffer a 1px jitter (or the natural wobble at a momentum-scroll direction
-// change) flips the bar every frame. Measured from the turning point, so a real
-// swipe still crosses it almost immediately.
+// Fallback for pages that don't mark a hero (`data-header-hero`).
+const PIN_UNTIL = 320;
+// Travel in one direction before the bar reacts, measured from the turning
+// point — without it, momentum-scroll wobble flips the bar every frame.
 const BUFFER = 24;
 
+// Leaves immediately and decelerates in; a symmetric ease reads as lag.
+const SLIDE: Transition = { duration: 0.4, ease: [0.32, 0.72, 0, 1] };
+const SNAP: Transition = { duration: 0 };
+
 /**
- * Tracks vertical scroll *direction* to drive an auto-hiding top bar: hidden
- * while scrolling down, revealed as soon as you scroll up. A directional buffer
- * keeps tiny jitters from toggling it. Disabled under reduced-motion, and
- * returns false on the server / first paint so the bar always renders open.
+ * The transition the app bars slide on; zero under reduced motion. The
+ * `.header-follow` transition in `styles.css` is the same movement, so its
+ * duration and curve have to match these.
+ */
+export function useHeaderSlideTransition(): Transition {
+  return useReducedMotion() ? SNAP : SLIDE;
+}
+
+/**
+ * Tracks scroll *direction* to drive an auto-hiding top bar. False on the server
+ * and first paint, so the bar always renders open.
  *
- * The page doesn't scroll the document here — the shells in `routes/__root.tsx`
- * put `overflow-y-auto` on an inner container — so this listens in the capture
- * phase (scroll events don't bubble) and only reacts to elements tagged
- * `data-scroll-root`. That keeps horizontal chip rows and the page-specific
- * sidebar from driving the header.
+ * The document doesn't scroll here — the shells in `routes/__root.tsx` put
+ * `overflow-y-auto` on an inner container — so this listens in the capture phase
+ * and only reacts to elements tagged `data-scroll-root`.
  *
- * @param resetKey change this (e.g. the pathname) to force the bar back open;
- * a freshly mounted scroll container sits at 0 but never fires a scroll event
- * to say so.
+ * @param resetKey change this (e.g. the pathname) to force the bar back open; a
+ * freshly mounted scroll container sits at 0 but never fires a scroll event.
  */
 export function useHideOnScrollDown(resetKey?: string): boolean {
   const [hidden, setHidden] = useState(false);
-  const reduced = useReducedMotion();
 
-  // Reset during render rather than in an effect — no wasted paint of the
-  // hidden bar on the page you just navigated to.
+  // During render, not in an effect: no wasted paint of a hidden bar.
   const [prevKey, setPrevKey] = useState(resetKey);
   if (prevKey !== resetKey) {
     setPrevKey(resetKey);
@@ -39,18 +44,30 @@ export function useHideOnScrollDown(resetKey?: string): boolean {
   }
 
   useEffect(() => {
-    if (reduced) {
-      // Leave the bar open if the pref flips while it's tucked away.
-      setHidden(false);
-      return;
-    }
-
-    // Last observed position, the direction we're travelling, and the position
-    // where that direction last began (the turning point the buffer measures
-    // from).
     let prevY = 0;
     let dir: "up" | "down" = "up";
     let anchor = 0;
+
+    // Measured on first use and again on hero resize, so a hero that is still
+    // a skeleton doesn't lock in a short value.
+    let pinned: number | null = null;
+    let heroSize: ResizeObserver | undefined;
+
+    const pinnedUntil = (root: HTMLElement) => {
+      if (pinned !== null) return pinned;
+      const hero = root.querySelector<HTMLElement>("[data-header-hero]");
+      // Keep looking on the next scroll: the page may not have rendered it yet.
+      if (!hero) return PIN_UNTIL;
+      if (!heroSize) {
+        heroSize = new ResizeObserver(() => {
+          pinned = null;
+        });
+        heroSize.observe(hero);
+      }
+      pinned =
+        hero.getBoundingClientRect().bottom - root.getBoundingClientRect().top + root.scrollTop;
+      return pinned;
+    };
 
     const onScroll = (event: Event) => {
       const el = event.target;
@@ -63,14 +80,14 @@ export function useHideOnScrollDown(resetKey?: string): boolean {
       if (delta === 0) return;
       const goingDown = delta > 0;
 
-      // On a direction reversal, plant the anchor at the turning point so the
-      // buffer counts travel *since* the reversal, not since we last toggled.
+      // Anchor at the turning point, so the buffer counts travel since the
+      // reversal rather than since the last toggle.
       if (goingDown ? dir === "up" : dir === "down") {
         dir = goingDown ? "down" : "up";
         anchor = previous;
       }
 
-      if (current <= REVEAL_AT) {
+      if (current <= pinnedUntil(el)) {
         setHidden(false);
         return;
       }
@@ -81,8 +98,12 @@ export function useHideOnScrollDown(resetKey?: string): boolean {
     };
 
     document.addEventListener("scroll", onScroll, true);
-    return () => document.removeEventListener("scroll", onScroll, true);
-  }, [reduced]);
+    return () => {
+      document.removeEventListener("scroll", onScroll, true);
+      heroSize?.disconnect();
+    };
+    // Re-armed per page: travel state and measurement belong to one route.
+  }, [resetKey]);
 
   return hidden;
 }

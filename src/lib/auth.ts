@@ -11,6 +11,7 @@ import { env } from "@/env";
 import { cleanupUserData } from "@/lib/account-deletion";
 import { EVENTS } from "@/lib/analytics-events";
 import { sendEmail } from "@/lib/email";
+import { applyGuildBanOnSignIn } from "@/lib/guild-ban-gate";
 import { syncDiscordProfile } from "@/lib/guild-sync";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { purgePresence } from "@/lib/presence";
@@ -55,6 +56,17 @@ export const auth = betterAuth({
     // costs no extra query. Never client-writable.
     additionalFields: {
       bannedAt: {
+        type: "date",
+        required: false,
+        input: false,
+      },
+      // Carried on the session so `isActiveBan` costs the client no query.
+      bannedUntil: {
+        type: "date",
+        required: false,
+        input: false,
+      },
+      unbannedAt: {
         type: "date",
         required: false,
         input: false,
@@ -144,7 +156,9 @@ export const auth = betterAuth({
       create: {
         after: async (session) => {
           captureServerEvent(EVENTS.authSignedIn, session.userId);
+          // After the sync: the gate is keyed on the Discord id it resolves.
           await syncDiscordProfile(session.userId);
+          await applyGuildBanOnSignIn(session.userId);
         },
       },
     },

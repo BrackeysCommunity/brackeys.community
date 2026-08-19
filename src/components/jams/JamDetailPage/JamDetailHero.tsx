@@ -61,7 +61,7 @@ export function JamDetailHero({
   const wash = safeThemeColor(jam.themeColor) ?? color;
 
   return (
-    <Well className="overflow-hidden p-0">
+    <Well data-header-hero className="overflow-hidden p-0">
       <div className="relative h-44 w-full shrink-0 overflow-hidden sm:h-56 lg:h-72">
         {jam.bannerUrl ? (
           <>

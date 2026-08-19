@@ -47,6 +47,7 @@ export function JamCalendarHero({
 
   return (
     <div
+      data-header-hero
       className={
         statsLayout === "inline"
           ? "flex flex-wrap items-end justify-between gap-6"

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { isActiveBan } from "@/lib/ban-state";
 import { isStaffMember } from "@/lib/discord";
 import { resolveUserRoles } from "@/lib/staff-roles";
 
@@ -15,7 +16,7 @@ export function isReferenceDocsPath(pathname: string): boolean {
 
 export async function canViewReferenceDocs(request: Request): Promise<boolean> {
   const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-  if (!session || session.user.bannedAt != null) return false;
+  if (!session || isActiveBan(session.user)) return false;
 
   const roles = await resolveUserRoles(session.user.id);
   return isStaffMember(roles);

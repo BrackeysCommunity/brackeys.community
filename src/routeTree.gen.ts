@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as SuspendedRouteImport } from './routes/suspended'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -62,6 +63,11 @@ const TermsRoute = TermsRouteImport.update({
 const TeamsRoute = TeamsRouteImport.update({
   id: '/teams',
   path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuspendedRoute = SuspendedRouteImport.update({
+  id: '/suspended',
+  path: '/suspended',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -288,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
+  '/suspended': typeof SuspendedRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
@@ -329,6 +336,7 @@ export interface FileRoutesByTo {
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
+  '/suspended': typeof SuspendedRoute
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -375,6 +383,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
+  '/suspended': typeof SuspendedRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
@@ -423,6 +432,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/settings'
+    | '/suspended'
     | '/teams'
     | '/terms'
     | '/api/$'
@@ -464,6 +474,7 @@ export interface FileRouteTypes {
     | '/members'
     | '/notifications'
     | '/privacy'
+    | '/suspended'
     | '/terms'
     | '/api/$'
     | '/collab/$postId'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/settings'
+    | '/suspended'
     | '/teams'
     | '/terms'
     | '/api/$'
@@ -556,6 +568,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
+  SuspendedRoute: typeof SuspendedRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
@@ -586,6 +599,13 @@ declare module '@tanstack/react-router' {
       path: '/teams'
       fullPath: '/teams'
       preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suspended': {
+      id: '/suspended'
+      path: '/suspended'
+      fullPath: '/suspended'
+      preLoaderRoute: typeof SuspendedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -986,6 +1006,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
+  SuspendedRoute: SuspendedRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,

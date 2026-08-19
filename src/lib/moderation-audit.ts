@@ -7,6 +7,7 @@ import {
   type ModerationActionType,
   type ModerationTargetType,
 } from "@/db/schema";
+import { memberName } from "@/lib/member-name";
 
 /**
  * The site's moderation log. Every staff action writes one row here, and
@@ -21,7 +22,8 @@ import {
  */
 export type ModerationLogEntry = {
   action: ModerationActionType;
-  actorId: string;
+  /** Null when the app acted on its own — today, the Discord guild-ban gate. */
+  actorId: string | null;
   targetType: ModerationTargetType;
   targetId?: string | number | null;
   /** Whose stuff was acted on, when there is one. */
@@ -41,7 +43,7 @@ async function actorName(actorId: string): Promise<string | null> {
     .from(developerProfiles)
     .where(eq(developerProfiles.id, actorId))
     .limit(1);
-  return profile?.guildNickname ?? profile?.discordUsername ?? null;
+  return memberName(profile ?? {});
 }
 
 export async function recordModerationAction(entry: ModerationLogEntry): Promise<void> {
@@ -51,7 +53,7 @@ export async function recordModerationAction(entry: ModerationLogEntry): Promise
       actorId: entry.actorId,
       // Snapshotted so the row stays readable if the account is later
       // deleted and the FK nulls out.
-      actorName: await actorName(entry.actorId),
+      actorName: entry.actorId ? await actorName(entry.actorId) : null,
       subjectUserId: entry.subjectUserId ?? null,
       targetType: entry.targetType,
       targetId: entry.targetId == null ? null : String(entry.targetId),

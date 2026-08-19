@@ -1,7 +1,9 @@
 import { useState } from "react";
 
 import { DotGrid } from "@/components/ui/dot-grid";
+import { useHoverPlay } from "@/hooks/use-hover-play";
 import { BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { isAnimatedImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
@@ -17,6 +19,9 @@ import { useJamGradient } from "./use-jam-color";
  * and one WebGL context per jam blows past the browser's context limit
  * (~16) long before that, leaving blank white canvases. The animated
  * Grainient is reserved for the modal.
+ *
+ * Animated banners hold their first frame until hovered; the playing copy
+ * layers over the still so the first hover doesn't blink while it loads.
  */
 export function JamBanner({
   jam,
@@ -31,20 +36,41 @@ export function JamBanner({
   const gradient = useJamGradient(jam);
   const [imageOk, setImageOk] = useState(true);
 
-  if (jam.bannerUrl && imageOk) {
+  const src = jam.bannerUrl ? itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM) : null;
+  // Same transform plus `anim=false`, so it matches `src` when there is
+  // nothing to freeze.
+  const still =
+    jam.bannerUrl && isAnimatedImageUrl(jam.bannerUrl)
+      ? itchImageUrl(jam.bannerUrl, { ...BOARD_BANNER_TRANSFORM, anim: false })
+      : src;
+  const animated = still !== src ? src : null;
+  const { playing, handlers } = useHoverPlay(animated);
+
+  const objectFit = fit === "contain" ? "object-contain" : "object-cover";
+
+  if (still && imageOk) {
     return (
-      <img
-        src={itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM)}
-        alt=""
-        aria-hidden
-        loading="lazy"
-        decoding="async"
-        onError={() => setImageOk(false)}
-        className={cn(
-          "absolute inset-0 h-full w-full",
-          fit === "contain" ? "object-contain" : "object-cover",
-        )}
-      />
+      <>
+        <img
+          src={still}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          decoding="async"
+          onError={() => setImageOk(false)}
+          {...handlers}
+          className={cn("absolute inset-0 h-full w-full", objectFit)}
+        />
+        {playing && animated ? (
+          <img
+            src={animated}
+            alt=""
+            aria-hidden
+            decoding="async"
+            className={cn("pointer-events-none absolute inset-0 h-full w-full", objectFit)}
+          />
+        ) : null}
+      </>
     );
   }
   return (

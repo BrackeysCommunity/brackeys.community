@@ -146,13 +146,8 @@ export function MembersDiscoveryPage() {
       {/* `fadeIn`, not `fadeUp`: the toolbar below is sticky, and a
           transform on its ancestor makes it jump when the rise ends. */}
       <motion.section variants={fadeIn} className="flex flex-col gap-3">
-        {/* The controls pin to the top of the scrollport, just under the app
-            header — they're the one thing you always want reachable while
-            walking a long directory. `--app-header-shift` takes them up into
-            the band the header vacates and back down when it returns, so they
-            ride with it rather than leaving a gap. Same construction as the
-            team directory's; see the comment there for the gutter and z-index. */}
-        <div className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20">
+        {/* Same construction as the team directory's — see the comment there. */}
+        <div className="header-follow-inset toolbar-band sticky z-20">
           <MembersToolbar
             search={search}
             setSearch={setSearch}
@@ -240,6 +235,7 @@ export function MembersDiscoveryPage() {
 function MembersHero({ authenticated }: { authenticated: boolean }) {
   return (
     <Well
+      data-header-hero
       notchOpts
       // The gradient is the surface's alone. The notched corners fall outside
       // its clip path, and `Well` fills what's left with the frame's own

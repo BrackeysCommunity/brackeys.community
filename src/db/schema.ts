@@ -66,6 +66,10 @@ export const user = authSchema.table("user", {
   bannedById: text("banned_by_id").references((): AnyPgColumn => user.id, {
     onDelete: "set null",
   }),
+  /** Null is permanent; a ban past this instant is over without anyone acting. */
+  bannedUntil: timestamp("banned_until"),
+  /** When staff lifted it. The ban fields stay behind it as the history record. */
+  unbannedAt: timestamp("unbanned_at"),
 });
 
 export const session = authSchema.table("session", {

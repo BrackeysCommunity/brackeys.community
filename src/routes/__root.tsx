@@ -183,7 +183,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <BackgroundDotField />
               {/* CRT scanline overlay */}
               <div
-                className="animate-scanlines pointer-events-none fixed inset-0 z-10 opacity-2"
+                className="animate-scanlines pointer-events-none fixed inset-x-0 top-[-4px] bottom-0 z-10 opacity-2"
                 style={{
                   background:
                     "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
@@ -236,7 +236,7 @@ function BackgroundDotField() {
       dotRadius={1}
       dotSpacing={20}
       bulgeStrength={20}
-      glowRadius={60}
+      glowRadius={0}
       waveAmplitude={2}
       cursorRadius={500}
       cursorForce={0.0075}
@@ -306,7 +306,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
         // `view-transition-name: page` scopes the cross-route fade+rise to
         // the scroller (see `styles.css`). Exactly one shell branch is
         // mounted at a time, so the name is never duplicated in a snapshot.
-        className="flex flex-1 flex-col overflow-y-auto overscroll-y-none pt-14 [-ms-overflow-style:none] [scrollbar-width:none] [view-transition-name:page] [&::-webkit-scrollbar]:hidden"
+        className="flex flex-1 flex-col overflow-y-auto overscroll-y-none pt-[var(--app-header-height)] [-ms-overflow-style:none] [scrollbar-width:none] [view-transition-name:page] [&::-webkit-scrollbar]:hidden"
       >
         {/* `grow shrink-0` rather than a `min-h-full` on the inner box: the
             wrapper is a flex item of an auto-height column, so a percentage
@@ -335,7 +335,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       id="main-content"
-      className="mx-auto flex w-full max-w-480 flex-1 overflow-hidden pt-14.25"
+      className="mx-auto flex w-full max-w-480 flex-1 overflow-hidden pt-[var(--app-header-height)]"
     >
       {/* Left column — main page content */}
       <div

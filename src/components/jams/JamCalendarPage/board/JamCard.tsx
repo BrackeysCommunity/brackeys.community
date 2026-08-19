@@ -1,11 +1,7 @@
 import { Link as RouterLink } from "@tanstack/react-router";
 
 import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
-import {
-  MediaCardFloatingBadge,
-  MediaCardScrim,
-  mediaCardClasses,
-} from "@/components/ui/media-card";
+import { MediaCardFloatingBadge, mediaCardClasses } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { jamLinkParams } from "@/lib/jam-links";
 
@@ -30,9 +26,8 @@ export function JamCard({ jam, now }: { jam: JamFromList; now: Date }) {
     <RouterLink to="/jams/$jamSlug" params={jamLinkParams(jam)} className={mediaCardClasses.frame}>
       <div className={mediaCardClasses.media} style={{ backgroundColor: color }}>
         <JamBanner jam={jam} fit="contain" />
-        <MediaCardScrim />
-        {/* Over the art rather than in the text block — the count is a
-            glanceable badge, not part of the jam's description. */}
+        {/* Over the art: a glanceable badge, not part of the description. It
+            carries its own chip, so the banner needs no scrim under it. */}
         <MediaCardFloatingBadge>
           <SignalInline jam={jam} now={now} size="sm" />
         </MediaCardFloatingBadge>

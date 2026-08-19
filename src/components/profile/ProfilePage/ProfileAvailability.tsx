@@ -48,6 +48,10 @@ export function ProfileAvailabilitySection({
   contactHref = null,
 }: ProfileAvailabilitySectionProps) {
   const isOpen = availability.state === "open";
+  // Hire terms stand only while the toggle is on; the owner still sees what's
+  // stored, a visitor doesn't.
+  const closed = availability.state === "closed";
+  const showHireTerms = !closed || isOwner;
   const dotClass =
     availability.state === "open"
       ? "bg-success"
@@ -76,20 +80,33 @@ export function ProfileAvailabilitySection({
         {/* The collab board's people lane is the availability listing,
             and this is the line it shows — so it belongs here too, where
             its author can see what everyone else does. */}
-        {availability.lookingFor ? (
+        {availability.lookingFor && showHireTerms ? (
           <Text size="sm" className="text-foreground/90 italic">
             “{availability.lookingFor}”
           </Text>
         ) : null}
 
+        {closed && isOwner ? (
+          <Text size="xs" variant="muted">
+            Your rate and capacity stay saved, but nobody else sees them while this is off.
+          </Text>
+        ) : null}
+
         <div className="flex flex-col gap-2.5">
-          <DetailRow label="Rate" value={availability.rate ?? "—"} />
-          <DetailRow label="Capacity" value={formatCommitment(availability.commitment) ?? "—"} />
-          {availability.collabPreference ? (
-            <DetailRow
-              label="Open to"
-              value={COLLAB_PREFERENCE_LABEL[availability.collabPreference] ?? "—"}
-            />
+          {showHireTerms ? (
+            <>
+              <DetailRow label="Rate" value={availability.rate ?? "—"} />
+              <DetailRow
+                label="Capacity"
+                value={formatCommitment(availability.commitment) ?? "—"}
+              />
+              {availability.collabPreference ? (
+                <DetailRow
+                  label="Open to"
+                  value={COLLAB_PREFERENCE_LABEL[availability.collabPreference] ?? "—"}
+                />
+              ) : null}
+            </>
           ) : null}
           {availability.responseTime ? (
             <DetailRow label="Response time" value={availability.responseTime} />

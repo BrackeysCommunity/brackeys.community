@@ -36,29 +36,14 @@ import { useCollabListing } from "./use-collab-listing";
 const SPLIT_QUERY = "(min-width: 1024px)";
 
 /**
- * How far the toolbar's margin box should overhang the bottom of its lane.
+ * How far the toolbar's margin box should overhang the bottom of its lane. A
+ * sticky box is held by its *margin* box, so the overhang is what lets the bar
+ * ride off with the last of the list instead of sitting pinned over the footer.
  *
- * A sticky box is held inside its containing block by its *margin* box, so
- * an overhang is what lets the lane release the bar before its own end: it
- * rides up and off with the last of the list instead of sitting pinned over
- * the footer for the rest of the scroll, which is what the inspector does
- * beside it (that one gets there for free by being a scrollport tall).
- *
- * The number is where the lane's end sits once the page has bottomed out:
- * the scrollport, less everything trailing the lane — the hint row and the
- * site footer. Overhang exactly that much and the bar's margin box lands
- * flush with the lane's end at the last pixel of scroll, which puts the bar
- * itself just above the top of the scrollport: gone, and not one pixel of
- * pinning given up before then. It slides off over the final stretch, the
- * same stretch the inspector uses. Zero means the lane already ends high
- * enough on its own, which is the old behaviour and the right one there.
- *
- * Measured rather than written in `dvh`: neither term is a constant. The
- * scrollport isn't the viewport on either shell (a header band inside one,
- * a nav island in the other), and the footer reflows with the width.
- *
- * Whoever renders the overhang hands the same distance straight back as a
- * negative top margin, so none of it takes up space in flow.
+ * The number is the scrollport less everything trailing the lane, measured
+ * rather than written in `dvh` because neither term is a constant. Zero means
+ * the lane already ends high enough. The caller hands the same distance back as
+ * a negative top margin, so none of it takes up space in flow.
  */
 function useLaneRelease(bar: HTMLElement | null) {
   const [release, setRelease] = useState(0);
@@ -78,10 +63,9 @@ function useLaneRelease(bar: HTMLElement | null) {
     };
 
     measure();
-    // Both terms move: the scrollport with the window, the footer with the
-    // width. Neither is affected by the margin this feeds, so there's no
-    // loop. The window listener is the belt to that braces — a scroller
-    // sized by the viewport doesn't always report a resize of its own.
+    // Neither term is affected by the margin this feeds, so there's no loop.
+    // The window listener braces the observer: a scroller sized by the viewport
+    // doesn't always report a resize of its own.
     const observer = new ResizeObserver(measure);
     observer.observe(scroller);
     if (scroller.lastElementChild) observer.observe(scroller.lastElementChild);
@@ -291,21 +275,14 @@ export function CollabBrowsePage() {
 
   // The board itself gets the full-width controls; only the narrow
   // stacked layout falls back to the filter sheet.
-  // The controls pin to the top of the scrollport, just under the app header —
-  // they're the one thing you always want reachable while walking a long list.
-  // `--app-header-shift` takes them up into the band the header vacates and
-  // back down when it returns, so they ride with it rather than leaving a gap.
-  // The `+1rem` is a gutter they keep in both states — parked flush against
-  // the viewport edge they read as clipped rather than pinned.
-  // They carry no surface of their own: `z-20` lands them on top of the
-  // header's fixed scrim, which is what the list dissolves into on its way
-  // past. The count and chips are a readout of the board rather than a
-  // control, so they scroll off with it.
+  // The controls pin under the app header and ride with it (`.header-follow`),
+  // carrying its surface so the list passes behind an opaque band. Split, a
+  // pseudo-element extends that background across the inspector column.
   const lane = (
     <>
       <div
         ref={setToolbarEl}
-        className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20"
+        className="header-follow toolbar-band sticky top-0 z-20 lg:before:absolute lg:before:inset-y-0 lg:before:left-full lg:before:w-96 lg:before:bg-background lg:before:content-['']"
         style={{ marginBottom: laneRelease }}
       >
         <CollabToolbar
@@ -359,17 +336,10 @@ export function CollabBrowsePage() {
                 />
               </section>
 
-              {/* Parked at the same inset as the toolbar so the two lanes line
-                up along one edge, and travelling with the header — see
-                `--app-header-shift`. The cap is a constant: the room the pane
-                has when fully expanded — parked at its 1rem inset with the
-                header away — plus a 1.5rem bottom gutter. Deliberately no
-                `--app-header-shift` term: the header returning moves the
-                pane's top (via `top`) and the bottom simply follows, hanging
-                past the fold rather than compressing the pane. A long post
-                detail scrolls inside it, while the idle readout stays short
-                instead of stretching to fill the viewport. */}
-              <aside className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20 flex max-h-[calc(100vh-2.5rem)] flex-col">
+              {/* Same inset as the toolbar, travelling with the header; `mt-4`
+                pays that inset in flow. No `--app-header-shift` term in the
+                cap — the header returning moves the whole pane. */}
+              <aside className="header-follow sticky top-4 z-20 mt-4 flex max-h-[calc(100vh-2.5rem)] flex-col">
                 <CollabInspector
                   postId={selectedPostId}
                   currentUserId={currentUserId}
@@ -474,6 +444,8 @@ function CollabHero({ authenticated, onCreate }: { authenticated: boolean; onCre
 
   return (
     <Well
+      // Keeps the app bar pinned until you scroll past — see `useHideOnScrollDown`.
+      data-header-hero
       notchOpts
       // The gradient is the surface's alone — see the team hero for why
       // it can't ride on the frame.

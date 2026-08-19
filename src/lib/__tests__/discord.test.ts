@@ -6,7 +6,9 @@ import {
   fetchDiscordUser,
   fetchGuildMember,
   isDiscordAvatarUrl,
+  isGuildBanned,
   isGuildMember,
+  purgeGuildBanCache,
   purgeGuildMemberCache,
 } from "@/lib/discord";
 
@@ -47,6 +49,7 @@ vi.mock("ioredis", () => ({
 }));
 
 const MEMBER_KEY = "discord:guild-member:user-1";
+const BAN_KEY = "discord:guild-ban:user-1";
 const BACKOFF_KEY = "discord:backoff-until";
 
 function mockFetchResponse(status: number, headers: Record<string, string> = {}) {
@@ -113,6 +116,52 @@ describe("isGuildMember", () => {
 
     await expect(isGuildMember("user-1")).resolves.toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("isGuildBanned", () => {
+  it("reads a 200 as banned and caches it", async () => {
+    const fetchMock = mockFetchResponse(200);
+
+    await expect(isGuildBanned("user-1")).resolves.toBe(true);
+    await expect(isGuildBanned("user-1")).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fakeRedis.store.get(BAN_KEY)).toBe("1");
+  });
+
+  it("reads a 404 as not banned and caches that too", async () => {
+    mockFetchResponse(404);
+
+    await expect(isGuildBanned("user-1")).resolves.toBe(false);
+    expect(fakeRedis.store.get(BAN_KEY)).toBe("0");
+  });
+
+  // Fails open, unlike `isGuildMember` — and caches nothing either way.
+  it("fails open on 429, 403 and 5xx", async () => {
+    for (const status of [429, 403, 500]) {
+      fakeRedis.store.clear();
+      globalThis.__brackeysDiscordRedis = undefined;
+      mockFetchResponse(status);
+      await expect(isGuildBanned("user-1")).resolves.toBe(false);
+      expect(fakeRedis.store.has(BAN_KEY)).toBe(false);
+    }
+  });
+
+  it("fails open while the shared backoff window is open", async () => {
+    fakeRedis.store.set(BACKOFF_KEY, String(Date.now() + 60_000));
+    const fetchMock = mockFetchResponse(200);
+
+    await expect(isGuildBanned("user-1")).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("purgeGuildBanCache", () => {
+  it("drops a cached ban so an unban here isn't undone by a stale yes", async () => {
+    fakeRedis.store.set(BAN_KEY, "1");
+
+    await purgeGuildBanCache("user-1");
+    expect(fakeRedis.store.has(BAN_KEY)).toBe(false);
   });
 });
 
@@ -210,5 +259,37 @@ describe("fetchGuildMember", () => {
 
     await expect(fetchGuildMember("token")).rejects.toThrow("429");
     expect(Number(fakeRedis.store.get(BACKOFF_KEY))).toBeGreaterThan(Date.now());
+  });
+});
+
+// Guild bans are mirrored into the app, never written back out to Discord.
+// `discordFetch` is the only path to discord.com, and it hardcodes GET — this
+// is the behavioural half of that guarantee.
+describe("every Discord call is a read", () => {
+  function captureFetch(status: number) {
+    const calls: RequestInit[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push(init);
+        return new Response(status === 200 ? "{}" : null, { status });
+      }),
+    );
+    return calls;
+  }
+
+  it("issues GET with no body, whatever the caller", async () => {
+    const calls = captureFetch(200);
+
+    await isGuildMember("user-1");
+    await isGuildBanned("user-2");
+    await fetchGuildMember("token");
+    await fetchDiscordUser("token");
+
+    expect(calls).toHaveLength(4);
+    for (const init of calls) {
+      expect(init.method).toBe("GET");
+      expect(init.body).toBeUndefined();
+    }
   });
 });

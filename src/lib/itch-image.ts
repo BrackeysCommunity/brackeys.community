@@ -38,6 +38,8 @@ export interface ItchImageOpts {
    * default here either.
    */
   fit?: "cover" | "contain" | "scale-down" | "crop" | "pad";
+  /** `false` returns the first frame of an animated source (see lib/still-image). */
+  anim?: boolean;
 }
 
 /** Tuned for banners/covers rendered as tiles; heroes pass a higher value. */
@@ -83,6 +85,7 @@ function optionString(opts: ItchImageOpts): string {
     `quality=${opts.quality ?? DEFAULT_ITCH_IMAGE_QUALITY}`,
     "format=auto",
     opts.width || opts.height ? `fit=${opts.fit ?? "scale-down"}` : null,
+    opts.anim === false ? "anim=false" : null,
     "onerror=redirect",
   ]
     .filter(Boolean)

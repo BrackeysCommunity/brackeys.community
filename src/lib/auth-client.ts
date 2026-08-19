@@ -1,7 +1,21 @@
+import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+/**
+ * A literal rather than inferred from `typeof auth`, which would pull the server
+ * auth module into the browser bundle. Keep in step with `user.additionalFields`.
+ */
 export const authClient = createAuthClient({
   baseURL: typeof window !== "undefined" ? window.location.origin : "",
+  plugins: [
+    inferAdditionalFields({
+      user: {
+        bannedAt: { type: "date", required: false },
+        bannedUntil: { type: "date", required: false },
+        unbannedAt: { type: "date", required: false },
+      },
+    }),
+  ],
 });
 
 type SocialSignInOptions = Omit<Parameters<typeof authClient.signIn.social>[0], "provider">;

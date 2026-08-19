@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { developerProfiles } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { isActiveBan } from "@/lib/ban-state";
 import {
   isStaffMember as checkIsStaff,
   isAdmin as checkIsAdmin,
@@ -15,7 +16,8 @@ import { resolveUserRoles } from "@/lib/staff-roles";
 
 type SessionResult = Awaited<ReturnType<typeof auth.api.getSession>>;
 
-async function readSession(context: unknown): Promise<SessionResult | null> {
+/** The raw session, before ban handling. Exported for `getBanStatus`. */
+export async function readSession(context: unknown): Promise<SessionResult | null> {
   try {
     return await auth.api.getSession({
       headers: (context as { headers: Headers }).headers,
@@ -27,7 +29,7 @@ async function readSession(context: unknown): Promise<SessionResult | null> {
 }
 
 function isBanned(session: SessionResult | null): boolean {
-  return session?.user.bannedAt != null;
+  return session != null && isActiveBan(session.user);
 }
 
 const BANNED_MESSAGE = "Your account has been suspended.";
@@ -38,7 +40,7 @@ const BANNED_MESSAGE = "Your account has been suspended.";
  * covers all writes, since every mutation chains through these.
  */
 function assertNotBanned(session: NonNullable<SessionResult>): void {
-  if (session.user.bannedAt != null) {
+  if (isActiveBan(session.user)) {
     throw new ORPCError("FORBIDDEN", { message: BANNED_MESSAGE });
   }
 }

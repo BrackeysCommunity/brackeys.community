@@ -10,15 +10,14 @@ import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { useHeaderShift } from "@/hooks/use-header-shift";
-import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
+import { useHeaderSlideTransition, useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 import { HOVER_CUE, NAV_LINK_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-/** Matches the `pt-14` the shell reserves for the bar — see `--app-header-shift`. */
-const HEADER_SHIFT = "-3.5rem";
+const HEADER_SHIFT = "calc(var(--app-header-height) * -1)";
 
 const springTransition = {
   type: "spring",
@@ -102,29 +101,20 @@ export function AppHeader() {
   const scrolledAway = useHideOnScrollDown(pathname);
   const peeking = useTopEdgePeek(scrolledAway);
   const hidden = scrolledAway && !peeking && !mobileMenuOpen;
+  const slide = useHeaderSlideTransition();
 
   useHeaderShift(hidden, HEADER_SHIFT);
 
   return (
     <>
-      {/* The scrim is its own fixed layer rather than the bar's `before:`,
-          because it outlives the bar: once the header slides away this is what
-          keeps page content legible as it scrolls under the sticky page
-          controls. Sits above static content but below anything parked at
-          `--app-header-shift` (z-20), so a sticky toolbar lands on top of the
-          fade while the list passes behind it. The mobile menu overlay is
-          taller than the desktop bar, so the fade stays deeper below `lg`. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-10 h-32 bg-gradient-to-b from-background via-background/70 to-transparent lg:h-20"
-      />
-
+      {/* Height pinned to the inset the shell reserves, so the bar's bottom edge
+          lands where the mobile menu overlay starts. */}
       <motion.header
         initial={false}
-        animate={{ y: hidden ? "-100%" : "0%", opacity: hidden ? 0 : 1 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
+        animate={{ y: hidden ? "-100%" : "0%" }}
+        transition={slide}
         inert={hidden}
-        className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-start justify-between px-4 pt-4 sm:px-6 sm:pt-5 lg:px-10"
+        className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex h-[var(--app-header-height)] items-center justify-between border-b border-b-emboss-shadow bg-background px-4 shadow-sm sm:px-6 lg:px-10"
       >
         {/* Logo */}
         <MagneticLink className="pointer-events-auto shrink-0">
@@ -132,6 +122,9 @@ export function AppHeader() {
             <motion.div
               className="h-7 w-7"
               style={{
+                // The gradient sweep below repaints every frame; its own layer
+                // keeps the bar's hide/reveal a pure composited transform.
+                transform: "translateZ(0)",
                 maskImage: "url(/brackeys-logo.svg)",
                 maskSize: "contain",
                 maskRepeat: "no-repeat",
@@ -251,7 +244,7 @@ export function AppHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="pointer-events-auto fixed inset-x-0 top-[57px] z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
+            className="pointer-events-auto fixed inset-x-0 top-16 z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
           >
             <nav className="flex flex-col gap-1 p-4">
               {NAV_ITEMS.map((item) => {

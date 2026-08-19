@@ -7,7 +7,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { BrackeysMark } from "@/components/ui/brackeys-mark";
 import { Button } from "@/components/ui/button";
 import { useHeaderShift } from "@/hooks/use-header-shift";
-import { useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
+import { useHeaderSlideTransition, useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 
 // Header h-14 (3.5rem) + iOS notch / Android status bar.
@@ -28,15 +28,16 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const hidden = useHideOnScrollDown(pathname);
   useHeaderShift(hidden, HEADER_SHIFT);
+  const slide = useHeaderSlideTransition();
 
   return (
     <>
       <motion.header
         initial={false}
         animate={{ y: hidden ? "-100%" : "0%" }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
+        transition={slide}
         inert={hidden}
-        className="pointer-events-auto fixed inset-x-0 top-0 z-40 flex items-center justify-between gap-3 border-b border-muted/30 bg-background"
+        className="pointer-events-auto fixed inset-x-0 top-0 z-40 flex items-center justify-between gap-3 border-b border-b-emboss-shadow bg-background shadow-sm"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingLeft: "calc(1rem + env(safe-area-inset-left))",
@@ -97,20 +98,6 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           paddingRight: "env(safe-area-inset-right)",
         }}
       >
-        {/* Top scrim, matching the desktop shell: the bar slides away but this
-            stays, so the list dissolves on its way past whatever the page has
-            stuck to the top rather than colliding with it.
-
-            It lives *inside* the scroller — `position: fixed` makes this
-            <main> a stacking context, so a scrim outside it would paint over
-            the page's sticky surfaces instead of under them. Fixed rather than
-            sticky so it holds the viewport edge without taking up flow. */}
-        <div
-          aria-hidden
-          className="pointer-events-none fixed inset-x-0 top-0 z-10 bg-gradient-to-b from-background via-background/70 to-transparent"
-          style={{ height: `calc(${HEADER_HEIGHT} + 2.5rem)` }}
-        />
-
         <div
           className="content-pane flex w-full flex-col px-4 pt-4 selection:bg-primary selection:text-white"
           style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT} + 1rem)` }}

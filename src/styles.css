@@ -257,18 +257,18 @@
  *
  * How far a sticky surface should move up to reclaim the band the app header
  * has vacated: 0 while the bar is out, negative its height once it has slid
- * away (see `use-hide-on-scroll-down`). Sticky surfaces park at
- * `top: var(--app-header-shift)`.
+ * away (see `use-hide-on-scroll-down`). Sticky surfaces ride it with the
+ * `.header-follow` utility.
  *
  * It's a shift rather than an absolute inset because `top: 0` already means
  * "just under the header" inside the main scroller — sticky offsets resolve
- * against the scroll container's content box, and the shell's `pt-14` is what
- * puts that box below the bar. So the resting value is 0, and only the header
- * going away moves anything.
+ * against the scroll container's content box, and the inset the shell reserves
+ * (`--app-header-height`) is what puts that box below the bar. So the resting
+ * value is 0, and only the header going away moves anything.
  *
- * Registered as a <length> so the browser interpolates it: one transition on
- * :root animates every sticky surface in step with the header, instead of each
- * one running its own `top` transition and drifting out of sync.
+ * Registered as a <length> so `translateY(var(--app-header-shift))` resolves to
+ * a real offset even on pages that never set it. The value changes in one step;
+ * the travel belongs to the `.header-follow` transition below.
  *
  * Scrollers whose header inset lives *outside* them (MobileShell, the sidebar
  * layout's left column) have no band to reclaim, and pin it to 0px inline.
@@ -279,11 +279,40 @@
   initial-value: 0px;
 }
 
+/* The desktop bar's height, in one place: the bar is sized by it, both shells
+   reserve it as their top inset, and `AppHeader` negates it for the shift.
+   MobileShell carries its own — that bar is shorter and adds the safe area. */
 :root {
-  transition: --app-header-shift 300ms ease-in-out;
+  --app-header-height: 4rem;
 }
 
 @layer utilities {
+  /* A sticky surface that rides the app bar on a transform, so the hide is one
+     composited move. Interpolating the shift on `:root` instead costs a
+     whole-document style recalc per frame — the property inherits. */
+  .header-follow {
+    transform: translateY(var(--app-header-shift));
+    transition: transform 400ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* The same ride on the sticky inset: `top` only applies once the surface is
+     stuck, where a transform would drag a mid-page toolbar off its content.
+     Costs a layout per frame, so set the inset here, not via a `top-*` class. */
+  .header-follow-inset {
+    top: var(--app-header-shift);
+    transition: top 400ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* The band a board's pinned controls sit in: the app header's own surface,
+     carried on so the content passes behind it rather than through the gaps
+     between the controls. Pair with `.header-follow` or `.header-follow-inset`. */
+  .toolbar-band {
+    border-bottom: 1px solid var(--color-emboss-shadow);
+    background: var(--color-background);
+    padding-top: 1rem;
+    padding-bottom: 0.75rem;
+  }
+
   /* Scroll without a visible scrollbar. Referenced by the combobox list,
      command list, sidebar content, and menu popups — the affordance there is
      the clipped row at the edge, not a gutter-wide track. */
@@ -568,12 +597,14 @@
   }
 }
 
+/* On a transform: at 0.2s, `background-position` repaints a viewport-sized
+   gradient forever. The overlay hangs 4px high so the slide never uncovers it. */
 @keyframes scanlines-scroll {
   from {
-    background-position: 0 0;
+    transform: translateY(0);
   }
   to {
-    background-position: 0 4px;
+    transform: translateY(4px);
   }
 }
 
@@ -633,6 +664,11 @@ html[data-reduce-motion="true"] .animate-scanlines,
 html[data-reduce-motion="true"] .animate-terminal-blink {
   animation: none !important;
 }
+/* The header cuts rather than slides here, so its riders have to cut with it. */
+html[data-reduce-motion="true"] .header-follow,
+html[data-reduce-motion="true"] .header-follow-inset {
+  transition-duration: 0s;
+}
 
 @media (prefers-reduced-motion: reduce) {
   html:not([data-reduce-motion="false"])::view-transition-old(*),
@@ -641,5 +677,9 @@ html[data-reduce-motion="true"] .animate-terminal-blink {
   html:not([data-reduce-motion="false"]) .animate-scanlines,
   html:not([data-reduce-motion="false"]) .animate-terminal-blink {
     animation: none !important;
+  }
+  html:not([data-reduce-motion="false"]) .header-follow,
+  html:not([data-reduce-motion="false"]) .header-follow-inset {
+    transition-duration: 0s;
   }
 }

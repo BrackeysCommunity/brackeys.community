@@ -52,7 +52,7 @@ export function ProjectHero({
   const showCta = project.url != null && !restricted;
 
   return (
-    <Well className="overflow-hidden p-0">
+    <Well data-header-hero className="overflow-hidden p-0">
       <div className="flex flex-col gap-0 sm:flex-row">
         <div className="relative aspect-[63/50] w-full shrink-0 overflow-hidden bg-muted/20 sm:w-72 lg:w-96">
           {project.imageUrl ? (

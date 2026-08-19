@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 
 import { clearActiveUserProfile, fetchActiveUserProfile } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
+import { isActiveBan } from "@/lib/ban-state";
 import { identifyUser } from "@/lib/posthog";
 
 /**
@@ -13,6 +15,20 @@ import { identifyUser } from "@/lib/posthog";
  */
 export function AuthSessionSync() {
   const { data: session, isPending } = authClient.useSession();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // The ban fields ride on the session, so this costs no request.
+  const suspended = session?.user ? isActiveBan(session.user) : false;
+
+  // Once per page load: `/suspended` re-checks against the database, so a
+  // session still carrying a just-lifted ban would otherwise bounce.
+  const redirected = useRef(false);
+  useEffect(() => {
+    if (suspended && pathname !== "/suspended" && !redirected.current) {
+      redirected.current = true;
+      void navigate({ to: "/suspended", replace: true });
+    }
+  }, [suspended, pathname, navigate]);
 
   useEffect(() => {
     // Hold the store's initial pending state until the session fetch
@@ -21,11 +37,9 @@ export function AuthSessionSync() {
     setAuthSession(session ?? null);
     if (session?.user) {
       void fetchActiveUserProfile();
-      // Analytics identity is memory-only under cookieless mode, so this is
-      // how a signed-in visitor gets re-attached on every page load — not a
-      // one-off at login. The absent-session branch deliberately does *not*
-      // `reset()`: that would churn the anonymous id on every logged-out
-      // page load. Sign-out handles it (see `UserMenu`).
+      // Analytics identity is memory-only under cookieless mode, so this
+      // re-attaches on every page load rather than once at login. The absent
+      // branch deliberately doesn't `reset()` — sign-out handles that.
       identifyUser(session.user);
     } else {
       clearActiveUserProfile();

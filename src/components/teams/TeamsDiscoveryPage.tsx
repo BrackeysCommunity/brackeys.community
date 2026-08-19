@@ -170,18 +170,11 @@ export function TeamsDiscoveryPage() {
       {/* `fadeIn`, not `fadeUp`: the toolbar below is sticky, and a
           transform on its ancestor makes it jump when the rise ends. */}
       <motion.section variants={fadeIn} className="flex flex-col gap-3">
-        {/* The controls pin to the top of the scrollport, just under the app
-            header — they're the one thing you always want reachable while
-            walking a long directory. `--app-header-shift` takes them up into
-            the band the header vacates and back down when it returns, so they
-            ride with it rather than leaving a gap. The `+1rem` is a gutter
-            they keep in both states — parked flush against the viewport edge
-            they read as clipped rather than pinned. They carry no surface of
-            their own: `z-20` lands them on top of the header's fixed scrim,
-            which is what the grid dissolves into on its way past. The count
-            and chips are a readout of the directory rather than a control, so
-            they scroll off with it. */}
-        <div className="sticky top-[calc(var(--app-header-shift)+1rem)] z-20">
+        {/* The controls pin under the app header and carry its surface, so the
+            grid passes behind an opaque band; `header-follow-inset` closes the
+            band the header leaves behind. The count and chips are a readout
+            rather than a control, so they scroll off with it. */}
+        <div className="header-follow-inset toolbar-band sticky z-20">
           <TeamsToolbar
             search={search}
             setSearch={setSearch}
@@ -272,6 +265,7 @@ export function TeamsDiscoveryPage() {
 function TeamsHero({ authenticated, onStart }: { authenticated: boolean; onStart: () => void }) {
   return (
     <Well
+      data-header-hero
       notchOpts
       // The gradient is the surface's alone. The notched corners fall outside
       // its clip path, and `Well` fills what's left with the frame's own

@@ -16,9 +16,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-// Relative, not `@/` — the sync service imports this file by path and runs it
-// under bun with no bundler, so nothing here may depend on the app's alias
-// resolving. Same reason `src/db/schema.ts` has no `@/` imports of its own.
 import {
   type ItchJamContributor,
   type ProjectLink,
@@ -33,6 +30,10 @@ import {
   projects,
 } from "../db/schema";
 import { normalizeItchProfileUrl } from "./itch-urls";
+// Relative, not `@/` — the sync service imports this file by path and runs it
+// under bun with no bundler, so nothing here may depend on the app's alias
+// resolving. Same reason `src/db/schema.ts` has no `@/` imports of its own.
+import { memberName } from "./member-name";
 import {
   RESERVED_PROJECT_SLUGS,
   platformsFromTraits,
@@ -333,7 +334,7 @@ function lazyDisplayName(db: ProjectDb, profileId: string): () => Promise<string
       .from(developerProfiles)
       .where(eq(developerProfiles.id, profileId))
       .limit(1)
-      .then(([row]) => row?.guildNickname ?? row?.discordUsername ?? "Unknown");
+      .then(([row]) => memberName(row ?? {}, "Unknown"));
     return pending;
   };
 }

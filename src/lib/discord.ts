@@ -116,6 +116,12 @@ const DEFAULT_BACKOFF_SECONDS = 30;
 const MAX_BACKOFF_SECONDS = 900;
 const MEMBER_CACHE_TTL_SECONDS = 600;
 const NON_MEMBER_CACHE_TTL_SECONDS = 120;
+// Asymmetric: the negative must not pin an un-ban for half an hour.
+const GUILD_BAN_CACHE_TTL_SECONDS = 1800;
+const NOT_GUILD_BANNED_CACHE_TTL_SECONDS = 300;
+
+/** All `discordFetch` takes: no method, no body, nowhere to put a write. */
+type DiscordReadInit = { headers: Record<string, string> };
 
 /** Thrown when we refuse to call discord.com because a rate-limit backoff window is active. */
 export class DiscordBackoffError extends Error {
@@ -171,12 +177,19 @@ function parseRetryAfter(response: Response): number {
 /**
  * Fetch against discord.com that fails fast while the shared backoff window
  * is active and opens/extends that window whenever Discord answers 429.
+ *
+ * Read-only by construction: the method is hardcoded to GET and the init type
+ * carries nothing else, so no caller can reach a Discord mutation through this
+ * funnel — and every discord.com call in the app goes through it. Moderation
+ * flows one way: guild bans are mirrored *into* the app (`isGuildBanned`),
+ * never written back out. Banning on Discord stays a thing humans do in
+ * Discord.
  */
-async function discordFetch(url: string, init: RequestInit): Promise<Response> {
+async function discordFetch(url: string, init: DiscordReadInit): Promise<Response> {
   const backoffUntil = await getBackoffUntil();
   if (backoffUntil) throw new DiscordBackoffError(backoffUntil);
 
-  const response = await fetch(url, init);
+  const response = await fetch(url, { headers: init.headers, method: "GET" });
   if (response.status === 429) {
     await openBackoffWindow(parseRetryAfter(response));
   }
@@ -234,28 +247,35 @@ export async function purgeGuildMemberCache(discordUserId: string): Promise<void
   await redis.del(memberCacheKey(discordUserId));
 }
 
-async function readCachedMembership(discordUserId: string): Promise<boolean | null> {
+async function readCachedFlag(key: string): Promise<boolean | null> {
   try {
     const redis = await getRedis();
-    const cached = await redis.get(memberCacheKey(discordUserId));
+    const cached = await redis.get(key);
     return cached === null ? null : cached === "1";
   } catch {
     return null;
   }
 }
 
-async function writeCachedMembership(discordUserId: string, isMember: boolean): Promise<void> {
+async function writeCachedFlag(key: string, value: boolean, ttlSeconds: number): Promise<void> {
   try {
     const redis = await getRedis();
-    await redis.set(
-      memberCacheKey(discordUserId),
-      isMember ? "1" : "0",
-      "EX",
-      isMember ? MEMBER_CACHE_TTL_SECONDS : NON_MEMBER_CACHE_TTL_SECONDS,
-    );
+    await redis.set(key, value ? "1" : "0", "EX", ttlSeconds);
   } catch {
-    // Cache is an optimization — membership answers must not depend on Redis.
+    // Cache is an optimization — answers must not depend on Redis.
   }
+}
+
+function readCachedMembership(discordUserId: string): Promise<boolean | null> {
+  return readCachedFlag(memberCacheKey(discordUserId));
+}
+
+function writeCachedMembership(discordUserId: string, isMember: boolean): Promise<void> {
+  return writeCachedFlag(
+    memberCacheKey(discordUserId),
+    isMember,
+    isMember ? MEMBER_CACHE_TTL_SECONDS : NON_MEMBER_CACHE_TTL_SECONDS,
+  );
 }
 
 /**
@@ -294,4 +314,49 @@ export async function isGuildMember(discordUserId: string): Promise<boolean> {
     return false;
   }
   return false;
+}
+
+function banCacheKey(discordUserId: string): string {
+  return `discord:guild-ban:${discordUserId}`;
+}
+
+/**
+ * Whether Discord has this user banned from the guild. Unlike `isGuildMember`
+ * this **fails open** — only 200 (banned) and 404 (not) are answers. Requires
+ * the bot to hold BAN_MEMBERS.
+ */
+export async function isGuildBanned(discordUserId: string): Promise<boolean> {
+  const cached = await readCachedFlag(banCacheKey(discordUserId));
+  if (cached !== null) return cached;
+
+  const guildId = process.env.DISCORD_GUILD_ID!;
+  const botToken = process.env.DISCORD_BOT_TOKEN!;
+  if (!guildId || !botToken) return false;
+
+  let response: Response;
+  try {
+    response = await discordFetch(
+      `https://discord.com/api/v10/guilds/${guildId}/bans/${discordUserId}`,
+      { headers: { Authorization: `Bot ${botToken}` } },
+    );
+  } catch {
+    return false;
+  }
+
+  if (response.ok) {
+    await writeCachedFlag(banCacheKey(discordUserId), true, GUILD_BAN_CACHE_TTL_SECONDS);
+    return true;
+  }
+  if (response.status === 404) {
+    await writeCachedFlag(banCacheKey(discordUserId), false, NOT_GUILD_BANNED_CACHE_TTL_SECONDS);
+    return false;
+  }
+  // 403 (bot missing BAN_MEMBERS), 429, 5xx — not cacheable, and not a ban.
+  return false;
+}
+
+/** Forget a cached guild-ban answer, e.g. when staff lift the app ban. */
+export async function purgeGuildBanCache(discordUserId: string): Promise<void> {
+  const redis = await getRedis();
+  await redis.del(banCacheKey(discordUserId));
 }

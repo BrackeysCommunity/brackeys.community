@@ -164,7 +164,7 @@ export function JamCalendarSpans({
         {isLoading ? (
           <div className="flex flex-col gap-px p-2">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className={cn("w-full rounded", compact ? "h-20" : "h-28")} />
+              <Skeleton key={i} className={cn("w-full", compact ? "h-20" : "h-28")} />
             ))}
           </div>
         ) : (

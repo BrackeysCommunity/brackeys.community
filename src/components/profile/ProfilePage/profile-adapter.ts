@@ -1,4 +1,5 @@
 import { formatRate } from "@/lib/format-rate";
+import { memberName } from "@/lib/member-name";
 
 import type {
   EditableProject,
@@ -127,7 +128,7 @@ export interface RpcProfile {
 export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const { profile } = rpc;
   const handle = rpc.urlStub ?? profile.discordUsername ?? profile.id;
-  const displayName = (profile.guildNickname ?? profile.discordUsername ?? handle).trim();
+  const displayName = memberName(profile, handle).trim();
   const tag = profile.tagline?.trim() || null;
   const glyph = (displayName.match(/\S/)?.[0] ?? "?").toUpperCase();
 

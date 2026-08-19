@@ -203,9 +203,9 @@ function EntriesSkeleton() {
       {Array.from({ length: 12 }).map((_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder
         <div key={i} className="flex flex-col gap-1.5">
-          <Skeleton className="aspect-[63/50] w-full rounded" />
-          <Skeleton className="h-3 w-3/4 rounded" />
-          <Skeleton className="h-2.5 w-1/2 rounded" />
+          <Skeleton className="aspect-[63/50] w-full" />
+          <Skeleton className="h-3 w-3/4" />
+          <Skeleton className="h-2.5 w-1/2" />
         </div>
       ))}
     </div>

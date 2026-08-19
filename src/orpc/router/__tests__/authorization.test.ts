@@ -73,6 +73,8 @@ const PUBLIC_PROCEDURES = new Set([
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the
   // /admin route's UX only.
   "getStaffStatus",
+  // The only procedure that sees a *banned* session rather than an anonymous one.
+  "getBanStatus",
 ]);
 
 /** Procedures that must refuse even a plain authenticated non-staff user. */
@@ -99,6 +101,9 @@ const STAFF_PROCEDURES = new Set([
   "listCommentReports",
   "listRecentComments",
   "resolveCommentReport",
+  // Staff-only because it carries ban state; `searchProfiles` is the open one.
+  "searchMembers",
+  "listModerationActions",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

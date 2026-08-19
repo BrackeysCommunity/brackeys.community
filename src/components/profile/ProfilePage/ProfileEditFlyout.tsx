@@ -958,6 +958,39 @@ const COLLAB_PREFERENCE_OPTIONS: { value: "paid" | "hobby" | "either"; label: st
 /** Mirrors `MAX_RATE` in the profile router. */
 const MAX_RATE = 1_000_000;
 
+/** Select for an optional field: the menu carries an explicit way back to unset. */
+function OptionalSelect<T extends string>({
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  value: string | null;
+  options: { value: T; label: string }[];
+  placeholder: string;
+  onChange: (next: T | null) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(typeof v === "string" ? (v as T) : null)}>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder={placeholder}>
+          {value ? (options.find((o) => o.value === value)?.label ?? value) : null}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={null} className="text-muted-foreground">
+          Not set
+        </SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 /** What's wrong with the pair on screen, in the words the field shows. */
 function rateProblem(min: number | null, max: number | null): string | null {
   const amounts = [min, max].filter((n): n is number => n != null);
@@ -1018,59 +1051,27 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
         </div>
       </FieldRow>
       <FieldRow label="COMMITMENT">
-        <Select
+        <OptionalSelect
           value={commitment}
-          onValueChange={(v) => {
-            const next = typeof v === "string" ? v : null;
+          options={COMMITMENT_OPTIONS}
+          placeholder="— select —"
+          onChange={(next) => {
             setCommitment(next);
-            update.mutate({
-              availability: next as "full_time" | "part_time" | "limited" | null,
-            });
+            update.mutate({ availability: next });
           }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="— select —">
-              {commitment
-                ? (COMMITMENT_OPTIONS.find((o) => o.value === commitment)?.label ?? commitment)
-                : null}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {COMMITMENT_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </FieldRow>
       <FieldRow label="RATE" error={rateError}>
         <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <Select
+          <OptionalSelect
             value={rateType}
-            onValueChange={(v) => {
-              const next = typeof v === "string" ? v : null;
+            options={RATE_OPTIONS}
+            placeholder="type"
+            onChange={(next) => {
               setRateType(next);
-              update.mutate({
-                rateType: next as "hourly" | "fixed" | "negotiable" | null,
-              });
+              update.mutate({ rateType: next });
             }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="type">
-                {rateType
-                  ? (RATE_OPTIONS.find((o) => o.value === rateType)?.label ?? rateType)
-                  : null}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {RATE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
           <Input
             type="number"
             min={0}
@@ -1099,32 +1100,15 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
         </div>
       </FieldRow>
       <FieldRow label="OPEN TO" hint="filters you into the collab board's people lane">
-        <Select
+        <OptionalSelect
           value={collabPreference}
-          onValueChange={(v) => {
-            const next = typeof v === "string" ? v : null;
+          options={COLLAB_PREFERENCE_OPTIONS}
+          placeholder="— select —"
+          onChange={(next) => {
             setCollabPreference(next);
-            update.mutate({
-              collabPreference: next as "paid" | "hobby" | "either" | null,
-            });
+            update.mutate({ collabPreference: next });
           }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="— select —">
-              {collabPreference
-                ? (COLLAB_PREFERENCE_OPTIONS.find((o) => o.value === collabPreference)?.label ??
-                  collabPreference)
-                : null}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {COLLAB_PREFERENCE_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </FieldRow>
       <FieldRow label="LOOKING FOR" hint="one line, shown on your directory card">
         <Input

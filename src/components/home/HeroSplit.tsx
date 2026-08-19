@@ -34,6 +34,7 @@ export function HeroSplit({ hero, isLoading, now }: HeroSplitProps) {
 
   return (
     <div
+      data-header-hero
       className={cn(
         "grid items-center gap-8",
         showPanel && "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]",

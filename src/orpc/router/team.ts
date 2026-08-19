@@ -24,6 +24,7 @@ import {
 } from "@/db/schema";
 import { EVENTS } from "@/lib/analytics-events";
 import { jamUrl } from "@/lib/jam-links";
+import { memberName } from "@/lib/member-name";
 import { notify } from "@/lib/notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
@@ -1014,10 +1015,9 @@ export const listMyInvites = os
  * directory — a team can invite, and a project can credit, any member of the
  * community rather than just the ones advertising availability.
  *
- * Matches **both** names a profile can carry, because searching for the name
- * you can see is the only thing anyone tries: the app renders
- * `guildNickname ?? discordUsername` everywhere, so a nickname-only match was
- * invisible to a username-only search.
+ * Matches **both** names a profile can carry, because searching for the name you
+ * can see is the only thing anyone tries: `memberName` shows the nickname ahead
+ * of the handle, so a nickname-only match was invisible to a username search.
  */
 export const searchProfiles = os
   .use(requireAuth)
@@ -1044,7 +1044,7 @@ export const searchProfiles = os
       ...row,
       // The name the rest of the app shows. `username` stays for the invite
       // picker, which renders the handle deliberately.
-      displayName: guildNickname || row.username || "Unknown",
+      displayName: memberName({ guildNickname, discordUsername: row.username }, "Unknown"),
     }));
   });
 

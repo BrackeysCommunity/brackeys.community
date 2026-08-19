@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
+import { isActiveBan } from "@/lib/ban-state";
 import { withErrorReporting } from "@/lib/posthog-server";
 import {
   ProfileProjectImageUploadError,
@@ -46,7 +47,7 @@ async function imageUploadAllowed(userId: string): Promise<boolean> {
  */
 async function readUploadSession(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-  if (!session || session.user.bannedAt != null) return null;
+  if (!session || isActiveBan(session.user)) return null;
   return session;
 }
 

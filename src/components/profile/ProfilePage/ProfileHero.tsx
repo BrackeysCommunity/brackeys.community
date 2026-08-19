@@ -52,7 +52,7 @@ export function ProfileHero({
   compact = false,
 }: ProfileHeroProps) {
   return (
-    <Well className="overflow-hidden p-0">
+    <Well data-header-hero className="overflow-hidden p-0">
       <GradientBanner
         seed={profile.handle}
         pattern="vertical"

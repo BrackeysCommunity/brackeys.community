@@ -32,6 +32,7 @@ import {
   REOPEN_EXTENSION_DAYS,
 } from "@/lib/collab-lifecycle";
 import { jamSlug } from "@/lib/jam-links";
+import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
@@ -2280,7 +2281,7 @@ export const listReports = os
         p.id,
         {
           id: p.id,
-          displayName: p.guildNickname ?? p.discordUsername ?? "Member",
+          displayName: memberName(p, "Member"),
           avatarUrl: p.avatarUrl,
         },
       ]),

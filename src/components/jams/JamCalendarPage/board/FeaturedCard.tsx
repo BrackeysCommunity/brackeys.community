@@ -37,13 +37,8 @@ export function FeaturedCard({ jam, now }: { jam: JamFromList; now: Date }) {
         style={{ backgroundColor: color }}
       >
         <JamBanner jam={jam} fit="contain" />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card/70 to-transparent"
-        />
-        {/* Over the art rather than in the text block — the count is a
-            glanceable badge, not part of the jam's description. Sits at
-            the bottom edge, where the scrim already darkens the art. */}
+        {/* Over the art: a glanceable badge, not part of the description. It
+            carries its own chip, so the banner needs no scrim under it. */}
         <MediaCardFloatingBadge>
           <SignalInline jam={jam} now={now} size="sm" />
         </MediaCardFloatingBadge>

@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { useAttention } from "@/components/attention/use-attention";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { authClient } from "@/lib/auth-client";
+import { stillImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
@@ -33,7 +34,13 @@ function TabBody({ icon, label, avatarUrl, showDot }: NavTabBody) {
     <span className="flex flex-col items-center gap-1">
       <span className="relative">
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" aria-hidden className="size-6 rounded-full object-cover" />
+          <img
+            // Frozen: there is no hover on a tab bar to play it back.
+            src={stillImageUrl(avatarUrl)}
+            alt=""
+            aria-hidden
+            className="size-6 rounded-full object-cover"
+          />
         ) : (
           <HugeiconsIcon icon={icon} className="size-6" />
         )}
