@@ -1,5 +1,3 @@
-import posthog from "posthog-js";
-
 import { env } from "@/env";
 import type { AnalyticsEvent } from "@/lib/analytics-events";
 
@@ -16,17 +14,29 @@ import type { AnalyticsEvent } from "@/lib/analytics-events";
  * ⚠️ Cookieless mode must **also** be switched on in the PostHog project
  * settings. Until it is, every event this sends is dropped at ingestion.
  *
- * The posthog-js singleton no-ops on every method until `init` runs, so with
- * no key configured (local dev, forks) nothing here needs a second guard:
- * captures are dropped and `useFlag` falls back to `src/lib/flags.ts`.
+ * ## Loaded off the critical path — see `docs/plans/15-preload-graph.md` §3.1
+ *
+ * `posthog-js` (and `@posthog/react`, which imports it eagerly) is ~77 KB
+ * gzipped and has no first-paint obligation, so nothing in this module
+ * statically imports either package. `initAnalytics()` schedules the real
+ * `import("posthog-js")` for idle time; everything called before that
+ * resolves — a capture, an identify, a config change — queues in
+ * `pendingCalls` and replays once the client lands. A visitor with no key
+ * configured or who has opted out never triggers the import at all, so the
+ * chunk is never fetched, not just unused.
+ *
+ * `useFlag` (`@/lib/hooks/use-flag`) reads the same lazily-populated client
+ * through `subscribePostHogClient`/`getPostHogClientSnapshot` rather than
+ * `@posthog/react`'s context, for the same reason: importing those hooks
+ * would statically pull posthog-js back in.
  *
  * ## On bundle size — measured, don't re-litigate
  *
- * This lands as a ~236 KB (81 KB gzipped) chunk on the critical path, which
- * invites the obvious idea: posthog-js publishes a `dist/module.slim` entry
- * that registers none of its 18 extensions and takes only the ones you name
- * via `__extensionClasses`. It was tried at 1.417.2 and came out **worse**
- * (248 KB), because the classes are only reachable through
+ * This lands as a ~236 KB (81 KB gzipped) chunk, which invites the obvious
+ * idea: posthog-js publishes a `dist/module.slim` entry that registers none
+ * of its 18 extensions and takes only the ones you name via
+ * `__extensionClasses`. It was tried at 1.417.2 and came out **worse** (248
+ * KB), because the classes are only reachable through
  * `dist/extension-bundles`, a 136 KB prebuilt module with every extension
  * inlined — and posthog-js declares no `sideEffects: false`, so a bundler
  * must keep all of it. Slim core plus that bundle exceeds the default entry.
@@ -36,6 +46,8 @@ import type { AnalyticsEvent } from "@/lib/analytics-events";
  * rather than bundled. Revisit only if posthog-js ships per-extension entry
  * points or marks itself side-effect-free.
  */
+
+export type PostHogClient = typeof import("posthog-js").default;
 
 /**
  * Our own opt-out record. PostHog normally persists this itself, but
@@ -119,50 +131,49 @@ export function subscribeAnalyticsPreference(onChange: () => void): () => void {
   };
 }
 
-/**
- * Flip capture on or off and remember the choice.
- *
- * Deliberately not `opt_in_capturing()` / `opt_out_capturing()`: those read
- * and write PostHog's own consent flags, and under cookieless mode those
- * flags are pinned (`has_opted_out_capturing()` answers `true` from startup
- * and neither call moves it), so they are not a switch we can steer. A
- * `before_send` returning `null` drops every event at the last hop, which
- * is documented behaviour and works the same in either mode.
- */
-export function setAnalyticsEnabled(enabled: boolean) {
-  try {
-    localStorage.setItem(OPT_OUT_KEY, enabled ? "on" : "off");
-  } catch {
-    // storage full or unavailable — the in-memory switch below still applies
-  }
-  for (const listener of preferenceListeners) listener();
+let client: PostHogClient | null = null;
+/** True once `initAnalytics` has committed to loading — not yet once loaded. */
+let started = false;
+let pendingCalls: Array<(client: PostHogClient) => void> = [];
 
-  if (!enabled) {
-    posthog.set_config({ before_send: () => null });
-    return;
-  }
-  // An identity function rather than clearing the key: `set_config` merges,
-  // so `undefined` is not reliably a removal.
-  if (started) posthog.set_config({ before_send: (event) => event });
-  else initAnalytics();
+const clientListeners = new Set<() => void>();
+
+/** For `useFlag`: the lazily-loaded client, or `null` before it lands. */
+export function getPostHogClientSnapshot(): PostHogClient | null {
+  return client;
 }
 
-let started = false;
+export function subscribePostHogClient(onChange: () => void): () => void {
+  clientListeners.add(onChange);
+  return () => clientListeners.delete(onChange);
+}
 
 /**
- * Idempotent, browser-only. Called from `getRouter()` so it runs before the
- * first `onResolved` pageview rather than after the first paint.
+ * Run `fn` against the client now if it has loaded, later if a load is in
+ * flight, or never if analytics was never going to load in this session
+ * (no key, or opted out) — matching the old singleton's no-op-until-init
+ * behaviour, just without paying for the import to find that out.
  */
-export function initAnalytics() {
-  if (started || typeof window === "undefined" || !env.VITE_POSTHOG_KEY) return;
-  // An opted-out browser doesn't load PostHog at all — no events, and no
-  // flag request either, so `useFlag` serves the declared defaults. Stopping
-  // short of any network call is the point of the switch; flags riding along
-  // on it is the accepted cost.
-  if (analyticsOptedOut()) return;
-  started = true;
+function withClient(fn: (client: PostHogClient) => void) {
+  if (client) {
+    fn(client);
+    return;
+  }
+  if (started) pendingCalls.push(fn);
+}
 
-  posthog.init(env.VITE_POSTHOG_KEY, {
+function scheduleIdle(fn: () => void) {
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(fn, { timeout: 4000 });
+  } else {
+    setTimeout(fn, 1);
+  }
+}
+
+async function loadAndInit() {
+  const { default: posthog } = await import("posthog-js");
+
+  posthog.init(env.VITE_POSTHOG_KEY!, {
     api_host: env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com",
     // Required as soon as `api_host` stops being a posthog.com domain — i.e.
     // the moment `VITE_POSTHOG_HOST` points at the reverse proxy
@@ -194,6 +205,59 @@ export function initAnalytics() {
   // Ties events and error reports to a release. `__APP_VERSION__` is
   // `pkg.version+sha`, defined in vite.config.ts.
   posthog.register({ app_version: __APP_VERSION__ });
+
+  client = posthog;
+  const calls = pendingCalls;
+  pendingCalls = [];
+  for (const call of calls) call(posthog);
+  for (const listener of clientListeners) listener();
+}
+
+/**
+ * Flip capture on or off and remember the choice.
+ *
+ * Deliberately not `opt_in_capturing()` / `opt_out_capturing()`: those read
+ * and write PostHog's own consent flags, and under cookieless mode those
+ * flags are pinned (`has_opted_out_capturing()` answers `true` from startup
+ * and neither call moves it), so they are not a switch we can steer. A
+ * `before_send` returning `null` drops every event at the last hop, which
+ * is documented behaviour and works the same in either mode.
+ */
+export function setAnalyticsEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(OPT_OUT_KEY, enabled ? "on" : "off");
+  } catch {
+    // storage full or unavailable — the in-memory switch below still applies
+  }
+  for (const listener of preferenceListeners) listener();
+
+  if (!enabled) {
+    withClient((c) => c.set_config({ before_send: () => null }));
+    return;
+  }
+  // An identity function rather than clearing the key: `set_config` merges,
+  // so `undefined` is not reliably a removal.
+  if (started) withClient((c) => c.set_config({ before_send: (event) => event }));
+  else initAnalytics();
+}
+
+/**
+ * Idempotent, browser-only. Called from `getRouter()` so the load is
+ * scheduled before the first `onResolved` pageview rather than after it —
+ * scheduled, not run: the actual `import("posthog-js")` waits for idle time,
+ * and that first pageview queues in `pendingCalls` until it lands.
+ */
+export function initAnalytics() {
+  if (started || typeof window === "undefined" || !env.VITE_POSTHOG_KEY) return;
+  // An opted-out browser doesn't load PostHog at all — no events, and no
+  // flag request either, so `useFlag` serves the declared defaults. Stopping
+  // short of any network call is the point of the switch; flags riding along
+  // on it is the accepted cost.
+  if (analyticsOptedOut()) return;
+  started = true;
+  scheduleIdle(() => {
+    loadAndInit();
+  });
 }
 
 /**
@@ -203,10 +267,12 @@ export function initAnalytics() {
  * this has to run again on each page load.
  */
 export function identifyUser(user: { id: string; email?: string | null; name?: string | null }) {
-  posthog.identify(user.id, {
-    email: user.email ?? undefined,
-    name: user.name ?? undefined,
-  });
+  withClient((c) =>
+    c.identify(user.id, {
+      email: user.email ?? undefined,
+      name: user.name ?? undefined,
+    }),
+  );
 }
 
 /**
@@ -215,7 +281,7 @@ export function identifyUser(user: { id: string; email?: string | null; name?: s
  * session merely resolves as absent.
  */
 export function resetIdentity() {
-  posthog.reset();
+  withClient((c) => c.reset());
 }
 
 /**
@@ -231,11 +297,9 @@ export function captureEvent(
   event: AnalyticsEvent | "$pageview",
   properties?: Record<string, unknown>,
 ) {
-  posthog.capture(event, properties);
+  withClient((c) => c.capture(event, properties));
 }
 
 export function captureError(error: unknown, properties?: Record<string, unknown>) {
-  posthog.captureException(error, properties);
+  withClient((c) => c.captureException(error, properties));
 }
-
-export { posthog };

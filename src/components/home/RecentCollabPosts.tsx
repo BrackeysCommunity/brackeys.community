@@ -1,15 +1,14 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { CollabPostCard } from "@/components/collab/CollabPostCard";
+import {
+  POST_LIMIT,
+  recentCollabPostsQueryOptions,
+} from "@/components/home/use-recent-collab-posts";
 import { Section, SectionAction } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { client } from "@/orpc/client";
-
-/** Rows in the ticker. Six reads as a feed; three read as three cards
- * that happened to be next to each other. */
-const POST_LIMIT = 6;
 
 /** The board's own list-row height, so the skeleton doesn't resize on load. */
 const LIST_ROW_ESTIMATE = 86;
@@ -27,21 +26,6 @@ const LIST_ROW_ESTIMATE = 86;
  * No `onSelect`: there's no inspector on this page, so a click on a row
  * navigates to the post like the anchor says it will.
  */
-/** Exported so `/`'s loader can put the ticker in the document. */
-export function recentCollabPostsQueryOptions() {
-  return queryOptions({
-    queryKey: ["recent-collab-posts", POST_LIMIT],
-    queryFn: () =>
-      client.listPosts({
-        sortBy: "createdAt",
-        sortOrder: "desc",
-        limit: POST_LIMIT,
-        offset: 0,
-      }),
-    staleTime: 60 * 1000,
-  });
-}
-
 export function RecentCollabPosts() {
   const { data, isLoading } = useQuery(recentCollabPostsQueryOptions());
 

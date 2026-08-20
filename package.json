@@ -18,6 +18,7 @@
     "scraper:drain": "bun run --cwd services/itchio-scraper drain",
     "scraper:backfill": "bun run --cwd services/itchio-scraper backfill",
     "backfill:projects": "bun scripts/backfill-projects.ts",
+    "measure:preload-graph": "bun scripts/measure-preload-graph.ts",
     "check": "vp check --no-fmt",
     "lint": "vp lint",
     "check:changed": "git diff --cached --name-only --diff-filter=d | xargs bun vp check --fix",

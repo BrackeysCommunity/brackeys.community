@@ -1,4 +1,3 @@
-import { PostHogProvider } from "@posthog/react";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { MotionConfig } from "framer-motion";
@@ -7,7 +6,6 @@ import { lazy, Suspense, useEffect } from "react";
 import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
-import { CommandPalette } from "@/components/layout/CommandPalette";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
 import { siteUrl } from "@/env";
 import { DEFAULT_OG_CARD, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site-meta";
@@ -20,6 +18,20 @@ const MobileShell = lazy(() =>
   import("@/components/layout/MobileShell").then((m) => ({ default: m.MobileShell })),
 );
 
+// The palette is opened by a keystroke (bound in `CommandPaletteProvider`,
+// which stays eager, not here) and the cursor/dot-field are decorative
+// layers that paint nothing a reader needs — none belongs in the root's
+// static preload graph. See `docs/plans/15-preload-graph.md` §3.2.
+const CommandPalette = lazy(() =>
+  import("@/components/layout/CommandPalette").then((m) => ({ default: m.CommandPalette })),
+);
+
+const Cursor = lazy(() => import("@/components/ui/cursor").then((m) => ({ default: m.Cursor })));
+
+const ThemedDotField = lazy(() =>
+  import("@/components/ui/dot-field").then((m) => ({ default: m.ThemedDotField })),
+);
+
 // Both latin subsets are needed on every page, and they are only
 // discoverable once fonts.css has been fetched and parsed — preload them
 // alongside it so the swap happens in the first paint, not after it.
@@ -27,8 +39,6 @@ import monoLatin from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-
 import sansLatin from "@fontsource-variable/rubik/files/rubik-latin-wght-normal.woff2?url";
 
 import { ConfirmPortal } from "@/components/ui/confirm";
-import { Cursor } from "@/components/ui/cursor";
-import { ThemedDotField } from "@/components/ui/dot-field";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -37,7 +47,7 @@ import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
-import { captureError, posthog } from "@/lib/posthog";
+import { captureError } from "@/lib/posthog";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 
 import fontsCss from "../fonts.css?url";
@@ -192,51 +202,51 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         />
       </head>
       <body className="flex h-screen flex-col overflow-hidden">
-        {/* Outermost so `useFlag` works anywhere, decorative layers
-            included. The instance is initialised in `getRouter()`, not by
-            the provider — passing `client` keeps this a context-only mount
-            with no second init path. */}
-        <PostHogProvider client={posthog}>
-          {/* AppSettingsProvider sits above the decorative layers so the
+        {/* AppSettingsProvider sits above the decorative layers so the
             backgrounds can read the effective reduced-motion value. */}
-          <AppSettingsProvider>
-            <AppMotionConfig>
+        <AppSettingsProvider>
+          <AppMotionConfig>
+            <Suspense>
               <Cursor />
-              <BackgroundBlobs />
+            </Suspense>
+            <BackgroundBlobs />
+            <Suspense>
               <BackgroundDotField />
-              {/* CRT scanline overlay */}
-              <div
-                className="animate-scanlines pointer-events-none fixed inset-x-0 top-[-4px] bottom-0 z-10 opacity-2"
-                style={{
-                  background:
-                    "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
-                  backgroundSize: "100% 4px",
-                }}
-              />
-              <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
-                <a
-                  href="#main-content"
-                  className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
-                >
-                  Skip to content
-                </a>
-                {/* No QueryClientProvider here: `setupRouterSsrQueryIntegration`
-                    in `getRouter()` mounts one around the whole router, so the
-                    same client the loaders see is the one components read. */}
-                <AppThemeProvider>
-                  <TooltipProvider>
-                    <CommandPaletteProvider>
-                      <PageLayoutProvider>
+            </Suspense>
+            {/* CRT scanline overlay */}
+            <div
+              className="animate-scanlines pointer-events-none fixed inset-x-0 top-[-4px] bottom-0 z-10 opacity-2"
+              style={{
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2))",
+                backgroundSize: "100% 4px",
+              }}
+            />
+            <div className="relative z-1 flex min-h-0 flex-1 flex-col overflow-hidden">
+              <a
+                href="#main-content"
+                className="sr-only focus:pointer-events-auto focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:bg-primary focus:px-4 focus:py-2 focus:text-xs focus:tracking-widest focus:text-primary-foreground focus:uppercase"
+              >
+                Skip to content
+              </a>
+              {/* No QueryClientProvider here: `setupRouterSsrQueryIntegration`
+                  in `getRouter()` mounts one around the whole router, so the
+                  same client the loaders see is the one components read. */}
+              <AppThemeProvider>
+                <TooltipProvider>
+                  <CommandPaletteProvider>
+                    <PageLayoutProvider>
+                      <Suspense>
                         <CommandPalette />
-                        <ResponsiveShell>{children}</ResponsiveShell>
-                      </PageLayoutProvider>
-                    </CommandPaletteProvider>
-                  </TooltipProvider>
-                </AppThemeProvider>
-              </div>
-            </AppMotionConfig>
-          </AppSettingsProvider>
-        </PostHogProvider>
+                      </Suspense>
+                      <ResponsiveShell>{children}</ResponsiveShell>
+                    </PageLayoutProvider>
+                  </CommandPaletteProvider>
+                </TooltipProvider>
+              </AppThemeProvider>
+            </div>
+          </AppMotionConfig>
+        </AppSettingsProvider>
         <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
         <ConfirmPortal />
         <Scripts />

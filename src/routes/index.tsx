@@ -6,7 +6,7 @@ import { HomePage } from "@/components/home/HomePage";
 import { selectShowcaseJams } from "@/components/home/JamShowcaseBand";
 import { MobileHome } from "@/components/home/MobileHome";
 import { newestSignupsQueryOptions } from "@/components/home/NewestSignups";
-import { recentCollabPostsQueryOptions } from "@/components/home/RecentCollabPosts";
+import { recentCollabPostsQueryOptions } from "@/components/home/use-recent-collab-posts";
 import { recentEntriesQueryOptions } from "@/components/home/use-recent-entries";
 import {
   boardJamsQueryOptions,

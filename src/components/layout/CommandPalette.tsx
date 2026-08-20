@@ -12,7 +12,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useKeyPress } from "ahooks";
 
 import {
   Command,
@@ -37,15 +36,6 @@ export function CommandPalette() {
   const { themeId, setTheme, sections } = useAppTheme();
   const { data: session } = authClient.useSession();
   const isStaff = useStore(activeUserStore, (s) => s.profile?.isStaff ?? false);
-
-  useKeyPress(
-    ["ctrl.k", "meta.k"],
-    (e) => {
-      e.preventDefault();
-      setOpen((prev) => !prev);
-    },
-    { exactMatch: true },
-  );
 
   const run = (action: () => void) => {
     setOpen(false);
