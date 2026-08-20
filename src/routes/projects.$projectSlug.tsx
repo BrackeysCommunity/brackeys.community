@@ -2,7 +2,9 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProjectPage } from "@/components/projects/ProjectPage";
+import { siteUrl } from "@/env";
 import { projectTypeLabel } from "@/lib/project-links";
+import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
 /**
@@ -34,8 +36,10 @@ export const Route = createFileRoute("/projects/$projectSlug")({
     return { ...detail, viewerCanEdit: viewer?.viewerCanEdit ?? false };
   },
   head: ({ loaderData }) => {
-    const project = loaderData?.project;
-    if (!project) return {};
+    if (!loaderData) {
+      return buildMeta({ title: "Project not found", path: "/", noindexNofollow: true });
+    }
+    const project = loaderData.project;
     const kind = projectTypeLabel(project).toLowerCase();
     const credits = loaderData.contributors
       .slice(0, 3)
@@ -44,20 +48,50 @@ export const Route = createFileRoute("/projects/$projectSlug")({
     const description =
       project.description ??
       (credits ? `A ${kind} by ${credits}.` : `A ${kind} on Brackeys Community.`);
+    const path = `/projects/${project.slug}`;
+
     return {
-      meta: [
-        { title: `${project.title} · Brackeys Community` },
-        { name: "description", content: description },
-        { property: "og:title", content: project.title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "website" },
-        ...(project.imageUrl ? [{ property: "og:image", content: project.imageUrl }] : []),
-        { name: "twitter:card", content: project.imageUrl ? "summary_large_image" : "summary" },
+      ...buildMeta({
+        title: project.title,
+        description,
+        path,
+        // A generated card rather than the raw cover: itch's 300×240
+        // derivative declared as `summary_large_image` is a blurry stretch.
+        card: ogCardPath("project", project.slug),
+        imageAlt: `${project.title} on Brackeys Community`,
         // Indexing follows anchoring, not existence: unpublished pages and
         // unanchored single-jam scrape-mints both stay out of the index —
         // the server computes which is which.
-        ...(loaderData.indexable ? [] : [{ name: "robots", content: "noindex" }]),
-      ],
+        noindex: !loaderData.indexable,
+      }),
+      scripts: jsonLd([
+        {
+          "@context": "https://schema.org",
+          // itch's `classification` decides which; Google renders both.
+          "@type": project.type === "game" ? "VideoGame" : "SoftwareApplication",
+          name: project.title,
+          url: siteUrl(path),
+          description,
+          ...(project.imageUrl ? { image: siteUrl(project.imageUrl) } : {}),
+          ...(project.platforms?.length ? { gamePlatform: project.platforms } : {}),
+          ...(project.releasedAt
+            ? { datePublished: new Date(project.releasedAt).toISOString().slice(0, 10) }
+            : {}),
+          ...(loaderData.contributors.length > 0
+            ? {
+                author: loaderData.contributors.slice(0, 10).map((contributor) => ({
+                  "@type": "Person",
+                  name: contributor.displayName,
+                })),
+              }
+            : {}),
+          applicationCategory: "Game",
+        },
+        {
+          "@context": "https://schema.org",
+          ...breadcrumbNode([{ name: project.title, path }]),
+        },
+      ]),
     };
   },
   component: ProjectRoute,

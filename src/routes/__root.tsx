@@ -9,6 +9,8 @@ import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
+import { siteUrl } from "@/env";
+import { DEFAULT_OG_CARD, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site-meta";
 
 const AppHeader = lazy(() =>
   import("@/components/layout/AppHeader").then((m) => ({ default: m.AppHeader })),
@@ -59,13 +61,34 @@ interface MyRouterContext {
 }
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
+  /**
+   * Fallbacks only — the deepest matching route wins each `name`/`property`.
+   * `og:url` and the canonical are absent on purpose: a root-level value
+   * would point every page at the same URL.
+   */
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Brackeys Community" },
+      { title: SITE_NAME },
+      { name: "description", content: SITE_DESCRIPTION },
+      { name: "theme-color", content: "#09090b" },
+      { property: "og:site_name", content: SITE_NAME },
+      { property: "og:type", content: "website" },
+      { property: "og:locale", content: "en_US" },
+      { property: "og:title", content: SITE_NAME },
+      { property: "og:description", content: SITE_DESCRIPTION },
+      { property: "og:image", content: siteUrl(DEFAULT_OG_CARD) },
+      { property: "og:image:alt", content: SITE_NAME },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: SITE_NAME },
+      { name: "twitter:description", content: SITE_DESCRIPTION },
+      { name: "twitter:image", content: siteUrl(DEFAULT_OG_CARD) },
     ],
     links: [
+      // Support for `media` on `rel="icon"` is patchy; without this entry a
+      // browser that ignores it picks whichever SVG it saw last, or nothing.
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
       {
         rel: "icon",
         type: "image/svg+xml",
@@ -77,6 +100,14 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         type: "image/svg+xml",
         href: "/brackeys-logo-inverted.svg",
         media: "(prefers-color-scheme: dark)",
+      },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      { rel: "manifest", href: "/manifest.json" },
+      {
+        rel: "alternate",
+        type: "application/atom+xml",
+        href: "/feed.xml",
+        title: "Brackeys Community — jams",
       },
       ...fontPreloads,
       { rel: "stylesheet", href: fontsCss },

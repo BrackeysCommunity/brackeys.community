@@ -39,6 +39,8 @@ export const env = createEnv({
     // Ingestion host. EU cloud is `https://eu.i.posthog.com`; point it at the
     // reverse proxy once one exists and set `ui_host` alongside it.
     VITE_POSTHOG_HOST: z.url().optional(),
+    // Read through `siteOrigin()` below, never directly.
+    VITE_SITE_ORIGIN: z.url().optional(),
   },
 
   /**
@@ -65,3 +67,21 @@ export const env = createEnv({
    */
   emptyStringAsUndefined: true,
 });
+
+/**
+ * The origin this deployment serves from, without a trailing slash. Must be
+ * a constant, not `window.location`: `head()` runs on both sides of the
+ * hydration boundary.
+ */
+export function siteOrigin(): string {
+  const raw =
+    env.VITE_SITE_ORIGIN ??
+    (typeof process !== "undefined" ? process.env.APP_URL : undefined) ??
+    "http://localhost:3000";
+  return raw.replace(/\/+$/, "");
+}
+
+export function siteUrl(pathOrUrl: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(pathOrUrl) || pathOrUrl.startsWith("//")) return pathOrUrl;
+  return `${siteOrigin()}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+}

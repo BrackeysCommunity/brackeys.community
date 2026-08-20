@@ -20,24 +20,17 @@ import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { fadeIn, fadeUp } from "@/lib/motion";
-import { client, orpc } from "@/orpc/client";
+import { orpc } from "@/orpc/client";
 
 import { TeamCreateDrawer } from "./TeamCreateDrawer";
 import { TeamDirectoryCard } from "./TeamDirectoryCard";
-import {
-  CLEARED_TEAM_FILTERS,
-  countActiveTeamFilters,
-  DEFAULT_SORT,
-  type TeamsSearch,
-  teamFacetInput,
-} from "./teams-filters";
+import { CLEARED_TEAM_FILTERS, countActiveTeamFilters, type TeamsSearch } from "./teams-filters";
 import { TeamsActiveFilters } from "./TeamsActiveFilters";
 import { TeamsFilterClearButton, TeamsFilterPanel } from "./TeamsFilterPanel";
 import { TeamsFloatingControls, TeamsToolbar } from "./TeamsToolbar";
+import { teamsListQueryOptions } from "./use-teams-listing";
 
 export type { TeamsSearch, TeamsSort } from "./teams-filters";
-
-const PAGE_SIZE = 24;
 
 /** Directory tile height before a real row is measured — the skeleton's
  * `h-42`, which is what an average filled-in card comes out at. */
@@ -71,8 +64,6 @@ export function TeamsDiscoveryPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
-
-  const sort = search.sort ?? DEFAULT_SORT;
 
   // The current search, read through a ref so the writer below can stay
   // referentially stable — the debounced search box keys its timer on the
@@ -115,19 +106,9 @@ export function TeamsDiscoveryPage() {
     setSearch({ new: undefined });
   }, [search.new, setSearch]);
 
-  const listInput = { ...teamFacetInput(search), sort };
-
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
-    queryKey: ["listTeams", listInput],
-    queryFn: ({ pageParam = 0 }) =>
-      client.listTeams({ ...listInput, limit: PAGE_SIZE, offset: pageParam as number }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const fetched = allPages.length * PAGE_SIZE;
-      return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
-    },
-    staleTime: 30 * 1000,
-  });
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery(
+    teamsListQueryOptions(search),
+  );
 
   const teams = useMemo(() => data?.pages.flatMap((p) => p.teams) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;

@@ -4,8 +4,12 @@ import { useEffect } from "react";
 import { ProfileBuilderPage } from "@/components/profile/ProfileBuilderPage";
 import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
 import { authClient } from "@/lib/auth-client";
+import { buildMeta } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/profile/")({
+  // Forwards a signed-in viewer to their own profile and shows everyone
+  // else a sign-in CTA; `/profile/$userId` is the page worth indexing.
+  head: () => buildMeta({ title: "Your profile", path: "/profile", noindexNofollow: true }),
   component: ProfileIndex,
 });
 

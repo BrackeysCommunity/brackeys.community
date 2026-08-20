@@ -39,6 +39,10 @@ export function getRouter() {
     defaultPendingMs: 120,
     defaultPendingMinMs: 220,
 
+    // Keeps generated links on the unslashed spelling. The router only
+    // answers the slashed form with a 307; retiring it needs an edge rule.
+    trailingSlash: "never",
+
     scrollRestoration: true,
     // The document body is `h-screen overflow-hidden`; the real scroller is
     // the shell's `[data-scroll-root]` element (see `__root.tsx` /

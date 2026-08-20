@@ -3,6 +3,9 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { CollabPostPage } from "@/components/collab/CollabPostPage";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { htmlToPlainText } from "@/components/ui/typography";
+import { siteUrl } from "@/env";
+import { memberName } from "@/lib/member-name";
+import { breadcrumbNode, buildMeta, jsonLd, ogCardPath, organizationNode } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
 /**
@@ -24,29 +27,107 @@ export const Route = createFileRoute("/collab/$postId")({
   },
   head: ({ loaderData }) => {
     const post = loaderData?.post;
-    if (!post) return {};
-    const title = `${post.title} · Brackeys Community`;
+    if (!post) {
+      return buildMeta({ title: "Post not found", path: "/collab", noindexNofollow: true });
+    }
     const description =
       htmlToPlainText(post.description, 180) ??
       `${post.title} — an open collaboration post on the Brackeys community board.`;
-    // Same art-fallback chain as the page's hero, so the unfurl card
-    // matches what the link opens onto.
-    const image = post.images[0]?.url ?? post.project?.imageUrl ?? post.jam?.bannerUrl;
+    const path = `/collab/${post.id}`;
+    const authorName = post.author ? memberName(post.author, null) : null;
+
     return {
-      meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: post.title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "article" },
-        ...(image ? [{ property: "og:image", content: image }] : []),
-        { name: "twitter:card", content: image ? "summary_large_image" : "summary" },
-      ],
+      ...buildMeta({
+        title: post.title,
+        description,
+        path,
+        card: ogCardPath("collab", post.id),
+        imageAlt: `${post.title} — an open role on the Brackeys collab board`,
+        type: "article",
+        meta: [
+          ...(post.createdAt
+            ? [
+                {
+                  property: "article:published_time",
+                  content: new Date(post.createdAt).toISOString(),
+                },
+              ]
+            : []),
+          ...(authorName ? [{ property: "article:author", content: authorName }] : []),
+        ],
+      }),
+      scripts: jsonLd([
+        ...(jobPostingNode(post, description) ?? []),
+        {
+          "@context": "https://schema.org",
+          ...breadcrumbNode([
+            { name: "Collab board", path: "/collab" },
+            { name: post.title, path },
+          ]),
+        },
+      ]),
     };
   },
   component: CollabPostRoute,
   notFoundComponent: PostNotFound,
 });
+
+interface JobPostingSource {
+  id: number;
+  title: string;
+  type: string;
+  status: string;
+  createdAt: Date | string | null;
+  expiresAt: Date | string | null;
+  compensationType: string | null;
+  compensationMin: number | null;
+  compensationMax: number | null;
+  roles: { name: string }[];
+  team: { name: string } | null;
+}
+
+/**
+ * Google Jobs treats `JobPosting` as a commitment, so a post that isn't
+ * paid, recruiting, priced and dated stays a plain article.
+ */
+function jobPostingNode(post: JobPostingSource, description: string) {
+  if (post.type !== "paid" || post.status !== "recruiting") return null;
+  if (post.compensationMin == null && post.compensationMax == null) return null;
+  if (!post.expiresAt) return null;
+
+  const amount = post.compensationMax ?? post.compensationMin!;
+  const unitText = post.compensationType === "hourly" ? "HOUR" : "MONTH";
+
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "JobPosting",
+      title: post.title,
+      description,
+      url: siteUrl(`/collab/${post.id}`),
+      ...(post.createdAt ? { datePosted: new Date(post.createdAt).toISOString() } : {}),
+      validThrough: new Date(post.expiresAt).toISOString(),
+      employmentType: "CONTRACTOR",
+      hiringOrganization: post.team
+        ? { "@type": "Organization", name: post.team.name }
+        : organizationNode(),
+      jobLocationType: "TELECOMMUTE",
+      applicantLocationRequirements: { "@type": "Country", name: "Worldwide" },
+      baseSalary: {
+        "@type": "MonetaryAmount",
+        currency: "USD",
+        value: {
+          "@type": "QuantitativeValue",
+          ...(post.compensationMin != null && post.compensationMax != null
+            ? { minValue: post.compensationMin, maxValue: post.compensationMax }
+            : { value: amount }),
+          unitText,
+        },
+      },
+      ...(post.roles.length > 0 ? { occupationalCategory: post.roles[0]!.name } : {}),
+    },
+  ];
+}
 
 function CollabPostRoute() {
   const { post } = Route.useLoaderData();

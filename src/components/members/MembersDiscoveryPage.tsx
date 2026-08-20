@@ -20,23 +20,16 @@ import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { fadeIn, fadeUp } from "@/lib/motion";
-import { client } from "@/orpc/client";
 
 import { ActiveMembersRail } from "./ActiveMembersRail";
 import { MemberDirectoryCard } from "./MemberDirectoryCard";
-import {
-  CLEARED_MEMBER_FILTERS,
-  DEFAULT_SORT,
-  memberFacetInput,
-  type MembersSearch,
-} from "./members-filters";
+import { CLEARED_MEMBER_FILTERS, type MembersSearch } from "./members-filters";
 import { MembersActiveFilters } from "./MembersActiveFilters";
 import { MembersFilterClearButton, MembersFilterPanel } from "./MembersFilterPanel";
 import { MembersFloatingControls, MembersToolbar } from "./MembersToolbar";
+import { membersListQueryOptions } from "./use-members-listing";
 
 export type { MembersSearch, MembersSort } from "./members-filters";
-
-const PAGE_SIZE = 24;
 
 /** Directory tile height before a real row is measured — the skeleton's
  * `h-42`, which is what an average filled-in card comes out at. */
@@ -76,8 +69,6 @@ export function MembersDiscoveryPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
 
-  const sort = search.sort ?? DEFAULT_SORT;
-
   // The current search, read through a ref so the writer below can stay
   // referentially stable — the debounced search box keys its timer on the
   // value it's given, and a writer rebuilt every render would restart it.
@@ -102,19 +93,9 @@ export function MembersDiscoveryPage() {
     [navigate],
   );
 
-  const listInput = { ...memberFacetInput(search), sort };
-
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
-    queryKey: ["listMembers", listInput],
-    queryFn: ({ pageParam = 0 }) =>
-      client.listMembers({ ...listInput, limit: PAGE_SIZE, offset: pageParam as number }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const fetched = allPages.length * PAGE_SIZE;
-      return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
-    },
-    staleTime: 30 * 1000,
-  });
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery(
+    membersListQueryOptions(search),
+  );
 
   const members = useMemo(() => data?.pages.flatMap((p) => p.members) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;

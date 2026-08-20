@@ -12,13 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as SuspendedRouteImport } from './routes/suspended'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as OgprobeRouteImport } from './routes/ogprobe'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as JamsRouteImport } from './routes/jams'
 import { Route as GameRouteImport } from './routes/game'
+import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -38,6 +42,7 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings.appear
 import { Route as SettingsAccountRouteImport } from './routes/settings.account'
 import { Route as ProjectsProjectSlugRouteImport } from './routes/projects.$projectSlug'
 import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
+import { Route as OgSplatRouteImport } from './routes/og.$'
 import { Route as JamsJamSlugRouteImport } from './routes/jams_.$jamSlug'
 import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
 import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
@@ -70,9 +75,19 @@ const SuspendedRoute = SuspendedRouteImport.update({
   path: '/suspended',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -83,6 +98,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OgprobeRoute = OgprobeRouteImport.update({
+  id: '/ogprobe',
+  path: '/ogprobe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -103,6 +123,11 @@ const JamsRoute = JamsRouteImport.update({
 const GameRoute = GameRouteImport.update({
   id: '/game',
   path: '/game',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
+  id: '/feed.xml',
+  path: '/feed.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommandCenterRoute = CommandCenterRouteImport.update({
@@ -200,6 +225,11 @@ const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
   path: '/$userId',
   getParentRoute: () => ProfileRoute,
 } as any)
+const OgSplatRoute = OgSplatRouteImport.update({
+  id: '/og/$',
+  path: '/og/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JamsJamSlugRoute = JamsJamSlugRouteImport.update({
   id: '/jams_/$jamSlug',
   path: '/jams/$jamSlug',
@@ -287,13 +317,17 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
+  '/ogprobe': typeof OgprobeRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/suspended': typeof SuspendedRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -305,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
   '/jams/$jamSlug': typeof JamsJamSlugRoute
+  '/og/$': typeof OgSplatRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -333,9 +368,13 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
   '/command-center': typeof CommandCenterRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
+  '/ogprobe': typeof OgprobeRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/suspended': typeof SuspendedRoute
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
@@ -346,6 +385,7 @@ export interface FileRoutesByTo {
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
   '/jams/$jamSlug': typeof JamsJamSlugRoute
+  '/og/$': typeof OgSplatRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -376,13 +416,17 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
+  '/ogprobe': typeof OgprobeRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/suspended': typeof SuspendedRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -394,6 +438,7 @@ export interface FileRoutesById {
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
   '/jams_/$jamSlug': typeof JamsJamSlugRoute
+  '/og/$': typeof OgSplatRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -425,13 +470,17 @@ export interface FileRouteTypes {
     | '/admin'
     | '/collab'
     | '/command-center'
+    | '/feed.xml'
     | '/game'
     | '/jams'
     | '/members'
     | '/notifications'
+    | '/ogprobe'
     | '/privacy'
     | '/profile'
+    | '/robots.txt'
     | '/settings'
+    | '/sitemap.xml'
     | '/suspended'
     | '/teams'
     | '/terms'
@@ -443,6 +492,7 @@ export interface FileRouteTypes {
     | '/jams/archive'
     | '/jams/calendar'
     | '/jams/$jamSlug'
+    | '/og/$'
     | '/profile/$userId'
     | '/projects/$projectSlug'
     | '/settings/account'
@@ -471,9 +521,13 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/command-center'
+    | '/feed.xml'
     | '/members'
     | '/notifications'
+    | '/ogprobe'
     | '/privacy'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/suspended'
     | '/terms'
     | '/api/$'
@@ -484,6 +538,7 @@ export interface FileRouteTypes {
     | '/jams/archive'
     | '/jams/calendar'
     | '/jams/$jamSlug'
+    | '/og/$'
     | '/profile/$userId'
     | '/projects/$projectSlug'
     | '/settings/account'
@@ -513,13 +568,17 @@ export interface FileRouteTypes {
     | '/admin'
     | '/collab'
     | '/command-center'
+    | '/feed.xml'
     | '/game'
     | '/jams'
     | '/members'
     | '/notifications'
+    | '/ogprobe'
     | '/privacy'
     | '/profile'
+    | '/robots.txt'
     | '/settings'
+    | '/sitemap.xml'
     | '/suspended'
     | '/teams'
     | '/terms'
@@ -531,6 +590,7 @@ export interface FileRouteTypes {
     | '/jams/archive'
     | '/jams/calendar'
     | '/jams_/$jamSlug'
+    | '/og/$'
     | '/profile/$userId'
     | '/projects/$projectSlug'
     | '/settings/account'
@@ -561,19 +621,24 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
+  FeedDotxmlRoute: typeof FeedDotxmlRoute
   GameRoute: typeof GameRouteWithChildren
   JamsRoute: typeof JamsRouteWithChildren
   MembersRoute: typeof MembersRoute
   NotificationsRoute: typeof NotificationsRoute
+  OgprobeRoute: typeof OgprobeRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRouteWithChildren
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   SettingsRoute: typeof SettingsRouteWithChildren
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SuspendedRoute: typeof SuspendedRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ImagesSplatRoute: typeof ImagesSplatRoute
   JamsJamSlugRoute: typeof JamsJamSlugRoute
+  OgSplatRoute: typeof OgSplatRoute
   ProjectsProjectSlugRoute: typeof ProjectsProjectSlugRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
@@ -608,11 +673,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuspendedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -627,6 +706,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ogprobe': {
+      id: '/ogprobe'
+      path: '/ogprobe'
+      fullPath: '/ogprobe'
+      preLoaderRoute: typeof OgprobeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -655,6 +741,13 @@ declare module '@tanstack/react-router' {
       path: '/game'
       fullPath: '/game'
       preLoaderRoute: typeof GameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feed.xml': {
+      id: '/feed.xml'
+      path: '/feed.xml'
+      fullPath: '/feed.xml'
+      preLoaderRoute: typeof FeedDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/command-center': {
@@ -789,6 +882,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/$userId'
       preLoaderRoute: typeof ProfileUserIdRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/og/$': {
+      id: '/og/$'
+      path: '/og/$'
+      fullPath: '/og/$'
+      preLoaderRoute: typeof OgSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/jams_/$jamSlug': {
       id: '/jams_/$jamSlug'
@@ -999,19 +1099,24 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
+  FeedDotxmlRoute: FeedDotxmlRoute,
   GameRoute: GameRouteWithChildren,
   JamsRoute: JamsRouteWithChildren,
   MembersRoute: MembersRoute,
   NotificationsRoute: NotificationsRoute,
+  OgprobeRoute: OgprobeRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRouteWithChildren,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   SettingsRoute: SettingsRouteWithChildren,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SuspendedRoute: SuspendedRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
   ImagesSplatRoute: ImagesSplatRoute,
   JamsJamSlugRoute: JamsJamSlugRoute,
+  OgSplatRoute: OgSplatRoute,
   ProjectsProjectSlugRoute: ProjectsProjectSlugRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,

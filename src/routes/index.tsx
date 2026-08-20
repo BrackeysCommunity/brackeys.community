@@ -12,8 +12,10 @@ import {
   boardJamsQueryOptions,
   homeJamsFrom,
 } from "@/components/jams/JamCalendarPage/use-jam-data";
+import { siteOrigin, siteUrl } from "@/env";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { isServerLoad } from "@/lib/route-prefetch";
+import { buildMeta, jsonLd, organizationNode, SITE_NAME } from "@/lib/site-meta";
 
 function HomeRoute() {
   const isMobile = useIsMobile();
@@ -66,5 +68,29 @@ async function prefetchHome(queryClient: QueryClient) {
 
 export const Route = createFileRoute("/")({
   loader: ({ context: { queryClient } }) => prefetchHome(queryClient),
+  head: () => ({
+    ...buildMeta({ path: "/" }),
+    scripts: jsonLd([
+      { "@context": "https://schema.org", ...organizationNode() },
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": `${siteOrigin()}/#website`,
+        name: SITE_NAME,
+        url: siteOrigin(),
+        publisher: { "@id": `${siteOrigin()}/#organization` },
+        // The broadest search surface, so it is where a sitelinks search
+        // box should land.
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: siteUrl("/members?q={search_term_string}"),
+          },
+          "query-input": "required name=search_term_string",
+        },
+      },
+    ]),
+  }),
   component: HomeRoute,
 });

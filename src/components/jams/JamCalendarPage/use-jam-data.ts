@@ -131,15 +131,18 @@ export interface CalendarData {
   totalAll: number;
 }
 
-/** The calendar view's wider window (active + trailing 12-month
- * archive), fetched only once the user actually opens the calendar. */
-export function useCalendarJams(search: string, enabled: boolean): CalendarData {
-  const { data, isLoading } = useQuery({
+export function calendarJamsQueryOptions() {
+  return queryOptions({
     queryKey: ["list-jams", "calendar", CALENDAR_LIMIT],
     queryFn: () => client.listJams({ filter: "calendar", limit: CALENDAR_LIMIT }),
     staleTime: JAM_STALE_MS,
-    enabled,
   });
+}
+
+/** The calendar view's wider window (active + trailing 12-month
+ * archive), fetched only once the user actually opens the calendar. */
+export function useCalendarJams(search: string, enabled: boolean): CalendarData {
+  const { data, isLoading } = useQuery({ ...calendarJamsQueryOptions(), enabled });
 
   const all = useMemo(() => data?.jams ?? [], [data]);
   const jams = useMemo(() => all.filter((j) => jamMatchesSearch(j, search)), [all, search]);
@@ -168,10 +171,15 @@ export interface ArchiveData {
   total: number;
 }
 
-/** Server-paginated archive: ~19k past jams, searched and sorted in the
- * database rather than shipped to the client. */
-export function useArchiveJams(state: ArchiveQueryState, enabled: boolean): ArchiveData {
-  const { data, isLoading, isFetching } = useQuery({
+export const DEFAULT_ARCHIVE_STATE: ArchiveQueryState = {
+  search: "",
+  sortBy: "lastEvent",
+  sortDir: "desc",
+  page: 0,
+};
+
+export function archiveJamsQueryOptions(state: ArchiveQueryState) {
+  return queryOptions({
     queryKey: ["archive-jams", state.search, state.sortBy, state.sortDir, state.page],
     queryFn: () =>
       client.archiveJams({
@@ -182,6 +190,14 @@ export function useArchiveJams(state: ArchiveQueryState, enabled: boolean): Arch
         pageSize: ARCHIVE_PAGE_SIZE,
       }),
     staleTime: JAM_STALE_MS,
+  });
+}
+
+/** Server-paginated archive: ~19k past jams, searched and sorted in the
+ * database rather than shipped to the client. */
+export function useArchiveJams(state: ArchiveQueryState, enabled: boolean): ArchiveData {
+  const { data, isLoading, isFetching } = useQuery({
+    ...archiveJamsQueryOptions(state),
     placeholderData: keepPreviousData,
     enabled,
   });

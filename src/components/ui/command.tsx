@@ -43,8 +43,10 @@ function CommandDialog({
 }) {
   return (
     <Dialog {...props}>
+      {/* A paragraph, not a heading: the palette mounts in the root shell, so
+          an `<h2>` here would outrank each page's own `<h1>`. */}
       <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
+        <DialogTitle render={<p />}>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
       {/* Same shell as a dropdown popup — rounded, popover-coloured, no

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 import posthogRollupPlugin from "@posthog/rollup-plugin";
@@ -284,7 +284,27 @@ const config = defineConfig({
     nitro({
       // fixes SSR issues with Vite 8:
       // https://discord.com/channels/719702312431386674/1490005967067414608/1490634230458224751
-      traceDeps: ["react", "react-dom", "@base-ui/react", "@babel/runtime"],
+      // `@resvg/resvg-wasm` stays external so the OG renderer can
+      // `require.resolve` it at runtime.
+      traceDeps: ["react", "react-dom", "@base-ui/react", "@babel/runtime", "@resvg/resvg-wasm"],
+      hooks: {
+        /**
+         * Nitro's tracer follows JS imports, so it never sees the
+         * `require.resolve` in `src/lib/og/render.ts` — and the binary can't
+         * be bundled instead, since `vite-plugin-wasm` claims `.wasm` first.
+         */
+        async compiled(nitro: { options: { output: { serverDir: string } } }) {
+          const { createRequire } = await import("node:module");
+          const { copyFile, mkdir } = await import("node:fs/promises");
+          const source = createRequire(import.meta.url).resolve("@resvg/resvg-wasm/index_bg.wasm");
+          const target = join(
+            nitro.options.output.serverDir,
+            "node_modules/@resvg/resvg-wasm/index_bg.wasm",
+          );
+          await mkdir(dirname(target), { recursive: true });
+          await copyFile(source, target);
+        },
+      },
       rolldownConfig: {
         external: ["tslib"],
       },
@@ -323,6 +343,10 @@ const config = defineConfig({
         "/api/notifications/stream": {
           headers: { "cache-control": "no-cache, no-transform" },
         },
+        // Identical for every caller; let Cloudflare answer repeat crawls.
+        "/sitemap.xml": { headers: { "cache-control": "public, max-age=0, s-maxage=3600" } },
+        "/robots.txt": { headers: { "cache-control": "public, max-age=0, s-maxage=3600" } },
+        "/feed.xml": { headers: { "cache-control": "public, max-age=0, s-maxage=900" } },
         ...publicFileRules,
       },
     }),

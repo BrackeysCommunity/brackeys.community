@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProfilePage } from "@/components/profile/ProfilePage";
@@ -7,10 +7,85 @@ import { adaptProfile, type RpcProfile } from "@/components/profile/ProfilePage/
 import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
 import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-overlay";
 import { authClient } from "@/lib/auth-client";
+import { memberName } from "@/lib/member-name";
+import { profileSlug } from "@/lib/profile-links";
+import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
 
+/**
+ * The loader is what puts content and meta in the document and turns an
+ * unmatched handle into a real 404 rather than a 200 shell.
+ */
 export const Route = createFileRoute("/profile/$userId")({
+  loader: async ({ context: { queryClient }, params }) => {
+    const data = await queryClient.ensureQueryData(
+      orpc.getProfile.queryOptions({ input: { userId: params.userId } }),
+    );
+    if (!data) throw notFound();
+    return data;
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) {
+      return buildMeta({
+        title: "Profile not found",
+        path: "/members",
+        noindexNofollow: true,
+      });
+    }
+    const { profile, roles, skills } = loaderData;
+    const name = memberName(profile, "A Brackeys member");
+    const craft = roles
+      .map((role) => role.name)
+      .slice(0, 3)
+      .join(", ");
+    const description =
+      profile.tagline?.trim() ||
+      profile.bio?.trim().slice(0, 180) ||
+      [craft && `${craft}.`, skills.length > 0 && `Works in ${skills[0]!.name}.`]
+        .filter(Boolean)
+        .join(" ") ||
+      `${name} on the Brackeys community directory — jams entered, projects shipped, and what they're up for next.`;
+
+    const path = `/profile/${profileSlug({ id: profile.id, urlStub: loaderData.urlStub })}`;
+    const sameAs = [profile.githubUrl, profile.twitterUrl, profile.websiteUrl].filter(
+      (url): url is string => Boolean(url),
+    );
+
+    return {
+      ...buildMeta({
+        title: name,
+        description,
+        path,
+        card: ogCardPath("profile", profileSlug({ id: profile.id, urlStub: loaderData.urlStub })),
+        imageAlt: `${name} on Brackeys Community`,
+        type: "profile",
+      }),
+      scripts: jsonLd([
+        {
+          "@context": "https://schema.org",
+          "@type": "Person",
+          name,
+          url: path,
+          ...(profile.avatarUrl ? { image: profile.avatarUrl } : {}),
+          ...(profile.tagline ? { description: profile.tagline } : {}),
+          ...(craft ? { jobTitle: craft } : {}),
+          ...(profile.location ? { homeLocation: profile.location } : {}),
+          ...(skills.length > 0 ? { knowsAbout: skills.map((skill) => skill.name) } : {}),
+          ...(sameAs.length > 0 ? { sameAs } : {}),
+        },
+        {
+          "@context": "https://schema.org",
+          ...breadcrumbNode([
+            { name: "Members", path: "/members" },
+            { name: name, path },
+          ]),
+        },
+      ]),
+    };
+  },
   component: ProfileById,
+  pendingComponent: ProfilePageSkeleton,
+  notFoundComponent: ProfileNotFoundState,
 });
 
 /**
@@ -20,13 +95,14 @@ export const Route = createFileRoute("/profile/$userId")({
  *
  * The oRPC response shape is mapped to the page's typed view model
  * via `adaptProfile` so the UI is decoupled from the database
- * schema's evolution; phase 5 lands the migrations for the fields
- * the view model carries as `null` today.
+ * schema's evolution.
  */
 function ProfileById() {
   const { userId } = Route.useParams();
   const { data: session } = authClient.useSession();
   const queryOptions = orpc.getProfile.queryOptions({ input: { userId } });
+  // Served from the loader's cache entry; still a `useQuery` so an edit's
+  // `invalidateQueries` has a subscriber.
   const { data, isLoading } = useQuery({
     ...queryOptions,
     staleTime: 60 * 1000,

@@ -337,6 +337,15 @@ function normalizeBody(html: string, censor: (text: string) => string): string {
     if (parent.children.length > 1) parent.setAttribute("data-columns", "");
   }
 
+  // Outbound links in a scraped body are third-party links we did not
+  // author — what `nofollow ugc` is for. Same-origin links stay crawlable.
+  for (const link of doc.querySelectorAll("a[href]")) {
+    const href = link.getAttribute("href") ?? "";
+    if (href.startsWith("#") || href.startsWith("/")) continue;
+    link.setAttribute("rel", "nofollow ugc noopener noreferrer");
+    link.setAttribute("target", "_blank");
+  }
+
   // Bodies written years ago still say `http://www.youtube.com/embed/…`,
   // and an http subresource on an https page is blocked outright — the
   // embed or image is simply missing, with only a console warning.
@@ -470,7 +479,7 @@ function embedFallback(doc: Document, src: string | null): Node[] {
   const link = doc.createElement("a");
   link.setAttribute("href", url.href);
   link.setAttribute("target", "_blank");
-  link.setAttribute("rel", "noreferrer noopener");
+  link.setAttribute("rel", "nofollow ugc noopener noreferrer");
   link.textContent = `Embedded content on ${url.hostname} ↗`;
   p.append(link);
   return [p];

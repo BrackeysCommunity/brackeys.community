@@ -2,6 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { MembersDiscoveryPage } from "@/components/members/MembersDiscoveryPage";
+import {
+  membersListingIsShareable,
+  membersListQueryOptions,
+} from "@/components/members/use-members-listing";
+import { prefetchInLoader } from "@/lib/route-prefetch";
+import { listingMeta } from "@/lib/site-meta";
 
 // Validates the URL search params:
 //   `?q=…`            username/tagline/looking-for search
@@ -37,5 +43,20 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/members")({
   validateSearch: searchSchema,
+  loaderDeps: ({ search }) => search,
+  // Puts real member links in the document; see `membersListingIsShareable`
+  // for the one shape that must not be prefetched.
+  loader: ({ context: { queryClient }, deps }) =>
+    membersListingIsShareable(deps)
+      ? prefetchInLoader(queryClient.prefetchInfiniteQuery(membersListQueryOptions(deps)))
+      : undefined,
+  head: ({ match }) =>
+    listingMeta({
+      title: "Members",
+      description:
+        "Find the people behind the games — artists, composers, programmers and designers in the Brackeys community, with what they work in and whether they are open to work.",
+      path: "/members",
+      search: match.search,
+    }),
   component: MembersDiscoveryPage,
 });

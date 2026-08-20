@@ -65,7 +65,9 @@ export const BACKDROP_TRANSFORM: ItchImageOpts = { width: 64, quality: 40 };
  */
 export const BOARD_BANNER_TRANSFORM: ItchImageOpts = { width: 640 };
 
-const cfImagesEnabled = () => env.VITE_CF_IMAGES !== undefined;
+const ITCH_IMAGE_ORIGIN = "https://img.itch.zone/";
+
+export const cfImagesEnabled = () => env.VITE_CF_IMAGES !== undefined;
 
 /**
  * True only for itch-hosted https URLs and our own `/images/` uploads that
@@ -75,7 +77,7 @@ const cfImagesEnabled = () => env.VITE_CF_IMAGES !== undefined;
  */
 export function isTransformable(url: string): boolean {
   if (url.includes("/cdn-cgi/image/")) return false;
-  return url.startsWith("https://img.itch.zone/") || url.startsWith(STORED_IMAGE_ROUTE_PREFIX);
+  return url.startsWith(ITCH_IMAGE_ORIGIN) || url.startsWith(STORED_IMAGE_ROUTE_PREFIX);
 }
 
 function optionString(opts: ItchImageOpts): string {
@@ -106,6 +108,19 @@ export function itchImageUrl<T extends string | null | undefined>(
   // slash: /cdn-cgi/image/<options>/images/<key>.
   const source = url.startsWith("/") ? url.slice(1) : url;
   return `/cdn-cgi/image/${optionString(opts)}/${source}` as T;
+}
+
+/**
+ * The `original` master behind an itch derivative URL. Only for a source
+ * about to go through {@link itchImageUrl} — the master can be megabytes.
+ */
+export function itchOriginalUrl<T extends string | null | undefined>(url: T): T {
+  if (!url || !url.startsWith(ITCH_IMAGE_ORIGIN)) return url;
+  const segments = url.slice(ITCH_IMAGE_ORIGIN.length).split("/");
+  // <base64>/<derivative>/<name> — anything shorter isn't a derivative URL.
+  if (segments.length < 3) return url;
+  segments[1] = "original";
+  return `${ITCH_IMAGE_ORIGIN}${segments.join("/")}` as T;
 }
 
 /**
