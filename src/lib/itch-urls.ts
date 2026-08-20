@@ -13,3 +13,23 @@ export function normalizeItchProfileUrl(url: string | null | undefined): string 
   const normalized = url?.trim().toLowerCase().replace(/\/+$/, "");
   return normalized ? normalized : null;
 }
+
+/**
+ * Jam slugs an itch.io game page declares itself submitted to, read off the
+ * `Submission to <jam>` action button:
+ *
+ *   <li class="jam_entry"><a href="https://itch.io/jam/candyjam/rate/1287">
+ *
+ * The itch OAuth API exposes no jam data at all, so a member's game page is
+ * the only place this association can be read for a jam the scraper hasn't
+ * discovered. Matching on the game's own id keeps stray `/rate/` links
+ * elsewhere on the page (devlogs, comments) out of the result.
+ */
+export function parseJamSubmissionSlugs(html: string, gameId: number): string[] {
+  const pattern = /itch\.io\/jam\/([A-Za-z0-9._-]+)\/rate\/(\d+)/g;
+  const slugs = new Set<string>();
+  for (const match of html.matchAll(pattern)) {
+    if (match[1] && Number(match[2]) === gameId) slugs.add(match[1].toLowerCase());
+  }
+  return [...slugs];
+}

@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { client } from "@/orpc/client";
@@ -24,17 +24,23 @@ const CALENDAR_LIMIT = 5000;
 export const JAM_STALE_MS = 5 * 60 * 1000;
 
 /**
- * The board fetch, shared verbatim by `useBoardJams` and `useHomeJams`.
- * Both must land on the *same* query key so the home page and the jam
- * board read one cache entry — routing between them should never refetch.
- * They used to repeat the config inline, which left nothing enforcing that.
+ * The board fetch, shared verbatim by `useBoardJams`, `useHomeJams` and
+ * the `/` and `/jams` loaders. All of them must land on the *same* query
+ * key so the home page and the jam board read one cache entry — routing
+ * between them should never refetch, and a loader prefetch that missed
+ * the key would silently double the work instead of saving any. They used
+ * to repeat the config inline, which left nothing enforcing that.
  */
-function useBoardQuery() {
-  return useQuery({
+export function boardJamsQueryOptions() {
+  return queryOptions({
     queryKey: ["list-jams", "board", BOARD_LIMIT],
     queryFn: () => client.listJams({ filter: "board", limit: BOARD_LIMIT }),
     staleTime: JAM_STALE_MS,
   });
+}
+
+function useBoardQuery() {
+  return useQuery(boardJamsQueryOptions());
 }
 
 export interface BoardData {
@@ -97,18 +103,25 @@ export function useHomeJams(now: number): HomeJamsData {
   const { data, isLoading } = useBoardQuery();
 
   const all = useMemo(() => data?.jams ?? [], [data]);
-  return useMemo(() => {
-    const nowDate = new Date(now);
-    const { featured, shelves } = buildBoard(all, nowDate, "soonest");
-    const counts = countShelves(all, nowDate);
-    return {
-      isLoading,
-      featured,
-      upcoming: shelves.upcoming.ranked,
-      liveCount: counts.live,
-      upcomingCount: counts.upcoming,
-    };
-  }, [all, now, isLoading]);
+  return useMemo(() => ({ isLoading, ...homeJamsFrom(all, now) }), [all, now, isLoading]);
+}
+
+/**
+ * The § JAMS tiers, derived from a board payload. Split out of the hook so
+ * `/`'s loader can work out which jams the band will show — and therefore
+ * whose entries to prefetch — off the same reasoning the page will use,
+ * rather than a second copy of it.
+ */
+export function homeJamsFrom(all: JamFromList[], now: number): Omit<HomeJamsData, "isLoading"> {
+  const nowDate = new Date(now);
+  const { featured, shelves } = buildBoard(all, nowDate, "soonest");
+  const counts = countShelves(all, nowDate);
+  return {
+    featured,
+    upcoming: shelves.upcoming.ranked,
+    liveCount: counts.live,
+    upcomingCount: counts.upcoming,
+  };
 }
 
 export interface CalendarData {

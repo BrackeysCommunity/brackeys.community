@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 
 import { CollabPostCard } from "@/components/collab/CollabPostCard";
 import { Section, SectionAction } from "@/components/ui/section";
@@ -27,8 +27,9 @@ const LIST_ROW_ESTIMATE = 86;
  * No `onSelect`: there's no inspector on this page, so a click on a row
  * navigates to the post like the anchor says it will.
  */
-export function RecentCollabPosts() {
-  const { data, isLoading } = useQuery({
+/** Exported so `/`'s loader can put the ticker in the document. */
+export function recentCollabPostsQueryOptions() {
+  return queryOptions({
     queryKey: ["recent-collab-posts", POST_LIMIT],
     queryFn: () =>
       client.listPosts({
@@ -39,6 +40,10 @@ export function RecentCollabPosts() {
       }),
     staleTime: 60 * 1000,
   });
+}
+
+export function RecentCollabPosts() {
+  const { data, isLoading } = useQuery(recentCollabPostsQueryOptions());
 
   const posts = data?.posts ?? [];
 

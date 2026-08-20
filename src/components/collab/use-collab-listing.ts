@@ -1,10 +1,10 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { infiniteQueryOptions, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
 import { client, orpc } from "@/orpc/client";
 
-import { collabFacetInput, sortPreset, useCollabBoardSearch } from "./collab-filters";
+import { type CollabListingDeps, collabListingDeps, useCollabBoardSearch } from "./collab-filters";
 
 const PAGE_SIZE = 20;
 
@@ -14,6 +14,31 @@ export type CollabListingItem = {
   post: PostsPage["posts"][number] & { viewerOverlap: StackOverlap | null };
   pinned: boolean;
 };
+
+/**
+ * The board's first page of posts, keyed on the URL. Shared with
+ * `/collab`'s loader so a server prefetch lands on the entry this hook
+ * reads instead of a neighbouring one.
+ */
+export function collabPostsQueryOptions({ filters, sortBy, sortOrder }: CollabListingDeps) {
+  return infiniteQueryOptions({
+    queryKey: ["listPosts", filters, sortBy, sortOrder],
+    queryFn: ({ pageParam }) =>
+      client.listPosts({
+        ...filters,
+        sortBy,
+        sortOrder,
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.length * PAGE_SIZE;
+      return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
+    },
+    staleTime: 15 * 1000,
+  });
+}
 
 /**
  * The board's listing query, shared by the lane that renders it and the
@@ -31,8 +56,6 @@ export type CollabListingItem = {
  */
 export function useCollabListing(currentUserId?: string | null) {
   const { search } = useCollabBoardSearch();
-  const filterInput = collabFacetInput(search);
-  const { by: sortBy, order: sortOrder } = sortPreset(search.sort);
 
   // One request per session, not per page of posts — skills change about
   // as often as someone edits their profile.
@@ -42,23 +65,7 @@ export function useCollabListing(currentUserId?: string | null) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const postsQuery = useInfiniteQuery({
-    queryKey: ["listPosts", filterInput, sortBy, sortOrder],
-    queryFn: ({ pageParam = 0 }) =>
-      client.listPosts({
-        ...filterInput,
-        sortBy,
-        sortOrder,
-        limit: PAGE_SIZE,
-        offset: pageParam as number,
-      }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const fetched = allPages.length * PAGE_SIZE;
-      return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
-    },
-    staleTime: 15 * 1000,
-  });
+  const postsQuery = useInfiniteQuery(collabPostsQueryOptions(collabListingDeps(search)));
 
   const allPosts = useMemo(
     () => postsQuery.data?.pages.flatMap((p) => p.posts) ?? [],

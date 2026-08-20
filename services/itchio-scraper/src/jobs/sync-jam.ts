@@ -1,6 +1,11 @@
 import { and, eq, exists, inArray, isNull, ne, sql } from "drizzle-orm";
 
-import { itchJamEntries, itchJamEntryResults, itchJams } from "../../../../src/db/schema.ts";
+import {
+  itchJamEntries,
+  itchJamEntryResults,
+  itchJams,
+  itchMissingJams,
+} from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
 import { describeError, isNotFound } from "../http.ts";
@@ -141,6 +146,55 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
         },
       });
   }
+}
+
+/** Legacy raw jam pages carry no stat boxes, so the entry list is the only
+ * count they can get — and without one the jam log renders "#12" where it
+ * would otherwise say "#12 of 380". */
+async function fillMissingEntriesCount(jam: ScrapedJam, entryCount: number): Promise<void> {
+  if (jam.entriesCount != null || entryCount === 0) return;
+  await db
+    .update(itchJams)
+    .set({ entriesCount: entryCount, updatedAt: new Date() })
+    .where(eq(itchJams.jamId, jam.jamId));
+}
+
+/**
+ * Ingest one jam by slug — page, entries, and the unratable pre-mark — for the
+ * walks that discover jams we hold no row for (the historical backfill and the
+ * id sweep). Returns "gone" when the page 404s, which the callers record so a
+ * dead slug isn't re-fetched forever.
+ *
+ * `entries` lets a caller that already has the list hand it over: the id sweep
+ * finds jams *by* fetching entries.json, so re-fetching it here would double
+ * that walk's request count.
+ */
+export async function ingestJam(
+  slug: string,
+  opts: { label?: string; entries?: ItchEntry[] } = {},
+): Promise<"ok" | "gone"> {
+  const label = opts.label ?? "backfill";
+  let jam: ScrapedJam;
+  try {
+    jam = await scrapeJamPage(slug);
+  } catch (err) {
+    if (isNotFound(err)) {
+      await db.insert(itchMissingJams).values({ slug }).onConflictDoNothing();
+      return "gone";
+    }
+    throw err;
+  }
+  await upsertJam(jam);
+
+  const entries = opts.entries ?? (await fetchJamEntries(jam.jamId)) ?? [];
+  await upsertEntries(jam.jamId, entries);
+  await markUnratableEntriesFetched(jam.jamId);
+  await fillMissingEntriesCount(jam, entries.length);
+
+  console.log(
+    `[${label}] ok ${slug} id=${jam.jamId} status=${jam.status} entries=${entries.length}`,
+  );
+  return "ok";
 }
 
 /**
@@ -551,6 +605,7 @@ export async function syncJam(slug: string) {
       }
       marked = unlisted.length;
     }
+    await fillMissingEntriesCount(jam, entries.length);
     console.log(
       `[sync-jam] upserted ${entries.length} entries for ${jam.slug}${
         marked > 0 ? `, marked ${marked} missing (no longer listed)` : ""

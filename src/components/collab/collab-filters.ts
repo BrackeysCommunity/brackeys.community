@@ -100,6 +100,19 @@ export function collabFacetInput(search: CollabBoardSearch) {
   };
 }
 
+/**
+ * Everything the board's listing query is keyed on, and nothing else: the
+ * URL also carries `new` and `post`, which address the create flyout and
+ * the inspector rather than the list. `/collab`'s loader takes this as its
+ * `loaderDeps`, so opening a post doesn't re-run the prefetch.
+ */
+export function collabListingDeps(search: CollabBoardSearch) {
+  const { by: sortBy, order: sortOrder } = sortPreset(search.sort);
+  return { filters: collabFacetInput(search), sortBy, sortOrder };
+}
+
+export type CollabListingDeps = ReturnType<typeof collabListingDeps>;
+
 /** Constraints in force, ignoring sort — sort narrows nothing. */
 export function countActiveCollabFilters(search: CollabBoardSearch): number {
   const input = collabFacetInput(search);

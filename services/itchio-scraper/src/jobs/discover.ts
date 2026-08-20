@@ -6,12 +6,12 @@ import {
   discoverUpcomingSlugs,
 } from "../scrape/discover-listings.ts";
 import { createStopGate, runTier, syncSlugs } from "./runner.ts";
-import { persistedSlugs, upcomingJamSlugs } from "./selectors.ts";
+import { persistedSlugs, scannedJamSlugs, upcomingJamSlugs } from "./selectors.ts";
 
 /**
  * DISCOVERY tier — every 4 hours, offset from the live tier.
  *
- * Walks itch's four jam listings and ingests every jam we don't already hold,
+ * Walks itch's jam listings and ingests every jam we don't already hold,
  * then spends a small fixed budget refreshing announced-but-not-started jams.
  *
  * Split out from the live tier because the two scale on different things. The
@@ -50,6 +50,9 @@ export async function runDiscovery(): Promise<number> {
     { label: "/jams/upcoming", run: discoverUpcomingSlugs },
     { label: "/jams/in-progress", run: discoverInProgressSlugs },
     { label: "brackeys search", run: discoverBrackeysSearchSlugs },
+    // Not a walk of itch at all — jams read off members' own game pages by the
+    // library sync, which is how a jam itch never lists gets in.
+    { label: "member game scans", run: scannedJamSlugs },
     {
       label: "/jams/past/sort-date",
       run: () => discoverRecentlyEndedSlugs(config.ENDED_LOOKBACK_DAYS),
@@ -63,8 +66,8 @@ export async function runDiscovery(): Promise<number> {
 
   // Retry a failed walk before anything is derived from it, rather than at the
   // end of the run like the per-jam retries: everything below is downstream of
-  // these four lists, so a walk recovered afterwards would have nothing left to
-  // feed. The four run concurrently, so by now they have all settled.
+  // these lists, so a walk recovered afterwards would have nothing left to
+  // feed. They run concurrently, so by now they have all settled.
   for (const [i, result] of walked.entries()) {
     if (result !== null) continue;
     const walk = walks[i];
@@ -73,7 +76,7 @@ export async function runDiscovery(): Promise<number> {
     walked[i] = await listing(walk.label, walk.run);
   }
 
-  const [upcoming, inProgress, brackeys, recentlyEnded] = walked;
+  const [upcoming, inProgress, brackeys, scanned, recentlyEnded] = walked;
 
   // A listing still failing after its retry contributes no slugs and is worth
   // shouting about — a silently empty walk looks identical to "itch announced
@@ -89,6 +92,7 @@ export async function runDiscovery(): Promise<number> {
       ...(inProgress ?? []),
       ...(upcoming ?? []),
       ...(brackeys ?? []),
+      ...(scanned ?? []),
       ...(recentlyEnded ?? []),
     ]),
   ];
@@ -97,7 +101,9 @@ export async function runDiscovery(): Promise<number> {
   console.log(
     `[discover] listings: upcoming=${upcoming?.length ?? "FAILED"} in-progress=${
       inProgress?.length ?? "FAILED"
-    } brackeys=${brackeys?.length ?? "FAILED"} recently-ended=${
+    } brackeys=${brackeys?.length ?? "FAILED"} member-scans=${
+      scanned?.length ?? "FAILED"
+    } recently-ended=${
       recentlyEnded?.length ?? "FAILED"
     } — ${fresh.length} new of ${ordered.length} listed`,
   );

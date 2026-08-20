@@ -57,6 +57,21 @@ const schema = z.object({
   // `results_fetched_at` is per entry, so the next tick resumes.
   RESULTS_DEADLINE_MINS: z.coerce.number().int().positive().default(240),
   RESULTS_ORDER: z.enum(["newest", "smallest"]).default("newest"),
+
+  // ── ID sweep ───────────────────────────────────────────────────────────────
+  // Walks the jam id space directly, because itch's listings are not a
+  // complete index of past jams (see src/jobs/sweep-ids.ts). Runs as a phase of
+  // the temporary backfill service, resuming from a cursor each tick.
+  SWEEP_DEADLINE_MINS: z.coerce.number().int().positive().default(45),
+  // Where a fresh cursor starts, and the escape hatch for re-sweeping a range:
+  // set it above the stored cursor to jump ahead, or run a one-off with it set
+  // back to re-probe ids a bad stretch of 429s cost.
+  SWEEP_FROM: z.coerce.number().int().nonnegative().default(1),
+  // The barren middle of the id space, skipped by default — jam ids cluster
+  // below 20k and above 240k, and we hold 3 rows across the 220k between them.
+  // Set SWEEP_GAP_END equal to SWEEP_GAP_START to sweep it anyway.
+  SWEEP_GAP_START: z.coerce.number().int().nonnegative().default(20_000),
+  SWEEP_GAP_END: z.coerce.number().int().nonnegative().default(240_000),
 });
 
 export const config = schema.parse(process.env);

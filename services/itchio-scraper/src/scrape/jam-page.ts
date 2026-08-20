@@ -64,15 +64,47 @@ function parseIsoMaybe(raw: string | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * The object literal a jam page's bootstrap constructor is called with.
+ * Scanned brace-by-brace rather than matched with `\{[^}]*\}`: the raw-jam
+ * variant embeds a `status_html` string of markup, and a brace anywhere in it
+ * would truncate a lazy match mid-object.
+ */
+function extractBootstrapObject(html: string): string | null {
+  // `I.ViewJam('#view_jam_NN', { … })` on modern pages, `I.ViewRawJam(…)` on
+  // the legacy ones — both bootstrap the same payload shape.
+  const opener = html.match(/I\.View(?:Raw)?Jam\(\s*'[^']*'\s*,\s*\{/);
+  if (opener?.index == null) return null;
+
+  const start = opener.index + opener[0].length - 1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < html.length; i++) {
+    const ch = html[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return html.slice(start, i + 1);
+  }
+  return null;
+}
+
 function parseViewJamPayload(html: string): ViewJamPayload | null {
   // Every jam page bootstraps a `new I.ViewJam('#view_jam_NN', { ... })`
   // constructor — regardless of status — and the JSON object always carries
   // the numeric id, start/end, and (when applicable) voting_end_date. This
-  // is the most reliable source we have across upcoming / running / over.
-  const match = html.match(/I\.ViewJam\(\s*'[^']+'\s*,\s*(\{[^}]*\})\s*\)/);
-  if (!match?.[1]) return null;
+  // is the most reliable source we have across upcoming / running / over,
+  // and it is the *only* one on a raw jam page.
+  const raw = extractBootstrapObject(html);
+  if (!raw) return null;
   try {
-    const parsed = JSON.parse(match[1]) as {
+    const parsed = JSON.parse(raw) as {
       id?: number;
       start_date?: string;
       end_date?: string;
@@ -144,13 +176,43 @@ export function deriveStatus(viewClasses: string): ItchJamStatus {
   return "upcoming";
 }
 
+/**
+ * itch's original jam format — `/jam/candyjam` and the rest of the 2014
+ * cohort — renders `view_raw_jam_page`: the host's own markup inside
+ * `.jam_content` and none of the modern furniture. No title header, no host
+ * header, no stat boxes, no banner. Those all come back empty on their own;
+ * the title and the phase classes are the two that have to be read elsewhere.
+ */
+function isRawJamPage($: cheerio.CheerioAPI): boolean {
+  return $(".view_raw_jam_page").length > 0;
+}
+
+/** `<title>Candy Jam - itch.io</title>` — the only place a raw jam is named. */
+function parseDocumentTitle($: cheerio.CheerioAPI): string {
+  return $("title")
+    .first()
+    .text()
+    .trim()
+    .replace(/\s*-\s*itch\.io$/i, "")
+    .trim();
+}
+
 export async function scrapeJamPage(slug: string): Promise<ScrapedJam> {
   const url = `https://itch.io/jam/${slug}`;
-  const html = await fetchHtml(url);
-  const $ = cheerio.load(html);
+  return parseJamPage(await fetchHtml(url), slug);
+}
 
-  const viewClasses = $(".view_jam_base_page").attr("class") ?? "";
-  const title = $(".jam_title_header").first().text().trim();
+export function parseJamPage(html: string, slug: string): ScrapedJam {
+  const $ = cheerio.load(html);
+  const isRaw = isRawJamPage($);
+
+  // Raw pages carry the phase classes on `.jam_content`; their page root has
+  // none, which would otherwise trip deriveStatus's unrecognized-class warning
+  // on every legacy jam.
+  const viewClasses =
+    (isRaw ? $(".jam_content").first().attr("class") : $(".view_jam_base_page").attr("class")) ??
+    "";
+  const title = isRaw ? parseDocumentTitle($) : $(".jam_title_header").first().text().trim();
   if (!title) throw new Error(`Could not find jam title for ${slug}`);
 
   const hostHeader = $(".jam_host_header").first();

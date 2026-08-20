@@ -988,6 +988,47 @@ export const itchJamEntries = itchSchema.table(
   ],
 );
 
+/**
+ * "Submission to X" banners read off members' itch.io game pages by the
+ * library sync — the seam between that service and the scraper.
+ *
+ * Discovery can only ingest jams itch lists, and itch's listings are not a
+ * complete index: the 2014 cohort (Candy Jam is jam_id 1) never appears in
+ * /jams/past at all, and spot checks find ordinary older jams missing too. A
+ * member's own game page names the jam it was submitted to regardless, so the
+ * scan turns "a jam one of our members actually entered" into a discovery
+ * source, at one page fetch per game rather than a blind sweep of the id space.
+ *
+ * Keyed by itch game id, not by placement: the fact is about the game, so one
+ * scan covers every member who holds it and outlives the placement row.
+ */
+export const itchGameJamScans = itchSchema.table("game_jam_scans", {
+  gameId: bigint("game_id", { mode: "number" }).primaryKey(),
+  gameUrl: text("game_url").notNull(),
+  // Empty means scanned and not a jam submission — which is most games, and
+  // is what keeps them from being re-fetched every tick.
+  jamSlugs: text("jam_slugs")
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
+  scannedAt: timestamp("scanned_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Resume points for the scraper's long walks, so a tick that stops at its
+ * deadline continues where it left off instead of re-probing from the start.
+ *
+ * One row per walk, keyed by name (`jam_id_sweep` today). A cursor is only
+ * ever a *position*, never a record of what was found — everything the walk
+ * learns lands in `itch.jams` / `itch.jam_entries` as it goes, so a lost
+ * cursor costs re-probing, not data.
+ */
+export const itchScrapeCursors = itchSchema.table("scrape_cursors", {
+  name: text("name").primaryKey(),
+  position: bigint("position", { mode: "number" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // Slugs from the /jams/past listing whose jam page 404s and that were never
 // persisted (jam deleted on itch before we ever scraped it). Recorded so the
 // historical backfill doesn't re-fetch known-dead pages on every run.

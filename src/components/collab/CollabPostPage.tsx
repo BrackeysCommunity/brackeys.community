@@ -73,7 +73,7 @@ const STATUS_BADGE: Record<
 
 /**
  * A post's own page, spoken in the same layout language as the jam,
- * project, and team pages: breadcrumb, masthead `Well` with letterboxed
+ * project, and team pages: masthead `Well` with letterboxed
  * art and stat blocks, then titled sections. The board's inspector shows
  * the same post at panel zoom; this is the full spread — and the page a
  * crawler or a shared link lands on.
@@ -114,16 +114,6 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
   return (
     <PageStack className="flex flex-col gap-8 pb-8 selection:bg-primary selection:text-white">
-      <motion.nav variants={fadeUp} aria-label="Breadcrumb">
-        <RouterLink
-          to="/collab"
-          search={{}}
-          className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:text-primary"
-        >
-          ← COLLAB BOARD
-        </RouterLink>
-      </motion.nav>
-
       <motion.div variants={fadeUp}>
         <PostHero post={post} isClosed={isClosed} closesIn={closesIn} rateDisplay={rateDisplay}>
           <HeroActions

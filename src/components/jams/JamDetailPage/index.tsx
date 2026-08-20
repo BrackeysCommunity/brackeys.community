@@ -1,4 +1,3 @@
-import { Link as RouterLink } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { Section } from "@/components/ui/section";
@@ -45,15 +44,6 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
 
   return (
     <div className="flex flex-col gap-8 pb-8">
-      <nav aria-label="Breadcrumb">
-        <RouterLink
-          to="/jams"
-          className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase transition-colors hover:text-primary"
-        >
-          ← ALL JAMS
-        </RouterLink>
-      </nav>
-
       <JamDetailHero jam={jam} phase={phase} now={now} trackedEntries={trackedEntries} />
 
       <JamCtaRail jam={jam} phase={phase} hasResults={hasResults} />

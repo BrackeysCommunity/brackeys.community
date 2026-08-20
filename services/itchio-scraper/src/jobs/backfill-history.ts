@@ -3,11 +3,9 @@ import { eq, exists, sql } from "drizzle-orm";
 import { itchJamEntries, itchJams, itchMissingJams } from "../../../../src/db/schema.ts";
 import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { db, pool } from "../db/client.ts";
-import { isNotFound } from "../http.ts";
 import { fetchPastSortDatePage } from "../scrape/discover-listings.ts";
-import { fetchJamEntries } from "../scrape/entries.ts";
-import { scrapeJamPage } from "../scrape/jam-page.ts";
-import { markUnratableEntriesFetched, upsertEntries, upsertJam } from "./sync-jam.ts";
+import { runIdSweep } from "./sweep-ids.ts";
+import { ingestJam } from "./sync-jam.ts";
 
 /**
  * One-off, resumable historical backfill: walks /jams/past/sort-date (end
@@ -47,29 +45,6 @@ export type PersistedJamRow = {
  */
 export function isIngestComplete(row: PersistedJamRow): boolean {
   return row.hasEntries || (row.entriesCount ?? 0) === 0 || row.status !== "over";
-}
-
-async function backfillJam(slug: string): Promise<"ok" | "gone"> {
-  let jam;
-  try {
-    jam = await scrapeJamPage(slug);
-  } catch (err) {
-    if (isNotFound(err)) {
-      await db.insert(itchMissingJams).values({ slug }).onConflictDoNothing();
-      return "gone";
-    }
-    throw err;
-  }
-  await upsertJam(jam);
-
-  const entries = (await fetchJamEntries(jam.jamId)) ?? [];
-  await upsertEntries(jam.jamId, entries);
-  await markUnratableEntriesFetched(jam.jamId);
-
-  console.log(
-    `[backfill] ok ${slug} id=${jam.jamId} status=${jam.status} entries=${entries.length}`,
-  );
-  return "ok";
 }
 
 async function main() {
@@ -132,7 +107,7 @@ async function main() {
       }
       if (ingested >= MAX_JAMS) break outer;
       try {
-        const outcome = await backfillJam(slug);
+        const outcome = await ingestJam(slug);
         if (outcome === "gone") gone++;
         else ingested++;
         persisted.add(slug);
@@ -158,7 +133,7 @@ async function main() {
     console.log(`[backfill] retrying ${failed} failed jam(s)`);
     for (const slug of failedSlugs) {
       try {
-        const outcome = await backfillJam(slug);
+        const outcome = await ingestJam(slug);
         if (outcome === "gone") gone++;
         else ingested++;
         failed--;
@@ -175,6 +150,12 @@ async function main() {
       reachedCutoff ? " (stopped at BACKFILL_OLDEST cutoff)" : ""
     }${ingested >= MAX_JAMS ? " (stopped at BACKFILL_MAX_JAMS — re-run to continue)" : ""}`,
   );
+
+  // Second phase of the same tick. The walk above can only ingest what itch
+  // lists, and itch's listings are not a complete index of past jams — the id
+  // sweep picks up where they stop. Its own deadline and cursor bound it, so a
+  // tick that reaches here late simply sweeps less.
+  await runIdSweep();
 }
 
 if (import.meta.main) {

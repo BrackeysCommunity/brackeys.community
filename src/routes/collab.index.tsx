@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { collabListingDeps } from "@/components/collab/collab-filters";
 import { CollabBrowsePage } from "@/components/collab/CollabBrowsePage";
+import { collabPostsQueryOptions } from "@/components/collab/use-collab-listing";
+import { prefetchInLoader } from "@/lib/route-prefetch";
 
 // Validates the URL search params. The board's filters live entirely in
 // the URL (see `collab-filters.ts`), so every narrowed board is
@@ -34,5 +37,13 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/collab/")({
   validateSearch: searchSchema,
+  // Keyed on the filters the URL actually describes, so a shared link to a
+  // narrowed board server-renders that board rather than the default one.
+  // `new`/`post` are deliberately not deps — they open the flyout and the
+  // inspector, and re-running the prefetch on every post click would refetch
+  // the whole list once its 15s staleness elapsed.
+  loaderDeps: ({ search }) => collabListingDeps(search),
+  loader: ({ context: { queryClient }, deps }) =>
+    prefetchInLoader(queryClient.prefetchInfiniteQuery(collabPostsQueryOptions(deps))),
   component: CollabBrowsePage,
 });

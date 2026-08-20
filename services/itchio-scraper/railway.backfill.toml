@@ -2,7 +2,12 @@
 # backfill (src/jobs/backfill-history.ts). Create a service pointing at this
 # repo, set its "Config file path" to services/itchio-scraper/railway.backfill.toml,
 # and reference the shared DATABASE_URL variable. Delete the service once the
-# walk reports nothing left to ingest.
+# walk reports nothing left to ingest and the sweep reports complete.
+#
+# Each tick runs two phases: the /jams/past listing walk, then the id sweep
+# (src/jobs/sweep-ids.ts), which finds the jams those listings never show. The
+# sweep is cursor-driven and bounded by SWEEP_DEADLINE_MINS (default 45), so it
+# spreads its ~178k probes across ticks instead of overrunning the hourly slot.
 #
 # The hourly cron is the resume mechanism: if a run is interrupted (deploy,
 # crash, platform restart), the next tick picks up where it left off — ticks

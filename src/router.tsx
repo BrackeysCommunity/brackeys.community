@@ -1,17 +1,25 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
 import { captureEvent, initAnalytics } from "@/lib/posthog";
 
 import { NotFoundPage } from "./components/layout/NotFoundPage";
 import { PageSkeleton } from "./components/layout/PageSkeleton";
-import { getContext } from "./integrations/tanstack-query/root-provider";
+import { makeQueryClient } from "./integrations/tanstack-query/query-client";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
+  // One client per router, and therefore one per request on the server —
+  // hoisting it to module scope would leak one user's cache into the next
+  // user's response. The same instance is what `TanStackQueryProvider`
+  // mounts, so `context.queryClient` in a loader and `useQuery` in a
+  // component address the same cache.
+  const queryClient = makeQueryClient();
+
   const router = createTanStackRouter({
     routeTree,
 
-    context: getContext(),
+    context: { queryClient },
 
     // Every `notFound()` a loader throws lands on the same page unless the
     // route names its own copy — see `@/components/layout/NotFoundPage`.
@@ -52,6 +60,20 @@ export function getRouter() {
     defaultPreloadDelay: 50,
     defaultViewTransition: true,
   });
+
+  // Puts the server's query cache in the document: it dehydrates whatever
+  // a loader fetched during SSR into the payload (streaming queries that
+  // settle mid-render), and hydrates it on the client before the app runs.
+  // Without it a loader prefetch on the server is thrown away and the
+  // browser refetches the same data after hydration.
+  //
+  // Anything a loader puts in this cache is serialized into the HTML, so a
+  // loader must only prefetch queries whose result is the same for every
+  // viewer. See `@/lib/route-prefetch`.
+  //
+  // It also installs the app's single `QueryClientProvider` as
+  // `router.options.Wrap` — which is why `__root.tsx` no longer mounts one.
+  setupRouterSsrQueryIntegration({ router, queryClient });
 
   // Pageviews are captured here rather than by posthog-js, whose SPA
   // heuristics watch the History API: with `defaultViewTransition` the URL

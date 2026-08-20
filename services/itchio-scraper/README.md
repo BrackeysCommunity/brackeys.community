@@ -8,11 +8,11 @@ perishable their work is. They build the same image from the same Dockerfile
 and share one config module and one set of scrapers — only the entrypoint and
 the schedule differ.
 
-| Tier          | Schedule        | Measured tick  | Command            | Works                                                        |
-| ------------- | --------------- | -------------- | ------------------ | ------------------------------------------------------------ |
-| **live**      | `:00` / `:30`   | 8–9 min        | `bun run live`     | jams that have started and haven't finished (~285)           |
-| **discovery** | 4-hourly, `:20` | ~1–2 min       | `bun run discover` | the four listing walks, jams we don't hold, upcoming refresh |
-| **results**   | 6-hourly, `:40` | backlog-driven | `bun run results`  | ranking collection for finished jams                         |
+| Tier          | Schedule        | Measured tick  | Command            | Works                                                   |
+| ------------- | --------------- | -------------- | ------------------ | ------------------------------------------------------- |
+| **live**      | `:00` / `:30`   | 8–9 min        | `bun run live`     | jams that have started and haven't finished (~285)      |
+| **discovery** | 4-hourly, `:20` | ~1–2 min       | `bun run discover` | the listing walks, jams we don't hold, upcoming refresh |
+| **results**   | 6-hourly, `:40` | backlog-driven | `bun run results`  | ranking collection for finished jams                    |
 
 Live is the only tier with a meaningful runtime, and it drives the schedule:
 a full pass over all ~285 open jams takes 8–9 minutes (including one itch 429
@@ -43,6 +43,7 @@ for the investigation that removed Browserless).
 | `/jams/in-progress` (paginated)             | jam slugs for jams already running (catches jams first seen mid-flight)                                                                                                                                                                                            |
 | `/jams/past/sort-date` (paginated, bounded) | jam slugs that ended within `ENDED_LOOKBACK_DAYS` (catches jams that started _and_ ended between runs)                                                                                                                                                             |
 | `/search?q=brackeys&type=jams` (paginated)  | jam slugs for one-time Brackeys backfill                                                                                                                                                                                                                           |
+| `itch.game_jam_scans` (no itch traffic)     | jam slugs read off members' own game pages by the library sync — the only route for a jam itch's listings omit (see discovery, below)                                                                                                                              |
 | `/jam/{slug}`                               | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                                                                                                                                  |
 | `/jam/{jamId}/entries.json`                 | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors — undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries) |
 | `/jam/{slug}/rate/{gameId}`                 | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                                                                                                                                   |
@@ -73,8 +74,8 @@ tail was never synced at all. Ordering by `scraped_at` sends the jams just
 synced to the back of the queue, so every open jam is visited before any is
 visited twice.
 
-**discovery** ([discover.ts](./src/jobs/discover.ts)) — walks all four
-listings, then syncs the slugs **not already in `itch.jams`**, in this order:
+**discovery** ([discover.ts](./src/jobs/discover.ts)) — walks the listings,
+then syncs the slugs **not already in `itch.jams`**, in this order:
 
 1. `/jams/in-progress` — a jam we've never seen that is _already_ running is
    accruing submissions right now, so it should reach the live tier's set this
@@ -82,7 +83,14 @@ listings, then syncs the slugs **not already in `itch.jams`**, in this order:
 2. `/jams/upcoming` — newly announced jams.
 3. `/search?q=brackeys&type=jams` — historical Brackeys jams (brackeys-1 …
    brackeys-15) the first time we see them, then never again.
-4. `/jams/past/sort-date`, walked until `ENDED_LOOKBACK_DAYS` — the
+4. `itch.game_jam_scans` — jams a member's own game page says it was submitted
+   to, written by the library sync's page scan. itch's listings are **not** a
+   complete index of past jams: the 2014 cohort (Candy Jam is `jam_id` 1) is in
+   none of them, and spot checks find ordinary older jams missing too. For a
+   jam a member actually entered, their game page is the only way in. Slugs in
+   `itch.missing_jams` are excluded — this set is permanent, so a dead slug
+   would otherwise be re-fetched every tick forever.
+5. `/jams/past/sort-date`, walked until `ENDED_LOOKBACK_DAYS` — the
    outage-recovery walk. Jams created _and_ finished between successful runs
    are invisible to every other selector forever (as happened in the June 2026
    outage).
@@ -204,6 +212,7 @@ cp .env.example .env
 bun run live       # open jams
 bun run discover   # listings + new jams + upcoming refresh
 bun run results    # ranking collection
+bun run sweep      # id-space sweep (also runs as the backfill tick's 2nd phase)
 ```
 
 Bound an exploratory run so it doesn't walk the whole set — the deadline is
@@ -226,6 +235,43 @@ invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
 [the deep-dive doc](../../docs/research/itch-scraper-browserless-deep-dive.md)
 (~3-6 h for metadata + entries; rankings drain over subsequent cron runs).
 
+### The id sweep
+
+The listing walk above can only ingest what itch **lists**, and its listings
+are not a complete index of past jams. `/jams/past/sort-date` bottoms out at
+~page 420 (September 2013) after ~21k jams, and jams missing from it are easy
+to find: Candy Jam (`jam_id` 1) and the rest of the 2014 cohort appear in no
+listing at all, and probing ids turns up ordinary 2016 and 2021 jams whose
+pages scrape perfectly well.
+
+So `bun run sweep` ([sweep-ids.ts](./src/jobs/sweep-ids.ts)) walks the id space
+directly, and runs as the **second phase of every backfill tick** — no separate
+service. `/jam/{id}/entries.json` needs no slug and settles an id in one
+request; a hit's payload carries the entries _and_ the slug (inside each entry's
+rate URL), so the jam page is the only extra fetch. Legacy raw-jam pages parse
+since [jam-page.ts](./src/scrape/jam-page.ts) learned that layout.
+
+Sizing, measured August 2026: **~178k probes**, ~17h of pacer time, resumed
+across hourly ticks bounded by `SWEEP_DEADLINE_MINS` (default 45) — call it a
+day and a half. Sampling put the hit rate at 12/60 unheld ids below 20k and
+4/120 above 240k, i.e. **on the order of 8k jams we don't hold**.
+
+| Knob                  | Default  | Why                                                                               |
+| --------------------- | -------- | --------------------------------------------------------------------------------- |
+| `SWEEP_DEADLINE_MINS` | 45       | keeps a tick inside its hourly slot; stopping early is free (the cursor resumes)  |
+| `SWEEP_FROM`          | 1        | floor for the cursor — raise it to skip ahead, lower it to re-probe a bad stretch |
+| `SWEEP_GAP_START/END` | 20k/240k | the barren middle of the id space, skipped by default and logged when it is       |
+
+Jam ids cluster below 20k and above 240k; we hold 3 rows across the 220k
+between them and 60 random probes there found nothing, so sweeping it costs
+another ~21h for a handful of jams. Set `SWEEP_GAP_END` equal to
+`SWEEP_GAP_START` to sweep it anyway.
+
+The cursor lives in `itch.scrape_cursors` and only moves forward. A jam with
+**no entries** is invisible to this walk by construction — the probe is empty
+either way, and with no entry there is no rate URL, so no slug, and `/jam/{id}`
+404s. Those stay the listings' job.
+
 **Running it on Railway** (recommended for the full multi-hour pull):
 
 1. Create a new service in the project pointing at this repo.
@@ -236,8 +282,10 @@ invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
 4. Deploy. The hourly cron doubles as the resume mechanism — interrupted or
    partial runs continue on the next tick, ticks during an active run are
    SKIPPED, and once everything is ingested each tick is a ~5-minute no-op.
-5. Watch progress via the run logs (`[backfill] page N done — ingested=…`),
-   then **delete the service** once it reports nothing left to ingest.
+5. Watch progress via the run logs (`[backfill] page N done — ingested=…`,
+   then `[sweep] probed=… found=… cursor=…`), and **delete the service** once
+   the walk reports nothing left to ingest _and_ the sweep reports "complete
+   through the frontier".
 
 ## Draining the ratings backlog by hand
 

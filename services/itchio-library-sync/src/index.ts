@@ -1,13 +1,14 @@
 import { and, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 
 import {
+  itchGameJamScans,
   itchJamEntries,
   itchJamEntryResults,
   itchJams,
   linkedAccounts,
   profileProjects,
 } from "../../../src/db/schema.ts";
-import { normalizeItchProfileUrl } from "../../../src/lib/itch-urls.ts";
+import { normalizeItchProfileUrl, parseJamSubmissionSlugs } from "../../../src/lib/itch-urls.ts";
 // The canonical-project writes are shared with the app on purpose: this sweep
 // creates placements, and a placement with no `project_id` behind it is a
 // project page that doesn't exist. Both copies of the orchestration have to
@@ -154,25 +155,32 @@ class ProbeBackoffError extends Error {
   }
 }
 
-/** Anonymous HEAD of a game page. Returns the visibility verdict, null when
- * the response proves nothing (timeouts, network errors, odd statuses), and
- * throws ProbeBackoffError on 429/5xx so the sweep stops hammering. */
-async function probeVisibility(url: string): Promise<"public" | "hidden" | null> {
+type ProbeResult = { verdict: "public" | "hidden" | null; html: string | null };
+
+/** Anonymous request for a game page. Returns the visibility verdict, null
+ * when the response proves nothing (timeouts, network errors, odd statuses),
+ * and throws ProbeBackoffError on 429/5xx so the sweep stops hammering.
+ *
+ * HEAD is enough for the verdict; `withBody` upgrades it to a GET for the
+ * rows whose jam banner still needs reading (see itch.game_jam_scans). */
+async function probeVisibility(url: string, withBody = false): Promise<ProbeResult> {
   let res: Response;
   try {
     res = await fetch(url, {
-      method: "HEAD",
+      method: withBody ? "GET" : "HEAD",
       headers: { "User-Agent": config.USER_AGENT },
       redirect: "follow",
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    return null;
+    return { verdict: null, html: null };
   }
-  if (res.status === 200) return "public";
-  if (res.status === 404) return "hidden";
   if (res.status === 429 || res.status >= 500) throw new ProbeBackoffError(res.status);
-  return null;
+  if (res.status === 200) {
+    return { verdict: "public", html: withBody ? await res.text().catch(() => null) : null };
+  }
+  if (res.status === 404) return { verdict: "hidden", html: null };
+  return { verdict: null, html: null };
 }
 
 /**
@@ -183,11 +191,18 @@ async function probeVisibility(url: string): Promise<"public" | "hidden" | null>
  * asserting `published: true` for restricted games, so encoding the state
  * in `published` would just get flipped back next sync.
  */
-async function probeRestricted(): Promise<{ probed: number; marked: number; cleared: number }> {
+async function probeRestricted(): Promise<{
+  probed: number;
+  marked: number;
+  cleared: number;
+  scanned: number;
+  jamsFound: number;
+}> {
   const rows = await db
     .select({
       id: profileProjects.id,
       url: profileProjects.url,
+      sourceId: profileProjects.sourceId,
       restrictedAt: profileProjects.restrictedAt,
     })
     .from(profileProjects)
@@ -202,17 +217,39 @@ async function probeRestricted(): Promise<{ probed: number; marked: number; clea
       ),
     );
 
+  // Scan state is per game, so a game several members hold is fetched once.
+  const scannedAt = new Map(
+    (
+      await db
+        .select({ gameId: itchGameJamScans.gameId, scannedAt: itchGameJamScans.scannedAt })
+        .from(itchGameJamScans)
+    ).map((r) => [r.gameId, r.scannedAt]),
+  );
+  const rescanBefore = new Date(Date.now() - config.JAM_SCAN_MAX_AGE_DAYS * 86_400_000);
+
   let probed = 0;
   let marked = 0;
   let cleared = 0;
+  let scanned = 0;
+  let jamsFound = 0;
 
   for (const [i, row] of rows.entries()) {
     if (!row.url) continue; // filtered in SQL; narrows the type
     if (i > 0) await sleep(config.SYNC_DELAY_MS);
 
+    // A row already known restricted would 404, so there is nothing to read —
+    // it goes back to a HEAD until the probe clears it.
+    const gameId = Number(row.sourceId);
+    const lastScan = scannedAt.get(gameId);
+    const scanTarget =
+      Number.isFinite(gameId) &&
+      row.restrictedAt == null &&
+      (lastScan == null || lastScan < rescanBefore);
+
     let verdict: "public" | "hidden" | null;
+    let html: string | null = null;
     try {
-      verdict = await probeVisibility(row.url);
+      ({ verdict, html } = await probeVisibility(row.url, scanTarget));
     } catch (err) {
       if (err instanceof ProbeBackoffError) {
         // itch.io is rate-limiting or unwell: stop probing and let the next
@@ -238,9 +275,28 @@ async function probeRestricted(): Promise<{ probed: number; marked: number; clea
       cleared++;
       console.log(`[probe] cleared restricted: ${row.url}`);
     }
+
+    if (html != null) {
+      const jamSlugs = parseJamSubmissionSlugs(html, gameId);
+      await db
+        .insert(itchGameJamScans)
+        .values({ gameId, gameUrl: row.url, jamSlugs })
+        .onConflictDoUpdate({
+          target: itchGameJamScans.gameId,
+          set: { gameUrl: row.url, jamSlugs, scannedAt: new Date() },
+        });
+      // Two members can hold the same game; the second row this tick is
+      // already covered by the scan the first one just wrote.
+      scannedAt.set(gameId, new Date());
+      scanned++;
+      if (jamSlugs.length > 0) {
+        jamsFound += jamSlugs.length;
+        console.log(`[probe] jam submission: ${row.url} → ${jamSlugs.join(", ")}`);
+      }
+    }
   }
 
-  return { probed, marked, cleared };
+  return { probed, marked, cleared, scanned, jamsFound };
 }
 
 // ── Jam participation backfill ───────────────────────────────────────────────
@@ -721,7 +777,7 @@ async function runSweep() {
   // so rows the sync just unpublished (drafts) are already excluded.
   const probe = await probeRestricted();
   console.log(
-    `[probe] probed ${probe.probed} pages, marked ${probe.marked} restricted, cleared ${probe.cleared}`,
+    `[probe] probed ${probe.probed} pages, marked ${probe.marked} restricted, cleared ${probe.cleared}, jam-scanned ${probe.scanned} (${probe.jamsFound} submissions found)`,
   );
 }
 

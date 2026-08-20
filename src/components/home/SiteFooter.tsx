@@ -107,7 +107,8 @@ export function SiteFooter() {
             </span>
           </div>
           <p className="max-w-xs font-sans text-xs text-muted-foreground">
-            A guild for indie game devs. Built, maintained, and moderated by the Brackeys community.
+            A Discord server for indie game devs. Built, maintained, and moderated by the Brackeys
+            community.
           </p>
           <p className="max-w-xs font-sans text-xs text-muted-foreground">
             Jams run on{" "}

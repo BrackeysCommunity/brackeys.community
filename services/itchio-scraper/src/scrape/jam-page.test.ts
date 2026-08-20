@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { deriveStatus, parseThemeColor } from "./jam-page.ts";
+import { deriveStatus, parseJamPage, parseThemeColor } from "./jam-page.ts";
 
 describe("deriveStatus", () => {
   // Verbatim class lists off live jam pages — the mapping was previously
@@ -54,5 +54,68 @@ describe("parseThemeColor", () => {
       parseThemeColor("<style>body{background-color: url(javascript:alert(1))}</style>"),
     ).toBeNull();
     expect(parseThemeColor("<style>body{background-color: var(--x, red)}</style>")).toBeNull();
+  });
+});
+
+describe("parseJamPage", () => {
+  const modern = (extra = "") => `
+    <html><head><title>Cool Jam - itch.io</title></head><body>
+    <div class="view_jam_page view_jam_base_page after_voting is_over">
+      <h1 class="jam_title_header">Cool Jam</h1>
+      <div class="jam_host_header"><a href="https://host.itch.io">Host</a></div>
+      <div class="stats_container">
+        <div class="stat_box"><div class="stat_value">12</div><div class="stat_label">Entries</div></div>
+      </div>
+      <div class="jam_content">description</div>
+    </div>
+    <script>I.ViewJam('#view_jam_1', {"id":4242,"start_date":"2026-01-01 10:00:00","end_date":"2026-01-08 10:00:00"});${extra}</script>
+    </body></html>`;
+
+  test("reads a modern jam page", () => {
+    const jam = parseJamPage(modern(), "cool-jam");
+    expect(jam.jamId).toBe(4242);
+    expect(jam.title).toBe("Cool Jam");
+    expect(jam.status).toBe("over");
+    expect(jam.entriesCount).toBe(12);
+    expect(jam.hosts).toEqual([{ name: "Host", url: "https://host.itch.io" }]);
+    expect(jam.startsAt?.toISOString()).toBe("2026-01-01T10:00:00.000Z");
+  });
+
+  // itch's original jam format (jam ids 1 and 2 are Candy Jam and Cyberpunk
+  // Jam): none of the modern furniture is on the page, and the bootstrap
+  // payload is the only place the numeric id appears. Discovery can't see
+  // these in /jams/past — they reach the scraper via a member's game page.
+  const raw = `
+    <html><head><title>Candy Jam - itch.io</title></head><body>
+    <div id="view_raw_jam_7658739" class="view_raw_jam_page view_jam_base_page">
+      <div class="jam_content after_voting is_over">host markup</div>
+    </div>
+    <script>I.ViewRawJam('#view_raw_jam_7658739', {"start_date":"2014-01-21 14:49:41","end_date":"2014-02-03 07:49:41","status_html":"This jam is now over. <span style=\\"color:{red}\\">ran</span>","voting_end_date":"2014-02-20 11:30:00","id":1});</script>
+    </body></html>`;
+
+  test("reads a legacy raw jam page", () => {
+    const jam = parseJamPage(raw, "candyjam");
+    expect(jam.jamId).toBe(1);
+    // No title header — the document title is the only source, minus itch's suffix.
+    expect(jam.title).toBe("Candy Jam");
+    // Phase classes live on .jam_content, not the page root.
+    expect(jam.status).toBe("over");
+    expect(jam.startsAt?.toISOString()).toBe("2014-01-21T14:49:41.000Z");
+    expect(jam.votingEndsAt?.toISOString()).toBe("2014-02-20T11:30:00.000Z");
+    expect(jam.hosts).toEqual([]);
+    expect(jam.entriesCount).toBeNull();
+  });
+
+  test("reads a bootstrap payload whose strings contain braces", () => {
+    // The old `\{[^}]*\}` match stopped at the first brace inside status_html,
+    // losing the trailing `"id"` and making the jam unscrapeable.
+    expect(parseJamPage(raw, "candyjam").jamId).toBe(1);
+    expect(parseJamPage(modern('I.Other("{");'), "cool-jam").jamId).toBe(4242);
+  });
+
+  test("throws when the page has neither shape", () => {
+    expect(() => parseJamPage("<html><body>nope</body></html>", "ghost")).toThrow(
+      /Could not find jam title/,
+    );
   });
 });

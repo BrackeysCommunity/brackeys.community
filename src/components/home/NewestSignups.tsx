@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Section, SectionAction } from "@/components/ui/section";
@@ -26,12 +26,17 @@ const SIGNUP_LIMIT = 10;
  * keep turning up", which is a face and a name. Rows link to the real
  * profile rather than dumping everyone on `/collab`.
  */
-export function NewestSignups() {
-  const { data, isLoading } = useQuery({
+/** Exported so `/`'s loader can put the rail in the document. */
+export function newestSignupsQueryOptions() {
+  return queryOptions({
     queryKey: ["newest-signups", SIGNUP_LIMIT],
     queryFn: () => client.listMembers({ sort: "newest", limit: SIGNUP_LIMIT, offset: 0 }),
     staleTime: 60 * 1000,
   });
+}
+
+export function NewestSignups() {
+  const { data, isLoading } = useQuery(newestSignupsQueryOptions());
 
   const users = data?.members ?? [];
 

@@ -1,6 +1,12 @@
 import { and, asc, eq, exists, gt, isNull, lte, ne, or, sql } from "drizzle-orm";
 
-import { type ItchJamStatus, itchJamEntries, itchJams } from "../../../../src/db/schema.ts";
+import {
+  itchGameJamScans,
+  type ItchJamStatus,
+  itchJamEntries,
+  itchJams,
+  itchMissingJams,
+} from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
 
@@ -158,4 +164,32 @@ export function persistedSlugs(): Promise<Set<string>> {
     .select({ slug: itchJams.slug })
     .from(itchJams)
     .then((rows) => new Set(rows.map((r) => r.slug)));
+}
+
+/**
+ * Jams a member's own itch.io game page says it was submitted to, that we
+ * hold no row for. Written by the library sync's page scan (see
+ * `itch.game_jam_scans`) and drained here because itch's listings are not a
+ * complete index of past jams — a legacy raw jam like Candy Jam appears in
+ * none of them, so a member's game page is the only way it is ever discovered.
+ *
+ * Known-dead slugs are excluded: unlike the listing walks this set is
+ * permanent, so a jam that 404s would otherwise be re-fetched every tick
+ * forever.
+ */
+export function scannedJamSlugs(): Promise<string[]> {
+  const scanned = db
+    .selectDistinct({ slug: sql<string>`unnest(${itchGameJamScans.jamSlugs})`.as("slug") })
+    .from(itchGameJamScans)
+    .as("scanned");
+  return db
+    .select({ slug: scanned.slug })
+    .from(scanned)
+    .where(
+      and(
+        sql`NOT EXISTS (SELECT 1 FROM ${itchJams} WHERE ${itchJams.slug} = ${scanned.slug})`,
+        sql`NOT EXISTS (SELECT 1 FROM ${itchMissingJams} WHERE ${itchMissingJams.slug} = ${scanned.slug})`,
+      ),
+    )
+    .then((rows) => rows.map((r) => r.slug));
 }

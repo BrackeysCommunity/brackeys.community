@@ -61,6 +61,21 @@ both in `src/lib/itchio-sync.ts`).
    `published: true` for restricted games, so the state can't live in
    `published` without being flipped back on the next sync.
 
+7. **Jam-banner scan.** Rides on the probe: for a game whose scan is missing
+   or older than `JAM_SCAN_MAX_AGE_DAYS` (default 30), the probe issues a
+   `GET` instead of a `HEAD` and reads the page's `Submission to <jam>`
+   button, recording the jam slugs in `itch.game_jam_scans` (keyed by itch
+   game id, so a game several members hold is fetched once). The scraper's
+   discovery tier ingests any slug we hold no jam for.
+
+   This exists because the scraper can only discover jams itch _lists_, and
+   itch's listings are not a complete index — a member's Candy Jam entry from
+   2014 (`jam_id` 1, in no listing at all) was invisible to us while the game
+   sat in their library the whole time. An empty slug array is a real result
+   ("scanned, not a jam submission"), and it is what stops most games from
+   being re-fetched. Rows already marked `restricted_at` are skipped: their
+   page 404s, so there is nothing to read.
+
 ## Schema and shared writes
 
 The service does **not** manage its own migrations or table definitions — it

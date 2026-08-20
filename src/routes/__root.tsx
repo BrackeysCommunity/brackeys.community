@@ -38,8 +38,6 @@ import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hook
 import { captureError, posthog } from "@/lib/posthog";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 
-import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
-
 import fontsCss from "../fonts.css?url";
 import appCss from "../styles.css?url";
 
@@ -191,18 +189,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 >
                   Skip to content
                 </a>
-                <TanStackQueryProvider>
-                  <AppThemeProvider>
-                    <TooltipProvider>
-                      <CommandPaletteProvider>
-                        <PageLayoutProvider>
-                          <CommandPalette />
-                          <ResponsiveShell>{children}</ResponsiveShell>
-                        </PageLayoutProvider>
-                      </CommandPaletteProvider>
-                    </TooltipProvider>
-                  </AppThemeProvider>
-                </TanStackQueryProvider>
+                {/* No QueryClientProvider here: `setupRouterSsrQueryIntegration`
+                    in `getRouter()` mounts one around the whole router, so the
+                    same client the loaders see is the one components read. */}
+                <AppThemeProvider>
+                  <TooltipProvider>
+                    <CommandPaletteProvider>
+                      <PageLayoutProvider>
+                        <CommandPalette />
+                        <ResponsiveShell>{children}</ResponsiveShell>
+                      </PageLayoutProvider>
+                    </CommandPaletteProvider>
+                  </TooltipProvider>
+                </AppThemeProvider>
               </div>
             </AppMotionConfig>
           </AppSettingsProvider>
