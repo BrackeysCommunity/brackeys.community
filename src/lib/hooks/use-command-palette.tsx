@@ -4,11 +4,21 @@ import { createContext, useContext, useState } from "react";
 interface CommandPaletteContextValue {
   open: boolean;
   setOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  /**
+   * True once the palette has been opened at least once. `__root.tsx` gates
+   * the lazy `CommandPalette` on this: `React.lazy` fetches its chunk the
+   * first time the element *renders*, so rendering it unconditionally would
+   * pull the palette down during hydration — off the preload graph, but
+   * still an extra round trip nobody asked for. It stays mounted afterwards
+   * so the dialog keeps its exit animation.
+   */
+  hasOpened: boolean;
 }
 
 const CommandPaletteContext = createContext<CommandPaletteContextValue>({
   open: false,
   setOpen: () => {},
+  hasOpened: false,
 });
 
 /**
@@ -20,6 +30,12 @@ const CommandPaletteContext = createContext<CommandPaletteContextValue>({
  */
 export function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
+
+  // Adjusting state during render rather than in an effect: React discards
+  // this render and re-runs before committing, so the palette mounts in the
+  // same commit it opens in instead of a frame later.
+  if (open && !hasOpened) setHasOpened(true);
 
   useKeyPress(
     ["ctrl.k", "meta.k"],
@@ -31,7 +47,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
   );
 
   return (
-    <CommandPaletteContext.Provider value={{ open, setOpen }}>
+    <CommandPaletteContext.Provider value={{ open, setOpen, hasOpened }}>
       {children}
     </CommandPaletteContext.Provider>
   );

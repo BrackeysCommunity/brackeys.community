@@ -134,6 +134,12 @@ export function subscribeAnalyticsPreference(onChange: () => void): () => void {
 let client: PostHogClient | null = null;
 /** True once `initAnalytics` has committed to loading — not yet once loaded. */
 let started = false;
+/**
+ * Set when no client is ever going to arrive for this attempt — the chunk was
+ * unreachable, or the visitor opted out while it was in flight. Stops the
+ * queue growing behind something that will never drain it.
+ */
+let abandoned = false;
 let pendingCalls: Array<(client: PostHogClient) => void> = [];
 
 const clientListeners = new Set<() => void>();
@@ -159,7 +165,25 @@ function withClient(fn: (client: PostHogClient) => void) {
     fn(client);
     return;
   }
-  if (started) pendingCalls.push(fn);
+  if (started && !abandoned) pendingCalls.push(fn);
+}
+
+/**
+ * posthog derives `$current_url`, `$pathname` and the event timestamp inside
+ * `capture()` — which, for a queued call, runs whenever the chunk lands. By
+ * then the visitor may be two navigations away, so a landing-page view would
+ * be filed against wherever they ended up. Pin all three at call time.
+ */
+function pinnedEventContext() {
+  const options = { timestamp: new Date() };
+  if (typeof window === "undefined") return { properties: undefined, options };
+  return {
+    properties: {
+      $current_url: window.location.href,
+      $pathname: window.location.pathname,
+    },
+    options,
+  };
 }
 
 function scheduleIdle(fn: () => void) {
@@ -172,6 +196,18 @@ function scheduleIdle(fn: () => void) {
 
 async function loadAndInit() {
   const { default: posthog } = await import("posthog-js");
+
+  // The visitor may have opted out while this was in flight, and the queue is
+  // FIFO: replaying it would run whatever was already waiting — including an
+  // `identifyUser` carrying email and name — *before* the opt-out's
+  // `before_send` reached the client. `init()` also puts the `/flags` request
+  // on the wire on its own, which the switch promises not to do. Stand down
+  // instead: no init, no network, nothing replayed.
+  if (analyticsOptedOut()) {
+    abandoned = true;
+    pendingCalls = [];
+    return;
+  }
 
   posthog.init(env.VITE_POSTHOG_KEY!, {
     api_host: env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com",
@@ -237,8 +273,20 @@ export function setAnalyticsEnabled(enabled: boolean) {
   }
   // An identity function rather than clearing the key: `set_config` merges,
   // so `undefined` is not reliably a removal.
-  if (started) withClient((c) => c.set_config({ before_send: (event) => event }));
-  else initAnalytics();
+  if (client) {
+    client.set_config({ before_send: (event) => event });
+    return;
+  }
+  // No client yet. A load that stood down (opted out mid-flight, or an
+  // unreachable chunk) has to be restarted by hand: `started` stays latched,
+  // so `initAnalytics` would otherwise return without doing anything.
+  if (abandoned) {
+    started = false;
+    abandoned = false;
+  }
+  // A load still genuinely in flight needs nothing — it re-reads the
+  // preference when it lands.
+  if (!started) initAnalytics();
 }
 
 /**
@@ -256,7 +304,15 @@ export function initAnalytics() {
   if (analyticsOptedOut()) return;
   started = true;
   scheduleIdle(() => {
-    loadAndInit();
+    // The chunk can genuinely be unreachable — an offline visitor, or a
+    // deploy that rotated asset hashes while this tab sat open. Analytics is
+    // optional, so swallow it: without this the rejection surfaces as an
+    // uncaught error in every such session, and `pendingCalls` grows for the
+    // life of the page behind a client that is never coming.
+    loadAndInit().catch(() => {
+      abandoned = true;
+      pendingCalls = [];
+    });
   });
 }
 
@@ -297,9 +353,19 @@ export function captureEvent(
   event: AnalyticsEvent | "$pageview",
   properties?: Record<string, unknown>,
 ) {
-  withClient((c) => c.capture(event, properties));
+  if (client) {
+    client.capture(event, properties);
+    return;
+  }
+  const pinned = pinnedEventContext();
+  withClient((c) => c.capture(event, { ...pinned.properties, ...properties }, pinned.options));
 }
 
 export function captureError(error: unknown, properties?: Record<string, unknown>) {
-  withClient((c) => c.captureException(error, properties));
+  if (client) {
+    client.captureException(error, properties);
+    return;
+  }
+  const pinned = pinnedEventContext();
+  withClient((c) => c.captureException(error, { ...pinned.properties, ...properties }));
 }

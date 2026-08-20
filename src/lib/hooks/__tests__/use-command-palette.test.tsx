@@ -12,8 +12,13 @@ import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-comma
  * binding doesn't depend on it.
  */
 function OpenState() {
-  const { open } = useCommandPalette();
-  return <span data-testid="open-state">{String(open)}</span>;
+  const { open, hasOpened } = useCommandPalette();
+  return (
+    <>
+      <span data-testid="open-state">{String(open)}</span>
+      <span data-testid="has-opened">{String(hasOpened)}</span>
+    </>
+  );
 }
 
 function pressCtrlK() {
@@ -37,5 +42,25 @@ describe("CommandPaletteProvider", () => {
 
     pressCtrlK();
     expect(screen.getByTestId("open-state").textContent).toBe("false");
+  });
+
+  // `__root.tsx` gates the lazy palette on `hasOpened`, so its chunk is not
+  // fetched during hydration — but once latched it must stay latched, or
+  // closing the palette would unmount it mid exit-animation.
+  it("latches hasOpened on first open and keeps it after closing", () => {
+    render(
+      <CommandPaletteProvider>
+        <OpenState />
+      </CommandPaletteProvider>,
+    );
+
+    expect(screen.getByTestId("has-opened").textContent).toBe("false");
+
+    pressCtrlK();
+    expect(screen.getByTestId("has-opened").textContent).toBe("true");
+
+    pressCtrlK();
+    expect(screen.getByTestId("open-state").textContent).toBe("false");
+    expect(screen.getByTestId("has-opened").textContent).toBe("true");
   });
 });

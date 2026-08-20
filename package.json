@@ -59,7 +59,6 @@
     "@orpc/server": "^1.15.0",
     "@orpc/tanstack-query": "^1.15.0",
     "@orpc/zod": "^1.15.0",
-    "@posthog/react": "^1.10.3",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.8",
     "@react-three/fiber": "^9.3.0",

@@ -44,7 +44,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AppSettingsProvider, useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
-import { CommandPaletteProvider } from "@/lib/hooks/use-command-palette";
+import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
 import { captureError } from "@/lib/posthog";
@@ -236,9 +236,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <TooltipProvider>
                   <CommandPaletteProvider>
                     <PageLayoutProvider>
-                      <Suspense>
-                        <CommandPalette />
-                      </Suspense>
+                      <CommandPaletteMount />
                       <ResponsiveShell>{children}</ResponsiveShell>
                     </PageLayoutProvider>
                   </CommandPaletteProvider>
@@ -278,6 +276,17 @@ function BackgroundDotField() {
       static={reduced}
       className="pointer-events-none fixed inset-0 z-0 opacity-50"
     />
+  );
+}
+
+/** Holds the palette's chunk back until the keybinding first asks for it. */
+function CommandPaletteMount() {
+  const { hasOpened } = useCommandPalette();
+  if (!hasOpened) return null;
+  return (
+    <Suspense>
+      <CommandPalette />
+    </Suspense>
   );
 }
 

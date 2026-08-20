@@ -78,7 +78,10 @@ function flagPayload(client: PostHogClient, flag: FeatureFlagKey) {
 
 export function useFlagPayload(flag: FeatureFlagKey): unknown {
   const client = usePostHogClient();
-  const [payload, setPayload] = useState(() => client && flagPayload(client, flag));
+  // `client ? … : undefined`, not `client && …`: the latter yields `null`
+  // before the client loads, and this hook's contract (and the
+  // `@posthog/react` hook it replaced) is `undefined` for unresolved.
+  const [payload, setPayload] = useState(() => (client ? flagPayload(client, flag) : undefined));
 
   useEffect(() => {
     if (!client) return;
