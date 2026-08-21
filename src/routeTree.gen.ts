@@ -17,7 +17,6 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as OgprobeRouteImport } from './routes/ogprobe'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as JamsRouteImport } from './routes/jams'
@@ -98,11 +97,6 @@ const ProfileRoute = ProfileRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OgprobeRoute = OgprobeRouteImport.update({
-  id: '/ogprobe',
-  path: '/ogprobe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -322,7 +316,6 @@ export interface FileRoutesByFullPath {
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
-  '/ogprobe': typeof OgprobeRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
   '/robots.txt': typeof RobotsDottxtRoute
@@ -371,7 +364,6 @@ export interface FileRoutesByTo {
   '/feed.xml': typeof FeedDotxmlRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
-  '/ogprobe': typeof OgprobeRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -421,7 +413,6 @@ export interface FileRoutesById {
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
-  '/ogprobe': typeof OgprobeRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRouteWithChildren
   '/robots.txt': typeof RobotsDottxtRoute
@@ -475,7 +466,6 @@ export interface FileRouteTypes {
     | '/jams'
     | '/members'
     | '/notifications'
-    | '/ogprobe'
     | '/privacy'
     | '/profile'
     | '/robots.txt'
@@ -524,7 +514,6 @@ export interface FileRouteTypes {
     | '/feed.xml'
     | '/members'
     | '/notifications'
-    | '/ogprobe'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -573,7 +562,6 @@ export interface FileRouteTypes {
     | '/jams'
     | '/members'
     | '/notifications'
-    | '/ogprobe'
     | '/privacy'
     | '/profile'
     | '/robots.txt'
@@ -626,7 +614,6 @@ export interface RootRouteChildren {
   JamsRoute: typeof JamsRouteWithChildren
   MembersRoute: typeof MembersRoute
   NotificationsRoute: typeof NotificationsRoute
-  OgprobeRoute: typeof OgprobeRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   RobotsDottxtRoute: typeof RobotsDottxtRoute
@@ -706,13 +693,6 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ogprobe': {
-      id: '/ogprobe'
-      path: '/ogprobe'
-      fullPath: '/ogprobe'
-      preLoaderRoute: typeof OgprobeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -1104,7 +1084,6 @@ const rootRouteChildren: RootRouteChildren = {
   JamsRoute: JamsRouteWithChildren,
   MembersRoute: MembersRoute,
   NotificationsRoute: NotificationsRoute,
-  OgprobeRoute: OgprobeRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRouteWithChildren,
   RobotsDottxtRoute: RobotsDottxtRoute,

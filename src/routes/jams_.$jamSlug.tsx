@@ -44,28 +44,43 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
     ]);
 
     // Which entries have a canonical project page. Without this the only
-    // links in the document are the `nofollow` mint links.
+    // links in the document are the `nofollow` mint links. Returned as well
+    // as cached so `head()` can point the ItemList at our own pages.
     const gameIds = initialEntries.entries.map((entry) => entry.gameId);
-    if (isServerLoad() && gameIds.length > 0) {
-      await queryClient.prefetchQuery(
-        orpc.listProjectsForGames.queryOptions({ input: { gameIds } }),
-      );
-    }
+    const entryProjects =
+      isServerLoad() && gameIds.length > 0
+        ? (
+            await queryClient.ensureQueryData(
+              orpc.listProjectsForGames.queryOptions({ input: { gameIds } }),
+            )
+          ).projects
+        : [];
 
-    return { detail, initialEntries, results: results.criteria };
+    return { detail, initialEntries, results: results.criteria, entryProjects };
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
-      return buildMeta({ title: "Jam not found", path: "/jams", noindexNofollow: true });
+      return buildMeta({
+        title: "Jam not found",
+        path: "/jams",
+        noindexNofollow: true,
+        canonical: false,
+      });
     }
-    const { detail, initialEntries } = loaderData;
+    const { detail, initialEntries, entryProjects } = loaderData;
     const jam = detail.jam;
     const path = `/jams/${jam.slug}`;
+    const description = jamDescription(jam, detail.trackedEntries);
+    // Entries with a canonical project page link inward; the rest stay on
+    // itch. Empty on client-side navigations, where JSON-LD has no reader.
+    const projectSlugByGame = new Map(
+      entryProjects.map((project) => [project.sourceGameId, project.slug]),
+    );
 
     return {
       ...buildMeta({
         title: jam.title,
-        description: jamDescription(jam, detail.trackedEntries),
+        description,
         path,
         card: ogCardPath("jam", jam.slug),
         imageAlt: `${jam.title} — dates, entry count and status`,
@@ -76,7 +91,7 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
           "@type": "Event",
           name: jam.title,
           url: siteUrl(path),
-          description: jamDescription(jam, detail.trackedEntries),
+          description,
           ...(jam.bannerUrl ? { image: jam.bannerUrl } : {}),
           ...(jam.startsAt ? { startDate: new Date(jam.startsAt).toISOString() } : {}),
           ...(jam.endsAt ? { endDate: new Date(jam.endsAt).toISOString() } : {}),
@@ -97,12 +112,15 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
                 "@type": "ItemList",
                 name: `${jam.title} submissions`,
                 numberOfItems: detail.trackedEntries,
-                itemListElement: initialEntries.entries.slice(0, 20).map((entry, index) => ({
-                  "@type": "ListItem",
-                  position: index + 1,
-                  name: entry.gameTitle,
-                  url: entry.gameUrl,
-                })),
+                itemListElement: initialEntries.entries.slice(0, 20).map((entry, index) => {
+                  const slug = projectSlugByGame.get(entry.gameId);
+                  return {
+                    "@type": "ListItem",
+                    position: index + 1,
+                    name: entry.gameTitle,
+                    url: slug ? siteUrl(`/projects/${encodeURIComponent(slug)}`) : entry.gameUrl,
+                  };
+                }),
               },
             ]
           : []),

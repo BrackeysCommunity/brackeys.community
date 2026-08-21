@@ -37,7 +37,12 @@ export const Route = createFileRoute("/projects/$projectSlug")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
-      return buildMeta({ title: "Project not found", path: "/", noindexNofollow: true });
+      return buildMeta({
+        title: "Project not found",
+        path: "/",
+        noindexNofollow: true,
+        canonical: false,
+      });
     }
     const project = loaderData.project;
     const kind = projectTypeLabel(project).toLowerCase();

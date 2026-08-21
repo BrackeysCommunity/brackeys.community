@@ -16,6 +16,7 @@ import {
   teams,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
+import { profileSlug } from "@/lib/profile-links";
 
 /** URLs per child sitemap. The spec's ceiling is 50,000 / 50 MB. */
 export const SITEMAP_PAGE_SIZE = 10_000;
@@ -168,7 +169,7 @@ async function sectionUrls(section: SitemapSection, page: number): Promise<Sitem
         .limit(SITEMAP_PAGE_SIZE)
         .offset(offset);
       return rows.map((row) => ({
-        path: `/profile/${encodeURIComponent(row.stub || row.id)}`,
+        path: `/profile/${encodeURIComponent(profileSlug({ id: row.id, urlStub: row.stub }))}`,
         lastmod: row.updatedAt,
         changefreq: "weekly",
       }));

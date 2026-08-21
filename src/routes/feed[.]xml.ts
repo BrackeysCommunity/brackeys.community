@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { asc, gte, isNull, or, sql } from "drizzle-orm";
+import { and, asc, gte, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { itchJams } from "@/db/schema";
 import { siteOrigin, siteUrl } from "@/env";
+import { hostName } from "@/lib/jam-links";
 import { withErrorReporting } from "@/lib/posthog-server";
 import { SITE_NAME } from "@/lib/site-meta";
 
@@ -41,7 +42,19 @@ async function handle() {
       hosts: itchJams.hosts,
     })
     .from(itchJams)
-    .where(or(isNull(itchJams.endsAt), gte(itchJams.endsAt, horizon)))
+    // `missingSince` matches the sitemap and the jam page's 404: a jam
+    // delisted on itch must not be advertised at a URL that no longer
+    // exists. Open-ended jams (no `endsAt`) qualify only if they started
+    // recently — an ancient dateless row is neither opening nor running.
+    .where(
+      and(
+        isNull(itchJams.missingSince),
+        or(
+          gte(itchJams.endsAt, horizon),
+          and(isNull(itchJams.endsAt), gte(itchJams.startsAt, horizon)),
+        ),
+      ),
+    )
     // Soonest first — for jams, "newest" means "next to open".
     .orderBy(asc(sql`coalesce(${itchJams.startsAt}, ${itchJams.endsAt})`))
     .limit(FEED_LIMIT);
@@ -63,7 +76,7 @@ async function handle() {
     const summary = [
       window && `${window}.`,
       row.entriesCount ? `${row.entriesCount.toLocaleString("en-US")} entries so far.` : null,
-      row.hosts[0] ? `Hosted by ${row.hosts[0].name}.` : null,
+      row.hosts[0] ? `Hosted by ${hostName(row)}.` : null,
     ]
       .filter(Boolean)
       .join(" ");
@@ -89,6 +102,9 @@ async function handle() {
     `  <id>${escapeXml(self)}</id>`,
     `  <link rel="self" type="application/atom+xml" href="${escapeXml(self)}"/>`,
     `  <link rel="alternate" type="text/html" href="${escapeXml(siteUrl("/jams"))}"/>`,
+    // RFC 4287 requires an author on the feed or on every entry; some
+    // readers refuse the feed without it.
+    `  <author><name>${escapeXml(SITE_NAME)}</name></author>`,
     `  <updated>${(updated ?? new Date()).toISOString()}</updated>`,
     ...entries,
     `</feed>`,

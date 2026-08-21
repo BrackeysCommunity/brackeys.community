@@ -233,10 +233,10 @@ export async function profileCard(handle: string): Promise<OgCardInput | null> {
     eyebrow: craft || "Member",
     title: memberName(profile, "A Brackeys member"),
     subtitle:
-      profile.tagline ??
+      profile.tagline?.trim() ||
       [profile.location, profile.availableForWork ? "Open to work" : null]
         .filter(Boolean)
-        .join(" · ") ??
+        .join(" · ") ||
       null,
     stats,
     art: await fetchArt(profile.avatarUrl, "circle"),

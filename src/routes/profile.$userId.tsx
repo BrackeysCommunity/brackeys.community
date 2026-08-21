@@ -6,9 +6,11 @@ import { ProfilePage } from "@/components/profile/ProfilePage";
 import { adaptProfile, type RpcProfile } from "@/components/profile/ProfilePage/profile-adapter";
 import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
 import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-overlay";
+import { siteUrl } from "@/env";
 import { authClient } from "@/lib/auth-client";
 import { memberName } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
 
@@ -30,6 +32,7 @@ export const Route = createFileRoute("/profile/$userId")({
         title: "Profile not found",
         path: "/members",
         noindexNofollow: true,
+        canonical: false,
       });
     }
     const { profile, roles, skills } = loaderData;
@@ -50,6 +53,12 @@ export const Route = createFileRoute("/profile/$userId")({
     const sameAs = [profile.githubUrl, profile.twitterUrl, profile.websiteUrl].filter(
       (url): url is string => Boolean(url),
     );
+    // Uploaded avatars live under `/images/`, which robots.txt disallows —
+    // no image beats an image Google is told not to fetch.
+    const avatar =
+      profile.avatarUrl && !profile.avatarUrl.startsWith(STORED_IMAGE_ROUTE_PREFIX)
+        ? siteUrl(profile.avatarUrl)
+        : null;
 
     return {
       ...buildMeta({
@@ -65,8 +74,8 @@ export const Route = createFileRoute("/profile/$userId")({
           "@context": "https://schema.org",
           "@type": "Person",
           name,
-          url: path,
-          ...(profile.avatarUrl ? { image: profile.avatarUrl } : {}),
+          url: siteUrl(path),
+          ...(avatar ? { image: avatar } : {}),
           ...(profile.tagline ? { description: profile.tagline } : {}),
           ...(craft ? { jobTitle: craft } : {}),
           ...(profile.location ? { homeLocation: profile.location } : {}),

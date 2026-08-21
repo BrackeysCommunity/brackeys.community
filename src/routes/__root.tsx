@@ -8,7 +8,13 @@ import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
 import { siteUrl } from "@/env";
-import { DEFAULT_OG_CARD, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site-meta";
+import {
+  DEFAULT_OG_CARD,
+  OG_IMAGE_HEIGHT,
+  OG_IMAGE_WIDTH,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/site-meta";
 
 const AppHeader = lazy(() =>
   import("@/components/layout/AppHeader").then((m) => ({ default: m.AppHeader })),
@@ -89,6 +95,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { property: "og:title", content: SITE_NAME },
       { property: "og:description", content: SITE_DESCRIPTION },
       { property: "og:image", content: siteUrl(DEFAULT_OG_CARD) },
+      { property: "og:image:width", content: String(OG_IMAGE_WIDTH) },
+      { property: "og:image:height", content: String(OG_IMAGE_HEIGHT) },
+      { property: "og:image:type", content: "image/png" },
       { property: "og:image:alt", content: SITE_NAME },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: SITE_NAME },

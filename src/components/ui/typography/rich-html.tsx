@@ -338,10 +338,11 @@ function normalizeBody(html: string, censor: (text: string) => string): string {
   }
 
   // Outbound links in a scraped body are third-party links we did not
-  // author — what `nofollow ugc` is for. Same-origin links stay crawlable.
+  // author — what `nofollow ugc` is for. Same-origin links stay crawlable;
+  // `//host/path` is protocol-relative, not same-origin.
   for (const link of doc.querySelectorAll("a[href]")) {
     const href = link.getAttribute("href") ?? "";
-    if (href.startsWith("#") || href.startsWith("/")) continue;
+    if (href.startsWith("#") || (href.startsWith("/") && !href.startsWith("//"))) continue;
     link.setAttribute("rel", "nofollow ugc noopener noreferrer");
     link.setAttribute("target", "_blank");
   }

@@ -31,9 +31,16 @@ async function handle({ request }: { request: Request }) {
     });
   } catch (error) {
     console.error("[og] card render failed", target, error);
+    // The `/og/**` route rule overwrites `cache-control` with the day-long
+    // edge TTL; `cdn-cache-control` outranks it at Cloudflare and the rule
+    // leaves it alone, so a transient failure is never edge-cached.
     return new Response(null, {
       status: 302,
-      headers: { location: DEFAULT_OG_IMAGE, "cache-control": "no-store" },
+      headers: {
+        location: DEFAULT_OG_IMAGE,
+        "cache-control": "no-store",
+        "cdn-cache-control": "no-store",
+      },
     });
   }
 }

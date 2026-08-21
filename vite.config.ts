@@ -344,6 +344,11 @@ const config = defineConfig({
           headers: { "cache-control": "no-cache, no-transform" },
         },
         // Identical for every caller; let Cloudflare answer repeat crawls.
+        // Generated social cards (src/routes/og.$.ts): an oRPC read, an art
+        // fetch, satori and resvg per render — a day at the edge keeps
+        // scraper re-fetches off that path. The failure redirect opts back
+        // out via `cdn-cache-control`, which this rule doesn't touch.
+        "/og/**": { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } },
         "/sitemap.xml": { headers: { "cache-control": "public, max-age=0, s-maxage=3600" } },
         "/robots.txt": { headers: { "cache-control": "public, max-age=0, s-maxage=3600" } },
         "/feed.xml": { headers: { "cache-control": "public, max-age=0, s-maxage=900" } },

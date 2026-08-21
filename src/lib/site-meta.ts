@@ -50,6 +50,12 @@ export interface PageMetaInput {
   /** `noindex, follow` — crawled through, not indexed. */
   noindex?: boolean;
   noindexNofollow?: boolean;
+  /**
+   * `false` drops the canonical link. For heads whose `path` is not the
+   * page itself — a 404 branch pointing at its listing — where a canonical
+   * would contradict the robots directive about the same URL.
+   */
+  canonical?: boolean;
   meta?: HeadMetaTag[];
   links?: HeadLinkTag[];
 }
@@ -135,7 +141,10 @@ export function buildMeta(input: PageMetaInput): { meta: HeadMetaTag[]; links: H
 
       ...(input.meta ?? []),
     ],
-    links: [{ rel: "canonical", href: canonical }, ...(input.links ?? [])],
+    links: [
+      ...(input.canonical === false ? [] : [{ rel: "canonical", href: canonical }]),
+      ...(input.links ?? []),
+    ],
   };
 }
 

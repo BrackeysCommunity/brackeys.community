@@ -6,7 +6,9 @@ import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { TeamPage, type RpcTeam } from "@/components/teams/TeamPage";
 import { TeamPageSkeleton } from "@/components/teams/TeamPageSkeleton";
 import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
+import { siteUrl } from "@/env";
 import { authStore } from "@/lib/auth-store";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
 
@@ -28,7 +30,12 @@ export const Route = createFileRoute("/teams/$teamId")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
-      return buildMeta({ title: "Team not found", path: "/teams", noindexNofollow: true });
+      return buildMeta({
+        title: "Team not found",
+        path: "/teams",
+        noindexNofollow: true,
+        canonical: false,
+      });
     }
     const team = loaderData;
     const memberCount = team.members.length;
@@ -49,6 +56,12 @@ export const Route = createFileRoute("/teams/$teamId")({
 
     const path = `/teams/${team.slug}`;
     const sameAs = [team.websiteUrl, team.itchUrl].filter((url): url is string => Boolean(url));
+    // Same rule as the profile page: an `/images/` upload is robots-blocked,
+    // so it is dropped rather than absolutized.
+    const logo =
+      team.avatarUrl && !team.avatarUrl.startsWith(STORED_IMAGE_ROUTE_PREFIX)
+        ? siteUrl(team.avatarUrl)
+        : null;
 
     return {
       ...buildMeta({
@@ -63,8 +76,8 @@ export const Route = createFileRoute("/teams/$teamId")({
           "@context": "https://schema.org",
           "@type": "Organization",
           name: team.name,
-          url: path,
-          ...(team.avatarUrl ? { logo: team.avatarUrl } : {}),
+          url: siteUrl(path),
+          ...(logo ? { logo } : {}),
           ...(team.tagline ? { description: team.tagline } : {}),
           ...(sameAs.length > 0 ? { sameAs } : {}),
           numberOfEmployees: memberCount,
