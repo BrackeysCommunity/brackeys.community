@@ -4,7 +4,7 @@ import { CollabPostPage } from "@/components/collab/CollabPostPage";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { htmlToPlainText } from "@/components/ui/typography";
 import { memberName } from "@/lib/member-name";
-import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
+import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
 /**
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/collab/$postId")({
       return buildMeta({
         title: "Post not found",
         path: "/collab",
+        card: NOT_FOUND_OG_CARD,
         noindexNofollow: true,
         canonical: false,
       });

@@ -22,6 +22,9 @@ COPY services/notifications-worker/src ./services/notifications-worker/src
 # token logic all live in a single source of truth.
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
+COPY src/lib/profanity.ts ./src/lib/profanity.ts
+COPY src/lib/format-time.ts ./src/lib/format-time.ts
+COPY src/lib/og/palette.ts ./src/lib/og/palette.ts
 COPY src/lib/unsubscribe.ts ./src/lib/unsubscribe.ts
 COPY src/lib/email.ts ./src/lib/email.ts
 COPY src/emails ./src/emails

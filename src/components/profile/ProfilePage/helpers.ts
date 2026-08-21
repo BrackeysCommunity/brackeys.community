@@ -9,6 +9,9 @@
 export interface ProfileViewModel {
   /** URL stub / handle (no leading @). */
   handle: string;
+  /** The `/profile/$userId` segment that actually routes — the claimed
+   * stub, or the raw id when none exists. `handle` is for display. */
+  slug: string;
   /** Big-typography display name (e.g. "JOSHE"). */
   name: string;
   /** Suffix shown beneath the name in outline weight (e.g. "DEV."). */

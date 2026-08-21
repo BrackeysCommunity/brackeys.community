@@ -7,7 +7,14 @@ import { htmlToPlainText } from "@/components/ui/typography";
 import { siteUrl } from "@/env";
 import { hostName } from "@/lib/jam-links";
 import { isServerLoad } from "@/lib/route-prefetch";
-import { breadcrumbNode, buildMeta, jsonLd, ogCardPath, organizationNode } from "@/lib/site-meta";
+import {
+  breadcrumbNode,
+  buildMeta,
+  jsonLd,
+  NOT_FOUND_OG_CARD,
+  ogCardPath,
+  organizationNode,
+} from "@/lib/site-meta";
 import { client, orpc } from "@/orpc/client";
 
 /**
@@ -63,6 +70,7 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
       return buildMeta({
         title: "Jam not found",
         path: "/jams",
+        card: NOT_FOUND_OG_CARD,
         noindexNofollow: true,
         canonical: false,
       });

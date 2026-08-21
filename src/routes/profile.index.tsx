@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { ProfileBuilderPage } from "@/components/profile/ProfileBuilderPage";
 import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
+import { useMyProfileParams } from "@/hooks/use-my-profile-params";
 import { authClient } from "@/lib/auth-client";
 import { buildMeta } from "@/lib/site-meta";
 
@@ -24,16 +25,19 @@ export const Route = createFileRoute("/profile/")({
 function ProfileIndex() {
   const { data: session, isPending } = authClient.useSession();
   const navigate = useNavigate();
+  // Stub-first: the raw id both routes and 301s onto the stub, but hopping
+  // straight to the claimed handle skips that second load entirely.
+  const userId = useMyProfileParams(session?.user?.id)?.userId;
 
   useEffect(() => {
-    if (!isPending && session?.user?.id) {
+    if (!isPending && userId) {
       navigate({
         to: "/profile/$userId",
-        params: { userId: session.user.id },
+        params: { userId },
         replace: true,
       });
     }
-  }, [isPending, session?.user?.id, navigate]);
+  }, [isPending, userId, navigate]);
 
   // Resolving the session and hopping to `/profile/$userId` are two
   // waits in a row, and the destination opens on the same skeleton —

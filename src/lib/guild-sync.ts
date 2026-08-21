@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type IORedis from "ioredis";
 
 import { db } from "@/db";
-import { account, developerProfiles, user } from "@/db/schema";
+import { account, developerProfiles, profileUrlStubs, user } from "@/db/schema";
 import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import {
   discordAvatarUrl,
@@ -12,6 +12,7 @@ import {
   resolveRoleNames,
 } from "@/lib/discord";
 import { createRedisClient } from "@/lib/redis";
+import { discordUsernameToStub } from "@/lib/url-stub";
 
 /**
  * Pull the user's current Discord identity (guild nickname, roles, avatar)
@@ -32,6 +33,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
   let guildJoinedAt: Date | null = null;
   let guildRoles: string[] | null = null;
   let latestDiscordAvatarUrl: string | null = null;
+  let latestDiscordUsername: string | null = null;
 
   try {
     const [discordAccount] = await db
@@ -52,12 +54,17 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
         guildNickname = member.nick;
         guildJoinedAt = new Date(member.joined_at);
         guildRoles = resolveRoleNames(member.roles);
-        if (member.user) latestDiscordAvatarUrl = discordAvatarUrl(member.user);
+        if (member.user) {
+          latestDiscordAvatarUrl = discordAvatarUrl(member.user);
+          latestDiscordUsername = member.user.username;
+        }
       } catch {
         // User not in guild (or rate limited) — continue without guild data
       }
       if (!latestDiscordAvatarUrl) {
-        latestDiscordAvatarUrl = discordAvatarUrl(await fetchDiscordUser(discordToken));
+        const discordUser = await fetchDiscordUser(discordToken);
+        latestDiscordAvatarUrl = discordAvatarUrl(discordUser);
+        latestDiscordUsername = discordUser.username;
       }
     }
   } catch {
@@ -105,7 +112,53 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
       },
     });
 
+  if (latestDiscordUsername) {
+    // Best-effort: a stub collision or DB hiccup must not fail sign-in.
+    await syncDefaultUrlStub(userId, latestDiscordUsername).catch((err) => {
+      console.error(`[guild-sync] url-stub sync failed for ${userId}`, err);
+    });
+  }
+
   return { guildRolesSynced: guildRoles != null };
+}
+
+/**
+ * Default the profile's vanity URL to the Discord username, once: only a
+ * profile with no stub at all gets one, so anything already claimed —
+ * whether defaulted earlier or picked by the member — is never touched,
+ * and a stub another profile holds is never stolen. After this, the stub
+ * changes only through `setUrlStub`.
+ */
+async function syncDefaultUrlStub(userId: string, discordUsername: string): Promise<void> {
+  const stub = discordUsernameToStub(discordUsername);
+  if (!stub) return;
+
+  const [existing] = await db
+    .select({ id: profileUrlStubs.id })
+    .from(profileUrlStubs)
+    .where(eq(profileUrlStubs.profileId, userId))
+    .limit(1);
+  if (existing) return;
+
+  const [taken] = await db
+    .select({ profileId: profileUrlStubs.profileId })
+    .from(profileUrlStubs)
+    .where(eq(profileUrlStubs.stub, stub))
+    .limit(1);
+  if (taken) return;
+
+  // `doNothing`, not upsert: concurrent syncs (or a racing claim of the
+  // same stub) must not overwrite whoever got there first.
+  await db
+    .insert(profileUrlStubs)
+    .values({
+      profileId: userId,
+      stub,
+      source: "discord",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing();
 }
 
 // ── Throttled staff-role refresh ────────────────────────────────────────────

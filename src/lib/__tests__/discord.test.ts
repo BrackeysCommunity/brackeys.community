@@ -199,20 +199,20 @@ describe("isDiscordAvatarUrl", () => {
 
 describe("discordAvatarUrl", () => {
   it("builds png urls for static avatar hashes", () => {
-    expect(discordAvatarUrl({ id: "123", avatar: "abc" })).toBe(
+    expect(discordAvatarUrl({ id: "123", username: "u", avatar: "abc" })).toBe(
       "https://cdn.discordapp.com/avatars/123/abc.png",
     );
   });
 
   it("builds gif urls for animated avatar hashes", () => {
-    expect(discordAvatarUrl({ id: "123", avatar: "a_abc" })).toBe(
+    expect(discordAvatarUrl({ id: "123", username: "u", avatar: "a_abc" })).toBe(
       "https://cdn.discordapp.com/avatars/123/a_abc.gif",
     );
   });
 
   it("falls back to the default embed avatar when the user has none", () => {
     // (id >> 22) % 6 with id = 5 << 22 → index 5
-    expect(discordAvatarUrl({ id: String(5n << 22n), avatar: null })).toBe(
+    expect(discordAvatarUrl({ id: String(5n << 22n), username: "u", avatar: null })).toBe(
       "https://cdn.discordapp.com/embed/avatars/5.png",
     );
   });

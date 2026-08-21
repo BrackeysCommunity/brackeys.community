@@ -4,7 +4,7 @@ import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProjectPage } from "@/components/projects/ProjectPage";
 import { siteUrl } from "@/env";
 import { projectTypeLabel } from "@/lib/project-links";
-import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
+import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
 /**
@@ -40,6 +40,7 @@ export const Route = createFileRoute("/projects/$projectSlug")({
       return buildMeta({
         title: "Project not found",
         path: "/",
+        card: NOT_FOUND_OG_CARD,
         noindexNofollow: true,
         canonical: false,
       });

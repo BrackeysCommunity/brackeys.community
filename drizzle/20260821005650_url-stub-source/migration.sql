@@ -1,0 +1,1 @@
+ALTER TABLE "user"."profile_url_stubs" ADD COLUMN "source" text DEFAULT 'user' NOT NULL;

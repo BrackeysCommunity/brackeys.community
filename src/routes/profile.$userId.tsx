@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProfilePage } from "@/components/profile/ProfilePage";
@@ -11,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { memberName } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
-import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
+import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
 
 /**
@@ -24,6 +24,16 @@ export const Route = createFileRoute("/profile/$userId")({
       orpc.getProfile.queryOptions({ input: { userId: params.userId } }),
     );
     if (!data) throw notFound();
+    // The claimed handle is the canonical URL; a raw-id (or oddly cased)
+    // link hops there so shares and crawlers converge on one address.
+    const canonical = profileSlug({ id: data.profile.id, urlStub: data.urlStub });
+    if (params.userId !== canonical) {
+      throw redirect({
+        to: "/profile/$userId",
+        params: { userId: canonical },
+        statusCode: 301,
+      });
+    }
     return data;
   },
   head: ({ loaderData }) => {
@@ -31,6 +41,7 @@ export const Route = createFileRoute("/profile/$userId")({
       return buildMeta({
         title: "Profile not found",
         path: "/members",
+        card: NOT_FOUND_OG_CARD,
         noindexNofollow: true,
         canonical: false,
       });

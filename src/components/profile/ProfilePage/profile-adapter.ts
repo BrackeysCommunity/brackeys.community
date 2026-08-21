@@ -1,5 +1,6 @@
 import { formatRate } from "@/lib/format-rate";
 import { memberName } from "@/lib/member-name";
+import { profileSlug } from "@/lib/profile-links";
 
 import type {
   EditableProject,
@@ -128,6 +129,7 @@ export interface RpcProfile {
 export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const { profile } = rpc;
   const handle = rpc.urlStub ?? profile.discordUsername ?? profile.id;
+  const slug = profileSlug({ id: profile.id, urlStub: rpc.urlStub });
   const displayName = memberName(profile, handle).trim();
   const tag = profile.tagline?.trim() || null;
   const glyph = (displayName.match(/\S/)?.[0] ?? "?").toUpperCase();
@@ -259,6 +261,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
 
   return {
     handle,
+    slug,
     name: displayName.toUpperCase(),
     tag,
     pronouns: null,

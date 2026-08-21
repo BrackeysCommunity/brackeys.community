@@ -276,7 +276,7 @@ function ActionRow({
 
   const onShare = () => {
     if (typeof window === "undefined") return;
-    const url = `${window.location.origin}/profile/${profile.handle}`;
+    const url = `${window.location.origin}/profile/${profile.slug}`;
     void navigator.clipboard?.writeText(url);
     play("success");
     toast.success("Profile link copied");

@@ -10,11 +10,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@orpc/client": "^1.15.0",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.8",
     "bullmq": "^5.34.0",
     "drizzle-orm": "1.0.0-rc.4",
     "ioredis": "^5.4.2",
+    "obscenity": "^0.4.6",
     "pg": "^8.20.0",
     "posthog-node": "^5.49.1",
     "react": "^19.2.0",

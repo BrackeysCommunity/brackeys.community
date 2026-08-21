@@ -216,6 +216,10 @@ export const profileUrlStubs = userSchema.table("profile_url_stubs", {
     .unique()
     .references(() => developerProfiles.id, { onDelete: "cascade" }),
   stub: text("stub").notNull().unique(),
+  // "user" when the member claimed the stub themselves, "discord" when it
+  // was defaulted from their Discord username at first sign-in. Recorded
+  // but not acted on today: nothing automatic ever rewrites a stub.
+  source: text("source").notNull().default("user"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

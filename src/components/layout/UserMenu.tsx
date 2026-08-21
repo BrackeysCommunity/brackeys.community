@@ -72,7 +72,7 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
           <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
             {truncateMiddle(user.name ?? "USER", 18)}
           </DropdownMenuLabel>
-          <DropdownMenuItem render={<Link to="/profile" />}>
+          <DropdownMenuItem render={<Link to="/profile/$userId" params={profileParams} />}>
             <HugeiconsIcon icon={UserIcon} size={14} />
             My profile
           </DropdownMenuItem>

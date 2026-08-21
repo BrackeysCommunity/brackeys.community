@@ -9,6 +9,8 @@ declare global {
 
 export interface DiscordApiUser {
   id: string;
+  /** The unique login name (not the display name / global_name). */
+  username: string;
   avatar: string | null;
 }
 

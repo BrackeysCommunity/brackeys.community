@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 
 import { useAttention } from "@/components/attention/use-attention";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { useMyProfileParams } from "@/hooks/use-my-profile-params";
 import { authClient } from "@/lib/auth-client";
 import { stillImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
@@ -118,6 +119,7 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const avatarUrl = session?.user?.image ?? null;
+  const myProfileParams = useMyProfileParams(session?.user?.id);
 
   const unread = useQuery({
     ...orpc.unreadCount.queryOptions({ input: {} }),
@@ -188,7 +190,13 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         navigate({ to: "/command-center" });
         return;
       case "me":
-        navigate({ to: "/profile" });
+        // Straight to the stub route when signed in; `/profile` is the
+        // sign-in CTA (and the fallback while the session resolves).
+        if (myProfileParams) {
+          navigate({ to: "/profile/$userId", params: myProfileParams });
+        } else {
+          navigate({ to: "/profile" });
+        }
         return;
     }
   };

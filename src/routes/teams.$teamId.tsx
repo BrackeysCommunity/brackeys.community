@@ -9,7 +9,7 @@ import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
 import { siteUrl } from "@/env";
 import { authStore } from "@/lib/auth-store";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
-import { breadcrumbNode, buildMeta, jsonLd, ogCardPath } from "@/lib/site-meta";
+import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
 
 /**
@@ -33,6 +33,7 @@ export const Route = createFileRoute("/teams/$teamId")({
       return buildMeta({
         title: "Team not found",
         path: "/teams",
+        card: NOT_FOUND_OG_CARD,
         noindexNofollow: true,
         canonical: false,
       });

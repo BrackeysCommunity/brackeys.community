@@ -63,6 +63,7 @@ import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isValidTimezone } from "@/lib/timezones";
+import { STUB_REGEX } from "@/lib/url-stub";
 import { requireAuth } from "@/orpc/middleware/auth";
 
 function escapeLike(str: string): string {
@@ -1179,8 +1180,6 @@ export const removeJamParticipation = os
 
     return { success: true };
   });
-
-const STUB_REGEX = /^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$/;
 
 export const setUrlStub = os
   .use(requireAuth)

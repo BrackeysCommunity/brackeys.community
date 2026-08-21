@@ -15,6 +15,9 @@ export const DEFAULT_OG_IMAGE = "/og/brackeys-card.png";
 
 export const DEFAULT_OG_CARD = "/og/default.png";
 
+/** The generated 404 card, for every "not found" head branch. */
+export const NOT_FOUND_OG_CARD = "/og/notfound.png";
+
 export function ogCardPath(kind: OgCardKind, id: string | number): string {
   return `/og/${kind}/${encodeURIComponent(String(id))}.png`;
 }

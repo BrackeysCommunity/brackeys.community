@@ -96,6 +96,17 @@ export function siteCard(): OgCardInput {
   };
 }
 
+/** The card behind every 404 — an unmatched route still unfurls as ours. */
+export function notFoundCard(): OgCardInput {
+  return {
+    kind: "site",
+    eyebrow: "404",
+    title: "Page not found",
+    subtitle:
+      "Nothing lives at this link — it may have moved or been renamed. The jams, members and teams are still here.",
+  };
+}
+
 export async function jamCard(slug: string): Promise<OgCardInput | null> {
   const detail = await client.getJam({ idOrSlug: slug });
   if (!detail) return null;

@@ -16,19 +16,24 @@ async function handle({ request }: { request: Request }) {
     const { renderOgPng } = await import("@/lib/og/render");
     const { ogCard } = await import("@/lib/og/card");
     const input = await resolveCard(target);
-    if (!input) return new Response("Not Found", { status: 404 });
+    if (!input) {
+      // Unknown kind or id still gets a card body — the 404 status keeps
+      // it honest, the image keeps a stale link's unfurl ours. Short edge
+      // TTL (`cdn-cache-control` outranks the `/og/**` route rule) since
+      // the id may start existing.
+      const { notFoundCard } = await import("@/lib/og/data");
+      const png = await renderOgPng(ogCard(notFoundCard()));
+      return pngResponse(png, {
+        status: 404,
+        headers: {
+          "cache-control": "public, max-age=0, s-maxage=300",
+          "cdn-cache-control": "max-age=300",
+        },
+      });
+    }
 
     const png = await renderOgPng(ogCard(input));
-    // `slice()`, not `png.buffer`: the view's slack bytes would be sent too.
-    const body = png.slice().buffer as ArrayBuffer;
-
-    return new Response(body, {
-      headers: {
-        "content-type": "image/png",
-        "content-length": String(png.byteLength),
-        "cache-control": "public, max-age=0, s-maxage=86400",
-      },
-    });
+    return pngResponse(png, { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } });
   } catch (error) {
     console.error("[og] card render failed", target, error);
     // The `/og/**` route rule overwrites `cache-control` with the day-long
@@ -45,9 +50,25 @@ async function handle({ request }: { request: Request }) {
   }
 }
 
+function pngResponse(
+  png: Uint8Array,
+  { status = 200, headers }: { status?: number; headers: Record<string, string> },
+): Response {
+  // `slice()`, not `png.buffer`: the view's slack bytes would be sent too.
+  return new Response(png.slice().buffer as ArrayBuffer, {
+    status,
+    headers: {
+      "content-type": "image/png",
+      "content-length": String(png.byteLength),
+      ...headers,
+    },
+  });
+}
+
 async function resolveCard(target: string) {
   const data = await import("@/lib/og/data");
   if (target === "default.png") return data.siteCard();
+  if (target === "notfound.png") return data.notFoundCard();
 
   const match = /^([a-z]+)\/(.+)\.png$/.exec(target);
   if (!match) return null;

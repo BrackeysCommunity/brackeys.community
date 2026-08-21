@@ -74,7 +74,7 @@ export function AccountSection() {
               variant="outline"
               size="sm"
               className="tracking-widest"
-              render={<Link to="/profile" />}
+              render={<Link to="/profile/$userId" params={profileParams} />}
             >
               <HugeiconsIcon icon={UserIcon} size={14} />
               EDIT PROFILE

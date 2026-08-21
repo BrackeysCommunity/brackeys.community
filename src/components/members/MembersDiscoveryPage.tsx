@@ -16,6 +16,7 @@ import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMyProfileParams } from "@/hooks/use-my-profile-params";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
@@ -55,6 +56,7 @@ const WIDE_QUERY = "(min-width: 1024px)";
  */
 export function MembersDiscoveryPage() {
   const { session } = useStore(authStore);
+  const myProfileParams = useMyProfileParams(session?.user?.id);
   const navigate = useNavigate();
   const search = (useSearch({ strict: false }) as MembersSearch) ?? {};
 
@@ -117,7 +119,7 @@ export function MembersDiscoveryPage() {
   return (
     <PageStack className="flex flex-col gap-8 selection:bg-primary selection:text-white">
       <motion.div variants={fadeUp}>
-        <MembersHero authenticated={!!session?.user} />
+        <MembersHero myProfileParams={myProfileParams} />
       </motion.div>
 
       <motion.div variants={fadeUp}>
@@ -213,7 +215,7 @@ export function MembersDiscoveryPage() {
  * action is "make yourself findable": the profile builder for a signed-in
  * visitor, sign-in for everyone else.
  */
-function MembersHero({ authenticated }: { authenticated: boolean }) {
+function MembersHero({ myProfileParams }: { myProfileParams: { userId: string } | null }) {
   return (
     <Well
       data-header-hero
@@ -238,11 +240,11 @@ function MembersHero({ authenticated }: { authenticated: boolean }) {
             to work right now.
           </Text>
         </div>
-        {authenticated ? (
+        {myProfileParams ? (
           <Button
             size="lg"
             nativeButton={false}
-            render={<Link to="/profile" />}
+            render={<Link to="/profile/$userId" params={myProfileParams} />}
             className="tracking-widest"
           >
             <HugeiconsIcon icon={UserSearch01Icon} size={14} />

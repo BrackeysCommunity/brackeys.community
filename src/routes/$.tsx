@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
+import { buildMeta, NOT_FOUND_OG_CARD } from "@/lib/site-meta";
 
 /**
  * Catch-all for URLs that match no route. The loader throws rather than the
@@ -12,9 +13,15 @@ export const Route = createFileRoute("/$")({
   loader: () => {
     throw notFound();
   },
-  head: () => ({
-    meta: [{ title: "Not found · Brackeys Community" }, { name: "robots", content: "noindex" }],
-  }),
+  head: () =>
+    buildMeta({
+      title: "Not found",
+      description: "Nothing lives at this link — it may have moved or been renamed.",
+      path: "/",
+      card: NOT_FOUND_OG_CARD,
+      noindexNofollow: true,
+      canonical: false,
+    }),
   component: () => null,
   notFoundComponent: () => <NotFoundPage />,
 });
