@@ -1,13 +1,5 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import useDateNow from "@/lib/hooks/use-date-now";
@@ -15,7 +7,7 @@ import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 
 import { type BoardLayout, type BoardSort } from "./board/build-board";
 import { addMonthsUTC, startOfMonthUTC, type ViewMode } from "./helpers";
-import type { JamsPageContextValue, StatKey } from "./shared-types";
+import type { JamsPageContextValue } from "./shared-types";
 import {
   type ArchiveQueryState,
   useArchiveJams,
@@ -88,38 +80,8 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
     setArchiveStateRaw((s) => (s.page === 0 ? s : { ...s, page: 0 }));
   }, [debouncedSearch]);
 
-  const stats = useMemo(
-    () => ({
-      upcoming: board.shelfCounts.upcoming,
-      live: board.shelfCounts.live,
-      voting: board.shelfCounts.voting,
-      // Everything tracked that isn't on the board is history.
-      archive: Math.max(0, board.totalTracked - board.totalAll),
-    }),
-    [board.shelfCounts, board.totalTracked, board.totalAll],
-  );
-
   const setView = (next: ViewMode) => {
     void navigate({ to: VIEW_PATHS[next] });
-  };
-
-  // Shelf-jump from a stat tile. Clicking a tile from the calendar or
-  // archive has to navigate first, and the router's view transition means
-  // the board's shelves aren't in the DOM yet when the click is handled —
-  // so the target is parked here and the board route performs the scroll
-  // once it has actually mounted.
-  const [pendingShelf, setPendingShelf] = useState<StatKey | null>(null);
-  // Stable identity: the board's scroll effect depends on it, and `now`
-  // re-renders this provider every second.
-  const clearPendingShelf = useCallback(() => setPendingShelf(null), []);
-
-  const onStatClick = (key: StatKey) => {
-    if (key === "archive") {
-      setView("archive");
-      return;
-    }
-    setView("board");
-    setPendingShelf(key);
   };
 
   const setBoardLayout = (next: BoardLayout) => {
@@ -140,7 +102,6 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
     board,
     calendar,
     archive,
-    stats,
     totalTracked: board.totalTracked,
     view,
     search,
@@ -154,9 +115,6 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
     setBoardSort,
     setBoardLayout,
     setArchiveState: (patch) => setArchiveStateRaw((s) => ({ ...s, ...patch })),
-    onStatClick,
-    pendingShelf,
-    clearPendingShelf,
   };
 
   return <JamsPageContext.Provider value={value}>{children}</JamsPageContext.Provider>;

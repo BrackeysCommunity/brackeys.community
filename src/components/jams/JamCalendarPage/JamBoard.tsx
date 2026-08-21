@@ -1,13 +1,12 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { ShelfHeader } from "@/components/ui/shelf-header";
 import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { cn } from "@/lib/utils";
 
-import { BoardShelvesSkeleton, FeaturedShelfSkeleton } from "./board/BoardSkeleton";
-import { type BoardLayout, type BoardSort, buildBoard } from "./board/build-board";
-import { FeaturedShelf } from "./board/FeaturedShelf";
+import { BoardShelvesSkeleton } from "./board/BoardSkeleton";
+import { type BoardLayout, type BuiltShelf } from "./board/build-board";
 import { JamCard } from "./board/JamCard";
 import { ShelfRow } from "./board/ShelfRow";
 import { type JamFromList, type ShelfKind } from "./helpers";
@@ -26,36 +25,30 @@ const SHELVES: ShelfMeta[] = [
 ];
 
 interface JamBoardProps {
-  jams: JamFromList[];
+  /** Prebuilt by the view (`buildBoard`), which also feeds the featured
+   * tier to the sticky panel — one build so the shelves' exclusions and
+   * the panel's rotation always agree. */
+  shelves: Record<ShelfKind, BuiltShelf>;
+  /** Jams on the board after search, featured tier included — zero
+   * renders the empty state. */
+  total: number;
   now: Date;
   isLoading: boolean;
   /** Search active — collapse thresholds are bypassed so every match
    * is visible. */
   searching: boolean;
-  sort: BoardSort;
   layout: BoardLayout;
-  /** The search rail, rendered below the featured carousel so the
-   * headline jams stay at the top of the page. */
-  toolbar: ReactNode;
 }
 
 /**
  * The default jams surface: a phase-segmented, signal-ranked discovery
- * board. A featured carousel up top, then the search rail, then one
- * shelf per phase; within each shelf jams rank by the phase-appropriate
- * participation metric, and the zero-signal long tail collapses behind
- * a per-shelf expander. Shelves render as card grids by default with a
- * list toggle for dense scanning.
+ * board — one shelf per phase, under the lane's sticky search rail.
+ * Within each shelf jams rank by the phase-appropriate participation
+ * metric, and the zero-signal long tail collapses behind a per-shelf
+ * expander. Shelves render as card grids by default with a list toggle
+ * for dense scanning.
  */
-export function JamBoard({
-  jams,
-  now,
-  isLoading,
-  searching,
-  sort,
-  layout,
-  toolbar,
-}: JamBoardProps) {
+export function JamBoard({ shelves, total, now, isLoading, searching, layout }: JamBoardProps) {
   const [expanded, setExpanded] = useState<Record<ShelfKind, boolean>>({
     live: false,
     upcoming: false,
@@ -63,45 +56,26 @@ export function JamBoard({
     ongoing: false,
   });
 
-  const { featured, shelves } = useMemo(() => buildBoard(jams, now, sort), [jams, now, sort]);
-
-  // Same running order as the loaded board below — featured rail, then
-  // toolbar, then shelves. Placing the toolbar first here instead made
-  // the rail appear to drop in over it on arrival, shoving the toolbar
-  // and every shelf down the page.
   if (isLoading) {
-    return (
-      <div className="flex flex-col gap-10">
-        <FeaturedShelfSkeleton />
-        {toolbar}
-        <BoardShelvesSkeleton />
-      </div>
-    );
+    return <BoardShelvesSkeleton />;
   }
 
-  if (jams.length === 0) {
+  if (total === 0) {
     return (
-      <div className="flex flex-col gap-8">
-        {toolbar}
-        <Text
-          as="div"
-          size="sm"
-          variant="muted"
-          align="center"
-          className="p-12 tracking-widest uppercase"
-        >
-          {searching ? "No jams match that search" : "No active jams tracked right now"}
-        </Text>
-      </div>
+      <Text
+        as="div"
+        size="sm"
+        variant="muted"
+        align="center"
+        className="p-12 tracking-widest uppercase"
+      >
+        {searching ? "No jams match that search" : "No active jams tracked right now"}
+      </Text>
     );
   }
 
   return (
     <div className="flex flex-col gap-10">
-      {featured.length > 0 && <FeaturedShelf jams={featured} now={now} />}
-
-      {toolbar}
-
       {SHELVES.map((meta) => {
         const shelf = shelves[meta.kind];
         if (shelf.ranked.length === 0 && shelf.tail.length === 0) return null;
@@ -110,11 +84,7 @@ export function JamBoard({
         const visible = showAll ? [...shelf.ranked, ...shelf.tail] : shelf.ranked;
         const hidden = showAll ? 0 : shelf.tail.length;
         return (
-          <section
-            key={meta.kind}
-            id={`shelf-${meta.kind}`}
-            className="flex scroll-mt-24 flex-col gap-3"
-          >
+          <section key={meta.kind} className="flex flex-col gap-3">
             <ShelfHeader
               title={meta.title}
               blurb={meta.blurb}

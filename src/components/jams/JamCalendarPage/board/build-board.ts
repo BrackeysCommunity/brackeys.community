@@ -15,8 +15,8 @@ export type BoardSort = "signal" | "soonest";
  * browse; the list is the denser scanning mode. */
 export type BoardLayout = "cards" | "list";
 
-/** The featured rail is a horizontal carousel, so it can afford more
- * slots than the old 4-up grid. */
+/** The featured tier rotates through the board's sticky jam panel one
+ * slide at a time, so it can afford more slots than the old 4-up grid. */
 export const FEATURED_MAX = 10;
 
 export interface BuiltShelf {
