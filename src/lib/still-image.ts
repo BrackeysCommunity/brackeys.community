@@ -1,4 +1,4 @@
-import { isTransformable, itchImageUrl } from "@/lib/itch-image";
+import { type ItchImageOpts, isTransformable, itchImageUrl } from "@/lib/itch-image";
 
 const DISCORD_CDN = "https://cdn.discordapp.com/";
 
@@ -27,4 +27,17 @@ export function stillImageUrl<T extends string | null | undefined>(url: T): T {
   }
   if (isTransformable(url)) return itchImageUrl(url, { anim: false });
   return url;
+}
+
+/**
+ * The rendered/still/animated triple behind a hover-to-play art surface.
+ * `still` is what mounts; `animated` is non-null only when a distinct frozen
+ * twin exists. When the source can't be frozen (transformer off, foreign
+ * host) the two collapse to the same URL and the art just plays.
+ */
+export function hoverPlaySources(src: string, transform?: ItchImageOpts) {
+  const rendered = transform ? itchImageUrl(src, transform) : src;
+  if (!isAnimatedImageUrl(src)) return { rendered, still: rendered, animated: null };
+  const still = transform ? itchImageUrl(src, { ...transform, anim: false }) : stillImageUrl(src);
+  return { rendered, still, animated: still !== rendered ? rendered : null };
 }

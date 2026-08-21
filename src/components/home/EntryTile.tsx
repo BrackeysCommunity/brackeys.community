@@ -2,8 +2,8 @@ import type { RecentEntry } from "@/components/home/use-recent-entries";
 import { safeThemeColor } from "@/components/jams/JamCalendarPage/helpers";
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 /** The slice of an entry the tile renders — structural, since the band
@@ -24,6 +24,7 @@ export function EntryTile({ entry, className }: { entry: EntryTileEntry; classNa
       href={entry.gameUrl}
       target="_blank"
       rel="noopener noreferrer"
+      data-hover-play-group
       className={cn("group/entry flex min-w-0 flex-col gap-1.5", className)}
     >
       <div
@@ -31,10 +32,9 @@ export function EntryTile({ entry, className }: { entry: EntryTileEntry; classNa
         style={{ background: cover }}
       >
         {entry.gameCoverUrl ? (
-          <img
-            src={itchImageUrl(entry.gameCoverUrl, { width: 384 })}
-            alt=""
-            aria-hidden
+          <HoverPlayImage
+            src={entry.gameCoverUrl}
+            transform={{ width: 384 }}
             loading="lazy"
             className="h-full w-full object-cover"
           />

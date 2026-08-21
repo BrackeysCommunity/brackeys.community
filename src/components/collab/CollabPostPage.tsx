@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
 import { Section } from "@/components/ui/section";
 import { Heading, Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
@@ -33,7 +34,6 @@ import {
 } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
-import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeLeft, fadeUp } from "@/lib/motion";
@@ -337,12 +337,14 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                   caption={projectTypeLabel(post.project)}
                   avatar={
                     post.project.imageUrl ? (
-                      <img
-                        src={itchImageUrl(post.project.imageUrl, { width: 192 })}
-                        alt=""
-                        loading="lazy"
-                        className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
-                      />
+                      <span className="relative h-10 w-16 shrink-0 overflow-hidden border border-muted/40">
+                        <HoverPlayImage
+                          src={post.project.imageUrl}
+                          transform={{ width: 192 }}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      </span>
                     ) : null
                   }
                   link={
@@ -361,12 +363,14 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                   caption={formatJamShortDates(post.jam.startsAt, post.jam.endsAt) ?? "DATES TBA"}
                   avatar={
                     post.jam.bannerUrl ? (
-                      <img
-                        src={itchImageUrl(post.jam.bannerUrl, { width: 192 })}
-                        alt=""
-                        loading="lazy"
-                        className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
-                      />
+                      <span className="relative h-10 w-16 shrink-0 overflow-hidden border border-muted/40">
+                        <HoverPlayImage
+                          src={post.jam.bannerUrl}
+                          transform={{ width: 192 }}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      </span>
                     ) : null
                   }
                   link={
@@ -444,26 +448,26 @@ function PostHero({
   rateDisplay: string;
   children: React.ReactNode;
 }) {
-  const art =
-    post.images[0]?.url ??
-    (post.project?.imageUrl
-      ? itchImageUrl(post.project.imageUrl, { width: 960, quality: 70 })
-      : null) ??
-    (post.jam?.bannerUrl ? itchImageUrl(post.jam.bannerUrl, { width: 960, quality: 70 }) : null);
+  const art = post.images[0]?.url ?? post.project?.imageUrl ?? post.jam?.bannerUrl ?? null;
+  // Uploaded post art is served as-is; itch covers and banners go through
+  // the transformer.
+  const artTransform = post.images[0] ? undefined : { width: 960, quality: 70 };
   const status = STATUS_BADGE[post.status] ?? STATUS_BADGE.recruiting!;
 
   return (
     <Well className="overflow-hidden p-0">
       {art ? (
         <div className="relative h-44 w-full shrink-0 overflow-hidden sm:h-56 lg:h-64">
-          <img
+          {/* Fully under the crisp layer, so its hover never arms — a
+              permanent still. */}
+          <HoverPlayImage
             src={art}
-            alt=""
-            aria-hidden
+            transform={artTransform}
             className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
           />
-          <img
+          <HoverPlayImage
             src={art}
+            transform={artTransform}
             alt={`${post.title} art`}
             className="absolute inset-0 h-full w-full object-contain"
           />
@@ -754,6 +758,7 @@ function CrewTile({
     <Chonk
       variant="surface"
       size="lg"
+      data-hover-play-group
       className="w-full items-center gap-3 bg-card px-3 py-2 backdrop-blur-none"
       render={link}
     >

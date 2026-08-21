@@ -28,6 +28,7 @@ export function ShelfRow({ jam, now }: { jam: JamFromList; now: Date }) {
     <RouterLink
       to="/jams/$jamSlug"
       params={jamLinkParams(jam)}
+      data-hover-play-group
       className="group relative block w-full overflow-hidden text-left transition-colors"
     >
       <div

@@ -1,9 +1,8 @@
 import { useState } from "react";
 
 import { DotGrid } from "@/components/ui/dot-grid";
-import { useHoverPlay } from "@/hooks/use-hover-play";
-import { BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
-import { isAnimatedImageUrl } from "@/lib/still-image";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
+import { BOARD_BANNER_TRANSFORM } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
@@ -36,41 +35,17 @@ export function JamBanner({
   const gradient = useJamGradient(jam);
   const [imageOk, setImageOk] = useState(true);
 
-  const src = jam.bannerUrl ? itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM) : null;
-  // Same transform plus `anim=false`, so it matches `src` when there is
-  // nothing to freeze.
-  const still =
-    jam.bannerUrl && isAnimatedImageUrl(jam.bannerUrl)
-      ? itchImageUrl(jam.bannerUrl, { ...BOARD_BANNER_TRANSFORM, anim: false })
-      : src;
-  const animated = still !== src ? src : null;
-  const { playing, handlers } = useHoverPlay(animated);
-
   const objectFit = fit === "contain" ? "object-contain" : "object-cover";
 
-  if (still && imageOk) {
+  if (jam.bannerUrl && imageOk) {
     return (
-      <>
-        <img
-          src={still}
-          alt=""
-          aria-hidden
-          loading="lazy"
-          decoding="async"
-          onError={() => setImageOk(false)}
-          {...handlers}
-          className={cn("absolute inset-0 h-full w-full", objectFit)}
-        />
-        {playing && animated ? (
-          <img
-            src={animated}
-            alt=""
-            aria-hidden
-            decoding="async"
-            className={cn("pointer-events-none absolute inset-0 h-full w-full", objectFit)}
-          />
-        ) : null}
-      </>
+      <HoverPlayImage
+        src={jam.bannerUrl}
+        transform={BOARD_BANNER_TRANSFORM}
+        loading="lazy"
+        onError={() => setImageOk(false)}
+        className={cn("absolute inset-0 h-full w-full", objectFit)}
+      />
     );
   }
   return (

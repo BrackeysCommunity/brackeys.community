@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { Text } from "@/components/ui/typography";
-import { itchImageUrl } from "@/lib/itch-image";
+import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { type effectiveJamState } from "@/lib/jam-countdown";
+import { hoverPlaySources } from "@/lib/still-image";
 
 import { type JamLike, shortName } from "./types";
 
@@ -17,13 +18,18 @@ type JamState = ReturnType<typeof effectiveJamState>;
  * hero panel inside a plain box.
  */
 export function JamBannerArt({ jam, isCompact }: { jam: JamLike; isCompact: boolean }) {
+  // The hero is the one card surface where an animated banner plays
+  // unprompted — reduced motion pins it to its first frame instead.
+  const reduced = useReducedMotion();
+  const art = jam.bannerUrl ? hoverPlaySources(jam.bannerUrl, { width: 960, quality: 70 }) : null;
+
   return (
     <>
       {!jam.bannerUrl && <DotGrid className="absolute inset-0" />}
 
-      {jam.bannerUrl && (
+      {art && (
         <img
-          src={itchImageUrl(jam.bannerUrl, { width: 960, quality: 70 })}
+          src={reduced ? art.still : art.rendered}
           alt=""
           aria-hidden
           className="absolute inset-0 block h-full w-full object-contain"

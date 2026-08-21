@@ -2,8 +2,9 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { Grainient } from "@/components/ui/grainient";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
-import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { BACKDROP_TRANSFORM } from "@/lib/itch-image";
 import { EASE_OUT } from "@/lib/motion";
+import { hoverPlaySources } from "@/lib/still-image";
 
 /** Shared by the backdrop's fades and the carousel's slide motion, so the
  * art and the wash behind it move on the same clock. */
@@ -39,6 +40,7 @@ export function JamBannerBackdrop({
   bgColor2,
 }: JamBannerBackdropProps) {
   const reduced = useReducedMotion();
+  const art = bannerUrl ? hoverPlaySources(bannerUrl, BACKDROP_TRANSFORM) : null;
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -50,10 +52,10 @@ export function JamBannerBackdrop({
         <Grainient color1={bgColor1} color2={bgColor2} color3={bgColor1} paused={reduced} />
       </motion.div>
       <AnimatePresence initial={false}>
-        {bannerUrl && (
+        {art && (
           <motion.img
             key={jamId}
-            src={itchImageUrl(bannerUrl, BACKDROP_TRANSFORM)}
+            src={reduced ? art.still : art.rendered}
             alt=""
             aria-hidden
             initial={{ opacity: 0 }}

@@ -17,9 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { DotGrid } from "@/components/ui/dot-grid";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { itchImageUrl } from "@/lib/itch-image";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
   const hasEntries = entries.length > 0;
 
   return (
-    <Well className="overflow-hidden">
+    <Well data-hover-play-group className="overflow-hidden">
       {/* The board washes each row in its jam's color at 9%; the band does
           the same so a jam reads as the same jam on both pages. Flat, not a
           blurred copy of the banner — see `ShelfRow`. */}
@@ -91,10 +91,9 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
           style={{ background: jamColor }}
         >
           {jam.bannerUrl ? (
-            <img
-              src={itchImageUrl(jam.bannerUrl, { width: 640 })}
-              alt=""
-              aria-hidden
+            <HoverPlayImage
+              src={jam.bannerUrl}
+              transform={{ width: 640 }}
               className="absolute inset-0 h-full w-full object-contain"
             />
           ) : (
@@ -190,6 +189,7 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
     <Chonk
       variant="surface"
       size="sm"
+      data-hover-play-group
       className="group/card overflow-hidden"
       render={
         <RouterLink
@@ -211,10 +211,9 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
         style={{ background: jamColor }}
       >
         {jam.bannerUrl ? (
-          <img
-            src={itchImageUrl(jam.bannerUrl, { width: 480 })}
-            alt=""
-            aria-hidden
+          <HoverPlayImage
+            src={jam.bannerUrl}
+            transform={{ width: 480 }}
             className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (

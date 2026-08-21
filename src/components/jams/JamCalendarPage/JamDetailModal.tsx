@@ -8,10 +8,11 @@ import { JamTeamCta } from "@/components/jams/JamTeamCta";
 import { JamWatchToggle } from "@/components/jams/JamWatchToggle";
 import { Badge } from "@/components/ui/badge";
 import { Grainient } from "@/components/ui/grainient";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
-import { BACKDROP_TRANSFORM, BOARD_BANNER_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { BACKDROP_TRANSFORM, BOARD_BANNER_TRANSFORM } from "@/lib/itch-image";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
@@ -124,25 +125,30 @@ function ModalContent({
           <>
             {/* Blurred-cover backdrop fills the frame in the
                 dominant color of the art so letterboxed banners don't
-                show plain bars on the sides. The crisp banner sits on
-                top via `object-contain` so we never crop or distort
-                the actual artwork. */}
-            <img
-              src={itchImageUrl(jam.bannerUrl, BACKDROP_TRANSFORM)}
-              alt=""
-              aria-hidden
+                show plain bars on the sides. It sits fully under the
+                crisp layer, so its hover-play never arms — it's a
+                permanent still. The crisp banner on top uses
+                `object-contain` so we never crop or distort the actual
+                artwork, and plays on hover like the board rows. */}
+            <HoverPlayImage
+              src={jam.bannerUrl}
+              transform={BACKDROP_TRANSFORM}
               className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
             />
-            <motion.img
+            {/* The shared layoutId rides a wrapper (as the Grainient
+                fallback already does) so the image inside can swap
+                between its still and playing copies mid-morph. */}
+            <motion.div
               layoutId={`tl-banner-${layoutKey}`}
               transition={MODAL_TRANSITION}
-              // Same transform as the board's BannerMedia — the layoutId
-              // morph must land on the identical URL to avoid a re-fetch.
-              src={itchImageUrl(jam.bannerUrl, BOARD_BANNER_TRANSFORM)}
-              alt=""
-              aria-hidden
-              className="absolute inset-0 h-full w-full object-contain"
-            />
+              className="absolute inset-0"
+            >
+              <HoverPlayImage
+                src={jam.bannerUrl}
+                transform={BOARD_BANNER_TRANSFORM}
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+            </motion.div>
           </>
         ) : (
           <ModalGrainientBanner layoutKey={layoutKey} jamId={jam.jamId} />

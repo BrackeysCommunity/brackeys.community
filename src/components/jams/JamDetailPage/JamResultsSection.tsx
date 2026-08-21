@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import { safeThemeColor } from "../JamCalendarPage/helpers";
@@ -114,6 +114,7 @@ function PodiumCard({
       href={place.gameUrl}
       target="_blank"
       rel="noopener noreferrer"
+      data-hover-play-group
       className="group/place flex flex-col gap-2"
     >
       <div
@@ -124,12 +125,10 @@ function PodiumCard({
         style={{ background: cover }}
       >
         {place.gameCoverUrl ? (
-          <img
-            src={itchImageUrl(place.gameCoverUrl, { width: 640 })}
-            alt=""
-            aria-hidden
+          <HoverPlayImage
+            src={place.gameCoverUrl}
+            transform={{ width: 640 }}
             loading="lazy"
-            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : (

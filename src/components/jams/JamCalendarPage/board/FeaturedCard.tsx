@@ -30,6 +30,7 @@ export function FeaturedCard({ jam, now }: { jam: JamFromList; now: Date }) {
     <RouterLink
       to="/jams/$jamSlug"
       params={jamLinkParams(jam)}
+      data-hover-play-group
       className="group relative flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60 sm:w-96"
     >
       <div

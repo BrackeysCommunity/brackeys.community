@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { DotGrid } from "@/components/ui/dot-grid";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { itchImageUrl } from "@/lib/itch-image";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { orpc } from "@/orpc/client";
@@ -40,6 +40,7 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
               key={jam.jamId}
               to="/jams/$jamSlug"
               params={jamLinkParams(jam)}
+              data-hover-play-group
               className="group/series flex flex-col gap-1.5"
             >
               <div
@@ -47,12 +48,10 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
                 style={{ background: color }}
               >
                 {jam.bannerUrl ? (
-                  <img
-                    src={itchImageUrl(jam.bannerUrl, { width: 480 })}
-                    alt=""
-                    aria-hidden
+                  <HoverPlayImage
+                    src={jam.bannerUrl}
+                    transform={{ width: 480 }}
                     loading="lazy"
-                    decoding="async"
                     // `contain` over the theme colour, same as the board's
                     // cards: itch jam banners have no common aspect ratio and
                     // cropping them destroys the poster.

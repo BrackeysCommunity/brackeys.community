@@ -2,9 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { BACKDROP_TRANSFORM, itchImageSrcSet, itchImageUrl } from "@/lib/itch-image";
+import { useReducedMotion } from "@/lib/hooks/use-app-settings";
+import { BACKDROP_TRANSFORM, itchImageSrcSet } from "@/lib/itch-image";
 import { durationDays, formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamUrl } from "@/lib/jam-links";
+import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 
 import { MILESTONE_GLYPH, MILESTONE_VARIANT } from "../JamCalendarPage/board/milestones";
@@ -59,21 +61,31 @@ export function JamDetailHero({
   // The host's own page background, re-validated before it reaches a style
   // attribute — it's scraped text.
   const wash = safeThemeColor(jam.themeColor) ?? color;
+  // With the cards all held to their first frame, this banner is the jam's
+  // one surface that plays unprompted — reduced motion pins it too.
+  const reduced = useReducedMotion();
+  const art = jam.bannerUrl ? hoverPlaySources(jam.bannerUrl, { width: 960, quality: 70 }) : null;
+  const backdrop = jam.bannerUrl ? hoverPlaySources(jam.bannerUrl, BACKDROP_TRANSFORM) : null;
+  const frozen = reduced && art?.animated != null;
 
   return (
     <Well data-header-hero className="overflow-hidden p-0">
       <div className="relative h-44 w-full shrink-0 overflow-hidden sm:h-56 lg:h-72">
-        {jam.bannerUrl ? (
+        {art && backdrop ? (
           <>
             <img
-              src={itchImageUrl(jam.bannerUrl, BACKDROP_TRANSFORM)}
+              src={frozen ? backdrop.still : backdrop.rendered}
               alt=""
               aria-hidden
               className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
             />
             <img
-              src={itchImageUrl(jam.bannerUrl, { width: 960, quality: 70 })}
-              srcSet={itchImageSrcSet(jam.bannerUrl, undefined, { quality: 70 })}
+              src={frozen ? art.still : art.rendered}
+              srcSet={itchImageSrcSet(
+                jam.bannerUrl,
+                undefined,
+                frozen ? { quality: 70, anim: false } : { quality: 70 },
+              )}
               sizes="100vw"
               alt={`${jam.title} banner`}
               className="absolute inset-0 h-full w-full object-contain"

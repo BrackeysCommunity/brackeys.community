@@ -23,7 +23,12 @@ export function JamCard({ jam, now }: { jam: JamFromList; now: Date }) {
   const color = useJamColor(jam);
 
   return (
-    <RouterLink to="/jams/$jamSlug" params={jamLinkParams(jam)} className={mediaCardClasses.frame}>
+    <RouterLink
+      to="/jams/$jamSlug"
+      params={jamLinkParams(jam)}
+      data-hover-play-group
+      className={mediaCardClasses.frame}
+    >
       <div className={mediaCardClasses.media} style={{ backgroundColor: color }}>
         <JamBanner jam={jam} fit="contain" />
         {/* Over the art: a glanceable badge, not part of the description. It

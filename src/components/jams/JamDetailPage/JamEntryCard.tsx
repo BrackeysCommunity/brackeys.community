@@ -2,9 +2,9 @@ import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { itchImageUrl } from "@/lib/itch-image";
 import { profileLinkParams } from "@/lib/profile-links";
 import { platformLabel } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
@@ -41,12 +41,10 @@ export function JamEntryCard({
         style={{ background: cover }}
       >
         {entry.gameCoverUrl ? (
-          <img
-            src={itchImageUrl(entry.gameCoverUrl, { width: 480 })}
-            alt=""
-            aria-hidden
+          <HoverPlayImage
+            src={entry.gameCoverUrl}
+            transform={{ width: 480 }}
             loading="lazy"
-            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : (
@@ -115,11 +113,15 @@ export function JamEntryCard({
   // can't nest inside the card's link — so when there are chips the card
   // root becomes a plain wrapper with the cover/title anchor inside it.
   if (entry.members.length === 0) {
-    return <div className="group/entry flex flex-col gap-1.5">{target}</div>;
+    return (
+      <div data-hover-play-group className="group/entry flex flex-col gap-1.5">
+        {target}
+      </div>
+    );
   }
 
   return (
-    <div className="group/entry flex flex-col gap-1.5">
+    <div data-hover-play-group className="group/entry flex flex-col gap-1.5">
       {target}
       <div className="flex flex-wrap items-center gap-1.5">
         {entry.members.map((member) => (

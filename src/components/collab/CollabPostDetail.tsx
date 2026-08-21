@@ -14,6 +14,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +24,6 @@ import { Well } from "@/components/ui/well";
 import { draftFromPost, isEditablePostType, startWizardEdit } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { Censored } from "@/lib/hooks/use-censored";
-import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -288,14 +288,19 @@ export function CollabPostDetail({
               // page, and "every post for this jam" is a filter on this
               // board. One overloaded button couldn't offer both (and a link
               // nested in a button isn't valid markup either).
-              <div className="flex items-center gap-3 border border-warning/40 bg-warning/5 p-2.5">
+              <div
+                data-hover-play-group
+                className="flex items-center gap-3 border border-warning/40 bg-warning/5 p-2.5"
+              >
                 {post.jam.bannerUrl ? (
-                  <img
-                    src={itchImageUrl(post.jam.bannerUrl, { width: 192 })}
-                    alt=""
-                    loading="lazy"
-                    className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
-                  />
+                  <span className="relative h-10 w-16 shrink-0 overflow-hidden border border-muted/40">
+                    <HoverPlayImage
+                      src={post.jam.bannerUrl}
+                      transform={{ width: 192 }}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
                 ) : null}
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <Text as="span" size="xs" className="tracking-widest text-warning uppercase">
@@ -326,14 +331,19 @@ export function CollabPostDetail({
               // Same two-destination shape as the jam panel: the project's
               // canonical page, and "every post for this project" as a
               // board filter.
-              <div className="flex items-center gap-3 border border-primary/40 bg-primary/5 p-2.5">
+              <div
+                data-hover-play-group
+                className="flex items-center gap-3 border border-primary/40 bg-primary/5 p-2.5"
+              >
                 {post.project.imageUrl ? (
-                  <img
-                    src={itchImageUrl(post.project.imageUrl, { width: 192 })}
-                    alt=""
-                    loading="lazy"
-                    className="h-10 w-16 shrink-0 border border-muted/40 object-cover"
-                  />
+                  <span className="relative h-10 w-16 shrink-0 overflow-hidden border border-muted/40">
+                    <HoverPlayImage
+                      src={post.project.imageUrl}
+                      transform={{ width: 192 }}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
                 ) : null}
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <Text as="span" size="xs" className="tracking-widest text-primary uppercase">

@@ -5,11 +5,11 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
+import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { itchImageUrl } from "@/lib/itch-image";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { orpc } from "@/orpc/client";
 
@@ -120,6 +120,7 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
               key={jam.jamId}
               variant="surface"
               size="sm"
+              data-hover-play-group
               render={<button type="button" onClick={() => onChange(jam)} />}
               className="w-full items-center gap-3 p-2"
             >
@@ -142,11 +143,11 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
 
 function JamThumb({ jam }: { jam: PickableJam | null }) {
   return (
-    <span className="block h-10 w-16 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
+    <span className="relative block h-10 w-16 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
       {jam?.bannerUrl ? (
-        <img
-          src={itchImageUrl(jam.bannerUrl, { width: 192 })}
-          alt=""
+        <HoverPlayImage
+          src={jam.bannerUrl}
+          transform={{ width: 192 }}
           loading="lazy"
           className="h-full w-full object-cover"
         />
