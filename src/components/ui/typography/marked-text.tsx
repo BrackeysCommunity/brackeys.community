@@ -137,7 +137,13 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       // like any other leaf. The `src` never does — mangling a URL breaks
       // the image instead of cleaning it.
       return (
-        <img src={image.href} alt={censor(image.text ?? "")} title={image.title ?? undefined} />
+        <img
+          src={image.href}
+          alt={censor(image.text ?? "")}
+          title={image.title ?? undefined}
+          loading="lazy"
+          decoding="async"
+        />
       );
     }
     case "escape":

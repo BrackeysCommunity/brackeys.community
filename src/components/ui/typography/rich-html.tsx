@@ -3,7 +3,12 @@ import { useMemo } from "react";
 
 import { useCensorFn } from "@/lib/hooks/use-censored";
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
+import { type ItchImageOpts, isTransformable, itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
+
+/** Body images render inside a prose column narrower than 768px on every
+ * surface (the modal is 36rem); `scale-down` keeps smaller masters as-is. */
+const BODY_IMAGE_TRANSFORM: ItchImageOpts = { width: 768 };
 
 const PROSE_CLASSES = [
   "text-sm/relaxed text-foreground",
@@ -360,6 +365,19 @@ function normalizeBody(html: string, censor: (text: string) => string): string {
   for (const image of doc.querySelectorAll("img[width], img[height]")) {
     image.removeAttribute("width");
     image.removeAttribute("height");
+  }
+
+  // Bodies hotlink full-resolution itch masters — a single description
+  // can carry a dozen multi-megabyte images, and the browser decodes
+  // each at its natural size no matter how small our cap renders it.
+  // Route the transformable ones through the Cloudflare resizer at the
+  // content column's width, and let everything load and decode lazily —
+  // bodies are long and most of their images sit below the fold.
+  for (const image of doc.querySelectorAll("img[src]")) {
+    image.setAttribute("loading", "lazy");
+    image.setAttribute("decoding", "async");
+    const src = image.getAttribute("src") ?? "";
+    if (isTransformable(src)) image.setAttribute("src", itchImageUrl(src, BODY_IMAGE_TRANSFORM));
   }
 
   for (const frame of doc.querySelectorAll("iframe")) {

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { itchImageUrl } from "@/lib/itch-image";
 import { client, orpc } from "@/orpc/client";
 
 import type { RpcTeam } from "./TeamPage";
@@ -224,7 +225,11 @@ function TeamImageUpload({
         ) : (
           <div
             className="h-10 w-24 shrink-0 border border-muted/40 bg-muted/20 bg-cover bg-center"
-            style={current ? { backgroundImage: `url("${encodeURI(current)}")` } : undefined}
+            style={
+              current
+                ? { backgroundImage: `url("${encodeURI(itchImageUrl(current, { width: 192 }))}")` }
+                : undefined
+            }
             aria-label={current ? "Current banner" : "No banner set"}
           />
         )}

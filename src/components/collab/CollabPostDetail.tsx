@@ -24,6 +24,7 @@ import { Well } from "@/components/ui/well";
 import { draftFromPost, isEditablePostType, startWizardEdit } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { Censored } from "@/lib/hooks/use-censored";
+import { itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -254,8 +255,10 @@ export function CollabPostDetail({
                     {post.images.slice(1).map((img) => (
                       <img
                         key={img.id}
-                        src={img.url}
+                        src={itchImageUrl(img.url, { width: 128 })}
                         alt={img.alt ?? ""}
+                        loading="lazy"
+                        decoding="async"
                         className="h-16 w-16 border border-muted/40 object-cover"
                       />
                     ))}

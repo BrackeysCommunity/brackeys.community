@@ -12,6 +12,7 @@ import { Heading, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { Censored } from "@/lib/hooks/use-censored";
+import { itchImageUrl } from "@/lib/itch-image";
 import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
@@ -145,8 +146,9 @@ function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: 
     >
       {profile.avatar.imageUrl ? (
         <img
-          src={profile.avatar.imageUrl}
+          src={itchImageUrl(profile.avatar.imageUrl, { width: 224 })}
           alt={profile.name}
+          decoding="async"
           className="h-full w-full object-cover"
         />
       ) : (

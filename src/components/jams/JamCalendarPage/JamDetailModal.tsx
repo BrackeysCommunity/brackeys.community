@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -9,6 +10,7 @@ import { JamWatchToggle } from "@/components/jams/JamWatchToggle";
 import { Badge } from "@/components/ui/badge";
 import { Grainient } from "@/components/ui/grainient";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
@@ -17,8 +19,10 @@ import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamUrl } from "@/lib/jam-links";
 import { jamPaletteColors } from "@/lib/jam-palette";
 import { EASE_OUT } from "@/lib/motion";
+import { orpc } from "@/orpc/client";
 
 import { type JamFromList, jamPhase, jamStats } from "./helpers";
+import { JAM_STALE_MS } from "./use-jam-data";
 
 interface JamDetailModalProps {
   jam: JamFromList | null;
@@ -109,6 +113,15 @@ function ModalContent({
   onClose: () => void;
 }) {
   const cohosts = jam.hosts.slice(1);
+  // Listing rows no longer carry `contentHtml` (it was 83% of the board
+  // and calendar payloads), so the body arrives per jam once the modal
+  // opens. Same procedure the detail page's loader uses, so a "Full
+  // page →" click after this resolves is served from the edge cache.
+  const { data: detail, isPending } = useQuery({
+    ...orpc.getJam.queryOptions({ input: { idOrSlug: jam.slug } }),
+    staleTime: JAM_STALE_MS,
+  });
+  const contentHtml = detail?.jam.contentHtml;
   return (
     <motion.div
       // Blur ramps from heavy → 0 on enter and back on exit so any jitter
@@ -227,8 +240,14 @@ function ModalContent({
 
             <JamStatsLine jam={jam} />
 
-            {jam.contentHtml ? (
-              <RichHtml html={jam.contentHtml} className="mt-2" />
+            {contentHtml ? (
+              <RichHtml html={contentHtml} className="mt-2" />
+            ) : isPending ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-11/12" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
             ) : (
               <Text variant="muted" size="sm" className="mt-2 italic">
                 No description provided.

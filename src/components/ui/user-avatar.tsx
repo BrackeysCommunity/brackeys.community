@@ -1,7 +1,13 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useHoverPlay } from "@/hooks/use-hover-play";
-import { stillImageUrl } from "@/lib/still-image";
+import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
+
+/** One transform bucket for every avatar frame: the largest render is
+ * 64px, so 128 covers 2× displays, and a single width means a person's
+ * avatar is one cached asset across every surface instead of one per
+ * `size` prop. Non-transformable sources (Discord, GitHub) pass through. */
+const AVATAR_TRANSFORM = { width: 128 };
 
 interface UserAvatarProps {
   avatarUrl: string | null | undefined;
@@ -35,10 +41,12 @@ export function UserAvatar({
   const rounding = square ? "rounded-none" : "rounded-full";
   const initial = (username?.trim()[0] ?? "?").toUpperCase();
 
-  // Null unless the source animates *and* a still exists; one we can't freeze
-  // is left to play.
-  const still = avatarUrl ? stillImageUrl(avatarUrl) : null;
-  const animated = !autoplay && avatarUrl && still !== avatarUrl ? avatarUrl : null;
+  // `animated` is null unless the source animates *and* a still exists;
+  // one we can't freeze is left to play. Both copies ride the avatar
+  // transform, so a hover decodes an avatar-sized gif, not the master.
+  const sources = avatarUrl ? hoverPlaySources(avatarUrl, AVATAR_TRANSFORM) : null;
+  const still = (autoplay ? sources?.rendered : sources?.still) ?? null;
+  const animated = (!autoplay ? sources?.animated : null) ?? null;
   const { playing, handlers } = useHoverPlay(animated);
 
   return (
@@ -49,7 +57,9 @@ export function UserAvatar({
       style={{ width: size, height: size }}
       {...handlers}
     >
-      {still ? <AvatarImage src={still} alt="" className={rounding} /> : null}
+      {still ? (
+        <AvatarImage src={still} alt="" loading="lazy" decoding="async" className={rounding} />
+      ) : null}
       {playing && animated ? (
         <img
           src={animated}

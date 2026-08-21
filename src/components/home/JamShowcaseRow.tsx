@@ -94,6 +94,7 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
             <HoverPlayImage
               src={jam.bannerUrl}
               transform={{ width: 640 }}
+              loading="lazy"
               className="absolute inset-0 h-full w-full object-contain"
             />
           ) : (
@@ -214,6 +215,7 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
           <HoverPlayImage
             src={jam.bannerUrl}
             transform={{ width: 480 }}
+            loading="lazy"
             className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (

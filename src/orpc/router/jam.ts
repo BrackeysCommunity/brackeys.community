@@ -6,6 +6,7 @@ import {
   count,
   desc,
   eq,
+  getColumns,
   gt,
   ilike,
   inArray,
@@ -53,6 +54,14 @@ const lastEventAt = sql`GREATEST(
   COALESCE(${itchJams.endsAt}, '-infinity'::timestamptz),
   COALESCE(${itchJams.votingEndsAt}, '-infinity'::timestamptz)
 )`;
+
+/**
+ * Listing rows leave out `contentHtml` — the full scraped itch page body,
+ * which averages ~4 KB per jam and made the calendar's 5k-row payload
+ * ~22 MB (83% of it descriptions nothing on the board or calendar ever
+ * renders). Detail surfaces fetch it per jam via `getJam`.
+ */
+const { contentHtml: _contentHtml, ...jamListColumns } = getColumns(itchJams);
 
 /**
  * Filtering uses date comparisons rather than the `status` column because the
@@ -134,7 +143,7 @@ export const listJams = os
             : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
 
     const jams = await db
-      .select()
+      .select(jamListColumns)
       .from(itchJams)
       .where(where)
       .orderBy(...orderBy)
@@ -155,8 +164,8 @@ export const listJams = os
  * Server-paginated archive browser: every jam whose last event is in the
  * past. The archive is ~19k rows and growing, so unlike the board it is
  * never shipped wholesale — the table view pages through it with
- * server-side search and sort. `contentHtml` is included (a page is at
- * most 100 rows) so the detail modal works from archive rows too.
+ * server-side search and sort. Rows share the listing shape (no
+ * `contentHtml`); the detail modal fetches the body via `getJam`.
  */
 export const archiveJams = os
   .route({ method: "GET" })
@@ -198,7 +207,7 @@ export const archiveJams = os
 
     const [jams, [totalRow]] = await Promise.all([
       db
-        .select()
+        .select(jamListColumns)
         .from(itchJams)
         .where(where)
         // jamId tiebreak keeps pagination stable when the sort key ties

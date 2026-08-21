@@ -18,14 +18,21 @@ export function isAnimatedImageUrl(url: string | null | undefined): boolean {
  * same path with a `.png` extension; everything else goes through the Cloudflare
  * transformer with `anim=false`. Anything it can't freeze passes through
  * unchanged, so callers can compare the result against their input.
+ *
+ * Pass a `width` when the render box is known — without one the frozen
+ * frame is re-encoded at the master's own resolution, which is what a
+ * 24px avatar decoding a full-size banner looks like.
  */
-export function stillImageUrl<T extends string | null | undefined>(url: T): T {
+export function stillImageUrl<T extends string | null | undefined>(
+  url: T,
+  opts?: ItchImageOpts,
+): T {
   if (!url || !isAnimatedImageUrl(url)) return url;
   if (url.startsWith(DISCORD_CDN)) {
     const path = pathOf(url);
     return `${path.slice(0, -4)}.png${url.slice(path.length)}` as T;
   }
-  if (isTransformable(url)) return itchImageUrl(url, { anim: false });
+  if (isTransformable(url)) return itchImageUrl(url, { ...opts, anim: false });
   return url;
 }
 
@@ -38,6 +45,8 @@ export function stillImageUrl<T extends string | null | undefined>(url: T): T {
 export function hoverPlaySources(src: string, transform?: ItchImageOpts) {
   const rendered = transform ? itchImageUrl(src, transform) : src;
   if (!isAnimatedImageUrl(src)) return { rendered, still: rendered, animated: null };
-  const still = transform ? itchImageUrl(src, { ...transform, anim: false }) : stillImageUrl(src);
+  // `stillImageUrl` also freezes Discord gifs (via the `.png` twin), which
+  // the transformer can't touch — so a transform no longer disables that.
+  const still = stillImageUrl(src, transform);
   return { rendered, still, animated: still !== rendered ? rendered : null };
 }

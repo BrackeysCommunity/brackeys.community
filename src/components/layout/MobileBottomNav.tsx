@@ -37,9 +37,10 @@ function TabBody({ icon, label, avatarUrl, showDot }: NavTabBody) {
         {avatarUrl ? (
           <img
             // Frozen: there is no hover on a tab bar to play it back.
-            src={stillImageUrl(avatarUrl)}
+            src={stillImageUrl(avatarUrl, { width: 48 })}
             alt=""
             aria-hidden
+            decoding="async"
             className="size-6 rounded-full object-cover"
           />
         ) : (

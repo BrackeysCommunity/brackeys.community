@@ -34,6 +34,7 @@ import {
 } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
+import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeLeft, fadeUp } from "@/lib/motion";
@@ -151,9 +152,10 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                 {post.images.slice(1).map((img) => (
                   <img
                     key={img.id}
-                    src={img.url}
+                    src={itchImageUrl(img.url, { width: 192 })}
                     alt={img.alt ?? ""}
                     loading="lazy"
+                    decoding="async"
                     className="h-24 border border-muted/40 object-cover"
                   />
                 ))}
@@ -449,9 +451,9 @@ function PostHero({
   children: React.ReactNode;
 }) {
   const art = post.images[0]?.url ?? post.project?.imageUrl ?? post.jam?.bannerUrl ?? null;
-  // Uploaded post art is served as-is; itch covers and banners go through
-  // the transformer.
-  const artTransform = post.images[0] ? undefined : { width: 960, quality: 70 };
+  // Uploaded post art (`/images/<key>`) and itch covers/banners both go
+  // through the transformer; anything it can't handle passes through.
+  const artTransform = { width: 960, quality: 70 };
   const status = STATUS_BADGE[post.status] ?? STATUS_BADGE.recruiting!;
 
   return (
@@ -459,10 +461,11 @@ function PostHero({
       {art ? (
         <div className="relative h-44 w-full shrink-0 overflow-hidden sm:h-56 lg:h-64">
           {/* Fully under the crisp layer, so its hover never arms — a
-              permanent still. */}
+              permanent still. Blurred to invisibility, so it requests
+              almost nothing. */}
           <HoverPlayImage
             src={art}
-            transform={artTransform}
+            transform={BACKDROP_TRANSFORM}
             className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
           />
           <HoverPlayImage

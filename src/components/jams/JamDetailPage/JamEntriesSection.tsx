@@ -8,8 +8,10 @@ import { Section } from "@/components/ui/section";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
+import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { JamEntryCard } from "./JamEntryCard";
@@ -17,6 +19,9 @@ import type { JamEntryRow } from "./types";
 
 /** Mirrors the server default in `listJamEntries`. */
 const PAGE_SIZE = 48;
+
+/** Shared by the live grid and the skeleton so they can't drift. */
+const GRID_ROW_CLASSES = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6";
 
 const SORTS = [
   { value: "rank", label: "RANKED" },
@@ -151,19 +156,19 @@ export function JamEntriesSection({
           </Text>
         </Well>
       ) : (
-        <div
-          className={`grid grid-cols-2 gap-3 transition-opacity sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 ${
-            isFetching ? "opacity-60" : ""
-          }`}
-        >
-          {entries.map((entry) => (
-            <JamEntryCard
-              key={entry.entryId}
-              entry={entry}
-              projectSlug={projectSlugByGameId.get(entry.gameId)}
-            />
-          ))}
-        </div>
+        // Windowed like the board's shelves: on a phone this page is 24
+        // two-column rows of cover art, and the rows off-screen shouldn't
+        // hold decoded images mounted.
+        <VirtualGrid
+          items={entries}
+          getItemKey={(entry) => entry.entryId}
+          renderItem={(entry) => (
+            <JamEntryCard entry={entry} projectSlug={projectSlugByGameId.get(entry.gameId)} />
+          )}
+          rowClassName={GRID_ROW_CLASSES}
+          estimateRowHeight={190}
+          className={cn("transition-opacity", isFetching && "opacity-60")}
+        />
       )}
 
       {totalPages > 1 ? (
@@ -199,7 +204,7 @@ export function JamEntriesSection({
 
 function EntriesSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+    <div className={GRID_ROW_CLASSES}>
       {Array.from({ length: 12 }).map((_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder
         <div key={i} className="flex flex-col gap-1.5">

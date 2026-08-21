@@ -9,6 +9,7 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { MediaCardFloatingBadge, MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
+import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 interface CollabPostCardPost {
@@ -330,7 +331,13 @@ function CardThumb({ url }: { url: string | null }) {
   return (
     <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded border border-muted/40 bg-muted/30">
       {url ? (
-        <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img
+          src={itchImageUrl(url, { width: 112 })}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
       ) : (
         <DotGrid />
       )}
