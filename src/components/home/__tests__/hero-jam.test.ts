@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { heroJamDisplacedByPin, pickHeroJam } from "@/components/home/hero-jam";
+import { HERO_SLIDE_MAX, heroJamSlides, pickHeroJam } from "@/components/home/hero-jam";
 import type { JamFromList, JamHeroPin } from "@/components/jams/JamCalendarPage/helpers";
 
 const DAY_MS = 86_400_000;
@@ -31,8 +31,10 @@ function pin(jamId: number): JamHeroPin {
 const brackeysJam = (jamId: number, opts: { startsIn?: number; lengthDays?: number } = {}) =>
   jam(jamId, { title: "Brackeys Game Jam 2026.2", ...opts });
 
+const slideIds = (slides: ReturnType<typeof heroJamSlides>) => slides.map((s) => s.jam.jamId);
+
 describe("pickHeroJam", () => {
-  it("leads with the top of the featured tier when nothing is pinned", () => {
+  it("leads with the top of the featured tier when nothing is curated", () => {
     const hero = pickHeroJam([jam(1), jam(2)], undefined, [], NOW);
     expect(hero?.jam.jamId).toBe(1);
     expect(hero?.source).toBe("ranked");
@@ -44,27 +46,25 @@ describe("pickHeroJam", () => {
     expect(hero?.source).toBe("brackeys");
   });
 
-  it("lets a pin take the slot from an upcoming Brackeys jam", () => {
+  it("keeps an upcoming Brackeys jam in front of a pin", () => {
     const all = [jam(1), brackeysJam(2, { startsIn: 20 })];
     const hero = pickHeroJam(all, all, [pin(1)], NOW);
-    expect(hero?.jam.jamId).toBe(1);
-    expect(hero?.source).toBe("pinned");
+    expect(hero?.jam.jamId).toBe(2);
+    expect(hero?.source).toBe("brackeys");
   });
 
-  it("lets a pin take the slot from a live Brackeys jam too", () => {
-    // No carve-out: the admin panel surfaces this via `heroJamDisplacedByPin`.
+  it("keeps a live Brackeys jam in front of a pin too", () => {
     const all = [jam(1), brackeysJam(2)];
+    const hero = pickHeroJam(all, all, [pin(1)], NOW);
+    expect(hero?.jam.jamId).toBe(2);
+    expect(hero?.source).toBe("brackeys");
+  });
+
+  it("hands the front to a pin once the Brackeys jam has ended", () => {
+    const all = [jam(1), brackeysJam(2, { startsIn: -30, lengthDays: 7 })];
     const hero = pickHeroJam(all, all, [pin(1)], NOW);
     expect(hero?.jam.jamId).toBe(1);
     expect(hero?.source).toBe("pinned");
-  });
-
-  it("falls back to the Brackeys jam when the pin has aged out", () => {
-    const ended = jam(3, { startsIn: -30, lengthDays: 7 });
-    const all = [jam(1), brackeysJam(2), ended];
-    const hero = pickHeroJam(all, all, [pin(3)], NOW);
-    expect(hero?.jam.jamId).toBe(2);
-    expect(hero?.source).toBe("brackeys");
   });
 
   it("prefers a pin over the ranking when no Brackeys jam is running", () => {
@@ -120,30 +120,49 @@ describe("pickHeroJam", () => {
   });
 });
 
-describe("heroJamDisplacedByPin", () => {
-  it("names the Brackeys jam a pin is holding off the hero", () => {
-    const all = [jam(1), brackeysJam(2)];
-    const hero = pickHeroJam(all, all, [pin(1)], NOW);
-    expect(heroJamDisplacedByPin(hero, all, NOW)?.jamId).toBe(2);
+describe("heroJamSlides", () => {
+  it("rotates the Brackeys jam first, then pins newest first", () => {
+    const all = [jam(1), jam(2), brackeysJam(3)];
+    const slides = heroJamSlides(all, all, [pin(2), pin(1)], NOW);
+    expect(slideIds(slides)).toEqual([3, 2, 1]);
+    expect(slides.map((s) => s.source)).toEqual(["brackeys", "pinned", "pinned"]);
   });
 
-  it("says nothing when the Brackeys jam has already ended", () => {
-    const all = [jam(1), brackeysJam(2, { startsIn: -30, lengthDays: 7 })];
-    const hero = pickHeroJam(all, all, [pin(1)], NOW);
-    expect(heroJamDisplacedByPin(hero, all, NOW)).toBeNull();
+  it("shows a pinned Brackeys jam once, as the Brackeys slide", () => {
+    const all = [jam(1), brackeysJam(2)];
+    const slides = heroJamSlides(all, all, [pin(2), pin(1)], NOW);
+    expect(slideIds(slides)).toEqual([2, 1]);
+    expect(slides[0]?.source).toBe("brackeys");
   });
 
-  it("says nothing when the hero is not a pin at all", () => {
-    const all = [jam(1), brackeysJam(2)];
-    const hero = pickHeroJam(all, all, [], NOW);
-    expect(hero?.source).toBe("brackeys");
-    expect(heroJamDisplacedByPin(hero, all, NOW)).toBeNull();
+  it("caps the rotation", () => {
+    const all = [brackeysJam(9), jam(1), jam(2), jam(3), jam(4), jam(5)];
+    const pins = [pin(1), pin(2), pin(3), pin(4), pin(5)];
+    const slides = heroJamSlides(all, all, pins, NOW);
+    expect(slides).toHaveLength(HERO_SLIDE_MAX);
+    expect(slides[0]?.source).toBe("brackeys");
   });
 
-  it("says nothing when the pinned jam *is* the Brackeys jam", () => {
-    const all = [jam(1), brackeysJam(2)];
-    const hero = pickHeroJam(all, all, [pin(2)], NOW);
-    expect(hero?.jam.jamId).toBe(2);
-    expect(heroJamDisplacedByPin(hero, all, NOW)).toBeNull();
+  it("skips pins whose jams have aged out rather than counting them", () => {
+    const ended = jam(2, { startsIn: -30, lengthDays: 7 });
+    const all = [jam(1), ended];
+    const slides = heroJamSlides(all, all, [pin(2), pin(1)], NOW);
+    expect(slideIds(slides)).toEqual([1]);
+  });
+
+  it("offers the ranking one slide only when nothing is curated", () => {
+    const slides = heroJamSlides([jam(1), jam(2)], undefined, [], NOW);
+    expect(slideIds(slides)).toEqual([1]);
+    expect(slides[0]?.source).toBe("ranked");
+  });
+
+  it("never pads a curated rotation with the ranking", () => {
+    const all = [jam(1), jam(2)];
+    const slides = heroJamSlides(all, all, [pin(2)], NOW);
+    expect(slideIds(slides)).toEqual([2]);
+  });
+
+  it("is empty when there is nothing live or upcoming", () => {
+    expect(heroJamSlides([], [], [pin(1)], NOW)).toEqual([]);
   });
 });

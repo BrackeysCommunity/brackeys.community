@@ -7,56 +7,71 @@ import {
 
 export interface HeroJam {
   jam: JamFromList;
-  /** How this jam won the slot — staff-facing; the panel renders all three alike. */
+  /** How this jam earned its slide — staff-facing; the panel renders all three alike. */
   source: "brackeys" | "pinned" | "ranked";
 }
 
+/** The hero rotation carries at most this many slides. Keep
+ * `RECENT_ENTRIES_MAX_JAMS` in `@/orpc/router/jam` at
+ * `SHOWCASE_MAX_JAMS + HERO_SLIDE_MAX` or the covers request 400s. */
+export const HERO_SLIDE_MAX = 4;
+
 /** A pin applies only while its jam is still worth leading with. Past that
- *  the hero moves on by itself, so nothing has to be unpinned on time. */
+ *  the rotation moves on by itself, so nothing has to be unpinned on time. */
 export function heroPinApplies(jam: JamFromList, now: Date): boolean {
   const shelf = jamShelf(jam, now);
   return shelf === "live" || shelf === "upcoming";
 }
 
 /**
- * Which single jam the hero promotes, in priority order: newest live staff
- * pin, then Brackeys' own jam, then the top of the featured tier. A pin
- * deliberately outranks a Brackeys jam — `AdminHeroJam` surfaces that
- * displacement rather than blocking it. Pins match against the whole board,
- * since a hand-picked jam may be one the ranking never surfaced.
+ * The jams the hero rotates through, in priority order: Brackeys' own jam
+ * whenever one is live or upcoming, then live staff picks newest first.
+ * Staff picks join the rotation behind a Brackeys jam rather than
+ * displacing it. The featured tier's top jam is a fallback for when
+ * nothing is curated at all, never an extra slide. Pins match against the
+ * whole board, since a hand-picked jam may be one the ranking never
+ * surfaced.
  */
+export function heroJamSlides(
+  featured: JamFromList[],
+  all: JamFromList[] = featured,
+  pins: JamHeroPin[] = [],
+  now: Date = new Date(),
+): HeroJam[] {
+  const slides: HeroJam[] = [];
+  const seen = new Set<number>();
+  const add = (jam: JamFromList, source: HeroJam["source"]) => {
+    if (seen.has(jam.jamId)) return;
+    seen.add(jam.jamId);
+    slides.push({ jam, source });
+  };
+
+  const brackeys = featured.find((jam) => isBrackeysJam(jam) && heroPinApplies(jam, now));
+  if (brackeys) add(brackeys, "brackeys");
+
+  const byId = new Map(all.map((jam) => [jam.jamId, jam]));
+  // `listJamHeroPins` already orders newest first.
+  for (const pin of pins) {
+    if (slides.length >= HERO_SLIDE_MAX) break;
+    const jam = byId.get(pin.jamId);
+    if (jam && heroPinApplies(jam, now)) add(jam, "pinned");
+  }
+
+  if (slides.length === 0) {
+    const first = featured[0];
+    if (first) add(first, "ranked");
+  }
+
+  return slides;
+}
+
+/** The single jam surfaces without a rotation lead with — the front of
+ * `heroJamSlides`. */
 export function pickHeroJam(
   featured: JamFromList[],
   all: JamFromList[] = featured,
   pins: JamHeroPin[] = [],
   now: Date = new Date(),
 ): HeroJam | null {
-  const byId = new Map(all.map((jam) => [jam.jamId, jam]));
-  // `listJamHeroPins` already orders newest first.
-  for (const pin of pins) {
-    const jam = byId.get(pin.jamId);
-    if (jam && heroPinApplies(jam, now)) return { jam, source: "pinned" };
-  }
-
-  const brackeys = featured.find(isBrackeysJam);
-  if (brackeys) return { jam: brackeys, source: "brackeys" };
-
-  const first = featured[0];
-  return first ? { jam: first, source: "ranked" } : null;
-}
-
-/** The Brackeys jam a pin is currently keeping off the hero, if any. The
- * admin panel warns with this — the front page shows no trace of it. */
-export function heroJamDisplacedByPin(
-  hero: HeroJam | null,
-  all: JamFromList[],
-  now: Date,
-): JamFromList | null {
-  if (hero?.source !== "pinned") return null;
-  // Excluding the hero's own jam: pinning our own jam is not a displacement.
-  return (
-    all.find(
-      (jam) => jam.jamId !== hero.jam.jamId && isBrackeysJam(jam) && heroPinApplies(jam, now),
-    ) ?? null
-  );
+  return heroJamSlides(featured, all, pins, now)[0] ?? null;
 }

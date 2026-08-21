@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -67,9 +67,32 @@ vi.mock("@hugeicons/core-free-icons", () => ({
 }));
 
 vi.mock("@/components/home/jam-banner", () => ({
+  BANNER_TRANSITION: { duration: 0 },
   JamBannerArt: () => <div data-testid="banner-art" />,
   JamBannerBackdrop: () => <div data-testid="banner-backdrop" />,
   JamStateBadge: ({ state }: { state: string }) => <span data-testid={`state-${state}`} />,
+  // Real enough for the rotation tests: the panel drives these buttons.
+  JamCarouselDots: ({
+    slides,
+    active,
+    onSelect,
+  }: {
+    slides: { jamId: number; title: string }[];
+    active: number;
+    onSelect: (i: number) => void;
+  }) => (
+    <div>
+      {slides.map((slide, i) => (
+        <button
+          key={slide.jamId}
+          type="button"
+          aria-label={`Show ${slide.title}`}
+          aria-current={i === active}
+          onClick={() => onSelect(i)}
+        />
+      ))}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/ui/count-up", () => ({
@@ -160,31 +183,46 @@ function entry(entryId: number): RecentEntry {
 
 const entries = [entry(1), entry(2), entry(3)];
 
+/** The rotation's covers map, for the common one-jam case. */
+const byJam = (list: RecentEntry[]) => new Map([[1, list]]);
+
+const hero2: HeroJam = {
+  ...hero,
+  source: "pinned",
+  jam: {
+    ...hero.jam,
+    jamId: 2,
+    slug: "gmtk",
+    title: "GMTK Game Jam",
+    joinedCount: 100,
+  },
+} as HeroJam;
+
 afterEach(cleanup);
 
 describe("FeaturedJamPanel", () => {
   it("leads with the jam's countdown, not its submissions", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
 
     expect(screen.getByText("14909")).toBeTruthy();
     expect(screen.queryByText("Game 1")).toBeNull();
   });
 
   it("offers the entries view with a count once a jam has submissions", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
 
     expect(screen.getByRole("button", { name: /ENTRIES 3/ })).toBeTruthy();
   });
 
   it("hides the control entirely when nothing has been submitted", () => {
-    render(<FeaturedJamPanel hero={hero} entries={[]} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={new Map()} now={NOW} />);
 
     expect(screen.queryByRole("button", { name: /ENTRIES/ })).toBeNull();
     expect(screen.getByText("14909")).toBeTruthy();
   });
 
   it("turns the card over to the covers, and back", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
     const toggle = () => screen.getByRole("button", { name: /ENTRIES 3|BACK/ });
 
     fireEvent.click(toggle());
@@ -198,7 +236,7 @@ describe("FeaturedJamPanel", () => {
   });
 
   it("keeps the jam's title and its way out across the flip", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ENTRIES 3/ }));
 
@@ -209,7 +247,9 @@ describe("FeaturedJamPanel", () => {
   it("freezes its footprint and floats, instead of reflowing the page", () => {
     // jsdom has no layout; stand in for the measured height.
     const measured = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(420);
-    const { container } = render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    const { container } = render(
+      <FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />,
+    );
     const wrapper = container.firstElementChild as HTMLElement;
 
     fireEvent.click(screen.getByRole("button", { name: /ENTRIES 3/ }));
@@ -225,7 +265,7 @@ describe("FeaturedJamPanel", () => {
 
   it("advertises the jam's full entry count, not the sample's length", () => {
     const bigHero = { ...hero, jam: { ...hero.jam, entriesCount: 2120 } } as HeroJam;
-    render(<FeaturedJamPanel hero={bigHero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[bigHero]} entriesByJamId={byJam(entries)} now={NOW} />);
 
     expect(
       screen.getByRole("button", { name: new RegExp(`ENTRIES ${(2120).toLocaleString()}`) }),
@@ -242,15 +282,15 @@ describe("FeaturedJamPanel", () => {
         ratingsCount: 5,
       },
     } as HeroJam;
-    render(<FeaturedJamPanel hero={votingHero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[votingHero]} entriesByJamId={byJam(entries)} now={NOW} />);
     expect(vi.mocked(useHeroJamEntries)).toHaveBeenLastCalledWith(1, false, "ratings");
 
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
     expect(vi.mocked(useHeroJamEntries)).toHaveBeenLastCalledWith(1, false, "recent");
   });
 
   it("closes the covers on Escape", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ENTRIES 3/ }));
     expect(screen.getByText("Game 1")).toBeTruthy();
@@ -261,7 +301,7 @@ describe("FeaturedJamPanel", () => {
   });
 
   it("ignores Escape while the covers are closed", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByText("14909")).toBeTruthy();
@@ -272,7 +312,7 @@ describe("FeaturedJamPanel", () => {
     // fallback — which is exactly the state this pins: a screenful, not
     // every cover a thousand-entry jam has.
     const many = Array.from({ length: 40 }, (_, i) => entry(i + 1));
-    render(<FeaturedJamPanel hero={hero} entries={many} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(many)} now={NOW} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ENTRIES 40/ }));
     expect(screen.getByText("Game 1")).toBeTruthy();
@@ -280,11 +320,50 @@ describe("FeaturedJamPanel", () => {
   });
 
   it("marks the control as expanded so it reads as a disclosure", () => {
-    render(<FeaturedJamPanel hero={hero} entries={entries} now={NOW} />);
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
     const toggle = () => screen.getByRole("button", { name: /ENTRIES 3|BACK/ });
 
     expect(toggle().getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle());
     expect(toggle().getAttribute("aria-expanded")).toBe("true");
+  });
+});
+
+describe("hero rotation", () => {
+  it("shows no rotation controls for a single jam", () => {
+    render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
+    expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
+  });
+
+  it("switches jams from the dots", () => {
+    render(<FeaturedJamPanel heroes={[hero, hero2]} entriesByJamId={byJam(entries)} now={NOW} />);
+    expect(screen.getByRole("heading", { name: "Brackeys Game Jam 2026.2" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show GMTK Game Jam" }));
+    expect(screen.getByRole("heading", { name: "GMTK Game Jam" })).toBeTruthy();
+    expect(screen.getByText("100")).toBeTruthy();
+  });
+
+  it("advances on its own clock", () => {
+    vi.useFakeTimers();
+    try {
+      render(<FeaturedJamPanel heroes={[hero, hero2]} entriesByJamId={byJam(entries)} now={NOW} />);
+      act(() => vi.advanceTimersByTime(7_001));
+      expect(screen.getByRole("heading", { name: "GMTK Game Jam" })).toBeTruthy();
+      act(() => vi.advanceTimersByTime(7_001));
+      expect(screen.getByRole("heading", { name: "Brackeys Game Jam 2026.2" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("closes the covers when the slide changes", () => {
+    render(<FeaturedJamPanel heroes={[hero, hero2]} entriesByJamId={byJam(entries)} now={NOW} />);
+    fireEvent.click(screen.getByRole("button", { name: /ENTRIES 3/ }));
+    expect(screen.getByText("Game 1")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show GMTK Game Jam" }));
+    expect(screen.queryByText("Game 1")).toBeNull();
+    expect(screen.getByText("100")).toBeTruthy();
   });
 });

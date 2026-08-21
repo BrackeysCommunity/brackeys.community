@@ -24,31 +24,32 @@ export function useHomeContent() {
   const now = useDateNow();
   const nowDate = useMemo(() => new Date(now), [now]);
 
-  const { isLoading, featured, upcoming, hero, liveCount, upcomingCount } = useHomeJams(now);
+  const { isLoading, featured, upcoming, heroSlides, liveCount, upcomingCount } = useHomeJams(now);
   const dashboard = useHomeDashboard();
 
+  const heroJamIds = useMemo(() => heroSlides.map((slide) => slide.jam.jamId), [heroSlides]);
+
   const showcaseJams = useMemo(
-    () => selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null),
-    [featured, upcoming, hero],
+    () => selectShowcaseJams(featured, upcoming, heroJamIds),
+    [featured, upcoming, heroJamIds],
   );
 
-  // One request for every cover the page shows, hero included — the band
-  // deliberately excludes the hero jam, so it can't cover for it.
+  // One request for every cover the page shows, hero rotation included —
+  // the band deliberately excludes the rotation's jams, so it can't cover
+  // for them.
   const entryJamIds = useMemo(
-    () => entryJamIdsFor(hero?.jam.jamId ?? null, showcaseJams),
-    [hero, showcaseJams],
+    () => entryJamIdsFor(heroJamIds, showcaseJams),
+    [heroJamIds, showcaseJams],
   );
   const { byJamId: entriesByJamId, isLoading: entriesLoading } = useRecentEntries(entryJamIds);
 
   return {
     nowDate,
     isLoading,
-    hero,
+    heroSlides,
     showcaseJams,
     entriesByJamId,
     entriesLoading,
-    /** What people have submitted to the jam the hero is promoting. */
-    heroEntries: (hero ? entriesByJamId.get(hero.jam.jamId) : undefined) ?? [],
     liveCount,
     upcomingCount,
     dashboard,

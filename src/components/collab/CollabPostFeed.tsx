@@ -15,7 +15,7 @@ import {
   useCollabBoardSearch,
 } from "./collab-filters";
 import { CollabPostCard, CollabPostGridCard } from "./CollabPostCard";
-import { useCollabListing } from "./use-collab-listing";
+import { type CollabListingItem, useCollabListing } from "./use-collab-listing";
 
 interface CollabPostFeedProps {
   /** Currently authenticated user id — drives owner-specific UI. */
@@ -105,6 +105,37 @@ export function CollabPostFeed({
         ) : null
       }
     />
+  );
+}
+
+/**
+ * The lane as the server document ships it: the first page of posts as a
+ * plain grid of card tiles, every one a real anchor. The board proper
+ * waits for hydration — `useIsSplitView` can't know the viewport on the
+ * server — but the *content* must not, or a crawler reads an empty shell
+ * despite the loader's prefetch. No virtualization (the page is at the
+ * top, and the first page is all there is to mount) and no toolbar: this
+ * renders exactly what a reader without JavaScript can use.
+ */
+export function CollabPostFeedStatic({
+  items,
+  onSelectPost,
+}: {
+  items: CollabListingItem[];
+  onSelectPost: (postId: number) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      {items.map((item) => (
+        <CollabPostGridCard
+          key={item.post.id}
+          post={item.post}
+          pinned={item.pinned}
+          onSelect={onSelectPost}
+        />
+      ))}
+    </div>
   );
 }
 

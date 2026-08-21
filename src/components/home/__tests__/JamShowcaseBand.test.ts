@@ -30,40 +30,40 @@ function entriesFor(...jamIds: number[]) {
 const ids = (jams: JamFromList[]) => jams.map((j) => j.jamId);
 
 describe("selectShowcaseJams", () => {
-  it("drops the jam the hero is already promoting", () => {
-    const picked = selectShowcaseJams([jam(1), jam(2)], [jam(3)], 1);
-    expect(ids(picked)).toEqual([2, 3]);
+  it("drops the jams the hero rotation is already promoting", () => {
+    const picked = selectShowcaseJams([jam(1), jam(2)], [jam(3)], [1, 3]);
+    expect(ids(picked)).toEqual([2]);
   });
 
   it("tops the featured tier up from the upcoming shelf", () => {
-    const picked = selectShowcaseJams([jam(1)], [jam(2), jam(3)], null);
+    const picked = selectShowcaseJams([jam(1)], [jam(2), jam(3)], []);
     expect(ids(picked)).toEqual([1, 2, 3]);
   });
 
   it("never repeats a jam that is in both tiers", () => {
-    const picked = selectShowcaseJams([jam(1), jam(2)], [jam(2), jam(3)], null);
+    const picked = selectShowcaseJams([jam(1), jam(2)], [jam(2), jam(3)], []);
     expect(ids(picked)).toEqual([1, 2, 3]);
   });
 
   it("caps the band", () => {
     const many = Array.from({ length: SHOWCASE_MAX_JAMS + 3 }, (_, i) => jam(i + 1));
-    expect(selectShowcaseJams(many, [], null)).toHaveLength(SHOWCASE_MAX_JAMS);
+    expect(selectShowcaseJams(many, [], [])).toHaveLength(SHOWCASE_MAX_JAMS);
   });
 
   it("preserves the incoming ranking", () => {
-    const picked = selectShowcaseJams([jam(3), jam(1)], [jam(2)], null);
+    const picked = selectShowcaseJams([jam(3), jam(1)], [jam(2)], []);
     expect(ids(picked)).toEqual([3, 1, 2]);
   });
 
   it("drops the month-plus jams", () => {
     const long = jam(2, 0, SHOWCASE_MAX_LENGTH_DAYS + 1);
     const atLimit = jam(3, 0, SHOWCASE_MAX_LENGTH_DAYS);
-    expect(ids(selectShowcaseJams([jam(1), long, atLimit], [], null))).toEqual([1, 3]);
+    expect(ids(selectShowcaseJams([jam(1), long, atLimit], [], []))).toEqual([1, 3]);
   });
 
   it("drops open-ended jams, which are the case the length rule is for", () => {
     const openEnded = { jamId: 2, startsAt: START, endsAt: null } as JamFromList;
-    expect(ids(selectShowcaseJams([jam(1), openEnded], [], null))).toEqual([1]);
+    expect(ids(selectShowcaseJams([jam(1), openEnded], [], []))).toEqual([1]);
   });
 
   it("fills the band past a dropped jam rather than shortening it", () => {
@@ -71,7 +71,7 @@ describe("selectShowcaseJams", () => {
     const long = jam(99, 0, SHOWCASE_MAX_LENGTH_DAYS + 5);
     // The long jam sits mid-list; the band should still come back full.
     const shuffled = [...enough.slice(0, 2), long, ...enough.slice(2)];
-    const picked = selectShowcaseJams(shuffled, [], null);
+    const picked = selectShowcaseJams(shuffled, [], []);
     expect(picked).toHaveLength(SHOWCASE_MAX_JAMS);
     expect(ids(picked)).not.toContain(99);
   });

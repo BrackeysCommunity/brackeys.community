@@ -27,7 +27,7 @@ import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
 import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel";
 import { CollabInspector } from "./CollabInspector";
-import { CollabPostFeed } from "./CollabPostFeed";
+import { CollabPostFeed, CollabPostFeedStatic } from "./CollabPostFeed";
 import { CollabPostPopover } from "./CollabPostPopover";
 import { COLLAB_SEARCH_INPUT_ID, CollabFloatingControls, CollabToolbar } from "./CollabToolbar";
 import { useCollabListing } from "./use-collab-listing";
@@ -135,8 +135,9 @@ export function CollabBrowsePage() {
   const selectedPostId = typeof search.post === "number" ? search.post : null;
 
   // Same query the lane renders, deduped by react-query — gives the
-  // page the ordered ids that arrow-key selection walks through.
-  const { postIds } = useCollabListing(currentUserId);
+  // page the ordered ids that arrow-key selection walks through, and
+  // the items themselves for the pre-hydration static feed.
+  const { items, postIds } = useCollabListing(currentUserId);
 
   // Open the create flyout when arriving via /collab/new (which
   // redirects here with `?new=1`), or via a jam's "FIND A TEAM" CTA
@@ -303,25 +304,31 @@ export function CollabBrowsePage() {
       <motion.div variants={fadeUp}>
         <CollabHero authenticated={!!session?.user} onCreate={handleCreate} />
       </motion.div>
-      {/* The board waits for hydration rather than rendering off `isSplit`
-          directly. That hook can't know the viewport on the server, so it
-          reports stacked every time and a desktop load paints the one-column
-          board, then swaps the whole thing for the two-column one — the
-          layout, the inspector, and the lane's measured overhang all
-          changing at once, which reads as the page rendering twice. Nothing
-          is lost by waiting: the server's copy of this board is a toolbar
-          over skeletons (the posts are client-fetched), and every child of
-          the stack is held at opacity 0 for its first 250ms anyway, so the
-          frame we skip was never on screen.
+      {/* The interactive board waits for hydration rather than rendering
+          off `isSplit` directly. That hook can't know the viewport on the
+          server, so it reports stacked every time and a desktop load would
+          paint the one-column board, then swap the whole thing for the
+          two-column one — the layout, the inspector, and the lane's
+          measured overhang all changing at once, which reads as the page
+          rendering twice.
 
-          One tagged wrapper around both branches, too: a tag inside each
+          The *posts* don't wait: the loader prefetches the first page, so
+          the server document carries it as a plain static grid — that is
+          what a crawler (or a no-JS reader) gets instead of an empty
+          shell. The swap to the real board happens right after hydration,
+          while every child of the stack is still held at opacity 0 for
+          its first 250ms, so the static frame is never on screen.
+
+          One tagged wrapper around all branches, too: a tag inside each
           would remount on the swap and inherit this stack's `hidden`
           initial, fading the body in a second time.
 
           `fadeIn` rather than `fadeUp` because both the lane's toolbar and
           the inspector are sticky — see the variant's own note. */}
       <motion.div variants={fadeIn} className="flex flex-col gap-5">
-        {!isHydrated ? null : isSplit ? (
+        {!isHydrated ? (
+          <CollabPostFeedStatic items={items} onSelectPost={selectPost} />
+        ) : isSplit ? (
           <>
             {/* `items-start` is what lets the inspector stick: a stretched
               grid item is already as tall as the lane, so it would have

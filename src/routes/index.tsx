@@ -61,10 +61,11 @@ async function prefetchHome(queryClient: QueryClient) {
   await heroInputs;
   const all = queryClient.getQueryData(boardOptions.queryKey)?.jams ?? [];
   const pins = queryClient.getQueryData(pinOptions.queryKey)?.pins ?? [];
-  const { featured, upcoming, hero } = homeJamsFrom(all, Date.now(), pins);
-  const showcase = selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null);
-  // The hero rides along — its covers drive the panel's entries view.
-  const entryJamIds = entryJamIdsFor(hero?.jam.jamId ?? null, showcase);
+  const { featured, upcoming, heroSlides } = homeJamsFrom(all, Date.now(), pins);
+  const heroJamIds = heroSlides.map((slide) => slide.jam.jamId);
+  const showcase = selectShowcaseJams(featured, upcoming, heroJamIds);
+  // The rotation rides along — its covers drive the panel's entries view.
+  const entryJamIds = entryJamIdsFor(heroJamIds, showcase);
   if (entryJamIds.length > 0) {
     sections.push(queryClient.prefetchQuery(recentEntriesQueryOptions(entryJamIds)));
   }

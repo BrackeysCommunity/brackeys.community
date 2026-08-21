@@ -1,7 +1,7 @@
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { type HeroJam, pickHeroJam } from "@/components/home/hero-jam";
+import { type HeroJam, heroJamSlides } from "@/components/home/hero-jam";
 import { client } from "@/orpc/client";
 
 import { buildBoard } from "./board/build-board";
@@ -101,8 +101,10 @@ export interface HomeJamsData {
   /** The board's ranked upcoming shelf (signal ≥ threshold, featured and
    * perpetual pseudo-jams excluded), soonest first. */
   upcoming: JamFromList[];
-  /** The jam the hero leads with — resolved here so the `/` loader can
-   * prefetch the band around the same answer. */
+  /** The jams the hero rotates through, priority first — resolved here so
+   * the `/` loader can prefetch the band around the same answer. */
+  heroSlides: HeroJam[];
+  /** The front of `heroSlides` — the jam surfaces without a rotation show. */
   hero: HeroJam | null;
   liveCount: number;
   upcomingCount: number;
@@ -140,10 +142,12 @@ export function homeJamsFrom(
   const nowDate = new Date(now);
   const { featured, shelves } = buildBoard(all, nowDate, "soonest");
   const counts = countShelves(all, nowDate);
+  const heroSlides = heroJamSlides(featured, all, pins, nowDate);
   return {
     featured,
     upcoming: shelves.upcoming.ranked,
-    hero: pickHeroJam(featured, all, pins, nowDate),
+    heroSlides,
+    hero: heroSlides[0] ?? null,
     liveCount: counts.live,
     upcomingCount: counts.upcoming,
   };

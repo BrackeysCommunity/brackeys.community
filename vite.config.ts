@@ -43,8 +43,8 @@ const commitSha = resolveCommitSha();
 const appVersion = commitSha ? `${pkg.version}+${commitSha}` : pkg.version;
 
 // Source-map upload is keyed off the credential being present, never off
-// NODE_ENV — MR previews build as `staging`, and the old Sentry gate on
-// `NODE_ENV === "production"` silently excluded them for exactly that reason.
+// NODE_ENV — MR previews build as `staging`, and a gate on
+// `NODE_ENV === "production"` would silently exclude them.
 // A build without the key is a normal build with no maps.
 const posthogPersonalApiKey = process.env.POSTHOG_PERSONAL_API_KEY;
 const posthogSourcemapsEnabled = Boolean(posthogPersonalApiKey);

@@ -8,7 +8,7 @@ const config: StorybookConfig = {
     options: {
       builder: {
         // Use a dedicated minimal Vite config for Storybook so the root
-        // vite.config.ts (nitro/tanstack-start/sentry) doesn't hijack the
+        // vite.config.ts (nitro/tanstack-start) doesn't hijack the
         // preview build and redirect assets to .output/public/.
         viteConfigPath: ".storybook/vite.config.ts",
       },

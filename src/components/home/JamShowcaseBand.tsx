@@ -18,7 +18,7 @@ export const SHOWCASE_MAX_LENGTH_DAYS = 62;
 
 /**
  * The jams the band shows: the featured tier first, topped up from the
- * ranked upcoming shelf, minus whichever jam the hero is already
+ * ranked upcoming shelf, minus whatever the hero rotation is already
  * promoting and anything running longer than 2 months.
  *
  * Exported so the desktop and mobile pages pick the same set — they used
@@ -28,9 +28,9 @@ export const SHOWCASE_MAX_LENGTH_DAYS = 62;
 export function selectShowcaseJams(
   featured: JamFromList[],
   upcoming: JamFromList[],
-  heroJamId: number | null,
+  heroJamIds: readonly number[],
 ): JamFromList[] {
-  const seen = new Set<number>(heroJamId != null ? [heroJamId] : []);
+  const seen = new Set<number>(heroJamIds);
   const out: JamFromList[] = [];
   for (const jam of [...featured, ...upcoming]) {
     if (out.length >= SHOWCASE_MAX_JAMS) break;

@@ -24,9 +24,21 @@ const INGEST_HOST = "eu.i.posthog.com";
 /** Static assets (toolbar, lazily-loaded extensions) live on a second host. */
 const ASSET_HOST = "eu-assets.i.posthog.com";
 
+/**
+ * The path the zone route mounts this worker on. PostHog serves from the
+ * root of its hosts, so the prefix has to come off before forwarding —
+ * `/ingest/e/` upstream is a 404, not a capture. Must match the route in
+ * `wrangler.toml` and the path in `VITE_POSTHOG_HOST`.
+ */
+const ROUTE_PREFIX = "/ingest";
+
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith(`${ROUTE_PREFIX}/`)) {
+      url.pathname = url.pathname.slice(ROUTE_PREFIX.length);
+    }
 
     // `/static/*` is the asset host; everything else is ingestion. This split
     // is PostHog's, not ours — serving both from one host 404s the toolbar.

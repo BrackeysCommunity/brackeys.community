@@ -36,8 +36,7 @@ export function HomePage() {
   const {
     nowDate,
     isLoading,
-    hero,
-    heroEntries,
+    heroSlides,
     showcaseJams,
     entriesByJamId,
     entriesLoading,
@@ -52,7 +51,12 @@ export function HomePage() {
     // page's measure is — keep it in step with the max-width beside it.
     <PageStack data-content-pane="6xl" className="mx-auto flex w-full max-w-7xl flex-col gap-12">
       <motion.div variants={fadeUp}>
-        <HeroSplit hero={hero} heroEntries={heroEntries} isLoading={isLoading} now={nowDate} />
+        <HeroSplit
+          heroSlides={heroSlides}
+          entriesByJamId={entriesByJamId}
+          isLoading={isLoading}
+          now={nowDate}
+        />
       </motion.div>
 
       <motion.div variants={fadeUp}>

@@ -9,9 +9,11 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { EntryTile, type EntryTileEntry } from "@/components/home/EntryTile";
 import type { HeroJam } from "@/components/home/hero-jam";
 import {
+  BANNER_TRANSITION,
   type Density,
   JamBannerArt,
   JamBannerBackdrop,
+  JamCarouselDots,
   JamStateBadge,
 } from "@/components/home/jam-banner";
 import { useHeroJamEntries } from "@/components/home/use-hero-jam-entries";
@@ -54,6 +56,9 @@ const OPEN_BLEED: Record<Density, number> = {
 const MORPH = { duration: 0.3, ease: EASE_OUT };
 const CROSSFADE = { duration: 0.15, ease: EASE_OUT };
 const INSTANT = { duration: 0 };
+
+/** How long each slide of the hero rotation holds. */
+const SLIDE_MS = 7000;
 
 /** `shadow-2xl` at black/40 as a framer target, so the shadow rides the
  * card's tween; the zeroed twin keeps both ends interpolable. */
@@ -190,34 +195,48 @@ function EntriesGrid({
 }
 
 interface FeaturedJamPanelProps {
-  hero: HeroJam;
-  entries: RecentEntry[];
+  /** The hero rotation, priority first. Must be non-empty. */
+  heroes: HeroJam[];
+  /** Cover samples for every jam in the rotation, keyed by jam id. */
+  entriesByJamId: ReadonlyMap<number, RecentEntry[]>;
   now: Date;
   density?: Density;
 }
 
 /**
- * The hero's right column: one jam, at full volume, with an entries view
- * that flips the card over to a grid of covers. While open (and through the
- * closing animation) the card floats absolutely over the content below —
- * an outer wrapper holds the closed height so the page never reflows.
+ * The hero's right column: the rotation's jams one at a time, at full
+ * volume, with an entries view that flips the card over to a grid of
+ * covers. With more than one jam the panel advances itself — paused while
+ * the pointer is over it, while the covers are open, and under reduced
+ * motion. While open (and through the closing animation) the card floats
+ * absolutely over the content below — an outer wrapper holds the closed
+ * height so the page never reflows.
  */
 export function FeaturedJamPanel({
-  hero,
-  entries,
+  heroes,
+  entriesByJamId,
   now,
   density = "comfortable",
 }: FeaturedJamPanelProps) {
+  const [slide, setSlide] = useState(0);
+  // Modulo at read time: a pin change can shrink the deck under a live index.
+  const hero = heroes[slide % heroes.length]!;
   const { jam } = hero;
-  const [showEntries, setShowEntries] = useState(false);
+  const entries = entriesByJamId.get(jam.jamId) ?? [];
+
+  // The covers belong to the jam they were opened on — a slide change
+  // closes them by falling out of this equality, no effect needed.
+  const [entriesOpenFor, setEntriesOpenFor] = useState<number | null>(null);
+  const showEntries = entriesOpenFor === jam.jamId;
   const gridId = useId();
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [closedHeight, setClosedHeight] = useState<number | null>(null);
   const [floating, setFloating] = useState(false);
   const [scrollport, setScrollport] = useState<HTMLElement | null>(null);
+  const [hovered, setHovered] = useState(false);
 
-  // A hero change can land on a jam with nothing submitted; that must close
+  // A slide change can land on a jam with nothing submitted; that must close
   // the grid rather than hold it open empty.
   const open = showEntries && entries.length > 0;
 
@@ -234,10 +253,17 @@ export function FeaturedJamPanel({
   const morph = reduced ? INSTANT : MORPH;
   const crossfade = reduced ? INSTANT : CROSSFADE;
 
+  const rotating = heroes.length > 1 && !reduced && !hovered && !showEntries && !floating;
+  useEffect(() => {
+    if (!rotating) return;
+    const timer = setInterval(() => setSlide((i) => (i + 1) % heroes.length), SLIDE_MS);
+    return () => clearInterval(timer);
+  }, [rotating, heroes.length]);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) setShowEntries(false);
+      if (event.key === "Escape" && !event.defaultPrevented) setEntriesOpenFor(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -248,7 +274,7 @@ export function FeaturedJamPanel({
       setClosedHeight(wrapRef.current?.offsetHeight ?? null);
       setFloating(true);
     }
-    setShowEntries((prev) => !prev);
+    setEntriesOpenFor((prev) => (prev === jam.jamId ? null : jam.jamId));
   };
 
   const [bgColor1, bgColor2] = useJamGradient(jam);
@@ -286,6 +312,8 @@ export function FeaturedJamPanel({
       ref={wrapRef}
       className="relative"
       style={floating && closedHeight ? { height: closedHeight } : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <motion.div
         className={cn(floating && "absolute inset-x-0 top-0 z-30 rounded-lg")}
@@ -312,26 +340,52 @@ export function FeaturedJamPanel({
               bgColor1={bgColor1}
               bgColor2={bgColor2}
             />
-            <div className="absolute inset-0">
-              <JamBannerArt jam={jam} isCompact={isCompact} />
-            </div>
+            {/* popLayout: `wait` would leave the backdrop bare between slides. */}
+            <AnimatePresence initial={false} mode="popLayout">
+              <motion.div
+                key={jam.jamId}
+                initial={reduced ? { opacity: 0 } : { opacity: 0, x: 32 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduced ? { opacity: 0 } : { opacity: 0, x: -32 }}
+                transition={reduced ? INSTANT : BANNER_TRANSITION}
+                className="absolute inset-0"
+              >
+                <JamBannerArt jam={jam} isCompact={isCompact} />
+              </motion.div>
+            </AnimatePresence>
             <div
               className={`pointer-events-none absolute z-20 ${isCompact ? "top-3 left-3" : "top-4 left-4"}`}
             >
               <JamStateBadge state={state} />
             </div>
+            {heroes.length > 1 && (
+              <JamCarouselDots
+                slides={heroes.map((h) => h.jam)}
+                active={slide % heroes.length}
+                onSelect={setSlide}
+                className={`absolute z-20 ${isCompact ? "bottom-3 left-3" : "bottom-4 left-4"}`}
+              />
+            )}
           </motion.div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-            <div>
-              <Heading as="h2" size={isCompact ? "xl" : "2xl"} ellipsis className="leading-tight">
-                {jam.title}
-              </Heading>
-              <MicroLabel as="div" className="mt-1">
-                {start.month} {start.day}
-                {jam.endsAt ? ` → ${end.month} ${end.day}` : ""}
-              </MicroLabel>
-            </div>
+            <AnimatePresence initial={false} mode="popLayout">
+              <motion.div
+                key={jam.jamId}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={crossfade}
+              >
+                <Heading as="h2" size={isCompact ? "xl" : "2xl"} ellipsis className="leading-tight">
+                  {jam.title}
+                </Heading>
+                <MicroLabel as="div" className="mt-1">
+                  {start.month} {start.day}
+                  {jam.endsAt ? ` → ${end.month} ${end.day}` : ""}
+                </MicroLabel>
+              </motion.div>
+            </AnimatePresence>
 
             {/* popLayout: `wait` would collapse the card to its title between
               the crossfading halves. */}
@@ -401,33 +455,48 @@ export function FeaturedJamPanel({
             </AnimatePresence>
 
             <div className="mt-auto flex gap-2">
-              <Button
-                variant="default"
-                size="lg"
-                nativeButton={false}
-                render={
-                  <Link to="/jams/$jamSlug" params={jamLinkParams(jam)} aria-label="Open jam" />
-                }
-                className="flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold tracking-widest"
-              >
-                <HugeiconsIcon icon={FlashIcon} size={14} />
-                OPEN JAM
-              </Button>
-
-              {entries.length > 0 && (
+              {/* `layout` lets OPEN JAM glide as its neighbour comes and
+                  goes with the rotation, instead of snapping wide. */}
+              <motion.div layout className="min-w-0 flex-1" transition={morph}>
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="lg"
-                  aria-expanded={open}
-                  aria-controls={open ? gridId : undefined}
-                  onClick={toggleEntries}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold tracking-widest text-muted-foreground hover:text-primary"
-                  {...PAGE_CUES}
+                  nativeButton={false}
+                  render={
+                    <Link to="/jams/$jamSlug" params={jamLinkParams(jam)} aria-label="Open jam" />
+                  }
+                  className="flex w-full items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold tracking-widest"
                 >
-                  <HugeiconsIcon icon={open ? ArrowLeft02Icon : GridViewIcon} size={14} />
-                  {open ? "BACK" : `ENTRIES ${entryCount.toLocaleString()}`}
+                  <HugeiconsIcon icon={FlashIcon} size={14} />
+                  OPEN JAM
                 </Button>
-              )}
+              </motion.div>
+
+              <AnimatePresence initial={false} mode="popLayout">
+                {entries.length > 0 && (
+                  <motion.div
+                    key="entries-button"
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={crossfade}
+                  >
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      aria-expanded={open}
+                      aria-controls={open ? gridId : undefined}
+                      onClick={toggleEntries}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold tracking-widest text-muted-foreground hover:text-primary"
+                      {...PAGE_CUES}
+                    >
+                      <HugeiconsIcon icon={open ? ArrowLeft02Icon : GridViewIcon} size={14} />
+                      {open ? "BACK" : `ENTRIES ${entryCount.toLocaleString()}`}
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </Well>

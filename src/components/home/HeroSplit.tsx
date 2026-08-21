@@ -11,9 +11,10 @@ import { Link } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
 interface HeroSplitProps {
-  hero: HeroJam | null;
-  /** Submissions to the hero's jam, for the panel's entries view. */
-  heroEntries: RecentEntry[];
+  /** The hero rotation, priority first — empty when nothing is promotable. */
+  heroSlides: HeroJam[];
+  /** Submissions per jam, for the panel's entries view. */
+  entriesByJamId: ReadonlyMap<number, RecentEntry[]>;
   isLoading: boolean;
   now: Date;
 }
@@ -29,8 +30,8 @@ interface HeroSplitProps {
  * When there is no jam to promote at all, the panel collapses and the
  * pitch takes the full width rather than holding open an empty column.
  */
-export function HeroSplit({ hero, heroEntries, isLoading, now }: HeroSplitProps) {
-  const showPanel = isLoading || hero != null;
+export function HeroSplit({ heroSlides, entriesByJamId, isLoading, now }: HeroSplitProps) {
+  const showPanel = isLoading || heroSlides.length > 0;
 
   return (
     <div
@@ -78,9 +79,8 @@ export function HeroSplit({ hero, heroEntries, isLoading, now }: HeroSplitProps)
       </div>
 
       {showPanel &&
-        (hero ? (
-          // Keyed by jam so an open entries view resets when the hero changes.
-          <FeaturedJamPanel key={hero.jam.jamId} hero={hero} entries={heroEntries} now={now} />
+        (heroSlides.length > 0 ? (
+          <FeaturedJamPanel heroes={heroSlides} entriesByJamId={entriesByJamId} now={now} />
         ) : (
           <FeaturedJamPanelSkeleton />
         ))}

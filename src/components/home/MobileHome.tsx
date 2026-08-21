@@ -25,8 +25,7 @@ export function MobileHome() {
   const {
     nowDate,
     isLoading,
-    hero,
-    heroEntries,
+    heroSlides,
     showcaseJams,
     entriesByJamId,
     entriesLoading,
@@ -56,12 +55,10 @@ export function MobileHome() {
       <motion.div variants={fadeUp} className="flex flex-col gap-3">
         {isLoading ? (
           <FeaturedJamPanelSkeleton density="compact" />
-        ) : hero ? (
-          // Keyed by jam so an open entries view resets when the hero changes.
+        ) : heroSlides.length > 0 ? (
           <FeaturedJamPanel
-            key={hero.jam.jamId}
-            hero={hero}
-            entries={heroEntries}
+            heroes={heroSlides}
+            entriesByJamId={entriesByJamId}
             now={nowDate}
             density="compact"
           />

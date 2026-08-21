@@ -16,7 +16,6 @@
   "chosenAddOns": [
     "strapi",
     "tanstack-query",
-    "sentry",
     "nitro",
     "drizzle",
     "better-auth",
