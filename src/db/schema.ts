@@ -23,12 +23,11 @@ import {
 export const authSchema = pgSchema("auth");
 export const userSchema = pgSchema("user");
 /**
- * Moderation. Most of it is the Discord bot's — those tables are mirrored
- * here for types and FK awareness, and this app never writes them (they're
- * keyed on `guild_id` and Discord snowflakes, and the bot owns their
- * migrations). `moderation_actions` at the bottom of this file is ours: the
- * site's moderation log, kept alongside the guild's so an incident review
- * reads one schema instead of two.
+ * Moderation. Most of it is the Hammer Discord bot's — the bot writes those
+ * tables and this app only reads them; the ownership contract is on the
+ * section comment above the tables. `moderation_actions` at the bottom of
+ * this file is ours: the site's moderation log, kept alongside the guild's
+ * so an incident review reads one schema instead of two.
  */
 export const hammerSchema = pgSchema("hammer");
 export const collabSchema = pgSchema("collab");
@@ -431,20 +430,35 @@ export const userNotificationSettings = userSchema.table("user_notification_sett
 });
 
 // ── Moderation tables (hammer schema) ───────────────────────────────────────
+//
+// The Hammer Discord bot's tables (github.com/BrackeysBot/Hammer). Hammer is
+// moving off its own SQLite file into this database and scaffolds its EF
+// model database-first from whatever shape we declare, so drizzle stays the
+// single migration engine and the bot adapts to the columns below. The bot
+// writes these; the app only reads them. Translation from the SQLite shape:
+//
+// - Discord snowflakes (`ulong` in the bot) are `text`, matching
+//   `developer_profiles.discord_id` and every other snowflake column in the
+//   app. Deliberately no FK onto `developer_profiles`: the bot records guild
+//   members who have never signed in here, so most of these ids have no
+//   profile row — app reads are LEFT JOINs on `discord_id`.
+// - Timestamps are `timestamptz`; Npgsql maps `DateTimeOffset` only to
+//   `timestamp with time zone` (SQLite stored these as bytes through a value
+//   converter, which the move retires).
+// - C# enums stay integers. `infractions.type` is InfractionType (0 Warning,
+//   1 MessageDeletion, 2 Gag, 3 TemporaryMute, 4 Mute, 5 Kick,
+//   6 TemporaryBan, 7 Ban); `member_notes.type` is MemberNoteType (0 Guru,
+//   1 Staff).
+// - `attachments` (a URI list serialized to bytes in SQLite) is `text[]` of
+//   URLs — Npgsql maps string collections to arrays natively.
 
 export const altAccounts = hammerSchema.table(
   "alt_accounts",
   {
-    userId: text("user_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
-    altId: text("alt_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
-    staffMemberId: text("staff_member_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
-    registeredAt: timestamp("registered_at").notNull(),
+    userId: text("user_id").notNull(),
+    altId: text("alt_id").notNull(),
+    staffMemberId: text("staff_member_id").notNull(),
+    registeredAt: timestamp("registered_at", { withTimezone: true }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.altId] })],
 );
@@ -453,96 +467,90 @@ export const blockedReporters = hammerSchema.table(
   "blocked_reporters",
   {
     guildId: text("guild_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
-    blockedAt: timestamp("blocked_at").notNull(),
-    staffMemberId: text("staff_member_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
+    userId: text("user_id").notNull(),
+    blockedAt: timestamp("blocked_at", { withTimezone: true }).notNull(),
+    staffMemberId: text("staff_member_id").notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.guildId] })],
 );
 
 export const deletedMessages = hammerSchema.table("deleted_messages", {
-  messageId: bigserial("message_id", { mode: "bigint" }).primaryKey(),
-  attachments: text("attachments").notNull(),
-  authorId: text("author_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
+  /** The message's own snowflake — Hammer's PK, not a generated id. */
+  messageId: text("message_id").primaryKey(),
+  attachments: text("attachments").array().notNull(),
+  authorId: text("author_id").notNull(),
   channelId: text("channel_id").notNull(),
   content: text("content"),
-  creationTimestamp: timestamp("creation_timestamp").notNull(),
-  deletionTimestamp: timestamp("deletion_timestamp").notNull(),
+  creationTimestamp: timestamp("creation_timestamp", { withTimezone: true }).notNull(),
+  deletionTimestamp: timestamp("deletion_timestamp", { withTimezone: true }).notNull(),
   guildId: text("guild_id").notNull(),
-  staffMemberId: text("staff_member_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
+  staffMemberId: text("staff_member_id").notNull(),
 });
 
-export const infractions = hammerSchema.table("infractions", {
-  id: bigserial("id", { mode: "bigint" }).primaryKey(),
-  guildId: text("guild_id").notNull(),
-  issuedAt: timestamp("issued_at").notNull(),
-  reason: text("reason"),
-  ruleId: text("rule_id"),
-  ruleText: text("rule_text"),
-  staffMemberId: text("staff_member_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
-  type: integer("type").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
-  additionalInformation: text("additional_information"),
-});
+export const infractions = hammerSchema.table(
+  "infractions",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    guildId: text("guild_id").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+    reason: text("reason"),
+    // Rule number + snapshot of its text at issue time, so the row stays
+    // readable after the rulebook is edited. Loose by design, like
+    // `moderation_actions.target_id`.
+    ruleId: integer("rule_id"),
+    ruleText: text("rule_text"),
+    staffMemberId: text("staff_member_id").notNull(),
+    type: integer("type").notNull(),
+    userId: text("user_id").notNull(),
+    additionalInformation: text("additional_information"),
+  },
+  // "Everything the guild has on this member", newest first — the member
+  // dossier read.
+  (table) => [index("infractions_user_idx").on(table.userId, table.issuedAt.desc())],
+);
 
-export const memberNotes = hammerSchema.table("member_notes", {
-  id: bigserial("id", { mode: "bigint" }).primaryKey(),
-  authorId: text("author_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
-  content: text("content").notNull(),
-  creationTimestamp: timestamp("creation_timestamp").notNull(),
-  guildId: text("guild_id").notNull(),
-  type: integer("type").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
-});
+export const memberNotes = hammerSchema.table(
+  "member_notes",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    authorId: text("author_id").notNull(),
+    content: text("content").notNull(),
+    creationTimestamp: timestamp("creation_timestamp", { withTimezone: true }).notNull(),
+    guildId: text("guild_id").notNull(),
+    type: integer("type").notNull(),
+    userId: text("user_id").notNull(),
+  },
+  (table) => [index("member_notes_user_idx").on(table.userId)],
+);
 
 export const mutes = hammerSchema.table(
   "mutes",
   {
     guildId: text("guild_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
-    expiresAt: timestamp("expires_at"),
+    userId: text("user_id").notNull(),
+    /** Null is permanent, mirroring `user.banned_until`. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [primaryKey({ columns: [table.userId, table.guildId] })],
 );
 
 export const reportedMessages = hammerSchema.table("reported_messages", {
-  id: bigserial("id", { mode: "bigint" }).primaryKey(),
-  attachments: text("attachments").notNull(),
-  authorId: text("author_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  attachments: text("attachments").array().notNull(),
+  authorId: text("author_id").notNull(),
   channelId: text("channel_id").notNull(),
   content: text("content"),
   guildId: text("guild_id").notNull(),
   messageId: text("message_id").notNull(),
-  reporterId: text("reporter_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
+  reporterId: text("reporter_id").notNull(),
 });
 
 export const rules = hammerSchema.table(
   "rules",
   {
     guildId: text("guild_id").notNull(),
-    id: text("id").notNull(),
+    /** Rule number, unique per guild — "rule 5", not a surrogate id. */
+    id: integer("id").notNull(),
     brief: text("brief"),
     description: text("description").notNull(),
   },
@@ -550,41 +558,34 @@ export const rules = hammerSchema.table(
 );
 
 export const staffMessages = hammerSchema.table("staff_messages", {
-  id: bigserial("id", { mode: "bigint" }).primaryKey(),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   content: text("content").notNull(),
   guildId: text("guild_id").notNull(),
-  recipientId: text("recipient_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
-  sentAt: text("sent_at").notNull(),
-  staffMemberId: text("staff_member_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
+  recipientId: text("recipient_id").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  staffMemberId: text("staff_member_id").notNull(),
 });
 
 export const temporaryBans = hammerSchema.table(
   "temporary_bans",
   {
     guildId: text("guild_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => developerProfiles.discordId),
-    expiresAt: timestamp("expires_at").notNull(),
+    userId: text("user_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.guildId] })],
 );
 
 export const trackedMessages = hammerSchema.table("tracked_messages", {
-  id: bigserial("id", { mode: "bigint" }).primaryKey(),
-  attachments: text("attachments").notNull(),
-  authorId: text("author_id")
-    .notNull()
-    .references(() => developerProfiles.discordId),
+  /** The tracked message's snowflake — Hammer keys these by message id. */
+  id: text("id").primaryKey(),
+  attachments: text("attachments").array().notNull(),
+  authorId: text("author_id").notNull(),
   channelId: text("channel_id").notNull(),
   content: text("content"),
-  creationTimestamp: timestamp("creation_timestamp").notNull(),
-  deletionTimestamp: timestamp("deletion_timestamp"),
-  isDeleted: integer("is_deleted").notNull(),
+  creationTimestamp: timestamp("creation_timestamp", { withTimezone: true }).notNull(),
+  deletionTimestamp: timestamp("deletion_timestamp", { withTimezone: true }),
+  isDeleted: boolean("is_deleted").notNull().default(false),
   guildId: text("guild_id").notNull(),
 });
 

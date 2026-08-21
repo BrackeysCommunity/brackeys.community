@@ -7,12 +7,10 @@
  * remove it here, which in turn cascades skills, skill requests, URL stubs,
  * profile projects, and linked accounts (including stored itch.io tokens).
  *
- * Moderation records (hammer schema) reference `developer_profiles.discord_id`
- * with no delete rule, deliberately: self-serve deletion must not erase
- * infraction or ban history. When such records exist the profile delete hits
- * an FK violation and we fall back to anonymizing the profile — child rows
- * are removed and every personal field is cleared, leaving only the skeleton
- * row (id + discord id) the moderation tables point at.
+ * Moderation records (hammer schema) are keyed by Discord snowflake with no
+ * FK onto `developer_profiles`, so self-serve deletion never touches them:
+ * infraction and ban history stays with the guild while the profile row
+ * disappears entirely.
  *
  * **What survives, and why.** Canonical projects are shared entities: other
  * contributors' pages, teams' showcases, and jam backlinks point at them.
@@ -35,26 +33,9 @@
 import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import {
-  comments,
-  developerProfiles,
-  linkedAccounts,
-  profileProjects,
-  profileUrlStubs,
-  skillRequests,
-  userSkills,
-} from "@/db/schema";
+import { comments, developerProfiles, profileProjects } from "@/db/schema";
 import { purgeGuildMemberCache } from "@/lib/discord";
 import { removeProfileProjectImageFromStorage } from "@/lib/profile-project-image-storage";
-
-function isForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23503"
-  );
-}
 
 export async function cleanupUserData(userId: string): Promise<void> {
   const [profile] = await db
@@ -85,41 +66,7 @@ export async function cleanupUserData(userId: string): Promise<void> {
     .set({ content: "", deletedAt: sql`COALESCE(${comments.deletedAt}, now())` })
     .where(eq(comments.authorId, userId));
 
-  try {
-    await db.delete(developerProfiles).where(eq(developerProfiles.id, userId));
-  } catch (error) {
-    if (!isForeignKeyViolation(error)) throw error;
-
-    // Moderation records pin this profile — anonymize instead of delete.
-    await db.transaction(async (tx) => {
-      await tx.delete(userSkills).where(eq(userSkills.userId, userId));
-      await tx.delete(skillRequests).where(eq(skillRequests.userId, userId));
-      await tx.delete(profileUrlStubs).where(eq(profileUrlStubs.profileId, userId));
-      await tx.delete(profileProjects).where(eq(profileProjects.profileId, userId));
-      await tx.delete(linkedAccounts).where(eq(linkedAccounts.profileId, userId));
-      await tx
-        .update(developerProfiles)
-        .set({
-          discordUsername: "[deleted]",
-          avatarUrl: null,
-          guildNickname: null,
-          guildJoinedAt: null,
-          guildRoles: null,
-          bio: null,
-          tagline: null,
-          githubUrl: null,
-          twitterUrl: null,
-          websiteUrl: null,
-          availableForWork: false,
-          availability: null,
-          rateType: null,
-          rateMin: null,
-          rateMax: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(developerProfiles.id, userId));
-    });
-  }
+  await db.delete(developerProfiles).where(eq(developerProfiles.id, userId));
 
   if (profile.discordId) await purgeGuildMemberCache(profile.discordId);
 }
