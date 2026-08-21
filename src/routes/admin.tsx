@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
 import { AdminFeatured } from "@/components/admin/AdminFeatured";
+import { AdminHeroJam } from "@/components/admin/AdminHeroJam";
 import { AdminLog } from "@/components/admin/AdminLog";
 import { AdminRecentComments } from "@/components/admin/AdminRecentComments";
 import { AdminReportQueue } from "@/components/admin/AdminReportQueue";
@@ -17,7 +18,7 @@ import { client, orpc } from "@/orpc/client";
 // search union that /notifications' own `view` param narrows against.
 const searchSchema = z.object({
   section: z
-    .enum(["reports", "comments", "featured", "skills", "vocab", "bans", "log"])
+    .enum(["reports", "comments", "featured", "hero", "skills", "vocab", "bans", "log"])
     .default("reports"),
 });
 
@@ -27,6 +28,7 @@ const TABS: { key: View; label: string }[] = [
   { key: "reports", label: "Reports" },
   { key: "comments", label: "Comments" },
   { key: "featured", label: "Featured" },
+  { key: "hero", label: "Hero jam" },
   { key: "skills", label: "Skills" },
   { key: "vocab", label: "Vocabulary" },
   { key: "bans", label: "Bans" },
@@ -115,6 +117,7 @@ function AdminRoute() {
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
       {section === "featured" && <AdminFeatured />}
+      {section === "hero" && <AdminHeroJam />}
       {section === "skills" && <AdminSkills isAdmin={isAdmin} />}
       {section === "vocab" && <AdminVocabulary isAdmin={isAdmin} />}
       {section === "bans" && <AdminBans isAdmin={isAdmin} />}

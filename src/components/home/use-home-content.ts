@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 
 import { useHomeDashboard } from "@/components/home/dashboard/use-home-dashboard";
-import { pickHeroJam } from "@/components/home/FeaturedJamPanel";
 import { selectShowcaseJams } from "@/components/home/JamShowcaseBand";
+import { entryJamIdsFor, useRecentEntries } from "@/components/home/use-recent-entries";
 import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import useDateNow from "@/lib/hooks/use-date-now";
 
@@ -24,20 +24,31 @@ export function useHomeContent() {
   const now = useDateNow();
   const nowDate = useMemo(() => new Date(now), [now]);
 
-  const { isLoading, featured, upcoming, liveCount, upcomingCount } = useHomeJams(now);
+  const { isLoading, featured, upcoming, hero, liveCount, upcomingCount } = useHomeJams(now);
   const dashboard = useHomeDashboard();
 
-  const hero = useMemo(() => pickHeroJam(featured), [featured]);
   const showcaseJams = useMemo(
     () => selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null),
     [featured, upcoming, hero],
   );
+
+  // One request for every cover the page shows, hero included — the band
+  // deliberately excludes the hero jam, so it can't cover for it.
+  const entryJamIds = useMemo(
+    () => entryJamIdsFor(hero?.jam.jamId ?? null, showcaseJams),
+    [hero, showcaseJams],
+  );
+  const { byJamId: entriesByJamId, isLoading: entriesLoading } = useRecentEntries(entryJamIds);
 
   return {
     nowDate,
     isLoading,
     hero,
     showcaseJams,
+    entriesByJamId,
+    entriesLoading,
+    /** What people have submitted to the jam the hero is promoting. */
+    heroEntries: (hero ? entriesByJamId.get(hero.jam.jamId) : undefined) ?? [],
     liveCount,
     upcomingCount,
     dashboard,

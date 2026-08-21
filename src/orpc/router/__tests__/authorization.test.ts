@@ -37,6 +37,9 @@ const PUBLIC_PROCEDURES = new Set([
   "getJamResults",
   "getJamCommunity",
   "listJamsByHost",
+  // Which jams staff offered the home hero — the home page reads it
+  // anonymously, and "we picked this jam" is not a secret.
+  "listJamHeroPins",
   // Public community directory (explicit product decision — see
   // docs/plans/01-admin-surface-hardening.md §"Confirm-intent").
   "listMembers",
@@ -90,6 +93,7 @@ const STAFF_PROCEDURES = new Set([
   "updateSkill",
   "deleteSkill",
   "featurePost",
+  "setJamHeroPin",
   "addCollabRole",
   "updateCollabRole",
   "removeCollabRole",

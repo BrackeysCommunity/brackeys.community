@@ -1,6 +1,20 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -19,10 +33,11 @@ import {
   type JamWatchIntent,
 } from "@/db/schema";
 import { EVENTS } from "@/lib/analytics-events";
+import { recordModerationAction } from "@/lib/moderation-audit";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";
 import { likeContains } from "@/lib/sql-like";
-import { requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
+import { requireAuth, requireStaff, userIsGuildMember } from "@/orpc/middleware/auth";
 
 /** How far back the "calendar" filter keeps archived jams. */
 const CALENDAR_ARCHIVE_MONTHS = 12;
@@ -205,9 +220,10 @@ const NO_RANK = 2_147_483_647;
 /** Jams per request, and entries per jam. Both are display caps: the
  * landing page shows a handful of jams with a scrolling cover strip each,
  * and the partition below is what keeps a 3k-entry jam from shipping 3k
- * rows. The jam cap tracks `SHOWCASE_MAX_JAMS`, the band's jam count —
- * the whole band is one request. */
-export const RECENT_ENTRIES_MAX_JAMS = 12;
+ * rows. The jam cap tracks `SHOWCASE_MAX_JAMS` **plus the hero** — the
+ * whole landing page is one request, and the hero jam is the one the band
+ * deliberately leaves out. */
+export const RECENT_ENTRIES_MAX_JAMS = 13;
 export const RECENT_ENTRIES_MAX_LIMIT = 10;
 
 /**
@@ -231,16 +247,19 @@ export function recentEntriesQuery(jamIds: number[], limit: number) {
       authorName: itchJamEntries.authorName,
       ratingCount: itchJamEntries.ratingCount,
       rank: itchJamEntryResults.rank,
-      // entryId breaks `submitted_at` ties (bulk-submitted jams share a
-      // timestamp) and stands in for it entirely when the scrape didn't
-      // capture one — itch ids grow over time, so DESC still means newest.
+      // A jam in its voting window leads with its most-rated entries (an
+      // unrated field ties at 0 and stays newest-first); otherwise newest
+      // first, entryId breaking `submitted_at` ties and null timestamps.
       rowNumber: sql<number>`ROW_NUMBER() OVER (
         PARTITION BY ${itchJamEntries.jamId}
-        ORDER BY ${itchJamEntries.submittedAt} DESC NULLS LAST,
+        ORDER BY CASE WHEN ${itchJams.endsAt} <= NOW() AND ${itchJams.votingEndsAt} > NOW()
+                      THEN ${itchJamEntries.ratingCount} END DESC NULLS LAST,
+                 ${itchJamEntries.submittedAt} DESC NULLS LAST,
                  ${itchJamEntries.entryId} DESC
       )`.as("row_number"),
     })
     .from(itchJamEntries)
+    .leftJoin(itchJams, eq(itchJams.jamId, itchJamEntries.jamId))
     .leftJoin(
       itchJamEntryResults,
       and(
@@ -901,6 +920,76 @@ export const listJamsByHost = os
       .limit(input.limit);
 
     return { jams };
+  });
+
+// ── Hero pins (staff curation) ──────────────────────────────────────────────
+
+/** Enough of a jam to render a pin whose jam has left the board payload. */
+const heroPinFields = {
+  jamId: itchJams.jamId,
+  slug: itchJams.slug,
+  title: itchJams.title,
+  bannerUrl: itchJams.bannerUrl,
+  themeColor: itchJams.themeColor,
+  hosts: itchJams.hosts,
+  startsAt: itchJams.startsAt,
+  endsAt: itchJams.endsAt,
+  votingEndsAt: itchJams.votingEndsAt,
+  joinedCount: itchJams.joinedCount,
+  entriesCount: itchJams.entriesCount,
+  pinnedAt: itchJams.heroPinnedAt,
+};
+
+/** A pin nobody has cleaned up is still a pin; the bound is a backstop. */
+const HERO_PIN_MAX = 20;
+
+/**
+ * Which jams staff have offered the home hero, newest pin first. Its own
+ * procedure rather than a `listJams` field so it can carry a much shorter
+ * edge TTL — see `PUBLIC_EDGE_TTL`. Expired pins are returned too: the
+ * admin panel is the only place they can be seen and cleared.
+ */
+export const listJamHeroPins = os.route({ method: "GET" }).handler(async () => {
+  const pins = await db
+    .select(heroPinFields)
+    .from(itchJams)
+    .where(and(isNotNull(itchJams.heroPinnedAt), isNull(itchJams.missingSince)))
+    .orderBy(desc(itchJams.heroPinnedAt))
+    .limit(HERO_PIN_MAX);
+
+  return { pins };
+});
+
+/** Offer a jam to the home hero, or withdraw it. Staff, not admin — same
+ * tier as featuring a collab post, and just as reversible. */
+export const setJamHeroPin = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      jamId: z.number().int().min(1).max(MAX_INT4),
+      pinned: z.boolean(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [updated] = await db
+      .update(itchJams)
+      .set({ heroPinnedAt: input.pinned ? new Date() : null })
+      .where(eq(itchJams.jamId, input.jamId))
+      .returning(heroPinFields);
+
+    if (!updated) {
+      throw new ORPCError("NOT_FOUND", { message: "Jam not found." });
+    }
+
+    await recordModerationAction({
+      action: input.pinned ? "jam_hero_pinned" : "jam_hero_unpinned",
+      actorId: context.user.id,
+      targetType: "jam",
+      targetId: updated.jamId,
+      metadata: { jamTitle: updated.title, jamSlug: updated.slug },
+    });
+
+    return updated;
   });
 
 // ── Jam engagement (the one user-declared thing about a jam) ────────────────

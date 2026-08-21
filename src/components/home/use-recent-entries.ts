@@ -14,6 +14,19 @@ export type RecentEntry = Awaited<
 export const RECENT_ENTRIES_PER_JAM = 10;
 
 /**
+ * Every jam the landing page shows covers for: the hero plus the band. One
+ * helper so the `/` loader's prefetch and the page's query agree on the set.
+ * Must stay within `RECENT_ENTRIES_MAX_JAMS` in `@/orpc/router/jam`.
+ */
+export function entryJamIdsFor(
+  heroJamId: number | null,
+  showcase: readonly { jamId: number }[],
+): number[] {
+  const ids = showcase.map((jam) => jam.jamId);
+  return heroJamId == null ? ids : [heroJamId, ...ids];
+}
+
+/**
  * One request for the whole band rather than a query per row — the landing
  * page already ships the ~500-jam board payload and shouldn't add a round
  * trip per row on top of it. The key is the *sorted* id list so re-ordering

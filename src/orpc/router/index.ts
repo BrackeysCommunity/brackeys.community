@@ -75,10 +75,12 @@ import {
   getJamResults,
   getJamViewerState,
   listJamEntries,
+  listJamHeroPins,
   listJams,
   listJamsByHost,
   listMyJamWatches,
   listRecentEntries,
+  setJamHeroPin,
   setJamWatch,
 } from "./jam";
 import { countMembersByRole, countMembersBySkill, listMembers } from "./member";
@@ -161,6 +163,8 @@ export default {
   getJamResults,
   getJamCommunity,
   listJamsByHost,
+  listJamHeroPins,
+  setJamHeroPin,
   setJamWatch,
   getJamViewerState,
   listMyJamWatches,

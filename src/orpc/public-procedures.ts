@@ -22,6 +22,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "getJamResults",
   "getJamCommunity",
   "listJamsByHost",
+  "listJamHeroPins",
   // Community directory. `getProfile` is the anonymous view; the owner's
   // own extras come from the private `getMyProfile`.
   "listMembers",
@@ -95,6 +96,9 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   // toggle on the same page. At the scraped tier's 300s they'd have watched
   // their own name fail to appear for five minutes.
   getJamCommunity: 60,
+  // The one jam read the app itself writes — a staff pin's author reloads
+  // `/` within seconds, which is why this isn't a field on 300s `listJams`.
+  listJamHeroPins: 30,
   listMembers: 60,
   countMembersBySkill: 60,
   countMembersByRole: 60,

@@ -1,15 +1,15 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { pickHeroJam } from "@/components/home/FeaturedJamPanel";
 import { HomePage } from "@/components/home/HomePage";
 import { selectShowcaseJams } from "@/components/home/JamShowcaseBand";
 import { MobileHome } from "@/components/home/MobileHome";
 import { newestSignupsQueryOptions } from "@/components/home/NewestSignups";
 import { recentCollabPostsQueryOptions } from "@/components/home/use-recent-collab-posts";
-import { recentEntriesQueryOptions } from "@/components/home/use-recent-entries";
+import { entryJamIdsFor, recentEntriesQueryOptions } from "@/components/home/use-recent-entries";
 import {
   boardJamsQueryOptions,
+  heroPinsQueryOptions,
   homeJamsFrom,
 } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { siteOrigin, siteUrl } from "@/env";
@@ -43,7 +43,13 @@ function HomeRoute() {
  */
 async function prefetchHome(queryClient: QueryClient) {
   const boardOptions = boardJamsQueryOptions();
-  const board = queryClient.prefetchQuery(boardOptions);
+  const pinOptions = heroPinsQueryOptions();
+  // Both must land before the band's set is known — a pin can move the hero,
+  // and the band is the jams the hero didn't take.
+  const heroInputs = Promise.all([
+    queryClient.prefetchQuery(boardOptions),
+    queryClient.prefetchQuery(pinOptions),
+  ]);
   // Independent of the board and of each other, so they run alongside it
   // rather than behind it.
   const sections = [
@@ -52,15 +58,15 @@ async function prefetchHome(queryClient: QueryClient) {
   ];
   if (!isServerLoad()) return;
 
-  await board;
+  await heroInputs;
   const all = queryClient.getQueryData(boardOptions.queryKey)?.jams ?? [];
-  const { featured, upcoming } = homeJamsFrom(all, Date.now());
-  const hero = pickHeroJam(featured);
+  const pins = queryClient.getQueryData(pinOptions.queryKey)?.pins ?? [];
+  const { featured, upcoming, hero } = homeJamsFrom(all, Date.now(), pins);
   const showcase = selectShowcaseJams(featured, upcoming, hero?.jam.jamId ?? null);
-  if (showcase.length > 0) {
-    sections.push(
-      queryClient.prefetchQuery(recentEntriesQueryOptions(showcase.map((j) => j.jamId))),
-    );
+  // The hero rides along — its covers drive the panel's entries view.
+  const entryJamIds = entryJamIdsFor(hero?.jam.jamId ?? null, showcase);
+  if (entryJamIds.length > 0) {
+    sections.push(queryClient.prefetchQuery(recentEntriesQueryOptions(entryJamIds)));
   }
 
   await Promise.all(sections);

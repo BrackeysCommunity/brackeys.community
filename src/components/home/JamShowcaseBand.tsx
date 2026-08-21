@@ -1,19 +1,16 @@
 import { useMemo } from "react";
 
 import { JamShowcaseCard, JamShowcaseRow } from "@/components/home/JamShowcaseRow";
-import { useRecentEntries } from "@/components/home/use-recent-entries";
+import type { RecentEntry } from "@/components/home/use-recent-entries";
 import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { jamLengthDays } from "@/lib/jam-countdown";
 
-/** Jams in the band. Kept at or below `RECENT_ENTRIES_MAX_JAMS` in
- * `@/orpc/router/jam` (not imported — that module pulls in the db): the
- * band's cover strips are one request for the whole set, and asking for
- * more jams than the server carries would reject it outright. Sized for
- * the split layout: the jams without entries render two across, so the
- * band absorbs more of them than it did as a single stack of rows. */
+/** Jams in the band. Must leave room for the hero under
+ * `RECENT_ENTRIES_MAX_JAMS` in `@/orpc/router/jam` — the landing page's
+ * covers are one request; `entry-request-caps.test.ts` holds the two in step. */
 export const SHOWCASE_MAX_JAMS = 12;
 
 /** Longest jam the band will show. */
@@ -77,21 +74,25 @@ export function splitByEntries(
 
 interface JamShowcaseBandProps {
   jams: JamFromList[];
+  /** Keyed by jam id — fetched once by `useHomeContent`, shared with the hero. */
+  entries: Map<number, RecentEntry[]>;
   isLoading: boolean;
+  entriesLoading: boolean;
   now: Date;
 }
 
-/**
- * The band of jam rows. One `listRecentEntries` call covers every row —
- * per-row queries would turn a four-jam band into four round trips on a
- * page that already ships the whole jam board.
- */
-export function JamShowcaseBand({ jams, isLoading, now }: JamShowcaseBandProps) {
-  const jamIds = useMemo(() => jams.map((j) => j.jamId), [jams]);
-  const { byJamId, isLoading: entriesLoading } = useRecentEntries(jamIds);
+/** The band of jam rows. Entries arrive as a prop: one `listRecentEntries`
+ * call covers every row and the hero besides. */
+export function JamShowcaseBand({
+  jams,
+  entries,
+  isLoading,
+  entriesLoading,
+  now,
+}: JamShowcaseBandProps) {
   const { withEntries, withoutEntries } = useMemo(
-    () => splitByEntries(jams, byJamId),
-    [jams, byJamId],
+    () => splitByEntries(jams, entries),
+    [jams, entries],
   );
 
   // Waiting on entries too: until they land every jam would classify as
@@ -128,7 +129,7 @@ export function JamShowcaseBand({ jams, isLoading, now }: JamShowcaseBandProps) 
         <JamShowcaseRow
           key={jam.jamId}
           jam={jam}
-          entries={byJamId.get(jam.jamId) ?? []}
+          entries={entries.get(jam.jamId) ?? []}
           now={now}
         />
       ))}

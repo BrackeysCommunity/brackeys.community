@@ -32,6 +32,8 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "report_reopened", label: "Reports reopened" },
   { value: "skill_request_approved", label: "Skills approved" },
   { value: "skill_request_rejected", label: "Skills rejected" },
+  { value: "jam_hero_pinned", label: "Hero jams pinned" },
+  { value: "jam_hero_unpinned", label: "Hero jams unpinned" },
   { value: "vocabulary_created", label: "Vocabulary created" },
   { value: "vocabulary_renamed", label: "Vocabulary renamed" },
   { value: "vocabulary_deleted", label: "Vocabulary deleted" },

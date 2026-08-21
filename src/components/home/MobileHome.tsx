@@ -26,7 +26,10 @@ export function MobileHome() {
     nowDate,
     isLoading,
     hero,
+    heroEntries,
     showcaseJams,
+    entriesByJamId,
+    entriesLoading,
     liveCount,
     upcomingCount,
     dashboard,
@@ -54,7 +57,14 @@ export function MobileHome() {
         {isLoading ? (
           <FeaturedJamPanelSkeleton density="compact" />
         ) : hero ? (
-          <FeaturedJamPanel hero={hero} now={nowDate} density="compact" />
+          // Keyed by jam so an open entries view resets when the hero changes.
+          <FeaturedJamPanel
+            key={hero.jam.jamId}
+            hero={hero}
+            entries={heroEntries}
+            now={nowDate}
+            density="compact"
+          />
         ) : null}
 
         <ShortcutTiles tiles={navTiles} />
@@ -73,7 +83,13 @@ export function MobileHome() {
           blurb={`${liveCount} live · ${upcomingCount} upcoming.`}
           action={<SectionAction to="/jams">FULL</SectionAction>}
         >
-          <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
+          <JamShowcaseBand
+            jams={showcaseJams}
+            entries={entriesByJamId}
+            isLoading={isLoading}
+            entriesLoading={entriesLoading}
+            now={nowDate}
+          />
         </Section>
       </motion.div>
 

@@ -938,6 +938,10 @@ export const itchJams = itchSchema.table("jams", {
   // new jam). Rows are never deleted — the scraper retries for a grace window,
   // then leaves the row for manual verification. Cleared on successful scrape.
   missingSince: timestamp("missing_since", { withTimezone: true }),
+  // The one staff-written column on an otherwise scraped table: a home-hero
+  // pin, newest wins, self-expiring once the jam is no longer live/upcoming.
+  // The scraper's upsert lists its columns explicitly and must skip this one.
+  heroPinnedAt: timestamp("hero_pinned_at", { withTimezone: true }),
   scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -1549,6 +1553,8 @@ export type ModerationActionType =
   | "report_reopened"
   | "skill_request_approved"
   | "skill_request_rejected"
+  | "jam_hero_pinned"
+  | "jam_hero_unpinned"
   | "user_banned"
   | "user_unbanned"
   | "vocabulary_created"
@@ -1563,6 +1569,7 @@ export type ModerationTargetType =
   | "skill_request"
   | "skill"
   | "collab_role"
+  | "jam"
   | "user";
 
 export const moderationActions = hammerSchema.table(

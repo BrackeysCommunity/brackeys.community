@@ -2,6 +2,7 @@ import { ArrowRight02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 
+import { EntryTile } from "@/components/home/EntryTile";
 import { shortName } from "@/components/home/jam-banner";
 import { RECENT_ENTRIES_PER_JAM, type RecentEntry } from "@/components/home/use-recent-entries";
 import { useJamColor } from "@/components/jams/JamCalendarPage/board/use-jam-color";
@@ -10,7 +11,6 @@ import {
   jamShelf,
   jamSignal,
   nextMilestone,
-  safeThemeColor,
   type ShelfKind,
 } from "@/components/jams/JamCalendarPage/helpers";
 import { Badge } from "@/components/ui/badge";
@@ -297,61 +297,9 @@ function EntryStrip({ entries }: { entries: RecentEntry[] }) {
       </div>
       <div className={STRIP_SCROLLER}>
         {entries.slice(0, RECENT_ENTRIES_PER_JAM).map((entry) => (
-          <EntryTile key={entry.entryId} entry={entry} />
+          <EntryTile key={entry.entryId} entry={entry} className="w-32 shrink-0 snap-start" />
         ))}
       </div>
     </div>
-  );
-}
-
-function EntryTile({ entry }: { entry: RecentEntry }) {
-  // The cover color is scraped text; it never reaches a style attribute
-  // without being re-validated first.
-  const cover = safeThemeColor(entry.gameCoverColor) ?? "var(--muted)";
-
-  return (
-    <a
-      href={entry.gameUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group/entry flex w-32 shrink-0 snap-start flex-col gap-1.5"
-    >
-      <div
-        className="relative aspect-[63/50] w-full overflow-hidden border border-muted/40 transition-colors group-hover/entry:border-primary"
-        style={{ background: cover }}
-      >
-        {entry.gameCoverUrl ? (
-          <img
-            src={itchImageUrl(entry.gameCoverUrl, { width: 384 })}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <DotGrid />
-        )}
-        {entry.rank != null && (
-          <div className="absolute top-1 left-1">
-            <Badge variant="default" size="label">
-              #{entry.rank}
-            </Badge>
-          </div>
-        )}
-      </div>
-      <Text
-        as="div"
-        size="sm"
-        bold
-        ellipsis
-        density="compressed"
-        className="group-hover/entry:text-primary"
-      >
-        {entry.gameTitle}
-      </Text>
-      <MicroLabel as="div" ellipsis>
-        {entry.authorName ?? "UNKNOWN"}
-      </MicroLabel>
-    </a>
   );
 }

@@ -23,9 +23,16 @@ describe("recentEntriesQuery", () => {
     expect(sqlFor([1, 2], 4).toLowerCase()).toContain('partition by "itch"."jam_entries"."jam_id"');
   });
 
+  it("leads with rating count only inside a jam's voting window", () => {
+    expect(sqlFor([1], 4).toLowerCase()).toContain(
+      'order by case when "itch"."jams"."ends_at" <= now() and "itch"."jams"."voting_ends_at" > now() ' +
+        'then "itch"."jam_entries"."rating_count" end desc nulls last',
+    );
+  });
+
   it("orders newest submission first, entries without a timestamp last", () => {
     expect(sqlFor([1], 4).toLowerCase()).toContain(
-      'order by "itch"."jam_entries"."submitted_at" desc nulls last',
+      '"itch"."jam_entries"."submitted_at" desc nulls last',
     );
   });
 

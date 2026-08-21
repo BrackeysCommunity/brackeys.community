@@ -1,6 +1,7 @@
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { type HeroJam, pickHeroJam } from "@/components/home/hero-jam";
 import { client } from "@/orpc/client";
 
 import { buildBoard } from "./board/build-board";
@@ -10,6 +11,7 @@ import {
   jamMatchesSearch,
   jamShelf,
   type JamFromList,
+  type JamHeroPin,
   type ShelfKind,
 } from "./helpers";
 
@@ -41,6 +43,16 @@ export function boardJamsQueryOptions() {
 
 function useBoardQuery() {
   return useQuery(boardJamsQueryOptions());
+}
+
+/** Staff hero picks. Its own query rather than a board field: the board sits
+ * in a 5-minute edge cache, and a pin is a write its author checks at once. */
+export function heroPinsQueryOptions() {
+  return queryOptions({
+    queryKey: ["jam-hero-pins"],
+    queryFn: () => client.listJamHeroPins(),
+    staleTime: 60 * 1000,
+  });
 }
 
 export interface BoardData {
@@ -89,6 +101,9 @@ export interface HomeJamsData {
   /** The board's ranked upcoming shelf (signal ≥ threshold, featured and
    * perpetual pseudo-jams excluded), soonest first. */
   upcoming: JamFromList[];
+  /** The jam the hero leads with — resolved here so the `/` loader can
+   * prefetch the band around the same answer. */
+  hero: HeroJam | null;
   liveCount: number;
   upcomingCount: number;
 }
@@ -101,9 +116,14 @@ export interface HomeJamsData {
  */
 export function useHomeJams(now: number): HomeJamsData {
   const { data, isLoading } = useBoardQuery();
+  const { data: pinData } = useQuery(heroPinsQueryOptions());
 
   const all = useMemo(() => data?.jams ?? [], [data]);
-  return useMemo(() => ({ isLoading, ...homeJamsFrom(all, now) }), [all, now, isLoading]);
+  const pins = useMemo(() => pinData?.pins ?? [], [pinData]);
+  return useMemo(
+    () => ({ isLoading, ...homeJamsFrom(all, now, pins) }),
+    [all, now, pins, isLoading],
+  );
 }
 
 /**
@@ -112,13 +132,18 @@ export function useHomeJams(now: number): HomeJamsData {
  * whose entries to prefetch — off the same reasoning the page will use,
  * rather than a second copy of it.
  */
-export function homeJamsFrom(all: JamFromList[], now: number): Omit<HomeJamsData, "isLoading"> {
+export function homeJamsFrom(
+  all: JamFromList[],
+  now: number,
+  pins: JamHeroPin[] = [],
+): Omit<HomeJamsData, "isLoading"> {
   const nowDate = new Date(now);
   const { featured, shelves } = buildBoard(all, nowDate, "soonest");
   const counts = countShelves(all, nowDate);
   return {
     featured,
     upcoming: shelves.upcoming.ranked,
+    hero: pickHeroJam(featured, all, pins, nowDate),
     liveCount: counts.live,
     upcomingCount: counts.upcoming,
   };

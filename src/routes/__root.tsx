@@ -5,7 +5,6 @@ import { lazy, Suspense, useEffect } from "react";
 
 import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
-import { BackgroundBlobs } from "@/components/layout/BackgroundBlobs";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
 import { siteUrl } from "@/env";
 import {
@@ -218,7 +217,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <Suspense>
               <Cursor />
             </Suspense>
-            <BackgroundBlobs />
+            {/*<BackgroundBlobs />*/}
             <Suspense>
               <BackgroundDotField />
             </Suspense>

@@ -2,18 +2,18 @@ import { ArrowRight02Icon, Calendar03Icon, UserGroupIcon } from "@hugeicons/core
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { CyclingWord } from "@/components/home/CyclingWord";
-import {
-  FeaturedJamPanel,
-  FeaturedJamPanelSkeleton,
-  type HeroJam,
-} from "@/components/home/FeaturedJamPanel";
+import { FeaturedJamPanel, FeaturedJamPanelSkeleton } from "@/components/home/FeaturedJamPanel";
+import type { HeroJam } from "@/components/home/hero-jam";
 import { HeroWordmark } from "@/components/home/HeroWordmark";
+import type { RecentEntry } from "@/components/home/use-recent-entries";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
 interface HeroSplitProps {
   hero: HeroJam | null;
+  /** Submissions to the hero's jam, for the panel's entries view. */
+  heroEntries: RecentEntry[];
   isLoading: boolean;
   now: Date;
 }
@@ -29,7 +29,7 @@ interface HeroSplitProps {
  * When there is no jam to promote at all, the panel collapses and the
  * pitch takes the full width rather than holding open an empty column.
  */
-export function HeroSplit({ hero, isLoading, now }: HeroSplitProps) {
+export function HeroSplit({ hero, heroEntries, isLoading, now }: HeroSplitProps) {
   const showPanel = isLoading || hero != null;
 
   return (
@@ -78,7 +78,12 @@ export function HeroSplit({ hero, isLoading, now }: HeroSplitProps) {
       </div>
 
       {showPanel &&
-        (hero ? <FeaturedJamPanel hero={hero} now={now} /> : <FeaturedJamPanelSkeleton />)}
+        (hero ? (
+          // Keyed by jam so an open entries view resets when the hero changes.
+          <FeaturedJamPanel key={hero.jam.jamId} hero={hero} entries={heroEntries} now={now} />
+        ) : (
+          <FeaturedJamPanelSkeleton />
+        ))}
     </div>
   );
 }

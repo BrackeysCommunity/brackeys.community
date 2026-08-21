@@ -67,7 +67,7 @@ function Well({
   ...props
 }: WellProps) {
   if (notchOpts) {
-    const resolved = resolveNotchOpts(notchOpts === true ? { size: 14 } : notchOpts);
+    const resolved = resolveNotchOpts(notchOpts === true ? { size: 16 } : notchOpts);
     return (
       <div
         data-slot="well"

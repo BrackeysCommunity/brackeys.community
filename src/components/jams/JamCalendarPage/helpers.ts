@@ -4,6 +4,12 @@ export type JamFromList = Awaited<
   ReturnType<typeof import("@/orpc/client").client.listJams>
 >["jams"][number];
 
+/** A jam staff have offered the home hero. Carries its own jam summary so
+ *  the admin panel can list a pin whose jam has already left the board. */
+export type JamHeroPin = Awaited<
+  ReturnType<typeof import("@/orpc/client").client.listJamHeroPins>
+>["pins"][number];
+
 export type JamPhase = "upcoming" | "running" | "voting" | "archive";
 
 export type ChipKind = "starting" | "deadline" | "ending";
@@ -64,15 +70,15 @@ export function jamShelf(jam: JamFromList, now: Date): ShelfKind | "archive" {
   return "archive";
 }
 
-/**
- * The participation metric that is actually meaningful for a jam's
- * phase: pre-deadline, `entriesCount` is definitionally ~0 and
- * `joinedCount` is the signal; once submissions close it inverts
- * (archive rows have entries but were never scraped for joined).
- */
-export function jamSignal(jam: JamFromList, now: Date): { value: number; label: string } {
+/** The participation metric that matters for a jam's phase: joined until
+ * submissions start landing, entries from then on (archive rows have
+ * entries but were never scraped for joined). */
+export function jamSignal(
+  jam: JamDates & Pick<JamFromList, "joinedCount" | "entriesCount">,
+  now: Date,
+): { value: number; label: string } {
   const phase = jamPhase(jam, now);
-  if (phase === "upcoming" || phase === "running") {
+  if ((phase === "upcoming" || phase === "running") && !((jam.entriesCount ?? 0) > 0)) {
     return { value: jam.joinedCount ?? 0, label: "JOINED" };
   }
   return { value: jam.entriesCount ?? jam.joinedCount ?? 0, label: "ENTRIES" };

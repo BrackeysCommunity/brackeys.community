@@ -37,7 +37,10 @@ export function HomePage() {
     nowDate,
     isLoading,
     hero,
+    heroEntries,
     showcaseJams,
+    entriesByJamId,
+    entriesLoading,
     liveCount,
     upcomingCount,
     dashboard,
@@ -49,7 +52,7 @@ export function HomePage() {
     // page's measure is — keep it in step with the max-width beside it.
     <PageStack data-content-pane="6xl" className="mx-auto flex w-full max-w-7xl flex-col gap-12">
       <motion.div variants={fadeUp}>
-        <HeroSplit hero={hero} isLoading={isLoading} now={nowDate} />
+        <HeroSplit hero={hero} heroEntries={heroEntries} isLoading={isLoading} now={nowDate} />
       </motion.div>
 
       <motion.div variants={fadeUp}>
@@ -73,7 +76,13 @@ export function HomePage() {
           blurb={`Tracking ${liveCount} live and ${upcomingCount} upcoming jams across itch.io.`}
           action={<SectionAction to="/jams">JAM BOARD</SectionAction>}
         >
-          <JamShowcaseBand jams={showcaseJams} isLoading={isLoading} now={nowDate} />
+          <JamShowcaseBand
+            jams={showcaseJams}
+            entries={entriesByJamId}
+            isLoading={isLoading}
+            entriesLoading={entriesLoading}
+            now={nowDate}
+          />
         </Section>
       </motion.div>
 

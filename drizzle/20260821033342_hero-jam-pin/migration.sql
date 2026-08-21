@@ -1,0 +1,1 @@
+ALTER TABLE "itch"."jams" ADD COLUMN "hero_pinned_at" timestamp with time zone;
