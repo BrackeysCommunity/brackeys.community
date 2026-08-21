@@ -271,6 +271,15 @@ export const NOTIFICATION_CATEGORIES: readonly NotificationCategory[] = [
   "moderation",
 ];
 
+/** Display name per category — inbox tabs and the digest's section headings. */
+export const NOTIFICATION_CATEGORY_LABEL: Record<NotificationCategory, string> = {
+  collab: "Collab",
+  teams: "Teams",
+  jams: "Jams",
+  comments: "Comments",
+  moderation: "Moderation",
+};
+
 /** The inverse of `NOTIFICATION_CATEGORY` — what the inbox's category filter
  *  narrows to in SQL. Derived so the two can never disagree. */
 export const TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]> =
@@ -296,23 +305,3 @@ export const TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]>
 export const DIGEST_DEFAULT_ON: readonly NotificationType[] = NOTIFICATION_TYPES.filter(
   (type) => NOTIFICATION_DEFAULTS[type].digest,
 );
-
-/**
- * Types whose email fires immediately (transactional) — the user took
- * an action on the recipient's stuff and a real-time email is justified.
- * Lower-signal events (e.g. someone declining your response) are
- * excluded; they still show in-app and roll up into the weekly digest
- * for users who opted in, but never trigger a transactional send.
- */
-export const EMAIL_IMMEDIATE: ReadonlySet<NotificationType> = new Set([
-  "collab_response_received",
-  "collab_response_accepted",
-  "collab_post_featured",
-  "collab_post_closed_by_staff",
-  "collab_post_expiring",
-  "team_invite_received",
-  "team_invite_accepted",
-  "team_archive_warning",
-  "comment_removed_by_staff",
-  "jam_starting",
-]);

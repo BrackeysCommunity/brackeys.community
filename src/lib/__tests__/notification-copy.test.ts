@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  EMAIL_IMMEDIATE,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,
+  NOTIFICATION_CATEGORY_LABEL,
   NOTIFICATION_DEFAULTS,
   NOTIFICATION_TYPES,
   renderNotificationText,
@@ -71,11 +71,9 @@ describe("notification type tables", () => {
     }
   });
 
-  it("only sends transactional email for types whose email default is on", () => {
-    for (const type of EMAIL_IMMEDIATE) {
-      expect(NOTIFICATION_DEFAULTS[type].email, `${type} emails immediately but defaults off`).toBe(
-        true,
-      );
+  it("labels every category", () => {
+    for (const category of NOTIFICATION_CATEGORIES) {
+      expect(NOTIFICATION_CATEGORY_LABEL[category], `label missing ${category}`).toBeTruthy();
     }
   });
 

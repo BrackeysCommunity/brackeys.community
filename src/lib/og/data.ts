@@ -1,8 +1,11 @@
 /** What each kind of page puts on its card. Every card degrades rather than fails. */
+import { safeThemeColor } from "@/components/jams/JamCalendarPage/helpers";
 import { htmlToPlainText } from "@/components/ui/typography";
 import { itchOriginalUrl } from "@/lib/itch-image";
 import { memberName } from "@/lib/member-name";
 import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
+import { streamStoredImage } from "@/lib/profile-project-image-storage";
+import { isServableImageKey, STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { client } from "@/orpc/client";
 
 const MAX_ART_BYTES = 8 * 1024 * 1024;
@@ -16,7 +19,9 @@ export async function fetchArt(
   shape: OgArt["shape"],
 ): Promise<OgArt | null> {
   if (!url) return null;
-  // Only absolute http(s): a render has no origin to resolve `/images/<key>` against.
+  // Our own uploads read straight from the bucket; everything else must be
+  // absolute http(s) — a render has no origin to resolve other paths against.
+  if (url.startsWith(STORED_IMAGE_ROUTE_PREFIX)) return storedArt(url, shape);
   if (!/^https?:\/\//i.test(url)) return null;
 
   const controller = new AbortController();
@@ -37,6 +42,31 @@ export async function fetchArt(
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** An uploaded cover: same guarantees as `fetchArt`, minus the HTTP hop. */
+async function storedArt(url: string, shape: OgArt["shape"]): Promise<OgArt | null> {
+  let objectKey: string;
+  try {
+    objectKey = decodeURIComponent(url.slice(STORED_IMAGE_ROUTE_PREFIX.length));
+  } catch {
+    return null;
+  }
+  if (!isServableImageKey(objectKey)) return null;
+
+  try {
+    const response = await streamStoredImage(objectKey, new Request(`http://og.internal${url}`));
+    if (!response.ok) return null;
+    const type = response.headers.get("content-type") ?? "";
+    if (!type.startsWith("image/") || type.includes("svg")) return null;
+
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength === 0 || buffer.byteLength > MAX_ART_BYTES) return null;
+    const base64 = Buffer.from(buffer).toString("base64");
+    return { dataUri: `data:${type.split(";")[0]};base64,${base64}`, shape };
+  } catch {
+    return null;
   }
 }
 
@@ -102,13 +132,18 @@ export async function jamCard(slug: string): Promise<OgCardInput | null> {
   if (jam.ratingsCount) stats.push({ value: NUM.format(jam.ratingsCount), label: "Ratings" });
   if (state) stats.push({ value: state, label: "Status" });
 
+  // Letterboxed against the jam page's own colour, like the app's jam
+  // cards — not a full-bleed crop, which gambles on the banner's layout.
+  const banner = await fetchArt(coverSource(jam.bannerUrl), "letterbox");
+  const backdrop = safeThemeColor(jam.themeColor);
+
   return {
     kind: "jam",
     eyebrow: "Game jam",
     title: jam.title,
     subtitle: [window, host && `Hosted by ${host}`].filter(Boolean).join(" · ") || null,
     stats,
-    art: await fetchArt(coverSource(jam.bannerUrl), "panel"),
+    art: banner ? { ...banner, ...(backdrop ? { backdrop } : {}) } : null,
   };
 }
 
@@ -206,6 +241,105 @@ export async function profileCard(handle: string): Promise<OgCardInput | null> {
     stats,
     art: await fetchArt(profile.avatarUrl, "circle"),
   };
+}
+
+/**
+ * The listing pages' cards. Without these every listing link unfurled as the
+ * same default card; each board has one number worth leading with, and it is
+ * live — the render is edge-cached for a day, which is fresh enough.
+ */
+export async function boardCard(id: string): Promise<OgCardInput | null> {
+  switch (id) {
+    case "jams":
+    case "calendar": {
+      const [{ jams }, { trackedTotal }] = await Promise.all([
+        client.listJams({ filter: "active", limit: 5000 }),
+        client.listJams({ filter: "board", limit: 1 }),
+      ]);
+      const now = Date.now();
+      const upcoming = jams.filter(
+        (jam) => jam.startsAt && new Date(jam.startsAt).getTime() > now,
+      ).length;
+      const live = jams.length - upcoming;
+
+      const stats: OgStat[] = [];
+      if (live > 0) stats.push({ value: NUM.format(live), label: "Live now" });
+      if (upcoming > 0) stats.push({ value: NUM.format(upcoming), label: "Upcoming" });
+      if (trackedTotal) stats.push({ value: NUM.format(trackedTotal), label: "Tracked" });
+
+      return id === "jams"
+        ? {
+            kind: "jam",
+            eyebrow: "Game jams",
+            title: "Every jam worth entering",
+            subtitle: "What is live, what opens next, what is in voting — on one board.",
+            stats,
+          }
+        : {
+            kind: "jam",
+            eyebrow: "Jam calendar",
+            title: "Every jam on one month grid",
+            subtitle:
+              "What is running now, what opens next, and when submissions and voting close.",
+            stats,
+          };
+    }
+    case "archive": {
+      const { total } = await client.archiveJams({ pageSize: 1 });
+      return {
+        kind: "jam",
+        eyebrow: "Jam archive",
+        title: "Every jam that has already run",
+        subtitle: "Searchable and sortable by entries, ratings, duration and date.",
+        stats: total > 0 ? [{ value: NUM.format(total), label: "Jams" }] : [],
+      };
+    }
+    case "members": {
+      const [{ total }, { total: openToWork }] = await Promise.all([
+        client.listMembers({ limit: 1 }),
+        client.listMembers({ limit: 1, openToWork: true }),
+      ]);
+      const stats: OgStat[] = [];
+      if (total > 0) stats.push({ value: NUM.format(total), label: "Members" });
+      if (openToWork > 0) stats.push({ value: NUM.format(openToWork), label: "Open to work" });
+      return {
+        kind: "profile",
+        eyebrow: "Members",
+        title: "The people behind the games",
+        subtitle: "Artists, composers, programmers and designers — and what they work in.",
+        stats,
+      };
+    }
+    case "teams": {
+      const { active, recruiting } = await client.getTeamStats();
+      const stats: OgStat[] = [];
+      if (active > 0) stats.push({ value: NUM.format(active), label: "Teams" });
+      if (recruiting > 0) stats.push({ value: NUM.format(recruiting), label: "Recruiting" });
+      return {
+        kind: "team",
+        eyebrow: "Teams",
+        title: "Find a crew to build with",
+        subtitle: "What they have shipped, the stack they work in, and who is recruiting.",
+        stats,
+      };
+    }
+    case "collab": {
+      const { open, newThisWeek } = await client.getBoardStats();
+      const stats: OgStat[] = [];
+      if (open.all > 0) stats.push({ value: NUM.format(open.all), label: "Open roles" });
+      if (open.paid > 0) stats.push({ value: NUM.format(open.paid), label: "Paid" });
+      if (newThisWeek > 0) stats.push({ value: NUM.format(newThisWeek), label: "New this week" });
+      return {
+        kind: "collab",
+        eyebrow: "Collab board",
+        title: "Find people to build with",
+        subtitle: "Open roles on game projects — paid and hobby, with the skills each one needs.",
+        stats,
+      };
+    }
+    default:
+      return null;
+  }
 }
 
 export async function teamCard(handle: string): Promise<OgCardInput | null> {

@@ -1,18 +1,23 @@
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Preview,
-  Section,
-  Text,
-} from "@react-email/components";
+import { Button, Column, Img, Link, Row, Section, Text } from "@react-email/components";
 
 import type { NotificationType } from "../db/schema";
-import { renderNotificationText } from "../lib/notification-copy";
+import {
+  NOTIFICATION_CATEGORY,
+  NOTIFICATION_CATEGORY_LABEL,
+  renderNotificationText,
+} from "../lib/notification-copy";
+import { censorText } from "../lib/profanity";
+import { EmailLayout } from "./EmailLayout";
+import {
+  buttonStyle,
+  CATEGORY_ACCENT_TEXT,
+  FG,
+  FONT_SANS,
+  footerStyle,
+  linkStyle,
+  microLabelStyle,
+  textStyle,
+} from "./theme";
 
 export interface NotificationEmailProps {
   appUrl: string;
@@ -23,9 +28,12 @@ export interface NotificationEmailProps {
     data: Record<string, unknown>;
     createdAt: string;
   };
-  /** Full unsub URL for THIS notification type. Required — the wrapper
-   * sets `List-Unsubscribe` to the same URL so the in-body link and
-   * the inbox affordance always agree. */
+  /** The actor's avatar, absolute URL (Discord CDN). Rendered beside the
+   * headline the way the bell row does it; null falls back to text-only. */
+  actorAvatarUrl?: string | null;
+  /** Full unsub URL for THIS notification type — the labelled in-body link.
+   * The `List-Unsubscribe` header carries the all-scope URL instead: the
+   * inbox affordance reads as "stop this sender", not one of 24 types. */
   unsubscribeUrl: string;
   /** Optional "all email" unsub fallback rendered next to the per-type
    * link. Lets recipients turn off everything in one tap when they've
@@ -37,51 +45,69 @@ export function NotificationEmail({
   appUrl,
   recipientName,
   notification,
+  actorAvatarUrl,
   unsubscribeUrl,
   unsubscribeAllUrl,
 }: NotificationEmailProps) {
   const { headline, href } = renderNotificationText(notification);
+  // Email is the one surface with no viewer preference available, and it can
+  // land in a work inbox — censor unconditionally, matching the app default.
+  const safeHeadline = censorText(headline);
   const ctaUrl = href ? `${appUrl}${href}` : `${appUrl}/notifications`;
   const greeting = recipientName ? `Hey ${recipientName},` : "Hey,";
+  const category = NOTIFICATION_CATEGORY[notification.type];
+  // Only absolute URLs render in mail clients; anything else drops the img.
+  const avatar = actorAvatarUrl?.startsWith("http") ? actorAvatarUrl : null;
 
   return (
-    <Html>
-      <Head />
-      <Preview>{headline}</Preview>
-      <Body style={bodyStyle}>
-        <Container style={containerStyle}>
-          <Heading style={brandStyle}>Brackeys Community</Heading>
-          <Text style={textStyle}>{greeting}</Text>
-          <Text style={headlineStyle}>{headline}</Text>
-          <Section style={{ textAlign: "center", margin: "24px 0" }}>
-            <Button href={ctaUrl} style={buttonStyle}>
-              View on Brackeys
-            </Button>
-          </Section>
-          <Hr style={hrStyle} />
-          <Text style={footerStyle}>
-            You're getting this because your notification preferences include email for this event.{" "}
-            <a href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
-              Manage preferences
-            </a>{" "}
-            ·{" "}
-            <a href={unsubscribeUrl} style={linkStyle}>
-              Unsubscribe from this type
-            </a>
-            {unsubscribeAllUrl ? (
-              <>
-                {" "}
-                ·{" "}
-                <a href={unsubscribeAllUrl} style={linkStyle}>
-                  Unsubscribe from all
-                </a>
-              </>
+    <EmailLayout
+      preview={safeHeadline}
+      appUrl={appUrl}
+      footer={
+        <Text style={footerStyle}>
+          You're getting this because email is on for this kind of activity.{" "}
+          <Link href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
+            Manage preferences
+          </Link>{" "}
+          ·{" "}
+          <Link href={unsubscribeUrl} style={linkStyle}>
+            Stop emails like this
+          </Link>
+          {unsubscribeAllUrl ? (
+            <>
+              {" "}
+              ·{" "}
+              <Link href={unsubscribeAllUrl} style={linkStyle}>
+                Unsubscribe from all email
+              </Link>
+            </>
+          ) : null}
+          .
+        </Text>
+      }
+    >
+      <Text style={{ ...textStyle, marginTop: 0 }}>{greeting}</Text>
+      <Section style={{ margin: "16px 0 0" }}>
+        <Row>
+          {avatar ? (
+            <Column style={{ width: "48px", verticalAlign: "top" }}>
+              <Img src={avatar} width="36" height="36" alt="" style={avatarStyle} />
+            </Column>
+          ) : null}
+          <Column style={{ verticalAlign: "top" }}>
+            {category ? (
+              <Text style={categoryStyle(category)}>{NOTIFICATION_CATEGORY_LABEL[category]}</Text>
             ) : null}
-            .
-          </Text>
-        </Container>
-      </Body>
-    </Html>
+            <Text style={headlineStyle}>{safeHeadline}</Text>
+          </Column>
+        </Row>
+      </Section>
+      <Section style={{ textAlign: "center" as const, margin: "24px 0 0" }}>
+        <Button href={ctaUrl} style={buttonStyle}>
+          View on Brackeys
+        </Button>
+      </Section>
+    </EmailLayout>
   );
 }
 
@@ -94,39 +120,24 @@ NotificationEmail.PreviewProps = {
     data: { postId: 42, postTitle: "Looking for a pixel artist" },
     createdAt: new Date().toISOString(),
   },
+  actorAvatarUrl: "https://cdn.discordapp.com/embed/avatars/3.png",
   unsubscribeUrl:
     "https://brackeys.community/api/notifications/unsub?token=preview&type=collab_response_received",
   unsubscribeAllUrl: "https://brackeys.community/api/notifications/unsub?token=preview",
 } satisfies NotificationEmailProps;
 
-const bodyStyle = { backgroundColor: "#0a0a0a", color: "#f5f5f5", fontFamily: "monospace" };
-const containerStyle = {
-  margin: "0 auto",
-  padding: "32px 24px",
-  maxWidth: "560px",
-};
-const brandStyle = {
-  fontSize: "14px",
+function categoryStyle(category: keyof typeof CATEGORY_ACCENT_TEXT) {
+  return { ...microLabelStyle, color: CATEGORY_ACCENT_TEXT[category], margin: "0 0 6px" };
+}
+
+const avatarStyle = { borderRadius: "18px" };
+const headlineStyle = {
+  fontFamily: FONT_SANS,
+  fontSize: "17px",
   fontWeight: 700,
-  letterSpacing: "0.2em",
-  textTransform: "uppercase" as const,
-  color: "#f5f5f5",
-  marginBottom: "16px",
+  color: FG,
+  margin: 0,
+  lineHeight: 1.5,
 };
-const textStyle = { fontSize: "14px", color: "#d0d0d0", margin: "8px 0" };
-const headlineStyle = { fontSize: "16px", color: "#f5f5f5", margin: "12px 0", lineHeight: 1.5 };
-const buttonStyle = {
-  backgroundColor: "#ff007f",
-  color: "#ffffff",
-  padding: "12px 20px",
-  textDecoration: "none",
-  fontSize: "12px",
-  fontWeight: 700,
-  letterSpacing: "0.2em",
-  textTransform: "uppercase" as const,
-};
-const hrStyle = { borderColor: "#222", margin: "24px 0" };
-const footerStyle = { fontSize: "11px", color: "#888", lineHeight: 1.5 };
-const linkStyle = { color: "#ff007f", textDecoration: "underline" };
 
 export default NotificationEmail;

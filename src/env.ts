@@ -14,6 +14,16 @@ export const env = createEnv({
     MINIO_ENDPOINT: z.string().min(1).optional(),
     MINIO_ACCESS_KEY: z.string().min(1).optional(),
     MINIO_SECRET_KEY: z.string().min(1).optional(),
+    // Email (Resend). Read via process.env in src/lib/email.ts so the
+    // notifications worker can share that module; declared here for
+    // visibility/validation. DISABLE_EMAIL=1 short-circuits every send —
+    // the documented local default, so a dev machine with a real key in
+    // its environment can't mail real users from `vp dev`.
+    RESEND_API_KEY: z.string().min(1).optional(),
+    EMAIL_FROM: z.string().min(1).optional(),
+    DISABLE_EMAIL: z.string().optional(),
+    // Public origin fallback for server-side URL minting (`siteOrigin()`).
+    APP_URL: z.url().optional(),
   },
 
   /**

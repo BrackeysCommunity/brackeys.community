@@ -18,6 +18,13 @@ const db: TestDb = await (async () => {
 
 vi.mock("@/db", () => ({ db }));
 vi.mock("@/lib/auth", async () => (await import("@/test/orpc")).fakeAuthModule());
+vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  streamStoredImage: async (objectKey: string) =>
+    objectKey === "project-images/p1/cover.png"
+      ? new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } })
+      : new Response("Not Found", { status: 404 }),
+}));
 vi.mock("@/orpc/client", async () => {
   const router = (await import("@/orpc/router")).default;
   const client = new Proxy(
@@ -149,9 +156,64 @@ describe("profile and team cards", () => {
 });
 
 describe("art", () => {
-  it("refuses anything that is not an absolute http image", async () => {
-    expect(await data.fetchArt("/images/abc.png", "panel")).toBeNull();
+  it("refuses anything that is neither an absolute http image nor a stored upload", async () => {
     expect(await data.fetchArt(null, "panel")).toBeNull();
     expect(await data.fetchArt("javascript:alert(1)", "panel")).toBeNull();
+    expect(await data.fetchArt("relative/path.png", "panel")).toBeNull();
+  });
+
+  it("inlines an uploaded cover straight from the bucket", async () => {
+    const art = await data.fetchArt("/images/project-images/p1/cover.png", "panel");
+
+    expect(art).toEqual({
+      dataUri: `data:image/png;base64,${Buffer.from([1, 2, 3]).toString("base64")}`,
+      shape: "panel",
+    });
+  });
+
+  it("refuses stored paths whose key no upload handler mints", async () => {
+    expect(await data.fetchArt("/images/abc.png", "panel")).toBeNull();
+    expect(await data.fetchArt("/images/project-images/../secret", "panel")).toBeNull();
+  });
+});
+
+describe("board cards", () => {
+  it("counts the live board for the jams listing", async () => {
+    const card = await data.boardCard("jams");
+
+    expect(card!.kind).toBe("jam");
+    expect(card!.title).toBe("Every jam worth entering");
+    // forever-jam is the only live one; brackeys-13 ended and dateless
+    // never started. All three seeds count as tracked.
+    expect(card!.stats).toContainEqual({ value: "1", label: "Live now" });
+    expect(card!.stats).toContainEqual({ value: "3", label: "Tracked" });
+  });
+
+  it("leads the archive card with the archive's size", async () => {
+    const card = await data.boardCard("archive");
+
+    expect(card!.kind).toBe("jam");
+    expect(card!.stats?.[0]?.label).toBe("Jams");
+  });
+
+  it("counts members and teams from the directory", async () => {
+    const members = await data.boardCard("members");
+    const teamsCard = await data.boardCard("teams");
+
+    expect(members!.kind).toBe("profile");
+    expect(members!.stats).toContainEqual({ value: "1", label: "Members" });
+    expect(teamsCard!.kind).toBe("team");
+    expect(teamsCard!.stats).toContainEqual({ value: "1", label: "Teams" });
+  });
+
+  it("reads the collab board's open-role stats", async () => {
+    const card = await data.boardCard("collab");
+
+    expect(card!.kind).toBe("collab");
+    expect(card!.title).toBe("Find people to build with");
+  });
+
+  it("is null for a board nobody has, so the route can 404", async () => {
+    expect(await data.boardCard("bogus")).toBeNull();
   });
 });

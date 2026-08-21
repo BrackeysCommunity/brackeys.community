@@ -66,6 +66,8 @@ async function resolveCard(target: string) {
       return data.profileCard(id);
     case "team":
       return data.teamCard(id);
+    case "board":
+      return data.boardCard(id);
     default:
       return null;
   }

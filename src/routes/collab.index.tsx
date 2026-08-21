@@ -5,7 +5,7 @@ import { collabListingDeps } from "@/components/collab/collab-filters";
 import { CollabBrowsePage } from "@/components/collab/CollabBrowsePage";
 import { collabPostsQueryOptions } from "@/components/collab/use-collab-listing";
 import { prefetchInLoader } from "@/lib/route-prefetch";
-import { listingMeta } from "@/lib/site-meta";
+import { listingMeta, ogCardPath } from "@/lib/site-meta";
 
 // Validates the URL search params. The board's filters live entirely in
 // the URL (see `collab-filters.ts`), so every narrowed board is
@@ -52,6 +52,7 @@ export const Route = createFileRoute("/collab/")({
       description:
         "Find people to build with — open roles on game projects in the Brackeys community, paid and hobby, with the skills each one is looking for.",
       path: "/collab",
+      card: ogCardPath("board", "collab"),
       search: match.search,
     }),
   component: CollabBrowsePage,

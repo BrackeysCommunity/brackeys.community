@@ -4,7 +4,7 @@ import { z } from "zod";
 import { TeamsDiscoveryPage } from "@/components/teams/TeamsDiscoveryPage";
 import { teamsListQueryOptions } from "@/components/teams/use-teams-listing";
 import { prefetchInLoader } from "@/lib/route-prefetch";
-import { listingMeta } from "@/lib/site-meta";
+import { listingMeta, ogCardPath } from "@/lib/site-meta";
 
 // Validates the URL search params:
 //   `?q=…`           name/tagline search
@@ -40,6 +40,7 @@ export const Route = createFileRoute("/teams/")({
       description:
         "Find a crew to build with — the teams in the Brackeys community, what they have shipped, the stack they work in, and who is recruiting.",
       path: "/teams",
+      card: ogCardPath("board", "teams"),
       search: match.search,
     }),
   component: TeamsDiscoveryPage,

@@ -7,7 +7,7 @@ import { createElement } from "react";
 import { db } from "@/db";
 import { user, session, account, verification } from "@/db/schema";
 import { AuthEmail } from "@/emails/AuthEmail";
-import { env } from "@/env";
+import { env, siteOrigin } from "@/env";
 import { cleanupUserData } from "@/lib/account-deletion";
 import { EVENTS } from "@/lib/analytics-events";
 import { sendEmail } from "@/lib/email";
@@ -84,6 +84,7 @@ export const auth = betterAuth({
             variant: "delete",
             recipientName: recipient.name ?? null,
             url,
+            appUrl: siteOrigin(),
           }),
           tags: [{ name: "category", value: "auth_delete" }],
         });
@@ -116,6 +117,7 @@ export const auth = betterAuth({
           variant: "verify",
           recipientName: recipient.name ?? null,
           url,
+          appUrl: siteOrigin(),
         }),
         tags: [{ name: "category", value: "auth_verify" }],
       });
@@ -131,6 +133,7 @@ export const auth = betterAuth({
           variant: "reset",
           recipientName: recipient.name ?? null,
           url,
+          appUrl: siteOrigin(),
         }),
         tags: [{ name: "category", value: "auth_reset" }],
       });

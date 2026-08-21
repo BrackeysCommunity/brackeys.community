@@ -1,3 +1,7 @@
+import { BG, DIM, FG, MUTED, OG_ACCENT_TEXT, OG_ACCENTS, type OgKind } from "./palette";
+
+export { OG_ACCENTS, OG_ACCENT_TEXT, type OgKind } from "./palette";
+
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;
 
@@ -30,47 +34,12 @@ function img(
   return { type: "img", props: { src, width, height, style } };
 }
 
-/**
- * Near-black with a trace of blue in it, rather than the app's flat
- * `--background`. A card is looked at beside other cards in a feed, where a
- * true neutral reads as a hole; the lift is two or three values and is the
- * difference between "dark" and "off".
- */
-const BG = "#0b0c12";
-/** Very slightly warm, so the headline doesn't glare against that blue. */
-const FG = "#f7f5f1";
-const MUTED = "#a6a6b2";
-const DIM = "#71717f";
-
-/** Used for the glow, the art hairline and the short rule under the title. */
-export const OG_ACCENTS = {
-  site: "#ffa949",
-  jam: "#ffa949",
-  project: "#5865f2",
-  collab: "#d2356b",
-  profile: "#5865f2",
-  team: "#d2356b",
-} as const;
-
-/** The fill values above don't read as type at 16px on near-black. */
-export const OG_ACCENT_TEXT = {
-  site: "#ffbb6b",
-  jam: "#ffbb6b",
-  project: "#b3b9fc",
-  collab: "#f892b2",
-  profile: "#b3b9fc",
-  team: "#f892b2",
-} as const;
-
-export type OgKind = keyof typeof OG_ACCENTS;
-
 /** The spine's colours, top to bottom. Constant across every card. */
 const SPINE = [OG_ACCENTS.project, OG_ACCENTS.collab, OG_ACCENTS.jam] as const;
 const SPINE_WIDTH = 12;
 
-/** Where the content column starts, and where the art bleed begins. */
+/** Where the content column starts. */
 const PAD_X = 76;
-const ART_BLEED_X = 748;
 
 function dataUri(svg: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
@@ -96,8 +65,8 @@ const MARK_DATA_URI = dataUri(markSvg(FG));
  * the card. Handing the rasterizer real SVG gets a tiled pattern and a
  * smooth falloff from the one thing in this pipeline that is good at both.
  */
-function backgroundDataUri(accent: string): string {
-  const glow = [
+function glowStops(accent: string): string {
+  return [
     [0, 0.3],
     [0.3, 0.13],
     [0.6, 0.04],
@@ -108,6 +77,10 @@ function backgroundDataUri(accent: string): string {
         `<stop offset="${offset}" stop-color="${accent}" stop-opacity="${opacity}"/>`,
     )
     .join("");
+}
+
+function backgroundDataUri(accent: string): string {
+  const glow = glowStops(accent);
 
   return dataUri(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}">` +
@@ -149,22 +122,32 @@ const DOT_FIELD_DATA_URI = dataUri(
 );
 
 /**
- * The gradient that lets bleeding art meet the background instead of
- * sitting on it as a rectangle. An SVG image for the same reason as the
- * background: a CSS gradient of this width bands visibly.
+ * What sits between full-bleed cover art and the text: a near-opaque wash
+ * of the background colour, slightly more open on the right, where no
+ * text goes, so the cover stays recognisable there instead of reading as
+ * a stain. Pass an accent to add the house glow on top; letterboxed jam
+ * banners skip it — their backdrop is the jam's own colour, and the glow
+ * would sit on it as a foreign smudge.
  */
-function scrimDataUri(width: number): string {
+function artDimDataUri(accent: string | null): string {
+  const glow = accent
+    ? `<radialGradient id="glow" cx="0.06" cy="-0.1" r="0.9">${glowStops(accent)}</radialGradient>`
+    : "";
+  const glowRect = accent
+    ? `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="url(#glow)"/>`
+    : "";
   return dataUri(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${OG_HEIGHT}">` +
-      `<defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="0">` +
-      `<stop offset="0" stop-color="${BG}" stop-opacity="1"/>` +
-      `<stop offset="0.42" stop-color="${BG}" stop-opacity="0.62"/>` +
-      `<stop offset="0.75" stop-color="${BG}" stop-opacity="0.16"/>` +
-      // Has to reach zero at the card's own edge. Ending part-way across
-      // the art leaves a vertical seam exactly where the scrim stops.
-      `<stop offset="1" stop-color="${BG}" stop-opacity="0"/>` +
-      `</linearGradient></defs>` +
-      `<rect width="${width}" height="${OG_HEIGHT}" fill="url(#s)"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}">` +
+      `<defs>` +
+      `<linearGradient id="dim" x1="0" y1="0" x2="1" y2="0">` +
+      `<stop offset="0" stop-color="${BG}" stop-opacity="0.97"/>` +
+      `<stop offset="0.55" stop-color="${BG}" stop-opacity="0.92"/>` +
+      `<stop offset="1" stop-color="${BG}" stop-opacity="0.78"/>` +
+      `</linearGradient>` +
+      glow +
+      `</defs>` +
+      `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="url(#dim)"/>` +
+      glowRect +
       `</svg>`,
   );
 }
@@ -177,8 +160,14 @@ export interface OgStat {
 export interface OgArt {
   /** A data URI. Remote URLs are fetched and inlined before we get here. */
   dataUri: string;
-  /** A cover bleeds off the right edge; a person is a disc. */
-  shape: "panel" | "circle";
+  /**
+   * A `panel` cover dims into the full-bleed background; a `letterbox`
+   * banner keeps its own aspect against `backdrop`, the way the app's jam
+   * cards letterbox against the itch theme colour; a person is a disc.
+   */
+  shape: "panel" | "circle" | "letterbox";
+  /** Fill behind a letterboxed banner — the jam page's own colour. */
+  backdrop?: string;
 }
 
 export interface OgCardInput {
@@ -203,23 +192,22 @@ function clamp(text: string, max: number): string {
 
 /**
  * Titles run from "IO" to a 90-character jam name, and a single size makes
- * one of those look lost and the other overflow. The steps are measured
- * against the *narrow* column, so a card with art never overflows either.
+ * one of those look lost and the other overflow.
  */
-function titleSize(title: string, narrow: boolean): number {
-  const limit = narrow ? [16, 34, 60] : [22, 46, 78];
-  if (title.length <= limit[0]!) return narrow ? 68 : 78;
-  if (title.length <= limit[1]!) return narrow ? 56 : 64;
-  if (title.length <= limit[2]!) return narrow ? 44 : 52;
-  return narrow ? 38 : 44;
+function titleSize(title: string): number {
+  if (title.length <= 22) return 78;
+  if (title.length <= 46) return 64;
+  if (title.length <= 78) return 52;
+  return 44;
 }
 
 export function ogCard(input: OgCardInput): OgNode {
   const accent = OG_ACCENTS[input.kind];
   const accentText = OG_ACCENT_TEXT[input.kind];
   const bleeding = input.art?.shape === "panel";
+  const letterboxed = input.art?.shape === "letterbox";
   const disc = input.art?.shape === "circle";
-  const columnWidth = bleeding ? ART_BLEED_X - PAD_X - 40 : disc ? 700 : OG_WIDTH - PAD_X * 2;
+  const columnWidth = disc ? 700 : OG_WIDTH - PAD_X * 2;
   const title = clamp(input.title, 96);
   const stats = (input.stats ?? []).slice(0, 3);
 
@@ -233,14 +221,17 @@ export function ogCard(input: OgCardInput): OgNode {
       position: "relative",
     },
 
-    h(
-      "div",
-      { position: "absolute", top: 0, left: 0 },
-      img(backgroundDataUri(accent), OG_WIDTH, OG_HEIGHT),
-    ),
-
-    // Art first, so everything else paints over it.
-    input.art && bleeding ? bleedArt(input.art) : null,
+    // Cover art is the whole background, dimmed; the plain background
+    // stands in everywhere else.
+    input.art && letterboxed
+      ? letterboxArt(input.art)
+      : input.art && bleeding
+        ? bleedArt(input.art, accent)
+        : h(
+            "div",
+            { position: "absolute", top: 0, left: 0 },
+            img(backgroundDataUri(accent), OG_WIDTH, OG_HEIGHT),
+          ),
 
     // With no art the right half is empty, and at this size empty reads as
     // unfinished. The mark bleeds off the corner so it stays a watermark
@@ -302,7 +293,7 @@ export function ogCard(input: OgCardInput): OgNode {
         h(
           "div",
           {
-            fontSize: titleSize(title, bleeding),
+            fontSize: titleSize(title),
             fontWeight: 700,
             lineHeight: 1.05,
             letterSpacing: "-0.022em",
@@ -333,9 +324,9 @@ export function ogCard(input: OgCardInput): OgNode {
                 lineHeight: 1.45,
                 color: MUTED,
                 marginTop: 26,
-                maxWidth: bleeding ? columnWidth : 840,
+                maxWidth: 840,
               },
-              clamp(input.subtitle, bleeding ? 110 : 165),
+              clamp(input.subtitle, 165),
             )
           : null,
 
@@ -393,14 +384,47 @@ function statLine(stats: OgStat[]): OgNode {
   return h("div", { alignItems: "baseline" }, ...parts);
 }
 
-/** Cover art bleeding off the right edge, met by a scrim rather than a border. */
-function bleedArt(art: OgArt): OgNode {
-  const width = OG_WIDTH - ART_BLEED_X;
+/**
+ * Cover art as the card's whole background. The right-edge crop this
+ * replaces gambled on the cover's composition — a banner with its title in
+ * the centre arrived beheaded. Full-bleed and dimmed, any cover reads as
+ * texture and colour, and none of them can break the layout.
+ */
+function bleedArt(art: OgArt, accent: string): OgNode {
   return h(
     "div",
-    { position: "absolute", top: 0, left: ART_BLEED_X, width, height: OG_HEIGHT },
-    img(art.dataUri, width, OG_HEIGHT, { objectFit: "cover" }),
-    h("div", { position: "absolute", top: 0, left: 0 }, img(scrimDataUri(width), width, OG_HEIGHT)),
+    { position: "absolute", top: 0, left: 0, width: OG_WIDTH, height: OG_HEIGHT },
+    img(art.dataUri, OG_WIDTH, OG_HEIGHT, { objectFit: "cover" }),
+    h(
+      "div",
+      { position: "absolute", top: 0, left: 0 },
+      img(artDimDataUri(accent), OG_WIDTH, OG_HEIGHT),
+    ),
+  );
+}
+
+/**
+ * A jam banner at its own aspect against the jam page's colour — the same
+ * composition as the app's jam cards and the jam's own itch header —
+ * dimmed, with no glow: the backdrop already is the jam's colour.
+ */
+function letterboxArt(art: OgArt): OgNode {
+  return h(
+    "div",
+    {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: OG_WIDTH,
+      height: OG_HEIGHT,
+      backgroundColor: art.backdrop ?? BG,
+    },
+    img(art.dataUri, OG_WIDTH, OG_HEIGHT, { objectFit: "contain" }),
+    h(
+      "div",
+      { position: "absolute", top: 0, left: 0 },
+      img(artDimDataUri(null), OG_WIDTH, OG_HEIGHT),
+    ),
   );
 }
 

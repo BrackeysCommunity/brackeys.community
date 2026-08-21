@@ -119,43 +119,42 @@ export async function setEmailsDisabled(
  * same scope — "stop emailing me about this" must cover the weekly
  * roll-up too, or the unsubscribe looks broken the following Monday.
  *
- * Mirrors the upsert shape used by `updatePreference` so an unsub via
- * email link is bit-for-bit identical to a click in the UI.
+ * Scope "all" sets the global kill switch and nothing else. The switch is
+ * what "forever" means — it covers types added later, and every send path
+ * re-checks it — while leaving the per-type matrix untouched keeps the
+ * unsubscribe reversible: flipping the switch back on in settings restores
+ * exactly what the user had configured, as the settings copy promises.
  */
 export async function applyUnsubscribe(
   db: DbHandle,
   userId: string,
   scope: NotificationType | "all",
 ): Promise<{ scope: NotificationType | "all" }> {
-  const now = new Date();
-  const targets: NotificationType[] = scope === "all" ? [...NOTIFICATION_TYPES] : [scope];
+  if (scope === "all") {
+    await setEmailsDisabled(db, userId, true);
+    return { scope };
+  }
 
-  for (const type of targets) {
-    const fallback = NOTIFICATION_DEFAULTS[type];
-    await db
-      .insert(notificationPreferences)
-      .values({
-        userId,
-        type,
-        inApp: fallback.inApp,
+  const now = new Date();
+  const fallback = NOTIFICATION_DEFAULTS[scope];
+  await db
+    .insert(notificationPreferences)
+    .values({
+      userId,
+      type: scope,
+      inApp: fallback.inApp,
+      email: false,
+      digest: false,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [notificationPreferences.userId, notificationPreferences.type],
+      set: {
         email: false,
         digest: false,
         updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [notificationPreferences.userId, notificationPreferences.type],
-        set: {
-          email: false,
-          digest: false,
-          updatedAt: now,
-        },
-      });
-  }
-
-  // Scope "all" is what the RFC 8058 one-click header hits, and it has to
-  // mean "forever", not "every type that exists today" — clearing only the
-  // current matrix would silently resubscribe them when a type is added.
-  if (scope === "all") await setEmailsDisabled(db, userId, true);
+      },
+    });
 
   return { scope };
 }

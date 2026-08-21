@@ -1,4 +1,4 @@
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { createElement } from "react";
 
 import {
@@ -6,10 +6,12 @@ import {
   notificationPreferences,
   notifications,
   user,
+  userNotificationSettings,
 } from "../../../../src/db/schema.ts";
 import { NotificationEmail } from "../../../../src/emails/NotificationEmail.tsx";
 import { WeeklyDigestEmail } from "../../../../src/emails/WeeklyDigestEmail.tsx";
-import { NOTIFICATION_TYPE_LABEL } from "../../../../src/lib/notification-copy.ts";
+import { renderNotificationText } from "../../../../src/lib/notification-copy.ts";
+import { censorText } from "../../../../src/lib/profanity.ts";
 import {
   buildUnsubscribeUrl,
   getOrCreateUnsubscribeToken,
@@ -18,11 +20,14 @@ import {
 import { db } from "../db/client.ts";
 import { APP_URL, sendEmail } from "../email.ts";
 import type { SendEmailJob } from "../queue.ts";
+import { readPrefs } from "./notification-side-effects.ts";
 import { digestEligible, digestPreferenceJoin } from "./send-weekly-digests.ts";
 
-/** Headers required by RFC 8058 + bulk-sender rules. The same URL is
- * surfaced in the email body so the inbox affordance and visible link
- * never disagree. */
+/** Headers required by RFC 8058 + bulk-sender rules. Always the all-scope
+ * URL: Gmail's header affordance reads as "stop this sender", and pointing
+ * it at one of 24 types means mail keeps arriving after the user pressed
+ * it — the next press is the spam button. The labelled per-type link stays
+ * in the body where its scope is visible. */
 function listUnsubHeaders(unsubUrl: string): Record<string, string> {
   return {
     "List-Unsubscribe": `<${unsubUrl}>`,
@@ -76,21 +81,42 @@ async function sendTransactional(notificationId: number): Promise<void> {
     return;
   }
 
+  // Same reasoning, one level down: the user can unsubscribe from this
+  // type while the job sits in retry backoff.
+  const prefs = await readPrefs(row.userId, row.type);
+  if (!prefs.email) {
+    console.log("[send_email:transactional] email pref off at send time", {
+      id: row.id,
+      type: row.type,
+    });
+    return;
+  }
+
   let actorUsername: string | null = null;
+  let actorAvatarUrl: string | null = null;
   if (row.actorId) {
     const [actor] = await db
-      .select({ discordUsername: developerProfiles.discordUsername })
+      .select({
+        discordUsername: developerProfiles.discordUsername,
+        avatarUrl: developerProfiles.avatarUrl,
+      })
       .from(developerProfiles)
       .where(eq(developerProfiles.id, row.actorId))
       .limit(1);
     actorUsername = actor?.discordUsername ?? null;
+    actorAvatarUrl = actor?.avatarUrl ?? null;
   }
 
   const token = await getOrCreateUnsubscribeToken(db, row.userId);
   const unsubscribeUrl = buildUnsubscribeUrl(APP_URL, token, row.type);
   const unsubscribeAllUrl = buildUnsubscribeUrl(APP_URL, token);
 
-  const subject = NOTIFICATION_TYPE_LABEL[row.type] ?? "New notification";
+  // The rendered headline, not the static per-type label: Gmail threads
+  // byte-identical subjects from one sender, hiding the third "someone
+  // responded" of the week under the first.
+  const subject = censorText(
+    renderNotificationText({ type: row.type, actorUsername, data: row.data }).headline,
+  );
   const result = await sendEmail({
     to: recipient.email,
     subject,
@@ -103,6 +129,7 @@ async function sendTransactional(notificationId: number): Promise<void> {
         data: row.data,
         createdAt: row.createdAt.toISOString(),
       },
+      actorAvatarUrl,
       unsubscribeUrl,
       unsubscribeAllUrl,
     }),
@@ -110,7 +137,7 @@ async function sendTransactional(notificationId: number): Promise<void> {
       { name: "category", value: "notification" },
       { name: "type", value: row.type },
     ],
-    headers: listUnsubHeaders(unsubscribeUrl),
+    headers: listUnsubHeaders(unsubscribeAllUrl),
   });
   console.log("[send_email:transactional] sent", { id: row.id, resendId: result?.id });
 }
@@ -133,8 +160,9 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
     return;
   }
 
-  // Mirror the tick handler's eligibility filter: only types the user has
-  // digest-on (explicitly or by default) land in the email body.
+  // Mirror the tick handler's eligibility filter — same `gt` bound, same
+  // join: only types the user has digest-on (explicitly or by default)
+  // land in the email body.
   const rows = await db
     .select({
       type: notifications.type,
@@ -146,7 +174,7 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
     .leftJoin(developerProfiles, eq(notifications.actorId, developerProfiles.id))
     .leftJoin(notificationPreferences, digestPreferenceJoin)
     .where(
-      and(eq(notifications.userId, userId), gte(notifications.createdAt, since), digestEligible),
+      and(eq(notifications.userId, userId), gt(notifications.createdAt, since), digestEligible),
     )
     .orderBy(notifications.createdAt);
 
@@ -178,5 +206,20 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
     tags: [{ name: "category", value: "digest" }],
     headers: listUnsubHeaders(unsubscribeUrl),
   });
+
+  // The watermark moves only after a successful send — enqueue is not
+  // delivery, and a job that exhausts its retries must leave the window
+  // claimable by the next tick. Bumping to the newest item's timestamp
+  // (with `gt` bounds on both sides) means no item repeats and none falls
+  // through the boundary.
+  const newest = rows[rows.length - 1]!.createdAt;
+  await db
+    .insert(userNotificationSettings)
+    .values({ userId, lastDigestAt: newest })
+    .onConflictDoUpdate({
+      target: userNotificationSettings.userId,
+      set: { lastDigestAt: newest, updatedAt: new Date() },
+    });
+
   console.log("[send_email:digest] sent", { userId, count: items.length, resendId: result?.id });
 }

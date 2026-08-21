@@ -19,7 +19,7 @@ export function ogCardPath(kind: OgCardKind, id: string | number): string {
   return `/og/${kind}/${encodeURIComponent(String(id))}.png`;
 }
 
-export type OgCardKind = "jam" | "project" | "collab" | "profile" | "team";
+export type OgCardKind = "jam" | "project" | "collab" | "profile" | "team" | "board";
 
 export interface HeadMetaTag {
   title?: string;

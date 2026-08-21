@@ -1,18 +1,27 @@
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Preview,
-  Section,
-  Text,
-} from "@react-email/components";
+import { Button, Column, Hr, Link, Row, Section, Text } from "@react-email/components";
 
 import type { NotificationType } from "../db/schema";
-import { renderNotificationText } from "../lib/notification-copy";
+import { timeAgo } from "../lib/format-time";
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY,
+  NOTIFICATION_CATEGORY_LABEL,
+  renderNotificationText,
+} from "../lib/notification-copy";
+import { censorText } from "../lib/profanity";
+import { EmailLayout } from "./EmailLayout";
+import {
+  buttonStyle,
+  CATEGORY_ACCENT_TEXT,
+  DIM,
+  FG,
+  FONT_SANS,
+  footerStyle,
+  HAIRLINE,
+  linkStyle,
+  microLabelStyle,
+  textStyle,
+} from "./theme";
 
 export interface DigestItem {
   type: NotificationType;
@@ -43,52 +52,82 @@ export function WeeklyDigestEmail({
   const sinceStr = new Date(since).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 
   const previewText = `${items.length} new ${items.length === 1 ? "notification" : "notifications"} since ${sinceStr}`;
 
+  const groups = NOTIFICATION_CATEGORIES.map((category) => ({
+    category,
+    items: items.filter((item) => NOTIFICATION_CATEGORY[item.type] === category),
+  })).filter((group) => group.items.length > 0);
+
   return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-      <Body style={bodyStyle}>
-        <Container style={containerStyle}>
-          <Heading style={brandStyle}>Brackeys Community — Weekly digest</Heading>
-          <Text style={textStyle}>{greeting}</Text>
-          <Text style={textStyle}>
-            Here's what you missed since {sinceStr}. ({items.length}{" "}
-            {items.length === 1 ? "item" : "items"})
+    <EmailLayout
+      preview={previewText}
+      appUrl={appUrl}
+      footer={
+        <Text style={footerStyle}>
+          You opted in to weekly digests.{" "}
+          <Link href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
+            Manage preferences
+          </Link>{" "}
+          ·{" "}
+          <Link href={unsubscribeUrl} style={linkStyle}>
+            Unsubscribe from all email
+          </Link>
+          .
+        </Text>
+      }
+    >
+      <Text style={{ ...textStyle, marginTop: 0 }}>{greeting}</Text>
+      <Text style={textStyle}>
+        Here's what you missed since {sinceStr}. ({items.length}{" "}
+        {items.length === 1 ? "item" : "items"})
+      </Text>
+      {groups.map((group) => (
+        <Section key={group.category} style={groupStyle}>
+          <Text
+            style={{
+              ...microLabelStyle,
+              color: CATEGORY_ACCENT_TEXT[group.category],
+              margin: "0 0 4px",
+            }}
+          >
+            {NOTIFICATION_CATEGORY_LABEL[group.category]}
+            {group.items.length > 1 ? ` · ${group.items.length}` : ""}
           </Text>
-          <Section style={{ margin: "16px 0" }}>
-            {items.map((item, idx) => {
-              const { headline } = renderNotificationText(item);
-              return (
-                <Text key={idx} style={itemStyle}>
-                  • {headline}
-                </Text>
-              );
-            })}
-          </Section>
-          <Section style={{ textAlign: "center", margin: "24px 0" }}>
-            <Button href={`${appUrl}/notifications`} style={buttonStyle}>
-              Open inbox
-            </Button>
-          </Section>
-          <Hr style={hrStyle} />
-          <Text style={footerStyle}>
-            You opted in to weekly digests.{" "}
-            <a href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
-              Manage preferences
-            </a>{" "}
-            ·{" "}
-            <a href={unsubscribeUrl} style={linkStyle}>
-              Unsubscribe from all email
-            </a>
-            .
-          </Text>
-        </Container>
-      </Body>
-    </Html>
+          {group.items.map((item, idx) => {
+            const { headline, href } = renderNotificationText(item);
+            const safeHeadline = censorText(headline);
+            return (
+              <div key={idx}>
+                {idx > 0 ? <Hr style={itemRuleStyle} /> : null}
+                <Row>
+                  <Column>
+                    {href ? (
+                      <Link href={`${appUrl}${href}`} style={itemLinkStyle}>
+                        {safeHeadline}
+                      </Link>
+                    ) : (
+                      <Text style={{ ...itemLinkStyle, margin: 0 }}>{safeHeadline}</Text>
+                    )}
+                  </Column>
+                  <Column align="right" style={{ width: "72px", verticalAlign: "top" }}>
+                    <Text style={itemTimeStyle}>{timeAgo(item.createdAt)}</Text>
+                  </Column>
+                </Row>
+              </div>
+            );
+          })}
+        </Section>
+      ))}
+      <Section style={{ textAlign: "center" as const, margin: "28px 0 8px" }}>
+        <Button href={`${appUrl}/notifications`} style={buttonStyle}>
+          Open inbox
+        </Button>
+      </Section>
+    </EmailLayout>
   );
 }
 
@@ -102,41 +141,38 @@ WeeklyDigestEmail.PreviewProps = {
       type: "collab_response_received" as const,
       actorUsername: "alex",
       data: { postId: 42, postTitle: "Looking for a pixel artist" },
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     },
     {
       type: "collab_post_featured" as const,
       actorUsername: null,
       data: { postId: 42, postTitle: "Looking for a pixel artist" },
+      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      type: "comment_reply" as const,
+      actorUsername: "sam",
+      data: { subjectTitle: "Devlog #3", subjectUrl: "/collab/42" },
       createdAt: new Date().toISOString(),
     },
   ],
 } satisfies WeeklyDigestEmailProps;
 
-const bodyStyle = { backgroundColor: "#0a0a0a", color: "#f5f5f5", fontFamily: "monospace" };
-const containerStyle = { margin: "0 auto", padding: "32px 24px", maxWidth: "560px" };
-const brandStyle = {
+const groupStyle = { margin: "20px 0 0" };
+const itemRuleStyle = { borderColor: HAIRLINE, margin: "10px 0" };
+const itemLinkStyle = {
+  fontFamily: FONT_SANS,
   fontSize: "14px",
-  fontWeight: 700,
-  letterSpacing: "0.2em",
-  textTransform: "uppercase" as const,
-  color: "#f5f5f5",
-  marginBottom: "16px",
+  color: FG,
+  lineHeight: 1.5,
+  textDecoration: "underline",
 };
-const textStyle = { fontSize: "14px", color: "#d0d0d0", margin: "8px 0", lineHeight: 1.5 };
-const itemStyle = { fontSize: "13px", color: "#f5f5f5", margin: "6px 0", lineHeight: 1.5 };
-const buttonStyle = {
-  backgroundColor: "#ff007f",
-  color: "#ffffff",
-  padding: "12px 20px",
-  textDecoration: "none",
+const itemTimeStyle = {
+  fontFamily: FONT_SANS,
   fontSize: "12px",
-  fontWeight: 700,
-  letterSpacing: "0.2em",
-  textTransform: "uppercase" as const,
+  color: DIM,
+  margin: 0,
+  whiteSpace: "nowrap" as const,
 };
-const hrStyle = { borderColor: "#222", margin: "24px 0" };
-const footerStyle = { fontSize: "11px", color: "#888", lineHeight: 1.5 };
-const linkStyle = { color: "#ff007f", textDecoration: "underline" };
 
 export default WeeklyDigestEmail;

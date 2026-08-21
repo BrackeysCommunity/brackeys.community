@@ -1,15 +1,24 @@
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Preview,
-  Section,
-  Text,
-} from "@react-email/components";
+import { Button, Heading, Section, Text } from "@react-email/components";
+
+import { OG_ACCENTS } from "../lib/og/palette";
+import { EmailLayout } from "./EmailLayout";
+import { ACCENT, buttonStyle, headingStyle, footerStyle, MUTED, textStyle } from "./theme";
+
+/** The short rule under the title, like the OG cards. Delete gets the warm
+ * pink — the closest the palette has to "danger" — the other two stay on
+ * the primary. */
+const RULE_ACCENT: Record<AuthEmailVariant, string> = {
+  verify: ACCENT,
+  reset: ACCENT,
+  delete: OG_ACCENTS.collab,
+};
+
+const ruleStyle = {
+  height: "3px",
+  width: "36px",
+  borderRadius: "2px",
+  margin: "0 0 16px",
+};
 
 export type AuthEmailVariant = "verify" | "reset" | "delete";
 
@@ -17,6 +26,8 @@ export interface AuthEmailProps {
   variant: AuthEmailVariant;
   recipientName: string | null;
   url: string;
+  /** Origin serving the masthead mark; falls back to production. */
+  appUrl?: string;
 }
 
 const COPY: Record<
@@ -43,36 +54,34 @@ const COPY: Record<
   },
 };
 
-export function AuthEmail({ variant, recipientName, url }: AuthEmailProps) {
+export function AuthEmail({ variant, recipientName, url, appUrl }: AuthEmailProps) {
   const copy = COPY[variant];
   const greeting = recipientName ? `Hey ${recipientName},` : "Hey,";
 
   return (
-    <Html>
-      <Head />
-      <Preview>{copy.preview}</Preview>
-      <Body style={bodyStyle}>
-        <Container style={containerStyle}>
-          <Heading style={brandStyle}>Brackeys Community</Heading>
-          <Heading as="h2" style={headingStyle}>
-            {copy.heading}
-          </Heading>
-          <Text style={textStyle}>{greeting}</Text>
-          <Text style={textStyle}>{copy.body}</Text>
-          <Section style={{ textAlign: "center", margin: "24px 0" }}>
-            <Button href={url} style={buttonStyle}>
-              {copy.cta}
-            </Button>
-          </Section>
-          <Hr style={hrStyle} />
-          <Text style={footerStyle}>
-            If the button doesn't work, copy this link into your browser:
-            <br />
-            <span style={{ color: "#aaa", wordBreak: "break-all" }}>{url}</span>
-          </Text>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout
+      preview={copy.preview}
+      appUrl={appUrl}
+      footer={
+        <Text style={footerStyle}>
+          If the button doesn't work, copy this link into your browser:
+          <br />
+          <span style={{ color: MUTED, wordBreak: "break-all" as const }}>{url}</span>
+        </Text>
+      }
+    >
+      <Heading as="h2" style={{ ...headingStyle, margin: "0 0 10px" }}>
+        {copy.heading}
+      </Heading>
+      <div style={{ ...ruleStyle, backgroundColor: RULE_ACCENT[variant] }} />
+      <Text style={textStyle}>{greeting}</Text>
+      <Text style={textStyle}>{copy.body}</Text>
+      <Section style={{ textAlign: "center" as const, margin: "24px 0 0" }}>
+        <Button href={url} style={buttonStyle}>
+          {copy.cta}
+        </Button>
+      </Section>
+    </EmailLayout>
   );
 }
 
@@ -81,30 +90,5 @@ AuthEmail.PreviewProps = {
   recipientName: "Joshe",
   url: "https://brackeys.community/auth/verify?token=abc",
 } satisfies AuthEmailProps;
-
-const bodyStyle = { backgroundColor: "#0a0a0a", color: "#f5f5f5", fontFamily: "monospace" };
-const containerStyle = { margin: "0 auto", padding: "32px 24px", maxWidth: "560px" };
-const brandStyle = {
-  fontSize: "14px",
-  fontWeight: 700,
-  letterSpacing: "0.2em",
-  textTransform: "uppercase" as const,
-  color: "#f5f5f5",
-  marginBottom: "16px",
-};
-const headingStyle = { fontSize: "20px", color: "#f5f5f5", margin: "8px 0 16px" };
-const textStyle = { fontSize: "14px", color: "#d0d0d0", margin: "8px 0", lineHeight: 1.5 };
-const buttonStyle = {
-  backgroundColor: "#ff007f",
-  color: "#ffffff",
-  padding: "12px 20px",
-  textDecoration: "none",
-  fontSize: "12px",
-  fontWeight: 700,
-  letterSpacing: "0.2em",
-  textTransform: "uppercase" as const,
-};
-const hrStyle = { borderColor: "#222", margin: "24px 0" };
-const footerStyle = { fontSize: "11px", color: "#888", lineHeight: 1.5 };
 
 export default AuthEmail;

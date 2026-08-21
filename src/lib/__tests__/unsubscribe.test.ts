@@ -88,6 +88,14 @@ describe("applyUnsubscribe", () => {
     ]);
   });
 
+  it("does not sweep the per-type matrix for scope 'all' — the unsubscribe must stay reversible", async () => {
+    const db = fakeDb();
+    await applyUnsubscribe(db, "user-1", "all");
+
+    const prefWrites = db.inserts.filter((i) => "type" in (i.values as Record<string, unknown>));
+    expect(prefWrites).toEqual([]);
+  });
+
   it("leaves the global switch alone when unsubscribing a single type", async () => {
     const db = fakeDb();
     const result = await applyUnsubscribe(db, "user-1", "comment_reply");

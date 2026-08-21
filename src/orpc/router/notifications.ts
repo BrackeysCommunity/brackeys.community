@@ -246,26 +246,30 @@ export const updatePreference = os
   )
   .handler(async ({ input, context }) => {
     const fallback = NOTIFICATION_DEFAULTS[input.type];
-    const next = {
-      userId: context.user.id,
-      type: input.type,
-      inApp: input.inApp ?? fallback.inApp,
-      email: input.email ?? fallback.email,
-      digest: input.digest ?? fallback.digest,
-      updatedAt: new Date(),
-    };
+    const now = new Date();
+
+    // The conflict `set` carries only the keys the caller sent — the UI
+    // sends one checkbox per click, and an absent key must leave the other
+    // channels' stored choices untouched. Only the insert branch (no row
+    // yet) resolves the missing channels from the defaults.
+    const patch: Partial<{ inApp: boolean; email: boolean; digest: boolean }> = {};
+    if (input.inApp !== undefined) patch.inApp = input.inApp;
+    if (input.email !== undefined) patch.email = input.email;
+    if (input.digest !== undefined) patch.digest = input.digest;
 
     await db
       .insert(notificationPreferences)
-      .values(next)
+      .values({
+        userId: context.user.id,
+        type: input.type,
+        inApp: input.inApp ?? fallback.inApp,
+        email: input.email ?? fallback.email,
+        digest: input.digest ?? fallback.digest,
+        updatedAt: now,
+      })
       .onConflictDoUpdate({
         target: [notificationPreferences.userId, notificationPreferences.type],
-        set: {
-          inApp: next.inApp,
-          email: next.email,
-          digest: next.digest,
-          updatedAt: next.updatedAt,
-        },
+        set: { ...patch, updatedAt: now },
       });
 
     return { ok: true };
