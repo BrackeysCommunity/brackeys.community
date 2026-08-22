@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 
 /**
@@ -68,7 +69,7 @@ export function ConnectedAccounts() {
     },
     // No success path to handle — a successful call redirects to the
     // provider and the browser leaves this page.
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("settings.link_account"),
   });
 
   const { mutate: unlink, isPending: unlinking } = useMutation({
@@ -80,7 +81,7 @@ export function ConnectedAccounts() {
       void queryClient.invalidateQueries({ queryKey });
       toast.success("Disconnected");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("settings.unlink_account"),
   });
 
   if (isLoading) {

@@ -23,10 +23,6 @@ import { cn } from "@/lib/utils";
 
 /** Shared furniture for the `/admin` sections — one voice across all five tabs. */
 
-export function errText(err: unknown): string {
-  return err instanceof Error ? err.message : "Something went wrong.";
-}
-
 /**
  * The page's masthead, built like every other detail hero — notched well,
  * gradient wash, graph ruling behind the headline. The counts live in it

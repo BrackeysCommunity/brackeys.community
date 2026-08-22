@@ -26,7 +26,7 @@ import { EVENTS } from "@/lib/analytics-events";
 import { jamUrl } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { notify } from "@/lib/notifications";
-import { captureServerEvent } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -318,9 +318,9 @@ export const deleteTeam = os
     // a storage leak, not a correctness problem.
     for (const key of [team.avatarKey, team.bannerKey, ...showcaseKeys]) {
       if (key) {
-        await removeProfileProjectImageFromStorage(key).catch((error: unknown) => {
-          console.error("Failed to delete team image on team delete", { key, error });
-        });
+        await bestEffort("storage.image_cleanup", { key, on: "team_delete" }, () =>
+          removeProfileProjectImageFromStorage(key),
+        );
       }
     }
     return { success: true };
@@ -1612,9 +1612,11 @@ export const updateTeamProject = os
       previousKey !== input.image?.key &&
       isTeamProjectImageKey(input.teamId, previousKey)
     ) {
-      await removeProfileProjectImageFromStorage(previousKey).catch((error: unknown) => {
-        console.error("Failed to delete replaced team project cover", { key: previousKey, error });
-      });
+      await bestEffort(
+        "storage.image_cleanup",
+        { key: previousKey, on: "team_project_update" },
+        () => removeProfileProjectImageFromStorage(previousKey),
+      );
     }
 
     // Identity lives on the canonical row and the showcase reads it from
@@ -1677,9 +1679,9 @@ export const removeTeamProject = os
     // object with the source profile project, and that key stays theirs.
     if (project.imageKey && isTeamProjectImageKey(input.teamId, project.imageKey)) {
       const key = project.imageKey;
-      await removeProfileProjectImageFromStorage(key).catch((error: unknown) => {
-        console.error("Failed to delete team project cover", { key, error });
-      });
+      await bestEffort("storage.image_cleanup", { key, on: "team_project_delete" }, () =>
+        removeProfileProjectImageFromStorage(key),
+      );
     }
     return { success: true };
   });

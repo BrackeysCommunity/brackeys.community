@@ -5,7 +5,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
-import { AdminEmpty, AdminRow, AdminSection, Field, errText } from "@/components/admin/AdminUI";
+import { AdminEmpty, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
 import { heroPinApplies } from "@/components/home/hero-jam";
 import {
   BANNER_TRANSITION,
@@ -37,6 +37,7 @@ import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { EASE_OUT } from "@/lib/motion";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -76,7 +77,7 @@ export function AdminHeroJam() {
         return { pins: input.pinned ? [row, ...rest] : rest };
       });
     },
-    onError: (err: unknown) => toast.error(errText(err)),
+    onError: toastMutationError("admin.hero_pin"),
   });
 
   const trimmed = search.trim();

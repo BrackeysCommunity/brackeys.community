@@ -25,6 +25,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { errorMessage } from "@/lib/error-message";
+import { reportMutationError } from "@/lib/posthog";
 import {
   PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES,
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
@@ -166,7 +168,8 @@ export function AddProjectDialog({
       if (isEditing && onSave) onSave(payload);
       else onAdd(payload);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to upload image.");
+      reportMutationError(e, "profile.upload_project_image");
+      toast.error(errorMessage(e, "Failed to upload image."));
     } finally {
       setSubmitting(false);
     }

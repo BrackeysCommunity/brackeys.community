@@ -10,6 +10,8 @@ import type { ZodObject, ZodRawShape } from "zod";
 import { openConfirmModal } from "@/components/ui/confirm";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { errorMessage } from "@/lib/error-message";
+import { reportMutationError } from "@/lib/posthog";
 
 type SaveStatus = "idle" | "saving" | "success" | "error";
 
@@ -61,7 +63,7 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
   className,
 }: AutoSaveFieldProps<TSchema, TName>) {
   const [status, setStatus] = useState<SaveStatus>("idle");
-  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [saveError, setSaveError] = useState<string>("");
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const form = useForm({
@@ -75,7 +77,7 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
       }
 
       setStatus("saving");
-      setErrorMessage("");
+      setSaveError("");
 
       try {
         await onSave({ [name]: value[name] });
@@ -85,8 +87,9 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
         if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
         successTimeoutRef.current = setTimeout(() => setStatus("idle"), 2000);
       } catch (err) {
+        reportMutationError(err, `autosave.${name}`);
         setStatus("error");
-        setErrorMessage(err instanceof Error ? err.message : "Save failed");
+        setSaveError(errorMessage(err, "Save failed"));
       }
     },
   });
@@ -171,7 +174,7 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
                     {children(field)}
                   </div>
                 </SimpleTooltip>
-                <StatusIndicator status={status} errorMessage={errorMessage} />
+                <StatusIndicator status={status} errorMessage={saveError} />
               </div>
               {hint && !hasValidationError && <FieldDescription>{hint}</FieldDescription>}
             </FieldContent>

@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { collabPostReports, commentReports } from "@/db/schema";
 import { notify } from "@/lib/notifications";
+import { bestEffort } from "@/lib/posthog-server";
 
 export type ReportKind = "post" | "comment";
 
@@ -75,20 +76,21 @@ export async function notifyReporters(params: {
   reporterIds.delete(params.actorId);
 
   for (const userId of reporterIds) {
-    try {
-      await notify({
-        userId,
-        type: "report_resolved",
-        entityType: params.entityType,
-        entityId: String(params.entityId),
-        data: {
-          outcome: params.outcome,
-          subjectTitle: params.subjectTitle,
-          subjectUrl: params.subjectUrl,
-        },
-      });
-    } catch (err) {
-      console.warn("[report-resolution] reporter notice failed", { userId, err });
-    }
+    await bestEffort(
+      "report_resolution.reporter_notice",
+      { user_id: userId, entity_type: params.entityType, entity_id: params.entityId },
+      () =>
+        notify({
+          userId,
+          type: "report_resolved",
+          entityType: params.entityType,
+          entityId: String(params.entityId),
+          data: {
+            outcome: params.outcome,
+            subjectTitle: params.subjectTitle,
+            subjectUrl: params.subjectUrl,
+          },
+        }),
+    );
   }
 }

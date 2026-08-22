@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
 import { Censored } from "@/lib/hooks/use-censored";
+import { reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 import { ResponseThreadPanel } from "./ResponseThreadPanel";
@@ -85,13 +86,19 @@ export function ViewerResponseCard({
       setError("");
       await invalidatePost();
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => {
+      reportMutationError(err, "collab.response_update");
+      setError(err.message);
+    },
   });
 
   const withdraw = useMutation({
     mutationFn: () => client.withdrawResponse({ postId }),
     onSuccess: invalidatePost,
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => {
+      reportMutationError(err, "collab.response_withdraw");
+      setError(err.message);
+    },
   });
 
   const status = RESPONSE_STATUS_BADGE[response.status] ?? RESPONSE_STATUS_BADGE.pending!;
@@ -264,7 +271,10 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
         }),
       ]);
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => {
+      reportMutationError(err, "collab.respond");
+      setError(err.message);
+    },
   });
 
   if (success) {

@@ -16,7 +16,9 @@ import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
 import { Censored } from "@/lib/hooks/use-censored";
+import { reportMutationError } from "@/lib/posthog";
 import { teamLinkParams } from "@/lib/team-links";
 import { client } from "@/orpc/client";
 
@@ -136,7 +138,10 @@ function InviteRow({
       setError(null);
       onResponded();
     },
-    onError: (err) => setError(err instanceof Error ? err.message : "Could not answer the invite."),
+    onError: (err) => {
+      reportMutationError(err, "team.invite_respond");
+      setError(errorMessage(err, "Could not answer the invite."));
+    },
   });
 
   return (

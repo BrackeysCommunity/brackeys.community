@@ -31,6 +31,8 @@ import { authStore } from "@/lib/auth-store";
 import type { SubjectRef } from "@/lib/comment-subjects";
 import { timeAgo } from "@/lib/format-time";
 import { Censored } from "@/lib/hooks/use-censored";
+import { toastMutationError } from "@/lib/mutation-errors";
+import { reportMutationError } from "@/lib/posthog";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -159,13 +161,13 @@ export function CommentThread({
   const subscription = useMutation({
     mutationFn: (nextMuted: boolean) => client.setThreadSubscription({ subject, muted: nextMuted }),
     onSuccess: invalidate,
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("comments.subscription"),
   });
 
   const lock = useMutation({
     mutationFn: (nextLocked: boolean) => client.lockThread({ subject, locked: nextLocked }),
     onSuccess: invalidate,
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("comments.lock"),
   });
 
   const content = (
@@ -331,6 +333,7 @@ function Composer({
       return { previous, draft };
     },
     onError: (err: Error, _body, ctx) => {
+      reportMutationError(err, "comments.create");
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
       if (ctx) setContent(ctx.draft);
       toast.error(err.message);
@@ -656,19 +659,19 @@ function CommentItem({
       setEditing(false);
       onChange();
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("comments.update"),
   });
 
   const remove = useMutation({
     mutationFn: () => client.deleteComment({ commentId: comment.id }),
     onSuccess: onChange,
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("comments.delete"),
   });
 
   const report = useMutation({
     mutationFn: (reason: string) => client.reportComment({ commentId: comment.id, reason }),
     onSuccess: () => toast.success("Report sent — staff will take a look."),
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("comments.report"),
   });
 
   const indent = indentPx(comment.depth);

@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
+import { reportMutationError } from "@/lib/posthog";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -20,6 +21,7 @@ function GitHubCallbackPage() {
       navigate({ to: "/profile" });
     },
     onError: (err: Error) => {
+      reportMutationError(err, "profile.link_github_callback");
       toast.error(err.message || "Failed to link GitHub account");
       navigate({ to: "/profile" });
     },

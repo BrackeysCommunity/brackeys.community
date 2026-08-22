@@ -18,6 +18,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
 
@@ -165,7 +166,7 @@ function DangerZone() {
       toast.success("Check your email", {
         description: "Nothing is deleted until you open the confirmation link.",
       }),
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("settings.delete_account"),
   });
 
   return (

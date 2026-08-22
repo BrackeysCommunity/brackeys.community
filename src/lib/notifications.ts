@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { recordNotification, SIDE_EFFECTS_JOB_OPTIONS, type NotifyParams } from "@/lib/notify-core";
+import { bestEffort } from "@/lib/posthog-server";
 import { getNotificationsQueue } from "@/lib/queue";
 
 export type { NotifyParams };
@@ -20,17 +21,16 @@ export async function notify(params: NotifyParams): Promise<void> {
   const result = await recordNotification(db, params);
   if (!result) return;
 
-  try {
-    const queue = await getNotificationsQueue();
-    // bullmq's add() waits for connection readiness and never settles while
-    // Redis is unreachable — fire-and-forget so an outage can't hold the
-    // response; the job lands whenever the connection comes back.
-    queue
-      .add("side_effects", { notificationId: result.id }, SIDE_EFFECTS_JOB_OPTIONS)
-      .catch((err: unknown) => {
-        console.warn("[notify] failed to enqueue side-effects", { id: result.id, err });
-      });
-  } catch (err) {
-    console.warn("[notify] failed to enqueue side-effects", { id: result.id, err });
-  }
+  // bullmq's add() waits for connection readiness and never settles while
+  // Redis is unreachable — fire-and-forget so an outage can't hold the
+  // response; the job lands whenever the connection comes back. An enqueue
+  // failure is silent non-delivery of email/push/SSE, hence the report.
+  void bestEffort(
+    "notify.enqueue",
+    { notification_id: result.id, notification_type: params.type },
+    async () => {
+      const queue = await getNotificationsQueue();
+      await queue.add("side_effects", { notificationId: result.id }, SIDE_EFFECTS_JOB_OPTIONS);
+    },
+  );
 }

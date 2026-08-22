@@ -9,7 +9,9 @@ import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
 import { Censored } from "@/lib/hooks/use-censored";
+import { reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 import { TeamPickerField } from "./CollabCreateFlyout/TeamPickerField";
@@ -86,8 +88,10 @@ export function CollabPostResponseList({
     // The server's accept gate (unlinked team post) lands here if the
     // inline flow was somehow skipped — surface it rather than failing
     // silently.
-    onError: (err) =>
-      setStatusError(err instanceof Error ? err.message : "Could not update the response."),
+    onError: (err) => {
+      reportMutationError(err, "collab.response_status");
+      setStatusError(errorMessage(err, "Could not update the response."));
+    },
   });
 
   // §3.2 accept-time fix for legacy unlinked posts: pick or create the
@@ -104,8 +108,10 @@ export function CollabPostResponseList({
       setStatusError(null);
       void invalidatePost();
     },
-    onError: (err) =>
-      setStatusError(err instanceof Error ? err.message : "Could not link the team."),
+    onError: (err) => {
+      reportMutationError(err, "collab.link_and_accept");
+      setStatusError(errorMessage(err, "Could not link the team."));
+    },
   });
 
   // Accepting is a decision to work together; joining the team page is
@@ -123,8 +129,10 @@ export function CollabPostResponseList({
       setInviteError(null);
       void invalidatePost();
     },
-    onError: (err) =>
-      setInviteError(err instanceof Error ? err.message : "Could not send the invite."),
+    onError: (err) => {
+      reportMutationError(err, "collab.invite_from_response");
+      setInviteError(errorMessage(err, "Could not send the invite."));
+    },
   });
 
   return (

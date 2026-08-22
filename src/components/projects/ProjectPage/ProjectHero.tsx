@@ -14,6 +14,8 @@ import { MediaCardImage } from "@/components/ui/media-card";
 import { Spinner } from "@/components/ui/spinner";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
+import { reportMutationError } from "@/lib/posthog";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 import { toast } from "@/lib/toast";
 import { markWrite } from "@/orpc/recent-write";
@@ -230,7 +232,8 @@ function CoverUploadControl({ projectId }: { projectId: string }) {
       await router.invalidate();
       toast.success("Cover updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to upload cover");
+      reportMutationError(error, "project.upload_cover");
+      toast.error(errorMessage(error, "Failed to upload cover"));
     } finally {
       setUploading(false);
       // Let the same file be picked again after a failure.

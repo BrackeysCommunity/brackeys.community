@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Text } from "@/components/ui/typography";
+import { toastMutationError } from "@/lib/mutation-errors";
 import {
   PROFILE_PROJECT_SUBTYPE_LABELS,
   type ProfileProjectSubType,
@@ -118,8 +119,7 @@ export function ProjectDetailsEditor({
       // being patched.
       await router.invalidate();
     },
-    onError: (error) =>
-      toast.error(error instanceof Error && error.message ? error.message : "Failed to save"),
+    onError: toastMutationError("project.update", "Failed to save"),
   });
 
   const updateLink = (index: number, patch: Partial<LinkRow>) => {

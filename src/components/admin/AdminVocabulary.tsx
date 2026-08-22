@@ -3,13 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 
-import {
-  AdminEmpty,
-  AdminSection,
-  CategoryCombobox,
-  Field,
-  errText,
-} from "@/components/admin/AdminUI";
+import { AdminEmpty, AdminSection, CategoryCombobox, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -18,6 +12,7 @@ import { Section } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -80,7 +75,7 @@ export function VocabularyManager({
     void queryClient.invalidateQueries({ queryKey: orpc.listCollabRoles.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listSkills.key() });
   };
-  const onError = (err: unknown) => toast.error(errText(err));
+  const onError = toastMutationError("admin.vocabulary_edit", undefined, { kind });
 
   const add = useMutation({
     mutationFn: (input: { name: string; category: string | null }) =>

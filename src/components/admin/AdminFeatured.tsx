@@ -4,13 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { AdminEmpty, AdminRow, AdminSection, Field, errText } from "@/components/admin/AdminUI";
+import { AdminEmpty, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -47,7 +48,7 @@ export function AdminFeatured() {
       void queryClient.invalidateQueries({ queryKey: orpc.listPosts.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.getPost.key() });
     },
-    onError: (err: unknown) => toast.error(errText(err)),
+    onError: toastMutationError("admin.feature_post"),
   });
 
   const featuredPosts: ListedPost[] = featured.data?.posts ?? [];

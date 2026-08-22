@@ -12,7 +12,7 @@ import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
-import { withErrorReporting } from "@/lib/posthog-server";
+import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import {
   ProfileProjectImageUploadError,
   removeProfileProjectImageFromStorage,
@@ -46,7 +46,12 @@ async function imageUploadAllowed(userId: string): Promise<boolean> {
  * `authMiddleware`.
  */
 async function readUploadSession(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  // Reported before degrading to anonymous: an auth outage would otherwise
+  // read as a surge of 401s from logged-out visitors.
+  const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
+    captureServerException(err, { scope: "uploads.session_read" });
+    return null;
+  });
   if (!session || isActiveBan(session.user)) return null;
   return session;
 }
@@ -252,9 +257,11 @@ async function handleTeamAvatarUpload(request: Request) {
       .where(eq(teams.id, teamId));
 
     if (previousKey && previousKey !== uploaded.key) {
-      await removeProfileProjectImageFromStorage(previousKey).catch((error: unknown) => {
-        console.error(`Failed to delete replaced team ${kind}`, { key: previousKey, error });
-      });
+      await bestEffort(
+        "storage.image_cleanup",
+        { key: previousKey, on: `team_${kind}_upload` },
+        () => removeProfileProjectImageFromStorage(previousKey),
+      );
     }
 
     return Response.json(uploaded, { status: 201 });
@@ -336,9 +343,9 @@ async function handleProjectImageUpload(request: Request) {
 
     const previous = loaded.project.imageKey;
     if (previous && previous !== uploaded.key && isProjectImageKey(projectId, previous)) {
-      await removeProfileProjectImageFromStorage(previous).catch((error: unknown) => {
-        console.error("Failed to delete replaced project cover", { key: previous, error });
-      });
+      await bestEffort("storage.image_cleanup", { key: previous, on: "project_cover_upload" }, () =>
+        removeProfileProjectImageFromStorage(previous),
+      );
     }
 
     return Response.json(uploaded, { status: 201 });

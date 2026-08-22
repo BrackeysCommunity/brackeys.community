@@ -11,6 +11,7 @@ import {
   isDiscordAvatarUrl,
   resolveRoleNames,
 } from "@/lib/discord";
+import { bestEffort } from "@/lib/posthog-server";
 import { createRedisClient } from "@/lib/redis";
 import { discordUsernameToStub } from "@/lib/url-stub";
 
@@ -114,9 +115,9 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
 
   if (latestDiscordUsername) {
     // Best-effort: a stub collision or DB hiccup must not fail sign-in.
-    await syncDefaultUrlStub(userId, latestDiscordUsername).catch((err) => {
-      console.error(`[guild-sync] url-stub sync failed for ${userId}`, err);
-    });
+    await bestEffort("guild_sync.url_stub", { user_id: userId }, () =>
+      syncDefaultUrlStub(userId, latestDiscordUsername),
+    );
   }
 
   return { guildRolesSynced: guildRoles != null };
@@ -203,12 +204,12 @@ export async function refreshGuildRolesThrottled(userId: string): Promise<void> 
   }
   if (won !== "OK") return;
 
-  let synced = false;
-  try {
-    synced = (await syncDiscordProfile(userId)).guildRolesSynced;
-  } catch (err) {
-    console.error(`[guild-sync] role refresh failed for ${userId}`, err);
-  }
+  // A failed refresh gates who `requireGuildMember` lets comment and post,
+  // so it's reported, not just logged.
+  const result = await bestEffort("guild_sync.role_refresh", { user_id: userId }, () =>
+    syncDiscordProfile(userId),
+  );
+  const synced = result?.guildRolesSynced ?? false;
 
   try {
     if (synced) {

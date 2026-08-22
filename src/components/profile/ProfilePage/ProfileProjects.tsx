@@ -10,6 +10,7 @@ import { Confirm } from "@/components/ui/confirm";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { itchImageUrl } from "@/lib/itch-image";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { type ProfileProjectSubType } from "@/lib/profile-projects";
 import {
   MANUAL_PROJECT_TYPES,
@@ -86,7 +87,7 @@ export function ProfileProjectsSection({
       toast.success("Project added");
       setShowAdder(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add project"),
+    onError: toastMutationError("profile.add_project", "Failed to add project"),
   });
   const updateProject = useMutation({
     mutationFn: (data: Parameters<typeof client.updateProject>[0]) => client.updateProject(data),
@@ -95,7 +96,7 @@ export function ProfileProjectsSection({
       toast.success("Project updated");
       setEditing(null);
     },
-    onError: () => toast.error("Failed to update project"),
+    onError: toastMutationError("profile.update_project", "Failed to update project"),
   });
   const removeProject = useMutation({
     mutationFn: (projectId: string) => client.removeProject({ projectId }),
@@ -103,7 +104,7 @@ export function ProfileProjectsSection({
       invalidate();
       toast.success("Project removed");
     },
-    onError: () => toast.error("Failed to remove project"),
+    onError: toastMutationError("profile.remove_project", "Failed to remove project"),
   });
 
   const handleAddClick = () => {

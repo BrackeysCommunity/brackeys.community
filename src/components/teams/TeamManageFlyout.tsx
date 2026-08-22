@@ -12,7 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
 import { itchImageUrl } from "@/lib/itch-image";
+import { reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 import type { RpcTeam } from "./TeamPage";
@@ -72,10 +74,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function errText(err: unknown): string {
-  return err instanceof Error ? err.message : "Something went wrong.";
-}
-
 // ── Identity (owner) ─────────────────────────────────────────────────────────
 
 function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void }) {
@@ -101,6 +99,7 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
       }
     },
     onSuccess: onSaved,
+    onError: (err) => reportMutationError(err, "team.update"),
   });
 
   const recruitingMutation = useMutation({
@@ -175,7 +174,7 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
         </Button>
         {saveMutation.isError ? (
           <Text size="xs" className="text-destructive">
-            {errText(saveMutation.error)}
+            {errorMessage(saveMutation.error)}
           </Text>
         ) : null}
         {saveMutation.isSuccess ? (
@@ -214,7 +213,10 @@ function TeamImageUpload({
       setError(null);
       onUploaded();
     },
-    onError: (err) => setError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.image_upload");
+      setError(errorMessage(err));
+    },
   });
 
   return (
@@ -319,7 +321,10 @@ function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => vo
       setInviteError(null);
       onChanged();
     },
-    onError: (err) => setInviteError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.invite");
+      setInviteError(errorMessage(err));
+    },
   });
   const revokeMutation = useMutation({
     mutationFn: (inviteId: number) => client.revokeInvite({ inviteId }),
@@ -499,7 +504,10 @@ function ShowcaseSection({ team, onChanged }: { team: RpcTeam; onChanged: () => 
       setError(null);
       onChanged();
     },
-    onError: (err) => setError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.project_add");
+      setError(errorMessage(err));
+    },
   });
   const importMutation = useMutation({
     mutationFn: (projectId: string) => client.importMemberProject({ teamId: team.id, projectId }),
@@ -507,7 +515,10 @@ function ShowcaseSection({ team, onChanged }: { team: RpcTeam; onChanged: () => 
       setError(null);
       onChanged();
     },
-    onError: (err) => setError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.project_import");
+      setError(errorMessage(err));
+    },
   });
   const removeMutation = useMutation({
     mutationFn: (projectId: string) => client.removeTeamProject({ teamId: team.id, projectId }),
@@ -630,7 +641,10 @@ function DangerSection({
     mutationFn: () =>
       client.setTeamArchived({ teamId: team.id, archived: team.status === "active" }),
     onSuccess: onChanged,
-    onError: (err) => setError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.archive");
+      setError(errorMessage(err));
+    },
   });
   const leaveMutation = useMutation({
     mutationFn: () => client.leaveTeam({ teamId: team.id }),
@@ -638,7 +652,10 @@ function DangerSection({
       onChanged();
       onGone();
     },
-    onError: (err) => setError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.leave");
+      setError(errorMessage(err));
+    },
   });
   const deleteMutation = useMutation({
     mutationFn: () => client.deleteTeam({ teamId: team.id }),
@@ -646,7 +663,10 @@ function DangerSection({
       onGone();
       void navigate({ to: "/collab" });
     },
-    onError: (err) => setError(errText(err)),
+    onError: (err) => {
+      reportMutationError(err, "team.delete");
+      setError(errorMessage(err));
+    },
   });
 
   return (

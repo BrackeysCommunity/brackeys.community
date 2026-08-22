@@ -2,7 +2,7 @@ import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { auth } from "@/lib/auth";
-import { withErrorReporting } from "@/lib/posthog-server";
+import { captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import {
   presenceChannel,
   refreshConnection,
@@ -14,7 +14,12 @@ import { createRedisClient } from "@/lib/redis";
 const HEARTBEAT_MS = 25_000;
 
 async function handle({ request }: { request: Request }) {
-  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  // Reported before degrading to a 401: an auth outage would otherwise read
+  // as a surge of logged-out traffic.
+  const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
+    captureServerException(err, { scope: "notifications_stream.session_read" });
+    return null;
+  });
 
   if (!session?.user) {
     return new Response("Unauthorized", { status: 401 });

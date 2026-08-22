@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Section, SectionAction } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { formatCountdown } from "@/lib/jam-countdown";
+import { reportMutationError } from "@/lib/posthog";
 import { client } from "@/orpc/client";
 
 import { isExpiringSoon } from "./dashboard-derive";
@@ -110,7 +112,10 @@ function PostExpiry({
       setError(null);
       onExtended();
     },
-    onError: (err) => setError(err instanceof Error ? err.message : "Could not extend the post."),
+    onError: (err) => {
+      reportMutationError(err, "collab.post_extend");
+      setError(errorMessage(err, "Could not extend the post."));
+    },
   });
 
   if (post.status !== "recruiting") return null;

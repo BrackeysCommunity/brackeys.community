@@ -21,7 +21,10 @@ import {
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
+import { errorMessage } from "@/lib/error-message";
 import { startItchOAuth } from "@/lib/itchio-oauth";
+import { toastMutationError } from "@/lib/mutation-errors";
+import { reportMutationError } from "@/lib/posthog";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -69,7 +72,7 @@ export function ProfileLinkedAccountsSection({
       invalidate();
       toast.success("Unlinked GitHub");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to unlink GitHub"),
+    onError: toastMutationError("profile.unlink_github", "Failed to unlink GitHub"),
   });
   const unlinkItch = useMutation({
     mutationFn: () => client.unlinkItchIo({}),
@@ -77,7 +80,7 @@ export function ProfileLinkedAccountsSection({
       invalidate();
       toast.success("Unlinked itch.io");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to unlink itch.io"),
+    onError: toastMutationError("profile.unlink_itchio", "Failed to unlink itch.io"),
   });
 
   // Map a row's display label back to the OAuth provider whose
@@ -218,7 +221,8 @@ async function linkGithub(): Promise<void> {
       throw new Error(message);
     }
   } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Failed to link GitHub");
+    reportMutationError(e, "profile.link_github");
+    toast.error(errorMessage(e, "Failed to link GitHub"));
   }
 }
 

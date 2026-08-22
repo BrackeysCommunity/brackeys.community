@@ -1,3 +1,5 @@
+import { ORPCError } from "@orpc/client";
+
 import { env } from "@/env";
 import type { AnalyticsEvent } from "@/lib/analytics-events";
 
@@ -368,4 +370,25 @@ export function captureError(error: unknown, properties?: Record<string, unknown
   }
   const pinned = pinnedEventContext();
   withClient((c) => c.captureException(error, { ...pinned.properties, ...properties }));
+}
+
+/**
+ * Report a failed mutation from an `onError` handler. Applies the same
+ * expected-error filter as the server interceptor (`src/orpc/error-reporting.ts`):
+ * an `ORPCError` below 500 is the contract working — a validation rejection,
+ * a FORBIDDEN — and is not worth an issue. Everything else (network
+ * failures, genuine 500s, non-oRPC throws) is captured with a `scope` naming
+ * the mutation, e.g. `"comments.create"`, plus whatever entity ids the call
+ * site has in hand.
+ *
+ * Most sites don't call this directly — `toastMutationError` in
+ * `@/lib/mutation-errors` bundles it with the toast.
+ */
+export function reportMutationError(
+  error: unknown,
+  scope: string,
+  properties?: Record<string, unknown>,
+) {
+  if (error instanceof ORPCError && error.status < 500) return;
+  captureError(error, { scope, ...properties });
 }

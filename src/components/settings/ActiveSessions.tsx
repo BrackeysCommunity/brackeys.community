@@ -10,6 +10,7 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { describeUserAgent } from "@/lib/user-agent";
 
@@ -42,7 +43,7 @@ export function ActiveSessions() {
       void queryClient.invalidateQueries({ queryKey });
       toast.success("Signed that device out");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("settings.revoke_session"),
   });
 
   const { mutate: revokeOthers, isPending: revokingOthers } = useMutation({
@@ -54,7 +55,7 @@ export function ActiveSessions() {
       void queryClient.invalidateQueries({ queryKey });
       toast.success("Signed every other device out");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("settings.revoke_other_sessions"),
   });
 
   if (isLoading) {

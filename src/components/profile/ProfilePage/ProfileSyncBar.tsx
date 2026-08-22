@@ -7,6 +7,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { describeResyncImport } from "@/lib/itchio-import-copy";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { playJobStart } from "@/lib/sound";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
@@ -42,7 +43,7 @@ export function ProfileSyncBar({ itch, isOwner, queryKey }: ProfileSyncBarProps)
       if (queryKey) void qc.invalidateQueries({ queryKey });
       toast.success(describeResyncImport(result));
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to sync itch.io"),
+    onError: toastMutationError("profile.sync_itchio", "Failed to sync itch.io"),
   });
 
   if (!itch || !isOwner) return null;

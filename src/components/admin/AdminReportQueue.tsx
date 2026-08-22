@@ -10,7 +10,6 @@ import {
   AdminRow,
   AdminSection,
   ReasonField,
-  errText,
 } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -74,7 +74,6 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     void queryClient.invalidateQueries({ queryKey: orpc.listCommentReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listReports.key() });
   };
-  const onError = (err: unknown) => toast.error(errText(err));
 
   const resolveComment = useMutation({
     mutationFn: (input: {
@@ -83,13 +82,13 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
       reason?: string;
     }) => client.resolveCommentReport(input),
     onSuccess: invalidate,
-    onError,
+    onError: toastMutationError("admin.report_resolve_comment"),
   });
   const resolvePost = useMutation({
     mutationFn: (input: { reportId: number; action: "dismiss" | "close_post" }) =>
       client.resolvePostReport(input),
     onSuccess: invalidate,
-    onError,
+    onError: toastMutationError("admin.report_resolve_post"),
   });
   // Takes the whole group, like `reopen`: junk is junk however many times it
   // was filed, and leaving the siblings behind would put the row straight back.
@@ -97,7 +96,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     mutationFn: (group: QueueGroup) =>
       Promise.all(group.entries.map((entry) => client.deleteReport({ reportId: entry.id }))),
     onSuccess: invalidate,
-    onError,
+    onError: toastMutationError("admin.report_delete"),
   });
   // Reopens the whole group: a row that came back with two of its three
   // reports still closed would misreport what staff are looking at.
@@ -117,7 +116,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
         toast.warning(results[0]?.message ?? "Nothing to reopen.");
       }
     },
-    onError,
+    onError: toastMutationError("admin.report_reopen"),
   });
 
   const rows = useMemo<QueueGroup[]>(() => {

@@ -9,6 +9,7 @@ import {
   isAllowedPreviewOrigin,
   parseOAuthState,
 } from "@/lib/itchio-oauth";
+import { reportMutationError } from "@/lib/posthog";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -33,6 +34,7 @@ function ItchIoCallbackPage() {
       toast.success(describeLinkImport(data));
     },
     onError: (err: Error) => {
+      reportMutationError(err, "profile.link_itchio_callback");
       toast.error(
         err.message || "Linked, but couldn't import your games — try again from PROJECTS",
       );
@@ -56,6 +58,7 @@ function ItchIoCallbackPage() {
       importGames();
     },
     onError: (err: Error) => {
+      reportMutationError(err, "profile.link_itchio_callback");
       toast.error(err.message || "Failed to link itch.io account");
       navigate({ to: "/profile" });
     },

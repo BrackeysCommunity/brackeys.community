@@ -12,7 +12,6 @@ import {
   CategoryCombobox,
   Field,
   ReasonField,
-  errText,
 } from "@/components/admin/AdminUI";
 import { VocabularyManager } from "@/components/admin/AdminVocabulary";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -83,7 +83,7 @@ function AdminSkillRequests() {
     void queryClient.invalidateQueries({ queryKey: orpc.listSkills.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listVocabulary.key() });
   };
-  const onError = (err: unknown) => toast.error(errText(err));
+  const onError = toastMutationError("admin.skill_request_review");
 
   const approve = useMutation({
     mutationFn: (input: {

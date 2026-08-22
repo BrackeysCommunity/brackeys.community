@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
+import { reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -75,6 +77,7 @@ export function TeamCreateDrawer({ open, onClose }: { open: boolean; onClose: ()
       onClose();
       void navigate({ to: "/teams/$teamId", params: { teamId: team.slug || team.id } });
     },
+    onError: (err) => reportMutationError(err, "team.create"),
   });
 
   return (
@@ -192,9 +195,7 @@ export function TeamCreateDrawer({ open, onClose }: { open: boolean; onClose: ()
 
             {createMutation.isError ? (
               <Text size="xs" className="text-destructive">
-                {createMutation.error instanceof Error
-                  ? createMutation.error.message
-                  : "Could not create the team."}
+                {errorMessage(createMutation.error, "Could not create the team.")}
               </Text>
             ) : null}
           </div>

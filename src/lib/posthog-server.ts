@@ -92,6 +92,33 @@ export function captureServerException(error: unknown, properties?: Record<strin
 }
 
 /**
+ * Run a side-effect that must not fail its caller — a notification fan-out
+ * after a write landed, an audit-log line, storage cleanup — and report the
+ * failure instead of only `console.warn`ing it. This replaces the
+ * fire-and-forget `.catch(console.warn)` pattern that left ~25 server legs
+ * dark: protected, but invisible when they broke.
+ *
+ * Resolves `undefined` on failure so callers that need the result can
+ * `?? fallback` it; fire-and-forget callers just `void bestEffort(...)`.
+ * `scope` follows the same `area.action` convention as the client's
+ * `reportMutationError`; `ctx` carries the entity ids that make the report
+ * actionable.
+ */
+export async function bestEffort<T>(
+  scope: string,
+  ctx: Record<string, unknown>,
+  fn: () => T | Promise<T>,
+): Promise<T | undefined> {
+  try {
+    return await fn();
+  } catch (err) {
+    console.warn(`[${scope}] best-effort step failed`, { ...ctx, err });
+    captureServerException(err, { scope, ...ctx });
+    return undefined;
+  }
+}
+
+/**
  * Wrap a server route handler so an unhandled throw is reported before it
  * becomes an opaque 500. For the routes that sit outside oRPC — the
  * better-auth mount, image streaming, the unsubscribe link — where nothing

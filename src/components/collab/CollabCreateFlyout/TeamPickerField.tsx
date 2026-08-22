@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { errorMessage } from "@/lib/error-message";
+import { reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";
@@ -41,6 +43,7 @@ export function TeamPickerField({
       setCreating(false);
       setNewName("");
     },
+    onError: (err) => reportMutationError(err, "team.create"),
   });
 
   const selected = myTeams?.find((t) => t.id === value) ?? null;
@@ -134,9 +137,7 @@ export function TeamPickerField({
           )}
           {createMutation.isError ? (
             <Text size="xs" className="text-destructive">
-              {createMutation.error instanceof Error
-                ? createMutation.error.message
-                : "Could not create the team."}
+              {errorMessage(createMutation.error, "Could not create the team.")}
             </Text>
           ) : null}
         </div>

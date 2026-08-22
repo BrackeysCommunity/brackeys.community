@@ -40,8 +40,10 @@ import { Well } from "@/components/ui/well";
 import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
+import { errorMessage } from "@/lib/error-message";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { EASE_OUT } from "@/lib/motion";
+import { reportMutationError } from "@/lib/posthog";
 import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
@@ -432,7 +434,12 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
     setStubError(null);
     setStub.mutate(
       { stub: value },
-      { onError: (err) => setStubError(err instanceof Error ? err.message : "Couldn't save") },
+      {
+        onError: (err) => {
+          reportMutationError(err, "profile.save_url_stub");
+          setStubError(errorMessage(err, "Couldn't save"));
+        },
+      },
     );
   });
 
@@ -519,7 +526,10 @@ function RolesField({ profile, queryKey, save }: StepProps) {
       save.setStatus("saved");
       seedProfile({ roles });
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.set_roles");
+      save.setStatus("error");
+    },
   });
 
   const selected = profile.roles;
@@ -737,7 +747,10 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
       save.setStatus("saved");
       seedProfile({ skills });
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.add_skill");
+      save.setStatus("error");
+    },
   });
   const removeSkill = useMutation({
     mutationFn: (userSkillId: number) => client.removeUserSkill({ userSkillId }),
@@ -746,7 +759,10 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
       save.setStatus("saved");
       seedProfile({ skills });
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.remove_skill");
+      save.setStatus("error");
+    },
   });
   const requestSkill = useMutation({
     mutationFn: (name: string) => client.requestSkill({ name }),
@@ -756,7 +772,10 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
       invalidate();
       toast.success("Skill request submitted");
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.request_skill");
+      save.setStatus("error");
+    },
   });
   const cancelRequest = useMutation({
     mutationFn: (name: string) => client.cancelSkillRequest({ name }),
@@ -765,7 +784,10 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
       save.setStatus("saved");
       invalidate();
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.cancel_skill_request");
+      save.setStatus("error");
+    },
   });
 
   const active = profile.skills.filter((s) => s.state === "active");
@@ -1150,7 +1172,8 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
             try {
               await linkGithub();
               save.setStatus("saved");
-            } catch {
+            } catch (err) {
+              reportMutationError(err, "profile.link_github");
               save.setStatus("error");
             } finally {
               setLinking(null);
@@ -1361,7 +1384,10 @@ function useUpdateProfile(queryKey: readonly unknown[] | undefined, save: SaveCo
       save.setStatus("saved");
       if (queryKey) void qc.invalidateQueries({ queryKey });
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.autosave");
+      save.setStatus("error");
+    },
   });
 }
 
@@ -1374,7 +1400,10 @@ function useSetUrlStub(queryKey: readonly unknown[] | undefined, save: SaveConte
       save.setStatus("saved");
       if (queryKey) void qc.invalidateQueries({ queryKey });
     },
-    onError: () => save.setStatus("error"),
+    onError: (err) => {
+      reportMutationError(err, "profile.save_url_stub");
+      save.setStatus("error");
+    },
   });
 }
 

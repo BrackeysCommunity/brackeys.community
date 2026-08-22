@@ -13,6 +13,7 @@ import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { Censored } from "@/lib/hooks/use-censored";
 import { itchImageUrl } from "@/lib/itch-image";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
@@ -231,7 +232,7 @@ function AvailabilityToggleCard({
       if (queryKey) void qc.invalidateQueries({ queryKey });
       toast.success(next ? "You're shown as available for work" : "Availability turned off");
     },
-    onError: () => toast.error("Failed to update availability"),
+    onError: toastMutationError("profile.toggle_availability", "Failed to update availability"),
   });
 
   const commitment = formatCommitment(availability.commitment);
@@ -338,7 +339,7 @@ function BlockToggle({ profileId }: { profileId: string }) {
       void qc.invalidateQueries({ queryKey: ["listComments"] });
       toast.success(blocked ? "Member unblocked" : "Member blocked");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("profile.toggle_block"),
   });
 
   return (

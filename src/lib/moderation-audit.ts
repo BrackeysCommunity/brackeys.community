@@ -8,6 +8,7 @@ import {
   type ModerationTargetType,
 } from "@/db/schema";
 import { memberName } from "@/lib/member-name";
+import { bestEffort } from "@/lib/posthog-server";
 
 /**
  * The site's moderation log. Every staff action writes one row here, and
@@ -47,20 +48,22 @@ async function actorName(actorId: string): Promise<string | null> {
 }
 
 export async function recordModerationAction(entry: ModerationLogEntry): Promise<void> {
-  try {
-    await db.insert(moderationActions).values({
-      action: entry.action,
-      actorId: entry.actorId,
-      // Snapshotted so the row stays readable if the account is later
-      // deleted and the FK nulls out.
-      actorName: entry.actorId ? await actorName(entry.actorId) : null,
-      subjectUserId: entry.subjectUserId ?? null,
-      targetType: entry.targetType,
-      targetId: entry.targetId == null ? null : String(entry.targetId),
-      reason: entry.reason?.trim() || null,
-      metadata: entry.metadata ?? {},
-    });
-  } catch (err) {
-    console.warn("[moderation-audit] failed to record action", { action: entry.action, err });
-  }
+  await bestEffort(
+    "moderation_audit.record",
+    { action: entry.action, target_type: entry.targetType, target_id: entry.targetId ?? null },
+    async () => {
+      await db.insert(moderationActions).values({
+        action: entry.action,
+        actorId: entry.actorId,
+        // Snapshotted so the row stays readable if the account is later
+        // deleted and the FK nulls out.
+        actorName: entry.actorId ? await actorName(entry.actorId) : null,
+        subjectUserId: entry.subjectUserId ?? null,
+        targetType: entry.targetType,
+        targetId: entry.targetId == null ? null : String(entry.targetId),
+        reason: entry.reason?.trim() || null,
+        metadata: entry.metadata ?? {},
+      });
+    },
+  );
 }

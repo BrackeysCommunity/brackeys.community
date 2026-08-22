@@ -12,8 +12,9 @@ import {
   updateWizardDraft,
   type UploadedImage,
 } from "@/lib/collab-store";
+import { errorMessage } from "@/lib/error-message";
 import { EASE_OUT } from "@/lib/motion";
-import { captureEvent } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/posthog";
 import { client } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";
@@ -139,7 +140,8 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
           teamId = await createDraftTeam(v);
           form.setFieldValue("teamId", teamId);
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Could not create the team.");
+          reportMutationError(err, "collab.team_create");
+          setError(errorMessage(err, "Could not create the team."));
           return;
         }
       }
@@ -151,7 +153,8 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       try {
         postId = await savePost({ ...v, teamId }, editingPostId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save the post.");
+        reportMutationError(err, "collab.post_save");
+        setError(errorMessage(err, "Could not save the post."));
         return;
       }
 

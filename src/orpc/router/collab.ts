@@ -35,7 +35,7 @@ import { jamSlug } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
-import { captureServerEvent } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -419,14 +419,14 @@ export const createPost = os
     // fan-out follows — post creation latency must not scale with the
     // watcher count, and a failed ping must never fail the post.
     if (jam) {
-      void notifyJamWatchersOfPost({
-        jam,
-        postId: post.id,
-        postTitle: post.title,
-        actorId: context.user.id,
-      }).catch((err: unknown) => {
-        console.warn("[collab] jam watcher fan-out failed", { postId: post.id, err });
-      });
+      void bestEffort("collab.jam_watcher_fan_out", { post_id: post.id, jam_id: jam.jamId }, () =>
+        notifyJamWatchersOfPost({
+          jam,
+          postId: post.id,
+          postTitle: post.title,
+          actorId: context.user.id,
+        }),
+      );
     }
 
     captureServerEvent(EVENTS.collabPostCreated, context.user.id, {
@@ -611,9 +611,9 @@ export const deletePost = os
     await db.delete(collabPosts).where(eq(collabPosts.id, input.postId));
     for (const { imageKey } of images) {
       if (imageKey && isCollabPostImageKey(input.postId, imageKey)) {
-        await removeProfileProjectImageFromStorage(imageKey).catch((error: unknown) => {
-          console.error("Failed to delete collab post image", { key: imageKey, error });
-        });
+        await bestEffort("storage.image_cleanup", { key: imageKey, on: "collab_post_delete" }, () =>
+          removeProfileProjectImageFromStorage(imageKey),
+        );
       }
     }
     return { success: true };
@@ -2177,9 +2177,11 @@ export const removePostImage = os
     // Same namespace-guarded sweep as `deletePost`: legacy keys in an
     // uploader's profile namespace stay put.
     if (isCollabPostImageKey(image.postId, image.imageKey)) {
-      await removeProfileProjectImageFromStorage(image.imageKey).catch((error: unknown) => {
-        console.error("Failed to delete collab post image", { key: image.imageKey, error });
-      });
+      await bestEffort(
+        "storage.image_cleanup",
+        { key: image.imageKey, on: "collab_image_delete" },
+        () => removeProfileProjectImageFromStorage(image.imageKey),
+      );
     }
     return { success: true };
   });

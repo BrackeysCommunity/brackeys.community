@@ -12,7 +12,6 @@ import {
   AdminRow,
   AdminSection,
   Field,
-  errText,
 } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,8 +39,8 @@ import { Well } from "@/components/ui/well";
 import { BAN_DURATIONS } from "@/lib/ban-state";
 import { timeAgo } from "@/lib/format-time";
 import { formatCountdown } from "@/lib/jam-countdown";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { profileLinkParams } from "@/lib/profile-links";
-import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 type BanEntry = Awaited<ReturnType<typeof client.listBans>>[number];
@@ -64,7 +63,7 @@ export function AdminBans({ isAdmin }: { isAdmin: boolean }) {
   const unban = useMutation({
     mutationFn: (userId: string) => client.unbanUser({ userId }),
     onSuccess: invalidate,
-    onError: (err) => toast.error(errText(err)),
+    onError: toastMutationError("admin.unban_user"),
   });
 
   const active = (bans.data ?? []).filter((entry) => entry.isActive);
@@ -233,7 +232,7 @@ function BanDialog({
       reset();
       onBanned();
     },
-    onError: (err) => toast.error(errText(err)),
+    onError: toastMutationError("admin.ban_user"),
   });
 
   return (

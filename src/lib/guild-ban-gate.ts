@@ -5,6 +5,7 @@ import { developerProfiles, user } from "@/db/schema";
 import { isActiveBan } from "@/lib/ban-state";
 import { isGuildBanned } from "@/lib/discord";
 import { recordModerationAction } from "@/lib/moderation-audit";
+import { bestEffort } from "@/lib/posthog-server";
 
 export const GUILD_BAN_REASON = "Banned from the Brackeys Discord server.";
 
@@ -15,7 +16,10 @@ export const GUILD_BAN_REASON = "Banned from the Brackeys Discord server.";
  * doesn't clear this, staff lift it from `/admin`.
  */
 export async function applyGuildBanOnSignIn(userId: string): Promise<boolean> {
-  try {
+  // Fail-open is the deliberate trade (sign-in over ban enforcement), which
+  // is exactly why a failure here must be reported: a broken check means
+  // guild-banned users are passing the gate.
+  const applied = await bestEffort("guild_ban_gate.check", { user_id: userId }, async () => {
     const [row] = await db
       .select({
         discordId: developerProfiles.discordId,
@@ -57,8 +61,6 @@ export async function applyGuildBanOnSignIn(userId: string): Promise<boolean> {
     });
 
     return true;
-  } catch (err) {
-    console.warn("[guild-ban-gate] check failed", { userId, err });
-    return false;
-  }
+  });
+  return applied ?? false;
 }

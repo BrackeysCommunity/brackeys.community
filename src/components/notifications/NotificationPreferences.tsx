@@ -7,6 +7,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import type { NotificationType } from "@/db/schema";
 import { NOTIFICATION_TYPE_LABEL, NOTIFICATION_TYPES } from "@/lib/notification-copy";
+import { reportMutationError } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -60,7 +61,8 @@ export function NotificationPreferences() {
       }
       return { prev };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
+      reportMutationError(err, "settings.notification_prefs");
       const prev = (ctx as { prev?: PreferencesData } | undefined)?.prev;
       if (prev) queryClient.setQueryData(queryKey, prev);
     },
@@ -79,7 +81,8 @@ export function NotificationPreferences() {
       }
       return { prev };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
+      reportMutationError(err, "settings.notification_emails");
       const prev = (ctx as { prev?: PreferencesData } | undefined)?.prev;
       if (prev) queryClient.setQueryData(queryKey, prev);
     },

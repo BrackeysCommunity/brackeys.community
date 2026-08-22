@@ -1,6 +1,16 @@
 import type IORedis from "ioredis";
 import type { RedisOptions } from "ioredis";
 
+import { captureServerException } from "@/lib/posthog-server";
+
+/**
+ * Redis backs rate limiting, presence, and the notification queue, so an
+ * outage is worth an alert — but exactly one, not an event per failed
+ * command. First error per client per window is captured; the rest stay on
+ * the (already-deduped) console path.
+ */
+const CAPTURE_WINDOW_MS = 5 * 60_000;
+
 /**
  * Shared constructor for every server-side Redis client. The defaults make
  * commands fail fast while the connection is down: with ioredis's offline
@@ -29,7 +39,13 @@ export async function createRedisClient(
     ...options,
   });
   let lastError = "";
+  let lastCaptureAt = 0;
   client.on("error", (err) => {
+    const now = Date.now();
+    if (now - lastCaptureAt >= CAPTURE_WINDOW_MS) {
+      lastCaptureAt = now;
+      captureServerException(err, { scope: `redis.${name}` });
+    }
     if (err.message === lastError) return;
     lastError = err.message;
     console.warn(`[redis:${name}] ${err.message}`);

@@ -9,7 +9,6 @@ import {
   AdminRow,
   AdminSection,
   ReasonField,
-  errText,
 } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
-import { toast } from "@/lib/toast";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { client, orpc } from "@/orpc/client";
 
 type RecentComment = Awaited<ReturnType<typeof client.listRecentComments>>["items"][number];
@@ -48,7 +47,7 @@ export function AdminRecentComments() {
       void queryClient.invalidateQueries({ queryKey: orpc.listRecentComments.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.listComments.key() });
     },
-    onError: (err: unknown) => toast.error(errText(err)),
+    onError: toastMutationError("admin.comment_remove"),
   });
 
   const items = comments.data?.items ?? [];

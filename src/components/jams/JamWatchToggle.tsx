@@ -5,7 +5,7 @@ import { useStore } from "@tanstack/react-store";
 
 import { Button } from "@/components/ui/button";
 import { authStore } from "@/lib/auth-store";
-import { toast } from "@/lib/toast";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
@@ -60,7 +60,7 @@ export function JamWatchToggle({
         queryClient.invalidateQueries({ queryKey: ["listMyJamWatches"] }),
       ]);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: toastMutationError("jam.watch_toggle"),
   });
 
   if (!signedIn) return null;

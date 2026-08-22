@@ -41,6 +41,7 @@ import {
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
+import { bestEffort } from "@/lib/posthog-server";
 import { escapeLike } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
@@ -571,17 +572,15 @@ async function notifyRequester(
     data: Record<string, unknown>;
   },
 ): Promise<void> {
-  try {
-    await notify({
+  await bestEffort("admin.skill_request_notice", { request_id: params.requestId }, () =>
+    notify({
       userId,
       type: params.type,
       entityType: "skill_request",
       entityId: String(params.requestId),
       data: params.data,
-    });
-  } catch (err) {
-    console.warn("[admin] skill request notice failed", { requestId: params.requestId, err });
-  }
+    }),
+  );
 }
 
 export const rejectSkillRequest = os

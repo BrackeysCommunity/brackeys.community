@@ -15,6 +15,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { toastMutationError } from "@/lib/mutation-errors";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -65,7 +66,7 @@ export function ProjectCredits({
       refresh();
       toast.success("Credit removed");
     },
-    onError: (error) => toast.error(errorMessage(error, "Failed to remove credit")),
+    onError: toastMutationError("project.credits_remove", "Failed to remove credit"),
   });
 
   // An empty credits list is normally nothing to render — but an editor
@@ -309,7 +310,7 @@ function AddCreditForm({
       toast.success("Credit added");
       onDone();
     },
-    onError: (error) => toast.error(errorMessage(error, "Failed to add credit")),
+    onError: toastMutationError("project.credits_add", "Failed to add credit"),
   });
 
   const creditSelf = useMutation({
@@ -323,7 +324,7 @@ function AddCreditForm({
       toast.success("You're credited");
       onDone();
     },
-    onError: (error) => toast.error(errorMessage(error, "Failed to add credit")),
+    onError: toastMutationError("project.credits_add_self", "Failed to add credit"),
   });
 
   const canSubmit = displayName.trim().length > 0 && !addCredit.isPending;
@@ -462,7 +463,7 @@ function EditCreditForm({
       toast.success("Credit updated");
       onDone();
     },
-    onError: (error) => toast.error(errorMessage(error, "Failed to update credit")),
+    onError: toastMutationError("project.credits_update", "Failed to update credit"),
   });
 
   const canSubmit = displayName.trim().length > 0 && !save.isPending;
@@ -501,8 +502,4 @@ function EditCreditForm({
       </div>
     </Well>
   );
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
 }

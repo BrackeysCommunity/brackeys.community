@@ -43,7 +43,7 @@ import {
 import { EVENTS } from "@/lib/analytics-events";
 import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
 import { jamUrl } from "@/lib/jam-links";
-import { captureServerEvent } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -1039,7 +1039,10 @@ export const updateProject = os
     }
 
     if (image && existingProject.imageKey && existingProject.imageKey !== image.key) {
-      removeProfileProjectImageFromStorage(existingProject.imageKey).catch(console.error);
+      const previousKey = existingProject.imageKey;
+      void bestEffort("storage.image_cleanup", { key: previousKey, on: "project_update" }, () =>
+        removeProfileProjectImageFromStorage(previousKey),
+      );
     }
 
     return serializeProfileProject(updated);
@@ -1081,7 +1084,9 @@ export const removeProject = os
       });
     }
 
-    removeProfileProjectImageFromStorage(deleted.imageKey).catch(console.error);
+    void bestEffort("storage.image_cleanup", { key: deleted.imageKey, on: "project_delete" }, () =>
+      removeProfileProjectImageFromStorage(deleted.imageKey),
+    );
 
     return { success: true };
   });

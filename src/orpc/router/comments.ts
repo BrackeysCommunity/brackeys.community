@@ -30,6 +30,7 @@ import { isStaffMember } from "@/lib/discord";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
+import { bestEffort } from "@/lib/posthog-server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   notifyReporters,
@@ -490,7 +491,7 @@ export const createComment = os
     // notification pass must not delay or fail the comment itself.
     const writerId = context.user.id;
     const parentAuthorId = parent?.authorId ?? null;
-    void (async () => {
+    void bestEffort("comments.fan_out", { comment_id: created.id }, async () => {
       const subjectUrl = `${subject.url}#comment-${created.id}`;
       const notificationData = {
         subjectType: input.subject.type,
@@ -541,8 +542,6 @@ export const createComment = os
           data: notificationData,
         });
       }
-    })().catch((err: unknown) => {
-      console.warn("[comments] notification fan-out failed", { commentId: created.id, err });
     });
 
     return { id: created.id, rootId: created.rootId, depth: created.depth };
@@ -668,9 +667,10 @@ async function notifyCommentRemoved(params: {
   reason?: string;
 }): Promise<void> {
   const { comment, removedById, reason } = params;
-  if (!comment.authorId || comment.authorId === removedById) return;
+  const authorId = comment.authorId;
+  if (!authorId || authorId === removedById) return;
 
-  try {
+  await bestEffort("comments.removal_notice", { comment_id: comment.id }, async () => {
     const [thread] = await db
       .select()
       .from(threads)
@@ -679,7 +679,7 @@ async function notifyCommentRemoved(params: {
     const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
 
     await notify({
-      userId: comment.authorId,
+      userId: authorId,
       type: "comment_removed_by_staff",
       // No actorId: which moderator acted is staff's business, and naming
       // them turns a policy decision into a personal one.
@@ -693,9 +693,7 @@ async function notifyCommentRemoved(params: {
         ...(reason ? { reason } : {}),
       },
     });
-  } catch (err) {
-    console.warn("[comments] removal notice failed", { commentId: comment.id, err });
-  }
+  });
 }
 
 export const reportComment = os
@@ -999,7 +997,7 @@ async function notifyReportersOfComment(params: {
   outcome: ReportOutcome;
   commentId: number;
 }): Promise<void> {
-  try {
+  await bestEffort("comments.reporter_notices", { comment_id: params.commentId }, async () => {
     const [comment] = await db
       .select({ threadId: comments.threadId })
       .from(comments)
@@ -1019,9 +1017,7 @@ async function notifyReportersOfComment(params: {
       subjectTitle: subject?.title ?? "a comment you flagged",
       subjectUrl: subject?.url ?? null,
     });
-  } catch (err) {
-    console.warn("[comments] reporter notices failed", { commentId: params.commentId, err });
-  }
+  });
 }
 
 // ── Blocks ───────────────────────────────────────────────────────────────────
