@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { withErrorReporting } from "@/lib/posthog-server";
+import { captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import { DEFAULT_OG_IMAGE } from "@/lib/site-meta";
 
 /**
@@ -36,6 +36,9 @@ async function handle({ request }: { request: Request }) {
     return pngResponse(png, { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } });
   } catch (error) {
     console.error("[og] card render failed", target, error);
+    // The redirect below means `withErrorReporting` never sees this — report
+    // here, with the target so the report says *which* card degraded.
+    captureServerException(error, { scope: "og.render", target });
     // The `/og/**` route rule overwrites `cache-control` with the day-long
     // edge TTL; `cdn-cache-control` outranks it at Cloudflare and the rule
     // leaves it alone, so a transient failure is never edge-cached.

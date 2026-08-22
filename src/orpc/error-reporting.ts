@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/client";
 
 import { captureServerException } from "@/lib/posthog-server";
+import { readSession } from "@/orpc/middleware/auth";
 
 /**
  * Which way into the router the failing call came. There is no shared base
@@ -18,18 +19,30 @@ type ProcedureTier = "private" | "public" | "openapi" | "ssr";
 /**
  * `clientInterceptors` entry that reports unexpected procedure failures.
  *
- * Not user-attributed on any tier: the interceptor only sees the handler's
- * initial context (`{ headers }`), not what the auth middleware resolves —
- * and the public tier is anonymous by construction anyway
- * (`anonymousContext` in `src/routes/api.public.rpc.$.ts`).
+ * The interceptor only sees the handler's initial context (`{ headers }`),
+ * not what the auth middleware resolves — but that's enough to attribute:
+ * on the error path (errors are rare; one extra session read is fine) it
+ * resolves the session itself and attaches `user_id`, so a report can answer
+ * "one user or everyone?". The public tier stays anonymous — its
+ * header-stripping (`anonymousContext` in `src/routes/api.public.rpc.$.ts`)
+ * is deliberate and test-enforced, so there is no session to read.
  */
 export function reportProcedureErrors(tier: ProcedureTier) {
-  return async (options: { path: readonly string[]; next: () => Promise<unknown> }) => {
+  return async (options: {
+    context: unknown;
+    path: readonly string[];
+    next: () => Promise<unknown>;
+  }) => {
     try {
       return await options.next();
     } catch (error) {
       if (isExpected(error)) throw error;
-      captureServerException(error, { tier, procedure: options.path.join(".") });
+      const session = tier === "public" ? null : await readSession(options.context);
+      captureServerException(error, {
+        tier,
+        procedure: options.path.join("."),
+        user_id: session?.user.id,
+      });
       throw error;
     }
   };

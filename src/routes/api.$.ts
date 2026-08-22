@@ -59,6 +59,82 @@ async function readUploadSession(request: Request) {
 const UPLOAD_LIMIT_RESPONSE = () =>
   Response.json({ message: "Too many uploads today — try again tomorrow." }, { status: 429 });
 
+interface ImageUploadArgs {
+  session: NonNullable<Awaited<ReturnType<typeof readUploadSession>>>;
+  formData: FormData;
+  image: File;
+}
+
+/**
+ * Shared preamble (method / session / ban / rate-limit / image-field
+ * validation) and shared catch for the multipart upload handlers below.
+ *
+ * The catch matters as much as the dedup: these handlers *return* their 500s
+ * rather than throwing, so `withErrorReporting` at the bottom of this file
+ * never sees an upload failure — this is the one place all four paths
+ * report. The remaining string form fields (teamId, projectId, …) ride along
+ * snake_cased so reports join the analytics events on the same ids.
+ */
+function withImageUpload(
+  name: string,
+  fallbackMessage: string,
+  handler: (args: ImageUploadArgs) => Promise<Response>,
+) {
+  return async (request: Request): Promise<Response> => {
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: { Allow: "POST" },
+      });
+    }
+
+    const session = await readUploadSession(request);
+    if (!session) {
+      return Response.json({ message: "Authentication required." }, { status: 401 });
+    }
+    if (!(await imageUploadAllowed(session.user.id))) {
+      return UPLOAD_LIMIT_RESPONSE();
+    }
+
+    const formData = await request.formData().catch(() => null);
+    const image = formData?.get("image");
+    if (!formData || !(image instanceof File)) {
+      return Response.json(
+        { message: 'Expected an image file in the "image" form field.' },
+        { status: 400 },
+      );
+    }
+
+    try {
+      return await handler({ session, formData, image });
+    } catch (error) {
+      if (error instanceof ProfileProjectImageUploadError) {
+        return Response.json({ message: error.message }, { status: error.status });
+      }
+
+      console.error(error);
+      captureServerException(error, {
+        scope: `uploads.${name}`,
+        user_id: session.user.id,
+        ...stringFormFields(formData),
+      });
+      const message = error instanceof Error ? error.message : fallbackMessage;
+      return Response.json({ message }, { status: 500 });
+    }
+  };
+}
+
+/** The non-file entries, keys snake_cased (`teamId` → `team_id`). */
+function stringFormFields(formData: FormData): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") {
+      fields[key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)] = value;
+    }
+  }
+  return fields;
+}
+
 const handler = new OpenAPIHandler(router, {
   interceptors: [
     onError((error) => {
@@ -120,50 +196,18 @@ async function handle({ request }: { request: Request }) {
   return response ?? new Response("Not Found", { status: 404 });
 }
 
-async function handleProfileProjectImageUpload(request: Request) {
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", {
-      status: 405,
-      headers: { Allow: "POST" },
-    });
-  }
-
-  const session = await readUploadSession(request);
-
-  if (!session) {
-    return Response.json({ message: "Authentication required." }, { status: 401 });
-  }
-  if (!(await imageUploadAllowed(session.user.id))) {
-    return UPLOAD_LIMIT_RESPONSE();
-  }
-
-  const formData = await request.formData().catch(() => null);
-  const image = formData?.get("image");
-  if (!(image instanceof File)) {
-    return Response.json(
-      { message: 'Expected an image file in the "image" form field.' },
-      { status: 400 },
-    );
-  }
-
-  try {
+const handleProfileProjectImageUpload = withImageUpload(
+  "profile_project_image",
+  "Failed to upload profile project image.",
+  async ({ session, image }) => {
     const uploadedImage = await uploadProfileProjectImageToStorage({
       file: image,
       userId: session.user.id,
     });
 
     return Response.json(uploadedImage, { status: 201 });
-  } catch (error) {
-    if (error instanceof ProfileProjectImageUploadError) {
-      return Response.json({ message: error.message }, { status: error.status });
-    }
-
-    console.error(error);
-    const message =
-      error instanceof Error ? error.message : "Failed to upload profile project image.";
-    return Response.json({ message }, { status: 500 });
-  }
-}
+  },
+);
 
 /**
  * Team image upload — the wizard's TEAM step and the manage flyout both
@@ -174,63 +218,41 @@ async function handleProfileProjectImageUpload(request: Request) {
  * is member-level and only mints an object — the key is attached to a
  * showcase row via `addTeamProject`/`updateTeamProject`.
  */
-async function handleTeamAvatarUpload(request: Request) {
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", {
-      status: 405,
-      headers: { Allow: "POST" },
-    });
-  }
+const handleTeamAvatarUpload = withImageUpload(
+  "team_image",
+  "Failed to upload team image.",
+  async ({ session, formData, image }) => {
+    const teamId = formData.get("teamId");
+    const kindField = formData.get("kind") ?? "avatar";
+    if (typeof teamId !== "string" || !teamId) {
+      return Response.json({ message: 'Expected a "teamId" form field.' }, { status: 400 });
+    }
+    if (kindField !== "avatar" && kindField !== "banner" && kindField !== "project") {
+      return Response.json(
+        { message: '"kind" must be "avatar", "banner", or "project".' },
+        { status: 400 },
+      );
+    }
+    const kind: "avatar" | "banner" | "project" = kindField;
 
-  const session = await readUploadSession(request);
+    const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
+    if (!team) {
+      return Response.json({ message: "Team not found." }, { status: 404 });
+    }
+    const [membership] = await db
+      .select({ role: teamMembers.role })
+      .from(teamMembers)
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, session.user.id)))
+      .limit(1);
+    if (kind === "project" ? !membership : membership?.role !== "owner") {
+      return Response.json(
+        kind === "project"
+          ? { message: "Only team members can upload showcase images." }
+          : { message: `Only the team owner can change the ${kind}.` },
+        { status: 403 },
+      );
+    }
 
-  if (!session) {
-    return Response.json({ message: "Authentication required." }, { status: 401 });
-  }
-  if (!(await imageUploadAllowed(session.user.id))) {
-    return UPLOAD_LIMIT_RESPONSE();
-  }
-
-  const formData = await request.formData().catch(() => null);
-  const image = formData?.get("image");
-  const teamId = formData?.get("teamId");
-  const kindField = formData?.get("kind") ?? "avatar";
-  if (!(image instanceof File)) {
-    return Response.json(
-      { message: 'Expected an image file in the "image" form field.' },
-      { status: 400 },
-    );
-  }
-  if (typeof teamId !== "string" || !teamId) {
-    return Response.json({ message: 'Expected a "teamId" form field.' }, { status: 400 });
-  }
-  if (kindField !== "avatar" && kindField !== "banner" && kindField !== "project") {
-    return Response.json(
-      { message: '"kind" must be "avatar", "banner", or "project".' },
-      { status: 400 },
-    );
-  }
-  const kind: "avatar" | "banner" | "project" = kindField;
-
-  const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
-  if (!team) {
-    return Response.json({ message: "Team not found." }, { status: 404 });
-  }
-  const [membership] = await db
-    .select({ role: teamMembers.role })
-    .from(teamMembers)
-    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, session.user.id)))
-    .limit(1);
-  if (kind === "project" ? !membership : membership?.role !== "owner") {
-    return Response.json(
-      kind === "project"
-        ? { message: "Only team members can upload showcase images." }
-        : { message: `Only the team owner can change the ${kind}.` },
-      { status: 403 },
-    );
-  }
-
-  try {
     if (kind === "project") {
       const uploaded = await uploadImageToStorage({
         file: image,
@@ -265,16 +287,8 @@ async function handleTeamAvatarUpload(request: Request) {
     }
 
     return Response.json(uploaded, { status: 201 });
-  } catch (error) {
-    if (error instanceof ProfileProjectImageUploadError) {
-      return Response.json({ message: error.message }, { status: error.status });
-    }
-
-    console.error(error);
-    const message = error instanceof Error ? error.message : `Failed to upload team ${kind}.`;
-    return Response.json({ message }, { status: 500 });
-  }
-}
+  },
+);
 
 /**
  * A canonical project's cover.
@@ -290,47 +304,26 @@ async function handleTeamAvatarUpload(request: Request) {
  * one of ours: a legacy row pointing at a user-scoped key must not have that
  * user's object deleted out from under their own placement.
  */
-async function handleProjectImageUpload(request: Request) {
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", {
-      status: 405,
-      headers: { Allow: "POST" },
-    });
-  }
+const handleProjectImageUpload = withImageUpload(
+  "project_cover",
+  "Failed to upload project cover.",
+  async ({ session, formData, image }) => {
+    const projectId = formData.get("projectId");
+    if (typeof projectId !== "string" || !projectId) {
+      return Response.json({ message: 'Expected a "projectId" form field.' }, { status: 400 });
+    }
 
-  const session = await readUploadSession(request);
-  if (!session) {
-    return Response.json({ message: "Authentication required." }, { status: 401 });
-  }
-  if (!(await imageUploadAllowed(session.user.id))) {
-    return UPLOAD_LIMIT_RESPONSE();
-  }
+    const loaded = await loadProjectForEditor(projectId, session.user.id);
+    if (!loaded) {
+      return Response.json({ message: "Project not found." }, { status: 404 });
+    }
+    if (!loaded.canEdit) {
+      return Response.json(
+        { message: "Only the people credited on this project can change its cover." },
+        { status: 403 },
+      );
+    }
 
-  const formData = await request.formData().catch(() => null);
-  const image = formData?.get("image");
-  const projectId = formData?.get("projectId");
-  if (!(image instanceof File)) {
-    return Response.json(
-      { message: 'Expected an image file in the "image" form field.' },
-      { status: 400 },
-    );
-  }
-  if (typeof projectId !== "string" || !projectId) {
-    return Response.json({ message: 'Expected a "projectId" form field.' }, { status: 400 });
-  }
-
-  const loaded = await loadProjectForEditor(projectId, session.user.id);
-  if (!loaded) {
-    return Response.json({ message: "Project not found." }, { status: 404 });
-  }
-  if (!loaded.canEdit) {
-    return Response.json(
-      { message: "Only the people credited on this project can change its cover." },
-      { status: 403 },
-    );
-  }
-
-  try {
     const uploaded = await uploadImageToStorage({
       file: image,
       objectKey: buildProjectImageObjectKey(projectId, image.name),
@@ -349,16 +342,8 @@ async function handleProjectImageUpload(request: Request) {
     }
 
     return Response.json(uploaded, { status: 201 });
-  } catch (error) {
-    if (error instanceof ProfileProjectImageUploadError) {
-      return Response.json({ message: error.message }, { status: error.status });
-    }
-
-    console.error(error);
-    const message = error instanceof Error ? error.message : "Failed to upload project cover.";
-    return Response.json({ message }, { status: 500 });
-  }
-}
+  },
+);
 
 /**
  * A collab post's gallery image. The key is **post-scoped**
@@ -368,65 +353,36 @@ async function handleProjectImageUpload(request: Request) {
  * `profile-projects/` keys) leaves a live post's gallery intact. Author-only,
  * matching `addPostImage`, which is where the returned key gets attached.
  */
-async function handleCollabPostImageUpload(request: Request) {
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", {
-      status: 405,
-      headers: { Allow: "POST" },
-    });
-  }
+const handleCollabPostImageUpload = withImageUpload(
+  "collab_post_image",
+  "Failed to upload post image.",
+  async ({ session, formData, image }) => {
+    const postIdField = formData.get("postId");
+    const postId = typeof postIdField === "string" ? Number(postIdField) : NaN;
+    if (!Number.isInteger(postId)) {
+      return Response.json({ message: 'Expected a numeric "postId" form field.' }, { status: 400 });
+    }
 
-  const session = await readUploadSession(request);
-  if (!session) {
-    return Response.json({ message: "Authentication required." }, { status: 401 });
-  }
-  if (!(await imageUploadAllowed(session.user.id))) {
-    return UPLOAD_LIMIT_RESPONSE();
-  }
+    const [post] = await db
+      .select({ authorId: collabPosts.authorId })
+      .from(collabPosts)
+      .where(eq(collabPosts.id, postId))
+      .limit(1);
+    if (!post) {
+      return Response.json({ message: "Post not found." }, { status: 404 });
+    }
+    if (post.authorId !== session.user.id) {
+      return Response.json({ message: "Only the post owner can upload images." }, { status: 403 });
+    }
 
-  const formData = await request.formData().catch(() => null);
-  const image = formData?.get("image");
-  const postIdField = formData?.get("postId");
-  if (!(image instanceof File)) {
-    return Response.json(
-      { message: 'Expected an image file in the "image" form field.' },
-      { status: 400 },
-    );
-  }
-  const postId = typeof postIdField === "string" ? Number(postIdField) : NaN;
-  if (!Number.isInteger(postId)) {
-    return Response.json({ message: 'Expected a numeric "postId" form field.' }, { status: 400 });
-  }
-
-  const [post] = await db
-    .select({ authorId: collabPosts.authorId })
-    .from(collabPosts)
-    .where(eq(collabPosts.id, postId))
-    .limit(1);
-  if (!post) {
-    return Response.json({ message: "Post not found." }, { status: 404 });
-  }
-  if (post.authorId !== session.user.id) {
-    return Response.json({ message: "Only the post owner can upload images." }, { status: 403 });
-  }
-
-  try {
     const uploaded = await uploadImageToStorage({
       file: image,
       objectKey: buildCollabPostImageObjectKey(postId, image.name),
     });
 
     return Response.json(uploaded, { status: 201 });
-  } catch (error) {
-    if (error instanceof ProfileProjectImageUploadError) {
-      return Response.json({ message: error.message }, { status: error.status });
-    }
-
-    console.error(error);
-    const message = error instanceof Error ? error.message : "Failed to upload post image.";
-    return Response.json({ message }, { status: 500 });
-  }
-}
+  },
+);
 
 /** Reports an unhandled throw before it becomes an opaque 500. */
 const reportedHandle = withErrorReporting("/api/$", handle);

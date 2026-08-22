@@ -9,6 +9,8 @@ import type {
   CollabProjectLength,
   UploadedImage,
 } from "@/lib/collab-store";
+import { postImageForm } from "@/lib/image-upload";
+import type { UploadedImageRecord } from "@/lib/image-upload";
 import { hasProfanity } from "@/lib/profanity";
 
 // ── Profanity ──────────────────────────────────────────────────────────────
@@ -178,12 +180,6 @@ export const COMP_SLIDER_CONFIG: Record<string, CompSliderConfig> = {
 
 // ── MinIO upload ───────────────────────────────────────────────────────────
 
-/** Server response from the image-upload endpoints. */
-export interface UploadedImageRecord {
-  key: string;
-  url: string;
-}
-
 /**
  * Upload a single post image to MinIO via `/api/collab/post-image`
  * (author-only, post-scoped key). Called at submit time once the post
@@ -191,23 +187,8 @@ export interface UploadedImageRecord {
  * lives in-memory as `UploadedImage.file` so abandoned drafts never
  * write to the bucket.
  */
-export async function uploadCollabPostImage(
-  postId: number,
-  file: File,
-): Promise<UploadedImageRecord> {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("postId", String(postId));
-
-  const response = await fetch("/api/collab/post-image", {
-    method: "POST",
-    body: formData,
-  });
-  if (!response.ok) {
-    const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(err?.message ?? "Upload failed.");
-  }
-  return (await response.json()) as UploadedImageRecord;
+export function uploadCollabPostImage(postId: number, file: File): Promise<UploadedImageRecord> {
+  return postImageForm("/api/collab/post-image", file, { postId: String(postId) });
 }
 
 /**
@@ -217,25 +198,17 @@ export async function uploadCollabPostImage(
  * lives in-memory as `UploadedImage.file` until then, same as post
  * images.
  */
-export async function uploadTeamAvatarImage(
+export function uploadTeamAvatarImage(
   teamId: string,
   file: File,
   kind: "avatar" | "banner" = "avatar",
 ): Promise<UploadedImageRecord> {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("teamId", teamId);
-  formData.append("kind", kind);
-
-  const response = await fetch("/api/team/avatar", {
-    method: "POST",
-    body: formData,
-  });
-  if (!response.ok) {
-    const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(err?.message ?? `${kind === "banner" ? "Banner" : "Avatar"} upload failed.`);
-  }
-  return (await response.json()) as UploadedImageRecord;
+  return postImageForm(
+    "/api/team/avatar",
+    file,
+    { teamId, kind },
+    `${kind === "banner" ? "Banner" : "Avatar"} upload failed.`,
+  );
 }
 
 // ── Form values ────────────────────────────────────────────────────────────

@@ -1,5 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { MotionConfig } from "framer-motion";
 import { lazy, Suspense, useEffect } from "react";
 
@@ -137,11 +143,20 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   pendingComponent: RoutePendingFallback,
 });
 
-function RouteErrorBoundary({ error }: { error: Error }) {
+function RouteErrorBoundary({ error, info }: ErrorComponentProps) {
+  const match = useRouterState({ select: (s) => s.matches[s.matches.length - 1] });
   // The router catches this before it ever reaches window.onerror, so
-  // `capture_exceptions` never sees it — report it by hand.
+  // `capture_exceptions` never sees it — report it by hand. `info` carries a
+  // componentStack only when React caught a render throw, which is what
+  // separates a broken component from a failed loader. Keyed on the error
+  // alone: match identity churn must not re-report the same failure.
   useEffect(() => {
-    captureError(error);
+    captureError(error, {
+      route_id: match?.routeId,
+      route_params: match?.params,
+      phase: info?.componentStack ? "render" : "loader",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
   return (

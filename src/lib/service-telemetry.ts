@@ -37,6 +37,17 @@ const KEY = process.env.POSTHOG_KEY ?? process.env.VITE_POSTHOG_KEY;
 const HOST =
   process.env.POSTHOG_HOST ?? process.env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com";
 
+/**
+ * Common properties on every capture, matching `@/lib/posthog-server`'s pair
+ * so the error dashboard slices web and services the same way. Services have
+ * no Vite build, so the closest thing to a release id is Railway's commit
+ * sha; the environment name is Railway's own, absent means local dev.
+ */
+const COMMON_PROPS: Record<string, unknown> = {
+  app_version: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7),
+  environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? "development",
+};
+
 export interface ServiceTelemetry {
   /** Report a failure. Never throws — reporting must not break the job. */
   captureException(error: unknown, properties?: Record<string, unknown>): void;
@@ -61,7 +72,7 @@ export function createServiceTelemetry(service: string): ServiceTelemetry {
   return {
     captureException(error, properties) {
       try {
-        client.captureException(error, service, { service, ...properties });
+        client.captureException(error, service, { ...COMMON_PROPS, service, ...properties });
       } catch (reportingError) {
         console.error(`[telemetry] failed to report from ${service}:`, reportingError);
       }

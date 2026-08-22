@@ -2,7 +2,7 @@ import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { auth } from "@/lib/auth";
-import { captureServerException, withErrorReporting } from "@/lib/posthog-server";
+import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import {
   presenceChannel,
   refreshConnection,
@@ -73,14 +73,20 @@ async function handle({ request }: { request: Request }) {
 
       // Presence and pub/sub are best-effort: with Redis down the stream
       // stays open for heartbeats (the inbox still polls), it just loses
-      // live push until the client reconnects.
-      await registerConnection(userId, connectionId).catch(() => {});
+      // live push until the client reconnects. Both setup legs report — a
+      // failed subscribe means this user gets no realtime notifications for
+      // the rest of the session, which must not stay invisible.
+      await bestEffort("notifications_stream.register", { user_id: userId }, () =>
+        registerConnection(userId, connectionId),
+      );
 
       subscriber.on("message", (_channel, message) => {
         // Each payload is a single SSE `data:` event; the client parses it.
         send(`event: notification\ndata: ${message}\n\n`);
       });
-      await subscriber.subscribe(channel).catch(() => {});
+      await bestEffort("notifications_stream.subscribe", { user_id: userId }, () =>
+        subscriber.subscribe(channel),
+      );
 
       // Initial comment so the client immediately knows the stream is open
       // (many EventSource impls don't fire `onopen` until a first byte).

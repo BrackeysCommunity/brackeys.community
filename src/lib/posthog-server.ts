@@ -19,10 +19,23 @@ import type { AnalyticsEvent } from "@/lib/analytics-events";
 const HOST = process.env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com";
 
 /**
+ * Common properties on every server capture, mirroring the browser's
+ * `posthog.register({ app_version })`: without them a server error can't be
+ * bisected across a deploy, and staging noise is indistinguishable from prod.
+ * `__APP_VERSION__` is a Vite define, so it exists in the built server bundle
+ * but not under a bare runtime — hence the `typeof` guard. The environment
+ * name is Railway's own (`production` / `staging`); absent means local dev.
+ */
+const COMMON_PROPS: Record<string, unknown> = {
+  app_version: typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : undefined,
+  environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? "development",
+};
+
+/**
  * Distinct id for events that belong to the server rather than to a person.
- * Server captures are deliberately not user-attributed: the handler-level
- * interceptors only see the pre-middleware context, so a user id would mean
- * a session lookup on the error path.
+ * Exception captures stay under this id — attribution, where a caller has it,
+ * is a `user_id` *property* (filterable, answers "one user or everyone?")
+ * rather than the distinct id, so server errors never mint person profiles.
  */
 const SERVER_DISTINCT_ID = "brackeys-web";
 
@@ -57,7 +70,7 @@ function installProcessHandlers(posthog: PostHog) {
   const die = async (error: unknown, kind: string) => {
     console.error(`[posthog] ${kind}:`, error);
     try {
-      posthog.captureException(error, SERVER_DISTINCT_ID, { source: kind });
+      posthog.captureException(error, SERVER_DISTINCT_ID, { ...COMMON_PROPS, source: kind });
       // Short timeout: the process is going down either way, and a hung
       // flush would hold it open past any supervisor's patience.
       await posthog.shutdown(2000);
@@ -84,11 +97,11 @@ export function captureServerEvent(
   distinctId: string,
   properties?: Record<string, unknown>,
 ) {
-  getClient()?.capture({ distinctId, event, properties });
+  getClient()?.capture({ distinctId, event, properties: { ...COMMON_PROPS, ...properties } });
 }
 
 export function captureServerException(error: unknown, properties?: Record<string, unknown>) {
-  getClient()?.captureException(error, SERVER_DISTINCT_ID, properties);
+  getClient()?.captureException(error, SERVER_DISTINCT_ID, { ...COMMON_PROPS, ...properties });
 }
 
 /**
@@ -127,6 +140,11 @@ export async function bestEffort<T>(
  * Rethrows: this observes, it does not swallow. Note it can only see throws
  * that happen before the response is returned, so a stream that fails
  * mid-flight (the notification SSE route) is still outside its reach.
+ *
+ * `route` is the route pattern (`/og/$`); the resolved pathname rides along
+ * so the report says *which* card or image failed. The session read is on
+ * the error path only — errors are rare, one DB hit is fine — and lazy
+ * because `@/lib/auth` imports this module.
  */
 export function withErrorReporting<TArgs extends { request: Request }, TResult>(
   route: string,
@@ -136,7 +154,26 @@ export function withErrorReporting<TArgs extends { request: Request }, TResult>(
     try {
       return await handler(args);
     } catch (error) {
-      captureServerException(error, { route, method: args.request.method });
+      let path: string | undefined;
+      try {
+        path = new URL(args.request.url).pathname;
+      } catch {
+        // Unparseable URL — the route pattern still identifies the surface.
+      }
+      let userId: string | undefined;
+      try {
+        const { auth } = await import("@/lib/auth");
+        const session = await auth.api.getSession({ headers: args.request.headers });
+        userId = session?.user.id;
+      } catch {
+        // Session unreadable (or the failure *is* the auth mount) — report anonymously.
+      }
+      captureServerException(error, {
+        route,
+        path,
+        method: args.request.method,
+        user_id: userId,
+      });
       throw error;
     }
   };

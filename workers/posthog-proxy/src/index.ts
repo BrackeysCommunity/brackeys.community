@@ -34,38 +34,50 @@ const ROUTE_PREFIX = "/ingest";
 
 export default {
   async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-
-    if (url.pathname.startsWith(`${ROUTE_PREFIX}/`)) {
-      url.pathname = url.pathname.slice(ROUTE_PREFIX.length);
+    // This worker *is* the reporting pipeline, so it can't self-report — a
+    // clean 502 plus console.error (visible in the Cloudflare dashboard)
+    // beats leaking a raw exception page to the SDK.
+    try {
+      return await proxy(request);
+    } catch (error) {
+      console.error("[posthog-proxy] forward failed:", error);
+      return new Response("Bad Gateway", { status: 502 });
     }
-
-    // `/static/*` is the asset host; everything else is ingestion. This split
-    // is PostHog's, not ours — serving both from one host 404s the toolbar.
-    const upstream = url.pathname.startsWith("/static/") ? ASSET_HOST : INGEST_HOST;
-
-    url.hostname = upstream;
-    url.protocol = "https:";
-    url.port = "";
-
-    const headers = new Headers(request.headers);
-    headers.set("Host", upstream);
-
-    // Preserve any upstream chain rather than replacing it, so the real
-    // client stays first in the list.
-    const clientIp = request.headers.get("CF-Connecting-IP");
-    if (clientIp) {
-      const existing = request.headers.get("X-Forwarded-For");
-      headers.set("X-Forwarded-For", existing ? `${existing}, ${clientIp}` : clientIp);
-    }
-
-    return fetch(
-      new Request(url, {
-        method: request.method,
-        headers,
-        body: request.body,
-        redirect: "manual",
-      }),
-    );
   },
 };
+
+async function proxy(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+
+  if (url.pathname.startsWith(`${ROUTE_PREFIX}/`)) {
+    url.pathname = url.pathname.slice(ROUTE_PREFIX.length);
+  }
+
+  // `/static/*` is the asset host; everything else is ingestion. This split
+  // is PostHog's, not ours — serving both from one host 404s the toolbar.
+  const upstream = url.pathname.startsWith("/static/") ? ASSET_HOST : INGEST_HOST;
+
+  url.hostname = upstream;
+  url.protocol = "https:";
+  url.port = "";
+
+  const headers = new Headers(request.headers);
+  headers.set("Host", upstream);
+
+  // Preserve any upstream chain rather than replacing it, so the real
+  // client stays first in the list.
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (clientIp) {
+    const existing = request.headers.get("X-Forwarded-For");
+    headers.set("X-Forwarded-For", existing ? `${existing}, ${clientIp}` : clientIp);
+  }
+
+  return fetch(
+    new Request(url, {
+      method: request.method,
+      headers,
+      body: request.body,
+      redirect: "manual",
+    }),
+  );
+}

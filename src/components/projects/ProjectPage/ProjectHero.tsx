@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
+import { postImageForm } from "@/lib/image-upload";
 import { reportMutationError } from "@/lib/posthog";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 import { toast } from "@/lib/toast";
@@ -217,14 +218,7 @@ function CoverUploadControl({ projectId }: { projectId: string }) {
   const upload = async (file: File) => {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      formData.append("projectId", projectId);
-      const response = await fetch("/api/project/image", { method: "POST", body: formData });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? "Upload failed.");
-      }
+      await postImageForm("/api/project/image", file, { projectId });
       // Not a useMutation and not an oRPC write, so neither automatic
       // stamp fires — without this the invalidated loader re-reads the
       // edge's pre-upload getProject.

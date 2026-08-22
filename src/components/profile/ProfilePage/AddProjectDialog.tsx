@@ -26,6 +26,7 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { errorMessage } from "@/lib/error-message";
+import { postImageForm } from "@/lib/image-upload";
 import { reportMutationError } from "@/lib/posthog";
 import {
   PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES,
@@ -563,13 +564,6 @@ function FieldRow({
   );
 }
 
-async function uploadImage(file: File): Promise<UploadedProfileProjectImage> {
-  const fd = new FormData();
-  fd.append("image", file);
-  const res = await fetch("/api/profile/project-image", { method: "POST", body: fd });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(err?.message ?? "Upload failed.");
-  }
-  return (await res.json()) as UploadedProfileProjectImage;
+function uploadImage(file: File): Promise<UploadedProfileProjectImage> {
+  return postImageForm<UploadedProfileProjectImage>("/api/profile/project-image", file);
 }
