@@ -18,6 +18,7 @@ import { authClient } from "@/lib/auth-client";
 import { stillImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 interface NavTabBody {
   icon: IconSvgElement;
@@ -142,7 +143,7 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
   const viewedProfile = useQuery({
     ...orpc.getProfile.queryOptions({ input: { userId: profileParam ?? "" } }),
     enabled: !!profileParam && profileParam !== "preview",
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const isOwnProfile =
     !profileParam ||

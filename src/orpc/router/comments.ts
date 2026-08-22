@@ -48,6 +48,7 @@ import {
   requireGuildMember,
   requireStaff,
 } from "@/orpc/middleware/auth";
+import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
 const subjectRefSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("collab_post"), id: z.number().int().positive() }),
@@ -96,22 +97,11 @@ type SerializedComment = {
 async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAuthor>> {
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return new Map();
-  const [profiles, stubs] = await Promise.all([
-    db
-      .select({
-        id: developerProfiles.id,
-        discordUsername: developerProfiles.discordUsername,
-        guildNickname: developerProfiles.guildNickname,
-        avatarUrl: developerProfiles.avatarUrl,
-      })
-      .from(developerProfiles)
-      .where(inArray(developerProfiles.id, ids)),
-    db
-      .select({ profileId: profileUrlStubs.profileId, stub: profileUrlStubs.stub })
-      .from(profileUrlStubs)
-      .where(inArray(profileUrlStubs.profileId, ids)),
-  ]);
-  const stubByUser = new Map(stubs.map((s) => [s.profileId, s.stub]));
+  const profiles = await db
+    .select({ id: developerProfiles.id, ...profileIdentityColumns })
+    .from(developerProfiles)
+    .leftJoin(profileUrlStubs, profileStubJoin)
+    .where(inArray(developerProfiles.id, ids));
   return new Map(
     profiles.map((p) => [
       p.id,
@@ -119,7 +109,7 @@ async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAutho
         id: p.id,
         name: memberName(p, "Member"),
         avatarUrl: p.avatarUrl,
-        urlStub: stubByUser.get(p.id) ?? null,
+        urlStub: p.urlStub,
       },
     ]),
   );

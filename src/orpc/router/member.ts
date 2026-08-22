@@ -27,7 +27,10 @@ import {
   userRoles,
   userSkills,
 } from "@/db/schema";
+import { MEMBER_AVAILABILITY } from "@/lib/member-vocabulary";
+import { escapeLike } from "@/lib/sql-like";
 import { timezonesWithinOffset } from "@/lib/timezones";
+import { profileNameSearch } from "@/orpc/profile-projection";
 
 /**
  * The member directory behind `/members`. Distinct from
@@ -143,11 +146,6 @@ function selectable<T>(expr: SQL<T>): SQL<T> {
 const HOURLY_RATE = sql`case when ${developerProfiles.rateType} = 'hourly'
   then ${developerProfiles.rateMin} end`;
 
-function escapeLike(str: string): string {
-  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
-export const MEMBER_AVAILABILITY = ["full_time", "part_time", "limited"] as const;
 export const MEMBER_SORTS = ["active", "newest", "rate"] as const;
 
 const memberFacetSchema = {
@@ -193,8 +191,7 @@ function buildMemberFilter(input: MemberFilterInput) {
     const pattern = `%${escapeLike(input.search)}%`;
     conditions.push(
       or(
-        ilike(developerProfiles.discordUsername, pattern),
-        ilike(developerProfiles.guildNickname, pattern),
+        profileNameSearch(pattern),
         ilike(developerProfiles.tagline, pattern),
         ilike(developerProfiles.lookingFor, pattern),
         // Typing "godot" finds the Godot people without opening the

@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { BACKDROP_TRANSFORM, itchImageSrcSet } from "@/lib/itch-image";
 import { durationDays, formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
@@ -159,12 +160,12 @@ export function JamDetailHero({
             />
           ) : null}
           {stats.map((stat) => (
-            <HeroStat key={stat.label} label={stat.label} value={stat.value.toLocaleString()} />
+            <HeroStat key={stat.label} label={stat.label} value={formatCount(stat.value)} />
           ))}
           {/* Only worth saying when it contradicts itch's number: a jam we
               scraped mid-voting can hold fewer entries than itch reports. */}
           {trackedEntries > 0 && trackedEntries !== jam.entriesCount ? (
-            <HeroStat label="TRACKED HERE" value={trackedEntries.toLocaleString()} />
+            <HeroStat label="TRACKED HERE" value={formatCount(trackedEntries)} />
           ) : null}
 
           <Link

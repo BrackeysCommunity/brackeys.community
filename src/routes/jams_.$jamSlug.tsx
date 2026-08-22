@@ -5,7 +5,8 @@ import { JamDetailSkeleton } from "@/components/jams/JamDetailPage/JamDetailSkel
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { htmlToPlainText } from "@/components/ui/typography";
 import { siteUrl } from "@/env";
-import { hostName } from "@/lib/jam-links";
+import { formatCount } from "@/lib/format-count";
+import { hostName, jamDateRange } from "@/lib/jam-links";
 import { isServerLoad } from "@/lib/route-prefetch";
 import {
   breadcrumbNode,
@@ -163,33 +164,15 @@ interface JamDescriptionSource {
  * duplicated prose Google's scraped-content guidance is aimed at.
  */
 function jamDescription(jam: JamDescriptionSource, trackedEntries: number): string {
-  const window = jamDateRange(jam.startsAt, jam.endsAt);
+  const range = jamDateRange(jam.startsAt, jam.endsAt);
+  const window = range ? `${range}.` : null;
   const host = jam.hosts[0] ? `Hosted by ${hostName(jam)}.` : null;
   const entries =
-    trackedEntries > 0
-      ? `${trackedEntries.toLocaleString("en-US")} submissions tracked here.`
-      : null;
+    trackedEntries > 0 ? `${formatCount(trackedEntries)} submissions tracked here.` : null;
   const lead = [window, host, entries].filter(Boolean).join(" ");
   const room = 200 - lead.length;
   const body = room >= 60 ? htmlToPlainText(jam.contentHtml, room) : undefined;
   return body ? `${lead} ${body}` : lead || `${jam.title}, tracked on Brackeys Community.`;
-}
-
-/** "14–23 Feb 2026", in UTC like every other jam date. */
-function jamDateRange(startsAt: Date | string | null, endsAt: Date | string | null): string | null {
-  const start = startsAt ? new Date(startsAt) : null;
-  const end = endsAt ? new Date(endsAt) : null;
-  const fmt = (date: Date) =>
-    date.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  if (start && end) return `${fmt(start)} – ${fmt(end)}.`;
-  if (start) return `Starts ${fmt(start)}.`;
-  if (end) return `Ends ${fmt(end)}.`;
-  return null;
 }
 
 function JamDetailRoute() {

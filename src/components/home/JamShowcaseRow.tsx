@@ -20,6 +20,7 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
@@ -141,7 +142,7 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
                 upcoming jam, which is true and says nothing. */}
             <div className="flex gap-5">
               <Stat label={milestone?.label ?? "CLOSED"} value={counted?.text ?? "—"} accent />
-              <Stat label={signal.label} value={signal.value.toLocaleString()} />
+              <Stat label={signal.label} value={formatCount(signal.value)} />
             </div>
             <Button
               variant="outline"
@@ -256,7 +257,7 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
 
         <div className="mt-auto flex gap-5 pt-1">
           <Stat label={milestone?.label ?? "CLOSED"} value={counted?.text ?? "—"} accent />
-          <Stat label={signal.label} value={signal.value.toLocaleString()} />
+          <Stat label={signal.label} value={formatCount(signal.value)} />
         </div>
       </div>
     </Chonk>

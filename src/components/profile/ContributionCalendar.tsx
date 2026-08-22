@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Button } from "@/components/ui/button";
 import { MicroLabel } from "@/components/ui/typography";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatCount } from "@/lib/format-count";
 import type { ContributionDay } from "@/lib/github";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -264,7 +265,7 @@ function CalendarGrid({
             <span className="font-mono text-[10px] text-muted-foreground/40">
               {playing
                 ? `${game.score} / ${totalContributions}`
-                : `${totalContributions.toLocaleString()} in the last year`}
+                : `${formatCount(totalContributions)} in the last year`}
             </span>
             <Button
               type="button"
@@ -421,7 +422,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
   const { data, isLoading } = useQuery({
     queryKey: ["contributions", userId],
     queryFn: () => client.getContributions({ userId }),
-    staleTime: 1000 * 60 * 30,
+    staleTime: 30 * 60 * 1000,
     retry: false,
   });
 
@@ -616,7 +617,7 @@ function SnakeFullscreenOverlay({
               Snake
             </span>
             <MicroLabel as="span" className="uppercase">
-              {totalContributions.toLocaleString()} contributions
+              {formatCount(totalContributions)} contributions
             </MicroLabel>
           </div>
           <Button

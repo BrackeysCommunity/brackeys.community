@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBoardStats } from "@/components/home/use-board-stats";
 import { PROTOCOL_COUNT } from "@/data/commands";
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 export interface HomeDestination {
   /** Route to navigate to. Plain strings — all four are static paths. */
@@ -30,7 +31,7 @@ function useTeamStats() {
   const { data, isLoading } = useQuery({
     queryKey: ["team-stats"],
     queryFn: () => client.getTeamStats({}),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   return { recruiting: data?.recruiting ?? 0, isLoading };

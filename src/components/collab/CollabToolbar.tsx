@@ -5,7 +5,6 @@ import {
   SortByDown02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useState } from "react";
 
@@ -27,8 +26,8 @@ import {
   collabStore,
   setCollabLayout,
 } from "@/lib/collab-store";
+import { useRolesCatalog, useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
 
 import {
   type CollabBoardSearch,
@@ -321,10 +320,7 @@ export function CollabSearchInput({ className }: { className?: string }) {
  */
 export function RoleFilterMenu({ selected, inline }: { selected: number[]; inline?: boolean }) {
   const { setSearch } = useCollabBoardSearch();
-  const { data } = useQuery({
-    ...orpc.listCollabRoles.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data } = useRolesCatalog();
   const { data: counts } = useCollabRoleCounts();
   const roles = data ?? [];
   if (roles.length === 0) return null;
@@ -355,10 +351,7 @@ export function RoleFilterMenu({ selected, inline }: { selected: number[]; inlin
  */
 export function StackFilterMenu({ selected, inline }: { selected: number[]; inline?: boolean }) {
   const { search, setSearch } = useCollabBoardSearch();
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data } = useSkillsCatalog();
   const { data: counts } = useCollabSkillCounts();
   const skills = data ?? [];
   if (skills.length === 0) return null;

@@ -31,6 +31,13 @@ import {
   initialPostExpiry,
   REOPEN_EXTENSION_DAYS,
 } from "@/lib/collab-lifecycle";
+import {
+  COLLAB_COMPENSATION_TYPES,
+  COLLAB_CONTACT_TYPES,
+  COLLAB_EXPERIENCE_LEVELS,
+  COLLAB_POST_TYPES,
+  COLLAB_PROJECT_LENGTHS,
+} from "@/lib/collab-vocabulary";
 import { jamSlug } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
@@ -58,25 +65,19 @@ import {
   requireStaff,
   requireAdmin,
 } from "@/orpc/middleware/auth";
+import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
-const compensationTypeSchema = z.enum(["hourly", "fixed", "rev_share", "negotiable"]);
-const projectLengthSchema = z.enum([
-  "<1 week",
-  "1-4 weeks",
-  "1-3 months",
-  "3-6 months",
-  "6+ months",
-  "ongoing",
-]);
-const experienceLevelSchema = z.enum(["any", "beginner", "intermediate", "experienced"]);
-const contactTypeSchema = z.enum(["discord_dm", "discord_server", "email", "other"]);
+const compensationTypeSchema = z.enum(COLLAB_COMPENSATION_TYPES);
+const projectLengthSchema = z.enum(COLLAB_PROJECT_LENGTHS);
+const experienceLevelSchema = z.enum(COLLAB_EXPERIENCE_LEVELS);
+const contactTypeSchema = z.enum(COLLAB_CONTACT_TYPES);
 
 /**
  * v1 ships paid + hobby only. Playtest and mentor are deferred, not
  * deleted: `collab_posts.type` stays `text` and every consumer reads the
  * value through lookup maps, so both return as pure additions here.
  */
-const postTypeSchema = z.enum(["paid", "hobby"]);
+const postTypeSchema = z.enum(COLLAB_POST_TYPES);
 
 /** A post's stack is a shortlist, not a tag dump. */
 const MAX_POST_SKILLS = 10;
@@ -478,24 +479,43 @@ async function notifyJamWatchersOfPost(params: {
   }
 }
 
+/** The shared open of every post procedure: load the row or NOT_FOUND. */
+async function loadPost(postId: number) {
+  const [post] = await db.select().from(collabPosts).where(eq(collabPosts.id, postId)).limit(1);
+  if (!post) {
+    throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+  }
+  return post;
+}
+
+/**
+ * Load-then-authorize preamble for the post mutations: the author always
+ * passes; staff pass when the caller's context grants it (owner-only
+ * procedures just omit `isStaff`). Returns `isOwner` so staff actions can
+ * tell a moderation action from the owner's own (the notify legs care).
+ */
+async function loadOwnedPost(
+  postId: number,
+  viewer: { userId: string; isStaff?: boolean },
+  forbiddenMessage: string,
+) {
+  const post = await loadPost(postId);
+  const isOwner = post.authorId === viewer.userId;
+  if (!isOwner && !viewer.isStaff) {
+    throw new ORPCError("FORBIDDEN", { message: forbiddenMessage });
+  }
+  return { post, isOwner };
+}
+
 export const updatePost = os
   .use(requireAuthWithPermissions)
   .input(updatePostSchema)
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    const isOwner = post.authorId === context.user.id;
-    if (!isOwner && !context.isStaff) {
-      throw new ORPCError("FORBIDDEN", { message: "You can only edit your own posts." });
-    }
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id, isStaff: context.isStaff },
+      "You can only edit your own posts.",
+    );
 
     checkPostProfanity(input);
     assertTeamRequired(input, post);
@@ -556,18 +576,11 @@ export const linkPostTeam = os
   .use(requireAuth)
   .input(z.object({ postId: z.number(), teamId: z.string() }))
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-    if (post.authorId !== context.user.id) {
-      throw new ORPCError("FORBIDDEN", { message: "You can only link your own posts." });
-    }
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id },
+      "You can only link your own posts.",
+    );
     if (post.isIndividual) {
       throw new ORPCError("BAD_REQUEST", {
         message: "A solo post cannot also be linked to a team.",
@@ -588,20 +601,11 @@ export const deletePost = os
   .use(requireAuthWithPermissions)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    const isOwner = post.authorId === context.user.id;
-    if (!isOwner && !context.isStaff) {
-      throw new ORPCError("FORBIDDEN", { message: "You can only delete your own posts." });
-    }
+    await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id, isStaff: context.isStaff },
+      "You can only delete your own posts.",
+    );
 
     // Gallery objects live outside the DB cascade; collect keys before the
     // rows disappear. Only post-namespace keys are swept — legacy rows point
@@ -625,20 +629,11 @@ export const closePost = os
   .use(requireAuthWithPermissions)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    const isOwner = post.authorId === context.user.id;
-    if (!isOwner && !context.isStaff) {
-      throw new ORPCError("FORBIDDEN", { message: "You can only close your own posts." });
-    }
+    const { post, isOwner } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id, isStaff: context.isStaff },
+      "You can only close your own posts.",
+    );
 
     const [updated] = await db
       .update(collabPosts)
@@ -664,20 +659,11 @@ export const reopenPost = os
   .use(requireAuthWithPermissions)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    const isOwner = post.authorId === context.user.id;
-    if (!isOwner && !context.isStaff) {
-      throw new ORPCError("FORBIDDEN", { message: "You can only reopen your own posts." });
-    }
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id, isStaff: context.isStaff },
+      "You can only reopen your own posts.",
+    );
 
     const [updated] = await db
       .update(collabPosts)
@@ -706,20 +692,11 @@ export const extendPost = os
   .use(requireAuthWithPermissions)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    const isOwner = post.authorId === context.user.id;
-    if (!isOwner && !context.isStaff) {
-      throw new ORPCError("FORBIDDEN", { message: "You can only extend your own posts." });
-    }
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id, isStaff: context.isStaff },
+      "You can only extend your own posts.",
+    );
     if (post.status !== "recruiting") {
       throw new ORPCError("BAD_REQUEST", {
         message: "Only an open post can be extended — reopen it instead.",
@@ -848,18 +825,15 @@ export const getPost = os
     const [authorProfile] = await db
       .select({
         id: developerProfiles.id,
-        avatarUrl: developerProfiles.avatarUrl,
-        discordUsername: developerProfiles.discordUsername,
+        ...profileIdentityColumns,
         tagline: developerProfiles.tagline,
         bio: developerProfiles.bio,
         githubUrl: developerProfiles.githubUrl,
         twitterUrl: developerProfiles.twitterUrl,
         websiteUrl: developerProfiles.websiteUrl,
-        // Vanity handle, so the byline can link to /profile/handle.
-        urlStub: profileUrlStubs.stub,
       })
       .from(developerProfiles)
-      .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+      .leftJoin(profileUrlStubs, profileStubJoin)
       .where(eq(developerProfiles.id, post.authorId))
       .limit(1);
 
@@ -1522,15 +1496,7 @@ export const respondToPost = os
     }),
   )
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
+    const post = await loadPost(input.postId);
 
     // Anything other than open recruiting rejects — `party_full` and the
     // sweep's `expired` both mean "no longer taking responses".
@@ -1714,22 +1680,11 @@ export const listResponses = os
   .use(requireAuthWithPermissions)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    const isOwner = post.authorId === context.user.id;
-    if (!isOwner && !context.isStaff) {
-      throw new ORPCError("FORBIDDEN", {
-        message: "Only the post owner or staff can view responses.",
-      });
-    }
+    await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id, isStaff: context.isStaff },
+      "Only the post owner or staff can view responses.",
+    );
 
     const rows = await db
       .select({
@@ -2117,19 +2072,11 @@ export const addPostImage = os
     }),
   )
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
-
-    if (post.authorId !== context.user.id) {
-      throw new ORPCError("FORBIDDEN", { message: "Only the post owner can add images." });
-    }
+    await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id },
+      "Only the post owner can add images.",
+    );
 
     // Post-scoped namespace (minted by `/api/collab/post-image`) — the guard
     // that keeps a post from referencing somebody else's object.
@@ -2204,15 +2151,7 @@ export const reportPost = os
     }),
   )
   .handler(async ({ input, context }) => {
-    const [post] = await db
-      .select()
-      .from(collabPosts)
-      .where(eq(collabPosts.id, input.postId))
-      .limit(1);
-
-    if (!post) {
-      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    }
+    await loadPost(input.postId);
 
     // No profanity check here: a report reason is staff-only text about
     // something abusive, so quoting the abuse must not block the report.

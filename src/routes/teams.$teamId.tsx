@@ -11,6 +11,7 @@ import { authStore } from "@/lib/auth-store";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /**
  * A team's public page. The route param accepts both the raw team id
@@ -103,7 +104,7 @@ function TeamById() {
   const { session } = useStore(authStore);
   const queryOptions = orpc.getTeam.queryOptions({ input: { teamId } });
   // Seeded by the loader; still a `useQuery` so writes have a subscriber.
-  const { data, isLoading } = useQuery({ ...queryOptions, staleTime: 30 * 1000 });
+  const { data, isLoading } = useQuery({ ...queryOptions, staleTime: STALE.viewer });
 
   // The anonymous core and the viewer's standing are two reads; the page
   // and everything under it still see one team object.

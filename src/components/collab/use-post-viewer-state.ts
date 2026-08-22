@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { activeUserStore } from "@/lib/active-user-store";
 import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /** The parts of a post this hook needs; `getPost`'s public core supplies both. */
 type ViewedPost = { authorId: string; skills: { id: number; name: string }[] } | null | undefined;
@@ -47,7 +48,7 @@ export function usePostViewerState(
   const skillIdsQuery = useQuery({
     ...orpc.getMySkillIds.queryOptions({ input: {} }),
     enabled: Boolean(currentUserId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE.taxonomy,
   });
 
   const viewerOverlap: StackOverlap | null = useMemo(() => {

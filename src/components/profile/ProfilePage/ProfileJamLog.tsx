@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { Link as TextLink, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { jamLinkParams } from "@/lib/jam-links";
+import { jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import type { JamLogBest, JamLogEntry } from "./helpers";
@@ -99,17 +99,14 @@ function BestFinishCallout({ best }: { best: JamLogBest }) {
 }
 
 function JamLogRow({ entry }: { entry: JamLogEntry }) {
-  const day = entry.startedAt.getUTCDate();
-  const month = entry.startedAt
-    .toLocaleString(undefined, { month: "short", timeZone: "UTC" })
-    .toUpperCase();
+  const { month, day } = jamMonthDay(entry.startedAt);
   const year = entry.startedAt.getUTCFullYear().toString().slice(-2);
 
   return (
     <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
       <div className="flex flex-col items-start text-left">
         <Text bold density="dense" className="text-2xl leading-none tabular-nums">
-          {day.toString().padStart(2, "0")}
+          {day.padStart(2, "0")}
         </Text>
         <Text size="xs" variant="muted" className="tracking-widest">
           {month} '{year}

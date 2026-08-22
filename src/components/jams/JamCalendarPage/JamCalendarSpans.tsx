@@ -8,6 +8,7 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { jamDate } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import { dayCellLayoutId, DayDetailModal } from "./DayDetailPanel";
@@ -96,9 +97,7 @@ export function JamCalendarSpans({
   const [selected, setSelected] = useState<{ jam: JamFromList; layoutKey: string } | null>(null);
   const [detailDay, setDetailDay] = useState<Date | null>(null);
 
-  const monthLabel = monthStart
-    .toLocaleString(undefined, { month: "long", timeZone: "UTC" })
-    .toUpperCase();
+  const monthLabel = jamDate(monthStart, { month: "long" }).toUpperCase();
 
   return (
     <LayoutGroup>
@@ -251,7 +250,7 @@ function WeekRow({
               transition={ROW_CLOSE_TRANSITION}
               style={{ borderRadius: 4 }}
               onClick={() => onDayClick(day)}
-              aria-label={`Details for ${day.toLocaleString(undefined, { month: "long", day: "numeric", timeZone: "UTC" })}`}
+              aria-label={`Details for ${jamDate(day, { month: "long", day: "numeric" })}`}
               className={cn(
                 "group/day flex cursor-pointer flex-col items-start gap-0.5 px-1.5 py-1 text-left transition-colors hover:bg-muted/30",
                 // Reserve room below the day number for the bar lanes.

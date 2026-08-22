@@ -1,4 +1,5 @@
 import { Text } from "@/components/ui/typography";
+import { formatCount } from "@/lib/format-count";
 import { cn } from "@/lib/utils";
 
 import { type JamFromList, jamSignal } from "../helpers";
@@ -24,7 +25,7 @@ export function SignalStat({
         {signal.label}
       </Text>
       <Text bold size="md" className="tabular-nums">
-        {signal.value.toLocaleString()}
+        {formatCount(signal.value)}
       </Text>
     </div>
   );
@@ -48,7 +49,7 @@ export function CountStat({
 }) {
   return (
     <Text size={size} className={cn("tracking-widest whitespace-nowrap tabular-nums", className)}>
-      <span className={bold ? "font-bold" : "font-medium"}>{value.toLocaleString()}</span>{" "}
+      <span className={bold ? "font-bold" : "font-medium"}>{formatCount(value)}</span>{" "}
       <span className="text-muted-foreground">{label}</span>
     </Text>
   );

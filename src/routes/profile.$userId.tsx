@@ -13,6 +13,7 @@ import { profileSlug } from "@/lib/profile-links";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /**
  * The loader is what puts content and meta in the document and turns an
@@ -125,7 +126,7 @@ function ProfileById() {
   // `invalidateQueries` has a subscriber.
   const { data, isLoading } = useQuery({
     ...queryOptions,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   // Ownership follows the *resolved* profile id, not the route param — the

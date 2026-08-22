@@ -39,6 +39,7 @@ import { captureServerEvent } from "@/lib/posthog-server";
 import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";
 import { likeContains } from "@/lib/sql-like";
 import { requireAuth, requireStaff, userIsGuildMember } from "@/orpc/middleware/auth";
+import { jamMemberIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
 /** How far back the "calendar" filter keeps archived jams. */
 const CALENDAR_ARCHIVE_MONTHS = 12;
@@ -543,14 +544,11 @@ async function matchMembersToEntries(
       .select({
         sourceId: profileProjects.sourceId,
         profileId: developerProfiles.id,
-        username: developerProfiles.guildNickname,
-        discordUsername: developerProfiles.discordUsername,
-        avatarUrl: developerProfiles.avatarUrl,
-        urlStub: profileUrlStubs.stub,
+        ...jamMemberIdentityColumns,
       })
       .from(profileProjects)
       .innerJoin(developerProfiles, eq(profileProjects.profileId, developerProfiles.id))
-      .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+      .leftJoin(profileUrlStubs, profileStubJoin)
       .where(
         and(
           eq(profileProjects.source, "itchio-jam"),
@@ -564,14 +562,11 @@ async function matchMembersToEntries(
           .select({
             providerUserId: linkedAccounts.providerUserId,
             profileId: developerProfiles.id,
-            username: developerProfiles.guildNickname,
-            discordUsername: developerProfiles.discordUsername,
-            avatarUrl: developerProfiles.avatarUrl,
-            urlStub: profileUrlStubs.stub,
+            ...jamMemberIdentityColumns,
           })
           .from(linkedAccounts)
           .innerJoin(developerProfiles, eq(linkedAccounts.profileId, developerProfiles.id))
-          .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+          .leftJoin(profileUrlStubs, profileStubJoin)
           .where(
             and(
               eq(linkedAccounts.provider, "itchio"),
@@ -731,10 +726,7 @@ export const getJamCommunity = os
         .select({
           placementId: profileProjects.id,
           profileId: developerProfiles.id,
-          username: developerProfiles.guildNickname,
-          discordUsername: developerProfiles.discordUsername,
-          avatarUrl: developerProfiles.avatarUrl,
-          urlStub: profileUrlStubs.stub,
+          ...jamMemberIdentityColumns,
           entryTitle: profileProjects.submissionTitle,
           fallbackTitle: profileProjects.title,
           submissionUrl: profileProjects.submissionUrl,
@@ -745,7 +737,7 @@ export const getJamCommunity = os
         })
         .from(profileProjects)
         .innerJoin(developerProfiles, eq(profileProjects.profileId, developerProfiles.id))
-        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+        .leftJoin(profileUrlStubs, profileStubJoin)
         .where(
           and(
             eq(profileProjects.jamId, input.jamId),
@@ -859,14 +851,11 @@ async function queryDeclaredMembers(jamId: number) {
   return db
     .select({
       profileId: developerProfiles.id,
-      username: developerProfiles.guildNickname,
-      discordUsername: developerProfiles.discordUsername,
-      avatarUrl: developerProfiles.avatarUrl,
-      urlStub: profileUrlStubs.stub,
+      ...jamMemberIdentityColumns,
     })
     .from(jamWatches)
     .innerJoin(developerProfiles, eq(jamWatches.userId, developerProfiles.id))
-    .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, profileStubJoin)
     .where(and(eq(jamWatches.jamId, jamId), eq(jamWatches.intent, "entering")))
     .orderBy(asc(jamWatches.createdAt))
     .limit(COMMUNITY_DECLARED_MAX)

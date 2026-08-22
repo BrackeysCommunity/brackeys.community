@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /**
  * The collab board's open-role counts, shared by the desktop feature rail
@@ -12,7 +13,7 @@ export function useBoardStats() {
   const { data, isLoading } = useQuery({
     queryKey: ["collab-board-stats"],
     queryFn: () => client.getBoardStats({}),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   return { openRoles: data?.open.all ?? 0, isLoading };

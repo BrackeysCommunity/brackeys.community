@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Text } from "@/components/ui/typography";
 import type { CollabContactType } from "@/lib/collab-store";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { SelectField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
@@ -19,7 +20,7 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
   const form = useWizardForm();
   const { data: profile } = useQuery({
     ...orpc.getMyProfile.queryOptions({ input: {} }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const discordUsername = profile?.profile?.discordUsername ?? null;
 

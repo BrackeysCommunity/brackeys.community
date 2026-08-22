@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import { type HeroJam, heroJamSlides } from "@/components/home/hero-jam";
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { buildBoard } from "./board/build-board";
 import {
@@ -23,7 +24,7 @@ const CALENDAR_LIMIT = 5000;
 
 /** Jam data is scraped on a cadence measured in hours; five minutes of
  * staleness is free. */
-export const JAM_STALE_MS = 5 * 60 * 1000;
+export const JAM_STALE_MS = STALE.jam;
 
 /**
  * The board fetch, shared verbatim by `useBoardJams`, `useHomeJams` and
@@ -51,7 +52,7 @@ export function heroPinsQueryOptions() {
   return queryOptions({
     queryKey: ["jam-hero-pins"],
     queryFn: () => client.listJamHeroPins(),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 }
 

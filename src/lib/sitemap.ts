@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { siteUrl } from "@/env";
 import { profileSlug } from "@/lib/profile-links";
+import { profileStubJoin } from "@/orpc/profile-projection";
 
 /** URLs per child sitemap. The spec's ceiling is 50,000 / 50 MB. */
 export const SITEMAP_PAGE_SIZE = 10_000;
@@ -164,7 +165,7 @@ async function sectionUrls(section: SitemapSection, page: number): Promise<Sitem
           updatedAt: developerProfiles.updatedAt,
         })
         .from(developerProfiles)
-        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+        .leftJoin(profileUrlStubs, profileStubJoin)
         .orderBy(asc(developerProfiles.id))
         .limit(SITEMAP_PAGE_SIZE)
         .offset(offset);

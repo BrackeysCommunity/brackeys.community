@@ -3,12 +3,13 @@ import { useCallback, useMemo } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { attentionCount, visibleAttention } from "./attention-items";
 import { useDismissedAttention } from "./dismissed-attention";
 
 /** These numbers move when the viewer acts, not on a timer. */
-const STALE_TIME_MS = 30 * 1000;
+const STALE_TIME_MS = STALE.viewer;
 
 /**
  * The two viewer-scoped reads every attention surface needs, plus the

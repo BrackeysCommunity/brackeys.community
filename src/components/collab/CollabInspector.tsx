@@ -13,6 +13,7 @@ import { Censored } from "@/lib/hooks/use-censored";
 import { profileLinkParams } from "@/lib/profile-links";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { useCollabBoardSearch } from "./collab-filters";
 import { CollabPostDetail } from "./CollabPostDetail";
@@ -70,13 +71,13 @@ function InspectorIdle({ compact }: { compact?: boolean }) {
   const { search, setSearch } = useCollabBoardSearch();
   const { data: stats } = useQuery({
     ...orpc.getBoardStats.queryOptions({ input: {} }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const { data: people } = useQuery({
     ...orpc.listAvailableUsers.queryOptions({
       input: { limit: 2, offset: 0, sortBy: "updatedAt", sortOrder: "desc" },
     }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   // Facet rows toggle rather than replace, so two clicks read as "either".

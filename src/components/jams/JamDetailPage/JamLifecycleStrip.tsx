@@ -1,4 +1,5 @@
 import { Text } from "@/components/ui/typography";
+import { jamDateShort } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import { MILESTONE_GLYPH, SUPPORTING_TEXT } from "../JamCalendarPage/board/milestones";
@@ -149,16 +150,7 @@ function NodeLabel({
         {MILESTONE_GLYPH[point.kind]}
       </span>
       <span className="font-semibold">{point.label}</span>
-      <span className="tabular-nums">
-        {point.date
-          .toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-            // Jam dates are UTC everywhere in this app.
-            timeZone: "UTC",
-          })
-          .toUpperCase()}
-      </span>
+      <span className="tabular-nums">{jamDateShort(point.date).toUpperCase()}</span>
     </span>
   );
 }

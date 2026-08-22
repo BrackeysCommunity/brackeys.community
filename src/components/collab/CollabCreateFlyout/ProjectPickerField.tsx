@@ -13,6 +13,7 @@ import { Well } from "@/components/ui/well";
 import { itchImageUrl } from "@/lib/itch-image";
 import { projectTypeLabel } from "@/lib/project-links";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { FieldRow } from "./fields";
 import type { PickableProject } from "./shared";
@@ -49,7 +50,7 @@ export function ProjectPickerField({
   const [search, setSearch] = useState("");
   const { data, isLoading } = useQuery({
     ...orpc.listEditableProjects.queryOptions({ input: {} }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   const projectList = useMemo(() => (data?.projects ?? []) as PickableProject[], [data]);

@@ -5,6 +5,7 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { formatCount } from "@/lib/format-count";
 import { profileLinkParams } from "@/lib/profile-links";
 import { platformLabel } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,7 @@ export function JamEntryCard({
         {entry.ratingCount > 0 ? (
           <div className="absolute right-1 bottom-1 rounded bg-background/80 px-1.5 py-0.5 backdrop-blur-sm">
             <MicroLabel variant="primary" tabular>
-              {entry.ratingCount.toLocaleString()} ★
+              {formatCount(entry.ratingCount)} ★
             </MicroLabel>
           </div>
         ) : null}

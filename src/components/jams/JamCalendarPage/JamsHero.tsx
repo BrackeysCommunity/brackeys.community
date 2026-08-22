@@ -5,6 +5,7 @@ import { GraphPaper } from "@/components/ui/graph-paper";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 
 import type { ViewMode } from "./helpers";
 
@@ -52,7 +53,7 @@ export function JamsHero({ totalJams, view, onViewChange }: JamsHeroProps) {
             Find a jam to enter
           </Heading>
           <Text size="sm" variant="muted">
-            Tracking {totalJams.toLocaleString()} jams across itch.io. {VIEW_BLURB[view]}
+            Tracking {formatCount(totalJams)} jams across itch.io. {VIEW_BLURB[view]}
           </Text>
         </div>
         <SegmentedControl

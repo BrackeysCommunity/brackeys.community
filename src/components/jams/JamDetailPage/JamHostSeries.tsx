@@ -5,9 +5,11 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { formatCount } from "@/lib/format-count";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { safeThemeColor } from "../JamCalendarPage/helpers";
 
@@ -23,7 +25,7 @@ import { safeThemeColor } from "../JamCalendarPage/helpers";
 export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: number }) {
   const { data } = useQuery({
     ...orpc.listJamsByHost.queryOptions({ input: { hostName, excludeJamId: jamId } }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE.jam,
   });
 
   const jams = data?.jams ?? [];
@@ -73,7 +75,7 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
               </Text>
               <MicroLabel as="div" ellipsis>
                 {formatJamShortDates(jam.startsAt, jam.endsAt) ?? "DATES TBA"}
-                {jam.entriesCount ? ` · ${jam.entriesCount.toLocaleString()} ENTRIES` : ""}
+                {jam.entriesCount ? ` · ${formatCount(jam.entriesCount)} ENTRIES` : ""}
               </MicroLabel>
             </Link>
           );

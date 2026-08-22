@@ -9,6 +9,7 @@ import type {
   CollabProjectLength,
   UploadedImage,
 } from "@/lib/collab-store";
+import { COMPENSATION_VOCAB, CONTACT_VOCAB, EXPERIENCE_VOCAB } from "@/lib/collab-vocabulary";
 import { postImageForm } from "@/lib/image-upload";
 import type { UploadedImageRecord } from "@/lib/image-upload";
 import { hasProfanity } from "@/lib/profanity";
@@ -127,39 +128,20 @@ export const PROJECT_LENGTH_OPTIONS: { value: CollabProjectLength; label: string
   { value: "ongoing", label: "Ongoing" },
 ];
 
-export const EXPERIENCE_LEVEL_OPTIONS: { value: CollabExperienceLevel; label: string }[] = [
-  { value: "any", label: "Any" },
-  { value: "beginner", label: "Beginner" },
-  { value: "intermediate", label: "Intermediate" },
-  { value: "experienced", label: "Experienced" },
-];
+export const EXPERIENCE_LEVEL_OPTIONS: { value: CollabExperienceLevel; label: string }[] =
+  EXPERIENCE_VOCAB.map(({ value, label }) => ({ value, label }));
 
-export const COMPENSATION_TYPE_OPTIONS: { value: CollabCompensationType; label: string }[] = [
-  { value: "hourly", label: "Hourly" },
-  { value: "fixed", label: "Fixed" },
-  { value: "rev_share", label: "Rev Share" },
-  { value: "negotiable", label: "Negotiable" },
-];
+export const COMPENSATION_TYPE_OPTIONS: { value: CollabCompensationType; label: string }[] =
+  COMPENSATION_VOCAB.map(({ value, labelShort }) => ({ value, label: labelShort }));
 
-export const CONTACT_TYPE_OPTIONS: { value: CollabContactType; label: string }[] = [
-  { value: "discord_dm", label: "Discord DM" },
-  { value: "discord_server", label: "Server" },
-  { value: "email", label: "Email" },
-  { value: "other", label: "Other" },
-];
+export const CONTACT_TYPE_OPTIONS: { value: CollabContactType; label: string }[] =
+  CONTACT_VOCAB.map(({ value, labelShort }) => ({ value, label: labelShort }));
 
 export const CONTACT_PLACEHOLDERS: Record<CollabContactType, string> = {
   discord_dm: "Your Discord username",
   discord_server: "discord.gg/your-server",
   email: "you@example.com",
   other: "How to reach you",
-};
-
-export const CONTACT_TYPE_LABELS: Record<string, string> = {
-  discord_dm: "Discord DM",
-  discord_server: "Discord Server",
-  email: "Email",
-  other: "Other",
 };
 
 // ── Compensation slider config ─────────────────────────────────────────────

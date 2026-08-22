@@ -12,6 +12,7 @@ import { Grainient } from "@/components/ui/grainient";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
+import { formatCount } from "@/lib/format-count";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
 import { BACKDROP_TRANSFORM, BOARD_BANNER_TRANSFORM } from "@/lib/itch-image";
@@ -288,7 +289,7 @@ function JamStatsLine({ jam }: { jam: JamFromList }) {
   if (stats.length === 0) return null;
   return (
     <Text size="xs" bold className="tracking-widest tabular-nums">
-      {stats.map((s) => `${s.value.toLocaleString()} ${s.label}`).join(" · ")}
+      {stats.map((s) => `${formatCount(s.value)} ${s.label}`).join(" · ")}
     </Text>
   );
 }

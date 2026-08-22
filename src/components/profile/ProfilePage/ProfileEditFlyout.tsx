@@ -41,8 +41,11 @@ import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
+import { compensationLabel } from "@/lib/collab-vocabulary";
 import { errorMessage } from "@/lib/error-message";
+import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 import { startItchOAuth } from "@/lib/itchio-oauth";
+import { AVAILABILITY_OPTIONS } from "@/lib/member-vocabulary";
 import { EASE_OUT } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/posthog";
 import { PAGE_CUES } from "@/lib/sound";
@@ -528,10 +531,7 @@ const MAX_ROLES = 3;
  */
 function RolesField({ profile, queryKey, save }: StepProps) {
   const seedProfile = useSeedProfile(queryKey);
-  const { data: allRoles } = useQuery({
-    ...orpc.listCollabRoles.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: allRoles } = useRolesCatalog();
 
   const setRoles = useMutation({
     mutationFn: (roleIds: number[]) => client.setMyRoles({ roleIds }),
@@ -969,21 +969,13 @@ function SkillSearch({
   );
 }
 
-// Single source of truth for the wire value ↔ display label mapping
-// used by the AVAILABILITY selects. The wire keys (`full_time`,
-// `negotiable`, …) match the oRPC `updateProfile` enum schema while
-// the display labels are the human-friendly forms the trigger and
-// menu items render.
-const COMMITMENT_OPTIONS: { value: "full_time" | "part_time" | "limited"; label: string }[] = [
-  { value: "full_time", label: "Full-time" },
-  { value: "part_time", label: "Part-time" },
-  { value: "limited", label: "Limited / occasional" },
-];
-const RATE_OPTIONS: { value: "hourly" | "fixed" | "negotiable"; label: string }[] = [
-  { value: "hourly", label: "Hourly" },
-  { value: "fixed", label: "Fixed" },
-  { value: "negotiable", label: "Negotiable" },
-];
+// The AVAILABILITY selects speak the shared vocabularies: wire keys match
+// the oRPC `updateProfile` enum schema, labels are the one display
+// spelling every surface uses.
+const COMMITMENT_OPTIONS = AVAILABILITY_OPTIONS;
+const RATE_OPTIONS: { value: "hourly" | "fixed" | "negotiable"; label: string }[] = (
+  ["hourly", "fixed", "negotiable"] as const
+).map((value) => ({ value, label: compensationLabel(value) }));
 // The collab board's people lane *is* the availability listing — there
 // is no "I'm available" post type, because a post goes stale the moment
 // its author finds work and a profile flag doesn't. These two carry

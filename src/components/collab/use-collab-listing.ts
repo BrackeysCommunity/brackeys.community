@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
 import { client, orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import {
   type CollabListingDeps,
@@ -42,7 +43,7 @@ export function collabPostsQueryOptions({ filters, sortBy, sortOrder }: CollabLi
       const fetched = allPages.length * PAGE_SIZE;
       return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
     },
-    staleTime: 15 * 1000,
+    staleTime: STALE.board,
   });
 }
 
@@ -68,7 +69,7 @@ export function useCollabListing(currentUserId?: string | null) {
   const viewerSkillsQuery = useQuery({
     ...orpc.getMySkillIds.queryOptions({ input: {} }),
     enabled: Boolean(currentUserId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE.taxonomy,
   });
 
   const postsQuery = useInfiniteQuery(collabPostsQueryOptions(collabListingDeps(search)));

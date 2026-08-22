@@ -12,6 +12,7 @@ import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { FieldRow } from "./fields";
 
@@ -44,7 +45,7 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
   const [search, setSearch] = useState("");
   const { data, isLoading } = useQuery({
     ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE.jam,
   });
 
   const jams = useMemo(() => (data?.jams ?? []) as PickableJam[], [data]);

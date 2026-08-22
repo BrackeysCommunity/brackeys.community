@@ -1,11 +1,5 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
-
-import { Button } from "@/components/ui/button";
-import { Text } from "@/components/ui/typography";
-import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
+import { ActiveFilterBar, type ActiveFilterChip } from "@/components/common/ActiveFilterBar";
+import { useRolesCatalog, useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 
 import {
   availabilityLabel,
@@ -38,18 +32,10 @@ export function MembersActiveFilters({
 
   // Only fetched to name the ids the chips carry — already cached by the
   // pickers that set the filter.
-  const { data: skillData } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    enabled: skillIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-  const { data: roleData } = useQuery({
-    ...orpc.listCollabRoles.queryOptions({ input: {} }),
-    enabled: roleIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: skillData } = useSkillsCatalog({ enabled: skillIds.length > 0 });
+  const { data: roleData } = useRolesCatalog({ enabled: roleIds.length > 0 });
 
-  const chips: { key: string; label: string; clear: () => void }[] = [];
+  const chips: ActiveFilterChip[] = [];
   if (search.open) {
     chips.push({
       key: "open",
@@ -105,63 +91,21 @@ export function MembersActiveFilters({
     });
   }
 
-  // A filtered directory counts matches; an unfiltered one counts what it holds.
-  const label =
-    chips.length > 0 ? (count === 1 ? "MATCH" : "MATCHES") : count === 1 ? "MEMBER" : "MEMBERS";
-
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-dashed border-muted-foreground/25 pb-3">
-      <div className="flex items-baseline gap-2">
-        <Text as="span" bold density="dense" className="text-2xl text-foreground tabular-nums">
-          {count ?? "—"}
-        </Text>
-        <Text as="span" size="xs" variant="muted" className="tracking-widest">
-          {label}
-        </Text>
-      </div>
-
-      {chips.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {chips.map((chip) => (
-            <Button
-              key={chip.key}
-              variant="outline"
-              size="xs"
-              onClick={chip.clear}
-              aria-label={`Remove filter ${chip.label}`}
-              className="border-primary/50 tracking-widest text-primary uppercase"
-            >
-              {chip.label}
-              <HugeiconsIcon icon={Cancel01Icon} size={10} />
-            </Button>
-          ))}
-          {/* Only with two or more skills picked — the two modes can't
-              disagree on fewer. */}
-          {skillIds.length > 1 ? (
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setSearch({ matchAll: search.matchAll ? undefined : true })}
-              aria-pressed={!!search.matchAll}
-              aria-label="Require every selected skill instead of any"
-              className={cn(
-                "tracking-widest",
-                search.matchAll ? "border-primary text-primary" : "text-muted-foreground",
-              )}
-            >
-              MATCH ALL
-            </Button>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => setSearch(CLEARED_MEMBER_FILTERS)}
-            className="tracking-widest text-muted-foreground"
-          >
-            CLEAR ALL
-          </Button>
-        </div>
-      ) : null}
-    </div>
+    <ActiveFilterBar
+      count={count}
+      noun={["MEMBER", "MEMBERS"]}
+      chips={chips}
+      onClearAll={() => setSearch(CLEARED_MEMBER_FILTERS)}
+      matchAll={
+        skillIds.length > 1
+          ? {
+              pressed: !!search.matchAll,
+              toggle: () => setSearch({ matchAll: search.matchAll ? undefined : true }),
+            }
+          : undefined
+      }
+      chipClassName="uppercase"
+    />
   );
 }

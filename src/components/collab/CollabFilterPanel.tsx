@@ -9,6 +9,7 @@ import {
   type CollabStatus,
 } from "@/lib/collab-store";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import {
   type CollabBoardSearch,
@@ -232,7 +233,7 @@ function JamFilterChip({ jamId }: { jamId: number }) {
   const { setSearch } = useCollabBoardSearch();
   const { data } = useQuery({
     ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE.jam,
   });
   const jam = data?.jams.find((j) => j.jamId === jamId);
 

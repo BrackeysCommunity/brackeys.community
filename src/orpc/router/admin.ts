@@ -42,9 +42,14 @@ import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
-import { escapeLike } from "@/lib/sql-like";
+import { escapeLike, likeContains } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
+import {
+  profileIdentityColumns,
+  profileNameSearch,
+  profileStubJoin,
+} from "@/orpc/profile-projection";
 
 /**
  * Staff/admin surface. Everything here backs the `/admin` route; the
@@ -65,15 +70,9 @@ async function profilesByIds(userIds: string[]): Promise<Map<string, ProfileSumm
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return new Map();
   const rows = await db
-    .select({
-      id: developerProfiles.id,
-      discordUsername: developerProfiles.discordUsername,
-      guildNickname: developerProfiles.guildNickname,
-      avatarUrl: developerProfiles.avatarUrl,
-      urlStub: profileUrlStubs.stub,
-    })
+    .select({ id: developerProfiles.id, ...profileIdentityColumns })
     .from(developerProfiles)
-    .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, profileStubJoin)
     .where(inArray(developerProfiles.id, ids));
   return new Map(
     rows.map((p) => [
@@ -257,10 +256,9 @@ export const searchMembers = os
     }),
   )
   .handler(async ({ input }) => {
-    const pattern = `%${escapeLike(input.search)}%`;
+    const pattern = likeContains(input.search)!;
     const where = or(
-      ilike(developerProfiles.guildNickname, pattern),
-      ilike(developerProfiles.discordUsername, pattern),
+      profileNameSearch(pattern),
       eq(developerProfiles.id, input.search),
       eq(developerProfiles.discordId, input.search),
     );
@@ -280,7 +278,7 @@ export const searchMembers = os
         })
         .from(developerProfiles)
         .innerJoin(user, eq(user.id, developerProfiles.id))
-        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+        .leftJoin(profileUrlStubs, profileStubJoin)
         .where(where)
         .orderBy(asc(developerProfiles.discordUsername))
         .limit(input.pageSize)

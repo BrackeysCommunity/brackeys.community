@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { authStore } from "@/lib/auth-store";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /**
  * Which jams the viewer watches, as a lookup — the board renders hundreds of
@@ -27,7 +28,7 @@ export function useJamWatches(): {
   const { data } = useQuery({
     ...orpc.listMyJamWatches.queryOptions({ input: { scope: "all", limit: 50 } }),
     enabled: signedIn,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   return useMemo(() => {

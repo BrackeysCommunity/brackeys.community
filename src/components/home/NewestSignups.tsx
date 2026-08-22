@@ -11,6 +11,7 @@ import { Censored } from "@/lib/hooks/use-censored";
 import { memberName } from "@/lib/member-name";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 const SIGNUP_LIMIT = 10;
 
@@ -31,7 +32,7 @@ export function newestSignupsQueryOptions() {
   return queryOptions({
     queryKey: ["newest-signups", SIGNUP_LIMIT],
     queryFn: () => client.listMembers({ sort: "newest", limit: SIGNUP_LIMIT, offset: 0 }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 }
 

@@ -65,6 +65,27 @@ export function isPublicProcedure(name: string): boolean {
 }
 
 /**
+ * Client-side `staleTime` tiers, in milliseconds — the browser-cache half of
+ * the staleness policy `PUBLIC_EDGE_TTL` below encodes for the edge. The
+ * same question picks a tier: "how stale may this look to someone who did
+ * not make the change?". One table instead of the 72 magic numbers that
+ * used to be sprinkled over the `useQuery` calls.
+ */
+export const STALE = {
+  /** Curated vocabularies (skills, roles) — admin-edited, change rarely. */
+  taxonomy: 5 * 60 * 1000,
+  /** Scraped jam data — nothing in the app writes it. */
+  jam: 5 * 60 * 1000,
+  /** Listings and aggregate reads — a minute, like the edge's listing tier. */
+  listing: 60 * 1000,
+  /** Detail pages and viewer-specific reads — where someone clicks straight
+   *  through after their own save, so the shortest regular budget. */
+  viewer: 30 * 1000,
+  /** The collab board's hot filter loop — counts and feed react to chips. */
+  board: 15 * 1000,
+} as const;
+
+/**
  * How many seconds Cloudflare may reuse each public response.
  *
  * Typed as a total `Record`, so adding a procedure above without deciding

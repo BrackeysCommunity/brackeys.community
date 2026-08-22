@@ -8,6 +8,7 @@ import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { EVENTS } from "@/lib/analytics-events";
+import { formatCount } from "@/lib/format-count";
 import { Censored } from "@/lib/hooks/use-censored";
 import { jamLinkParams } from "@/lib/jam-links";
 import { captureEvent } from "@/lib/posthog";
@@ -130,7 +131,7 @@ function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) 
   const rankChip =
     appearance.rank != null
       ? appearance.entriesCount
-        ? `#${appearance.rank} / ${appearance.entriesCount.toLocaleString()}`
+        ? `#${appearance.rank} / ${formatCount(appearance.entriesCount)}`
         : `#${appearance.rank}`
       : appearance.result;
 

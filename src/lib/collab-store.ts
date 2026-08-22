@@ -1,28 +1,29 @@
 import { Store } from "@tanstack/store";
 
 import { EVENTS } from "@/lib/analytics-events";
+// The facet unions live in `@/lib/collab-vocabulary` next to their labels;
+// re-exported here because this module is where consumers historically
+// import them from.
+import type {
+  CollabPostType,
+  CollabCompensationType,
+  CollabExperienceLevel,
+  CollabContactType,
+  CollabProjectLength,
+} from "@/lib/collab-vocabulary";
 import { captureEvent } from "@/lib/posthog";
 
-/**
- * v1 ships paid + hobby only. Playtest and mentor are deferred, not
- * deleted — `collab_posts.type` is still free text server-side and every
- * type-keyed lookup here is a map, so both return as pure additions.
- */
-export type CollabPostType = "paid" | "hobby";
+export type {
+  CollabPostType,
+  CollabCompensationType,
+  CollabExperienceLevel,
+  CollabContactType,
+  CollabProjectLength,
+};
 export type CollabLayout = "list" | "cards";
 export type CollabStatus = "recruiting" | "party_full";
 export type CollabSortBy = "createdAt" | "updatedAt";
 export type CollabSortOrder = "asc" | "desc";
-export type CollabCompensationType = "hourly" | "fixed" | "rev_share" | "negotiable";
-export type CollabExperienceLevel = "any" | "beginner" | "intermediate" | "experienced";
-export type CollabContactType = "discord_dm" | "discord_server" | "email" | "other";
-export type CollabProjectLength =
-  | "<1 week"
-  | "1-4 weeks"
-  | "1-3 months"
-  | "3-6 months"
-  | "6+ months"
-  | "ongoing";
 
 /**
  * A pending project image attached to the create-post wizard. Held in

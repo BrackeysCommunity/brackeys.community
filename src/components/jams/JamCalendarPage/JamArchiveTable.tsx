@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 import { durationDays } from "@/lib/jam-countdown";
-import { hostName, jamLinkParams } from "@/lib/jam-links";
+import { hostName, jamDateShort, jamLinkParams } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import { ROW_CLOSE_TRANSITION } from "./board/transitions";
@@ -167,10 +168,10 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
                       {durationDays(jam.startsAt, jam.endsAt) ?? "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {(jam.entriesCount ?? 0).toLocaleString()}
+                      {formatCount(jam.entriesCount ?? 0)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                      {(jam.ratingsCount ?? 0).toLocaleString()}
+                      {formatCount(jam.ratingsCount ?? 0)}
                     </TableCell>
                   </motion.tr>
                 ))
@@ -181,7 +182,7 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
-            {data.total.toLocaleString()} ARCHIVED JAM{data.total === 1 ? "" : "S"}
+            {formatCount(data.total)} ARCHIVED JAM{data.total === 1 ? "" : "S"}
           </Text>
           <div className="flex items-center gap-2">
             <ButtonGroup className="[&>*:first-child]:rounded-l-md [&>*:last-child]:rounded-r-md">
@@ -225,7 +226,5 @@ export function JamArchiveTable({ data, state, onStateChange }: JamArchiveTableP
 function formatArchiveDate(jam: JamFromList): string {
   const last = jam.votingEndsAt ?? jam.endsAt ?? jam.startsAt;
   if (!last) return "—";
-  return new Date(last)
-    .toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
-    .toUpperCase();
+  return jamDateShort(last, { year: true }).toUpperCase();
 }

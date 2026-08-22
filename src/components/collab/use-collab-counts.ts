@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { collabFacetInput, useCollabBoardSearch } from "./collab-filters";
 
@@ -18,7 +19,7 @@ export function useCollabTypeCounts() {
   return useQuery({
     queryKey: ["collabTypeCounts", facets],
     queryFn: () => client.countPostsByType(facets),
-    staleTime: 15 * 1000,
+    staleTime: STALE.board,
     // Keep the previous numbers on screen while refetching so the tabs
     // don't flash to zero on every keystroke in the search field.
     placeholderData: (previous) => previous,
@@ -40,7 +41,7 @@ export function useCollabSkillCounts() {
   return useQuery({
     queryKey: ["collabSkillCounts", input],
     queryFn: () => client.countPostsBySkill(input),
-    staleTime: 15 * 1000,
+    staleTime: STALE.board,
     placeholderData: (previous) => previous,
   });
 }
@@ -56,7 +57,7 @@ export function useCollabRoleCounts() {
   return useQuery({
     queryKey: ["collabRoleCounts", facets],
     queryFn: () => client.countPostsByRole(facets),
-    staleTime: 15 * 1000,
+    staleTime: STALE.board,
     placeholderData: (previous) => previous,
   });
 }

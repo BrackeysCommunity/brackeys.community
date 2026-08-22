@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
+import { formatCount } from "@/lib/format-count";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,7 +63,7 @@ export function ShelfHeader({
         (count != null && (
           <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
             {/* Grouped: a shelf over 2,090 submissions rendered "2090". */}
-            {count.toLocaleString()} {count === 1 ? unit : (unitPlural ?? `${unit}S`)}
+            {formatCount(count)} {count === 1 ? unit : (unitPlural ?? `${unit}S`)}
           </Text>
         ))}
     </header>

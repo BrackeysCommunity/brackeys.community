@@ -25,6 +25,7 @@ import { CountUp } from "@/components/ui/count-up";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { effectiveJamState, formatCountdown } from "@/lib/jam-countdown";
 import { jamLinkParams, jamMonthDay } from "@/lib/jam-links";
@@ -492,7 +493,7 @@ export function FeaturedJamPanel({
                       {...PAGE_CUES}
                     >
                       <HugeiconsIcon icon={open ? ArrowLeft02Icon : GridViewIcon} size={14} />
-                      {open ? "BACK" : `ENTRIES ${entryCount.toLocaleString()}`}
+                      {open ? "BACK" : `ENTRIES ${formatCount(entryCount)}`}
                     </Button>
                   </motion.div>
                 )}

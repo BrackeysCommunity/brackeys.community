@@ -22,6 +22,7 @@ import { Heading, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { draftFromPost, isEditablePostType, startWizardEdit } from "@/lib/collab-store";
+import { compensationLabel, postTypeLabel } from "@/lib/collab-vocabulary";
 import { formatRate } from "@/lib/format-rate";
 import { Censored } from "@/lib/hooks/use-censored";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -33,28 +34,13 @@ import { teamLinkParams } from "@/lib/team-links";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { CollabPostResponseForm, ViewerResponseCard } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { ContactValue } from "./ContactValue";
 import { useCollabPostActions } from "./use-collab-post-actions";
 import { usePostViewerState } from "./use-post-viewer-state";
-
-export const TYPE_LABELS: Record<string, string> = {
-  paid: "PAID WORK",
-  hobby: "HOBBY",
-  playtest: "PLAYTEST",
-  mentor: "MENTORSHIP",
-};
-
-export const COMP_TYPE_LABELS: Record<string, string> = {
-  hourly: "Hourly",
-  fixed: "Fixed",
-  rev_share: "Revenue Share",
-  negotiable: "Negotiable",
-};
-
-export { CONTACT_TYPE_LABELS } from "./ContactValue";
 
 /** What `getPost` resolves for an existing post — the shape the detail
  *  renders, and what the dedicated page's loader passes back in. */
@@ -100,7 +86,7 @@ export function CollabPostDetail({
   const queryOptions = orpc.getPost.queryOptions({ input: { postId } });
   const { data: post, isLoading } = useQuery({
     ...queryOptions,
-    staleTime: 30 * 1000,
+    staleTime: STALE.viewer,
     initialData: initialPost,
   });
 
@@ -176,7 +162,7 @@ export function CollabPostDetail({
             ) : null}
             {post?.type ? (
               <Badge variant="secondary" size="label" className="uppercase">
-                {TYPE_LABELS[post.type] ?? post.type}
+                {postTypeLabel(post.type)}
               </Badge>
             ) : null}
             {post?.featuredAt ? (
@@ -389,10 +375,7 @@ export function CollabPostDetail({
                 <DetailRow label="EXPERIENCE" value={post.experienceLevel} />
               ) : null}
               {post.compensationType ? (
-                <DetailRow
-                  label="COMP"
-                  value={COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
-                />
+                <DetailRow label="COMP" value={compensationLabel(post.compensationType)} />
               ) : null}
               {rateDisplay ? <DetailRow label="RATE" value={rateDisplay} /> : null}
               {post.hasContact ? (

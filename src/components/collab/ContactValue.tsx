@@ -1,13 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Link as TextLink, Text } from "@/components/ui/typography";
 import { signInWithDiscord } from "@/lib/auth-client";
-
-export const CONTACT_TYPE_LABELS: Record<string, string> = {
-  discord_dm: "Discord DM",
-  discord_server: "Discord Server",
-  email: "Email",
-  other: "Other",
-};
+import { CONTACT_TYPE_LABELS } from "@/lib/collab-vocabulary";
 
 export type PostContact = { contactType: string | null; contactMethod: string | null };
 

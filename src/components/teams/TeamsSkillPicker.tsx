@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { FacetPicker } from "@/components/ui/facet-picker";
-import { client, orpc } from "@/orpc/client";
+import { useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
+import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { type SetTeamsSearch, teamFacetInput, type TeamsSearch } from "./teams-filters";
 
@@ -23,14 +25,11 @@ export function TeamsSkillPicker({
   const selected = search.skills ?? [];
   const { skillIds: _skillIds, ...facets } = teamFacetInput(search);
 
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data } = useSkillsCatalog();
   const { data: counts } = useQuery({
     queryKey: ["teamSkillCounts", facets],
     queryFn: () => client.countTeamsBySkill(facets),
-    staleTime: 30 * 1000,
+    staleTime: STALE.viewer,
     placeholderData: (previous) => previous,
   });
 

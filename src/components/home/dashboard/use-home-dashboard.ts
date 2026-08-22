@@ -4,11 +4,12 @@ import { useMemo } from "react";
 import { useAttention } from "@/components/attention/use-attention";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { selectJamDeadlines } from "./dashboard-derive";
 
 /** The dashboard's numbers move when the viewer acts, not on a timer. */
-const STALE_TIME_MS = 30 * 1000;
+const STALE_TIME_MS = STALE.viewer;
 
 /**
  * The four viewer-scoped reads behind the signed-in home, plus the two

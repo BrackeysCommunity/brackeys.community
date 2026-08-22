@@ -5,9 +5,10 @@ import { createPortal } from "react-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Heading, Text } from "@/components/ui/typography";
+import { formatCount } from "@/lib/format-count";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState, formatJamShortDates } from "@/lib/jam-countdown";
-import { hostName, jamLinkParams } from "@/lib/jam-links";
+import { hostName, jamDate, jamLinkParams } from "@/lib/jam-links";
 import { EASE_OUT } from "@/lib/motion";
 
 import {
@@ -142,9 +143,7 @@ export function DayDetailContent({ day, buckets }: DayDetailContentProps) {
   };
   const total = totals.starting + totals.deadline + totals.ending;
 
-  const dateLabel = day
-    .toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })
-    .toUpperCase();
+  const dateLabel = jamDate(day, { weekday: "long", month: "long", day: "numeric" }).toUpperCase();
 
   return (
     <>
@@ -258,7 +257,7 @@ function JamRow({ jam, kind, now }: { jam: JamFromList; kind: ChipKind; now: Dat
           {jam.title}
         </Text>
         <Text size="xs" variant="muted" className="tracking-widest">
-          {meta} · {signal.value.toLocaleString()} {signal.label.toLowerCase()}
+          {meta} · {formatCount(signal.value)} {signal.label.toLowerCase()}
         </Text>
       </div>
       <PhaseBadge phase={phase} state={state} />

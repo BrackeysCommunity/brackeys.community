@@ -12,6 +12,7 @@ import { Well } from "@/components/ui/well";
 import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import type { JamPhase } from "../JamCalendarPage/helpers";
 
@@ -32,7 +33,7 @@ import type { JamPhase } from "../JamCalendarPage/helpers";
 export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: JamPhase }) {
   const { data } = useQuery({
     ...orpc.getJamCommunity.queryOptions({ input: { jamId } }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   const members = data?.members ?? [];

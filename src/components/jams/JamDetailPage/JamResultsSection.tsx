@@ -5,6 +5,7 @@ import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { EVENTS } from "@/lib/analytics-events";
+import { formatCount } from "@/lib/format-count";
 import { captureEvent } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,7 @@ export function JamResultsSection({
       title="RESULTS"
       blurb={
         overall
-          ? `${overall.entrantCount.toLocaleString()} entries ranked.`
+          ? `${formatCount(overall.entrantCount)} entries ranked.`
           : "Placements by criterion."
       }
     >
@@ -104,7 +105,7 @@ export function JamResultsSection({
                   ) : null}
                   <MicroLabel tabular>{formatScore(winner.score)}</MicroLabel>
                   <Badge variant="outline" size="label" className="shrink-0">
-                    #1 / {criterion.entrantCount.toLocaleString()}
+                    #1 / {formatCount(criterion.entrantCount)}
                   </Badge>
                 </div>
               </div>
@@ -163,7 +164,7 @@ function PodiumCard({
         )}
         <div className="absolute top-2 left-2">
           <Badge variant={place.rank === 1 ? "warning" : "secondary"} size="label">
-            #{place.rank} / {entrantCount.toLocaleString()}
+            #{place.rank} / {formatCount(entrantCount)}
           </Badge>
         </div>
       </div>

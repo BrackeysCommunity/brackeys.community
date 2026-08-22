@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /** Rows in the ticker. Six reads as a feed; three read as three cards
  * that happened to be next to each other. */
@@ -22,6 +23,6 @@ export function recentCollabPostsQueryOptions() {
         limit: POST_LIMIT,
         offset: 0,
       }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 }

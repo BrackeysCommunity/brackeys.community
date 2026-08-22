@@ -2,6 +2,7 @@
 import { safeThemeColor } from "@/components/jams/JamCalendarPage/helpers";
 import { htmlToPlainText } from "@/components/ui/typography";
 import { itchOriginalUrl } from "@/lib/itch-image";
+import { jamDateLong } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
@@ -75,15 +76,6 @@ function coverSource(url: string | null | undefined): string | null {
   return itchOriginalUrl(url);
 }
 
-function utcDay(date: Date | string): string {
-  return new Date(date).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
 export const OG_KINDS: OgKind[] = ["jam", "project", "collab", "profile", "team"];
 
 export function siteCard(): OgCardInput {
@@ -131,9 +123,9 @@ export async function jamCard(slug: string): Promise<OgCardInput | null> {
 
   const window =
     jam.startsAt && jam.endsAt
-      ? `${utcDay(jam.startsAt)} – ${utcDay(jam.endsAt)}`
+      ? `${jamDateLong(jam.startsAt)} – ${jamDateLong(jam.endsAt)}`
       : jam.startsAt
-        ? `Opens ${utcDay(jam.startsAt)}`
+        ? `Opens ${jamDateLong(jam.startsAt)}`
         : null;
   const host = jam.hosts[0]?.name;
 

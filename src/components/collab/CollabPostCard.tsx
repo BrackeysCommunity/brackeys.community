@@ -8,6 +8,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { MediaCardFloatingBadge, MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
+import { postTypeLabelShort, compensationLabelShort } from "@/lib/collab-vocabulary";
 import { timeAgo } from "@/lib/format-time";
 import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
@@ -43,19 +44,8 @@ interface CollabPostCardProps {
   onSelect?: (postId: number) => void;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  paid: "PAID",
-  hobby: "HOBBY",
-  playtest: "PLAYTEST",
-  mentor: "MENTOR",
-};
-
-const COMP_TYPE_LABELS: Record<string, string> = {
-  hourly: "HOURLY",
-  fixed: "FIXED",
-  rev_share: "REV SHARE",
-  negotiable: "NEGOT.",
-};
+const typeLabel = (type: string) => postTypeLabelShort(type).toUpperCase();
+const compLabel = (comp: string) => compensationLabelShort(comp).toUpperCase();
 
 /**
  * The card's click target: a real anchor to the post's own page, so
@@ -90,7 +80,7 @@ function PostCardLink({
         onSelect(post.id);
       }}
       aria-current={selected ? "true" : undefined}
-      aria-label={`${post.title} — ${TYPE_LABELS[post.type] ?? post.type}`}
+      aria-label={`${post.title} — ${typeLabel(post.type)}`}
     />
   );
 }
@@ -137,12 +127,12 @@ function PostBadges({
       ) : null}
       {showType ? (
         <Badge variant="secondary" size="label">
-          {TYPE_LABELS[post.type] ?? post.type}
+          {typeLabel(post.type)}
         </Badge>
       ) : null}
       {post.compensationType ? (
         <Badge variant="success" size="label">
-          {COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
+          {compLabel(post.compensationType)}
         </Badge>
       ) : null}
       {closed ? (
@@ -254,7 +244,7 @@ export function CollabPostGridCard({
           <MediaCardScrim />
           <MediaCardFloatingBadge as="span">
             <Text as="span" size="xs" className="tracking-widest text-foreground uppercase">
-              {TYPE_LABELS[post.type] ?? post.type}
+              {typeLabel(post.type)}
             </Text>
           </MediaCardFloatingBadge>
         </span>

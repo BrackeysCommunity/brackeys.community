@@ -10,10 +10,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { JamEntryCard } from "./JamEntryCard";
 import type { JamEntryRow } from "./types";
@@ -83,7 +85,7 @@ export function JamEntriesSection({
     // The loader already fetched exactly this page on the server, so the
     // grid renders with the document instead of flashing skeletons.
     initialData: isSeeded ? initialData : undefined,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   const entries = data?.entries ?? [];
@@ -105,7 +107,7 @@ export function JamEntriesSection({
   const { data: projectData } = useQuery({
     ...orpc.listProjectsForGames.queryOptions({ input: { gameIds } }),
     enabled: gameIds.length > 0,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const projectSlugByGameId = new Map(
     (projectData?.projects ?? []).map((project) => [project.sourceGameId, project.slug]),
@@ -119,8 +121,8 @@ export function JamEntriesSection({
       // narrowed rather than restating the jam's total.
       blurb={
         matched === total
-          ? `${total.toLocaleString()} ${total === 1 ? "entry" : "entries"}.`
-          : `${matched.toLocaleString()} of ${total.toLocaleString()} entries.`
+          ? `${formatCount(total)} ${total === 1 ? "entry" : "entries"}.`
+          : `${formatCount(matched)} of ${formatCount(total)} entries.`
       }
     >
       <div className="flex flex-wrap items-center gap-2">

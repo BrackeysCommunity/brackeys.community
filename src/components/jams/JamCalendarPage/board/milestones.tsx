@@ -1,5 +1,6 @@
 import { InlineCode } from "@/components/ui/typography";
 import { formatCountdown } from "@/lib/jam-countdown";
+import { jamDateShort } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
 
 import { type ChipKind, type JamFromList, lifecyclePoints, nextMilestone } from "../helpers";
@@ -79,9 +80,7 @@ export function LifecycleDates({ jam, now }: { jam: JamFromList; now: Date }) {
           <span aria-hidden className={GLYPH_TINT[p.kind]}>
             {MILESTONE_GLYPH[p.kind]}
           </span>
-          {p.date
-            .toLocaleString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })
-            .toUpperCase()}
+          {jamDateShort(p.date).toUpperCase()}
         </span>
       ))}
     </span>

@@ -32,6 +32,8 @@ import {
   resetWizard,
   startWizardEdit,
 } from "@/lib/collab-store";
+import { compensationLabel, postTypeLabel } from "@/lib/collab-vocabulary";
+import { formatCount } from "@/lib/format-count";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
 import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
@@ -43,14 +45,10 @@ import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
-import {
-  COMP_TYPE_LABELS,
-  type CollabPostDetailData,
-  ReportPostAction,
-  TYPE_LABELS,
-} from "./CollabPostDetail";
+import { type CollabPostDetailData, ReportPostAction } from "./CollabPostDetail";
 import {
   CollabPostResponseForm,
   ViewerResponseCard,
@@ -88,7 +86,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
   // Loader data seeds the cache so SSR carries the content; mutations
   // (close, extend, edit…) invalidate this entry and the page follows.
   const queryOptions = orpc.getPost.queryOptions({ input: { postId } });
-  const { data } = useQuery({ ...queryOptions, initialData: initialPost, staleTime: 30 * 1000 });
+  const { data } = useQuery({ ...queryOptions, initialData: initialPost, staleTime: STALE.viewer });
   const post = data ?? initialPost;
 
   const actions = useCollabPostActions(postId, {
@@ -258,10 +256,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                 <SpecRow label="EXPERIENCE" value={post.experienceLevel} />
               ) : null}
               {post.compensationType ? (
-                <SpecRow
-                  label="COMP"
-                  value={COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType}
-                />
+                <SpecRow label="COMP" value={compensationLabel(post.compensationType)} />
               ) : null}
               {rateDisplay ? <SpecRow label="RATE" value={rateDisplay} /> : null}
               {post.hasContact ? (
@@ -490,7 +485,7 @@ function PostHero({
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" size="label" className="uppercase">
-              {TYPE_LABELS[post.type] ?? post.type}
+              {postTypeLabel(post.type)}
             </Badge>
             {post.featuredAt ? (
               <Badge variant="warning" size="label">
@@ -533,16 +528,11 @@ function PostHero({
             />
           ) : null}
           {post.compensationType ? (
-            <HeroStat
-              label="COMP"
-              value={(
-                COMP_TYPE_LABELS[post.compensationType] ?? post.compensationType
-              ).toUpperCase()}
-            />
+            <HeroStat label="COMP" value={compensationLabel(post.compensationType).toUpperCase()} />
           ) : null}
           {rateDisplay ? <HeroStat label="RATE" value={rateDisplay} /> : null}
           {post.responseCount > 0 ? (
-            <HeroStat label="RESPONSES" value={post.responseCount.toLocaleString()} />
+            <HeroStat label="RESPONSES" value={formatCount(post.responseCount)} />
           ) : null}
         </div>
 

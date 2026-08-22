@@ -66,3 +66,41 @@ export function jamMonthDay(date: Date | string | null): { month: string; day: s
     day: String(d.getUTCDate()),
   };
 }
+
+/**
+ * Format a jam date with `timeZone: "UTC"` pinned — the exact hazard the
+ * Dates rule warns about (a local month label beside a `getUTCDate()` day
+ * renders the wrong month near a boundary), made structural: going through
+ * this wrapper means the UTC option can't be forgotten.
+ */
+export function jamDate(
+  date: Date | string,
+  options: Intl.DateTimeFormatOptions,
+  locale?: string,
+): string {
+  return new Date(date).toLocaleString(locale, { ...options, timeZone: "UTC" });
+}
+
+/** "Feb 14" (or "Feb 14, 2026" with `year`) — milestone rows, table cells. */
+export function jamDateShort(
+  date: Date | string,
+  { year = false }: { year?: boolean } = {},
+): string {
+  return jamDate(date, { month: "short", day: "numeric", ...(year && { year: "numeric" }) });
+}
+
+/** "14 Feb 2026" — the day-first long form used in prose and OG cards. */
+export function jamDateLong(date: Date | string): string {
+  return jamDate(date, { day: "numeric", month: "short", year: "numeric" }, "en-GB");
+}
+
+/** "14 Feb 2026 – 23 Feb 2026", degrading to "Starts …" / "Ends …". */
+export function jamDateRange(
+  startsAt: Date | string | null,
+  endsAt: Date | string | null,
+): string | null {
+  if (startsAt && endsAt) return `${jamDateLong(startsAt)} – ${jamDateLong(endsAt)}`;
+  if (startsAt) return `Starts ${jamDateLong(startsAt)}`;
+  if (endsAt) return `Ends ${jamDateLong(endsAt)}`;
+  return null;
+}

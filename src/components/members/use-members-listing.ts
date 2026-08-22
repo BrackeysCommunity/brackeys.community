@@ -1,6 +1,7 @@
 import { infiniteQueryOptions } from "@tanstack/react-query";
 
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { DEFAULT_SORT, memberFacetInput, type MembersSearch } from "./members-filters";
 
@@ -17,7 +18,7 @@ export function membersListQueryOptions(search: MembersSearch) {
       const fetched = allPages.length * MEMBERS_PAGE_SIZE;
       return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
     },
-    staleTime: 30 * 1000,
+    staleTime: STALE.viewer,
   });
 }
 

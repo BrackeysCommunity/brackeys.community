@@ -43,6 +43,7 @@ import { escapeLike } from "@/lib/sql-like";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
 import { requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
+import { profileNameSearch, profileStubJoin } from "@/orpc/profile-projection";
 
 /** Postgres `unique_violation`. */
 function isUniqueViolation(err: unknown): boolean {
@@ -377,7 +378,7 @@ export const getTeam = os
         })
         .from(teamMembers)
         .innerJoin(developerProfiles, eq(teamMembers.userId, developerProfiles.id))
-        .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, teamMembers.userId))
+        .leftJoin(profileUrlStubs, profileStubJoin)
         .where(eq(teamMembers.teamId, team.id))
         .orderBy(asc(teamMembers.sortOrder), asc(teamMembers.joinedAt)),
       db
@@ -1025,12 +1026,7 @@ export const searchProfiles = os
         avatarUrl: developerProfiles.avatarUrl,
       })
       .from(developerProfiles)
-      .where(
-        or(
-          ilike(developerProfiles.guildNickname, pattern),
-          ilike(developerProfiles.discordUsername, pattern),
-        ),
-      )
+      .where(profileNameSearch(pattern))
       .limit(8);
 
     return rows.map(({ guildNickname, ...row }) => ({

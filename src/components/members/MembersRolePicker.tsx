@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { FacetPicker } from "@/components/ui/facet-picker";
-import { client, orpc } from "@/orpc/client";
+import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
+import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { memberFacetInput, type MembersSearch, type SetMembersSearch } from "./members-filters";
 
@@ -24,14 +26,11 @@ export function MembersRolePicker({
   const selected = search.roles ?? [];
   const { roleIds: _roleIds, ...facets } = memberFacetInput(search);
 
-  const { data } = useQuery({
-    ...orpc.listCollabRoles.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data } = useRolesCatalog();
   const { data: counts } = useQuery({
     queryKey: ["memberRoleCounts", facets],
     queryFn: () => client.countMembersByRole(facets),
-    staleTime: 30 * 1000,
+    staleTime: STALE.viewer,
     placeholderData: (previous) => previous,
   });
 

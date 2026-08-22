@@ -1,6 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-
-import { orpc } from "@/orpc/client";
+import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 
 import { TagPickerPanel } from "./TagPickerPanel";
 
@@ -19,10 +17,7 @@ interface RoleSearchPanelProps {
  * with two spellings. Both are the same control — see `TagPickerPanel`.
  */
 export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelProps) {
-  const { data: roles } = useQuery({
-    ...orpc.listCollabRoles.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: roles } = useRolesCatalog();
 
   return (
     <TagPickerPanel

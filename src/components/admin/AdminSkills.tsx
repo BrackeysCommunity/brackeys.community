@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
+import { useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -76,7 +77,7 @@ function AdminSkillRequests() {
   const requests = useQuery(
     orpc.listSkillRequests.queryOptions({ input: { status, page, pageSize: PAGE_SIZE } }),
   );
-  const skills = useQuery(orpc.listSkills.queryOptions({ input: {} }));
+  const skills = useSkillsCatalog();
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: orpc.listSkillRequests.key() });

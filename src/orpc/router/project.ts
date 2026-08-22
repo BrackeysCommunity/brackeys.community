@@ -34,6 +34,7 @@ import {
 } from "@/lib/project-taxonomy";
 import { ensureProjectForScrapedGame } from "@/lib/projects";
 import { requireAuth } from "@/orpc/middleware/auth";
+import { profileStubJoin } from "@/orpc/profile-projection";
 
 /**
  * A project's canonical page, in one round trip.
@@ -84,7 +85,7 @@ async function buildProjectDetail(project: typeof projects.$inferSelect) {
       // is the whole point — a contributor who was never on the platform
       // still gets their name on the page.
       .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
-      .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+      .leftJoin(profileUrlStubs, profileStubJoin)
       .where(eq(projectContributors.projectId, project.id))
       .orderBy(projectContributors.sortOrder, projectContributors.id),
     db
@@ -614,7 +615,7 @@ async function readContributor(contributorId: number) {
     })
     .from(projectContributors)
     .leftJoin(developerProfiles, eq(projectContributors.profileId, developerProfiles.id))
-    .leftJoin(profileUrlStubs, eq(profileUrlStubs.profileId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, profileStubJoin)
     .where(eq(projectContributors.id, contributorId))
     .limit(1);
   return row ?? null;

@@ -8,7 +8,9 @@
  * the canonical one (it was already what users saw most).
  */
 
-export type RateType = "hourly" | "fixed" | "rev_share" | "negotiable";
+import type { CollabCompensationType } from "@/lib/collab-vocabulary";
+
+export type RateType = CollabCompensationType;
 
 interface FormatRateOptions {
   /**

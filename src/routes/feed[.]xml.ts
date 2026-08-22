@@ -4,6 +4,7 @@ import { and, asc, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { itchJams } from "@/db/schema";
 import { siteOrigin, siteUrl } from "@/env";
+import { formatCount } from "@/lib/format-count";
 import { hostName } from "@/lib/jam-links";
 import { withErrorReporting } from "@/lib/posthog-server";
 import { SITE_NAME } from "@/lib/site-meta";
@@ -75,7 +76,7 @@ async function handle() {
       .join(", ");
     const summary = [
       window && `${window}.`,
-      row.entriesCount ? `${row.entriesCount.toLocaleString("en-US")} entries so far.` : null,
+      row.entriesCount ? `${formatCount(row.entriesCount)} entries so far.` : null,
       row.hosts[0] ? `Hosted by ${hostName(row)}.` : null,
     ]
       .filter(Boolean)

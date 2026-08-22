@@ -6,6 +6,9 @@
  * the layout-pass phases we hand the components a typed view model and
  * adapt from real data + sample data at the boundary.
  */
+import { compensationLabel } from "@/lib/collab-vocabulary";
+import { availabilityLabel } from "@/lib/member-vocabulary";
+
 export interface ProfileViewModel {
   /** URL stub / handle (no leading @). */
   handle: string;
@@ -124,36 +127,18 @@ export interface ProfileAvailability {
 }
 
 /** Map an availability commitment wire value (`full_time`,
- * `part_time`, `limited`) to a friendly title-cased label.
+ * `part_time`, `limited`) to its display label.
  * Falls through to the raw value for unknown inputs. */
 export function formatCommitment(commitment: string | null | undefined): string | null {
   if (!commitment) return null;
-  switch (commitment) {
-    case "full_time":
-      return "Full Time";
-    case "part_time":
-      return "Part Time";
-    case "limited":
-      return "Limited";
-    default:
-      return commitment;
-  }
+  return availabilityLabel(commitment) ?? commitment;
 }
 
-/** Map a rate-type wire value (`hourly`, `fixed`, `negotiable`) to a
- * title-cased label. */
+/** Map a rate-type wire value (`hourly`, `fixed`, `negotiable`) to its
+ * display label. */
 export function formatRateType(rateType: string | null | undefined): string | null {
   if (!rateType) return null;
-  switch (rateType) {
-    case "hourly":
-      return "Hourly";
-    case "fixed":
-      return "Fixed";
-    case "negotiable":
-      return "Negotiable";
-    default:
-      return rateType;
-  }
+  return compensationLabel(rateType);
 }
 
 export interface ProfileItchSync {

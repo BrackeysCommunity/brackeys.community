@@ -62,13 +62,11 @@ import {
 import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { escapeLike, likeContains } from "@/lib/sql-like";
 import { isValidTimezone } from "@/lib/timezones";
 import { STUB_REGEX } from "@/lib/url-stub";
 import { requireAuth } from "@/orpc/middleware/auth";
-
-function escapeLike(str: string): string {
-  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
+import { profileNameSearch } from "@/orpc/profile-projection";
 
 // Imported jam rows (source `itchio-jam`) carry only a jam_id reference;
 // their display name/URL come from the scraped `itch.jams` row. Manual rows
@@ -1252,12 +1250,10 @@ export const listAvailableUsers = os
     const conditions = [eq(developerProfiles.availableForWork, true)];
 
     if (input.search) {
-      const escaped = escapeLike(input.search);
-      const searchCondition = or(
-        ilike(developerProfiles.discordUsername, `%${escaped}%`),
-        ilike(developerProfiles.tagline, `%${escaped}%`),
-      );
-      if (searchCondition) conditions.push(searchCondition);
+      const pattern = likeContains(input.search);
+      if (pattern) {
+        conditions.push(or(profileNameSearch(pattern), ilike(developerProfiles.tagline, pattern))!);
+      }
     }
 
     // Same subquery shape the collab board uses for post stacks, so a

@@ -8,6 +8,7 @@ import { authStore } from "@/lib/auth-store";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import type { JamPhase } from "./JamCalendarPage/helpers";
 
@@ -41,7 +42,7 @@ export function JamWatchToggle({
   const { data } = useQuery({
     ...orpc.getJamViewerState.queryOptions({ input: { jamId } }),
     enabled: signedIn,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const intent = data?.intent ?? null;
 

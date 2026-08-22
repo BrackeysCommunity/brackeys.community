@@ -1,6 +1,7 @@
 import { infiniteQueryOptions } from "@tanstack/react-query";
 
 import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { DEFAULT_SORT, teamFacetInput, type TeamsSearch } from "./teams-filters";
 
@@ -17,6 +18,6 @@ export function teamsListQueryOptions(search: TeamsSearch) {
       const fetched = allPages.length * TEAMS_PAGE_SIZE;
       return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
     },
-    staleTime: 30 * 1000,
+    staleTime: STALE.viewer,
   });
 }

@@ -9,8 +9,12 @@
  * shareable.
  */
 
+import type { MemberAvailability } from "@/lib/member-vocabulary";
+
+export { AVAILABILITY_OPTIONS, availabilityLabel } from "@/lib/member-vocabulary";
+export type { MemberAvailability };
+
 export type MembersSort = "active" | "newest" | "rate";
-export type MemberAvailability = "full_time" | "part_time" | "limited";
 
 export interface MembersSearch {
   q?: string;
@@ -50,17 +54,6 @@ export const SORT_OPTIONS: { value: MembersSort; label: string; short: string }[
 export const DEFAULT_SORT: MembersSort = "active";
 
 /**
- * Commitment levels, in the profile's own vocabulary. Kept as an ordered
- * list rather than a record so the chips and the summary read in the
- * same most-to-least order everywhere.
- */
-export const AVAILABILITY_OPTIONS: { value: MemberAvailability; label: string }[] = [
-  { value: "full_time", label: "Full-time" },
-  { value: "part_time", label: "Part-time" },
-  { value: "limited", label: "Limited" },
-];
-
-/**
  * Rate is a ceiling, not a range: the question people actually bring to
  * a directory is "who fits my budget", and a two-handle slider is a lot
  * of interaction for one number. Bands rather than a free input so it
@@ -72,10 +65,6 @@ export const RATE_OPTIONS: { value: number; label: string }[] = [
   { value: 50, label: "Under $50/hr" },
   { value: 100, label: "Under $100/hr" },
 ];
-
-export function availabilityLabel(value: string | null | undefined): string | null {
-  return AVAILABILITY_OPTIONS.find((o) => o.value === value)?.label ?? null;
-}
 
 /**
  * Timezone windows. Small and round on purpose: the question is "can we

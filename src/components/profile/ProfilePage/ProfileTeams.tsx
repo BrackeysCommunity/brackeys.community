@@ -5,6 +5,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { ProfileSectionHeader } from "./ProfileSectionHeader";
 
@@ -17,7 +18,7 @@ import { ProfileSectionHeader } from "./ProfileSectionHeader";
 export function ProfileTeamsSection({ index, profileId }: { index: string; profileId: string }) {
   const { data: teams } = useQuery({
     ...orpc.listUserTeams.queryOptions({ input: { userId: profileId } }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   if (!teams || teams.length === 0) return null;

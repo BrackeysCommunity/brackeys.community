@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { TagPickerPanel } from "./TagPickerPanel";
 
@@ -26,14 +28,11 @@ interface SkillSearchPanelProps {
  * "this applicant matches Godot, C#" instead of comparing spellings.
  */
 export function SkillSearchPanel({ skillIds, onChange, offerMySkills }: SkillSearchPanelProps) {
-  const { data: allSkills } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: allSkills } = useSkillsCatalog();
   const { data: myProfile } = useQuery({
     ...orpc.getMyProfile.queryOptions({ input: {} }),
     enabled: !!offerMySkills,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   const atCap = skillIds.length >= MAX_POST_SKILLS;

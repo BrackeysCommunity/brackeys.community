@@ -16,6 +16,7 @@ import { errorMessage } from "@/lib/error-message";
 import { itchImageUrl } from "@/lib/itch-image";
 import { reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import type { RpcTeam } from "./TeamPage";
 
@@ -486,7 +487,7 @@ function ShowcaseSection({ team, onChanged }: { team: RpcTeam; onChanged: () => 
   // common case is "our jam game is already on my profile".
   const { data: myProfile } = useQuery({
     ...orpc.getMyProfile.queryOptions({ input: {} }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const alreadyImported = new Set(
     team.projects

@@ -22,6 +22,7 @@ import { beginWizardCreate, collabStore, resetWizard, updateWizardDraft } from "
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
 import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { type CollabBoardSearch } from "./collab-filters";
 import { CollabActiveFilters } from "./CollabActiveFilters";
@@ -402,7 +403,7 @@ function CollabHero({ authenticated, onCreate }: { authenticated: boolean; onCre
   const { data: myTeams } = useQuery({
     ...orpc.listMyTeams.queryOptions({ input: {} }),
     enabled: authenticated,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const needsTeam = authenticated && myTeams !== undefined && myTeams.length === 0;
 

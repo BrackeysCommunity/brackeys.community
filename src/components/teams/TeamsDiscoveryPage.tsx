@@ -22,6 +22,7 @@ import { authStore } from "@/lib/auth-store";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { TeamCreateDrawer } from "./TeamCreateDrawer";
 import { TeamDirectoryCard } from "./TeamDirectoryCard";
@@ -298,7 +299,7 @@ function TeamsHero({ authenticated, onStart }: { authenticated: boolean; onStart
 function YourTeamsShelf({ onStart }: { onStart: () => void }) {
   const { data: myTeams, isLoading } = useQuery({
     ...orpc.listMyTeams.queryOptions({ input: {} }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   return (

@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { FacetPicker } from "@/components/ui/facet-picker";
-import { client, orpc } from "@/orpc/client";
+import { useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
+import { client } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { memberFacetInput, type MembersSearch, type SetMembersSearch } from "./members-filters";
 
@@ -27,14 +29,11 @@ export function MembersSkillPicker({
   // and the number answers "how many would remain".
   const countInput = matchAll ? { ...facets, skillIds, matchAll } : facets;
 
-  const { data } = useQuery({
-    ...orpc.listSkills.queryOptions({ input: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data } = useSkillsCatalog();
   const { data: counts } = useQuery({
     queryKey: ["memberSkillCounts", countInput],
     queryFn: () => client.countMembersBySkill(countInput),
-    staleTime: 30 * 1000,
+    staleTime: STALE.viewer,
     placeholderData: (previous) => previous,
   });
 

@@ -7,6 +7,7 @@ import { type JamFromList, jamPhase } from "@/components/jams/JamCalendarPage/he
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 /**
  * The team-finding half of a jam surface. Someone reading an upcoming
@@ -28,7 +29,7 @@ export function JamTeamCta({ jam, className }: { jam: JamFromList; className?: s
 
   const { data } = useQuery({
     ...orpc.countPostsForJam.queryOptions({ input: { jamId: jam.jamId } }),
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
   const postCount = data?.count ?? 0;
 

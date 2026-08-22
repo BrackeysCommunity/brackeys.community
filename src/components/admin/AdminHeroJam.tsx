@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatCount } from "@/lib/format-count";
 import { timeAgo } from "@/lib/format-time";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import useDateNow from "@/lib/hooks/use-date-now";
@@ -344,7 +345,7 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
                   {jam.endsAt ? ` → ${end.month} ${end.day}` : ""}
                 </MicroLabel>
                 <MicroLabel as="span" className="text-muted-foreground">
-                  {signal.value.toLocaleString()} {signal.label}
+                  {formatCount(signal.value)} {signal.label}
                 </MicroLabel>
               </div>
               {active.pinnedAt ? (
@@ -420,7 +421,7 @@ function JamRow({
               {jam.endsAt ? ` → ${end.month} ${end.day}` : ""}
             </MicroLabel>
             <MicroLabel as="span" className="text-muted-foreground">
-              {signal.value.toLocaleString()} {signal.label}
+              {formatCount(signal.value)} {signal.label}
             </MicroLabel>
           </div>
           {pinnedAt ? (

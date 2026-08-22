@@ -8,20 +8,17 @@ import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { collabStore, setWizardStep } from "@/lib/collab-store";
+import { CONTACT_TYPE_LABELS } from "@/lib/collab-vocabulary";
 import { formatRate } from "@/lib/format-rate";
+import { useRolesCatalog, useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import { FieldRow } from "./fields";
 import { useWizardForm } from "./form-context";
-import {
-  type AnyFormStore,
-  CONTACT_TYPE_LABELS,
-  getPreflightChecks,
-  POST_TYPES,
-  WIZARD_TABS,
-} from "./shared";
+import { type AnyFormStore, getPreflightChecks, POST_TYPES, WIZARD_TABS } from "./shared";
 
 /**
  * Step 04 — pre-flight checklist + compact post preview. The checklist
@@ -32,12 +29,12 @@ import {
 export function StepReview() {
   const form = useWizardForm();
   const v = useStore(form.store, (s: AnyFormStore) => s.values);
-  const { data: roles } = useQuery({ ...orpc.listCollabRoles.queryOptions({ input: {} }) });
-  const { data: allSkills } = useQuery({ ...orpc.listSkills.queryOptions({ input: {} }) });
+  const { data: roles } = useRolesCatalog();
+  const { data: allSkills } = useSkillsCatalog();
   const { data: jamData } = useQuery({
     ...orpc.listJams.queryOptions({ input: { filter: "board", limit: 500 } }),
     enabled: v.jamId !== undefined,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE.jam,
   });
   const { data: myTeams } = useQuery({
     ...orpc.listMyTeams.queryOptions({ input: {} }),
@@ -46,7 +43,7 @@ export function StepReview() {
   const { data: myProjects } = useQuery({
     ...orpc.listEditableProjects.queryOptions({ input: {} }),
     enabled: v.projectId !== undefined,
-    staleTime: 60 * 1000,
+    staleTime: STALE.listing,
   });
 
   const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
