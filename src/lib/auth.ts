@@ -151,14 +151,14 @@ export const auth = betterAuth({
         // `emailAndPassword` is disabled, so a user row only ever appears on
         // a first completed OAuth flow — this *is* signup.
         after: async (created) => {
-          captureServerEvent(EVENTS.authSignedUp, created.id);
+          captureServerEvent(EVENTS.authSignedUp, created.id, { provider: "discord" });
         },
       },
     },
     session: {
       create: {
         after: async (session) => {
-          captureServerEvent(EVENTS.authSignedIn, session.userId);
+          captureServerEvent(EVENTS.authSignedIn, session.userId, { provider: "discord" });
           // After the sync: the gate is keyed on the Discord id it resolves.
           await syncDiscordProfile(session.userId);
           await applyGuildBanOnSignIn(session.userId);

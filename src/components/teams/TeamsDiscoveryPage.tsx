@@ -19,12 +19,18 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
+import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
 
 import { TeamCreateDrawer } from "./TeamCreateDrawer";
 import { TeamDirectoryCard } from "./TeamDirectoryCard";
-import { CLEARED_TEAM_FILTERS, countActiveTeamFilters, type TeamsSearch } from "./teams-filters";
+import {
+  CLEARED_TEAM_FILTERS,
+  countActiveTeamFilters,
+  teamFilterKinds,
+  type TeamsSearch,
+} from "./teams-filters";
 import { TeamsActiveFilters } from "./TeamsActiveFilters";
 import { TeamsFilterClearButton, TeamsFilterPanel } from "./TeamsFilterPanel";
 import { TeamsFloatingControls, TeamsToolbar } from "./TeamsToolbar";
@@ -112,6 +118,13 @@ export function TeamsDiscoveryPage() {
 
   const teams = useMemo(() => data?.pages.flatMap((p) => p.teams) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
+
+  useSearchPerformed({
+    surface: "teams",
+    query: search.q,
+    filterKinds: teamFilterKinds(search),
+    resultCount: isLoading ? null : total,
+  });
   const isFiltered = countActiveTeamFilters(search) > 0;
 
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -130,7 +143,7 @@ export function TeamsDiscoveryPage() {
 
   const startTeam = () => {
     if (!isPending && !session?.user) {
-      signInWithDiscord();
+      signInWithDiscord("teams_discovery");
       return;
     }
     setCreateOpen(true);

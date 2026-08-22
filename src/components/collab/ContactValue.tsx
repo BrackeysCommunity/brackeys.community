@@ -54,7 +54,7 @@ export function ContactValue({
         size="sm"
         className="h-auto p-0"
         onClick={() => {
-          void signInWithDiscord();
+          void signInWithDiscord("contact_value");
         }}
       >
         Sign in to view

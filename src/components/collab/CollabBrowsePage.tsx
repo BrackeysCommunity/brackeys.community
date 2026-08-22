@@ -222,7 +222,7 @@ export function CollabBrowsePage() {
 
   const handleCreate = () => {
     if (!isPending && !session?.user) {
-      signInWithDiscord();
+      signInWithDiscord("collab_browse");
       return;
     }
     // A fresh post, not a continuation of an edit the user backed out

@@ -5,9 +5,11 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { linkedAccounts } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
 import { describeItchError, fetchCredentialsInfo, validateToken } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";
+import { captureServerEvent } from "@/lib/posthog-server";
 import { sealToken } from "@/lib/token-crypto";
 import { requireAuth } from "@/orpc/middleware/auth";
 
@@ -75,6 +77,11 @@ export const linkItchIo = os
         },
       })
       .returning();
+
+    captureServerEvent(EVENTS.accountLinkCompleted, userId, {
+      provider: "itchio",
+      games_scope_missing: gamesScopeMissing,
+    });
 
     return {
       id: linked.id,

@@ -23,7 +23,7 @@ function DiscordSignInCTA() {
       >
         <button
           type="button"
-          onClick={() => signInWithDiscord()}
+          onClick={() => signInWithDiscord("profile_builder")}
           className="group flex h-24 min-w-[280px] flex-col justify-between border-2 border-primary bg-card p-4 text-left transition-all duration-100 hover:-translate-y-1 hover:bg-background hover:shadow-[4px_4px_0px_var(--color-primary)] active:translate-y-0 active:shadow-none"
         >
           <div className="flex justify-between">

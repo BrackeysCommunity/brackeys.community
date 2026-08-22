@@ -1,6 +1,7 @@
 import { Button, Column, Img, Link, Row, Section, Text } from "@react-email/components";
 
 import type { NotificationType } from "../db/schema";
+import { withUtm } from "../lib/email-utm";
 import {
   NOTIFICATION_CATEGORY,
   NOTIFICATION_CATEGORY_LABEL,
@@ -53,7 +54,11 @@ export function NotificationEmail({
   // Email is the one surface with no viewer preference available, and it can
   // land in a work inbox — censor unconditionally, matching the app default.
   const safeHeadline = censorText(headline);
-  const ctaUrl = href ? `${appUrl}${href}` : `${appUrl}/notifications`;
+  const ctaUrl = withUtm(
+    href ? `${appUrl}${href}` : `${appUrl}/notifications`,
+    "immediate",
+    notification.type,
+  );
   const greeting = recipientName ? `Hey ${recipientName},` : "Hey,";
   const category = NOTIFICATION_CATEGORY[notification.type];
   // Only absolute URLs render in mail clients; anything else drops the img.
@@ -66,7 +71,10 @@ export function NotificationEmail({
       footer={
         <Text style={footerStyle}>
           You're getting this because email is on for this kind of activity.{" "}
-          <Link href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
+          <Link
+            href={withUtm(`${appUrl}/settings?tab=notifications`, "immediate", "manage_prefs")}
+            style={linkStyle}
+          >
             Manage preferences
           </Link>{" "}
           ·{" "}

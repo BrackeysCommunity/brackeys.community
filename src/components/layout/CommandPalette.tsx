@@ -12,6 +12,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Command,
@@ -29,9 +30,25 @@ import { activeUserStore } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
+import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
+  const [query, setQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  // cmdk filters synchronously on render, so counting rendered items after
+  // the query commits is the result count — it has no count API of its own.
+  const [resultCount, setResultCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    setResultCount(listRef.current?.querySelectorAll("[cmdk-item]").length ?? 0);
+  }, [query, open]);
+  useSearchPerformed({
+    surface: "command_palette",
+    query: open ? query : undefined,
+    filterKinds: [],
+    resultCount,
+  });
   const navigate = useNavigate();
   const { themeId, setTheme, sections } = useAppTheme();
   const { data: session } = authClient.useSession();
@@ -50,8 +67,12 @@ export function CommandPalette() {
       description="Search commands, bots, and macros"
     >
       <Command className="font-mono">
-        <CommandInput placeholder="Search commands, bots, macros..." />
-        <CommandList>
+        <CommandInput
+          placeholder="Search commands, bots, macros..."
+          value={query}
+          onValueChange={setQuery}
+        />
+        <CommandList ref={listRef}>
           <CommandEmpty>
             <span className="font-mono text-xs text-destructive">{"// PROTOCOL NOT FOUND"}</span>
           </CommandEmpty>
@@ -59,7 +80,7 @@ export function CommandPalette() {
           {/* Quick Actions */}
           <CommandGroup heading="ACTIONS">
             {!session?.user && (
-              <CommandItem onSelect={() => run(() => signInWithDiscord())}>
+              <CommandItem onSelect={() => run(() => signInWithDiscord("command_palette"))}>
                 <HugeiconsIcon icon={Login01Icon} className="text-primary" />
                 <span>Login</span>
               </CommandItem>

@@ -20,11 +20,12 @@ import { useMyProfileParams } from "@/hooks/use-my-profile-params";
 import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
+import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { fadeIn, fadeUp } from "@/lib/motion";
 
 import { ActiveMembersRail } from "./ActiveMembersRail";
 import { MemberDirectoryCard } from "./MemberDirectoryCard";
-import { CLEARED_MEMBER_FILTERS, type MembersSearch } from "./members-filters";
+import { CLEARED_MEMBER_FILTERS, memberFilterKinds, type MembersSearch } from "./members-filters";
 import { MembersActiveFilters } from "./MembersActiveFilters";
 import { MembersFilterClearButton, MembersFilterPanel } from "./MembersFilterPanel";
 import { MembersFloatingControls, MembersToolbar } from "./MembersToolbar";
@@ -101,6 +102,13 @@ export function MembersDiscoveryPage() {
 
   const members = useMemo(() => data?.pages.flatMap((p) => p.members) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
+
+  useSearchPerformed({
+    surface: "members",
+    query: search.q,
+    filterKinds: memberFilterKinds(search),
+    resultCount: isLoading ? null : total,
+  });
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -251,7 +259,11 @@ function MembersHero({ myProfileParams }: { myProfileParams: { userId: string } 
             MAKE YOURSELF FINDABLE
           </Button>
         ) : (
-          <Button size="lg" onClick={() => signInWithDiscord()} className="tracking-widest">
+          <Button
+            size="lg"
+            onClick={() => signInWithDiscord("members_discovery")}
+            className="tracking-widest"
+          >
             <HugeiconsIcon icon={Login01Icon} size={14} />
             SIGN IN TO BE LISTED
           </Button>

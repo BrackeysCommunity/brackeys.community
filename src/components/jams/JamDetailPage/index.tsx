@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { Section } from "@/components/ui/section";
 import { MicroLabel, RichHtml, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { EVENTS } from "@/lib/analytics-events";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { hostName } from "@/lib/jam-links";
+import { captureEvent } from "@/lib/posthog";
 
 import { jamPhase } from "../JamCalendarPage/helpers";
 import { JamCommunitySection } from "./JamCommunitySection";
@@ -42,6 +44,12 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
   const now = useMemo(() => new Date(nowMs), [nowMs]);
   const phase = jamPhase(jam, now);
 
+  // Per-jam identity on the pageview — funnels filter on `jam_id` instead
+  // of parsing the `$pageview` URL.
+  useEffect(() => {
+    captureEvent(EVENTS.jamViewed, { jam_id: jam.jamId, jam_slug: jam.slug, status: jam.status });
+  }, [jam.jamId, jam.slug, jam.status]);
+
   return (
     <div className="flex flex-col gap-8 pb-8">
       <JamDetailHero jam={jam} phase={phase} now={now} trackedEntries={trackedEntries} />
@@ -66,7 +74,7 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
         )}
       </Section>
 
-      {hasResults ? <JamResultsSection criteria={results} /> : null}
+      {hasResults ? <JamResultsSection jamId={jam.jamId} criteria={results} /> : null}
 
       {/* An upcoming jam has no entries by definition; a scraped jam we
           never fetched entries for has none either. Neither case wants an

@@ -39,11 +39,12 @@ import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
 import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { EASE_OUT } from "@/lib/motion";
-import { reportMutationError } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/posthog";
 import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
@@ -51,7 +52,7 @@ import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
 import type { ProfileSkill, ProfileViewModel } from "./helpers";
-import type { EditStep } from "./shared-types";
+import { EDIT_STEP_COUNT, EDIT_STEP_SLUGS, type EditStep } from "./shared-types";
 
 interface ProfileEditFlyoutProps {
   open: boolean;
@@ -168,7 +169,20 @@ export function ProfileEditFlyout({
 
   if (typeof document === "undefined") return null;
 
-  const saveCtx: SaveContext = { status, setStatus };
+  // The collab wizard separates "wouldn't let them through" from "walked
+  // away" with a step_blocked event; this flyout has no NEXT gate — its
+  // equivalent friction is a field save being refused — so the same event
+  // fires when a step's save lands in error.
+  const setStatusTracked = (s: SaveStatus) => {
+    if (s === "error") {
+      captureEvent(EVENTS.profileEditStepBlocked, {
+        ...flowStep(FLOWS.profileEdit, EDIT_STEP_SLUGS[step], step, EDIT_STEP_COUNT),
+        reason: "save_failed",
+      });
+    }
+    setStatus(s);
+  };
+  const saveCtx: SaveContext = { status, setStatus: setStatusTracked };
 
   return createPortal(
     <AnimatePresence>

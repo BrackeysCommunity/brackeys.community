@@ -541,6 +541,8 @@ export const updatePost = os
       await db.insert(collabPostSkills).values(skillIds.map((skillId) => ({ postId, skillId })));
     }
 
+    captureServerEvent(EVENTS.collabPostUpdated, context.user.id, { post_id: postId });
+
     return { ...updated, jamWarning };
   });
 
@@ -1699,6 +1701,11 @@ export const withdrawResponse = os
         data: { postId: response.postId, postTitle: post.title, responseId: response.id },
       });
     }
+
+    captureServerEvent(EVENTS.collabResponseWithdrawn, context.user.id, {
+      post_id: response.postId,
+      response_id: response.id,
+    });
 
     return { success: true };
   });

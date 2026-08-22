@@ -4,6 +4,8 @@ import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { EVENTS } from "@/lib/analytics-events";
+import { captureEvent } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 import { safeThemeColor } from "../JamCalendarPage/helpers";
@@ -21,7 +23,13 @@ const PLACE_TINT = ["border-warning/60", "border-muted-foreground/50", "border-a
  * its winner, because a jam with eight criteria × three places is a wall
  * of the same twelve games and the full table is a click away on itch.
  */
-export function JamResultsSection({ criteria }: { criteria: JamResultsCriterion[] }) {
+export function JamResultsSection({
+  jamId,
+  criteria,
+}: {
+  jamId: number;
+  criteria: JamResultsCriterion[];
+}) {
   if (criteria.length === 0) return null;
 
   const overall = criteria.find((c) => c.criterion.toLowerCase() === "overall");
@@ -46,6 +54,7 @@ export function JamResultsSection({ criteria }: { criteria: JamResultsCriterion[
           {overall.places.map((place, index) => (
             <PodiumCard
               key={place.entryId}
+              jamId={jamId}
               place={place}
               entrantCount={overall.entrantCount}
               tint={PLACE_TINT[index] ?? PLACE_TINT[2]!}
@@ -75,6 +84,14 @@ export function JamResultsSection({ criteria }: { criteria: JamResultsCriterion[
                   href={winner.gameUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() =>
+                    captureEvent(EVENTS.jamEntryOutboundClicked, {
+                      jam_id: jamId,
+                      entry_id: winner.entryId,
+                      position: winner.rank,
+                      via: "results",
+                    })
+                  }
                   className="min-w-0 flex-1 truncate text-xs font-bold hover:text-primary hover:underline"
                 >
                   {winner.gameTitle}
@@ -100,10 +117,12 @@ export function JamResultsSection({ criteria }: { criteria: JamResultsCriterion[
 }
 
 function PodiumCard({
+  jamId,
   place,
   entrantCount,
   tint,
 }: {
+  jamId: number;
   place: JamResultsPlace;
   entrantCount: number;
   tint: string;
@@ -114,6 +133,14 @@ function PodiumCard({
       href={place.gameUrl}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() =>
+        captureEvent(EVENTS.jamEntryOutboundClicked, {
+          jam_id: jamId,
+          entry_id: place.entryId,
+          position: place.rank,
+          via: "podium",
+        })
+      }
       data-hover-play-group
       className="group/place flex flex-col gap-2"
     >

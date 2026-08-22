@@ -1,6 +1,9 @@
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+import { EVENTS, type SigninSource } from "@/lib/analytics-events";
+import { captureEvent } from "@/lib/posthog";
+
 /**
  * A literal rather than inferred from `typeof auth`, which would pull the server
  * auth module into the browser bundle. Keep in step with `user.additionalFields`.
@@ -25,8 +28,13 @@ type SocialSignInOptions = Omit<Parameters<typeof authClient.signIn.social>[0], 
  * callbackURL is required: without one, the oAuthProxy flow (dev/preview
  * environments) falls back to the auth base URL and lands on a 404 at
  * `/api/auth`.
+ *
+ * `source` is required so every CTA is distinguishable in the acquisition
+ * funnel — capturing here means no future sign-in button can forget the
+ * event.
  */
-export function signInWithDiscord(options?: SocialSignInOptions) {
+export function signInWithDiscord(source: SigninSource, options?: SocialSignInOptions) {
+  captureEvent(EVENTS.authSigninStarted, { source, provider: "discord" });
   return authClient.signIn.social({
     provider: "discord",
     callbackURL: window.location.pathname + window.location.search,

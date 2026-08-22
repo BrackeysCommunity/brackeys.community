@@ -113,6 +113,23 @@ export function collabListingDeps(search: CollabBoardSearch) {
 
 export type CollabListingDeps = ReturnType<typeof collabListingDeps>;
 
+/** Names of the active filter groups, for `search_performed`. */
+export function collabFilterKinds(search: CollabBoardSearch): string[] {
+  const input = collabFacetInput(search);
+  const kinds: string[] = [];
+  if (input.type) kinds.push("type");
+  if (input.status) kinds.push("status");
+  if (input.experienceLevel) kinds.push("level");
+  if (input.compensationType) kinds.push("comp");
+  if (input.isIndividual !== undefined) kinds.push("solo");
+  if (input.roleIds) kinds.push("roles");
+  if (input.skillIds) kinds.push("skills");
+  if (input.jamId != null) kinds.push("jam");
+  if (input.teamId != null) kinds.push("team");
+  if (input.projectId != null) kinds.push("project");
+  return kinds;
+}
+
 /** Constraints in force, ignoring sort — sort narrows nothing. */
 export function countActiveCollabFilters(search: CollabBoardSearch): number {
   const input = collabFacetInput(search);

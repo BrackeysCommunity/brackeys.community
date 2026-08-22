@@ -182,7 +182,7 @@ export function SignedOutNotice({ children }: { children: React.ReactNode }) {
         variant="default"
         size="sm"
         className="text-xs font-bold tracking-widest"
-        onClick={() => signInWithDiscord()}
+        onClick={() => signInWithDiscord("settings")}
       >
         LOGIN
       </Button>

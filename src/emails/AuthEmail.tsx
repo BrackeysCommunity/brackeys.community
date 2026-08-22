@@ -1,5 +1,6 @@
 import { Button, Heading, Section, Text } from "@react-email/components";
 
+import { withUtm } from "../lib/email-utm";
 import { OG_ACCENTS } from "../lib/og/palette";
 import { EmailLayout } from "./EmailLayout";
 import { ACCENT, buttonStyle, headingStyle, footerStyle, MUTED, textStyle } from "./theme";
@@ -77,7 +78,7 @@ export function AuthEmail({ variant, recipientName, url, appUrl }: AuthEmailProp
       <Text style={textStyle}>{greeting}</Text>
       <Text style={textStyle}>{copy.body}</Text>
       <Section style={{ textAlign: "center" as const, margin: "24px 0 0" }}>
-        <Button href={url} style={buttonStyle}>
+        <Button href={withUtm(url, "auth", variant)} style={buttonStyle}>
           {copy.cta}
         </Button>
       </Section>

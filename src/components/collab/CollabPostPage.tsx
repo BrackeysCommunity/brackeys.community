@@ -617,7 +617,11 @@ function HeroActions({
             RESPOND TO THIS POST
           </Button>
         ) : (
-          <Button size="sm" className="tracking-widest" onClick={() => signInWithDiscord()}>
+          <Button
+            size="sm"
+            className="tracking-widest"
+            onClick={() => signInWithDiscord("collab_post_respond")}
+          >
             <HugeiconsIcon icon={Login01Icon} size={12} />
             SIGN IN TO RESPOND
           </Button>
@@ -848,7 +852,11 @@ function RespondSection({
           <Text size="sm" variant="muted">
             Sign in with Discord to respond to this post.
           </Text>
-          <Button size="sm" className="tracking-widest" onClick={() => signInWithDiscord()}>
+          <Button
+            size="sm"
+            className="tracking-widest"
+            onClick={() => signInWithDiscord("collab_post_respond")}
+          >
             <HugeiconsIcon icon={Login01Icon} size={12} />
             SIGN IN TO RESPOND
           </Button>

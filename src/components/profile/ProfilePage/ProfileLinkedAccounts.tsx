@@ -20,11 +20,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { toastMutationError } from "@/lib/mutation-errors";
-import { reportMutationError } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/posthog";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -206,6 +207,7 @@ function AddProviderMenu({
 
 async function linkGithub(): Promise<void> {
   try {
+    captureEvent(EVENTS.accountLinkStarted, { provider: "github" });
     const result = await authClient.signIn.social({
       provider: "github",
       callbackURL: "/oauth/github/callback",

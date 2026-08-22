@@ -16,7 +16,17 @@ describe("event taxonomy", () => {
   });
 
   it("groups every event under a known domain", () => {
-    const domains = new Set(["auth", "collab", "team", "jam", "profile"]);
+    const domains = new Set([
+      "auth",
+      "account",
+      "collab",
+      "comment",
+      "team",
+      "jam",
+      "notification",
+      "profile",
+      "search",
+    ]);
     for (const name of names) {
       expect(domains, `${name} introduces an unlisted domain`).toContain(name.split("_")[0]);
     }

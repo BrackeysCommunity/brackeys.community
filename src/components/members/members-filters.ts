@@ -138,6 +138,18 @@ export function countActiveMemberFilters(search: MembersSearch): number {
   return count;
 }
 
+/** Names of the active filter groups, for `search_performed`. */
+export function memberFilterKinds(search: MembersSearch): string[] {
+  const kinds: string[] = [];
+  if (search.skills?.length) kinds.push("skills");
+  if (search.roles?.length) kinds.push("roles");
+  if (search.availability?.length) kinds.push("availability");
+  if (search.open) kinds.push("open");
+  if (search.rate != null) kinds.push("rate");
+  if (search.tz != null) kinds.push("tz");
+  return kinds;
+}
+
 /** The patch that drops every constraint. Sort survives a clear. */
 export const CLEARED_MEMBER_FILTERS: Partial<MembersSearch> = {
   q: undefined,

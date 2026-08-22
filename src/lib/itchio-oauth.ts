@@ -1,4 +1,6 @@
 import { env } from "@/env";
+import { EVENTS } from "@/lib/analytics-events";
+import { captureEvent } from "@/lib/posthog";
 import { toast } from "@/lib/toast";
 
 /**
@@ -78,6 +80,7 @@ export function startItchOAuth(): void {
     toast.error("itch.io integration is not configured");
     return;
   }
+  captureEvent(EVENTS.accountLinkStarted, { provider: "itchio" });
   // Preview envs can't be registered as itch redirect URIs, so they send
   // the flow through the registered production callback, which bounces
   // back using the origin carried in `state`.

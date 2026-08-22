@@ -3,8 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { db } from "@/db";
 import { ACCENT, ACCENT_TEXT, BG, FG, FONT_MONO, FONT_SANS, MUTED } from "@/emails/theme";
+import { EVENTS } from "@/lib/analytics-events";
 import { NOTIFICATION_TYPE_LABEL } from "@/lib/notification-copy";
-import { withErrorReporting } from "@/lib/posthog-server";
+import { captureServerEvent, withErrorReporting } from "@/lib/posthog-server";
 import {
   applyUnsubscribe,
   isKnownNotificationType,
@@ -48,7 +49,22 @@ async function handle({ request }: { request: Request }) {
   }
 
   const userId = await resolveUnsubscribeToken(db, token);
-  if (userId) await applyUnsubscribe(db, userId, scope);
+  if (userId) {
+    await applyUnsubscribe(db, userId, scope);
+    if (scope === "all") {
+      captureServerEvent(EVENTS.notificationEmailsDisabled, userId, {
+        disabled: true,
+        via: "email_link",
+      });
+    } else {
+      captureServerEvent(EVENTS.notificationPrefChanged, userId, {
+        type: scope,
+        channel: "email",
+        enabled: false,
+        via: "email_link",
+      });
+    }
+  }
 
   // Our confirmation form marks itself with `confirm=1`; an RFC 8058
   // one-click POST carries `List-Unsubscribe=One-Click` instead and wants

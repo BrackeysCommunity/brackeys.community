@@ -74,6 +74,15 @@ export function countActiveTeamFilters(search: TeamsSearch): number {
   return count;
 }
 
+/** Names of the active filter groups, for `search_performed`. */
+export function teamFilterKinds(search: TeamsSearch): string[] {
+  const kinds: string[] = [];
+  if (search.recruiting) kinds.push("recruiting");
+  if (search.shipped) kinds.push("shipped");
+  if (search.skills?.length) kinds.push("skills");
+  return kinds;
+}
+
 /** The patch that drops every constraint. Sort survives a clear. */
 export const CLEARED_TEAM_FILTERS: Partial<TeamsSearch> = {
   q: undefined,

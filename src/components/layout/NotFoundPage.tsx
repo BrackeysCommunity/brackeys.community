@@ -84,7 +84,11 @@ export function NotFoundPage({ subject = "Page", message }: NotFoundPageProps) {
           <Text as="p" size="sm" variant="muted" textWrap="pretty" className="min-w-0 flex-1">
             Signed out. Some pages only load for members — signing in may bring this one back.
           </Text>
-          <Button variant="outline" className="shrink-0 gap-2" onClick={() => signInWithDiscord()}>
+          <Button
+            variant="outline"
+            className="shrink-0 gap-2"
+            onClick={() => signInWithDiscord("not_found")}
+          >
             <HugeiconsIcon icon={Login01Icon} size={13} />
             Sign In with Discord
           </Button>

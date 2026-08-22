@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
@@ -87,6 +88,13 @@ export function JamEntriesSection({
 
   const entries = data?.entries ?? [];
   const matched = data?.total ?? total;
+
+  useSearchPerformed({
+    surface: "jams",
+    query: debouncedSearch,
+    filterKinds: [],
+    resultCount: isFetching ? null : matched,
+  });
   const totalPages = Math.max(1, Math.ceil(matched / PAGE_SIZE));
 
   // Which of *this page's* games have a canonical project here, so those

@@ -1,6 +1,7 @@
 import { Button, Column, Hr, Link, Row, Section, Text } from "@react-email/components";
 
 import type { NotificationType } from "../db/schema";
+import { withUtm } from "../lib/email-utm";
 import { timeAgo } from "../lib/format-time";
 import {
   NOTIFICATION_CATEGORIES,
@@ -69,7 +70,10 @@ export function WeeklyDigestEmail({
       footer={
         <Text style={footerStyle}>
           You opted in to weekly digests.{" "}
-          <Link href={`${appUrl}/settings?tab=notifications`} style={linkStyle}>
+          <Link
+            href={withUtm(`${appUrl}/settings?tab=notifications`, "digest", "manage_prefs")}
+            style={linkStyle}
+          >
             Manage preferences
           </Link>{" "}
           ·{" "}
@@ -106,7 +110,10 @@ export function WeeklyDigestEmail({
                 <Row>
                   <Column>
                     {href ? (
-                      <Link href={`${appUrl}${href}`} style={itemLinkStyle}>
+                      <Link
+                        href={withUtm(`${appUrl}${href}`, "digest", item.type)}
+                        style={itemLinkStyle}
+                      >
                         {safeHeadline}
                       </Link>
                     ) : (
@@ -123,7 +130,10 @@ export function WeeklyDigestEmail({
         </Section>
       ))}
       <Section style={{ textAlign: "center" as const, margin: "28px 0 8px" }}>
-        <Button href={`${appUrl}/notifications`} style={buttonStyle}>
+        <Button
+          href={withUtm(`${appUrl}/notifications`, "digest", "weekly_digest")}
+          style={buttonStyle}
+        >
           Open inbox
         </Button>
       </Section>

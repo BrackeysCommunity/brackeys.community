@@ -1,7 +1,7 @@
 import { Delete02Icon, PencilEdit01Icon, Sent02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,10 @@ import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
+import { EVENTS } from "@/lib/analytics-events";
 import { timeAgo } from "@/lib/format-time";
 import { Censored } from "@/lib/hooks/use-censored";
-import { reportMutationError } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 import { ResponseThreadPanel } from "./ResponseThreadPanel";
@@ -248,6 +249,12 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const queryClient = useQueryClient();
+
+  // Intent half of the demand funnel — the denominator for
+  // `collab_response_submitted`.
+  useEffect(() => {
+    captureEvent(EVENTS.collabResponseFormOpened, { post_id: postId });
+  }, [postId]);
 
   const respondMutation = useMutation({
     mutationFn: () =>

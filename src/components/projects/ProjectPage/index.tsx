@@ -7,8 +7,10 @@ import { Section } from "@/components/ui/section";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { EVENTS } from "@/lib/analytics-events";
 import { Censored } from "@/lib/hooks/use-censored";
 import { jamLinkParams } from "@/lib/jam-links";
+import { captureEvent } from "@/lib/posthog";
 import { teamLinkParams } from "@/lib/team-links";
 
 import { ProjectCredits } from "./ProjectCredits";
@@ -192,6 +194,12 @@ function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) 
           }
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() =>
+            captureEvent(EVENTS.jamEntryOutboundClicked, {
+              jam_id: appearance.jamId,
+              via: "project_page",
+            })
+          }
           size="xs"
           className="tracking-widest uppercase"
         >

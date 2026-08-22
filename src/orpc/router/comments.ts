@@ -16,6 +16,7 @@ import {
   threadSubscriptions,
   userBlocks,
 } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
 import {
   canViewSubject,
   canWriteSubject,
@@ -30,7 +31,7 @@ import { isStaffMember } from "@/lib/discord";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
-import { bestEffort } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   notifyReporters,
@@ -544,6 +545,12 @@ export const createComment = os
       }
     });
 
+    captureServerEvent(EVENTS.commentPosted, context.user.id, {
+      subject_kind: input.subject.type,
+      is_reply: parent != null,
+      comment_id: created.id,
+    });
+
     return { id: created.id, rootId: created.rootId, depth: created.depth };
   });
 
@@ -649,6 +656,16 @@ export const deleteComment = os
       comment,
       removedById: context.user.id,
       reason: input.reason,
+    });
+
+    captureServerEvent(EVENTS.commentDeleted, context.user.id, {
+      comment_id: comment.id,
+      by:
+        comment.authorId === context.user.id
+          ? "author"
+          : context.isStaff
+            ? "staff"
+            : "subject_owner",
     });
     return { success: true };
   });

@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { activeUserStore } from "@/lib/active-user-store";
+import { EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
-import { resetIdentity } from "@/lib/posthog";
+import { captureEvent, resetIdentity } from "@/lib/posthog";
 import { profileLinkParams } from "@/lib/profile-links";
 import { truncateMiddle } from "@/lib/utils";
 
@@ -113,6 +114,7 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
             await authClient.signOut({
               fetchOptions: {
                 onSuccess: () => {
+                  captureEvent(EVENTS.authSignedOut, { source: "user_menu" });
                   // Drop the analytics identity before the reload, so the
                   // next person on a shared device isn't attributed to this
                   // one.

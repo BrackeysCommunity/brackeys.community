@@ -72,7 +72,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
               variant="default"
               size="sm"
               className="px-4 text-xs font-bold tracking-widest"
-              onClick={() => signInWithDiscord()}
+              onClick={() => signInWithDiscord("mobile_shell")}
             >
               LOGIN
             </Button>

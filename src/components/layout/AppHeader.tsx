@@ -209,7 +209,7 @@ export function AppHeader() {
               <Button
                 variant="default"
                 className="px-5 text-xs font-bold tracking-widest"
-                onClick={() => signInWithDiscord()}
+                onClick={() => signInWithDiscord("header")}
               >
                 LOGIN
               </Button>
@@ -285,7 +285,7 @@ export function AppHeader() {
                       size="sm"
                       className="text-xs font-bold tracking-widest"
                       onClick={() => {
-                        void signInWithDiscord({
+                        void signInWithDiscord("header_menu", {
                           fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },
                         });
                       }}

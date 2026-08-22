@@ -9,6 +9,7 @@ import {
   notifications,
   type NotificationType,
 } from "@/db/schema";
+import { EVENTS } from "@/lib/analytics-events";
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,
@@ -17,6 +18,7 @@ import {
   TYPES_BY_CATEGORY,
   type NotificationCategory,
 } from "@/lib/notification-copy";
+import { captureServerEvent } from "@/lib/posthog-server";
 import {
   isEmailGloballyDisabled,
   setEmailsDisabled as setEmailsDisabledForUser,
@@ -231,6 +233,10 @@ export const setEmailsDisabled = os
   .input(z.object({ disabled: z.boolean() }))
   .handler(async ({ input, context }) => {
     await setEmailsDisabledForUser(db, context.user.id, input.disabled);
+    captureServerEvent(EVENTS.notificationEmailsDisabled, context.user.id, {
+      disabled: input.disabled,
+      via: "settings",
+    });
     return { ok: true };
   });
 
@@ -271,6 +277,17 @@ export const updatePreference = os
         target: [notificationPreferences.userId, notificationPreferences.type],
         set: { ...patch, updatedAt: now },
       });
+
+    // One event per channel the caller touched — the UI sends one checkbox
+    // per click, so this is one event in practice.
+    for (const [channel, enabled] of Object.entries(patch)) {
+      captureServerEvent(EVENTS.notificationPrefChanged, context.user.id, {
+        type: input.type,
+        channel,
+        enabled,
+        via: "settings",
+      });
+    }
 
     return { ok: true };
   });

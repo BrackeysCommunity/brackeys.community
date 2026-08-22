@@ -18,8 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { EVENTS } from "@/lib/analytics-events";
 import { errorMessage } from "@/lib/error-message";
-import { reportMutationError } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/posthog";
 import { client, orpc } from "@/orpc/client";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -51,6 +52,12 @@ export function TeamCreateDrawer({ open, onClose }: { open: boolean; onClose: ()
       if (avatar) URL.revokeObjectURL(avatar.previewUrl);
     };
   }, [avatar]);
+
+  // Intent half of the team-formation funnel — the denominator for
+  // `team_created`.
+  useEffect(() => {
+    if (open) captureEvent(EVENTS.teamCreateFlowStarted);
+  }, [open]);
 
   const nameError = profanityCheck(name, "Team name");
   const canSubmit = name.trim().length >= 2 && !nameError;

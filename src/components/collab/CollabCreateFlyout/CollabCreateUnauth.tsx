@@ -31,7 +31,7 @@ export function CollabCreateUnauth() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => signInWithDiscord()}
+          onClick={() => signInWithDiscord("collab_create")}
           className="gap-2 border-primary/60 tracking-widest text-primary hover:border-primary hover:bg-primary/10"
         >
           <HugeiconsIcon icon={Login01Icon} size={13} />

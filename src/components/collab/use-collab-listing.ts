@@ -1,10 +1,16 @@
 import { infiniteQueryOptions, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
 import { client, orpc } from "@/orpc/client";
 
-import { type CollabListingDeps, collabListingDeps, useCollabBoardSearch } from "./collab-filters";
+import {
+  type CollabListingDeps,
+  collabFilterKinds,
+  collabListingDeps,
+  useCollabBoardSearch,
+} from "./collab-filters";
 
 const PAGE_SIZE = 20;
 
@@ -66,6 +72,13 @@ export function useCollabListing(currentUserId?: string | null) {
   });
 
   const postsQuery = useInfiniteQuery(collabPostsQueryOptions(collabListingDeps(search)));
+
+  useSearchPerformed({
+    surface: "collab",
+    query: search.q,
+    filterKinds: collabFilterKinds(search),
+    resultCount: postsQuery.isLoading ? null : (postsQuery.data?.pages[0]?.total ?? 0),
+  });
 
   const allPosts = useMemo(
     () => postsQuery.data?.pages.flatMap((p) => p.posts) ?? [],

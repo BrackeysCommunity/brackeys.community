@@ -1304,6 +1304,11 @@ export const leaveTeam = os
         .where(and(eq(collabPosts.teamId, input.teamId), eq(collabPosts.status, "recruiting")));
     }
 
+    captureServerEvent(EVENTS.teamLeft, context.user.id, {
+      team_id: input.teamId,
+      team_archived: memberCount === 1,
+    });
+
     return { success: true };
   });
 

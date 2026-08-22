@@ -17,8 +17,10 @@ import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
+import { EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
 import { toastMutationError } from "@/lib/mutation-errors";
+import { captureEvent, resetIdentity } from "@/lib/posthog";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
 
@@ -135,7 +137,14 @@ export function AccountSection() {
           onClick={async () => {
             await authClient.signOut({
               fetchOptions: {
-                onSuccess: () => navigate({ to: "/", reloadDocument: true }),
+                onSuccess: () => {
+                  captureEvent(EVENTS.authSignedOut, { source: "settings" });
+                  // Drop the analytics identity before the reload, so the
+                  // next person on a shared device isn't attributed to this
+                  // one.
+                  resetIdentity();
+                  navigate({ to: "/", reloadDocument: true });
+                },
               },
             });
           }}
