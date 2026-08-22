@@ -612,6 +612,23 @@
   animation: scanlines-scroll 0.2s linear infinite;
 }
 
+/* The carousel pill's fill; each caller sets `animation-duration` to its
+   slide hold. scaleX inside the pill's overflow clip, so the shrinking
+   edge needs no rounding of its own. */
+@keyframes carousel-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.animate-carousel-drain {
+  transform-origin: right;
+  animation: carousel-drain linear forwards;
+}
+
 .animate-terminal-blink {
   animation: terminal-blink 1.1s step-end infinite;
 }

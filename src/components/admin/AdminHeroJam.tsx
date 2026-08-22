@@ -261,11 +261,14 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
   const active = slides[index % slides.length]!;
   const jam = active.jam;
 
+  // One timeout per slide rather than an interval: a manual dot click then
+  // gets a full hold too, which keeps the active dot's drain honest.
+  const rotating = !reduced && !paused && slides.length > 1;
   useEffect(() => {
-    if (reduced || paused || slides.length < 2) return;
-    const timer = setInterval(() => setIndex((i) => (i + 1) % slides.length), SLIDE_MS);
-    return () => clearInterval(timer);
-  }, [reduced, paused, slides.length]);
+    if (!rotating) return;
+    const timer = setTimeout(() => setIndex((index + 1) % slides.length), SLIDE_MS);
+    return () => clearTimeout(timer);
+  }, [rotating, index, slides.length]);
 
   const [bgColor1, bgColor2] = useJamGradient(jam);
   const state = effectiveJamState(jam.startsAt, jam.endsAt, now);
@@ -310,6 +313,7 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
             slides={slides.map((slide) => slide.jam)}
             active={index % slides.length}
             onSelect={setIndex}
+            countdown={{ durationMs: SLIDE_MS, running: rotating }}
             className="absolute bottom-3 left-3 z-20"
           />
         )}

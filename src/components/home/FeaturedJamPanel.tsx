@@ -254,12 +254,14 @@ export function FeaturedJamPanel({
   const morph = reduced ? INSTANT : MORPH;
   const crossfade = reduced ? INSTANT : CROSSFADE;
 
+  // One timeout per slide rather than an interval: a manual dot click then
+  // gets a full hold too, which keeps the active dot's drain honest.
   const rotating = heroes.length > 1 && !reduced && !hovered && !showEntries && !floating;
   useEffect(() => {
     if (!rotating) return;
-    const timer = setInterval(() => setSlide((i) => (i + 1) % heroes.length), SLIDE_MS);
-    return () => clearInterval(timer);
-  }, [rotating, heroes.length]);
+    const timer = setTimeout(() => setSlide((slide + 1) % heroes.length), SLIDE_MS);
+    return () => clearTimeout(timer);
+  }, [rotating, slide, heroes.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -364,6 +366,7 @@ export function FeaturedJamPanel({
                 slides={heroes.map((h) => h.jam)}
                 active={slide % heroes.length}
                 onSelect={setSlide}
+                countdown={{ durationMs: SLIDE_MS, running: rotating }}
                 className={`absolute z-20 ${isCompact ? "bottom-3 left-3" : "bottom-4 left-4"}`}
               />
             )}
