@@ -10,12 +10,12 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
-import { invalidateNotifications } from "@/components/notifications/notification-queries";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
 import { NOTIFICATION_CATEGORY, type NotificationCategory } from "@/lib/notification-copy";
+import { invalidateNotifications } from "@/lib/notification-queries";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 

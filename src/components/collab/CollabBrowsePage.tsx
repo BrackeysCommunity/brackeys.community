@@ -13,13 +13,13 @@ import { Kbd } from "@/components/ui/kbd";
 import { PageStack } from "@/components/ui/page-motion";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { useLaneRelease } from "@/hooks/use-lane-release";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import { beginWizardCreate, collabStore, resetWizard, updateWizardDraft } from "@/lib/collab-store";
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
+import { useLaneRelease } from "@/lib/hooks/use-lane-release";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -241,6 +241,7 @@ export function CollabBrowsePage() {
     <>
       <div
         ref={setToolbarEl}
+        data-cursor-occlude=""
         className="header-follow toolbar-band sticky top-0 z-20 lg:before:absolute lg:before:inset-y-0 lg:before:left-full lg:before:w-96 lg:before:bg-background lg:before:content-['']"
         style={{ marginBottom: laneRelease }}
       >

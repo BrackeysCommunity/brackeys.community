@@ -6,9 +6,9 @@ import { motion } from "framer-motion";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { BrackeysMark } from "@/components/ui/brackeys-mark";
 import { Button } from "@/components/ui/button";
-import { useHeaderShift } from "@/hooks/use-header-shift";
-import { useHeaderSlideTransition, useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
+import { useHeaderShift } from "@/lib/hooks/use-header-shift";
+import { useHeaderSlideTransition, useHideOnScrollDown } from "@/lib/hooks/use-hide-on-scroll-down";
 
 // Header h-14 (3.5rem) + iOS notch / Android status bar.
 const HEADER_HEIGHT = "calc(3.5rem + env(safe-area-inset-top))";

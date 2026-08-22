@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
-import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
+import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
 import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 

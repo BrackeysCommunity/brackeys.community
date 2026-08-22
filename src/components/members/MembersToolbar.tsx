@@ -2,6 +2,7 @@ import { SortByDown02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 
+import { FILTER_TOGGLE } from "@/components/common/ActiveFilterBar";
 import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +24,6 @@ import { SearchField } from "@/components/ui/search-field";
 import {
   AVAILABILITY_OPTIONS,
   DEFAULT_SORT,
-  FILTER_TOGGLE,
   type MemberAvailability,
   type MembersSearch,
   type MembersSort,

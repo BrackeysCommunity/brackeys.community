@@ -3,6 +3,7 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { type effectiveJamState } from "@/lib/jam-countdown";
+import { hostName } from "@/lib/jam-links";
 import { hoverPlaySources } from "@/lib/still-image";
 
 import { type JamLike, shortName } from "./types";
@@ -39,7 +40,7 @@ export function JamBannerArt({ jam, isCompact }: { jam: JamLike; isCompact: bool
       {jam.hosts[0] && (
         <div className={`absolute ${isCompact ? "top-3 right-3" : "top-4 right-4"} z-10`}>
           <Badge variant="secondary" className="tracking-widest uppercase">
-            {jam.hosts[0].name}
+            {hostName(jam)}
           </Badge>
         </div>
       )}

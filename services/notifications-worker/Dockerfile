@@ -21,6 +21,10 @@ COPY services/notifications-worker/src ./services/notifications-worker/src
 # schema, default prefs, email headline text, and one-click-unsub
 # token logic all live in a single source of truth.
 COPY src/db/schema.ts ./src/db/schema.ts
+COPY src/db/service-client.ts ./src/db/service-client.ts
+COPY src/lib/service-config.ts ./src/lib/service-config.ts
+COPY src/lib/bull-redis.ts ./src/lib/bull-redis.ts
+COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/profanity.ts ./src/lib/profanity.ts
 COPY src/lib/format-time.ts ./src/lib/format-time.ts

@@ -8,7 +8,9 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { DAY_MS } from "@/lib/format-time";
 import { jamDate } from "@/lib/jam-links";
+import { safeThemeColor } from "@/lib/jam-palette";
 import { cn } from "@/lib/utils";
 
 import { dayCellLayoutId, DayDetailModal } from "./DayDetailPanel";
@@ -21,7 +23,6 @@ import {
   type JamFromList,
   jamSignal,
   monthGridDays,
-  safeThemeColor,
 } from "./helpers";
 import { JamDetailModal } from "./JamDetailModal";
 
@@ -348,7 +349,7 @@ function WeekRow({
 
 /** UTC day index (days since epoch) — spans are day-quantized. */
 function dayIndex(d: Date): number {
-  return Math.floor(d.getTime() / 86_400_000);
+  return Math.floor(d.getTime() / DAY_MS);
 }
 
 /**

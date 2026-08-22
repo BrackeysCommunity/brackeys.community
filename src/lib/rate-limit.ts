@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/client";
 import type IORedis from "ioredis";
 
 import { createRedisClient } from "@/lib/redis";
@@ -34,5 +35,22 @@ export async function checkRateLimit(
     return count <= limit;
   } catch {
     return true;
+  }
+}
+
+/**
+ * The router-side guard: `checkRateLimit` plus the TOO_MANY_REQUESTS the
+ * seven write paths used to hand-roll around it. `message` is the
+ * user-facing copy — keep it specific to the action being limited.
+ */
+export async function assertRateLimit(
+  bucket: string,
+  userId: string,
+  limit: number,
+  message: string,
+  windowSeconds?: number,
+): Promise<void> {
+  if (!(await checkRateLimit(bucket, userId, limit, windowSeconds))) {
+    throw new ORPCError("TOO_MANY_REQUESTS", { message });
   }
 }

@@ -1,5 +1,5 @@
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
-import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
+import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 
 import { CollabPostDetail } from "./CollabPostDetail";
 

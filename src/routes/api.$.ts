@@ -19,6 +19,8 @@ import {
   uploadImageToStorage,
   uploadProfileProjectImageToStorage,
 } from "@/lib/profile-project-image-storage";
+import { loadProjectForEditor } from "@/lib/project-editors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   buildCollabPostImageObjectKey,
   buildProjectImageObjectKey,
@@ -26,9 +28,7 @@ import {
   buildTeamBannerObjectKey,
   buildTeamProjectImageObjectKey,
   isProjectImageKey,
-} from "@/lib/profile-project-images";
-import { loadProjectForEditor } from "@/lib/project-editors";
-import { checkRateLimit } from "@/lib/rate-limit";
+} from "@/lib/stored-image-keys";
 import { reportProcedureErrors } from "@/orpc/error-reporting";
 import router from "@/orpc/router";
 

@@ -1,9 +1,9 @@
 import { useStore } from "@tanstack/react-store";
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { authStore } from "@/lib/auth-store";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 
 import { CollabCreateForm } from "./CollabCreateForm";
 import { CollabCreateUnauth } from "./CollabCreateUnauth";

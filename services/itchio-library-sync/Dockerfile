@@ -24,6 +24,8 @@ COPY services/itchio-library-sync/src ./services/itchio-library-sync/src
 # and `member-name.ts`, and `itchio.ts` is the shared API client; none of them
 # imports the app's `db` or its `@/` alias.
 COPY src/db/schema.ts ./src/db/schema.ts
+COPY src/db/service-client.ts ./src/db/service-client.ts
+COPY src/lib/service-config.ts ./src/lib/service-config.ts
 COPY src/lib/project-sync.ts ./src/lib/project-sync.ts
 COPY src/lib/project-taxonomy.ts ./src/lib/project-taxonomy.ts
 COPY src/lib/itch-urls.ts ./src/lib/itch-urls.ts

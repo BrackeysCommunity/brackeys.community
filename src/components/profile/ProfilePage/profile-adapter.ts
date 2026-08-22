@@ -128,7 +128,8 @@ export interface RpcProfile {
  */
 export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
   const { profile } = rpc;
-  const handle = rpc.urlStub ?? profile.discordUsername ?? profile.id;
+  // `||` not `??`, matching `profileSlug`: an empty stub is not a claimed handle.
+  const handle = rpc.urlStub || profile.discordUsername || profile.id;
   const slug = profileSlug({ id: profile.id, urlStub: rpc.urlStub });
   const displayName = memberName(profile, handle).trim();
   const tag = profile.tagline?.trim() || null;

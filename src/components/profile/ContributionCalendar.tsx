@@ -4,10 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel } from "@/components/ui/typography";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { formatCount } from "@/lib/format-count";
 import type { ContributionDay } from "@/lib/github";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
@@ -463,9 +464,9 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
   if (isLoading) {
     return (
       <div className={cn("px-3 py-3 sm:px-5 sm:py-4", className)}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-2.5 w-20 rounded-sm bg-muted/40" />
-          <div className="h-[82px] rounded-sm bg-muted/20" />
+        <div className="space-y-2">
+          <Skeleton className="h-2.5 w-20 rounded-sm bg-muted/40" />
+          <Skeleton className="h-[82px] rounded-sm bg-muted/20" />
         </div>
       </div>
     );

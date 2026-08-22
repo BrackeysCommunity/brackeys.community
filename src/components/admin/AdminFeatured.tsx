@@ -4,9 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { AdminEmpty, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
+import { AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
@@ -67,7 +68,7 @@ export function AdminFeatured() {
             <Skeleton className="h-16 w-full" />
           </div>
         ) : featuredPosts.length === 0 ? (
-          <AdminEmpty>Nothing is pinned. The board is in pure recency order.</AdminEmpty>
+          <Empty>Nothing is pinned. The board is in pure recency order.</Empty>
         ) : (
           <div className="flex flex-col gap-3">
             {featuredPosts.map((post) => (
@@ -97,7 +98,7 @@ export function AdminFeatured() {
         {trimmed.length <= 1 ? null : results.isPending ? (
           <Skeleton className="h-16 w-full" />
         ) : (results.data?.posts.length ?? 0) === 0 ? (
-          <AdminEmpty>No posts match “{trimmed}”.</AdminEmpty>
+          <Empty>No posts match “{trimmed}”.</Empty>
         ) : (
           <div className="flex flex-col gap-3">
             {(results.data?.posts ?? []).map((post: ListedPost) => {

@@ -34,12 +34,13 @@ import {
   resolveTeamAvatarUrl,
   resolveTeamBannerUrl,
 } from "@/lib/profile-project-image-storage";
-import { isTeamProjectImageKey, uploadedImageUrlSchema } from "@/lib/profile-project-images";
 import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit } from "@/lib/rate-limit";
 // The house home for LIKE escaping — this file carried its own copy, which
 // (unlike the shared one) left a backslash in the search term unescaped.
 import { escapeLike } from "@/lib/sql-like";
+import { isTeamProjectImageKey } from "@/lib/stored-image-keys";
+import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
 import { requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
@@ -1083,11 +1084,13 @@ export const inviteToTeam = os
       throw new ORPCError("FORBIDDEN", { message: "You can't invite this person." });
     }
 
-    if (!(await checkRateLimit("team-invite", context.user.id, 50, 86400))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        message: "You've sent a lot of invites today — try again tomorrow.",
-      });
-    }
+    await assertRateLimit(
+      "team-invite",
+      context.user.id,
+      50,
+      "You've sent a lot of invites today — try again tomorrow.",
+      86400,
+    );
 
     const [existing] = await db
       .select({ id: teamInvites.id })

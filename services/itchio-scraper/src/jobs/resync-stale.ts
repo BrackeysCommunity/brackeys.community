@@ -3,7 +3,7 @@ import { and, eq, isNull, lt, ne, sql } from "drizzle-orm";
 import { itchJamEntries, itchJams } from "../../../../src/db/schema.ts";
 import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { db, pool } from "../db/client.ts";
-import { describeError } from "../http.ts";
+import { describeError, sleep } from "../http.ts";
 import { syncJam } from "./sync-jam.ts";
 
 /**
@@ -39,8 +39,6 @@ import { syncJam } from "./sync-jam.ts";
  *   RESYNC_MAX_JAMS   stop after this many jams (default: unlimited)
  *   RESYNC_DELAY_MS   pause between jams (default: 400, matching backfill)
  */
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type StaleJam = {
   jamId: number;

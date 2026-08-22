@@ -13,8 +13,8 @@ import { useEffect, useState } from "react";
 
 import { useAttention } from "@/components/attention/use-attention";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useMyProfileParams } from "@/hooks/use-my-profile-params";
 import { authClient } from "@/lib/auth-client";
+import { useMyProfileParams } from "@/lib/hooks/use-my-profile-params";
 import { stillImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";

@@ -6,20 +6,21 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { DirectorySkeleton } from "@/components/common/DirectorySkeleton";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { PageStack } from "@/components/ui/page-motion";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useMyProfileParams } from "@/hooks/use-my-profile-params";
-import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
+import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { useMyProfileParams } from "@/lib/hooks/use-my-profile-params";
+import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { fadeIn, fadeUp } from "@/lib/motion";
 
@@ -110,19 +111,11 @@ export function MembersDiscoveryPage() {
     resultCount: isLoading ? null : total,
   });
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isFetchingNextPage) void fetchNextPage();
-      },
-      { rootMargin: "400px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const sentinelRef = useInfiniteScrollSentinel({
+    hasNextPage,
+    isFetching: isFetchingNextPage,
+    fetchNext: fetchNextPage,
+  });
 
   return (
     <PageStack className="flex flex-col gap-8 selection:bg-primary selection:text-white">
@@ -138,7 +131,7 @@ export function MembersDiscoveryPage() {
           transform on its ancestor makes it jump when the rise ends. */}
       <motion.section variants={fadeIn} className="flex flex-col gap-3">
         {/* Same construction as the team directory's — see the comment there. */}
-        <div className="header-follow-inset toolbar-band sticky z-20">
+        <div data-cursor-occlude="" className="header-follow-inset toolbar-band sticky z-20">
           <MembersToolbar
             search={search}
             setSearch={setSearch}
@@ -291,15 +284,5 @@ function DirectoryEmptyState({ onClear }: { onClear: () => void }) {
         CLEAR ALL FILTERS
       </Button>
     </Well>
-  );
-}
-
-function DirectorySkeleton({ count = 6 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <Skeleton key={i} className="h-42 w-full" />
-      ))}
-    </div>
   );
 }

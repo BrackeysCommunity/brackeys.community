@@ -1,6 +1,6 @@
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Well } from "@/components/ui/well";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 
 /**
  * Holds the profile's shape while `getProfile` resolves — hero card,

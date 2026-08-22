@@ -50,10 +50,6 @@ import {
   removeProfileProjectImageFromStorage,
 } from "@/lib/profile-project-image-storage";
 import {
-  isOwnedProfileProjectImageKey,
-  uploadedImageUrlSchema,
-} from "@/lib/profile-project-images";
-import {
   PROFILE_PROJECT_SUBTYPES,
   type ProfileProjectSubType,
   getAllowedSubTypesForProjectType,
@@ -61,8 +57,10 @@ import {
 } from "@/lib/profile-projects";
 import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit } from "@/lib/rate-limit";
 import { escapeLike, likeContains } from "@/lib/sql-like";
+import { isOwnedProfileProjectImageKey } from "@/lib/stored-image-keys";
+import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { isValidTimezone } from "@/lib/timezones";
 import { STUB_REGEX } from "@/lib/url-stub";
 import { requireAuth } from "@/orpc/middleware/auth";
@@ -692,11 +690,12 @@ export const updateProfile = os
     }
 
     // Anti-runaway, not anti-user — the editor autosaves field by field.
-    if (!(await checkRateLimit("profile-update", userId, 120))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        message: "Too many profile updates — try again in a bit.",
-      });
-    }
+    await assertRateLimit(
+      "profile-update",
+      userId,
+      120,
+      "Too many profile updates — try again in a bit.",
+    );
 
     await assertRatePairOrdered(userId, input);
 

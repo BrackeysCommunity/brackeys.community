@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import {
-  AdminEmpty,
   AdminPager,
   AdminPerson,
   AdminRow,
@@ -13,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
@@ -88,7 +88,7 @@ export function AdminRecentComments() {
           <Skeleton className="h-20 w-full" />
         </div>
       ) : items.length === 0 ? (
-        <AdminEmpty>Nothing has been said yet.</AdminEmpty>
+        <Empty>Nothing has been said yet.</Empty>
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((comment) => (

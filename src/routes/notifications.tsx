@@ -3,7 +3,6 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { z } from "zod";
 
-import { invalidateNotifications } from "@/components/notifications/notification-queries";
 import { NotificationsHero } from "@/components/notifications/NotificationsHero";
 import {
   NotificationsInbox,
@@ -12,6 +11,8 @@ import {
 import { UnderlineTabs, type UnderlineTab } from "@/components/ui/underline-tabs";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { EASE_OUT } from "@/lib/motion";
+import { invalidateNotifications } from "@/lib/notification-queries";
+import { pageTitle } from "@/lib/site-meta";
 import { client, orpc } from "@/orpc/client";
 
 // `view` survives only so the old `?view=preferences` links still resolve —
@@ -111,5 +112,5 @@ export const Route = createFileRoute("/notifications")({
     }
   },
   component: NotificationsRoute,
-  head: () => ({ meta: [{ title: "Inbox · Brackeys Community" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Inbox") }] }),
 });

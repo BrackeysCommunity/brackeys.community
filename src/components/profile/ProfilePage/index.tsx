@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
 import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { captureEvent } from "@/lib/posthog";
 
 import type { ProfileViewModel } from "./helpers";

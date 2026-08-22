@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { AdminEmpty, AdminPager, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
+import { AdminPager, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
+import { Empty } from "@/components/ui/empty";
 import { NativeSelect } from "@/components/ui/native-select";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -110,7 +111,7 @@ export function AdminLog() {
       {log.isPending ? (
         <Skeleton className="h-24 w-full" />
       ) : rows.length === 0 ? (
-        <AdminEmpty>Nothing matches that filter.</AdminEmpty>
+        <Empty>Nothing matches that filter.</Empty>
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((row) => (

@@ -22,7 +22,7 @@
  * https://developers.cloudflare.com/images/transform-images/transform-via-url/
  */
 import { env } from "@/env";
-import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 
 export interface ItchImageOpts {
   /** Target width in CSS px. Omit to re-encode at the source's own size. */

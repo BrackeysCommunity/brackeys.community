@@ -9,11 +9,11 @@ import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
-import { useHeaderShift } from "@/hooks/use-header-shift";
-import { useHeaderSlideTransition, useHideOnScrollDown } from "@/hooks/use-hide-on-scroll-down";
-import { useTopEdgePeek } from "@/hooks/use-top-edge-peek";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
+import { useHeaderShift } from "@/lib/hooks/use-header-shift";
+import { useHeaderSlideTransition, useHideOnScrollDown } from "@/lib/hooks/use-hide-on-scroll-down";
+import { useTopEdgePeek } from "@/lib/hooks/use-top-edge-peek";
 import { HOVER_CUE, NAV_LINK_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +114,7 @@ export function AppHeader() {
         animate={{ y: hidden ? "-100%" : "0%" }}
         transition={slide}
         inert={hidden}
+        data-cursor-occlude=""
         className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex h-[var(--app-header-height)] items-center justify-between border-b border-b-emboss-shadow bg-background px-4 shadow-sm sm:px-6 lg:px-10"
       >
         {/* Logo */}

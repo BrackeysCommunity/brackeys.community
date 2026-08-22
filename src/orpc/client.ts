@@ -12,6 +12,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 // posthog-server pulls in posthog-node.
 import { reportProcedureErrors } from "@/orpc/error-reporting";
 import { isPublicProcedure } from "@/orpc/public-procedures";
+import { isReadName } from "@/orpc/read-names";
 import { markWrite, shouldBypassPublicCache } from "@/orpc/recent-write";
 import router from "@/orpc/router";
 import type AppRouter from "@/orpc/router";
@@ -56,16 +57,6 @@ const getORPCClient = createIsomorphicFn()
         fallbackMethod: "POST",
       }),
     );
-
-    // Reads follow the get/list/count/search naming convention throughout
-    // the router; everything else is a write. Writes stamp the
-    // recent-write window below, so the convention is load-bearing in
-    // both directions: a write named `get…` would silently skip the
-    // stamp, and a read that falls outside the convention (today only
-    // `unreadCount`, which polls) would keep the window open forever.
-    const EXTRA_READ_NAMES = new Set(["unreadCount"]);
-    const isReadName = (name: string) =>
-      /^(get|list|count|search)[A-Z]/.test(name) || EXTRA_READ_NAMES.has(name);
 
     // Both routers are flat and share procedure names, so dispatching by
     // name is the whole facade: `orpc.listJams…` keeps its call signature

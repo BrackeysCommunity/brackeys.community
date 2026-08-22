@@ -4,12 +4,12 @@ import { Client } from "minio";
 
 import { env } from "@/env";
 import {
-  buildProfileProjectImageObjectKey,
   isAllowedProfileProjectImageType,
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
-  STORED_IMAGE_ROUTE_PREFIX,
   type UploadedProfileProjectImage,
-} from "@/lib/profile-project-images";
+} from "@/lib/image-upload-policy";
+import { buildProfileProjectImageObjectKey } from "@/lib/stored-image-keys";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 
 export class ProfileProjectImageUploadError extends Error {
   status: number;

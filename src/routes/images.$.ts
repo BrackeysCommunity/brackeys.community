@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { withErrorReporting } from "@/lib/posthog-server";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
-import { isServableImageKey } from "@/lib/profile-project-images";
+import { isServableImageKey } from "@/lib/stored-image-keys";
 
 /**
  * Stable public URLs for uploaded images (project covers, team avatars,

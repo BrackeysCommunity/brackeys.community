@@ -6,6 +6,7 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { DirectorySkeleton } from "@/components/common/DirectorySkeleton";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { GraphPaper } from "@/components/ui/graph-paper";
@@ -14,11 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useReleaseFocusOnOpen } from "@/hooks/use-release-focus";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
+import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
@@ -128,19 +130,11 @@ export function TeamsDiscoveryPage() {
   });
   const isFiltered = countActiveTeamFilters(search) > 0;
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isFetchingNextPage) void fetchNextPage();
-      },
-      { rootMargin: "400px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const sentinelRef = useInfiniteScrollSentinel({
+    hasNextPage,
+    isFetching: isFetchingNextPage,
+    fetchNext: fetchNextPage,
+  });
 
   const startTeam = () => {
     if (!isPending && !session?.user) {
@@ -169,7 +163,7 @@ export function TeamsDiscoveryPage() {
             grid passes behind an opaque band; `header-follow-inset` closes the
             band the header leaves behind. The count and chips are a readout
             rather than a control, so they scroll off with it. */}
-        <div className="header-follow-inset toolbar-band sticky z-20">
+        <div data-cursor-occlude="" className="header-follow-inset toolbar-band sticky z-20">
           <TeamsToolbar
             search={search}
             setSearch={setSearch}
@@ -376,15 +370,5 @@ function DirectoryEmptyState({
         {filtered ? "CLEAR ALL FILTERS" : "START A TEAM"}
       </Button>
     </Well>
-  );
-}
-
-function DirectorySkeleton({ count = 6 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <Skeleton key={i} className="h-42 w-full" />
-      ))}
-    </div>
   );
 }

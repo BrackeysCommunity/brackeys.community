@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseServiceConfig } from "../../../src/lib/service-config.ts";
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   SCRAPE_ENTRY_RESULTS: z.enum(["always", "after-voting", "never"]).default("after-voting"),
@@ -74,5 +76,5 @@ const schema = z.object({
   SWEEP_GAP_END: z.coerce.number().int().nonnegative().default(240_000),
 });
 
-export const config = schema.parse(process.env);
+export const config = parseServiceConfig(schema);
 export type Config = typeof config;

@@ -1,14 +1,15 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 
 import {
   NotificationRow,
   NotificationRowsSkeleton,
   type NotificationItem,
-} from "@/components/notifications/notification-utils";
+} from "@/components/notifications/notification-row";
 import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
+import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
 import { type NotificationCategory } from "@/lib/notification-copy";
 import { orpc } from "@/orpc/client";
 
@@ -43,8 +44,6 @@ export interface NotificationsInboxProps {
 }
 
 export function NotificationsInbox({ filter }: NotificationsInboxProps) {
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
   const unreadOnly = filter === "unread";
   // Every filter that isn't "all"/"unread" *is* a category, so it goes to
   // the server as one rather than being restated tab by tab.
@@ -74,20 +73,12 @@ export function NotificationsInbox({ filter }: NotificationsInboxProps) {
     [pages],
   );
 
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          void fetchNextPage();
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const sentinelRef = useInfiniteScrollSentinel({
+    hasNextPage: Boolean(hasNextPage),
+    isFetching: isFetchingNextPage,
+    fetchNext: fetchNextPage,
+    rootMargin: "200px",
+  });
 
   const empty = EMPTY_COPY[filter];
 

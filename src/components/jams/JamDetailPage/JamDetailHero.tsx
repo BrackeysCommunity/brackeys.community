@@ -7,12 +7,13 @@ import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { BACKDROP_TRANSFORM, itchImageSrcSet } from "@/lib/itch-image";
 import { durationDays, formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamUrl } from "@/lib/jam-links";
+import { safeThemeColor } from "@/lib/jam-palette";
 import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 
 import { MILESTONE_GLYPH, MILESTONE_VARIANT } from "../JamCalendarPage/board/milestones";
 import { useJamColor, useJamGradient } from "../JamCalendarPage/board/use-jam-color";
-import { type JamPhase, jamStats, nextMilestone, safeThemeColor } from "../JamCalendarPage/helpers";
+import { type JamPhase, jamStats, nextMilestone } from "../JamCalendarPage/helpers";
 import { JamLifecycleStrip } from "./JamLifecycleStrip";
 import type { JamDetailRow } from "./types";
 

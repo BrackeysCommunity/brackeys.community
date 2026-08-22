@@ -5,7 +5,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
-import { AdminEmpty, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
+import { AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
 import { heroPinApplies } from "@/components/home/hero-jam";
 import {
   BANNER_TRANSITION,
@@ -27,6 +27,7 @@ import {
 } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
@@ -127,7 +128,7 @@ export function AdminHeroJam() {
         {isPending ? (
           <Skeleton className="h-56 w-full" />
         ) : slides.length === 0 ? (
-          <AdminEmpty>Nothing is live or upcoming, so the hero has no jam to show.</AdminEmpty>
+          <Empty>Nothing is live or upcoming, so the hero has no jam to show.</Empty>
         ) : (
           <HeroCarousel slides={slides} now={nowDate} />
         )}
@@ -141,10 +142,10 @@ export function AdminHeroJam() {
         {isPending ? (
           <Skeleton className="h-16 w-full" />
         ) : pins.length === 0 ? (
-          <AdminEmpty>
+          <Empty>
             Nothing is pinned. With no Brackeys jam running, the hero falls to whichever jam has the
             most joins.
-          </AdminEmpty>
+          </Empty>
         ) : (
           <div className="flex flex-col gap-3">
             {pins.map((pin) => {
@@ -198,7 +199,7 @@ export function AdminHeroJam() {
         {trimmed.length <= 1 ? null : board.isPending ? (
           <Skeleton className="h-16 w-full" />
         ) : candidates.length === 0 ? (
-          <AdminEmpty>No live or upcoming jam matches “{trimmed}”.</AdminEmpty>
+          <Empty>No live or upcoming jam matches “{trimmed}”.</Empty>
         ) : (
           <div className="flex flex-col gap-3">
             {candidates.map((jam) => {

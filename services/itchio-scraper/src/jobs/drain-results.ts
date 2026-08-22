@@ -1,7 +1,7 @@
 import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { config } from "../config.ts";
 import { pool } from "../db/client.ts";
-import { describeError } from "../http.ts";
+import { describeError, sleep } from "../http.ts";
 import { pendingJams } from "./selectors.ts";
 import { syncEntryResults } from "./sync-jam.ts";
 
@@ -32,8 +32,6 @@ import { syncEntryResults } from "./sync-jam.ts";
  * to look at land first. `smallest` instead takes the jams with the fewest
  * pending entries, which clears the backlog *count* fastest.
  */
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];

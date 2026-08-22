@@ -131,16 +131,6 @@ export function AdminSection({
   );
 }
 
-export function AdminEmpty({ children }: { children: React.ReactNode }) {
-  return (
-    <Well className="items-center justify-center p-10" variant="ghost">
-      <Text size="sm" variant="muted" align="center">
-        {children}
-      </Text>
-    </Well>
-  );
-}
-
 /** The shape every admin surface hydrates a person into. `urlStub` is
  * optional because the link falls back to the raw id — see
  * `profileLinkParams`. */

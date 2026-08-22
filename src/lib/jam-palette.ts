@@ -36,3 +36,18 @@ export function pickTwo(palette: string[]): [string, string] {
   if (j === i) j = (j + 1) % palette.length;
   return [palette[i]!, palette[j]!];
 }
+
+/**
+ * Re-validates a scraped theme color before it is interpolated into an
+ * inline `style` — the scraper already validates at ingest, but scraped
+ * text never gets to reach a style attribute on trust.
+ */
+export function safeThemeColor(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const ok =
+    /^#[0-9a-fA-F]{3}$/.test(raw) ||
+    /^#[0-9a-fA-F]{6}$/.test(raw) ||
+    /^#[0-9a-fA-F]{8}$/.test(raw) ||
+    /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)$/.test(raw);
+  return ok ? raw : null;
+}

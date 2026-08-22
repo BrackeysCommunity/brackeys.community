@@ -1,9 +1,9 @@
 import type { RecentEntry } from "@/components/home/use-recent-entries";
-import { safeThemeColor } from "@/components/jams/JamCalendarPage/helpers";
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { safeThemeColor } from "@/lib/jam-palette";
 import { cn } from "@/lib/utils";
 
 /** The slice of an entry the tile renders — structural, since the band

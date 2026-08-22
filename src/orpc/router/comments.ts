@@ -32,7 +32,7 @@ import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit } from "@/lib/rate-limit";
 import {
   notifyReporters,
   resolveReportsForSubject,
@@ -440,11 +440,12 @@ export const createComment = os
       parent = row;
     }
 
-    if (!(await checkRateLimit("comment", context.user.id, 20))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        message: "You're commenting too fast — try again in a bit.",
-      });
-    }
+    await assertRateLimit(
+      "comment",
+      context.user.id,
+      20,
+      "You're commenting too fast — try again in a bit.",
+    );
 
     const created = await db.transaction(async (tx) => {
       const [comment] = await tx
@@ -734,9 +735,7 @@ export const reportComment = os
     if (open) {
       throw new ORPCError("BAD_REQUEST", { message: "You've already reported this comment." });
     }
-    if (!(await checkRateLimit("report", context.user.id, 10))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", { message: "Too many reports — try again later." });
-    }
+    await assertRateLimit("report", context.user.id, 10, "Too many reports — try again later.");
     await db.insert(commentReports).values({
       commentId: input.commentId,
       reporterId: context.user.id,

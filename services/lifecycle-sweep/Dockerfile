@@ -23,6 +23,9 @@ COPY services/lifecycle-sweep/src ./services/lifecycle-sweep/src
 # service's whole view of the repo root: anything `src/index.ts` reaches
 # through `../../../src/` has to be here or the container dies on start.
 COPY src/db/schema.ts ./src/db/schema.ts
+COPY src/db/service-client.ts ./src/db/service-client.ts
+COPY src/lib/service-config.ts ./src/lib/service-config.ts
+COPY src/lib/bull-redis.ts ./src/lib/bull-redis.ts
 COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
 COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts

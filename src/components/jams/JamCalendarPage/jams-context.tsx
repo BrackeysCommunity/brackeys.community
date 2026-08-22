@@ -1,9 +1,10 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { DAY_MS } from "@/lib/format-time";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 
 import { type BoardLayout, type BoardSort } from "./board/build-board";
 import { addMonthsUTC, startOfMonthUTC, type ViewMode } from "./helpers";
@@ -51,9 +52,9 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
   // Only rebuild `today` when the UTC day actually rolls over, not on
   // every `now` tick — otherwise downstream components re-render every
   // second and lose stable identity.
-  const todayDayBucket = Math.floor(nowMs / 86_400_000);
+  const todayDayBucket = Math.floor(nowMs / DAY_MS);
   const today = useMemo(() => {
-    const d = new Date(todayDayBucket * 86_400_000);
+    const d = new Date(todayDayBucket * DAY_MS);
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   }, [todayDayBucket]);
 

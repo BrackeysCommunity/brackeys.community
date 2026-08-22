@@ -1,12 +1,5 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
-
+import { createServiceDb } from "../../../../src/db/service-client.ts";
 import { config } from "../config.ts";
 
-export const pool = new pg.Pool({
-  connectionString: config.DATABASE_URL,
-  max: 4,
-});
-
-export const db = drizzle({ client: pool });
+export const { pool, db } = createServiceDb(config.DATABASE_URL);
 export type DB = typeof db;

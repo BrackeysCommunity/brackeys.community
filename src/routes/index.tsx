@@ -13,7 +13,7 @@ import {
   homeJamsFrom,
 } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { siteOrigin, siteUrl } from "@/env";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { isServerLoad } from "@/lib/route-prefetch";
 import { buildMeta, jsonLd, organizationNode, SITE_NAME } from "@/lib/site-meta";
 

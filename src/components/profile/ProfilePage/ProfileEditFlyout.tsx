@@ -9,7 +9,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Badge } from "@/components/ui/badge";
@@ -37,12 +37,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
-import { useAnimatedUnderline } from "@/hooks/use-animated-underline";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
 import { compensationLabel } from "@/lib/collab-vocabulary";
 import { errorMessage } from "@/lib/error-message";
+import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
+import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { AVAILABILITY_OPTIONS } from "@/lib/member-vocabulary";
@@ -892,14 +894,9 @@ function SkillSearch({
   onRequest: (name: string) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebouncedValue(search, 250);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -1411,25 +1408,4 @@ function useSetUrlStub(queryKey: readonly unknown[] | undefined, save: SaveConte
       save.setStatus("error");
     },
   });
-}
-
-function useDebouncedCallback<T extends (...args: never[]) => void>(fn: T, delay = 600): T {
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const fnRef = useRef(fn);
-  useEffect(() => {
-    fnRef.current = fn;
-  }, [fn]);
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-  const debounced = useCallback(
-    function debouncedFn(...args: Parameters<T>) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => fnRef.current(...args), delay);
-    },
-    [delay],
-  );
-  return debounced as T;
 }

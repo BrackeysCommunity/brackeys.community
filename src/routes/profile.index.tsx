@@ -3,8 +3,8 @@ import { useEffect } from "react";
 
 import { ProfileBuilderPage } from "@/components/profile/ProfileBuilderPage";
 import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePageSkeleton";
-import { useMyProfileParams } from "@/hooks/use-my-profile-params";
 import { authClient } from "@/lib/auth-client";
+import { useMyProfileParams } from "@/lib/hooks/use-my-profile-params";
 import { buildMeta } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/profile/")({

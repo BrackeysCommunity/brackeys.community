@@ -8,8 +8,8 @@ import { TeamPageSkeleton } from "@/components/teams/TeamPageSkeleton";
 import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
 import { siteUrl } from "@/env";
 import { authStore } from "@/lib/auth-store";
-import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 

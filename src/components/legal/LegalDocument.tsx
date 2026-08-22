@@ -4,8 +4,7 @@ import type { ReactNode } from "react";
 import { Section } from "@/components/ui/section";
 import { Heading, MicroLabel, Prose, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-
-import { CONTACT, EFFECTIVE_DATE, LAST_UPDATED } from "./legal-meta";
+import { CONTACT, EFFECTIVE_DATE, LAST_UPDATED } from "@/lib/legal-meta";
 
 export interface LegalSection {
   /** Anchor fragment — stable, because people link to clauses. */

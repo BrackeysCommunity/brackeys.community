@@ -5,7 +5,6 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import {
-  AdminEmpty,
   AdminPager,
   AdminPerson,
   AdminPersonLink,
@@ -23,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Empty } from "@/components/ui/empty";
 import { SearchField } from "@/components/ui/search-field";
 import {
   Select,
@@ -87,7 +87,7 @@ export function AdminBans({ isAdmin }: { isAdmin: boolean }) {
         {bans.isPending ? (
           <Skeleton className="h-16 w-full" />
         ) : active.length === 0 ? (
-          <AdminEmpty>Nobody is banned.</AdminEmpty>
+          <Empty>Nobody is banned.</Empty>
         ) : (
           <div className="flex flex-col gap-2">
             {active.map((entry) => (
@@ -111,7 +111,7 @@ export function AdminBans({ isAdmin }: { isAdmin: boolean }) {
         {bans.isPending ? (
           <Skeleton className="h-12 w-full" />
         ) : lifted.length === 0 ? (
-          <AdminEmpty>Nobody has been unbanned yet.</AdminEmpty>
+          <Empty>Nobody has been unbanned yet.</Empty>
         ) : (
           <div className="flex flex-col gap-2">
             {lifted.map((entry) => (
@@ -271,7 +271,7 @@ function BanDialog({
           ) : results.isPending ? (
             <Skeleton className="h-24 w-full" />
           ) : (results.data?.results.length ?? 0) === 0 ? (
-            <AdminEmpty>Nobody matches that.</AdminEmpty>
+            <Empty>Nobody matches that.</Empty>
           ) : (
             <div className="flex flex-col gap-1">
               {results.data?.results.map((result) => (

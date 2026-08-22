@@ -1,4 +1,5 @@
-import { CONTACT, OPERATOR, SITE } from "./legal-meta";
+import { CONTACT, OPERATOR, SITE } from "@/lib/legal-meta";
+
 import { LegalDocument, type LegalSection } from "./LegalDocument";
 
 /**

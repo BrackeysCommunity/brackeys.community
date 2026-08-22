@@ -18,7 +18,10 @@
       // (two copies — even same-version — are nominally incompatible).
       "drizzle-orm": ["../../node_modules/drizzle-orm"],
       "drizzle-orm/*": ["../../node_modules/drizzle-orm/*"],
-      "pg": ["../../node_modules/@types/pg"]
+      "pg": ["../../node_modules/@types/pg"],
+      // bull-redis.ts (shared, ../../src) binds ioredis types from the repo
+      // root; same one-module-identity rule as drizzle above.
+      "ioredis": ["../../node_modules/ioredis"]
     }
   },
   "include": [

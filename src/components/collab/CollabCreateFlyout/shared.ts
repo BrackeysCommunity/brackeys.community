@@ -10,6 +10,7 @@ import type {
   UploadedImage,
 } from "@/lib/collab-store";
 import { COMPENSATION_VOCAB, CONTACT_VOCAB, EXPERIENCE_VOCAB } from "@/lib/collab-vocabulary";
+import { DAY_MS } from "@/lib/format-time";
 import { postImageForm } from "@/lib/image-upload";
 import type { UploadedImageRecord } from "@/lib/image-upload";
 import { hasProfanity } from "@/lib/profanity";
@@ -273,7 +274,7 @@ export function projectLengthForJam(
   const end = new Date(endsAt).getTime();
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return undefined;
 
-  const days = (end - start) / 86_400_000;
+  const days = (end - start) / DAY_MS;
   if (days <= 7) return "<1 week";
   if (days <= 28) return "1-4 weeks";
   if (days <= 92) return "1-3 months";

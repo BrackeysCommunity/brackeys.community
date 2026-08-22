@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import {
-  AdminEmpty,
   AdminPerson,
   AdminPersonLink,
   type AdminPersonRef,
@@ -14,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
@@ -220,11 +220,11 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           <Skeleton className="h-24 w-full" />
         </div>
       ) : rows.length === 0 ? (
-        <AdminEmpty>
+        <Empty>
           {includeResolved
             ? "Nothing has been resolved yet."
             : "The queue is empty. Nothing needs you right now."}
-        </AdminEmpty>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((row) => {

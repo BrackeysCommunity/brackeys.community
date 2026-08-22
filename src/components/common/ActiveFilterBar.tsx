@@ -5,6 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
+/**
+ * Shared look for the filter row's toggles. The depressed-while-on state
+ * comes from `.chonk-emboss[aria-pressed="true"]` in the stylesheet — the
+ * classes here only carry the color, and are `!` so they beat the outline
+ * variant's own hover background rather than depending on rule order.
+ *
+ * The on-fill is mixed into the button surface rather than laid over it as
+ * `primary/15`: an alpha fill replaces the variant's opaque background, and
+ * the cards scrolling under the sticky toolbar show through the toggle.
+ */
+export const FILTER_TOGGLE =
+  "tracking-widest uppercase aria-pressed:border-primary! aria-pressed:bg-[color-mix(in_oklab,var(--primary)_15%,var(--emboss-surface))]! aria-pressed:text-primary aria-pressed:[--emboss-shadow:var(--primary)]";
+
 export interface ActiveFilterChip {
   key: string;
   label: string;

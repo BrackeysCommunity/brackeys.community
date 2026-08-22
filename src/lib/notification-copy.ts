@@ -4,7 +4,7 @@ import type { NotificationType } from "../db/schema";
  * Plain-text rendering of a notification — server-safe (no JSX, no router
  * imports). Used by email templates and as a fallback when rendering rows
  * outside of a router context. The UI bell uses its own JSX variant in
- * `components/notifications/notification-utils.tsx`.
+ * `components/notifications/notification-row.tsx`.
  */
 export function renderNotificationText(input: {
   type: NotificationType;

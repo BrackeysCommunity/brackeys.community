@@ -10,8 +10,8 @@ import { siteUrl } from "@/env";
 import { authClient } from "@/lib/auth-client";
 import { memberName } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
-import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 

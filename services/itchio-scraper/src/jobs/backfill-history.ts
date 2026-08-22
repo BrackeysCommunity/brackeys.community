@@ -3,6 +3,7 @@ import { eq, exists, sql } from "drizzle-orm";
 import { itchJamEntries, itchJams, itchMissingJams } from "../../../../src/db/schema.ts";
 import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { db, pool } from "../db/client.ts";
+import { sleep } from "../http.ts";
 import { fetchPastSortDatePage } from "../scrape/discover-listings.ts";
 import { runIdSweep } from "./sweep-ids.ts";
 import { ingestJam } from "./sync-jam.ts";
@@ -28,8 +29,6 @@ import { ingestJam } from "./sync-jam.ts";
  *   BACKFILL_OLDEST     ISO date; skip jams that ended before it (default: none)
  *   BACKFILL_DELAY_MS   pause between jams (default: 400)
  */
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type PersistedJamRow = {
   status: string;

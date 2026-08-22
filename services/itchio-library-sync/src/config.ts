@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseServiceConfig } from "../../../src/lib/service-config.ts";
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   SYNC_DELAY_MS: z.coerce.number().int().nonnegative().default(500),
@@ -11,5 +13,5 @@ const schema = z.object({
   USER_AGENT: z.string().default("brackeys-itchio-library-sync/0.1 (+https://brackeys.community)"),
 });
 
-export const config = schema.parse(process.env);
+export const config = parseServiceConfig(schema);
 export type Config = typeof config;

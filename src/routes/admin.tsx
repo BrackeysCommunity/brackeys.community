@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { EASE_OUT } from "@/lib/motion";
+import { pageTitle } from "@/lib/site-meta";
 import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -83,7 +84,7 @@ export const Route = createFileRoute("/admin")({
     return { isAdmin: status.isAdmin };
   },
   component: AdminRoute,
-  head: () => ({ meta: [{ title: "Admin · Brackeys Community" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Admin") }] }),
 });
 
 /**

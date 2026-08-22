@@ -8,10 +8,9 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { formatCount } from "@/lib/format-count";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
+import { safeThemeColor } from "@/lib/jam-palette";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
-
-import { safeThemeColor } from "../JamCalendarPage/helpers";
 
 /**
  * The host's other jams, most recent first.

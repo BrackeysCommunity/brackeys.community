@@ -45,6 +45,17 @@ function assertNotBanned(session: NonNullable<SessionResult>): void {
   }
 }
 
+/** Every `require*` middleware's shared opening move: a live session or an
+ * UNAUTHORIZED, with active bans refused. */
+async function authedSession(context: unknown): Promise<NonNullable<SessionResult>> {
+  const session = await readSession(context);
+  if (!session) {
+    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
+  }
+  assertNotBanned(session);
+  return session;
+}
+
 export const authMiddleware = os.middleware(async ({ context, next }) => {
   let session = await readSession(context);
   if (isBanned(session)) session = null;
@@ -58,12 +69,7 @@ export const authMiddleware = os.middleware(async ({ context, next }) => {
 });
 
 export const requireAuth = os.middleware(async ({ context, next }) => {
-  const session = await readSession(context);
-
-  if (!session) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
-  }
-  assertNotBanned(session);
+  const session = await authedSession(context);
 
   return next({
     context: {
@@ -90,12 +96,7 @@ export async function userIsGuildMember(userId: string): Promise<boolean> {
 
 /** Requires auth + verifies the user is a member of the Brackeys Discord server. */
 export const requireGuildMember = os.middleware(async ({ context, next }) => {
-  const session = await readSession(context);
-
-  if (!session) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
-  }
-  assertNotBanned(session);
+  const session = await authedSession(context);
 
   if (!(await userIsGuildMember(session.user.id))) {
     throw new ORPCError("FORBIDDEN", {
@@ -113,12 +114,7 @@ export const requireGuildMember = os.middleware(async ({ context, next }) => {
 
 /** Requires auth + enriches context with isStaff/isAdmin booleans. */
 export const requireAuthWithPermissions = os.middleware(async ({ context, next }) => {
-  const session = await readSession(context);
-
-  if (!session) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
-  }
-  assertNotBanned(session);
+  const session = await authedSession(context);
 
   const guildRoles = await resolveUserRoles(session.user.id);
   const isStaff = checkIsStaff(guildRoles);
@@ -137,57 +133,41 @@ export const requireAuthWithPermissions = os.middleware(async ({ context, next }
   });
 });
 
-export const requireStaff = os.middleware(async ({ context, next }) => {
-  const session = await readSession(context);
+/**
+ * The staff/admin gates differ only in which predicate refuses the call —
+ * both then refresh cached roles and hand the handler the same context
+ * shape. `isAdmin` is computed from the roles either way; when the
+ * predicate *is* `checkIsAdmin` it's necessarily true.
+ */
+function roleGuard(
+  predicate: (roles: Awaited<ReturnType<typeof resolveUserRoles>>) => boolean,
+  message: string,
+) {
+  return os.middleware(async ({ context, next }) => {
+    const session = await authedSession(context);
 
-  if (!session) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
-  }
-  assertNotBanned(session);
+    const guildRoles = await resolveUserRoles(session.user.id);
 
-  const guildRoles = await resolveUserRoles(session.user.id);
+    if (!predicate(guildRoles)) {
+      throw new ORPCError("FORBIDDEN", { message });
+    }
 
-  if (!checkIsStaff(guildRoles)) {
-    throw new ORPCError("FORBIDDEN", { message: "Staff access required." });
-  }
+    // Cached roles are only as fresh as the last sign-in; a throttled
+    // background re-fetch bounds how long a Discord demotion goes unnoticed.
+    // Deliberately not awaited — staff routes never wait on discord.com.
+    void refreshGuildRolesThrottled(session.user.id);
 
-  // Cached roles are only as fresh as the last sign-in; a throttled
-  // background re-fetch bounds how long a Discord demotion goes unnoticed.
-  // Deliberately not awaited — staff routes never wait on discord.com.
-  void refreshGuildRolesThrottled(session.user.id);
-
-  return next({
-    context: {
-      session,
-      user: session.user,
-      isStaff: true as const,
-      isAdmin: checkIsAdmin(guildRoles),
-    },
+    return next({
+      context: {
+        session,
+        user: session.user,
+        isStaff: true as const,
+        isAdmin: checkIsAdmin(guildRoles),
+      },
+    });
   });
-});
+}
 
-export const requireAdmin = os.middleware(async ({ context, next }) => {
-  const session = await readSession(context);
+export const requireStaff = roleGuard(checkIsStaff, "Staff access required.");
 
-  if (!session) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
-  }
-  assertNotBanned(session);
-
-  const guildRoles = await resolveUserRoles(session.user.id);
-
-  if (!checkIsAdmin(guildRoles)) {
-    throw new ORPCError("FORBIDDEN", { message: "Admin access required." });
-  }
-
-  void refreshGuildRolesThrottled(session.user.id);
-
-  return next({
-    context: {
-      session,
-      user: session.user,
-      isStaff: true as const,
-      isAdmin: true as const,
-    },
-  });
-});
+export const requireAdmin = roleGuard(checkIsAdmin, "Admin access required.");

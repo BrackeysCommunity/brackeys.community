@@ -1,39 +1,13 @@
 import { nanoid } from "nanoid";
-import { z } from "zod";
 
 export const PROFILE_PROJECT_IMAGE_PREFIX = "profile-projects";
-export const PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
-export const PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-] as const;
-
-const MIME_TYPE_FILE_EXTENSIONS: Record<string, string> = {
-  "image/gif": "gif",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
-
-export interface UploadedProfileProjectImage {
-  key: string;
-  url: string;
-  filename: string;
-  mimeType: string;
-  sizeBytes: number;
-}
-
-export function isAllowedProfileProjectImageType(mimeType: string) {
-  return PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES.includes(
-    mimeType as (typeof PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES)[number],
-  );
-}
 
 export function buildProfileProjectImageObjectKey(userId: string, filename: string) {
-  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/${nanoid()}-${sanitizedFilename}`;
+  return `${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
+}
+
+export function isOwnedProfileProjectImageKey(userId: string, key: string) {
+  return key.startsWith(`${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/`);
 }
 
 /** Team avatars live in their own key namespace, scoped by team id;
@@ -41,8 +15,7 @@ export function buildProfileProjectImageObjectKey(userId: string, filename: stri
 export const TEAM_AVATAR_IMAGE_PREFIX = "team-avatars";
 
 export function buildTeamAvatarObjectKey(teamId: string, filename: string) {
-  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${TEAM_AVATAR_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
+  return `${TEAM_AVATAR_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
 }
 
 /** Team banners: same ownership rules as avatars, separate namespace so
@@ -50,27 +23,32 @@ export function buildTeamAvatarObjectKey(teamId: string, filename: string) {
 export const TEAM_BANNER_IMAGE_PREFIX = "team-banners";
 
 export function buildTeamBannerObjectKey(teamId: string, filename: string) {
-  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${TEAM_BANNER_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
+  return `${TEAM_BANNER_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
 }
 
 /**
  * A canonical project's cover lives in a **project-scoped** namespace, not
  * the uploader's.
  *
- * The prefix above is per-user, and account deletion removes every object
- * under it — correct for a placement's own image, wrong for a shared entity:
- * a project row referencing an uploader's key would have its cover blanked
- * on every page the day that person deleted their account. Write access here
- * is the project's editor check (`createdBy`, a linked contributor, or a
- * member of a claiming team), never a key-prefix check — same rule as team
- * avatars.
+ * The profile-project prefix is per-user, and account deletion removes every
+ * object under it — correct for a placement's own image, wrong for a shared
+ * entity: a project row referencing an uploader's key would have its cover
+ * blanked on every page the day that person deleted their account. Write
+ * access here is the project's editor check (`createdBy`, a linked
+ * contributor, or a member of a claiming team), never a key-prefix check —
+ * same rule as team avatars.
  */
 export const PROJECT_IMAGE_PREFIX = "project-images";
 
 export function buildProjectImageObjectKey(projectId: string, filename: string) {
-  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${PROJECT_IMAGE_PREFIX}/${projectId}/${nanoid()}-${sanitizedFilename}`;
+  return `${PROJECT_IMAGE_PREFIX}/${projectId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
+}
+
+/** Whether a key belongs to this project's namespace — the guard for an
+ * editor-supplied `imageKey`, so nobody can point a project at somebody
+ * else's object. */
+export function isProjectImageKey(projectId: string, key: string) {
+  return key.startsWith(`${PROJECT_IMAGE_PREFIX}/${projectId}/`);
 }
 
 /**
@@ -82,8 +60,7 @@ export function buildProjectImageObjectKey(projectId: string, filename: string) 
 export const COLLAB_POST_IMAGE_PREFIX = "collab-post-images";
 
 export function buildCollabPostImageObjectKey(postId: number, filename: string) {
-  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${COLLAB_POST_IMAGE_PREFIX}/${postId}/${nanoid()}-${sanitizedFilename}`;
+  return `${COLLAB_POST_IMAGE_PREFIX}/${postId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
 }
 
 export function isCollabPostImageKey(postId: number, key: string) {
@@ -100,28 +77,12 @@ export function isCollabPostImageKey(postId: number, key: string) {
 export const TEAM_PROJECT_IMAGE_PREFIX = "team-projects";
 
 export function buildTeamProjectImageObjectKey(teamId: string, filename: string) {
-  const sanitizedFilename = sanitizeProfileProjectImageFilename(filename);
-  return `${TEAM_PROJECT_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizedFilename}`;
+  return `${TEAM_PROJECT_IMAGE_PREFIX}/${teamId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
 }
 
 export function isTeamProjectImageKey(teamId: string, key: string) {
   return key.startsWith(`${TEAM_PROJECT_IMAGE_PREFIX}/${teamId}/`);
 }
-
-/** Root path of the stable serving route (src/routes/images.$.ts). */
-export const STORED_IMAGE_ROUTE_PREFIX = "/images/";
-
-/**
- * Upload responses carry the app-relative `/images/<key>` URL, which
- * `z.url()` rejects (it requires an absolute URL) — this accepts either.
- */
-export const uploadedImageUrlSchema = z
-  .string()
-  .min(1)
-  .refine(
-    (value) => value.startsWith(STORED_IMAGE_ROUTE_PREFIX) || z.url().safeParse(value).success,
-    { message: "Must be an absolute URL or a stored /images/ path." },
-  );
 
 const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${PROFILE_PROJECT_IMAGE_PREFIX}/`,
@@ -143,18 +104,14 @@ export function isServableImageKey(key: string) {
   );
 }
 
-export function isOwnedProfileProjectImageKey(userId: string, key: string) {
-  return key.startsWith(`${PROFILE_PROJECT_IMAGE_PREFIX}/${userId}/`);
-}
+const MIME_TYPE_FILE_EXTENSIONS: Record<string, string> = {
+  "image/gif": "gif",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
 
-/** Whether a key belongs to this project's namespace — the guard for an
- * editor-supplied `imageKey`, so nobody can point a project at somebody
- * else's object. */
-export function isProjectImageKey(projectId: string, key: string) {
-  return key.startsWith(`${PROJECT_IMAGE_PREFIX}/${projectId}/`);
-}
-
-function sanitizeProfileProjectImageFilename(filename: string) {
+function sanitizeImageFilename(filename: string) {
   const trimmedFilename = filename.trim();
   const extension =
     getFilenameExtension(trimmedFilename) ||

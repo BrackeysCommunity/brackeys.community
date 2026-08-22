@@ -1,12 +1,13 @@
-/** What each kind of page puts on its card. Every card degrades rather than fails. */
-import { safeThemeColor } from "@/components/jams/JamCalendarPage/helpers";
-import { htmlToPlainText } from "@/components/ui/typography";
+import { htmlToPlainText } from "@/lib/html-text";
 import { itchOriginalUrl } from "@/lib/itch-image";
 import { jamDateLong } from "@/lib/jam-links";
+/** What each kind of page puts on its card. Every card degrades rather than fails. */
+import { safeThemeColor } from "@/lib/jam-palette";
 import { memberName } from "@/lib/member-name";
 import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
-import { isServableImageKey, STORED_IMAGE_ROUTE_PREFIX } from "@/lib/profile-project-images";
+import { isServableImageKey } from "@/lib/stored-image-keys";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { client } from "@/orpc/client";
 
 const MAX_ART_BYTES = 8 * 1024 * 1024;

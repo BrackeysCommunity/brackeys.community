@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { SuspendedPage } from "@/components/layout/SuspendedPage";
+import { pageTitle } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
 /**
@@ -17,7 +18,7 @@ export const Route = createFileRoute("/suspended")({
   component: SuspendedRoute,
   head: () => ({
     meta: [
-      { title: "Account suspended · Brackeys Community" },
+      { title: pageTitle("Account suspended") },
       // Nothing about a person's suspension belongs in a search index.
       { name: "robots", content: "noindex, nofollow" },
     ],

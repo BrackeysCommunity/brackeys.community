@@ -1,7 +1,8 @@
-import { infiniteQueryOptions, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
+import { offsetInfiniteQueryOptions } from "@/lib/offset-infinite-query";
 import { type StackOverlap, viewerStackOverlap } from "@/lib/stack-overlap";
 import { client, orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -28,21 +29,11 @@ export type CollabListingItem = {
  * reads instead of a neighbouring one.
  */
 export function collabPostsQueryOptions({ filters, sortBy, sortOrder }: CollabListingDeps) {
-  return infiniteQueryOptions({
+  return offsetInfiniteQueryOptions({
     queryKey: ["listPosts", filters, sortBy, sortOrder],
-    queryFn: ({ pageParam }) =>
-      client.listPosts({
-        ...filters,
-        sortBy,
-        sortOrder,
-        limit: PAGE_SIZE,
-        offset: pageParam,
-      }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const fetched = allPages.length * PAGE_SIZE;
-      return fetched >= (lastPage.total ?? 0) ? undefined : fetched;
-    },
+    pageSize: PAGE_SIZE,
+    fetchPage: (offset) =>
+      client.listPosts({ ...filters, sortBy, sortOrder, limit: PAGE_SIZE, offset }),
     staleTime: STALE.board,
   });
 }

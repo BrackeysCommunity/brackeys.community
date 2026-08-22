@@ -1,6 +1,6 @@
-import { SITE } from "@/components/legal/legal-meta";
 import { siteOrigin, siteUrl } from "@/env";
 import { cfImagesEnabled, itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
+import { SITE } from "@/lib/legal-meta";
 
 export const SITE_NAME = "Brackeys Community";
 

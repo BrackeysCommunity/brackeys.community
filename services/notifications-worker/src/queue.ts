@@ -1,20 +1,17 @@
 import { Queue } from "bullmq";
-import IORedis from "ioredis";
 
+import { createBullRedis } from "../../../src/lib/bull-redis.ts";
+import { NOTIFICATIONS_QUEUE } from "../../../src/lib/notify-core.ts";
 import { config } from "./config.ts";
 
-export const redis = new IORedis(config.REDIS_URL, {
-  maxRetriesPerRequest: null,
-});
+export const redis = createBullRedis(config.REDIS_URL);
 
 // Dedicated publisher socket — sharing the subscriber/blocking connection
 // with publish() leads to "Connection in subscriber mode" errors when
 // bullmq holds a blocking command.
-export const publisher = new IORedis(config.REDIS_URL, {
-  maxRetriesPerRequest: null,
-});
+export const publisher = createBullRedis(config.REDIS_URL);
 
-export const NOTIFICATIONS_QUEUE = "notifications";
+export { NOTIFICATIONS_QUEUE };
 export const EMAIL_QUEUE = "email";
 
 export const emailQueue = new Queue(EMAIL_QUEUE, { connection: redis });

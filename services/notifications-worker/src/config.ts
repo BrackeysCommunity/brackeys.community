@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseServiceConfig } from "../../../src/lib/service-config.ts";
+
 const schema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -19,5 +21,5 @@ const schema = z
     path: ["RESEND_API_KEY"],
   });
 
-export const config = schema.parse(process.env);
+export const config = parseServiceConfig(schema);
 export type Config = typeof config;

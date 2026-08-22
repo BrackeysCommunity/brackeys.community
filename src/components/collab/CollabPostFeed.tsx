@@ -1,5 +1,4 @@
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,6 +6,7 @@ import { Text } from "@/components/ui/typography";
 import { VirtualGrid } from "@/components/ui/virtual-grid";
 import { Well } from "@/components/ui/well";
 import { collabStore } from "@/lib/collab-store";
+import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
 import { cn } from "@/lib/utils";
 
 import {
@@ -53,19 +53,11 @@ export function CollabPostFeed({
 
   const isCards = layout === "cards";
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isFetchingNext) fetchNext();
-      },
-      { rootMargin: "400px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNext, fetchNext]);
+  const sentinelRef = useInfiniteScrollSentinel({
+    hasNextPage,
+    isFetching: isFetchingNext,
+    fetchNext,
+  });
 
   if (isLoading) return <FeedSkeleton cards={isCards} />;
   if (items.length === 0) {

@@ -5,7 +5,7 @@ import { FeaturedJamPanel, FeaturedJamPanelSkeleton } from "@/components/home/Fe
 import type { HeroJam } from "@/components/home/hero-jam";
 import { useRecentEntries } from "@/components/home/use-recent-entries";
 import { PageStack } from "@/components/ui/page-motion";
-import { useLaneRelease } from "@/hooks/use-lane-release";
+import { useLaneRelease } from "@/lib/hooks/use-lane-release";
 import { fadeUp } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +85,7 @@ export function JamBoardView() {
               background across the panel column. */}
           <div
             ref={setToolbarEl}
+            data-cursor-occlude=""
             className="header-follow toolbar-band sticky top-0 z-20 lg:before:absolute lg:before:inset-y-0 lg:before:left-full lg:before:w-96 lg:before:bg-background lg:before:content-['']"
             style={{ marginBottom: laneRelease }}
           >

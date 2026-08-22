@@ -3,10 +3,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 
-import { AdminEmpty, AdminSection, CategoryCombobox, Field } from "@/components/admin/AdminUI";
+import { AdminSection, CategoryCombobox, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Section } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -210,7 +211,7 @@ export function VocabularyManager({
           <Skeleton className="h-16 w-full" />
         </div>
       ) : items.length === 0 ? (
-        <AdminEmpty>Nothing in this vocabulary yet.</AdminEmpty>
+        <Empty>Nothing in this vocabulary yet.</Empty>
       ) : (
         <div className="flex flex-col gap-5">
           {grouped.map(([groupName, groupItems]) => (

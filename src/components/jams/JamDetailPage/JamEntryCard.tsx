@@ -6,11 +6,11 @@ import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatCount } from "@/lib/format-count";
+import { safeThemeColor } from "@/lib/jam-palette";
 import { profileLinkParams } from "@/lib/profile-links";
 import { platformLabel } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
 
-import { safeThemeColor } from "../JamCalendarPage/helpers";
 import type { JamEntryRow } from "./types";
 
 /**

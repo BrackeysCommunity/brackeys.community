@@ -24,15 +24,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { errorMessage } from "@/lib/error-message";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { postImageForm } from "@/lib/image-upload";
-import { reportMutationError } from "@/lib/posthog";
 import {
   PROFILE_PROJECT_IMAGE_ACCEPTED_MIME_TYPES,
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
   type UploadedProfileProjectImage,
-} from "@/lib/profile-project-images";
+} from "@/lib/image-upload-policy";
+import { reportMutationError } from "@/lib/posthog";
 import {
   getAllowedSubTypesForProjectType,
   PROFILE_PROJECT_SUBTYPE_LABELS,

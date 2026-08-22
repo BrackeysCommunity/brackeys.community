@@ -52,10 +52,10 @@ import sansLatin from "@fontsource-variable/rubik/files/rubik-latin-wght-normal.
 import { ConfirmPortal } from "@/components/ui/confirm";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { AppSettingsProvider, useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-command-palette";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
 import { captureError } from "@/lib/posthog";
@@ -232,7 +232,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <Suspense>
               <Cursor />
             </Suspense>
-            {/*<BackgroundBlobs />*/}
             <Suspense>
               <BackgroundDotField />
             </Suspense>

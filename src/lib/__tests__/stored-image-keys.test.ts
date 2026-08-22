@@ -9,8 +9,8 @@ import {
   isCollabPostImageKey,
   isServableImageKey,
   isTeamProjectImageKey,
-  uploadedImageUrlSchema,
-} from "@/lib/profile-project-images";
+} from "@/lib/stored-image-keys";
+import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 
 describe("isServableImageKey", () => {
   it("accepts keys minted by every upload builder", () => {

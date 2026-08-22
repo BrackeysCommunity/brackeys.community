@@ -1,8 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { invalidateNotifications } from "@/components/notifications/notification-queries";
 import { authClient } from "@/lib/auth-client";
+import { invalidateNotifications } from "@/lib/notification-queries";
 import { playNotification } from "@/lib/sound";
 import { orpc } from "@/orpc/client";
 

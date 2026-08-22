@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { SETTINGS_TAB_META, SETTINGS_TABS } from "@/components/settings/settings-tabs";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
+import { pageTitle } from "@/lib/site-meta";
 
 // Sections are child routes now, but `/settings?tab=x` links are already out
 // in emails and bookmarks — keep them landing on the pane they named.
@@ -16,5 +17,5 @@ export const Route = createFileRoute("/settings")({
     if (search.tab) throw redirect({ to: SETTINGS_TAB_META[search.tab].to, replace: true });
   },
   component: SettingsLayout,
-  head: () => ({ meta: [{ title: "Settings · Brackeys Community" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Settings") }] }),
 });

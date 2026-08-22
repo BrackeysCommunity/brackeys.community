@@ -1,6 +1,6 @@
 import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { pool } from "../db/client.ts";
-import { describeError } from "../http.ts";
+import { describeError, sleep } from "../http.ts";
 import { syncJam } from "./sync-jam.ts";
 
 /**
@@ -12,7 +12,7 @@ import { syncJam } from "./sync-jam.ts";
  * finished run actually exits.
  */
 
-export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+export { sleep };
 
 export type StopGate = {
   /** The reason to stop now, or null to keep going. */

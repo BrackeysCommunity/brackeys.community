@@ -40,6 +40,13 @@ export type NotifyParams = {
 };
 
 /** bullmq options every producer of `side_effects` jobs shares. */
+/**
+ * The bullmq queue both producers (the app, lifecycle-sweep) and the
+ * consumer (notifications-worker) meet on. One constant, because a typo'd
+ * queue name is a silently-empty queue.
+ */
+export const NOTIFICATIONS_QUEUE = "notifications";
+
 export const SIDE_EFFECTS_JOB_OPTIONS = {
   attempts: 3,
   backoff: { type: "exponential", delay: 1000 },

@@ -3,9 +3,9 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { JamDetailPage } from "@/components/jams/JamDetailPage";
 import { JamDetailSkeleton } from "@/components/jams/JamDetailPage/JamDetailSkeleton";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
-import { htmlToPlainText } from "@/components/ui/typography";
 import { siteUrl } from "@/env";
 import { formatCount } from "@/lib/format-count";
+import { htmlToPlainText } from "@/lib/html-text";
 import { hostName, jamDateRange } from "@/lib/jam-links";
 import { isServerLoad } from "@/lib/route-prefetch";
 import {

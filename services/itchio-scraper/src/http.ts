@@ -29,7 +29,7 @@ export function isNotFound(err: unknown): boolean {
 // pool keeps feeding fresh first-attempts at full speed — on a 3,500-entry
 // jam that sustained ~8 req/s and tripped itch's limiter hard.
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export type Pacer = {
   /** Resolves when the caller may issue its request. */

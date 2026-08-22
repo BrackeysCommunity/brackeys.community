@@ -2,6 +2,8 @@ import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
 import { useMemo } from "react";
 
+import { DAY_MS } from "@/lib/format-time";
+
 /**
  * Which attention items the viewer has waved away, and for how long.
  *
@@ -23,7 +25,6 @@ const STORAGE_KEY = "brackeys-attention-dismissed";
  * ever costs storage and confusion.
  */
 const DISMISSAL_TTL_DAYS = 30;
-const DAY_MS = 86_400_000;
 
 /** Key → when it was dismissed. */
 type DismissalMap = Record<string, number>;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useHoverPlay } from "@/hooks/use-hover-play";
+import { useHoverPlay } from "@/lib/hooks/use-hover-play";
 import { type ItchImageOpts } from "@/lib/itch-image";
 import { hoverPlaySources, isAnimatedImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";

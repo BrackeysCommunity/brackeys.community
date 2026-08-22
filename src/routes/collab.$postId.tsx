@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { CollabPostPage } from "@/components/collab/CollabPostPage";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
-import { htmlToPlainText } from "@/components/ui/typography";
+import { htmlToPlainText } from "@/lib/html-text";
 import { memberName } from "@/lib/member-name";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";

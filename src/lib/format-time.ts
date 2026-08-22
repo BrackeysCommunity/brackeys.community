@@ -1,3 +1,7 @@
+/** One day of milliseconds — the constant every hand-rolled day-math site
+ * used to respell. */
+export const DAY_MS = 86_400_000;
+
 /**
  * Coarse relative time for dense list rows — "just now" through "12d ago".
  *

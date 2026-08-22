@@ -107,7 +107,7 @@ export function JamDetailPage({ detail, initialEntries, results }: JamDetailPage
       {/* Series index, free from a jsonb containment match. Only rendered
           for a jam that actually names a host — `hostName`'s "COMMUNITY"
           fallback isn't a host to look up. */}
-      {jam.hosts[0]?.name ? <JamHostSeries hostName={jam.hosts[0].name} jamId={jam.jamId} /> : null}
+      {jam.hosts[0]?.name ? <JamHostSeries hostName={hostName(jam)} jamId={jam.jamId} /> : null}
     </div>
   );
 }

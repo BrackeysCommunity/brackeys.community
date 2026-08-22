@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { NotificationItem } from "@/components/notifications/notification-utils";
+import type { NotificationItem } from "@/components/notifications/notification-row";
 
 const markRead = vi.fn((_vars: { ids: number[] }) => Promise.resolve({ ok: true }));
 
@@ -42,7 +42,7 @@ vi.mock("@/orpc/client", () => ({
   },
 }));
 
-const { NotificationRow } = await import("@/components/notifications/notification-utils");
+const { NotificationRow } = await import("@/components/notifications/notification-row");
 
 afterEach(() => {
   cleanup();

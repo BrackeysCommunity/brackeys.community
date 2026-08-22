@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useHoverPlay } from "@/hooks/use-hover-play";
+import { useHoverPlay } from "@/lib/hooks/use-hover-play";
 import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 

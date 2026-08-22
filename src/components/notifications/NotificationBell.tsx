@@ -4,15 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import { invalidateNotifications } from "@/components/notifications/notification-queries";
 import {
   NotificationRow,
   NotificationRowsSkeleton,
   type NotificationItem,
-} from "@/components/notifications/notification-utils";
+} from "@/components/notifications/notification-row";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MicroLabel } from "@/components/ui/typography";
+import { invalidateNotifications } from "@/lib/notification-queries";
 import { client, orpc } from "@/orpc/client";
 
 const REFETCH_INTERVAL_MS = 30_000;

@@ -19,6 +19,8 @@ COPY services/itchio-scraper/src ./services/itchio-scraper/src
 # The scraper imports the shared drizzle schema from the main app so that
 # everything stays in a single source of truth under drizzle migrations.
 COPY src/db/schema.ts ./src/db/schema.ts
+COPY src/db/service-client.ts ./src/db/service-client.ts
+COPY src/lib/service-config.ts ./src/lib/service-config.ts
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 
 # The copied root files under /app/src import bare specifiers (posthog-node,

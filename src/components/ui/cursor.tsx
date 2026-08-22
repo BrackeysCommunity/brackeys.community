@@ -10,8 +10,8 @@ import {
 } from "framer-motion";
 import * as React from "react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useCursorState } from "@/lib/hooks/use-cursor";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 const BORDER = 3;
@@ -136,6 +136,15 @@ export function Cursor({ className }: CursorProps) {
 
   const latch = useMotionValue(0);
 
+  // Per-corner visibility while latched. The overlay paints above every
+  // stacking context, so a corner can never slide *under* whatever covers its
+  // patch of the target (a sticky toolbar band, an open popover) — but it can
+  // vanish there, which reads the same because those surfaces are opaque.
+  const vis0 = useMotionValue(1);
+  const vis1 = useMotionValue(1);
+  const vis2 = useMotionValue(1);
+  const vis3 = useMotionValue(1);
+
   const o0x = useCornerOffset(sc0x, springX, latch);
   const o0y = useCornerOffset(sc0y, springY, latch);
   const o1x = useCornerOffset(sc1x, springX, latch);
@@ -196,6 +205,30 @@ export function Cursor({ className }: CursorProps) {
 
     const noDrift = cursorState.noDrift ?? false;
 
+    // Ancestors that clip the target (overflow ≠ visible), gathered once per
+    // latch. Past one of their edges the target isn't painted at all, and the
+    // hit test below can't tell: the fixed bars covering those bands are
+    // pointer-events-none shells, so a probe there sails through and lands on
+    // a page wrapper — an ancestor of the target, indistinguishable from the
+    // rounded-corner case. Geometry answers what hit-testing can't.
+    const latched = cursorState.targetElement;
+    const clipAncestors: HTMLElement[] = [];
+    for (let a = latched.parentElement; a; a = a.parentElement) {
+      const s = window.getComputedStyle(a);
+      if (s.overflowX !== "visible" || s.overflowY !== "visible") clipAncestors.push(a);
+    }
+
+    // Opaque chrome the hit test can't see: the app header and the sticky
+    // toolbar bands are (or sit under) pointer-events-none shells, so a probe
+    // through their empty stretches lands on the still-painted content behind
+    // them and reads as uncovered. Those surfaces declare themselves with
+    // `data-cursor-occlude` and get subtracted geometrically instead. A
+    // surface wrapping the target doesn't cover it (a toolbar's own
+    // controls).
+    const occluders = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-cursor-occlude]"),
+    ).filter((o) => !o.contains(latched));
+
     // First measurement of a newly latched target: jump the springs onto it
     // rather than letting them fly across the viewport from the previous
     // target. The corners are hidden until CORNER_APPEAR pops them, so they
@@ -241,6 +274,50 @@ export function Cursor({ className }: CursorProps) {
       }
       seated = true;
       if (latch.get() !== 1) latch.set(1);
+
+      // Where the target is still painted, occlusion is sampled, not
+      // inherited: hit-testing just inside the target's own corner lets the
+      // browser report real paint order. Anything on top that isn't the
+      // target, inside it, or the ancestor showing through a rounded corner
+      // is covering that corner.
+      let clipL = 0;
+      let clipT = 0;
+      let clipR = window.innerWidth - 1;
+      let clipB = window.innerHeight - 1;
+      for (const a of clipAncestors) {
+        const ar = a.getBoundingClientRect();
+        if (ar.left > clipL) clipL = ar.left;
+        if (ar.top > clipT) clipT = ar.top;
+        if (ar.right < clipR) clipR = ar.right;
+        if (ar.bottom < clipB) clipB = ar.bottom;
+      }
+      // Measured per frame: the header rides a transform when it hides, and
+      // the corners should come back once it has slid away.
+      const occRects = occluders.map((o) => o.getBoundingClientRect());
+      // `gx/gy` is the glyph's outermost tip — declared chrome hides a corner
+      // the moment any of it would overlap. `tx/ty` is just inside the
+      // target's own corner, where the clip box and the hit test have
+      // something real to sample.
+      const probe = (gx: number, gy: number, tx: number, ty: number, vis: MotionValue<number>) => {
+        if (tx < clipL || tx > clipR || ty < clipT || ty > clipB) {
+          vis.set(0);
+          return;
+        }
+        for (const or of occRects) {
+          if (gx >= or.left && gx <= or.right && gy >= or.top && gy <= or.bottom) {
+            vis.set(0);
+            return;
+          }
+        }
+        const hit = document.elementFromPoint(tx, ty);
+        vis.set(hit !== null && (hit === el || el.contains(hit) || hit.contains(el)) ? 1 : 0);
+      };
+      const ix = Math.min(2, r.width / 2);
+      const iy = Math.min(2, r.height / 2);
+      probe(v0x, v0y, r.left + ix, r.top + iy, vis0);
+      probe(v1x + cs, v1y, r.right - ix, r.top + iy, vis1);
+      probe(v2x + cs, v2y + cs, r.right - ix, r.bottom - iy, vis2);
+      probe(v3x, v3y + cs, r.left + ix, r.bottom - iy, vis3);
     };
 
     updateCorners();
@@ -290,15 +367,19 @@ export function Cursor({ className }: CursorProps) {
     sc2y,
     sc3x,
     sc3y,
+    vis0,
+    vis1,
+    vis2,
+    vis3,
   ]);
 
   if (isMobile || isHidden) return null;
 
   const corners = [
-    { x: o0x, y: o0y },
-    { x: o1x, y: o1y },
-    { x: o2x, y: o2y },
-    { x: o3x, y: o3y },
+    { x: o0x, y: o0y, vis: vis0 },
+    { x: o1x, y: o1y, vis: vis1 },
+    { x: o2x, y: o2y, vis: vis2 },
+    { x: o3x, y: o3y, vis: vis3 },
   ];
 
   return (
@@ -311,6 +392,7 @@ export function Cursor({ className }: CursorProps) {
         <motion.div
           key={i}
           className="absolute top-0 left-0"
+          style={{ opacity: pos.vis }}
           animate={
             isMagnetic
               ? {

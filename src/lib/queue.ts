@@ -1,6 +1,7 @@
 import type { Queue } from "bullmq";
 import type IORedis from "ioredis";
 
+import { NOTIFICATIONS_QUEUE } from "@/lib/notify-core";
 import { createRedisClient } from "@/lib/redis";
 
 declare global {
@@ -33,7 +34,7 @@ async function getQueues(): Promise<{ notifications: Queue }> {
   const connection = await getRedis();
   const { Queue: QueueCtor } = await import("bullmq");
   globalThis.__brackeysQueues = {
-    notifications: new QueueCtor("notifications", { connection }),
+    notifications: new QueueCtor(NOTIFICATIONS_QUEUE, { connection }),
   };
   return globalThis.__brackeysQueues;
 }

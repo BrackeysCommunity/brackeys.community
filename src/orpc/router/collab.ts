@@ -49,12 +49,13 @@ import {
   removeProfileProjectImageFromStorage,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
-import { isCollabPostImageKey, uploadedImageUrlSchema } from "@/lib/profile-project-images";
 import { loadProjectForEditor } from "@/lib/project-editors";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit } from "@/lib/rate-limit";
 import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
 import { escapeLike } from "@/lib/sql-like";
 import { stackOverlap } from "@/lib/stack-overlap";
+import { isCollabPostImageKey } from "@/lib/stored-image-keys";
+import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
@@ -380,11 +381,13 @@ export const createPost = os
   .handler(async ({ input, context }) => {
     checkPostProfanity(input);
     assertTeamRequired(input);
-    if (!(await checkRateLimit("collab-post", context.user.id, 10, 86400))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        message: "You've created a lot of posts today — try again tomorrow.",
-      });
-    }
+    await assertRateLimit(
+      "collab-post",
+      context.user.id,
+      10,
+      "You've created a lot of posts today — try again tomorrow.",
+      86400,
+    );
     const { roleIds, skillIds, jamWarning, jam } = await resolveReferences(input);
     if (input.teamId != null) {
       await assertTeamLinkable(input.teamId, context.user.id);
@@ -1515,11 +1518,13 @@ export const respondToPost = os
       throw new ORPCError("FORBIDDEN", { message: "You can't respond to this post." });
     }
 
-    if (!(await checkRateLimit("collab-response", context.user.id, 30, 86400))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        message: "You've sent a lot of responses today — try again tomorrow.",
-      });
-    }
+    await assertRateLimit(
+      "collab-response",
+      context.user.id,
+      30,
+      "You've sent a lot of responses today — try again tomorrow.",
+      86400,
+    );
 
     // `collab_responses` is unique on (post_id, responder_id). Without a
     // pre-check the second application surfaced as the raw DB error,
@@ -2173,9 +2178,7 @@ export const reportPost = os
 
     // Same bucket as `reportComment`, so a spammer gets 10/hr total across
     // both surfaces rather than 10+10.
-    if (!(await checkRateLimit("report", context.user.id, 10))) {
-      throw new ORPCError("TOO_MANY_REQUESTS", { message: "Too many reports — try again later." });
-    }
+    await assertRateLimit("report", context.user.id, 10, "Too many reports — try again later.");
 
     const [report] = await db
       .insert(collabPostReports)

@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import {
-  AdminEmpty,
   AdminPager,
   AdminPersonLink,
   AdminRow,
@@ -25,6 +24,7 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox";
 import { Confirm } from "@/components/ui/confirm";
+import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -152,11 +152,11 @@ function AdminSkillRequests() {
           <Skeleton className="h-20 w-full" />
         </div>
       ) : items.length === 0 ? (
-        <AdminEmpty>
+        <Empty>
           {status === "pending"
             ? "No skill requests waiting. Nothing needs you here."
             : "Nothing has been handled yet."}
-        </AdminEmpty>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((request) => (

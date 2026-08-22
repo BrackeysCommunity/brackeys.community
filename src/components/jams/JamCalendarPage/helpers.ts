@@ -1,3 +1,4 @@
+import { DAY_MS } from "@/lib/format-time";
 import type { effectiveJamState } from "@/lib/jam-countdown";
 
 export type JamFromList = Awaited<
@@ -57,7 +58,7 @@ export function isOngoing(jam: JamFromList): boolean {
   if (!jam.startsAt) return false;
   // A started jam with no end date "runs" forever — same bucket.
   if (!jam.endsAt) return true;
-  const days = (new Date(jam.endsAt).getTime() - new Date(jam.startsAt).getTime()) / 86_400_000;
+  const days = (new Date(jam.endsAt).getTime() - new Date(jam.startsAt).getTime()) / DAY_MS;
   return days > ONGOING_DAYS;
 }
 
@@ -212,21 +213,6 @@ export function isSameDay(a: Date, b: Date): boolean {
 
 export function isSameMonth(a: Date, b: Date): boolean {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
-}
-
-/**
- * Re-validates a scraped theme color before it is interpolated into an
- * inline `style` — the scraper already validates at ingest, but scraped
- * text never gets to reach a style attribute on trust.
- */
-export function safeThemeColor(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const ok =
-    /^#[0-9a-fA-F]{3}$/.test(raw) ||
-    /^#[0-9a-fA-F]{6}$/.test(raw) ||
-    /^#[0-9a-fA-F]{8}$/.test(raw) ||
-    /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)$/.test(raw);
-  return ok ? raw : null;
 }
 
 /** Per-day index of which jams kick off, hit a submission deadline, or

@@ -1,7 +1,8 @@
 import { Queue } from "bullmq";
-import IORedis from "ioredis";
 
+import { createBullRedis } from "../../../src/lib/bull-redis.ts";
 import {
+  NOTIFICATIONS_QUEUE,
   recordNotification,
   SIDE_EFFECTS_JOB_OPTIONS,
   type NotifyParams,
@@ -9,13 +10,9 @@ import {
 import { config } from "./config.ts";
 import { db } from "./db/client.ts";
 
-const redis = new IORedis(config.REDIS_URL, {
-  // bullmq requirement: blocking commands must be allowed to retry
-  // indefinitely.
-  maxRetriesPerRequest: null,
-});
+const redis = createBullRedis(config.REDIS_URL);
 
-const notificationsQueue = new Queue("notifications", { connection: redis });
+const notificationsQueue = new Queue(NOTIFICATIONS_QUEUE, { connection: redis });
 
 /**
  * The service-side `notify()` — same shared write path (`notify-core.ts`)

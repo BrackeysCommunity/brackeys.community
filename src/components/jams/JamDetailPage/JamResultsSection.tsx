@@ -6,10 +6,10 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { EVENTS } from "@/lib/analytics-events";
 import { formatCount } from "@/lib/format-count";
+import { safeThemeColor } from "@/lib/jam-palette";
 import { captureEvent } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
-import { safeThemeColor } from "../JamCalendarPage/helpers";
 import type { JamResultsCriterion, JamResultsPlace } from "./types";
 
 /** Podium tint by place. Gold/silver/bronze via the theme's own accents
