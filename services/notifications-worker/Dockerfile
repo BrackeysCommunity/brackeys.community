@@ -27,6 +27,7 @@ COPY src/lib/format-time.ts ./src/lib/format-time.ts
 COPY src/lib/og/palette.ts ./src/lib/og/palette.ts
 COPY src/lib/unsubscribe.ts ./src/lib/unsubscribe.ts
 COPY src/lib/email.ts ./src/lib/email.ts
+COPY src/lib/email-utm.ts ./src/lib/email-utm.ts
 COPY src/emails ./src/emails
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 
