@@ -9,7 +9,8 @@ const SHELF_TILE = "h-68 w-full";
 
 /** Same auto-fill ladder the real shelves use (`ShelfJams`), so the
  * column count doesn't change under the swap either. */
-const SHELF_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-3";
+const SHELF_GRID =
+  "grid grid-cols-[repeat(auto-fill,minmax(max(min(17rem,100%),calc((100%_-_1.5rem)/3)),1fr))] gap-3";
 
 /** The phase shelves below the toolbar. Two of the four: the board
  * rarely fills all of them, and a short placeholder growing is a better
@@ -21,7 +22,7 @@ export function BoardShelvesSkeleton() {
         <div key={title} className="flex flex-col gap-3">
           <ShelfHeader title={title} />
           <div className={SHELF_GRID}>
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className={SHELF_TILE} />
             ))}
           </div>

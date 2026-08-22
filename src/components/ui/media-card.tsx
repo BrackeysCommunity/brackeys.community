@@ -1,22 +1,47 @@
+import { Chonk, type ChonkProps } from "@/components/ui/chonk";
 import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 /**
  * Shared shell for media-led tiles — the jam board's cards and the
- * collab board's card layout render through the same classes so the two
- * surfaces can't drift apart. Exported as class strings rather than
- * components because consumers need to own their root element (framer
- * `motion.button` with a `layoutId`, plain `button`, etc.).
+ * collab board's card layout render through the same pieces so the two
+ * surfaces can't drift apart: `MediaCardTile` is the card root, and the
+ * class strings below lay out the banner and text regions inside it.
  */
 export const mediaCardClasses = {
-  /** Card root — border, rounding, hover treatment. */
-  frame:
-    "group relative flex flex-col overflow-hidden rounded-lg border border-muted/30 bg-card text-left transition-colors hover:border-muted/60",
   /** Banner region at the top; give it a background color for letterboxing. */
-  media: "relative h-40 w-full shrink-0 overflow-hidden",
+  media: "relative block h-40 w-full shrink-0 overflow-hidden",
   /** Text block under the banner. */
-  body: "flex flex-1 flex-col gap-1.5 px-3 pt-2.5 pb-2.5",
+  body: "flex min-h-0 flex-1 flex-col gap-2 p-4",
 } as const;
+
+/**
+ * Card root: an embossed Chonk surface that lifts on hover and presses
+ * on click, opaque so the boards' dot fields don't read through, and
+ * carrying the same interaction cues as every Button. Pass the card's
+ * link via `render` — classes, children, and cue attributes merge onto
+ * it.
+ */
+export function MediaCardTile({ className, ...props }: ChonkProps) {
+  return (
+    <Chonk
+      variant="surface"
+      size="lg"
+      {...BUTTON_CUES}
+      {...props}
+      className={cn(
+        "h-full w-full cursor-pointer flex-col overflow-hidden bg-card p-0 text-left backdrop-blur-none",
+        // `--emboss-shadow` is inherited, so the tile's hover switch to
+        // primary would repaint every badge inside it too. The badges' own
+        // row pins the var back to the theme value — `--color-emboss-shadow`
+        // is substituted at `:root`, so it still carries the neutral colour.
+        "[&_[data-emboss-reset]]:[--emboss-shadow:var(--color-emboss-shadow)]",
+        className,
+      )}
+    />
+  );
+}
 
 /** Bottom-edge gradient that eases the banner into the card body. */
 export function MediaCardScrim() {

@@ -6,11 +6,18 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { DotGrid } from "@/components/ui/dot-grid";
-import { MediaCardFloatingBadge, MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
+import {
+  MediaCardFloatingBadge,
+  MediaCardImage,
+  MediaCardScrim,
+  MediaCardTile,
+  mediaCardClasses,
+} from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { postTypeLabelShort, compensationLabelShort } from "@/lib/collab-vocabulary";
 import { timeAgo } from "@/lib/format-time";
 import { itchImageUrl } from "@/lib/itch-image";
+import { BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 interface CollabPostCardPost {
@@ -188,6 +195,7 @@ export function CollabPostCard({ post, selected = false, pinned, onSelect }: Col
       <Chonk
         variant="surface"
         size="lg"
+        {...BUTTON_CUES}
         render={<PostCardLink post={post} selected={selected} onSelect={onSelect} />}
         className={cn(postCardClasses(selected, isClosed), "items-center gap-3 p-3")}
       >
@@ -233,13 +241,11 @@ export function CollabPostGridCard({
 
   return (
     <motion.div layout="position" className="h-full">
-      <Chonk
-        variant="surface"
-        size="lg"
+      <MediaCardTile
         render={<PostCardLink post={post} selected={selected} onSelect={onSelect} />}
-        className={cn(postCardClasses(selected, isClosed), "h-full flex-col overflow-hidden p-0")}
+        className={postCardClasses(selected, isClosed)}
       >
-        <span className="relative block h-36 w-full shrink-0 overflow-hidden bg-muted/20">
+        <span className={cn(mediaCardClasses.media, "bg-muted/20")}>
           {post.primaryImageUrl ? <MediaCardImage src={post.primaryImageUrl} /> : <DotGrid />}
           <MediaCardScrim />
           <MediaCardFloatingBadge as="span">
@@ -249,7 +255,7 @@ export function CollabPostGridCard({
           </MediaCardFloatingBadge>
         </span>
 
-        <span data-emboss-reset className="flex min-h-0 flex-1 flex-col gap-2 p-4">
+        <span data-emboss-reset className={mediaCardClasses.body}>
           <span className="flex items-start gap-2">
             <Text
               as="span"
@@ -268,7 +274,7 @@ export function CollabPostGridCard({
 
           <PostMeta post={post} className="mt-auto pt-1" />
         </span>
-      </Chonk>
+      </MediaCardTile>
     </motion.div>
   );
 }

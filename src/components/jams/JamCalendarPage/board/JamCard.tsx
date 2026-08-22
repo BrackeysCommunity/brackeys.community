@@ -1,7 +1,11 @@
 import { Link as RouterLink } from "@tanstack/react-router";
 
 import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
-import { MediaCardFloatingBadge, mediaCardClasses } from "@/components/ui/media-card";
+import {
+  MediaCardFloatingBadge,
+  MediaCardTile,
+  mediaCardClasses,
+} from "@/components/ui/media-card";
 import { Text } from "@/components/ui/typography";
 import { jamLinkParams } from "@/lib/jam-links";
 
@@ -17,17 +21,15 @@ import { useJamColor } from "./use-jam-color";
  * Tile rendering of a jam for the shelf grids: banner on top (letterboxed
  * against the jam's itch theme color, like its own jam page), meta in the
  * middle, countdown + participation in the footer row, and the lifecycle
- * progress strip pinned to the bottom edge.
+ * progress strip pinned to the bottom edge. Shares its shell — emboss,
+ * hover lift, interaction cues — with the collab board's cards.
  */
 export function JamCard({ jam, now }: { jam: JamFromList; now: Date }) {
   const color = useJamColor(jam);
 
   return (
-    <RouterLink
-      to="/jams/$jamSlug"
-      params={jamLinkParams(jam)}
-      data-hover-play-group
-      className={mediaCardClasses.frame}
+    <MediaCardTile
+      render={<RouterLink to="/jams/$jamSlug" params={jamLinkParams(jam)} data-hover-play-group />}
     >
       <div className={mediaCardClasses.media} style={{ backgroundColor: color }}>
         <JamBanner jam={jam} fit="contain" />
@@ -38,7 +40,7 @@ export function JamCard({ jam, now }: { jam: JamFromList; now: Date }) {
         </MediaCardFloatingBadge>
         <JamWatchMarker jamId={jam.jamId} className="absolute top-2 left-2" />
       </div>
-      <div className={mediaCardClasses.body}>
+      <div data-emboss-reset className={mediaCardClasses.body}>
         <Text bold size="lg" className="line-clamp-2 leading-snug">
           {jam.title}
         </Text>
@@ -48,6 +50,6 @@ export function JamCard({ jam, now }: { jam: JamFromList; now: Date }) {
         </div>
       </div>
       <CardProgressStrip jam={jam} now={now} />
-    </RouterLink>
+    </MediaCardTile>
   );
 }

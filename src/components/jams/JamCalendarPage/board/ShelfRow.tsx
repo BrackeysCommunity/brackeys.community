@@ -3,6 +3,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { JamWatchMarker } from "@/components/jams/JamWatchMarker";
 import { Text } from "@/components/ui/typography";
 import { jamLinkParams } from "@/lib/jam-links";
+import { BUTTON_CUES } from "@/lib/sound";
 
 import type { JamFromList } from "../helpers";
 import { JamBanner } from "./BannerMedia";
@@ -29,6 +30,7 @@ export function ShelfRow({ jam, now }: { jam: JamFromList; now: Date }) {
       to="/jams/$jamSlug"
       params={jamLinkParams(jam)}
       data-hover-play-group
+      {...BUTTON_CUES}
       className="group relative block w-full overflow-hidden text-left transition-colors"
     >
       <div

@@ -388,7 +388,7 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
               than a margin on the footer, so the pane covers it — a margin
               sits outside the pane and reads as a band of bare dot field
               between the content and the footer rule. */}
-          <div className="content-pane flex w-full grow flex-col p-4 pb-16 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 sm:[--content-pane-fade:1.5rem] lg:px-10 lg:pt-10 lg:[--content-pane-fade:2.5rem] xl:px-14 xl:pt-14 xl:[--content-pane-fade:3.5rem]">
+          <div className="content-pane flex w-full grow flex-col p-4 pb-16 selection:bg-primary selection:text-white sm:px-6 sm:pt-6 sm:[--content-pane-fade:1.5rem] lg:pt-10 lg:[--content-pane-fade:2.5rem] xl:pt-14 xl:[--content-pane-fade:3.5rem]">
             {children}
           </div>
         </div>

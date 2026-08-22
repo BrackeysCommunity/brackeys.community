@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MediaCardTile } from "@/components/ui/media-card";
 import { PaginationNext } from "@/components/ui/pagination";
 
 afterEach(cleanup);
@@ -31,6 +32,20 @@ describe("interaction cue attributes", () => {
     render(<Button>Save</Button>);
 
     expect(cues(screen.getByRole("button", { name: "Save" }))).toEqual({
+      hover: "tick",
+      press: "",
+      release: "",
+      toggle: null,
+      pullAway: "",
+    });
+  });
+
+  // Board cards render through this shell, so a card sounds exactly like
+  // the home page's shortcut tiles (and every other Button).
+  it("gives a media card tile the full button cue set on its link", () => {
+    render(<MediaCardTile render={<a href="/jams/1" aria-label="Card" />} />);
+
+    expect(cues(screen.getByRole("link", { name: "Card" }))).toEqual({
       hover: "tick",
       press: "",
       release: "",

@@ -149,13 +149,15 @@ function ShelfJams({ jams, now, layout }: { jams: JamFromList[]; now: Date; layo
       renderItem={renderJam}
       // Cards: the column count comes from the available width rather
       // than a breakpoint ladder — cards hold a ~17rem floor and the grid
-      // fits as many as it can, so ultrawide displays keep gaining
-      // columns instead of stretching four cards across 1900px.
-      // `min(...,100%)` keeps the floor from overflowing viewports
-      // narrower than a single card.
+      // fits as many as it can, capped at three so wide boards grow the
+      // cards instead of shrinking them into a wall of tiles. The cap is
+      // the `calc` term: past three columns' worth of width, a track's
+      // minimum becomes a third of the row (minus the two `gap-3` gaps),
+      // so a fourth can never fit. `min(...,100%)` keeps the floor from
+      // overflowing viewports narrower than a single card.
       rowClassName={
         layout === "cards"
-          ? "grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-3"
+          ? "grid grid-cols-[repeat(auto-fill,minmax(max(min(17rem,100%),calc((100%_-_1.5rem)/3)),1fr))] gap-3"
           : "flex flex-col"
       }
       className={
