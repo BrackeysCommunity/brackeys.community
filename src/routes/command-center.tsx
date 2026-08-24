@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { CommandCenterPage } from "@/components/home/CommandCenterPage";
+import { CommandCenterPage } from "@/components/commands/CommandCenterPage";
 import { buildMeta } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/command-center")({

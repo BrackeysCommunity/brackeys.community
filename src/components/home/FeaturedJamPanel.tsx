@@ -86,11 +86,11 @@ export function FeaturedJamPanelSkeleton({ density = "comfortable" }: { density?
 
 /** One row of the covers grid: the auto-fill ladder is what lets a third
  * column appear once the open card's bleed gives it room. */
-const ENTRY_ROW_CLASSES = "grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3";
+const ENTRY_ROW_CLASSES = "grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3";
 
-/** Cover at the ~136px column minimum plus two text lines. An estimate
+/** Cover at the ~120px column minimum plus two text lines. An estimate
  * only — mounted rows re-measure themselves. */
-const ENTRY_ROW_ESTIMATE = 180;
+const ENTRY_ROW_ESTIMATE = 168;
 
 /** Entries mounted before the probe has resolved a column count — the
  * first client frame. A screenful, not the list. */
