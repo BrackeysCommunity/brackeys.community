@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 // @vitest-environment jsdom
 
 /**
- * The deferred-load path in `@/lib/posthog`: posthog-js is imported at idle
+ * The deferred-load path in `@/lib/product-insights`: posthog-js is imported at idle
  * time, so every call made before it lands has to queue and replay in order.
  * That queue is the part with no analogue in the old eager module, so it is
  * the part worth pinning down.
@@ -58,7 +58,7 @@ afterEach(() => localStorage.clear());
 
 describe("deferred PostHog load", () => {
   it("does not import posthog-js until idle time", async () => {
-    const { initAnalytics, captureEvent } = await import("@/lib/posthog");
+    const { initAnalytics, captureEvent } = await import("@/lib/product-insights");
 
     initAnalytics();
     captureEvent("$pageview");
@@ -69,7 +69,7 @@ describe("deferred PostHog load", () => {
   });
 
   it("replays queued calls, in order, once the client lands", async () => {
-    const { initAnalytics, captureEvent, identifyUser } = await import("@/lib/posthog");
+    const { initAnalytics, captureEvent, identifyUser } = await import("@/lib/product-insights");
 
     initAnalytics();
     captureEvent("$pageview");
@@ -95,7 +95,7 @@ describe("deferred PostHog load", () => {
   });
 
   it("captures straight through once loaded, without re-queuing", async () => {
-    const { initAnalytics, captureEvent } = await import("@/lib/posthog");
+    const { initAnalytics, captureEvent } = await import("@/lib/product-insights");
 
     initAnalytics();
     await flushIdle();
@@ -106,7 +106,7 @@ describe("deferred PostHog load", () => {
 
   it("never loads posthog-js at all for an opted-out visitor", async () => {
     localStorage.setItem("brackeys-analytics", "off");
-    const { initAnalytics, captureEvent } = await import("@/lib/posthog");
+    const { initAnalytics, captureEvent } = await import("@/lib/product-insights");
 
     initAnalytics();
     captureEvent("$pageview");
@@ -118,7 +118,7 @@ describe("deferred PostHog load", () => {
 
   it("stands down entirely on an opt-out made while the load was in flight", async () => {
     const { initAnalytics, setAnalyticsEnabled, captureEvent, identifyUser } =
-      await import("@/lib/posthog");
+      await import("@/lib/product-insights");
 
     initAnalytics();
     // Queued behind the opt-out, and the queue is FIFO: an identify carries
@@ -140,7 +140,7 @@ describe("deferred PostHog load", () => {
   });
 
   it("starts a fresh load when the visitor opts back in after standing down", async () => {
-    const { initAnalytics, setAnalyticsEnabled } = await import("@/lib/posthog");
+    const { initAnalytics, setAnalyticsEnabled } = await import("@/lib/product-insights");
 
     initAnalytics();
     setAnalyticsEnabled(false);

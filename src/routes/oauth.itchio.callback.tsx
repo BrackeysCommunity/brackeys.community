@@ -9,7 +9,7 @@ import {
   isAllowedPreviewOrigin,
   parseOAuthState,
 } from "@/lib/itchio-oauth";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 

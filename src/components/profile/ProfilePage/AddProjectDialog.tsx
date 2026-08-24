@@ -32,7 +32,7 @@ import {
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
   type UploadedProfileProjectImage,
 } from "@/lib/image-upload-policy";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import {
   getAllowedSubTypesForProjectType,
   PROFILE_PROJECT_SUBTYPE_LABELS,

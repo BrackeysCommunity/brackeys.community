@@ -10,7 +10,7 @@ import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { formatCountdown } from "@/lib/jam-countdown";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { client } from "@/orpc/client";
 
 import { isExpiringSoon } from "./dashboard-derive";

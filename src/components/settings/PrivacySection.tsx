@@ -16,7 +16,7 @@ import {
   analyticsPreferenceServerSnapshot,
   setAnalyticsEnabled,
   subscribeAnalyticsPreference,
-} from "@/lib/posthog";
+} from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 

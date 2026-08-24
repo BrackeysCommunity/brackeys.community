@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 // @vitest-environment jsdom
 
 /**
- * The unhappy half of the deferred load in `@/lib/posthog`: the chunk is
+ * The unhappy half of the deferred load in `@/lib/product-insights`: the chunk is
  * genuinely unreachable sometimes — an offline visitor, or a deploy that
  * rotated asset hashes while a tab sat open. Lives in its own file because
  * the failing `posthog-js` mock is module-scoped and would leak into the
@@ -27,7 +27,7 @@ vi.stubGlobal("requestIdleCallback", (fn: () => void) => {
 
 describe("when the posthog-js chunk can't be fetched", () => {
   it("swallows the rejection and stops queueing instead of leaking calls", async () => {
-    const { initAnalytics, captureEvent, identifyUser } = await import("@/lib/posthog");
+    const { initAnalytics, captureEvent, identifyUser } = await import("@/lib/product-insights");
 
     initAnalytics();
     for (const task of idleTasks) task();

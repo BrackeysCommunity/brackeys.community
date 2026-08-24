@@ -5,7 +5,7 @@ import { clearActiveUserProfile, fetchActiveUserProfile } from "@/lib/active-use
 import { authClient } from "@/lib/auth-client";
 import { setAuthSession } from "@/lib/auth-store";
 import { isActiveBan } from "@/lib/ban-state";
-import { identifyUser } from "@/lib/posthog";
+import { identifyUser } from "@/lib/product-insights";
 
 /**
  * Mirrors the better-auth client session into `authStore` (and keeps the

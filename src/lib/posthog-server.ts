@@ -1,13 +1,13 @@
 import { PostHog } from "posthog-node";
 
-import type { AnalyticsEvent } from "@/lib/analytics-events";
+import type { AnalyticsEvent } from "@/lib/event-taxonomy";
 
 /**
  * Server-side PostHog — lifecycle events and unhandled error reporting.
  *
  * **Server only.** Importing this from anything that reaches the browser
  * bundle drags posthog-node in with it; the client counterpart is
- * `@/lib/posthog`.
+ * `@/lib/product-insights`.
  *
  * Reads the same public project key as the browser (`VITE_POSTHOG_KEY`) via
  * `process.env` rather than `@/env`, because the client-block accessor is
@@ -86,7 +86,7 @@ function installProcessHandlers(posthog: PostHog) {
 
 /**
  * Fire-and-forget; batched and flushed by posthog-node. Restricted to the
- * taxonomy in `@/lib/analytics-events` for the same reason as its browser
+ * taxonomy in `@/lib/event-taxonomy` for the same reason as its browser
  * counterpart.
  *
  * `distinctId` must be the user id — the same value the browser passes to

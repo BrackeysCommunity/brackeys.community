@@ -1,5 +1,5 @@
 import { errorMessage } from "@/lib/error-message";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 
 /**
@@ -15,7 +15,7 @@ import { toast } from "@/lib/toast";
  * `scope` names the mutation (`area.action`) and is what the error-rate
  * dashboard groups by. `fallback` replaces the message when the error
  * carries none. Reporting applies the expected-error filter — see
- * `reportMutationError` in `@/lib/posthog`.
+ * `reportMutationError` in `@/lib/product-insights`.
  *
  * Sites with extra failure work (optimistic rollback, local error state)
  * keep their own handler and call `reportMutationError` +

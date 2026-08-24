@@ -16,7 +16,7 @@ import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { postImageForm } from "@/lib/image-upload";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 import { toast } from "@/lib/toast";
 import { markWrite } from "@/orpc/recent-write";

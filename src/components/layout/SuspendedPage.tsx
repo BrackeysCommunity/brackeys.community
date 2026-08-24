@@ -5,12 +5,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { timeAgo } from "@/lib/format-time";
 import { formatCountdown } from "@/lib/jam-countdown";
 import { CONTACT, SITE } from "@/lib/legal-meta";
-import { captureEvent, resetIdentity } from "@/lib/posthog";
+import { captureEvent, resetIdentity } from "@/lib/product-insights";
 
 /** What a suspended account is shown; the reason is the staff note from the ban. */
 export function SuspendedPage({

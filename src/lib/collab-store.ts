@@ -1,6 +1,5 @@
 import { Store } from "@tanstack/store";
 
-import { EVENTS } from "@/lib/analytics-events";
 // The facet unions live in `@/lib/collab-vocabulary` next to their labels;
 // re-exported here because this module is where consumers historically
 // import them from.
@@ -11,7 +10,8 @@ import type {
   CollabContactType,
   CollabProjectLength,
 } from "@/lib/collab-vocabulary";
-import { captureEvent } from "@/lib/posthog";
+import { EVENTS } from "@/lib/event-taxonomy";
+import { captureEvent } from "@/lib/product-insights";
 
 export type {
   CollabPostType,

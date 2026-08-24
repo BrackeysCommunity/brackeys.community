@@ -5,7 +5,7 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { linkedAccounts } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { describeItchError, fetchCredentialsInfo, validateToken } from "@/lib/itchio";
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";

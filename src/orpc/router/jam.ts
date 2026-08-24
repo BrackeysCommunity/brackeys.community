@@ -33,7 +33,7 @@ import {
   teams,
   type JamWatchIntent,
 } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";

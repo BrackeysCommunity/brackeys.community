@@ -32,7 +32,7 @@ import type { SubjectRef } from "@/lib/comment-subjects";
 import { timeAgo } from "@/lib/format-time";
 import { Censored } from "@/lib/hooks/use-censored";
 import { toastMutationError } from "@/lib/mutation-errors";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";

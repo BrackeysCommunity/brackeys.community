@@ -24,7 +24,6 @@ import {
   userSkills,
   skills,
 } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
 import {
   daysFromNow,
   EXTEND_DAYS,
@@ -38,6 +37,7 @@ import {
   COLLAB_POST_TYPES,
   COLLAB_PROJECT_LENGTHS,
 } from "@/lib/collab-vocabulary";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { jamSlug } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";

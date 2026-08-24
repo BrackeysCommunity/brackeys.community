@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
+import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 
 const names = Object.values(EVENTS);
 

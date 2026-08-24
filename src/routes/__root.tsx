@@ -58,7 +58,7 @@ import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-comma
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
-import { captureError } from "@/lib/posthog";
+import { captureError } from "@/lib/product-insights";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 
 import fontsCss from "../fonts.css?url";

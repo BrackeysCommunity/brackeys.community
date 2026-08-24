@@ -1,8 +1,8 @@
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
-import { EVENTS, type SigninSource } from "@/lib/analytics-events";
-import { captureEvent } from "@/lib/posthog";
+import { EVENTS, type SigninSource } from "@/lib/event-taxonomy";
+import { captureEvent } from "@/lib/product-insights";
 
 /**
  * A literal rather than inferred from `typeof auth`, which would pull the server

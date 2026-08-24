@@ -22,7 +22,7 @@ import {
   teams,
   userSkills,
 } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { jamUrl } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { notify } from "@/lib/notifications";

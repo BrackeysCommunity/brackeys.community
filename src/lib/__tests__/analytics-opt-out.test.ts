@@ -12,7 +12,7 @@ const {
   globalPrivacyControlEnabled,
   setAnalyticsEnabled,
   subscribeAnalyticsPreference,
-} = await import("@/lib/posthog");
+} = await import("@/lib/product-insights");
 
 const OPT_OUT_KEY = "brackeys-analytics";
 

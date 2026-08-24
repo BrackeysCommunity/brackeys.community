@@ -9,7 +9,7 @@ import {
   notifications,
   type NotificationType,
 } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,

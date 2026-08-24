@@ -1,10 +1,15 @@
 import { ORPCError } from "@orpc/client";
 
 import { env } from "@/env";
-import type { AnalyticsEvent } from "@/lib/analytics-events";
+import type { AnalyticsEvent } from "@/lib/event-taxonomy";
 
 /**
  * Browser-side PostHog: product analytics, feature flags, and error tracking.
+ *
+ * Not named `posthog.ts`: this module ships as its own chunk in the static
+ * startup graph, and tracker-pattern asset names get blocked by adblock
+ * filter lists, killing the app for those users — see the warning in
+ * `@/lib/event-taxonomy`.
  *
  * Runs **cookieless** (`cookieless_mode: "always"`) — nothing is written to
  * cookies, localStorage, or sessionStorage, and visitor identity is a
@@ -344,7 +349,7 @@ export function resetIdentity() {
 
 /**
  * Capture a product event. Restricted to the taxonomy in
- * `@/lib/analytics-events` — a name invented at the call site is a type
+ * `@/lib/event-taxonomy` — a name invented at the call site is a type
  * error, which is what keeps the event list in PostHog browsable instead of
  * accumulating three spellings of the same thing.
  *

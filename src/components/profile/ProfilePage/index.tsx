@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
+import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
-import { captureEvent } from "@/lib/posthog";
+import { captureEvent } from "@/lib/product-insights";
 
 import type { ProfileViewModel } from "./helpers";
 import { ProfileDesktop } from "./ProfileDesktop";

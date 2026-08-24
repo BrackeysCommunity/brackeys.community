@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { Heading, Text } from "@/components/ui/typography";
-import { EVENTS, FLOWS, flowStep } from "@/lib/analytics-events";
 import {
   collabStore,
   resetWizard,
@@ -13,8 +12,9 @@ import {
   type UploadedImage,
 } from "@/lib/collab-store";
 import { errorMessage } from "@/lib/error-message";
+import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { EASE_OUT } from "@/lib/motion";
-import { captureEvent, reportMutationError } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { client } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";

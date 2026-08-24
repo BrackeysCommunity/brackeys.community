@@ -3,10 +3,10 @@ import { useEffect, useMemo } from "react";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, RichHtml, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { hostName } from "@/lib/jam-links";
-import { captureEvent } from "@/lib/posthog";
+import { captureEvent } from "@/lib/product-insights";
 
 import { jamPhase } from "../JamCalendarPage/helpers";
 import { JamCommunitySection } from "./JamCommunitySection";

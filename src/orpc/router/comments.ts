@@ -16,7 +16,6 @@ import {
   threadSubscriptions,
   userBlocks,
 } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
 import {
   canViewSubject,
   canWriteSubject,
@@ -28,6 +27,7 @@ import {
   type SubjectRef,
 } from "@/lib/comment-subjects";
 import { isStaffMember } from "@/lib/discord";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";

@@ -5,8 +5,8 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { account, linkedAccounts } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
 import { openBetterAuthToken } from "@/lib/better-auth-tokens";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { fetchGitHubUser, fetchContributionCalendar } from "@/lib/github";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { openToken, sealToken } from "@/lib/token-crypto";

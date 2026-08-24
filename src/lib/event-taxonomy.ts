@@ -3,6 +3,13 @@
  * nothing else — no PostHog import — so both browser components and server
  * procedures can pull from the same list.
  *
+ * ⚠️ This file's *name* is deliberate: it ships as a shared chunk in the
+ * static startup graph, and adblock filter lists block asset URLs matching
+ * tracker patterns ("analytics", "posthog", …) — which took the whole app
+ * down for filtered users when this was `analytics-events.ts`. Any rename
+ * (here or `product-insights.ts`) must avoid those words; vet candidates
+ * against EasyPrivacy first.
+ *
  * ## The naming rule
  *
  * `<domain>_<object>_<action>`, snake_case, past tense. The domain leads so

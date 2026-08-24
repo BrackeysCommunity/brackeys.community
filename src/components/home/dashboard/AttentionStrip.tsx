@@ -18,7 +18,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { Censored } from "@/lib/hooks/use-censored";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { teamLinkParams } from "@/lib/team-links";
 import { client } from "@/orpc/client";
 

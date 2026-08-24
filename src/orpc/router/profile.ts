@@ -40,8 +40,8 @@ import {
   userRoles,
   userSkills,
 } from "@/db/schema";
-import { EVENTS } from "@/lib/analytics-events";
 import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { jamUrl } from "@/lib/jam-links";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";

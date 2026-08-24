@@ -1,12 +1,15 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
-import { captureEvent, initAnalytics } from "@/lib/posthog";
+import { captureEvent, initAnalytics } from "@/lib/product-insights";
+import { reloadOnChunkError } from "@/lib/reload-on-chunk-error";
 
 import { NotFoundPage } from "./components/layout/NotFoundPage";
 import { PageSkeleton } from "./components/layout/PageSkeleton";
 import { makeQueryClient } from "./integrations/tanstack-query/query-client";
 import { routeTree } from "./routeTree.gen";
+
+reloadOnChunkError();
 
 export function getRouter() {
   // One client per router, and therefore one per request on the server —

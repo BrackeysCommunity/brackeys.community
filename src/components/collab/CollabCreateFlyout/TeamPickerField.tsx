@@ -10,7 +10,7 @@ import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
 
 import { FieldRow } from "./fields";

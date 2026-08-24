@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { db } from "@/db";
 import { ACCENT, ACCENT_TEXT, BG, FG, FONT_MONO, FONT_SANS, MUTED } from "@/emails/theme";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { NOTIFICATION_TYPE_LABEL } from "@/lib/notification-copy";
 import { captureServerEvent, withErrorReporting } from "@/lib/posthog-server";
 import {

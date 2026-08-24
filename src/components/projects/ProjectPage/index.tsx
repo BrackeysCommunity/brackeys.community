@@ -7,11 +7,11 @@ import { Section } from "@/components/ui/section";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { formatCount } from "@/lib/format-count";
 import { Censored } from "@/lib/hooks/use-censored";
 import { jamLinkParams } from "@/lib/jam-links";
-import { captureEvent } from "@/lib/posthog";
+import { captureEvent } from "@/lib/product-insights";
 import { teamLinkParams } from "@/lib/team-links";
 
 import { ProjectCredits } from "./ProjectCredits";

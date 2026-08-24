@@ -1,6 +1,6 @@
 import { env } from "@/env";
-import { EVENTS } from "@/lib/analytics-events";
-import { captureEvent } from "@/lib/posthog";
+import { EVENTS } from "@/lib/event-taxonomy";
+import { captureEvent } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 
 /**

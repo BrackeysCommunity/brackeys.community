@@ -20,12 +20,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { toastMutationError } from "@/lib/mutation-errors";
-import { captureEvent, reportMutationError } from "@/lib/posthog";
+import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 

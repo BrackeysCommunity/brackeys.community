@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
-import { EVENTS, type SearchSurface } from "@/lib/analytics-events";
-import { captureEvent } from "@/lib/posthog";
+import { EVENTS, type SearchSurface } from "@/lib/event-taxonomy";
+import { captureEvent } from "@/lib/product-insights";
 
 /**
  * Debounced `search_performed` for a listing surface. One event per settled

@@ -5,14 +5,14 @@ import {
   getPostHogClientSnapshot,
   type PostHogClient,
   subscribePostHogClient,
-} from "@/lib/posthog";
+} from "@/lib/product-insights";
 
 /**
  * Not `@posthog/react`'s hooks: that package imports `posthog-js` at module
  * scope (`setDefaultPostHogInstance(posthogJs)` runs on import), so pulling
  * in its hooks would statically drag posthog-js back into the entry graph —
- * the exact cost `@/lib/posthog` defers. This reads the same lazily-loaded
- * client through `@/lib/posthog`'s module-level store instead of React
+ * the exact cost `@/lib/product-insights` defers. This reads the same lazily-loaded
+ * client through `@/lib/product-insights`'s module-level store instead of React
  * context, and tolerates the client being `null` (not yet loaded, or never
  * going to load) the way `@posthog/react` never has to.
  */

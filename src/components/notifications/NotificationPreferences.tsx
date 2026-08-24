@@ -7,7 +7,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import type { NotificationType } from "@/db/schema";
 import { NOTIFICATION_TYPE_LABEL, NOTIFICATION_TYPES } from "@/lib/notification-copy";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 

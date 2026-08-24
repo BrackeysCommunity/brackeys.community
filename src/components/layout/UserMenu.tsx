@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { activeUserStore } from "@/lib/active-user-store";
-import { EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
-import { captureEvent, resetIdentity } from "@/lib/posthog";
+import { EVENTS } from "@/lib/event-taxonomy";
+import { captureEvent, resetIdentity } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
 import { truncateMiddle } from "@/lib/utils";
 

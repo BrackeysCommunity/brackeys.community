@@ -7,12 +7,12 @@ import { FEATURE_FLAGS } from "@/lib/flags";
 type FlagListener = () => void;
 
 /**
- * `@/lib/posthog` is mocked rather than imported for real: `useFlag` reads
+ * `@/lib/product-insights` is mocked rather than imported for real: `useFlag` reads
  * the client through its module-level store (`getPostHogClientSnapshot` /
  * `subscribePostHogClient`), not React context, so this is the seam a test
  * drives instead of a provider wrapper.
  */
-vi.mock("@/lib/posthog", () => {
+vi.mock("@/lib/product-insights", () => {
   let client: unknown = null;
   const listeners = new Set<FlagListener>();
   return {
@@ -28,7 +28,7 @@ vi.mock("@/lib/posthog", () => {
   };
 });
 
-const posthogMock = await import("@/lib/posthog");
+const posthogMock = await import("@/lib/product-insights");
 const { useFlag } = await import("@/lib/hooks/use-flag");
 
 function setClient(client: unknown) {

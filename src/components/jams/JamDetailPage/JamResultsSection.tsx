@@ -4,10 +4,10 @@ import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { EVENTS } from "@/lib/analytics-events";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { formatCount } from "@/lib/format-count";
 import { safeThemeColor } from "@/lib/jam-palette";
-import { captureEvent } from "@/lib/posthog";
+import { captureEvent } from "@/lib/product-insights";
 import { cn } from "@/lib/utils";
 
 import type { JamResultsCriterion, JamResultsPlace } from "./types";

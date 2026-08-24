@@ -18,9 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import { EVENTS } from "@/lib/analytics-events";
 import { errorMessage } from "@/lib/error-message";
-import { captureEvent, reportMutationError } from "@/lib/posthog";
+import { EVENTS } from "@/lib/event-taxonomy";
+import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;

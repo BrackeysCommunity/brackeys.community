@@ -11,7 +11,7 @@ import { openConfirmModal } from "@/components/ui/confirm";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { errorMessage } from "@/lib/error-message";
-import { reportMutationError } from "@/lib/posthog";
+import { reportMutationError } from "@/lib/product-insights";
 
 type SaveStatus = "idle" | "saving" | "success" | "error";
 
