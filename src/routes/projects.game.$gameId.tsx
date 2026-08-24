@@ -1,4 +1,5 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { client } from "@/orpc/client";
@@ -14,7 +15,13 @@ import { client } from "@/orpc/client";
  * minting is idempotent — but the attributes stay.
  */
 export const Route = createFileRoute("/projects/game/$gameId")({
-  loader: async ({ params }) => {
+  // The jam-page cards send `?jam=` through here; the redirect forwards it
+  // so the landing page still knows which jam the visitor came from.
+  validateSearch: z.object({
+    jam: z.coerce.number().int().positive().optional(),
+  }),
+  loaderDeps: ({ search }) => ({ jam: search.jam }),
+  loader: async ({ params, deps }) => {
     const gameId = Number(params.gameId);
     if (!Number.isSafeInteger(gameId) || gameId <= 0) throw notFound();
     const resolved = await client.resolveProjectForGame({ gameId });
@@ -24,6 +31,7 @@ export const Route = createFileRoute("/projects/game/$gameId")({
     throw redirect({
       to: "/projects/$projectSlug",
       params: { projectSlug: resolved.slug },
+      search: { jam: deps.jam },
       replace: true,
     });
   },

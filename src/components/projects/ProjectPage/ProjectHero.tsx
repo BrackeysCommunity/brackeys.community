@@ -15,14 +15,16 @@ import { Spinner } from "@/components/ui/spinner";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { postImageForm } from "@/lib/image-upload";
-import { reportMutationError } from "@/lib/product-insights";
+import { jamEntryUrl } from "@/lib/jam-links";
+import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 import { toast } from "@/lib/toast";
 import { markWrite } from "@/orpc/recent-write";
 
 import { ProjectDetailsEditor } from "./ProjectDetailsEditor";
-import type { ProjectRow } from "./types";
+import type { ProjectJamAppearance, ProjectRow } from "./types";
 
 /**
  * The project's masthead: cover, what kind of thing it is, when it shipped,
@@ -37,12 +39,17 @@ export function ProjectHero({
   project,
   canEdit,
   recruitTeamId,
+  fromJam,
 }: {
   project: ProjectRow;
   canEdit: boolean;
   /** Pre-linked team for the RECRUIT entrance — set when exactly one
    *  team claims the project, so the wizard arrives fully seeded. */
   recruitTeamId?: string;
+  /** The appearance for the jam the visitor navigated from, when this
+   *  project has one — earns an entry button beside the CTA so they
+   *  don't have to find it in the JAM RECORD list. */
+  fromJam?: ProjectJamAppearance;
 }) {
   const [editing, setEditing] = useState(false);
   const typeLabel = projectTypeLabel(project);
@@ -139,6 +146,34 @@ export function ProjectHero({
               </Button>
             ) : restricted ? (
               <MicroLabel>THIS PROJECT'S PAGE IS NO LONGER PUBLIC ON ITCH.IO</MicroLabel>
+            ) : null}
+
+            {fromJam?.submissionUrl ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="tracking-widest"
+                nativeButton={false}
+                render={
+                  <a
+                    href={jamEntryUrl(fromJam.submissionUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={
+                      fromJam.jamName ? `View entry in ${fromJam.jamName}` : "View jam entry"
+                    }
+                    onClick={() =>
+                      captureEvent(EVENTS.jamEntryOutboundClicked, {
+                        jam_id: fromJam.jamId,
+                        via: "project_hero",
+                      })
+                    }
+                  />
+                }
+              >
+                VIEW JAM ENTRY
+                <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
+              </Button>
             ) : null}
 
             {canEdit ? (

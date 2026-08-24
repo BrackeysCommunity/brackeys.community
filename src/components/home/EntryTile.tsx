@@ -1,3 +1,5 @@
+import { Link as RouterLink } from "@tanstack/react-router";
+
 import type { RecentEntry } from "@/components/home/use-recent-entries";
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
@@ -10,20 +12,34 @@ import { cn } from "@/lib/utils";
  * feeds it `listRecentEntries` rows and the hero grid `listJamEntries`. */
 export type EntryTileEntry = Pick<
   RecentEntry,
-  "entryId" | "gameTitle" | "gameUrl" | "gameCoverUrl" | "gameCoverColor" | "authorName" | "rank"
+  "entryId" | "gameId" | "gameTitle" | "gameCoverUrl" | "gameCoverColor" | "authorName" | "rank"
 >;
 
 /** One submitted game: cover, title, author. Shared by the band's strip and
- * the hero grid — callers size it via `className`. */
-export function EntryTile({ entry, className }: { entry: EntryTileEntry; className?: string }) {
+ * the hero grid — callers size it via `className`.
+ *
+ * Links inward through the mint-on-visit route (which lands on the game's
+ * canonical project page, creating it on first visit) rather than out to
+ * itch — `rel="nofollow"` for the same reason `JamEntryCard` carries it.
+ * `?jam=` tells the landing page which jam the visitor came from. */
+export function EntryTile({
+  entry,
+  jamId,
+  className,
+}: {
+  entry: EntryTileEntry;
+  jamId: number;
+  className?: string;
+}) {
   // Scraped text; never reaches a style attribute without re-validation.
   const cover = safeThemeColor(entry.gameCoverColor) ?? "var(--muted)";
 
   return (
-    <a
-      href={entry.gameUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+    <RouterLink
+      to="/projects/game/$gameId"
+      params={{ gameId: String(entry.gameId) }}
+      search={{ jam: jamId }}
+      rel="nofollow"
       data-hover-play-group
       className={cn("group/entry flex min-w-0 flex-col gap-1.5", className)}
     >
@@ -62,6 +78,6 @@ export function EntryTile({ entry, className }: { entry: EntryTileEntry; classNa
       <MicroLabel as="div" ellipsis>
         {entry.authorName ?? "UNKNOWN"}
       </MicroLabel>
-    </a>
+    </RouterLink>
   );
 }

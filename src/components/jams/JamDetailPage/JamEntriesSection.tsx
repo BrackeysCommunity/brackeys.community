@@ -173,7 +173,11 @@ export function JamEntriesSection({
           items={entries}
           getItemKey={(entry) => entry.entryId}
           renderItem={(entry) => (
-            <JamEntryCard entry={entry} projectSlug={projectSlugByGameId.get(entry.gameId)} />
+            <JamEntryCard
+              entry={entry}
+              jamId={jamId}
+              projectSlug={projectSlugByGameId.get(entry.gameId)}
+            />
           )}
           rowClassName={GRID_ROW_CLASSES}
           estimateRowHeight={190}

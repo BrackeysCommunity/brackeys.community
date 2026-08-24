@@ -25,9 +25,13 @@ import type { JamEntryRow } from "./types";
  */
 export function JamEntryCard({
   entry,
+  jamId,
   projectSlug,
 }: {
   entry: JamEntryRow;
+  /** The jam this grid belongs to — travels as `?jam=` so the project
+   *  page can offer this jam's entry back in its hero. */
+  jamId: number;
   /** Canonical project for this entry's game, when one exists. */
   projectSlug?: string | null;
 }) {
@@ -95,6 +99,7 @@ export function JamEntryCard({
     <RouterLink
       to="/projects/$projectSlug"
       params={{ projectSlug }}
+      search={{ jam: jamId }}
       className="flex flex-col gap-1.5"
     >
       {body}
@@ -103,6 +108,7 @@ export function JamEntryCard({
     <RouterLink
       to="/projects/game/$gameId"
       params={{ gameId: String(entry.gameId) }}
+      search={{ jam: jamId }}
       rel="nofollow"
       className="flex flex-col gap-1.5"
     >

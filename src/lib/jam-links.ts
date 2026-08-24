@@ -15,6 +15,15 @@ export function jamUrl(slug: string): string {
 }
 
 /**
+ * A submission's page on itch.io. Scraped `submission_url`s are usually
+ * root-relative (`/jam/<jam>/rate/<id>`), but explicit rows can hold a
+ * full URL — this absorbs both.
+ */
+export function jamEntryUrl(submissionUrl: string): string {
+  return submissionUrl.startsWith("http") ? submissionUrl : `https://itch.io${submissionUrl}`;
+}
+
+/**
  * How a jam turns into a `/jams/$jamSlug` link. Mirrors
  * `profile-links.ts` / `team-links.ts`, which exist for the same reason.
  * `getJam` resolves either form of the segment server-side.

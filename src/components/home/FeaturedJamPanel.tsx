@@ -101,10 +101,13 @@ const UNMEASURED_ENTRIES = 12;
  * Columns come off an empty probe row's template, re-read on resize. */
 function EntriesGrid({
   entries,
+  jamId,
   scrollport,
   onEndReached,
 }: {
   entries: EntryTileEntry[];
+  /** The jam these covers belong to — rides each tile's link as `?jam=`. */
+  jamId: number;
   scrollport: HTMLElement | null;
   /** The scroller is nearing the last mounted row — fetch the next page. */
   onEndReached?: () => void;
@@ -178,7 +181,7 @@ function EntriesGrid({
                 style={{ transform: `translateY(${row.start}px)` }}
               >
                 {entries.slice(start, start + columns).map((entry) => (
-                  <EntryTile key={entry.entryId} entry={entry} />
+                  <EntryTile key={entry.entryId} entry={entry} jamId={jamId} />
                 ))}
               </div>
             );
@@ -187,7 +190,7 @@ function EntriesGrid({
       ) : (
         <div className={ENTRY_ROW_CLASSES}>
           {entries.slice(0, UNMEASURED_ENTRIES).map((entry) => (
-            <EntryTile key={entry.entryId} entry={entry} />
+            <EntryTile key={entry.entryId} entry={entry} jamId={jamId} />
           ))}
         </div>
       )}
@@ -425,6 +428,7 @@ export function FeaturedJamPanel({
                   >
                     <EntriesGrid
                       entries={gridEntries}
+                      jamId={jam.jamId}
                       scrollport={scrollport}
                       onEndReached={fullEntries.fetchMore}
                     />

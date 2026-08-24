@@ -299,7 +299,12 @@ function EntryStrip({ entries }: { entries: RecentEntry[] }) {
       </div>
       <div className={STRIP_SCROLLER}>
         {entries.slice(0, RECENT_ENTRIES_PER_JAM).map((entry) => (
-          <EntryTile key={entry.entryId} entry={entry} className="w-32 shrink-0 snap-start" />
+          <EntryTile
+            key={entry.entryId}
+            entry={entry}
+            jamId={entry.jamId}
+            className="w-32 shrink-0 snap-start"
+          />
         ))}
       </div>
     </div>

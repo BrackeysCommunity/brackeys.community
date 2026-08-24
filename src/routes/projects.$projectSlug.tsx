@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProjectPage } from "@/components/projects/ProjectPage";
@@ -15,7 +16,15 @@ import { client } from "@/orpc/client";
  * is a shareable, indexable destination, and a client-fetched page hands a
  * crawler an empty shell.
  */
+// `?jam=<jamId>` marks which jam the visitor navigated from, so the hero
+// can offer that jam's entry and the JAM RECORD can light up its row.
+// Deliberately not a loader dep — it changes presentation, not data.
+const searchSchema = z.object({
+  jam: z.coerce.number().int().positive().optional(),
+});
+
 export const Route = createFileRoute("/projects/$projectSlug")({
+  validateSearch: searchSchema,
   loader: async ({ params }) => {
     // Two reads: the anonymous page, and where the viewer stands with it.
     // The public one is edge-cacheable and serves published rows only; the
@@ -105,7 +114,8 @@ export const Route = createFileRoute("/projects/$projectSlug")({
 });
 
 function ProjectRoute() {
-  return <ProjectPage detail={Route.useLoaderData()} />;
+  const { jam } = Route.useSearch();
+  return <ProjectPage detail={Route.useLoaderData()} fromJamId={jam} />;
 }
 
 function ProjectNotFound() {

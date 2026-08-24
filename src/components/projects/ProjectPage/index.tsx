@@ -10,9 +10,10 @@ import { Well } from "@/components/ui/well";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { formatCount } from "@/lib/format-count";
 import { Censored } from "@/lib/hooks/use-censored";
-import { jamLinkParams } from "@/lib/jam-links";
+import { jamEntryUrl, jamLinkParams } from "@/lib/jam-links";
 import { captureEvent } from "@/lib/product-insights";
 import { teamLinkParams } from "@/lib/team-links";
+import { cn } from "@/lib/utils";
 
 import { ProjectCredits } from "./ProjectCredits";
 import { ProjectHero } from "./ProjectHero";
@@ -29,8 +30,19 @@ import type { ProjectDetail, ProjectJamAppearance } from "./types";
  * has no jam record, a solo tool has no team, and neither should render an
  * empty box saying so.
  */
-export function ProjectPage({ detail }: { detail: ProjectDetail }) {
+export function ProjectPage({
+  detail,
+  fromJamId,
+}: {
+  detail: ProjectDetail;
+  /** The jam the visitor navigated from (`?jam=`), when it's one this
+   *  project appeared in — surfaces that entry in the hero and lights up
+   *  its JAM RECORD row. */
+  fromJamId?: number;
+}) {
   const { project, contributors, teams, jamRecord, viewerCanEdit, openPostCount } = detail;
+  const fromJam =
+    fromJamId != null ? jamRecord.find((appearance) => appearance.jamId === fromJamId) : undefined;
 
   return (
     <div className="flex flex-col gap-8 pb-8">
@@ -38,6 +50,7 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
         project={project}
         canEdit={viewerCanEdit}
         recruitTeamId={teams.length === 1 ? teams[0]!.teamId : undefined}
+        fromJam={fromJam}
       />
 
       {/* The page as a recruiting surface, not just a trophy case: only
@@ -118,7 +131,11 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
         >
           <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
             {jamRecord.map((appearance) => (
-              <JamAppearanceRow key={appearance.key} appearance={appearance} />
+              <JamAppearanceRow
+                key={appearance.key}
+                appearance={appearance}
+                highlighted={appearance === fromJam}
+              />
             ))}
           </Well>
         </Section>
@@ -127,7 +144,14 @@ export function ProjectPage({ detail }: { detail: ProjectDetail }) {
   );
 }
 
-function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) {
+function JamAppearanceRow({
+  appearance,
+  highlighted,
+}: {
+  appearance: ProjectJamAppearance;
+  /** The jam the visitor came from — this is the row they're looking for. */
+  highlighted?: boolean;
+}) {
   const rankChip =
     appearance.rank != null
       ? appearance.entriesCount
@@ -136,7 +160,12 @@ function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) 
       : appearance.result;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5",
+        highlighted && "border-l-2 border-l-primary bg-primary/10",
+      )}
+    >
       {/* A jam we track links to its page here; an off-itch jam with only a
           free-text URL still links out; one with neither stays plain. */}
       {appearance.jamSlug || appearance.jamId != null ? (
@@ -188,11 +217,7 @@ function JamAppearanceRow({ appearance }: { appearance: ProjectJamAppearance }) 
 
       {appearance.submissionUrl ? (
         <TextLink
-          href={
-            appearance.submissionUrl.startsWith("http")
-              ? appearance.submissionUrl
-              : `https://itch.io${appearance.submissionUrl}`
-          }
+          href={jamEntryUrl(appearance.submissionUrl)}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() =>

@@ -250,6 +250,7 @@ export function recentEntriesQuery(jamIds: number[], limit: number) {
     .select({
       entryId: itchJamEntries.entryId,
       jamId: itchJamEntries.jamId,
+      gameId: itchJamEntries.gameId,
       gameTitle: itchJamEntries.gameTitle,
       gameUrl: itchJamEntries.gameUrl,
       gameCoverUrl: itchJamEntries.gameCoverUrl,
@@ -287,6 +288,7 @@ export function recentEntriesQuery(jamIds: number[], limit: number) {
     .select({
       entryId: ranked.entryId,
       jamId: ranked.jamId,
+      gameId: ranked.gameId,
       gameTitle: ranked.gameTitle,
       gameUrl: ranked.gameUrl,
       gameCoverUrl: ranked.gameCoverUrl,
