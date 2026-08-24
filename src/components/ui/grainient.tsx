@@ -47,6 +47,18 @@ const hexToRgb = (hex: string): [number, number, number] => {
   ];
 };
 
+const toCss = ([r, g, b]: [number, number, number]) =>
+  `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
+
+/** Static stand-in for machines without WebGL: the same three colors as a
+ * plain CSS gradient. Grain-only surfaces stay transparent instead. */
+const applyFallbackGradient = (
+  el: HTMLElement,
+  t: { c1: [number, number, number]; c2: [number, number, number]; c3: [number, number, number] },
+) => {
+  el.style.background = `linear-gradient(135deg, ${toCss(t.c1)}, ${toCss(t.c3)}, ${toCss(t.c2)})`;
+};
+
 /**
  * Animated WebGL grainient — three-color gradient with warp + noise + grain,
  * all moving over time. Pass `grainOnly` to render only the grain channel
@@ -87,6 +99,9 @@ export function Grainient({
   const meshRef = useRef<Mesh | null>(null);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  // True once WebGL context creation has failed (driver blocklist, context
+  // budget exhausted). The surface then falls back to a static CSS gradient.
+  const fallbackRef = useRef(false);
 
   /** One frame at the target colors — the ease is skipped so a frozen
    * surface shows where it was heading, not where the loop stopped. */
@@ -117,12 +132,25 @@ export function Grainient({
     const container = containerRef.current;
     if (!container) return;
 
-    const renderer = new Renderer({
-      webgl: 2,
-      alpha: true,
-      antialias: false,
-      dpr: Math.min(window.devicePixelRatio || 1, 2),
-    });
+    // WebGL can be unavailable entirely (Firefox blocklists many Linux
+    // GPU/driver combos, VMs, remote desktops) or the per-page context
+    // budget can be exhausted — ogl's Renderer throws on a null context
+    // either way. Degrade to a static CSS gradient instead of letting the
+    // throw take down the whole tree.
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        webgl: 2,
+        alpha: true,
+        antialias: false,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+      });
+      if (!renderer.gl) throw new Error("no context");
+    } catch {
+      // The uniforms effect below runs next and paints the CSS fallback.
+      fallbackRef.current = true;
+      return;
+    }
     const gl = renderer.gl;
     const canvas = gl.canvas as HTMLCanvasElement;
     canvas.style.width = "100%";
@@ -209,6 +237,15 @@ export function Grainient({
 
   // Update uniforms in place — never recreates the WebGL context.
   useEffect(() => {
+    if (fallbackRef.current) {
+      const container = containerRef.current;
+      const targets = targetsRef.current;
+      targets.c1 = hexToRgb(color1);
+      targets.c2 = hexToRgb(color2);
+      targets.c3 = hexToRgb(color3);
+      if (container && !grainOnly) applyFallbackGradient(container, targets);
+      return;
+    }
     const program = programRef.current;
     if (!program) return;
     const u = program.uniforms as Record<string, { value: number | Float32Array }>;
