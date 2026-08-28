@@ -1,5 +1,6 @@
 import {
   ArrowRight01Icon,
+  Flag01Icon,
   Link01Icon,
   Settings02Icon,
   UserGroupIcon,
@@ -18,7 +19,14 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { PageStack } from "@/components/ui/page-motion";
-import { MicroLabel, Heading, Link as TextLink, Text } from "@/components/ui/typography";
+import { ReportDialog } from "@/components/ui/report-dialog";
+import {
+  MarkedText,
+  MicroLabel,
+  Heading,
+  Link as TextLink,
+  Text,
+} from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
@@ -28,9 +36,11 @@ import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeUp } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
+import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 import { TeamManageFlyout } from "./TeamManageFlyout";
+import { TeamModerationFlyout } from "./TeamModerationFlyout";
 
 /** `getTeam`'s response, as the page consumes it. */
 export interface RpcTeam {
@@ -45,6 +55,9 @@ export interface RpcTeam {
   itchUrl: string | null;
   recruiting: boolean;
   status: string;
+  /** Staff hide — set means only members and staff are seeing this page. */
+  hiddenAt: string | Date | null;
+  hiddenReason: string | null;
   /** Set by the lifecycle sweep's warning; still set on an auto-archived
    *  team, which is how the banner tells auto from hand archiving. */
   archiveWarnedAt: string | Date | null;
@@ -69,6 +82,7 @@ export interface RpcTeam {
     inviteeAvatar: string | null;
   }[];
   isOwner: boolean;
+  isStaffViewer: boolean;
 }
 
 export interface TeamMember {
@@ -120,9 +134,12 @@ const MAX_STACK_CHIPS = 12;
 export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: () => void }) {
   const { session } = useStore(authStore);
   const [manageOpen, setManageOpen] = useState(false);
+  const [moderateOpen, setModerateOpen] = useState(false);
 
   const isMember = team.viewerRole !== null;
+  const isStaffOutsider = team.isStaffViewer && !isMember;
   const isArchived = team.status === "archived";
+  const isHidden = team.hiddenAt != null;
   const jamLog = team.projects.filter((p) => p.jamId != null || p.jamName);
   const showcase = team.projects;
 
@@ -134,6 +151,20 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
 
   return (
     <PageStack className="flex flex-col gap-8 selection:bg-primary selection:text-white">
+      {isHidden ? (
+        <Well
+          variant="ghost"
+          className="border-destructive/40 bg-destructive/5 p-3 backdrop-blur-none"
+        >
+          <Text size="xs" className="tracking-widest text-destructive uppercase">
+            {team.isStaffViewer && !isMember
+              ? "Staff view — this team is hidden from the public."
+              : "This team is hidden pending review — only members and staff can see it, and changes are locked."}
+            {team.hiddenReason ? ` Reason: ${team.hiddenReason}` : ""}
+          </Text>
+        </Well>
+      ) : null}
+
       {isArchived ? (
         <Well variant="ghost" className="border-warning/40 bg-warning/5 p-3 backdrop-blur-none">
           <Text size="xs" className="tracking-widest text-warning uppercase">
@@ -188,6 +219,10 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
           isArchived={isArchived}
           jamCount={jamLog.length}
           onManage={() => setManageOpen(true)}
+          onModerate={isStaffOutsider ? () => setModerateOpen(true) : undefined}
+          reportSlot={
+            session?.user && !isMember && !isHidden ? <TeamReportButton teamId={team.id} /> : null
+          }
         />
       </motion.div>
 
@@ -385,6 +420,14 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
           onInvalidate={onInvalidate}
         />
       ) : null}
+      {isStaffOutsider ? (
+        <TeamModerationFlyout
+          open={moderateOpen}
+          onClose={() => setModerateOpen(false)}
+          team={team}
+          onInvalidate={onInvalidate}
+        />
+      ) : null}
     </PageStack>
   );
 }
@@ -407,12 +450,16 @@ function TeamMasthead({
   isArchived,
   jamCount,
   onManage,
+  onModerate,
+  reportSlot,
 }: {
   team: RpcTeam;
   isMember: boolean;
   isArchived: boolean;
   jamCount: number;
   onManage: () => void;
+  onModerate?: () => void;
+  reportSlot?: React.ReactNode;
 }) {
   // Roster size always shows — a team with nobody on it is worth saying.
   // The rest drop out at zero rather than parading empty columns.
@@ -477,6 +524,11 @@ function TeamMasthead({
                     ARCHIVED
                   </Badge>
                 ) : null}
+                {team.hiddenAt ? (
+                  <Badge variant="destructive" size="label">
+                    HIDDEN
+                  </Badge>
+                ) : null}
               </div>
               {team.tagline ? (
                 <Text size="sm" variant="muted" className="max-w-prose">
@@ -515,23 +567,37 @@ function TeamMasthead({
                 MANAGE
               </Button>
             </div>
-          ) : team.openPosts.length > 0 && !isArchived ? (
-            <Button
-              size="lg"
-              nativeButton={false}
-              className="tracking-widest"
-              render={<Link to="/collab" search={{ team: team.id }} />}
-            >
-              <HugeiconsIcon icon={UserGroupIcon} size={14} />
-              SEE OPEN POSTS
-            </Button>
-          ) : null}
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {team.openPosts.length > 0 && !isArchived ? (
+                <Button
+                  size="lg"
+                  nativeButton={false}
+                  className="tracking-widest"
+                  render={<Link to="/collab" search={{ team: team.id }} />}
+                >
+                  <HugeiconsIcon icon={UserGroupIcon} size={14} />
+                  SEE OPEN POSTS
+                </Button>
+              ) : null}
+              {onModerate ? (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={onModerate}
+                  className="tracking-widest"
+                >
+                  <HugeiconsIcon icon={Settings02Icon} size={14} />
+                  MODERATE
+                </Button>
+              ) : null}
+              {reportSlot}
+            </div>
+          )}
         </div>
 
         {team.bio ? (
-          <Text size="sm" className="max-w-prose whitespace-pre-wrap text-foreground/90">
-            {team.bio}
-          </Text>
+          <MarkedText className="max-w-prose text-foreground/90">{team.bio}</MarkedText>
         ) : null}
       </div>
 
@@ -658,6 +724,31 @@ function ShowcaseCard({ project }: { project: TeamProject }) {
     );
   }
   return <Well className="h-full overflow-hidden bg-card backdrop-blur-none">{body}</Well>;
+}
+
+/** Signed-in non-members only — matching the post and comment report
+ * affordances, which never show anonymous. */
+function TeamReportButton({ teamId }: { teamId: string }) {
+  const report = useMutation({
+    mutationFn: (reason: string) => client.reportTeam({ teamId, reason }),
+    onError: (err) => toast.error(err.message || "Couldn't send the report."),
+  });
+
+  return (
+    <ReportDialog
+      title="Report this team?"
+      message="Tell staff what's wrong with it. Only staff see this."
+      onSubmit={async (reason) => {
+        await report.mutateAsync(reason);
+        toast.success("Report sent — staff will take a look.");
+      }}
+    >
+      <Button variant="outline" size="lg" className="tracking-widest">
+        <HugeiconsIcon icon={Flag01Icon} size={14} />
+        REPORT
+      </Button>
+    </ReportDialog>
+  );
 }
 
 /** An off-site destination, in the micro-label voice. */

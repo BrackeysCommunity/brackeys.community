@@ -24,6 +24,7 @@ import { client, orpc } from "@/orpc/client";
 
 type CommentReport = Awaited<ReturnType<typeof client.listCommentReports>>[number];
 type PostReport = Awaited<ReturnType<typeof client.listReports>>[number];
+type TeamReport = Awaited<ReturnType<typeof client.listTeamReports>>[number];
 
 /** One report, flattened to what the stacked reason list renders. */
 type ReportEntry = {
@@ -45,18 +46,19 @@ type ReportEntry = {
  */
 type QueueGroup = {
   key: string;
-  kind: "comment" | "post";
+  kind: "comment" | "post" | "team";
   /** Newest first; the head is what the action buttons act on. */
   entries: ReportEntry[];
   createdAt: Date | null;
   resolvedAt: Date | null;
   comment: CommentReport | null;
   post: PostReport | null;
+  team: TeamReport | null;
 };
 
 /**
- * Open post + comment reports interleaved, newest first, each row linking
- * to the content in situ. The section that matters most on this page.
+ * Open post, comment, and team reports interleaved, newest first, each row
+ * linking to the content in situ. The section that matters most on this page.
  */
 export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
   const [scope, setScope] = useState<"open" | "resolved">("open");
@@ -69,10 +71,12 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     orpc.listCommentReports.queryOptions({ input: { includeResolved } }),
   );
   const postReports = useQuery(orpc.listReports.queryOptions({ input: { includeResolved } }));
+  const teamReports = useQuery(orpc.listTeamReports.queryOptions({ input: { includeResolved } }));
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: orpc.listCommentReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listReports.key() });
+    void queryClient.invalidateQueries({ queryKey: orpc.listTeamReports.key() });
   };
 
   const resolveComment = useMutation({
@@ -89,6 +93,12 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
       client.resolvePostReport(input),
     onSuccess: invalidate,
     onError: toastMutationError("admin.report_resolve_post"),
+  });
+  const resolveTeam = useMutation({
+    mutationFn: (input: { reportId: number; action: "dismiss" | "hide_team"; reason?: string }) =>
+      client.resolveTeamReport(input),
+    onSuccess: invalidate,
+    onError: toastMutationError("admin.report_resolve_team"),
   });
   // Takes the whole group, like `reopen`: junk is junk however many times it
   // was filed, and leaving the siblings behind would put the row straight back.
@@ -144,6 +154,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           resolvedAt: r.resolvedAt,
           comment: r,
           post: null,
+          team: null,
         }),
         {
           id: r.id,
@@ -165,6 +176,33 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           resolvedAt: r.resolvedAt,
           comment: null,
           post: r,
+          team: null,
+        }),
+        {
+          id: r.id,
+          reason: r.reason,
+          createdAt: r.createdAt,
+          reporterName: r.reporter?.displayName ?? null,
+          reporter: r.reporter,
+        },
+      );
+    }
+
+    for (const r of (teamReports.data ?? []).filter(inScope)) {
+      // A report whose team was deleted has nothing to group under — each
+      // orphan is its own row, closable on its own.
+      const key = r.teamId != null ? `t-${r.teamId}` : `t-del-${r.id}`;
+      push(
+        key,
+        () => ({
+          key,
+          kind: "team",
+          entries: [],
+          createdAt: r.createdAt,
+          resolvedAt: r.resolvedAt,
+          comment: null,
+          post: null,
+          team: r,
         }),
         {
           id: r.id,
@@ -185,12 +223,13 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     return [...groups.values()].sort(
       (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
     );
-  }, [commentReports.data, postReports.data, includeResolved]);
+  }, [commentReports.data, postReports.data, teamReports.data, includeResolved]);
 
-  const loading = commentReports.isPending || postReports.isPending;
+  const loading = commentReports.isPending || postReports.isPending || teamReports.isPending;
   const busy =
     resolveComment.isPending ||
     resolvePost.isPending ||
+    resolveTeam.isPending ||
     deletePostReports.isPending ||
     reopen.isPending;
 
@@ -201,7 +240,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
       hint={
         includeResolved
           ? "Already handled — kept for the record."
-          : "One row per reported post or comment, newest first."
+          : "One row per reported post, comment, or team, newest first."
       }
       actions={
         <SegmentedControl
@@ -236,8 +275,13 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge size="label" variant={row.kind === "comment" ? "secondary" : "default"}>
-                      {row.kind === "comment" ? "COMMENT" : "POST"}
+                      {row.kind === "comment" ? "COMMENT" : row.kind === "team" ? "TEAM" : "POST"}
                     </Badge>
+                    {row.kind === "team" && row.team?.teamId == null ? (
+                      <Badge size="label" variant="destructive">
+                        TEAM DELETED
+                      </Badge>
+                    ) : null}
                     {row.entries.length > 1 ? (
                       <Badge size="label" variant="destructive">
                         {row.entries.length} REPORTS
@@ -282,6 +326,8 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
 
                   {row.kind === "comment" && row.comment ? (
                     <CommentTarget report={row.comment} />
+                  ) : row.kind === "team" && row.team ? (
+                    <TeamTarget report={row.team} />
                   ) : row.post ? (
                     <PostTarget report={row.post} />
                   ) : null}
@@ -297,7 +343,9 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                         message={
                           row.kind === "comment"
                             ? "The report goes back in the open queue for another look. A comment that was already removed stays removed."
-                            : "The report goes back in the open queue for another look. A post that was already closed stays closed."
+                            : row.kind === "team"
+                              ? "The report goes back in the open queue for another look. A team that was already hidden stays hidden."
+                              : "The report goes back in the open queue for another look. A post that was already closed stays closed."
                         }
                         confirmText="Reopen"
                         onConfirm={async () => {
@@ -360,6 +408,69 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                               Remove comment
                             </Button>
                           </Confirm>
+                        </>
+                      ) : row.kind === "team" ? (
+                        <>
+                          <Confirm
+                            title="Dismiss this report?"
+                            message={
+                              row.team?.teamId == null
+                                ? "The team is already gone — this just closes the report."
+                                : "The team stays up and the report is marked resolved."
+                            }
+                            confirmText="Dismiss report"
+                            onConfirm={async () => {
+                              await resolveTeam.mutateAsync({
+                                reportId: head.id,
+                                action: "dismiss",
+                              });
+                            }}
+                          >
+                            <Button variant="outline" size="xs" disabled={busy}>
+                              Dismiss
+                            </Button>
+                          </Confirm>
+                          {row.team?.teamId != null &&
+                            (row.team.liveHiddenAt != null ? (
+                              // Hiding again would no-op — dismissing is the
+                              // right way to close the report.
+                              <Button variant="ghost" size="xs" disabled>
+                                Already hidden — dismiss instead
+                              </Button>
+                            ) : (
+                              <Confirm
+                                title="Hide this team?"
+                                message={
+                                  <>
+                                    The team page disappears for everyone but staff and its members.{" "}
+                                    {row.entries.length > 1
+                                      ? `This resolves all ${row.entries.length} reports on it.`
+                                      : "This resolves the report."}
+                                    <ReasonField
+                                      id={`report-reason-${head.id}`}
+                                      value={reasons[head.id] ?? ""}
+                                      onChange={(next) =>
+                                        setReasons((prev) => ({ ...prev, [head.id]: next }))
+                                      }
+                                    />
+                                  </>
+                                }
+                                confirmText="Hide team"
+                                variant="destructive"
+                                onConfirm={async () => {
+                                  const reason = reasons[head.id]?.trim();
+                                  await resolveTeam.mutateAsync({
+                                    reportId: head.id,
+                                    action: "hide_team",
+                                    ...(reason ? { reason } : {}),
+                                  });
+                                }}
+                              >
+                                <Button variant="destructive" size="xs" disabled={busy}>
+                                  Hide team
+                                </Button>
+                              </Confirm>
+                            ))}
                         </>
                       ) : (
                         <>
@@ -477,6 +588,49 @@ function ReportTargetLink({ report }: { report: CommentReport }) {
     );
   }
   return null;
+}
+
+function TeamTarget({ report }: { report: TeamReport }) {
+  if (report.teamId == null) {
+    return (
+      <div className="flex items-start gap-2 border-l-2 border-muted pl-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <Text size="sm" className="font-medium">
+            {report.teamName}
+          </Text>
+          <Text size="xs" variant="muted">
+            team deleted — name from the report snapshot
+          </Text>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-2 border-l-2 border-muted pl-3">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Staff can see hidden teams, so the link is always live. */}
+          <Link
+            to="/teams/$teamId"
+            params={{ teamId: report.liveSlug ?? report.teamId }}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            {report.liveName ?? report.teamName}
+          </Link>
+          {report.liveHiddenAt != null ? (
+            <Badge size="label" variant="destructive">
+              HIDDEN
+            </Badge>
+          ) : null}
+          {report.liveStatus === "archived" ? (
+            <Badge size="label" variant="outline">
+              ARCHIVED
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PostTarget({ report }: { report: PostReport }) {

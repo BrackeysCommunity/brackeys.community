@@ -20,6 +20,7 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
+import { ProfileModerateButton } from "../ProfileModerationFlyout";
 import { GradientBanner } from "./GradientBanner";
 import { formatCommitment, type ProfileAvailability, type ProfileViewModel } from "./helpers";
 
@@ -81,6 +82,7 @@ export function ProfileHero({
                 isOwner={isOwner}
                 onEditProfile={onEditProfile}
                 profile={profile}
+                queryKey={queryKey}
                 compact={compact}
               />
             </div>
@@ -128,6 +130,7 @@ export function ProfileHero({
               isOwner={isOwner}
               onEditProfile={onEditProfile}
               profile={profile}
+              queryKey={queryKey}
               compact={compact}
             />
           </div>
@@ -267,11 +270,13 @@ function ActionRow({
   isOwner,
   onEditProfile,
   profile,
+  queryKey,
   compact,
 }: {
   isOwner: boolean;
   onEditProfile: () => void;
   profile: ProfileViewModel;
+  queryKey?: readonly unknown[];
   compact: boolean;
 }) {
   const { session } = useStore(authStore);
@@ -314,6 +319,9 @@ function ActionRow({
         <span className="tracking-widest">COPY LINK</span>
       </Button>
       {!isOwner && signedIn ? <BlockToggle profileId={profile.profileId} /> : null}
+      {!isOwner && signedIn ? (
+        <ProfileModerateButton profile={profile} queryKey={queryKey} />
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,19 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, asc, count, countDistinct, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -19,12 +32,18 @@ import {
   teamInvites,
   teamMembers,
   teamProjects,
+  teamReports,
   teams,
   userSkills,
+  type ModerationActionType,
+  type ModerationTargetType,
+  type NotificationType,
 } from "@/db/schema";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { jamUrl } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
+import { recordModerationAction } from "@/lib/moderation-audit";
+import { canOverride, type ModOverride, type ModPowerAction } from "@/lib/moderation-policy";
 import { notify } from "@/lib/notifications";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
@@ -36,6 +55,7 @@ import {
 } from "@/lib/profile-project-image-storage";
 import { ensureProfilePlacementProject, insertProject } from "@/lib/projects";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
 // The house home for LIKE escaping — this file carried its own copy, which
 // (unlike the shared one) left a backslash in the search term unescaped.
 import { escapeLike } from "@/lib/sql-like";
@@ -43,7 +63,12 @@ import { isTeamProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { blockPairExists } from "@/lib/user-blocks";
-import { requireAuth, requireGuildMember } from "@/orpc/middleware/auth";
+import {
+  requireAuth,
+  requireAuthWithPermissions,
+  requireGuildMember,
+  requireStaff,
+} from "@/orpc/middleware/auth";
 import { profileNameSearch, profileStubJoin } from "@/orpc/profile-projection";
 
 /** Postgres `unique_violation`. */
@@ -128,6 +153,119 @@ async function requireOwnership(teamId: string, userId: string) {
   return membership;
 }
 
+// ── Staff overrides (plan 23) ────────────────────────────────────────────────
+
+type OverrideCaller = { user: { id: string }; isStaff: boolean; isAdmin: boolean };
+
+const overrideReasonSchema = z.string().trim().max(500).optional();
+
+const TEAM_UNDER_REVIEW = "This team is under review.";
+
+/**
+ * The evidence-preservation lever: while hidden, a team is frozen for its
+ * own members so an owner can't scrub or delete it mid-investigation.
+ * Overrides pass — moderation must reach the page it hid.
+ */
+function assertNotFrozen(team: { hiddenAt: Date | null }, isOverride: boolean): void {
+  if (!isOverride && team.hiddenAt) {
+    throw new ORPCError("FORBIDDEN", { message: TEAM_UNDER_REVIEW });
+  }
+}
+
+/**
+ * Owner passes as themselves (unlogged, whatever roles they hold); staff
+ * and admins pass as an override when `MOD_POWERS` admits them. Everyone
+ * else gets the exact pre-override refusals.
+ */
+async function requireOwnershipOrOverride(
+  action: ModPowerAction,
+  teamId: string,
+  context: OverrideCaller,
+) {
+  const membership = await getMembership(teamId, context.user.id);
+  if (membership?.role === "owner") return { membership, isOverride: false as const };
+  if (canOverride(action, context)) return { membership, isOverride: true as const };
+  if (!membership) {
+    throw new ORPCError("FORBIDDEN", { message: "You are not a member of this team." });
+  }
+  throw new ORPCError("FORBIDDEN", { message: "Only the team owner can do that." });
+}
+
+async function requireMembershipOrOverride(
+  action: ModPowerAction,
+  teamId: string,
+  context: OverrideCaller,
+) {
+  const membership = await getMembership(teamId, context.user.id);
+  if (membership) return { membership, isOverride: false as const };
+  if (canOverride(action, context)) return { membership: null, isOverride: true as const };
+  throw new ORPCError("FORBIDDEN", { message: "You are not a member of this team." });
+}
+
+async function getTeamOwnerId(teamId: string): Promise<string | null> {
+  const [owner] = await db
+    .select({ userId: teamMembers.userId })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.role, "owner")))
+    .limit(1);
+  return owner?.userId ?? null;
+}
+
+type TeamIdentity = { id: string; name: string; slug: string };
+
+async function recordTeamModAction(params: {
+  action: ModerationActionType;
+  mod: ModOverride;
+  team: TeamIdentity;
+  /** Defaults to the team's owner — the person affected. */
+  subjectUserId?: string | null;
+  targetType?: ModerationTargetType;
+  targetId?: string | number;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  await recordModerationAction({
+    action: params.action,
+    actorId: params.mod.actorId,
+    targetType: params.targetType ?? "team",
+    targetId: params.targetId ?? params.team.id,
+    subjectUserId:
+      params.subjectUserId !== undefined
+        ? params.subjectUserId
+        : await getTeamOwnerId(params.team.id),
+    reason: params.mod.reason,
+    metadata: { teamName: params.team.name, teamSlug: params.team.slug, ...params.metadata },
+  });
+}
+
+/**
+ * Reason included; actor deliberately not — which moderator ruled is
+ * staff's business (same rule as `notifyRequester`).
+ */
+async function notifyTeamOwner(
+  team: TeamIdentity,
+  type: NotificationType,
+  mod: ModOverride,
+  data: Record<string, unknown> = {},
+): Promise<void> {
+  const ownerId = await getTeamOwnerId(team.id);
+  if (!ownerId || ownerId === mod.actorId) return;
+  await bestEffort("team_moderation.owner_notice", { team_id: team.id, type }, () =>
+    notify({
+      userId: ownerId,
+      type,
+      entityType: "team",
+      entityId: team.id,
+      data: {
+        teamId: team.id,
+        teamSlug: team.slug,
+        teamName: team.name,
+        ...(mod.reason ? { reason: mod.reason } : {}),
+        ...data,
+      },
+    }),
+  );
+}
+
 // ── Team CRUD ────────────────────────────────────────────────────────────────
 
 const teamContentShape = {
@@ -191,73 +329,187 @@ export const createTeam = os
     return team;
   });
 
+type TeamRow = typeof teams.$inferSelect;
+
+/** Shared by the direct procedure and the proposal executor — the one
+ * validation contract for a staff content edit. */
+export const teamUpdatePatchSchema = z.object({
+  name: teamContentShape.name.optional(),
+  tagline: z.string().trim().max(200).optional().nullable(),
+  bio: z.string().max(5000).optional().nullable(),
+  websiteUrl: z.url().max(500).optional().nullable().or(z.literal("")),
+  itchUrl: z.url().max(500).optional().nullable().or(z.literal("")),
+  recruiting: z.boolean().optional(),
+});
+export type TeamUpdatePatch = z.infer<typeof teamUpdatePatchSchema>;
+
+export async function applyTeamUpdate(team: TeamRow, patch: TeamUpdatePatch, mod?: ModOverride) {
+  checkProfanity(patch.name, "Team name");
+
+  const [updated] = await db
+    .update(teams)
+    .set({
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.tagline !== undefined ? { tagline: patch.tagline || null } : {}),
+      ...(patch.bio !== undefined ? { bio: patch.bio || null } : {}),
+      ...(patch.websiteUrl !== undefined ? { websiteUrl: patch.websiteUrl || null } : {}),
+      ...(patch.itchUrl !== undefined ? { itchUrl: patch.itchUrl || null } : {}),
+      ...(patch.recruiting !== undefined ? { recruiting: patch.recruiting } : {}),
+      lastActivityAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(teams.id, team.id))
+    .returning();
+
+  if (mod) {
+    const touched = (Object.keys(patch) as (keyof TeamUpdatePatch)[]).filter(
+      (key) => patch[key] !== undefined,
+    );
+    await recordTeamModAction({
+      action: "team_updated",
+      mod,
+      team,
+      metadata: {
+        fields: touched,
+        previous: Object.fromEntries(touched.map((key) => [key, team[key]])),
+      },
+    });
+    await notifyTeamOwner(team, "team_updated_by_staff", mod);
+  }
+
+  return updated;
+}
+
 export const updateTeam = os
-  .use(requireAuth)
+  .use(requireAuthWithPermissions)
   .input(
-    z.object({
-      teamId: z.string(),
-      ...teamContentShape,
-      name: teamContentShape.name.optional(),
-      tagline: z.string().trim().max(200).optional().nullable(),
-      bio: z.string().max(5000).optional().nullable(),
-      websiteUrl: z.url().max(500).optional().nullable().or(z.literal("")),
-      itchUrl: z.url().max(500).optional().nullable().or(z.literal("")),
-    }),
+    z.object({ teamId: z.string(), reason: overrideReasonSchema, ...teamUpdatePatchSchema.shape }),
   )
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
-    await requireOwnership(input.teamId, context.user.id);
-    checkProfanity(input.name, "Team name");
+    const team = await getTeamRow(input.teamId);
+    const { isOverride } = await requireOwnershipOrOverride("team_update", team.id, context);
+    assertNotFrozen(team, isOverride);
 
-    const { teamId: _teamId, ...fields } = input;
-    const [updated] = await db
-      .update(teams)
-      .set({
-        ...(fields.name !== undefined ? { name: fields.name } : {}),
-        ...(fields.tagline !== undefined ? { tagline: fields.tagline || null } : {}),
-        ...(fields.bio !== undefined ? { bio: fields.bio || null } : {}),
-        ...(fields.websiteUrl !== undefined ? { websiteUrl: fields.websiteUrl || null } : {}),
-        ...(fields.itchUrl !== undefined ? { itchUrl: fields.itchUrl || null } : {}),
-        ...(fields.recruiting !== undefined ? { recruiting: fields.recruiting } : {}),
-        lastActivityAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(teams.id, input.teamId))
-      .returning();
-
-    return updated;
+    const { teamId: _teamId, reason, ...patch } = input;
+    return applyTeamUpdate(
+      team,
+      patch,
+      isOverride ? { actorId: context.user.id, reason: reason ?? null } : undefined,
+    );
   });
 
+export const teamSlugPatchSchema = z.object({ slug: z.string().min(3).max(32) });
+
+/** Handle checks (shape, reserved words, profanity, collision) run here so
+ * they hold on the owner path, a staff override, and an approved proposal. */
+export async function applyTeamSlug(team: TeamRow, slugInput: string, mod?: ModOverride) {
+  const slug = slugInput.toLowerCase().trim();
+  if (!SLUG_REGEX.test(slug)) {
+    throw new ORPCError("BAD_REQUEST", {
+      message:
+        "Handle must be 3-32 characters, start and end with a letter or number, and contain only lowercase letters, numbers, hyphens, and underscores.",
+    });
+  }
+  if (RESERVED_SLUGS.has(slug)) {
+    throw new ORPCError("BAD_REQUEST", { message: "That handle is reserved." });
+  }
+  checkProfanity(slug, "Handle");
+
+  const [existing] = await db.select().from(teams).where(eq(teams.slug, slug)).limit(1);
+  if (existing && existing.id !== team.id) {
+    throw new ORPCError("CONFLICT", { message: "This handle is already taken." });
+  }
+
+  const [updated] = await db
+    .update(teams)
+    .set({ slug, updatedAt: new Date() })
+    .where(eq(teams.id, team.id))
+    .returning();
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_slug_updated",
+      mod,
+      team,
+      metadata: { from: team.slug, to: slug },
+    });
+    await notifyTeamOwner(team, "team_updated_by_staff", mod, { field: "handle" });
+  }
+  return updated;
+}
+
 export const setTeamSlug = os
-  .use(requireAuth)
-  .input(z.object({ teamId: z.string(), slug: z.string().min(3).max(32) }))
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({ teamId: z.string(), reason: overrideReasonSchema, ...teamSlugPatchSchema.shape }),
+  )
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
-    await requireOwnership(input.teamId, context.user.id);
+    const team = await getTeamRow(input.teamId);
+    const { isOverride } = await requireOwnershipOrOverride("team_slug", team.id, context);
+    assertNotFrozen(team, isOverride);
 
-    const slug = input.slug.toLowerCase().trim();
-    if (!SLUG_REGEX.test(slug)) {
-      throw new ORPCError("BAD_REQUEST", {
-        message:
-          "Handle must be 3-32 characters, start and end with a letter or number, and contain only lowercase letters, numbers, hyphens, and underscores.",
-      });
-    }
-    if (RESERVED_SLUGS.has(slug)) {
-      throw new ORPCError("BAD_REQUEST", { message: "That handle is reserved." });
-    }
-    checkProfanity(slug, "Handle");
+    return applyTeamSlug(
+      team,
+      input.slug,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
+  });
 
-    const [existing] = await db.select().from(teams).where(eq(teams.slug, slug)).limit(1);
-    if (existing && existing.id !== input.teamId) {
-      throw new ORPCError("CONFLICT", { message: "This handle is already taken." });
-    }
+export const teamImageClearSchema = z.object({ kind: z.enum(["avatar", "banner"]) });
 
-    const [updated] = await db
-      .update(teams)
-      .set({ slug, updatedAt: new Date() })
-      .where(eq(teams.id, input.teamId))
-      .returning();
-    return updated;
+/** Today an offensive banner is irremovable by anyone but the owner — and
+ * even the owner can only replace it. Nulls the image and sweeps the object. */
+export async function applyTeamImageClear(
+  team: TeamRow,
+  kind: "avatar" | "banner",
+  mod?: ModOverride,
+) {
+  const previousKey = kind === "banner" ? team.bannerKey : team.avatarKey;
+  const previousUrl = kind === "banner" ? team.bannerUrl : team.avatarUrl;
+
+  await db
+    .update(teams)
+    .set({
+      ...(kind === "banner"
+        ? { bannerKey: null, bannerUrl: null }
+        : { avatarKey: null, avatarUrl: null }),
+      updatedAt: new Date(),
+    })
+    .where(eq(teams.id, team.id));
+
+  if (previousKey) {
+    await bestEffort("storage.image_cleanup", { key: previousKey, on: "team_image_clear" }, () =>
+      removeProfileProjectImageFromStorage(previousKey),
+    );
+  }
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_image_cleared",
+      mod,
+      team,
+      metadata: { kind, previousUrl, previousKey },
+    });
+    await notifyTeamOwner(team, "team_updated_by_staff", mod, { field: kind });
+  }
+  return { success: true };
+}
+
+export const clearTeamImage = os
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({ teamId: z.string(), reason: overrideReasonSchema, ...teamImageClearSchema.shape }),
+  )
+  .handler(async ({ input, context }) => {
+    const team = await getTeamRow(input.teamId);
+    const { isOverride } = await requireOwnershipOrOverride("team_image_clear", team.id, context);
+    assertNotFrozen(team, isOverride);
+
+    return applyTeamImageClear(
+      team,
+      input.kind,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
   });
 
 /**
@@ -270,8 +522,9 @@ export const setTeamArchived = os
   .use(requireAuth)
   .input(z.object({ teamId: z.string(), archived: z.boolean() }))
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
+    const team = await getTeamRow(input.teamId);
     await requireOwnership(input.teamId, context.user.id);
+    assertNotFrozen(team, false);
 
     const [updated] = await db
       .update(teams)
@@ -298,34 +551,108 @@ export const setTeamArchived = os
 
 /** Members/invites/projects cascade; posts degrade to the legacy
  *  unlinked-team state via ON DELETE SET NULL. */
+export async function applyTeamDelete(team: TeamRow, mod?: ModOverride) {
+  // Showcase covers in the team's namespace go down with the team; the
+  // rows cascade, so collect keys first. Imported rows keep user-scoped
+  // keys and are filtered out by the namespace check.
+  const showcaseImages = await db
+    .select({ imageKey: teamProjects.imageKey })
+    .from(teamProjects)
+    .where(eq(teamProjects.teamId, team.id));
+  const showcaseKeys = showcaseImages
+    .map(({ imageKey }) => imageKey)
+    .filter((key): key is string => !!key && isTeamProjectImageKey(team.id, key));
+
+  const roster = mod
+    ? await db
+        .select({ userId: teamMembers.userId, role: teamMembers.role })
+        .from(teamMembers)
+        .where(eq(teamMembers.teamId, team.id))
+    : [];
+
+  // An admin delete closes the report queue's book first — the hard delete
+  // would orphan the rows a moment later, and the reporters deserve the
+  // "actioned" answer. Owner deletes leave their reports orphaned via
+  // SET NULL, which is the queue's cue to render "TEAM DELETED".
+  let resolvedReportIds: number[] = [];
+  if (mod) {
+    const resolved = await resolveReportsForSubject({
+      kind: "team",
+      subjectId: team.id,
+      actorId: mod.actorId,
+    });
+    resolvedReportIds = resolved.map((r) => r.id);
+    await notifyReporters({
+      reports: resolved,
+      actorId: mod.actorId,
+      outcome: "actioned",
+      entityType: "team",
+      entityId: team.id,
+      subjectTitle: team.name,
+      subjectUrl: null,
+    });
+  }
+
+  await db.delete(teams).where(eq(teams.id, team.id));
+
+  // Replaced images are cleaned at replace time, so the current keys are
+  // the only objects this team owns. Best-effort — an orphaned object is
+  // a storage leak, not a correctness problem.
+  for (const key of [team.avatarKey, team.bannerKey, ...showcaseKeys]) {
+    if (key) {
+      await bestEffort("storage.image_cleanup", { key, on: "team_delete" }, () =>
+        removeProfileProjectImageFromStorage(key),
+      );
+    }
+  }
+
+  if (mod) {
+    // The hard delete destroys its own evidence, so the log keeps the row.
+    await recordTeamModAction({
+      action: "team_deleted",
+      mod,
+      team,
+      subjectUserId: roster.find((m) => m.role === "owner")?.userId ?? null,
+      metadata: {
+        team: { ...team, hiddenAt: team.hiddenAt?.toISOString() ?? null },
+        roster,
+        ...(resolvedReportIds.length > 0 ? { resolvedReportIds } : {}),
+      },
+    });
+    for (const member of roster) {
+      if (member.userId === mod.actorId) continue;
+      await bestEffort("team_moderation.delete_notice", { team_id: team.id }, () =>
+        notify({
+          userId: member.userId,
+          type: "team_deleted_by_staff",
+          entityType: "team",
+          entityId: team.id,
+          data: {
+            teamName: team.name,
+            ...(mod.reason ? { reason: mod.reason } : {}),
+          },
+        }),
+      );
+    }
+  }
+  return { success: true };
+}
+
 export const deleteTeam = os
-  .use(requireAuth)
-  .input(z.object({ teamId: z.string() }))
+  .use(requireAuthWithPermissions)
+  .input(z.object({ teamId: z.string(), reason: overrideReasonSchema }))
   .handler(async ({ input, context }) => {
     const team = await getTeamRow(input.teamId);
-    await requireOwnership(input.teamId, context.user.id);
-    // Showcase covers in the team's namespace go down with the team; the
-    // rows cascade, so collect keys first. Imported rows keep user-scoped
-    // keys and are filtered out by the namespace check.
-    const showcaseImages = await db
-      .select({ imageKey: teamProjects.imageKey })
-      .from(teamProjects)
-      .where(eq(teamProjects.teamId, input.teamId));
-    const showcaseKeys = showcaseImages
-      .map(({ imageKey }) => imageKey)
-      .filter((key): key is string => !!key && isTeamProjectImageKey(input.teamId, key));
-    await db.delete(teams).where(eq(teams.id, input.teamId));
-    // Replaced images are cleaned at replace time, so the current keys are
-    // the only objects this team owns. Best-effort — an orphaned object is
-    // a storage leak, not a correctness problem.
-    for (const key of [team.avatarKey, team.bannerKey, ...showcaseKeys]) {
-      if (key) {
-        await bestEffort("storage.image_cleanup", { key, on: "team_delete" }, () =>
-          removeProfileProjectImageFromStorage(key),
-        );
-      }
+    const { isOverride } = await requireOwnershipOrOverride("team_delete", team.id, context);
+    assertNotFrozen(team, isOverride);
+    if (isOverride && !input.reason) {
+      throw new ORPCError("BAD_REQUEST", { message: "A reason is required to delete a team." });
     }
-    return { success: true };
+
+    return applyTeamDelete(
+      team,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
   });
 
 // ── Reads ────────────────────────────────────────────────────────────────────
@@ -350,212 +677,241 @@ async function resolveTeam(idOrSlug: string) {
   return bySlug ?? null;
 }
 
+/** The full team-page payload, shared by the public read and the insider
+ * fallback so a hidden team renders identically for those allowed to see it. */
+async function buildTeamPagePayload(team: TeamRow) {
+  const [memberRows, projectRows, openPostRows] = await Promise.all([
+    db
+      .select({
+        id: teamMembers.id,
+        userId: teamMembers.userId,
+        role: teamMembers.role,
+        title: teamMembers.title,
+        sortOrder: teamMembers.sortOrder,
+        joinedAt: teamMembers.joinedAt,
+        username: developerProfiles.discordUsername,
+        avatarUrl: developerProfiles.avatarUrl,
+        tagline: developerProfiles.tagline,
+        urlStub: profileUrlStubs.stub,
+      })
+      .from(teamMembers)
+      .innerJoin(developerProfiles, eq(teamMembers.userId, developerProfiles.id))
+      .leftJoin(profileUrlStubs, profileStubJoin)
+      .where(eq(teamMembers.teamId, team.id))
+      .orderBy(asc(teamMembers.sortOrder), asc(teamMembers.joinedAt)),
+    db
+      .select({
+        project: teamProjects,
+        itchJamTitle: itchJams.title,
+        itchJamSlug: itchJams.slug,
+        // The canonical project this showcase row is a placement of, when
+        // it has one — what makes a showcase tile a link to the project's
+        // own page rather than an exit to itch, and (since plan step 6)
+        // where the tile's identity comes from: `importMemberProject` no
+        // longer copies surface fields, so the canonical row is the only
+        // fresh source. Both joins are on unique keys, so neither can
+        // multiply the placement rows.
+        canonicalSlug: projects.slug,
+        canonicalTitle: projects.title,
+        canonicalDescription: projects.description,
+        canonicalUrl: projects.url,
+        canonicalImageUrl: projects.imageUrl,
+        canonicalImageKey: projects.imageKey,
+        canonicalType: projects.type,
+      })
+      .from(teamProjects)
+      .leftJoin(itchJams, eq(teamProjects.jamId, itchJams.jamId))
+      .leftJoin(projects, eq(teamProjects.projectId, projects.id))
+      .where(eq(teamProjects.teamId, team.id))
+      .orderBy(
+        desc(teamProjects.pinned),
+        asc(teamProjects.sortOrder),
+        desc(teamProjects.createdAt),
+      ),
+    db
+      .select({
+        id: collabPosts.id,
+        title: collabPosts.title,
+        type: collabPosts.type,
+        status: collabPosts.status,
+        createdAt: collabPosts.createdAt,
+      })
+      .from(collabPosts)
+      .where(and(eq(collabPosts.teamId, team.id), eq(collabPosts.status, "recruiting")))
+      .orderBy(desc(collabPosts.createdAt)),
+  ]);
+
+  // The team's stack is its members' skills, counted — derived at read
+  // time so it can never drift from the roster.
+  const memberIds = memberRows.map((m) => m.userId);
+  const skillRows =
+    memberIds.length > 0
+      ? await db
+          .select({
+            id: skills.id,
+            name: skills.name,
+            category: skills.category,
+            memberCount: count(),
+          })
+          .from(userSkills)
+          .innerJoin(skills, eq(userSkills.skillId, skills.id))
+          .where(inArray(userSkills.userId, memberIds))
+          .groupBy(skills.id, skills.name, skills.category)
+          .orderBy(desc(count()), asc(skills.name))
+      : [];
+
+  // Role chips for open posts, one query for the page.
+  const postIds = openPostRows.map((p) => p.id);
+  const roleRows =
+    postIds.length > 0
+      ? await db
+          .select({ postId: collabPostRoles.postId, id: collabRoles.id, name: collabRoles.name })
+          .from(collabPostRoles)
+          .innerJoin(collabRoles, eq(collabPostRoles.roleId, collabRoles.id))
+          .where(inArray(collabPostRoles.postId, postIds))
+      : [];
+  const rolesByPost = new Map<number, { id: number; name: string }[]>();
+  for (const row of roleRows) {
+    const list = rolesByPost.get(row.postId) ?? [];
+    list.push({ id: row.id, name: row.name });
+    rolesByPost.set(row.postId, list);
+  }
+
+  // Rows that carry no jam facts of their own (post-step-6 placements)
+  // coalesce them from the canonical row's `project_jam_links` — fetched
+  // separately so a project with several links can't multiply the tiles.
+  const linkProjectIds = [
+    ...new Set(
+      projectRows
+        .filter(
+          (row) =>
+            row.project.projectId != null &&
+            row.project.jamName == null &&
+            row.project.jamId == null,
+        )
+        .map((row) => row.project.projectId as string),
+    ),
+  ];
+  const jamLinkRows =
+    linkProjectIds.length > 0
+      ? await db
+          .select({
+            projectId: projectJamLinks.projectId,
+            jamName: projectJamLinks.jamName,
+            jamUrl: projectJamLinks.jamUrl,
+            submissionUrl: projectJamLinks.submissionUrl,
+            result: projectJamLinks.result,
+            participatedAt: projectJamLinks.participatedAt,
+          })
+          .from(projectJamLinks)
+          .where(inArray(projectJamLinks.projectId, linkProjectIds))
+      : [];
+  const jamLinksByProject = new Map<string, typeof jamLinkRows>();
+  for (const link of jamLinkRows) {
+    const list = jamLinksByProject.get(link.projectId) ?? [];
+    list.push(link);
+    jamLinksByProject.set(link.projectId, list);
+  }
+
+  return {
+    ...team,
+    avatarUrl: await resolveTeamAvatarUrl(team),
+    bannerUrl: await resolveTeamBannerUrl(team),
+    members: memberRows,
+    skills: skillRows,
+    projects: await Promise.all(
+      projectRows.map(
+        ({
+          project,
+          itchJamTitle,
+          itchJamSlug,
+          canonicalSlug,
+          canonicalTitle,
+          canonicalDescription,
+          canonicalUrl,
+          canonicalImageUrl,
+          canonicalImageKey,
+          canonicalType,
+        }) => {
+          const links = project.projectId ? jamLinksByProject.get(project.projectId) : undefined;
+          const jamLink =
+            links?.find(
+              (link) => link.participatedAt?.getTime() === project.participatedAt?.getTime(),
+            ) ??
+            links?.[0] ??
+            null;
+          // A placement's own upload stays its override (surface beats
+          // canonical for covers, per D2); everything identity-shaped
+          // prefers the canonical row, which is the only fresh source for
+          // a placement-only import.
+          const hasPlacementImage = project.imageKey != null || project.imageUrl != null;
+          return serializeTeamProject({
+            ...project,
+            title: canonicalTitle ?? project.title,
+            description: canonicalDescription ?? project.description,
+            url: canonicalUrl ?? project.url,
+            imageKey: hasPlacementImage ? project.imageKey : canonicalImageKey,
+            imageUrl: hasPlacementImage ? project.imageUrl : canonicalImageUrl,
+            projectSlug: canonicalSlug,
+            canonicalType,
+            jamName: project.jamName ?? itchJamTitle ?? jamLink?.jamName ?? null,
+            jamUrl:
+              project.jamUrl ??
+              (itchJamSlug ? jamUrl(itchJamSlug) : null) ??
+              jamLink?.jamUrl ??
+              null,
+            submissionUrl: project.submissionUrl ?? jamLink?.submissionUrl ?? null,
+            result: project.result ?? jamLink?.result ?? null,
+            // A coalesced row's date should be when the jam ran, not when
+            // the placement landed in our DB.
+            participatedAt: project.participatedAt ?? jamLink?.participatedAt ?? null,
+            // The scraped slug, so the jam log can link to the jam's page
+            // here rather than only off to itch.
+            jamSlug: itchJamSlug,
+          });
+        },
+      ),
+    ),
+    openPosts: openPostRows.map((p) => ({ ...p, roles: rolesByPost.get(p.id) ?? [] })),
+  };
+}
+
 /**
  * A team as everyone sees it. The viewer's own standing — their role, a
  * pending invite, the owner's invite queue — lives in
  * `getTeamViewerState`, which is what lets this response be identical for
- * every caller and cached at the edge.
+ * every caller and cached at the edge. A hidden team does not exist here:
+ * members and staff reach it through `getTeamForInsider` instead.
  */
 export const getTeam = os
   .route({ method: "GET" })
   .input(z.object({ teamId: z.string() }))
   .handler(async ({ input }) => {
     const team = await resolveTeam(input.teamId);
+    if (!team || team.hiddenAt) return null;
+    return buildTeamPagePayload(team);
+  });
+
+/**
+ * The team page's fallback when `getTeam` misses and a session exists:
+ * the full payload for the team's own members and for staff, null for
+ * everyone else — so a hidden page stays reachable by exactly the people
+ * investigating it or being investigated.
+ */
+export const getTeamForInsider = os
+  .use(requireAuthWithPermissions)
+  .input(z.object({ teamId: z.string() }))
+  .handler(async ({ input, context }) => {
+    const team = await resolveTeam(input.teamId);
     if (!team) return null;
-
-    const [memberRows, projectRows, openPostRows] = await Promise.all([
-      db
-        .select({
-          id: teamMembers.id,
-          userId: teamMembers.userId,
-          role: teamMembers.role,
-          title: teamMembers.title,
-          sortOrder: teamMembers.sortOrder,
-          joinedAt: teamMembers.joinedAt,
-          username: developerProfiles.discordUsername,
-          avatarUrl: developerProfiles.avatarUrl,
-          tagline: developerProfiles.tagline,
-          urlStub: profileUrlStubs.stub,
-        })
-        .from(teamMembers)
-        .innerJoin(developerProfiles, eq(teamMembers.userId, developerProfiles.id))
-        .leftJoin(profileUrlStubs, profileStubJoin)
-        .where(eq(teamMembers.teamId, team.id))
-        .orderBy(asc(teamMembers.sortOrder), asc(teamMembers.joinedAt)),
-      db
-        .select({
-          project: teamProjects,
-          itchJamTitle: itchJams.title,
-          itchJamSlug: itchJams.slug,
-          // The canonical project this showcase row is a placement of, when
-          // it has one — what makes a showcase tile a link to the project's
-          // own page rather than an exit to itch, and (since plan step 6)
-          // where the tile's identity comes from: `importMemberProject` no
-          // longer copies surface fields, so the canonical row is the only
-          // fresh source. Both joins are on unique keys, so neither can
-          // multiply the placement rows.
-          canonicalSlug: projects.slug,
-          canonicalTitle: projects.title,
-          canonicalDescription: projects.description,
-          canonicalUrl: projects.url,
-          canonicalImageUrl: projects.imageUrl,
-          canonicalImageKey: projects.imageKey,
-          canonicalType: projects.type,
-        })
-        .from(teamProjects)
-        .leftJoin(itchJams, eq(teamProjects.jamId, itchJams.jamId))
-        .leftJoin(projects, eq(teamProjects.projectId, projects.id))
-        .where(eq(teamProjects.teamId, team.id))
-        .orderBy(
-          desc(teamProjects.pinned),
-          asc(teamProjects.sortOrder),
-          desc(teamProjects.createdAt),
-        ),
-      db
-        .select({
-          id: collabPosts.id,
-          title: collabPosts.title,
-          type: collabPosts.type,
-          status: collabPosts.status,
-          createdAt: collabPosts.createdAt,
-        })
-        .from(collabPosts)
-        .where(and(eq(collabPosts.teamId, team.id), eq(collabPosts.status, "recruiting")))
-        .orderBy(desc(collabPosts.createdAt)),
-    ]);
-
-    // The team's stack is its members' skills, counted — derived at read
-    // time so it can never drift from the roster.
-    const memberIds = memberRows.map((m) => m.userId);
-    const skillRows =
-      memberIds.length > 0
-        ? await db
-            .select({
-              id: skills.id,
-              name: skills.name,
-              category: skills.category,
-              memberCount: count(),
-            })
-            .from(userSkills)
-            .innerJoin(skills, eq(userSkills.skillId, skills.id))
-            .where(inArray(userSkills.userId, memberIds))
-            .groupBy(skills.id, skills.name, skills.category)
-            .orderBy(desc(count()), asc(skills.name))
-        : [];
-
-    // Role chips for open posts, one query for the page.
-    const postIds = openPostRows.map((p) => p.id);
-    const roleRows =
-      postIds.length > 0
-        ? await db
-            .select({ postId: collabPostRoles.postId, id: collabRoles.id, name: collabRoles.name })
-            .from(collabPostRoles)
-            .innerJoin(collabRoles, eq(collabPostRoles.roleId, collabRoles.id))
-            .where(inArray(collabPostRoles.postId, postIds))
-        : [];
-    const rolesByPost = new Map<number, { id: number; name: string }[]>();
-    for (const row of roleRows) {
-      const list = rolesByPost.get(row.postId) ?? [];
-      list.push({ id: row.id, name: row.name });
-      rolesByPost.set(row.postId, list);
-    }
-
-    // Rows that carry no jam facts of their own (post-step-6 placements)
-    // coalesce them from the canonical row's `project_jam_links` — fetched
-    // separately so a project with several links can't multiply the tiles.
-    const linkProjectIds = [
-      ...new Set(
-        projectRows
-          .filter(
-            (row) =>
-              row.project.projectId != null &&
-              row.project.jamName == null &&
-              row.project.jamId == null,
-          )
-          .map((row) => row.project.projectId as string),
-      ),
-    ];
-    const jamLinkRows =
-      linkProjectIds.length > 0
-        ? await db
-            .select({
-              projectId: projectJamLinks.projectId,
-              jamName: projectJamLinks.jamName,
-              jamUrl: projectJamLinks.jamUrl,
-              submissionUrl: projectJamLinks.submissionUrl,
-              result: projectJamLinks.result,
-              participatedAt: projectJamLinks.participatedAt,
-            })
-            .from(projectJamLinks)
-            .where(inArray(projectJamLinks.projectId, linkProjectIds))
-        : [];
-    const jamLinksByProject = new Map<string, typeof jamLinkRows>();
-    for (const link of jamLinkRows) {
-      const list = jamLinksByProject.get(link.projectId) ?? [];
-      list.push(link);
-      jamLinksByProject.set(link.projectId, list);
-    }
-
+    const membership = await getMembership(team.id, context.user.id);
+    if (!membership && !context.isStaff) return null;
+    // Which moderator hid it stays out of the payload — same rule as the
+    // owner notification; the moderation log is the place for that.
+    const { hiddenById: _hiddenById, ...payload } = await buildTeamPagePayload(team);
     return {
-      ...team,
-      avatarUrl: await resolveTeamAvatarUrl(team),
-      bannerUrl: await resolveTeamBannerUrl(team),
-      members: memberRows,
-      skills: skillRows,
-      projects: await Promise.all(
-        projectRows.map(
-          ({
-            project,
-            itchJamTitle,
-            itchJamSlug,
-            canonicalSlug,
-            canonicalTitle,
-            canonicalDescription,
-            canonicalUrl,
-            canonicalImageUrl,
-            canonicalImageKey,
-            canonicalType,
-          }) => {
-            const links = project.projectId ? jamLinksByProject.get(project.projectId) : undefined;
-            const jamLink =
-              links?.find(
-                (link) => link.participatedAt?.getTime() === project.participatedAt?.getTime(),
-              ) ??
-              links?.[0] ??
-              null;
-            // A placement's own upload stays its override (surface beats
-            // canonical for covers, per D2); everything identity-shaped
-            // prefers the canonical row, which is the only fresh source for
-            // a placement-only import.
-            const hasPlacementImage = project.imageKey != null || project.imageUrl != null;
-            return serializeTeamProject({
-              ...project,
-              title: canonicalTitle ?? project.title,
-              description: canonicalDescription ?? project.description,
-              url: canonicalUrl ?? project.url,
-              imageKey: hasPlacementImage ? project.imageKey : canonicalImageKey,
-              imageUrl: hasPlacementImage ? project.imageUrl : canonicalImageUrl,
-              projectSlug: canonicalSlug,
-              canonicalType,
-              jamName: project.jamName ?? itchJamTitle ?? jamLink?.jamName ?? null,
-              jamUrl:
-                project.jamUrl ??
-                (itchJamSlug ? jamUrl(itchJamSlug) : null) ??
-                jamLink?.jamUrl ??
-                null,
-              submissionUrl: project.submissionUrl ?? jamLink?.submissionUrl ?? null,
-              result: project.result ?? jamLink?.result ?? null,
-              // A coalesced row's date should be when the jam ran, not when
-              // the placement landed in our DB.
-              participatedAt: project.participatedAt ?? jamLink?.participatedAt ?? null,
-              // The scraped slug, so the jam log can link to the jam's page
-              // here rather than only off to itch.
-              jamSlug: itchJamSlug,
-            });
-          },
-        ),
-      ),
-      openPosts: openPostRows.map((p) => ({ ...p, roles: rolesByPost.get(p.id) ?? [] })),
+      ...payload,
+      viewerIsMember: membership != null,
     };
   });
 
@@ -569,7 +925,7 @@ export const getTeam = os
  * owner's business alone.
  */
 export const getTeamViewerState = os
-  .use(requireAuth)
+  .use(requireAuthWithPermissions)
   .input(z.object({ teamId: z.string() }))
   .handler(async ({ input, context }) => {
     const team = await resolveTeam(input.teamId);
@@ -621,6 +977,9 @@ export const getTeamViewerState = os
     return {
       viewerRole: membership?.role ?? null,
       isOwner,
+      // What lets the page show MANAGE to staff non-members, and the
+      // flyout know to render staff mode.
+      isStaffViewer: context.isStaff,
       viewerInvite,
       pendingInvites,
     };
@@ -738,13 +1097,20 @@ export const listMyTeams = os
         // The sweep's archive warning currently only reaches a notification;
         // the home dashboard's team cards surface it as a badge.
         archiveWarnedAt: teams.archiveWarnedAt,
+        // Members deserve to see the state, so a hidden team stays on this
+        // list flagged — the wizard picker filters it out client-side and
+        // `assertTeamLinkable` re-checks server-side.
+        hiddenAt: teams.hiddenAt,
         role: teamMembers.role,
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
       .where(and(eq(teamMembers.userId, context.user.id), eq(teams.status, "active")))
       .orderBy(asc(teams.name));
-    return withTeamCardExtras(rows);
+    return (await withTeamCardExtras(rows)).map(({ hiddenAt, ...row }) => ({
+      ...row,
+      hidden: hiddenAt != null,
+    }));
   });
 
 /**
@@ -773,7 +1139,7 @@ type TeamFilterInput = {
  * labels. Pass `{ ...input, skillIds: undefined }` to count across stacks.
  */
 function buildTeamFilter(input: TeamFilterInput) {
-  const conditions = [eq(teams.status, "active")];
+  const conditions = [eq(teams.status, "active"), isNull(teams.hiddenAt)];
   if (input.search) {
     const pattern = `%${escapeLike(input.search)}%`;
     conditions.push(or(ilike(teams.name, pattern), ilike(teams.tagline, pattern))!);
@@ -881,7 +1247,7 @@ export const getTeamStats = os.route({ method: "GET" }).handler(async () => {
       recruiting: sql<number>`count(*) filter (where ${teams.recruiting})`.mapWith(Number),
     })
     .from(teams)
-    .where(eq(teams.status, "active"));
+    .where(and(eq(teams.status, "active"), isNull(teams.hiddenAt)));
 
   return { active: row?.active ?? 0, recruiting: row?.recruiting ?? 0 };
 });
@@ -902,7 +1268,13 @@ export const listUserTeams = os
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-      .where(and(eq(teamMembers.userId, input.userId), eq(teams.status, "active")))
+      .where(
+        and(
+          eq(teamMembers.userId, input.userId),
+          eq(teams.status, "active"),
+          isNull(teams.hiddenAt),
+        ),
+      )
       .orderBy(asc(teams.name));
     return Promise.all(
       rows.map(async ({ avatarKey: _avatarKey, ...row }) => ({
@@ -1046,21 +1418,28 @@ const ALREADY_INVITED = "That person already has a pending invite.";
  * Removal and role changes stay owner-only.
  */
 export const inviteToTeam = os
-  .use(requireAuth)
+  .use(requireAuthWithPermissions)
   .input(
     z.object({
       teamId: z.string(),
       inviteeId: z.string(),
       message: z.string().max(1000).optional(),
       sourceResponseId: z.number().int().positive().optional(),
+      reason: overrideReasonSchema,
     }),
   )
   .handler(async ({ input, context }) => {
     const team = await getTeamRow(input.teamId);
+    // Archived stays a hard stop for everyone — accepting the invite would
+    // refuse anyway. Hidden freezes the member path only.
     if (team.status !== "active") {
       throw new ORPCError("BAD_REQUEST", { message: "This team is archived." });
     }
-    await requireMembership(input.teamId, context.user.id);
+    // Staff "forcefully add" is invite-on-behalf: consent survives because
+    // the invitee still accepts, and `invitedBy` names the staff member —
+    // the invitee sees who invited them.
+    const { isOverride } = await requireMembershipOrOverride("team_invite", team.id, context);
+    assertNotFrozen(team, isOverride);
 
     if (input.inviteeId === context.user.id) {
       throw new ORPCError("BAD_REQUEST", { message: "You are already on this team." });
@@ -1136,6 +1515,16 @@ export const inviteToTeam = os
 
     await touchTeamActivity(input.teamId);
 
+    if (isOverride) {
+      await recordTeamModAction({
+        action: "team_member_invited",
+        mod: { actorId: context.user.id, reason: input.reason ?? null },
+        team,
+        subjectUserId: input.inviteeId,
+        metadata: { inviteId: invite.id, inviteeId: input.inviteeId },
+      });
+    }
+
     captureServerEvent(EVENTS.teamInviteSent, context.user.id, { team_id: input.teamId });
 
     return invite;
@@ -1161,6 +1550,11 @@ export const respondToInvite = os
     const team = await getTeamRow(invite.teamId);
     if (input.accept && team.status !== "active") {
       throw new ORPCError("BAD_REQUEST", { message: "This team has been archived." });
+    }
+    // Neutral on purpose — the hide and its reason are the owner's notice,
+    // not the invitee's. Decline still works.
+    if (input.accept && team.hiddenAt) {
+      throw new ORPCError("BAD_REQUEST", { message: "This team is unavailable right now." });
     }
 
     const [updated] = await db
@@ -1233,37 +1627,85 @@ export const revokeInvite = os
     return updated;
   });
 
+export const teamMemberRemoveSchema = z.object({ userId: z.string() });
+
+export async function applyMemberRemoval(
+  team: TeamRow,
+  userId: string,
+  actorId: string,
+  mod?: ModOverride,
+) {
+  const target = await getMembership(team.id, userId);
+  if (!target) {
+    throw new ORPCError("NOT_FOUND", { message: "That person is not on this team." });
+  }
+  if (mod) {
+    // Staff removing an owner or the last member is a team takedown wearing
+    // the wrong verb — transfer or hide/delete are the honest tools.
+    if (target.role === "owner") {
+      throw new ORPCError("BAD_REQUEST", { message: "Transfer ownership first." });
+    }
+    const [{ memberCount }] = await db
+      .select({ memberCount: count() })
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, team.id));
+    if (memberCount <= 1) {
+      throw new ORPCError("BAD_REQUEST", { message: "Hide or delete the team instead." });
+    }
+  }
+
+  await db.delete(teamMembers).where(eq(teamMembers.id, target.id));
+
+  // On the staff path the actor is deliberately absent — the removed member
+  // sees the staff reason, not the staff member.
+  await notify({
+    userId,
+    type: "team_member_removed",
+    ...(mod ? {} : { actorId }),
+    entityType: "team",
+    entityId: team.id,
+    data: {
+      teamId: team.id,
+      teamSlug: team.slug,
+      teamName: team.name,
+      ...(mod ? { byStaff: true, ...(mod.reason ? { reason: mod.reason } : {}) } : {}),
+    },
+  });
+
+  await touchTeamActivity(team.id);
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_member_removed",
+      mod,
+      team,
+      subjectUserId: userId,
+      metadata: { removedUserId: userId, role: target.role, title: target.title },
+    });
+    await notifyTeamOwner(team, "team_member_removed_by_staff", mod, { removedUserId: userId });
+  }
+
+  return { success: true };
+}
+
 export const removeMember = os
-  .use(requireAuth)
-  .input(z.object({ teamId: z.string(), userId: z.string() }))
+  .use(requireAuthWithPermissions)
+  .input(z.object({ teamId: z.string(), userId: z.string(), reason: overrideReasonSchema }))
   .handler(async ({ input, context }) => {
     const team = await getTeamRow(input.teamId);
-    await requireOwnership(input.teamId, context.user.id);
+    const { isOverride } = await requireOwnershipOrOverride("team_member_remove", team.id, context);
+    assertNotFrozen(team, isOverride);
 
     if (input.userId === context.user.id) {
       throw new ORPCError("BAD_REQUEST", { message: "Use leave team instead." });
     }
 
-    const [deleted] = await db
-      .delete(teamMembers)
-      .where(and(eq(teamMembers.teamId, input.teamId), eq(teamMembers.userId, input.userId)))
-      .returning();
-    if (!deleted) {
-      throw new ORPCError("NOT_FOUND", { message: "That person is not on this team." });
-    }
-
-    await notify({
-      userId: input.userId,
-      type: "team_member_removed",
-      actorId: context.user.id,
-      entityType: "team",
-      entityId: team.id,
-      data: { teamId: team.id, teamSlug: team.slug, teamName: team.name },
-    });
-
-    await touchTeamActivity(input.teamId);
-
-    return { success: true };
+    return applyMemberRemoval(
+      team,
+      input.userId,
+      context.user.id,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
   });
 
 /**
@@ -1275,7 +1717,8 @@ export const leaveTeam = os
   .use(requireAuth)
   .input(z.object({ teamId: z.string() }))
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
+    // Never trap a user in a team: leaving stays allowed even while hidden.
+    const team = await getTeamRow(input.teamId);
     const membership = await requireMembership(input.teamId, context.user.id);
 
     const [{ memberCount }] = await db
@@ -1297,10 +1740,14 @@ export const leaveTeam = os
         .update(teams)
         .set({ status: "archived", updatedAt: new Date() })
         .where(eq(teams.id, input.teamId));
-      await db
-        .update(collabPosts)
-        .set({ status: "party_full", updatedAt: new Date() })
-        .where(and(eq(collabPosts.teamId, input.teamId), eq(collabPosts.status, "recruiting")));
+      // A hidden team's posts are already degraded, and `party_full` is a
+      // one-way door the unhide couldn't reopen.
+      if (!team.hiddenAt) {
+        await db
+          .update(collabPosts)
+          .set({ status: "party_full", updatedAt: new Date() })
+          .where(and(eq(collabPosts.teamId, input.teamId), eq(collabPosts.status, "recruiting")));
+      }
     }
 
     captureServerEvent(EVENTS.teamLeft, context.user.id, {
@@ -1311,43 +1758,156 @@ export const leaveTeam = os
     return { success: true };
   });
 
-export const transferOwnership = os
-  .use(requireAuth)
-  .input(z.object({ teamId: z.string(), userId: z.string() }))
-  .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
-    const ownerMembership = await requireOwnership(input.teamId, context.user.id);
+export const teamTransferSchema = z.object({ userId: z.string() });
 
-    const target = await getMembership(input.teamId, input.userId);
-    if (!target) {
-      throw new ORPCError("BAD_REQUEST", { message: "That person is not on this team." });
-    }
-    if (target.role === "owner") {
-      throw new ORPCError("BAD_REQUEST", { message: "That person already owns this team." });
-    }
+export async function applyOwnershipTransfer(team: TeamRow, userId: string, mod?: ModOverride) {
+  const target = await getMembership(team.id, userId);
+  if (!target) {
+    throw new ORPCError("BAD_REQUEST", { message: "That person is not on this team." });
+  }
+  if (target.role === "owner") {
+    throw new ORPCError("BAD_REQUEST", { message: "That person already owns this team." });
+  }
 
-    await db.update(teamMembers).set({ role: "owner" }).where(eq(teamMembers.id, target.id));
+  const previousOwnerId = await getTeamOwnerId(team.id);
+  await db.update(teamMembers).set({ role: "owner" }).where(eq(teamMembers.id, target.id));
+  if (previousOwnerId) {
     await db
       .update(teamMembers)
       .set({ role: "member" })
-      .where(eq(teamMembers.id, ownerMembership.id));
+      .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, previousOwnerId)));
+  }
 
-    return { success: true };
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_ownership_transferred",
+      mod,
+      team,
+      subjectUserId: previousOwnerId,
+      metadata: { from: previousOwnerId, to: userId },
+    });
+    if (previousOwnerId && previousOwnerId !== mod.actorId) {
+      await bestEffort("team_moderation.owner_notice", { team_id: team.id }, () =>
+        notify({
+          userId: previousOwnerId,
+          type: "team_ownership_transferred_by_staff",
+          entityType: "team",
+          entityId: team.id,
+          data: {
+            teamId: team.id,
+            teamSlug: team.slug,
+            teamName: team.name,
+            ...(mod.reason ? { reason: mod.reason } : {}),
+          },
+        }),
+      );
+    }
+  }
+
+  return { success: true };
+}
+
+export const transferOwnership = os
+  .use(requireAuthWithPermissions)
+  .input(z.object({ teamId: z.string(), userId: z.string(), reason: overrideReasonSchema }))
+  .handler(async ({ input, context }) => {
+    const team = await getTeamRow(input.teamId);
+    const { isOverride } = await requireOwnershipOrOverride("team_transfer", team.id, context);
+    assertNotFrozen(team, isOverride);
+
+    return applyOwnershipTransfer(
+      team,
+      input.userId,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
   });
 
-export const updateMemberTitle = os
-  .use(requireAuth)
-  .input(z.object({ teamId: z.string(), title: z.string().trim().max(100).nullable() }))
-  .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
-    const membership = await requireMembership(input.teamId, context.user.id);
+export const teamTitleEditSchema = z.object({
+  memberId: z.number().int().positive(),
+  title: z.string().trim().max(100).nullable(),
+});
 
-    const [updated] = await db
-      .update(teamMembers)
-      .set({ title: input.title || null })
-      .where(eq(teamMembers.id, membership.id))
-      .returning();
-    return updated;
+export async function applyMemberTitle(
+  team: TeamRow,
+  membershipId: number,
+  title: string | null,
+  mod?: ModOverride,
+) {
+  const [target] = await db
+    .select()
+    .from(teamMembers)
+    .where(and(eq(teamMembers.id, membershipId), eq(teamMembers.teamId, team.id)))
+    .limit(1);
+  if (!target) {
+    throw new ORPCError("NOT_FOUND", { message: "That person is not on this team." });
+  }
+
+  const [updated] = await db
+    .update(teamMembers)
+    .set({ title: title || null })
+    .where(eq(teamMembers.id, target.id))
+    .returning();
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_member_title_updated",
+      mod,
+      team,
+      subjectUserId: target.userId,
+      metadata: { memberId: target.id, from: target.title, to: title || null },
+    });
+  }
+  return updated;
+}
+
+/**
+ * Self-edit stays open to any member; the owner and staff overrides may
+ * edit anyone's roster title — offensive craft labels were previously
+ * self-edit-only, i.e. unfixable.
+ */
+export const updateMemberTitle = os
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({
+      teamId: z.string(),
+      title: z.string().trim().max(100).nullable(),
+      memberId: z.number().int().positive().optional(),
+      reason: overrideReasonSchema,
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const team = await getTeamRow(input.teamId);
+
+    if (input.memberId == null) {
+      const membership = await requireMembership(input.teamId, context.user.id);
+      assertNotFrozen(team, false);
+      const [updated] = await db
+        .update(teamMembers)
+        .set({ title: input.title || null })
+        .where(eq(teamMembers.id, membership.id))
+        .returning();
+      return updated;
+    }
+
+    const own = await getMembership(team.id, context.user.id);
+    if (own && own.id === input.memberId) {
+      assertNotFrozen(team, false);
+      const [updated] = await db
+        .update(teamMembers)
+        .set({ title: input.title || null })
+        .where(eq(teamMembers.id, own.id))
+        .returning();
+      return updated;
+    }
+
+    const { isOverride } = await requireOwnershipOrOverride("team_title_edit", team.id, context);
+    assertNotFrozen(team, isOverride);
+    return applyMemberTitle(
+      team,
+      input.memberId,
+      input.title,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
   });
 
 // ── Showcase ─────────────────────────────────────────────────────────────────
@@ -1385,6 +1945,7 @@ export const addTeamProject = os
       throw new ORPCError("BAD_REQUEST", { message: "This team is archived." });
     }
     await requireMembership(input.teamId, context.user.id);
+    assertNotFrozen(team, false);
     // Team-scoped namespace (minted by `/api/team/avatar` kind=project), so
     // the showcase image survives the uploader's account and can be swept
     // with the row — never a user-scoped key.
@@ -1482,6 +2043,7 @@ export const importMemberProject = os
       throw new ORPCError("BAD_REQUEST", { message: "This team is archived." });
     }
     await requireMembership(input.teamId, context.user.id);
+    assertNotFrozen(team, false);
 
     const [source] = await db
       .select()
@@ -1538,8 +2100,108 @@ export const importMemberProject = os
     return serializeTeamProject(project);
   });
 
+/** The patch a proposal can carry: the prose and the cover-clear, without
+ * the upload plumbing a live editor session needs. */
+export const teamProjectPatchSchema = z.object({
+  projectId: z.string(),
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  url: optionalUrlSchema.nullable().optional(),
+  /** `null` clears the cover; omitted leaves it untouched. */
+  image: z.null().optional(),
+});
+
+type TeamProjectRow = typeof teamProjects.$inferSelect;
+type TeamProjectPatch = {
+  title?: string;
+  description?: string | null;
+  url?: string | null;
+  image?: { key: string; filename: string; mimeType: string; sizeBytes: number } | null;
+  pinned?: boolean;
+  sortOrder?: number;
+};
+
+export async function applyTeamProjectUpdate(
+  team: TeamRow,
+  project: TeamProjectRow,
+  input: TeamProjectPatch,
+  mod?: ModOverride,
+) {
+  const [updated] = await db
+    .update(teamProjects)
+    .set({
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.description !== undefined ? { description: input.description || null } : {}),
+      ...(input.url !== undefined ? { url: input.url || null } : {}),
+      ...(input.image !== undefined
+        ? {
+            imageUrl: null,
+            imageKey: input.image?.key ?? null,
+            imageFilename: input.image?.filename ?? null,
+            imageMimeType: input.image?.mimeType ?? null,
+            imageSizeBytes: input.image?.sizeBytes ?? null,
+          }
+        : {}),
+      ...(input.pinned !== undefined ? { pinned: input.pinned } : {}),
+      ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+    })
+    .where(eq(teamProjects.id, project.id))
+    .returning();
+
+  // Only objects in this team's namespace are swept — an imported row can
+  // share its key with the source profile project, and that object belongs
+  // to the member's own placement.
+  const previousKey = project.imageKey;
+  if (
+    input.image !== undefined &&
+    previousKey &&
+    previousKey !== input.image?.key &&
+    isTeamProjectImageKey(team.id, previousKey)
+  ) {
+    await bestEffort("storage.image_cleanup", { key: previousKey, on: "team_project_update" }, () =>
+      removeProfileProjectImageFromStorage(previousKey),
+    );
+  }
+
+  // Identity lives on the canonical row and the showcase reads it from
+  // there, so the edit has to land there to be visible — same write-through
+  // the profile's `updateProject` does. The editor is a member of a team
+  // that claims the project, which is exactly the §1.3 editor set.
+  const touchesIdentity =
+    input.title !== undefined || input.description !== undefined || input.url !== undefined;
+  if (project.projectId && touchesIdentity) {
+    await db
+      .update(projects)
+      .set({
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.description !== undefined ? { description: input.description || null } : {}),
+        ...(input.url !== undefined ? { url: input.url || null } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, project.projectId));
+  }
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_project_updated",
+      mod,
+      team,
+      subjectUserId: project.addedBy,
+      targetId: project.id,
+      metadata: {
+        projectId: project.id,
+        previous: { title: project.title, description: project.description, url: project.url },
+        ...(input.image === null ? { coverCleared: true } : {}),
+      },
+    });
+    await notifyTeamOwner(team, "team_updated_by_staff", mod, { projectTitle: project.title });
+  }
+
+  return serializeTeamProject(updated);
+}
+
 export const updateTeamProject = os
-  .use(requireAuth)
+  .use(requireAuthWithPermissions)
   .input(
     z.object({
       teamId: z.string(),
@@ -1560,11 +2222,17 @@ export const updateTeamProject = os
         .nullable(),
       pinned: z.boolean().optional(),
       sortOrder: z.number().int().optional(),
+      reason: overrideReasonSchema,
     }),
   )
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
-    const membership = await requireMembership(input.teamId, context.user.id);
+    const team = await getTeamRow(input.teamId);
+    const { membership, isOverride } = await requireMembershipOrOverride(
+      "team_project_update",
+      team.id,
+      context,
+    );
+    assertNotFrozen(team, isOverride);
 
     const [project] = await db
       .select()
@@ -1574,7 +2242,7 @@ export const updateTeamProject = os
     if (!project) {
       throw new ORPCError("NOT_FOUND", { message: "Project not found." });
     }
-    if (membership.role !== "owner" && project.addedBy !== context.user.id) {
+    if (!isOverride && membership!.role !== "owner" && project.addedBy !== context.user.id) {
       throw new ORPCError("FORBIDDEN", {
         message: "Only the owner or whoever added this project can edit it.",
       });
@@ -1585,63 +2253,13 @@ export const updateTeamProject = os
       });
     }
 
-    const [updated] = await db
-      .update(teamProjects)
-      .set({
-        ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.description !== undefined ? { description: input.description || null } : {}),
-        ...(input.url !== undefined ? { url: input.url || null } : {}),
-        ...(input.image !== undefined
-          ? {
-              imageUrl: null,
-              imageKey: input.image?.key ?? null,
-              imageFilename: input.image?.filename ?? null,
-              imageMimeType: input.image?.mimeType ?? null,
-              imageSizeBytes: input.image?.sizeBytes ?? null,
-            }
-          : {}),
-        ...(input.pinned !== undefined ? { pinned: input.pinned } : {}),
-        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
-      })
-      .where(eq(teamProjects.id, input.projectId))
-      .returning();
-
-    // Only objects in this team's namespace are swept — an imported row can
-    // share its key with the source profile project, and that object belongs
-    // to the member's own placement.
-    const previousKey = project.imageKey;
-    if (
-      input.image !== undefined &&
-      previousKey &&
-      previousKey !== input.image?.key &&
-      isTeamProjectImageKey(input.teamId, previousKey)
-    ) {
-      await bestEffort(
-        "storage.image_cleanup",
-        { key: previousKey, on: "team_project_update" },
-        () => removeProfileProjectImageFromStorage(previousKey),
-      );
-    }
-
-    // Identity lives on the canonical row and the showcase reads it from
-    // there, so the edit has to land there to be visible — same write-through
-    // the profile's `updateProject` does. The editor is a member of a team
-    // that claims the project, which is exactly the §1.3 editor set.
-    const touchesIdentity =
-      input.title !== undefined || input.description !== undefined || input.url !== undefined;
-    if (project.projectId && touchesIdentity) {
-      await db
-        .update(projects)
-        .set({
-          ...(input.title !== undefined ? { title: input.title } : {}),
-          ...(input.description !== undefined ? { description: input.description || null } : {}),
-          ...(input.url !== undefined ? { url: input.url || null } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(projects.id, project.projectId));
-    }
-
-    return serializeTeamProject(updated);
+    const { teamId: _teamId, projectId: _projectId, reason, ...patch } = input;
+    return applyTeamProjectUpdate(
+      team,
+      project,
+      patch,
+      isOverride ? { actorId: context.user.id, reason: reason ?? null } : undefined,
+    );
   });
 
 /**
@@ -1653,16 +2271,53 @@ export const updateTeamProject = os
  * (`project_teams`) is a separate, credit-level fact and also survives:
  * a team un-showcasing a game didn't stop having made it.
  */
+export const teamProjectRemoveSchema = z.object({ projectId: z.string() });
+
+export async function applyTeamProjectRemoval(
+  team: TeamRow,
+  project: { id: string; title: string; addedBy: string | null; imageKey: string | null },
+  mod?: ModOverride,
+) {
+  await db.delete(teamProjects).where(eq(teamProjects.id, project.id));
+  // Only team-namespace objects are swept: imported rows share their image
+  // object with the source profile project, and that key stays theirs.
+  if (project.imageKey && isTeamProjectImageKey(team.id, project.imageKey)) {
+    const key = project.imageKey;
+    await bestEffort("storage.image_cleanup", { key, on: "team_project_delete" }, () =>
+      removeProfileProjectImageFromStorage(key),
+    );
+  }
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_project_removed",
+      mod,
+      team,
+      subjectUserId: project.addedBy,
+      targetId: project.id,
+      metadata: { projectId: project.id, projectTitle: project.title },
+    });
+    await notifyTeamOwner(team, "team_updated_by_staff", mod, { projectTitle: project.title });
+  }
+  return { success: true };
+}
+
 export const removeTeamProject = os
-  .use(requireAuth)
-  .input(z.object({ teamId: z.string(), projectId: z.string() }))
+  .use(requireAuthWithPermissions)
+  .input(z.object({ teamId: z.string(), projectId: z.string(), reason: overrideReasonSchema }))
   .handler(async ({ input, context }) => {
-    await getTeamRow(input.teamId);
-    const membership = await requireMembership(input.teamId, context.user.id);
+    const team = await getTeamRow(input.teamId);
+    const { membership, isOverride } = await requireMembershipOrOverride(
+      "team_project_remove",
+      team.id,
+      context,
+    );
+    assertNotFrozen(team, isOverride);
 
     const [project] = await db
       .select({
         id: teamProjects.id,
+        title: teamProjects.title,
         addedBy: teamProjects.addedBy,
         imageKey: teamProjects.imageKey,
       })
@@ -1672,20 +2327,273 @@ export const removeTeamProject = os
     if (!project) {
       throw new ORPCError("NOT_FOUND", { message: "Project not found." });
     }
-    if (membership.role !== "owner" && project.addedBy !== context.user.id) {
+    if (!isOverride && membership!.role !== "owner" && project.addedBy !== context.user.id) {
       throw new ORPCError("FORBIDDEN", {
         message: "Only the owner or whoever added this project can remove it.",
       });
     }
 
-    await db.delete(teamProjects).where(eq(teamProjects.id, input.projectId));
-    // Only team-namespace objects are swept: imported rows share their image
-    // object with the source profile project, and that key stays theirs.
-    if (project.imageKey && isTeamProjectImageKey(input.teamId, project.imageKey)) {
-      const key = project.imageKey;
-      await bestEffort("storage.image_cleanup", { key, on: "team_project_delete" }, () =>
-        removeProfileProjectImageFromStorage(key),
+    return applyTeamProjectRemoval(
+      team,
+      project,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
+  });
+
+// ── Moderation: hide + reports (plan 23) ─────────────────────────────────────
+
+/**
+ * The urgent, reversible tool — for investigations or preparing for
+ * removal. A guarded update so double-hides no-op; only a real transition
+ * logs and notifies. Deliberately does not resolve open reports: hide is
+ * often mid-investigation, and the report resolution is the closing act.
+ */
+export async function applySetTeamHidden(
+  team: TeamRow,
+  hidden: boolean,
+  mod: ModOverride,
+  extraMetadata: Record<string, unknown> = {},
+) {
+  const [updated] = await db
+    .update(teams)
+    .set(
+      hidden
+        ? {
+            hiddenAt: new Date(),
+            hiddenById: mod.actorId,
+            hiddenReason: mod.reason,
+            updatedAt: new Date(),
+          }
+        : { hiddenAt: null, hiddenById: null, hiddenReason: null, updatedAt: new Date() },
+    )
+    .where(and(eq(teams.id, team.id), hidden ? isNull(teams.hiddenAt) : isNotNull(teams.hiddenAt)))
+    .returning();
+  if (!updated) return { success: true, changed: false };
+
+  await recordTeamModAction({
+    action: hidden ? "team_hidden" : "team_unhidden",
+    mod,
+    team,
+    metadata: extraMetadata,
+  });
+  await notifyTeamOwner(team, hidden ? "team_hidden_by_staff" : "team_unhidden_by_staff", mod);
+
+  return { success: true, changed: true };
+}
+
+export const setTeamHidden = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      teamId: z.string(),
+      hidden: z.boolean(),
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const team = await getTeamRow(input.teamId);
+    if (input.hidden && !input.reason) {
+      throw new ORPCError("BAD_REQUEST", { message: "A reason is required to hide a team." });
+    }
+    return applySetTeamHidden(team, input.hidden, {
+      actorId: context.user.id,
+      reason: input.reason ?? null,
+    });
+  });
+
+export const reportTeam = os
+  .use(requireAuth)
+  .input(z.object({ teamId: z.string(), reason: z.string().trim().min(1).max(1000) }))
+  .handler(async ({ input, context }) => {
+    const [team] = await db.select().from(teams).where(eq(teams.id, input.teamId)).limit(1);
+    // A hidden team is not publicly visible, so it is not publicly
+    // reportable either — same 404 as the page.
+    if (!team || team.hiddenAt) {
+      throw new ORPCError("NOT_FOUND", { message: "Team not found." });
+    }
+
+    // No profanity check here: a report reason is staff-only text about
+    // something abusive, so quoting the abuse must not block the report.
+
+    const [open] = await db
+      .select({ id: teamReports.id })
+      .from(teamReports)
+      .where(
+        and(
+          eq(teamReports.teamId, team.id),
+          eq(teamReports.reporterId, context.user.id),
+          isNull(teamReports.resolvedAt),
+        ),
+      )
+      .limit(1);
+    if (open) {
+      throw new ORPCError("BAD_REQUEST", { message: "You've already reported this team." });
+    }
+
+    // Same bucket as `reportPost` and `reportComment`, so a spammer gets
+    // 10/hr total across all three surfaces.
+    await assertRateLimit("report", context.user.id, 10, "Too many reports — try again later.");
+
+    const [report] = await db
+      .insert(teamReports)
+      .values({
+        teamId: team.id,
+        teamName: team.name,
+        reporterId: context.user.id,
+        reason: input.reason,
+      })
+      .returning();
+
+    return report;
+  });
+
+export const listTeamReports = os
+  .use(requireStaff)
+  .input(z.object({ includeResolved: z.boolean().default(false) }))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({
+        id: teamReports.id,
+        teamId: teamReports.teamId,
+        teamName: teamReports.teamName,
+        reporterId: teamReports.reporterId,
+        reason: teamReports.reason,
+        createdAt: teamReports.createdAt,
+        resolvedAt: teamReports.resolvedAt,
+        resolvedById: teamReports.resolvedById,
+        // Live state beside the snapshot, so the queue can show what the
+        // team is *now* — or that it is gone.
+        liveName: teams.name,
+        liveSlug: teams.slug,
+        liveStatus: teams.status,
+        liveHiddenAt: teams.hiddenAt,
+      })
+      .from(teamReports)
+      .leftJoin(teams, eq(teamReports.teamId, teams.id))
+      .where(input.includeResolved ? undefined : isNull(teamReports.resolvedAt))
+      .orderBy(sql`${teamReports.resolvedAt} ASC NULLS FIRST`, desc(teamReports.createdAt));
+
+    const reporterIds = [...new Set(rows.map((r) => r.reporterId))];
+    const profiles =
+      reporterIds.length > 0
+        ? await db
+            .select({
+              id: developerProfiles.id,
+              discordUsername: developerProfiles.discordUsername,
+              guildNickname: developerProfiles.guildNickname,
+              avatarUrl: developerProfiles.avatarUrl,
+            })
+            .from(developerProfiles)
+            .where(inArray(developerProfiles.id, reporterIds))
+        : [];
+    const byId = new Map(
+      profiles.map((p) => [
+        p.id,
+        { id: p.id, displayName: memberName(p, "Member"), avatarUrl: p.avatarUrl },
+      ]),
+    );
+
+    return rows.map((r) => ({ ...r, reporter: byId.get(r.reporterId) ?? null }));
+  });
+
+/**
+ * Mirrors `resolvePostReport`: dismiss clears the queue entry; `hide_team`
+ * also runs the Phase 2 hide via its guarded update, so resolving an
+ * already-hidden team's report just closes the report.
+ */
+export const resolveTeamReport = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      reportId: z.number().int().positive(),
+      action: z.enum(["dismiss", "hide_team"]),
+      /** Recorded in the moderation log and the owner's hide notice. */
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [report] = await db
+      .select()
+      .from(teamReports)
+      .where(eq(teamReports.id, input.reportId))
+      .limit(1);
+    if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
+    if (report.resolvedAt) return { success: true };
+
+    const [team] = report.teamId
+      ? await db.select().from(teams).where(eq(teams.id, report.teamId)).limit(1)
+      : [undefined];
+
+    if (input.action === "hide_team") {
+      if (!team) {
+        throw new ORPCError("BAD_REQUEST", { message: "That team no longer exists." });
+      }
+      await applySetTeamHidden(
+        team,
+        true,
+        { actorId: context.user.id, reason: input.reason ?? null },
+        { reportId: report.id, reportReason: report.reason },
       );
     }
+
+    // Everyone who reported this team, not just the row that was clicked —
+    // orphaned reports (team already deleted) resolve alone.
+    const resolved = report.teamId
+      ? await resolveReportsForSubject({
+          kind: "team",
+          subjectId: report.teamId,
+          actorId: context.user.id,
+        })
+      : await db
+          .update(teamReports)
+          .set({ resolvedAt: new Date(), resolvedById: context.user.id })
+          .where(and(eq(teamReports.id, report.id), isNull(teamReports.resolvedAt)))
+          .returning({ id: teamReports.id, reporterId: teamReports.reporterId });
+
+    if (input.action === "dismiss") {
+      await recordModerationAction({
+        action: "team_report_dismissed",
+        actorId: context.user.id,
+        targetType: "team_report",
+        targetId: report.id,
+        subjectUserId: report.reporterId,
+        reason: input.reason,
+        metadata: {
+          teamId: report.teamId,
+          teamName: report.teamName,
+          reportReason: report.reason,
+          ...(resolved.length > 1
+            ? { alsoResolved: resolved.filter((r) => r.id !== report.id).map((r) => r.id) }
+            : {}),
+        },
+      });
+    }
+
+    // Each sibling gets its own row, pointing at the decision that closed it.
+    for (const sibling of resolved) {
+      if (sibling.id === report.id) continue;
+      await recordModerationAction({
+        action: input.action === "hide_team" ? "team_hidden" : "team_report_dismissed",
+        actorId: context.user.id,
+        targetType: "team_report",
+        targetId: sibling.id,
+        subjectUserId: sibling.reporterId,
+        reason: input.reason,
+        metadata: { teamId: report.teamId, resolvedVia: report.id },
+      });
+    }
+
+    await notifyReporters({
+      reports: resolved,
+      actorId: context.user.id,
+      outcome: input.action === "hide_team" ? "actioned" : "no_action",
+      entityType: "team",
+      entityId: report.teamId ?? report.id,
+      subjectTitle: team?.name ?? report.teamName,
+      // No link to a page the reporter can no longer see.
+      subjectUrl:
+        input.action === "dismiss" && team && !team.hiddenAt ? `/teams/${team.slug}` : null,
+    });
+
     return { success: true };
   });

@@ -291,7 +291,7 @@ export function assertTeamRequired(
  */
 async function assertTeamLinkable(teamId: string, authorId: string) {
   const [team] = await db
-    .select({ id: teams.id, status: teams.status })
+    .select({ id: teams.id, status: teams.status, hiddenAt: teams.hiddenAt })
     .from(teams)
     .where(eq(teams.id, teamId))
     .limit(1);
@@ -300,6 +300,11 @@ async function assertTeamLinkable(teamId: string, authorId: string) {
   }
   if (team.status !== "active") {
     throw new ORPCError("BAD_REQUEST", { message: "That team has been archived." });
+  }
+  // A hidden team must not be linkable to new posts; the wizard picker
+  // filters these client-side and this is the server's re-check.
+  if (team.hiddenAt) {
+    throw new ORPCError("BAD_REQUEST", { message: "That team is unavailable right now." });
   }
   const [membership] = await db
     .select({ id: teamMembers.id })
@@ -602,9 +607,9 @@ export const linkPostTeam = os
 
 export const deletePost = os
   .use(requireAuthWithPermissions)
-  .input(z.object({ postId: z.number() }))
+  .input(z.object({ postId: z.number(), reason: z.string().max(500).optional() }))
   .handler(async ({ input, context }) => {
-    await loadOwnedPost(
+    const { post, isOwner } = await loadOwnedPost(
       input.postId,
       { userId: context.user.id, isStaff: context.isStaff },
       "You can only delete your own posts.",
@@ -625,12 +630,24 @@ export const deletePost = os
         );
       }
     }
+    if (!isOwner && context.isStaff) {
+      await recordModerationAction({
+        action: "post_deleted",
+        actorId: context.user.id,
+        targetType: "collab_post",
+        targetId: post.id,
+        subjectUserId: post.authorId,
+        reason: input.reason,
+        // The row is gone; the title is what keeps the log line legible.
+        metadata: { title: post.title },
+      });
+    }
     return { success: true };
   });
 
 export const closePost = os
   .use(requireAuthWithPermissions)
-  .input(z.object({ postId: z.number() }))
+  .input(z.object({ postId: z.number(), reason: z.string().max(500).optional() }))
   .handler(async ({ input, context }) => {
     const { post, isOwner } = await loadOwnedPost(
       input.postId,
@@ -651,7 +668,16 @@ export const closePost = os
         actorId: context.user.id,
         entityType: "collab_post",
         entityId: String(post.id),
-        data: { postId: post.id, postTitle: post.title },
+        data: { postId: post.id, postTitle: post.title, reason: input.reason },
+      });
+      await recordModerationAction({
+        action: "post_closed",
+        actorId: context.user.id,
+        targetType: "collab_post",
+        targetId: post.id,
+        subjectUserId: post.authorId,
+        reason: input.reason,
+        metadata: { title: post.title },
       });
     }
 
@@ -660,9 +686,9 @@ export const closePost = os
 
 export const reopenPost = os
   .use(requireAuthWithPermissions)
-  .input(z.object({ postId: z.number() }))
+  .input(z.object({ postId: z.number(), reason: z.string().max(500).optional() }))
   .handler(async ({ input, context }) => {
-    const { post } = await loadOwnedPost(
+    const { post, isOwner } = await loadOwnedPost(
       input.postId,
       { userId: context.user.id, isStaff: context.isStaff },
       "You can only reopen your own posts.",
@@ -682,6 +708,18 @@ export const reopenPost = os
       .returning();
 
     await touchTeamActivity(post.teamId);
+
+    if (!isOwner && context.isStaff) {
+      await recordModerationAction({
+        action: "post_reopened",
+        actorId: context.user.id,
+        targetType: "collab_post",
+        targetId: post.id,
+        subjectUserId: post.authorId,
+        reason: input.reason,
+        metadata: { title: post.title },
+      });
+    }
 
     return updated;
   });
@@ -777,7 +815,9 @@ export const getPost = os
               status: teams.status,
             })
             .from(teams)
-            .where(eq(teams.id, post.teamId))
+            // A hidden team's chip degrades to the legacy unnamed-team
+            // rendering; the post itself stays up, so unhide restores it.
+            .where(and(eq(teams.id, post.teamId), isNull(teams.hiddenAt)))
             .limit(1)
             .then(async (rows) => {
               if (!rows[0]) return null;
@@ -1382,7 +1422,7 @@ export const listPosts = os
               avatarKey: teams.avatarKey,
             })
             .from(teams)
-            .where(inArray(teams.id, teamIds))
+            .where(and(inArray(teams.id, teamIds), isNull(teams.hiddenAt)))
             .then((rows) =>
               Promise.all(
                 rows.map(async ({ avatarKey, ...row }) => ({
@@ -1759,7 +1799,7 @@ async function teamChipsByIds(teamIds: string[]) {
   const rows = await db
     .select({ id: teams.id, name: teams.name, slug: teams.slug })
     .from(teams)
-    .where(inArray(teams.id, unique));
+    .where(and(inArray(teams.id, unique), isNull(teams.hiddenAt)));
   return new Map(rows.map((t) => [t.id, t]));
 }
 

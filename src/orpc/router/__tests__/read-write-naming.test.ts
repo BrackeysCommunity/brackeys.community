@@ -26,6 +26,7 @@ const WRITE_VERBS = [
   "ban",
   "block",
   "cancel",
+  "clear",
   "close",
   "create",
   "delete",
@@ -38,6 +39,7 @@ const WRITE_VERBS = [
   "link",
   "lock",
   "mark",
+  "propose",
   "reject",
   "remove",
   "reopen",
@@ -47,6 +49,9 @@ const WRITE_VERBS = [
   "respond",
   "revoke",
   "set",
+  // Prefix, not a verb: the admin-direct moderation twins
+  // (staffUpdateProfile, staffResetUrlStub) — writes either way.
+  "staff",
   "sync",
   "transfer",
   "unban",

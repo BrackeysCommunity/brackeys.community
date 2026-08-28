@@ -24,13 +24,19 @@ import {
   commentReports,
   developerProfiles,
   moderationActions,
+  moderationProposals,
   profileUrlStubs,
   session,
   skillRequests,
   skills,
+  teamMembers,
+  teamProjects,
+  teamReports,
+  teams,
   user,
   userSkills,
   type ModerationActionType,
+  type ModerationProposalTargetType,
 } from "@/db/schema";
 import { isActiveBan } from "@/lib/ban-state";
 import {
@@ -40,6 +46,7 @@ import {
 } from "@/lib/discord";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
+import { PROPOSABLE_ACTIONS, type ModOverride, type ModPowerAction } from "@/lib/moderation-policy";
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
 import { escapeLike, likeContains } from "@/lib/sql-like";
@@ -50,6 +57,30 @@ import {
   profileNameSearch,
   profileStubJoin,
 } from "@/orpc/profile-projection";
+import {
+  applyProfileStubReset,
+  applyProfileUpdate,
+  assertProfileModeratable,
+  profileModerationPatchSchema,
+} from "@/orpc/router/profile";
+import {
+  applyMemberRemoval,
+  applyMemberTitle,
+  applyOwnershipTransfer,
+  applyTeamImageClear,
+  applyTeamProjectRemoval,
+  applyTeamProjectUpdate,
+  applyTeamSlug,
+  applyTeamUpdate,
+  teamImageClearSchema,
+  teamMemberRemoveSchema,
+  teamProjectPatchSchema,
+  teamProjectRemoveSchema,
+  teamSlugPatchSchema,
+  teamTitleEditSchema,
+  teamTransferSchema,
+  teamUpdatePatchSchema,
+} from "@/orpc/router/team";
 
 /**
  * Staff/admin surface. Everything here backs the `/admin` route; the
@@ -760,68 +791,96 @@ export const reopenReport = os
   .input(
     z.object({
       reportId: z.number().int().positive(),
-      kind: z.enum(["post", "comment"]),
+      kind: z.enum(["post", "comment", "team"]),
       reason: z.string().trim().max(500).optional(),
     }),
   )
   .handler(async ({ input, context }) => {
-    const isPost = input.kind === "post";
-    const [report] = isPost
-      ? await db
-          .select({
-            id: collabPostReports.id,
-            subjectId: collabPostReports.postId,
-            reporterId: collabPostReports.reporterId,
-            resolvedAt: collabPostReports.resolvedAt,
-          })
-          .from(collabPostReports)
-          .where(eq(collabPostReports.id, input.reportId))
-          .limit(1)
-      : await db
-          .select({
-            id: commentReports.id,
-            subjectId: commentReports.commentId,
-            reporterId: commentReports.reporterId,
-            resolvedAt: commentReports.resolvedAt,
-          })
-          .from(commentReports)
-          .where(eq(commentReports.id, input.reportId))
-          .limit(1);
+    const [report] =
+      input.kind === "post"
+        ? await db
+            .select({
+              id: collabPostReports.id,
+              subjectId: sql<string | null>`${collabPostReports.postId}::text`,
+              reporterId: collabPostReports.reporterId,
+              resolvedAt: collabPostReports.resolvedAt,
+            })
+            .from(collabPostReports)
+            .where(eq(collabPostReports.id, input.reportId))
+            .limit(1)
+        : input.kind === "comment"
+          ? await db
+              .select({
+                id: commentReports.id,
+                subjectId: sql<string | null>`${commentReports.commentId}::text`,
+                reporterId: commentReports.reporterId,
+                resolvedAt: commentReports.resolvedAt,
+              })
+              .from(commentReports)
+              .where(eq(commentReports.id, input.reportId))
+              .limit(1)
+          : await db
+              .select({
+                id: teamReports.id,
+                // Null when the team was deleted out from under the report.
+                subjectId: teamReports.teamId,
+                reporterId: teamReports.reporterId,
+                resolvedAt: teamReports.resolvedAt,
+              })
+              .from(teamReports)
+              .where(eq(teamReports.id, input.reportId))
+              .limit(1);
 
     if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
     if (!report.resolvedAt) {
       return { success: true, reopened: false, message: "That report is already open." };
     }
 
-    // `reportPost` and `reportComment` only block a duplicate while an *open*
-    // report exists, so the same person may have filed again since this one
-    // was resolved. Reopening would give staff two live rows from one
-    // reporter on one subject, which is the mess the dedupe exists to avoid.
-    const [newer] = isPost
-      ? await db
-          .select({ id: collabPostReports.id })
-          .from(collabPostReports)
-          .where(
-            and(
-              eq(collabPostReports.postId, report.subjectId),
-              eq(collabPostReports.reporterId, report.reporterId),
-              isNull(collabPostReports.resolvedAt),
-              ne(collabPostReports.id, report.id),
-            ),
-          )
-          .limit(1)
-      : await db
-          .select({ id: commentReports.id })
-          .from(commentReports)
-          .where(
-            and(
-              eq(commentReports.commentId, report.subjectId),
-              eq(commentReports.reporterId, report.reporterId),
-              isNull(commentReports.resolvedAt),
-              ne(commentReports.id, report.id),
-            ),
-          )
-          .limit(1);
+    // The report procedures only block a duplicate while an *open* report
+    // exists, so the same person may have filed again since this one was
+    // resolved. Reopening would give staff two live rows from one reporter
+    // on one subject, which is the mess the dedupe exists to avoid.
+    const [newer] =
+      report.subjectId == null
+        ? [undefined]
+        : input.kind === "post"
+          ? await db
+              .select({ id: collabPostReports.id })
+              .from(collabPostReports)
+              .where(
+                and(
+                  eq(collabPostReports.postId, Number(report.subjectId)),
+                  eq(collabPostReports.reporterId, report.reporterId),
+                  isNull(collabPostReports.resolvedAt),
+                  ne(collabPostReports.id, report.id),
+                ),
+              )
+              .limit(1)
+          : input.kind === "comment"
+            ? await db
+                .select({ id: commentReports.id })
+                .from(commentReports)
+                .where(
+                  and(
+                    eq(commentReports.commentId, Number(report.subjectId)),
+                    eq(commentReports.reporterId, report.reporterId),
+                    isNull(commentReports.resolvedAt),
+                    ne(commentReports.id, report.id),
+                  ),
+                )
+                .limit(1)
+            : await db
+                .select({ id: teamReports.id })
+                .from(teamReports)
+                .where(
+                  and(
+                    eq(teamReports.teamId, report.subjectId),
+                    eq(teamReports.reporterId, report.reporterId),
+                    isNull(teamReports.resolvedAt),
+                    ne(teamReports.id, report.id),
+                  ),
+                )
+                .limit(1);
 
     if (newer) {
       return {
@@ -832,16 +891,23 @@ export const reopenReport = os
     }
 
     const cleared = { resolvedAt: null, resolvedById: null };
-    if (isPost) {
+    if (input.kind === "post") {
       await db.update(collabPostReports).set(cleared).where(eq(collabPostReports.id, report.id));
-    } else {
+    } else if (input.kind === "comment") {
       await db.update(commentReports).set(cleared).where(eq(commentReports.id, report.id));
+    } else {
+      await db.update(teamReports).set(cleared).where(eq(teamReports.id, report.id));
     }
 
     await recordModerationAction({
       action: "report_reopened",
       actorId: context.user.id,
-      targetType: isPost ? "post_report" : "comment_report",
+      targetType:
+        input.kind === "post"
+          ? "post_report"
+          : input.kind === "comment"
+            ? "comment_report"
+            : "team_report",
       targetId: report.id,
       subjectUserId: report.reporterId,
       reason: input.reason,
@@ -849,4 +915,549 @@ export const reopenReport = os
     });
 
     return { success: true, reopened: true, message: "Report is back in the queue." };
+  });
+
+// ── Moderation proposals (plan 23) ──────────────────────────────────────────
+
+/**
+ * Payload contracts per proposable action — the same zod fragments the
+ * direct procedures use, so an approved proposal can never write a row the
+ * direct path would have refused.
+ */
+const PROPOSAL_SCHEMAS: Record<string, z.ZodType> = {
+  team_update: teamUpdatePatchSchema,
+  team_slug: teamSlugPatchSchema,
+  team_image_clear: teamImageClearSchema,
+  team_member_remove: teamMemberRemoveSchema,
+  team_transfer: teamTransferSchema,
+  team_title_edit: teamTitleEditSchema,
+  team_project_update: teamProjectPatchSchema,
+  team_project_remove: teamProjectRemoveSchema,
+  profile_update: profileModerationPatchSchema,
+  profile_stub_reset: z.object({}),
+};
+
+function proposalTargetType(action: ModPowerAction): ModerationProposalTargetType {
+  return action.startsWith("profile_") ? "profile" : "team";
+}
+
+function parseProposalPayload(action: ModPowerAction, payload: unknown): Record<string, unknown> {
+  const schema = PROPOSAL_SCHEMAS[action];
+  if (!schema) {
+    throw new ORPCError("BAD_REQUEST", { message: "That action can't be proposed." });
+  }
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    throw new ORPCError("BAD_REQUEST", { message: "Invalid proposal payload." });
+  }
+  return parsed.data as Record<string, unknown>;
+}
+
+/**
+ * The target's current values for the fields this action touches. Serves
+ * three moments: the propose-time `snapshot`, the reviewer's live-drift
+ * diff, and `appliedPrevious` at apply time. Null = the target (or the
+ * specific member/project the payload names) is gone.
+ */
+async function proposalSnapshot(
+  action: ModPowerAction,
+  targetId: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  if (proposalTargetType(action) === "profile") {
+    const [profile] = await db
+      .select({
+        bio: developerProfiles.bio,
+        tagline: developerProfiles.tagline,
+        lookingFor: developerProfiles.lookingFor,
+        location: developerProfiles.location,
+        githubUrl: developerProfiles.githubUrl,
+        twitterUrl: developerProfiles.twitterUrl,
+        websiteUrl: developerProfiles.websiteUrl,
+        urlStub: profileUrlStubs.stub,
+      })
+      .from(developerProfiles)
+      .leftJoin(profileUrlStubs, profileStubJoin)
+      .where(eq(developerProfiles.id, targetId))
+      .limit(1);
+    if (!profile) return null;
+    if (action === "profile_stub_reset") return { urlStub: profile.urlStub };
+    const { urlStub: _urlStub, ...fields } = profile;
+    return Object.fromEntries(Object.entries(fields).filter(([key]) => payload[key] !== undefined));
+  }
+
+  const [team] = await db.select().from(teams).where(eq(teams.id, targetId)).limit(1);
+  if (!team) return null;
+
+  switch (action) {
+    case "team_update":
+      return Object.fromEntries(
+        (["name", "tagline", "bio", "websiteUrl", "itchUrl", "recruiting"] as const)
+          .filter((key) => payload[key] !== undefined)
+          .map((key) => [key, team[key]]),
+      );
+    case "team_slug":
+      return { slug: team.slug };
+    case "team_image_clear": {
+      const kind = payload.kind === "banner" ? "banner" : "avatar";
+      return kind === "banner" ? { bannerUrl: team.bannerUrl } : { avatarUrl: team.avatarUrl };
+    }
+    case "team_member_remove":
+    case "team_transfer": {
+      const [member] = await db
+        .select({ userId: teamMembers.userId, role: teamMembers.role, title: teamMembers.title })
+        .from(teamMembers)
+        .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, String(payload.userId))))
+        .limit(1);
+      return member ? { member } : null;
+    }
+    case "team_title_edit": {
+      const [member] = await db
+        .select({ id: teamMembers.id, userId: teamMembers.userId, title: teamMembers.title })
+        .from(teamMembers)
+        .where(and(eq(teamMembers.id, Number(payload.memberId)), eq(teamMembers.teamId, team.id)))
+        .limit(1);
+      return member ? { title: member.title, memberUserId: member.userId } : null;
+    }
+    case "team_project_update":
+    case "team_project_remove": {
+      const [project] = await db
+        .select({
+          title: teamProjects.title,
+          description: teamProjects.description,
+          url: teamProjects.url,
+          imageUrl: teamProjects.imageUrl,
+          imageKey: teamProjects.imageKey,
+        })
+        .from(teamProjects)
+        .where(
+          and(eq(teamProjects.id, String(payload.projectId)), eq(teamProjects.teamId, team.id)),
+        )
+        .limit(1);
+      return project ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
+/** Thrown by the apply dispatch when the proposal's target vanished between
+ * propose and approve — the CAS row flips to rejected instead of erroring. */
+class ProposalTargetGone extends Error {}
+
+async function applyProposalAction(
+  proposal: { action: string; targetId: string; payload: Record<string, unknown> },
+  mod: ModOverride,
+): Promise<void> {
+  const action = proposal.action as ModPowerAction;
+  // Re-validated at apply time — the schema may have tightened since.
+  const payload = parseProposalPayload(action, proposal.payload);
+
+  if (proposalTargetType(action) === "profile") {
+    // Roles may have changed since the proposal was filed.
+    await assertProfileModeratable(proposal.targetId);
+    if (action === "profile_stub_reset") {
+      await applyProfileStubReset(proposal.targetId, mod);
+    } else {
+      await applyProfileUpdate(proposal.targetId, profileModerationPatchSchema.parse(payload), mod);
+    }
+    return;
+  }
+
+  const [team] = await db.select().from(teams).where(eq(teams.id, proposal.targetId)).limit(1);
+  if (!team) throw new ProposalTargetGone();
+
+  switch (action) {
+    case "team_update":
+      await applyTeamUpdate(team, teamUpdatePatchSchema.parse(payload), mod);
+      return;
+    case "team_slug":
+      await applyTeamSlug(team, teamSlugPatchSchema.parse(payload).slug, mod);
+      return;
+    case "team_image_clear":
+      await applyTeamImageClear(team, teamImageClearSchema.parse(payload).kind, mod);
+      return;
+    case "team_member_remove":
+      await applyMemberRemoval(
+        team,
+        teamMemberRemoveSchema.parse(payload).userId,
+        mod.actorId,
+        mod,
+      );
+      return;
+    case "team_transfer":
+      await applyOwnershipTransfer(team, teamTransferSchema.parse(payload).userId, mod);
+      return;
+    case "team_title_edit": {
+      const { memberId, title } = teamTitleEditSchema.parse(payload);
+      await applyMemberTitle(team, memberId, title, mod);
+      return;
+    }
+    case "team_project_update": {
+      const { projectId, ...patch } = teamProjectPatchSchema.parse(payload);
+      const [project] = await db
+        .select()
+        .from(teamProjects)
+        .where(and(eq(teamProjects.id, projectId), eq(teamProjects.teamId, team.id)))
+        .limit(1);
+      if (!project) throw new ProposalTargetGone();
+      await applyTeamProjectUpdate(team, project, patch, mod);
+      return;
+    }
+    case "team_project_remove": {
+      const { projectId } = teamProjectRemoveSchema.parse(payload);
+      const [project] = await db
+        .select({
+          id: teamProjects.id,
+          title: teamProjects.title,
+          addedBy: teamProjects.addedBy,
+          imageKey: teamProjects.imageKey,
+        })
+        .from(teamProjects)
+        .where(and(eq(teamProjects.id, projectId), eq(teamProjects.teamId, team.id)))
+        .limit(1);
+      if (!project) throw new ProposalTargetGone();
+      await applyTeamProjectRemoval(team, project, mod);
+      return;
+    }
+    default:
+      throw new ORPCError("BAD_REQUEST", { message: "That action can't be proposed." });
+  }
+}
+
+export const proposeModerationEdit = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      action: z.enum(PROPOSABLE_ACTIONS as [ModPowerAction, ...ModPowerAction[]]),
+      targetId: z.string().min(1),
+      payload: z.record(z.string(), z.unknown()),
+      /** Mods must say why — this becomes the owner-facing explanation on apply. */
+      reason: z.string().trim().min(1).max(500),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const payload = parseProposalPayload(input.action, input.payload);
+    const targetType = proposalTargetType(input.action);
+
+    if (targetType === "profile") {
+      if (input.targetId === context.user.id) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Edit your own profile directly instead of proposing.",
+        });
+      }
+      await assertProfileModeratable(input.targetId);
+    }
+
+    const snapshot = await proposalSnapshot(input.action, input.targetId, payload);
+    if (!snapshot) throw new ORPCError("NOT_FOUND", { message: "Target not found." });
+
+    const proposer = (await profilesByIds([context.user.id])).get(context.user.id);
+
+    // Supersede-then-insert in one transaction: mods iterate on a draft
+    // without an admin having to reject the stale one first.
+    const proposal = await db.transaction(async (tx) => {
+      await tx
+        .update(moderationProposals)
+        .set({ status: "superseded", reviewedAt: new Date() })
+        .where(
+          and(
+            eq(moderationProposals.targetType, targetType),
+            eq(moderationProposals.targetId, input.targetId),
+            eq(moderationProposals.action, input.action),
+            eq(moderationProposals.status, "pending"),
+          ),
+        );
+      const [inserted] = await tx
+        .insert(moderationProposals)
+        .values({
+          action: input.action,
+          targetType,
+          targetId: input.targetId,
+          payload,
+          snapshot,
+          reason: input.reason,
+          proposedById: context.user.id,
+          proposedByName: proposer?.displayName ?? null,
+        })
+        .returning();
+      return inserted;
+    });
+
+    await recordModerationAction({
+      action: "moderation_proposed",
+      actorId: context.user.id,
+      targetType: "moderation_proposal",
+      targetId: proposal.id,
+      subjectUserId: targetType === "profile" ? input.targetId : null,
+      reason: input.reason,
+      metadata: { action: input.action, targetType, targetId: input.targetId },
+    });
+
+    return proposal;
+  });
+
+export const listModerationProposals = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      status: z.enum(["pending", "handled"]).default("pending"),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(10),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const where =
+      input.status === "pending"
+        ? eq(moderationProposals.status, "pending")
+        : ne(moderationProposals.status, "pending");
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(moderationProposals).where(where),
+      db
+        .select()
+        .from(moderationProposals)
+        .where(where)
+        .orderBy(desc(moderationProposals.createdAt))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const profiles = await profilesByIds(
+      rows.flatMap((r) => [
+        ...(r.proposedById ? [r.proposedById] : []),
+        ...(r.reviewedById ? [r.reviewedById] : []),
+        ...(r.targetType === "profile" ? [r.targetId] : []),
+      ]),
+    );
+
+    // Team identity + the reviewer's live values, so the queue can render
+    // "TEAM name" rows and badge CHANGED SINCE PROPOSED without a second
+    // round trip per card.
+    const teamIds = [
+      ...new Set(rows.filter((r) => r.targetType === "team").map((r) => r.targetId)),
+    ];
+    const teamRows =
+      teamIds.length > 0
+        ? await db
+            .select({ id: teams.id, name: teams.name, slug: teams.slug })
+            .from(teams)
+            .where(inArray(teams.id, teamIds))
+        : [];
+    const teamById = new Map(teamRows.map((t) => [t.id, t]));
+
+    const items = await Promise.all(
+      rows.map(async (row) => ({
+        ...row,
+        proposer: row.proposedById ? (profiles.get(row.proposedById) ?? null) : null,
+        reviewer: row.reviewedById ? (profiles.get(row.reviewedById) ?? null) : null,
+        targetProfile: row.targetType === "profile" ? (profiles.get(row.targetId) ?? null) : null,
+        targetTeam: row.targetType === "team" ? (teamById.get(row.targetId) ?? null) : null,
+        live:
+          row.status === "pending"
+            ? await proposalSnapshot(row.action as ModPowerAction, row.targetId, row.payload)
+            : null,
+      })),
+    );
+
+    const total = totals?.total ?? 0;
+    return {
+      items,
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
+  });
+
+export const approveModerationProposal = os
+  .use(requireAdmin)
+  .input(
+    z.object({
+      proposalId: z.number().int().positive(),
+      note: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    // Claim first — two admins racing get one winner and one "already handled".
+    const [claimed] = await db
+      .update(moderationProposals)
+      .set({
+        status: "approved",
+        reviewedById: context.user.id,
+        reviewedAt: new Date(),
+        reviewNote: input.note ?? null,
+      })
+      .where(
+        and(
+          eq(moderationProposals.id, input.proposalId),
+          eq(moderationProposals.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!claimed) {
+      throw new ORPCError("NOT_FOUND", { message: "No pending proposal with that id." });
+    }
+
+    const action = claimed.action as ModPowerAction;
+    let appliedPrevious: Record<string, unknown> | null = null;
+    try {
+      appliedPrevious = await proposalSnapshot(action, claimed.targetId, claimed.payload);
+      if (!appliedPrevious) throw new ProposalTargetGone();
+      // The applied action carries the proposal's reason to the subject; its
+      // own audit row fires inside the apply helper — one decision, two rows:
+      // the ruling and the effect.
+      await applyProposalAction(claimed, { actorId: context.user.id, reason: claimed.reason });
+      await db
+        .update(moderationProposals)
+        .set({ appliedPrevious })
+        .where(eq(moderationProposals.id, claimed.id));
+    } catch (error) {
+      if (error instanceof ProposalTargetGone) {
+        await db
+          .update(moderationProposals)
+          .set({ status: "rejected", reviewNote: "target gone" })
+          .where(eq(moderationProposals.id, claimed.id));
+        return { success: true, applied: false, message: "Target is gone — proposal rejected." };
+      }
+      // Release the claim so a transient failure doesn't strand the row as
+      // approved-but-unapplied.
+      await db
+        .update(moderationProposals)
+        .set({ status: "pending", reviewedById: null, reviewedAt: null, reviewNote: null })
+        .where(eq(moderationProposals.id, claimed.id));
+      throw error;
+    }
+
+    await recordModerationAction({
+      action: "moderation_proposal_approved",
+      actorId: context.user.id,
+      targetType: "moderation_proposal",
+      targetId: claimed.id,
+      subjectUserId: claimed.targetType === "profile" ? claimed.targetId : null,
+      reason: input.note,
+      metadata: { action, payload: claimed.payload, appliedPrevious },
+    });
+
+    return { success: true, applied: true };
+  });
+
+export const rejectModerationProposal = os
+  .use(requireAdmin)
+  .input(
+    z.object({
+      proposalId: z.number().int().positive(),
+      note: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [rejected] = await db
+      .update(moderationProposals)
+      .set({
+        status: "rejected",
+        reviewedById: context.user.id,
+        reviewedAt: new Date(),
+        reviewNote: input.note ?? null,
+      })
+      .where(
+        and(
+          eq(moderationProposals.id, input.proposalId),
+          eq(moderationProposals.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!rejected) {
+      throw new ORPCError("NOT_FOUND", { message: "No pending proposal with that id." });
+    }
+
+    await recordModerationAction({
+      action: "moderation_proposal_rejected",
+      actorId: context.user.id,
+      targetType: "moderation_proposal",
+      targetId: rejected.id,
+      subjectUserId: rejected.targetType === "profile" ? rejected.targetId : null,
+      reason: input.note,
+      metadata: { action: rejected.action, targetId: rejected.targetId },
+    });
+
+    return { success: true };
+  });
+
+// ── Teams section ───────────────────────────────────────────────────────────
+
+export const listTeamsAdmin = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      search: z.string().trim().max(100).optional(),
+      hiddenOnly: z.boolean().default(false),
+      includeArchived: z.boolean().default(true),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(10),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const filters = [
+      input.search
+        ? or(
+            ilike(teams.name, `%${escapeLike(input.search)}%`),
+            ilike(teams.slug, `%${escapeLike(input.search)}%`),
+          )
+        : undefined,
+      input.hiddenOnly ? isNotNull(teams.hiddenAt) : undefined,
+      input.includeArchived ? undefined : eq(teams.status, "active"),
+    ].filter((f) => f != null);
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(teams).where(where),
+      db
+        .select({
+          id: teams.id,
+          slug: teams.slug,
+          name: teams.name,
+          status: teams.status,
+          hiddenAt: teams.hiddenAt,
+          hiddenReason: teams.hiddenReason,
+          createdAt: teams.createdAt,
+        })
+        .from(teams)
+        .where(where)
+        .orderBy(desc(teams.createdAt))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const teamIds = rows.map((r) => r.id);
+    const [owners, openReports] = await Promise.all([
+      teamIds.length > 0
+        ? db
+            .select({ teamId: teamMembers.teamId, userId: teamMembers.userId })
+            .from(teamMembers)
+            .where(and(inArray(teamMembers.teamId, teamIds), eq(teamMembers.role, "owner")))
+        : Promise.resolve([]),
+      teamIds.length > 0
+        ? db
+            .select({ teamId: teamReports.teamId, count: count() })
+            .from(teamReports)
+            .where(and(inArray(teamReports.teamId, teamIds), isNull(teamReports.resolvedAt)))
+            .groupBy(teamReports.teamId)
+        : Promise.resolve([]),
+    ]);
+    const ownerByTeam = new Map(owners.map((o) => [o.teamId, o.userId]));
+    const reportsByTeam = new Map(openReports.map((r) => [r.teamId!, r.count]));
+    const profiles = await profilesByIds(owners.map((o) => o.userId));
+
+    const total = totals?.total ?? 0;
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        owner: ownerByTeam.get(row.id) ? (profiles.get(ownerByTeam.get(row.id)!) ?? null) : null,
+        openReportCount: reportsByTeam.get(row.id) ?? 0,
+      })),
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
   });

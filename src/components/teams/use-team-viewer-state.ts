@@ -7,6 +7,7 @@ import { orpc } from "@/orpc/client";
 export type TeamViewerState = {
   viewerRole: string | null;
   isOwner: boolean;
+  isStaffViewer: boolean;
   viewerInvite: { id: number; message: string | null } | null;
   pendingInvites: {
     id: number;
@@ -20,6 +21,7 @@ export type TeamViewerState = {
 const SIGNED_OUT: TeamViewerState = {
   viewerRole: null,
   isOwner: false,
+  isStaffViewer: false,
   viewerInvite: null,
   pendingInvites: [],
 };
@@ -49,6 +51,9 @@ export function useTeamViewerState(teamId: string, signedIn: boolean) {
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({
       queryKey: orpc.getTeam.queryOptions({ input: { teamId } }).queryKey,
+    });
+    void queryClient.invalidateQueries({
+      queryKey: orpc.getTeamForInsider.queryOptions({ input: { teamId } }).queryKey,
     });
     void queryClient.invalidateQueries({
       queryKey: orpc.getTeamViewerState.queryOptions({ input: { teamId } }).queryKey,

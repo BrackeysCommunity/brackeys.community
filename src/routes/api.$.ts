@@ -12,6 +12,7 @@ import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
+import { isAdmin } from "@/lib/discord";
 import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import {
   ProfileProjectImageUploadError,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/profile-project-image-storage";
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { resolveUserRoles } from "@/lib/staff-roles";
 import {
   buildCollabPostImageObjectKey,
   buildProjectImageObjectKey,
@@ -244,13 +246,22 @@ const handleTeamAvatarUpload = withImageUpload(
       .from(teamMembers)
       .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, session.user.id)))
       .limit(1);
+    // Admins may replace images on any team — the upload half of the
+    // `clearTeamImage` moderation power.
+    let isOverride = false;
     if (kind === "project" ? !membership : membership?.role !== "owner") {
-      return Response.json(
-        kind === "project"
-          ? { message: "Only team members can upload showcase images." }
-          : { message: `Only the team owner can change the ${kind}.` },
-        { status: 403 },
-      );
+      isOverride = isAdmin(await resolveUserRoles(session.user.id));
+      if (!isOverride) {
+        return Response.json(
+          kind === "project"
+            ? { message: "Only team members can upload showcase images." }
+            : { message: `Only the team owner can change the ${kind}.` },
+          { status: 403 },
+        );
+      }
+    }
+    if (team.hiddenAt && !isOverride) {
+      return Response.json({ message: "This team is under review." }, { status: 403 });
     }
 
     if (kind === "project") {

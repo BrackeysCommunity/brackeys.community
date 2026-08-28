@@ -341,6 +341,13 @@ export type NotificationType =
   | "team_member_removed"
   | "team_archive_warning"
   | "team_auto_archived"
+  | "team_updated_by_staff"
+  | "team_member_removed_by_staff"
+  | "team_ownership_transferred_by_staff"
+  | "team_hidden_by_staff"
+  | "team_unhidden_by_staff"
+  | "team_deleted_by_staff"
+  | "profile_updated_by_staff"
   | "comment_received"
   | "comment_reply"
   | "comment_removed_by_staff"
@@ -607,6 +614,13 @@ export const teams = teamSchema.table("teams", {
   // stops being pickable in the wizard. Text, not a pg enum, so future
   // states are pure additions.
   status: text("status").notNull().default("active"),
+  // Staff hide — deliberately orthogonal to status, so unhiding restores
+  // whichever state the team was in without remembering it anywhere.
+  // Null hiddenAt = visible.
+  hiddenAt: timestamp("hidden_at"),
+  hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+  // Required when hiding; it is the owner-facing explanation.
+  hiddenReason: text("hidden_reason"),
   // Bumped by touchTeamActivity on post/member/project/settings events;
   // the lifecycle sweep reads it to find quiet never-shipped teams.
   lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
@@ -737,6 +751,25 @@ export const teamProjects = teamSchema.table("team_projects", {
   releasedAt: timestamp("released_at"),
   addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/**
+ * Deliberately `set null` on the team FK where the report twins cascade:
+ * a team owner can hard-delete the subject, and a cascade would let that
+ * delete the evidence and dodge the queue. The name snapshot keeps an
+ * orphaned report readable.
+ */
+export const teamReports = teamSchema.table("team_reports", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+  teamName: text("team_name").notNull(),
+  reporterId: text("reporter_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
 });
 
 // ── itch.io scraped data (itch schema) ───────────────────────────────────────
@@ -1383,6 +1416,8 @@ export type ModerationActionType =
   | "comment_removed"
   | "comment_report_dismissed"
   | "post_closed"
+  | "post_reopened"
+  | "post_deleted"
   | "post_report_dismissed"
   | "post_report_deleted"
   | "report_reopened"
@@ -1394,7 +1429,24 @@ export type ModerationActionType =
   | "user_unbanned"
   | "vocabulary_created"
   | "vocabulary_renamed"
-  | "vocabulary_deleted";
+  | "vocabulary_deleted"
+  | "team_updated"
+  | "team_slug_updated"
+  | "team_image_cleared"
+  | "team_member_removed"
+  | "team_member_invited"
+  | "team_member_title_updated"
+  | "team_ownership_transferred"
+  | "team_project_updated"
+  | "team_project_removed"
+  | "team_hidden"
+  | "team_unhidden"
+  | "team_deleted"
+  | "team_report_dismissed"
+  | "moderation_proposed"
+  | "moderation_proposal_approved"
+  | "moderation_proposal_rejected"
+  | "profile_updated";
 
 export type ModerationTargetType =
   | "comment"
@@ -1405,7 +1457,10 @@ export type ModerationTargetType =
   | "skill"
   | "collab_role"
   | "jam"
-  | "user";
+  | "user"
+  | "team"
+  | "team_report"
+  | "moderation_proposal";
 
 export const moderationActions = socialSchema.table(
   "moderation_actions",
@@ -1441,5 +1496,50 @@ export const moderationActions = socialSchema.table(
     index("moderation_actions_subject_idx").on(t.subjectUserId, t.createdAt.desc()),
     index("moderation_actions_actor_idx").on(t.actorId, t.createdAt.desc()),
     index("moderation_actions_target_idx").on(t.targetType, t.targetId),
+  ],
+);
+
+export type ModerationProposalStatus = "pending" | "approved" | "rejected" | "superseded";
+export type ModerationProposalTargetType = "team" | "profile";
+
+/**
+ * Staff-filed edits awaiting an admin's ruling — the `propose` tier of
+ * `MOD_POWERS`. Copies the `skill_requests` shape: compare-and-set on
+ * `status = 'pending'`, apply-then-mark in one transaction, audit row,
+ * best-effort notify. `action` stays a plain string column so the policy
+ * map can grow without touching the table.
+ */
+export const moderationProposals = socialSchema.table(
+  "moderation_proposals",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    action: text("action").notNull(),
+    targetType: text("target_type").$type<ModerationProposalTargetType>().notNull(),
+    targetId: text("target_id").notNull(),
+    /** The validated procedure input the approval will apply. */
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    /** Target values at propose time — the reviewer's diff baseline. */
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+    /** Why — becomes the owner-facing explanation on apply. */
+    reason: text("reason").notNull(),
+    proposedById: text("proposed_by_id").references(() => user.id, { onDelete: "set null" }),
+    // Snapshot that survives account deletion, same rationale as
+    // `moderation_actions.actorName`.
+    proposedByName: text("proposed_by_name"),
+    status: text("status").$type<ModerationProposalStatus>().notNull().default("pending"),
+    reviewedById: text("reviewed_by_id").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewNote: text("review_note"),
+    /** Target values at apply time — what the approval overwrote. */
+    appliedPrevious: jsonb("applied_previous").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // One live proposal per action per subject; a newer one supersedes it
+    // atomically (the `team_invites` pattern).
+    uniqueIndex("moderation_proposals_pending_unique")
+      .on(t.targetType, t.targetId, t.action)
+      .where(sql`${t.status} = 'pending'`),
+    index("moderation_proposals_status_idx").on(t.status, t.createdAt.desc()),
   ],
 );

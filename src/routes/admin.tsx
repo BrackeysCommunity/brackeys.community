@@ -1,12 +1,14 @@
 import {
   BookOpen01Icon,
   BubbleChatIcon,
+  CheckListIcon,
   Flag02Icon,
   PinIcon,
   ScrollIcon,
   StarIcon,
   TagsIcon,
   UserBlock01Icon,
+  UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -18,9 +20,11 @@ import { AdminBans } from "@/components/admin/AdminBans";
 import { AdminFeatured } from "@/components/admin/AdminFeatured";
 import { AdminHeroJam } from "@/components/admin/AdminHeroJam";
 import { AdminLog } from "@/components/admin/AdminLog";
+import { AdminProposals } from "@/components/admin/AdminProposals";
 import { AdminRecentComments } from "@/components/admin/AdminRecentComments";
 import { AdminReportQueue } from "@/components/admin/AdminReportQueue";
 import { AdminSkills } from "@/components/admin/AdminSkills";
+import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminHero } from "@/components/admin/AdminUI";
 import { AdminVocabulary } from "@/components/admin/AdminVocabulary";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +40,18 @@ import { client, orpc } from "@/orpc/client";
 // search union that /notifications' own `view` param narrows against.
 const searchSchema = z.object({
   section: z
-    .enum(["reports", "comments", "featured", "hero", "skills", "vocab", "bans", "log"])
+    .enum([
+      "reports",
+      "proposals",
+      "comments",
+      "teams",
+      "featured",
+      "hero",
+      "skills",
+      "vocab",
+      "bans",
+      "log",
+    ])
     .default("reports"),
 });
 
@@ -44,7 +59,9 @@ type View = z.infer<typeof searchSchema>["section"];
 
 const SECTIONS: readonly View[] = [
   "reports",
+  "proposals",
   "comments",
+  "teams",
   "featured",
   "hero",
   "skills",
@@ -54,8 +71,10 @@ const SECTIONS: readonly View[] = [
 ];
 
 const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgElement }> = {
-  reports: { label: "Reports", hint: "Flagged posts, comments", icon: Flag02Icon },
+  reports: { label: "Reports", hint: "Flagged posts, comments, teams", icon: Flag02Icon },
+  proposals: { label: "Proposals", hint: "Mod edits awaiting an admin", icon: CheckListIcon },
   comments: { label: "Comments", hint: "Newest across the site", icon: BubbleChatIcon },
+  teams: { label: "Teams", hint: "Directory, hide, delete", icon: UserGroupIcon },
   featured: { label: "Featured", hint: "Board spotlight", icon: StarIcon },
   hero: { label: "Hero jam", hint: "Landing page lead", icon: PinIcon },
   skills: { label: "Skills", hint: "Catalogue, requests", icon: TagsIcon },
@@ -99,16 +118,26 @@ function useQueueCounts(): Partial<Record<View, number>> {
   const postReports = useQuery(
     orpc.listReports.queryOptions({ input: { includeResolved: false } }),
   );
+  const teamReports = useQuery(
+    orpc.listTeamReports.queryOptions({ input: { includeResolved: false } }),
+  );
   const skillRequests = useQuery(
     orpc.listSkillRequests.queryOptions({ input: { status: "pending", page: 1, pageSize: 10 } }),
+  );
+  const pendingProposals = useQuery(
+    orpc.listModerationProposals.queryOptions({
+      input: { status: "pending", page: 1, pageSize: 10 },
+    }),
   );
 
   const open =
     (commentReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
-    (postReports.data?.filter((r) => r.resolvedAt == null).length ?? 0);
+    (postReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
+    (teamReports.data?.filter((r) => r.resolvedAt == null).length ?? 0);
 
   return {
     reports: open,
+    proposals: pendingProposals.data?.total ?? 0,
     skills: skillRequests.data?.total ?? 0,
   };
 }
@@ -124,6 +153,7 @@ function AdminRoute() {
         isAdmin={isAdmin}
         stats={[
           { label: "Open reports", value: counts.reports ?? 0 },
+          { label: "Pending proposals", value: counts.proposals ?? 0 },
           { label: "Skill requests", value: counts.skills ?? 0 },
         ]}
       />
@@ -214,7 +244,9 @@ function AdminPane({ section, isAdmin }: { section: View; isAdmin: boolean }) {
       className="flex min-w-0 flex-col gap-8"
     >
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
+      {section === "proposals" && <AdminProposals isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
+      {section === "teams" && <AdminTeams isAdmin={isAdmin} />}
       {section === "featured" && <AdminFeatured />}
       {section === "hero" && <AdminHeroJam />}
       {section === "skills" && <AdminSkills isAdmin={isAdmin} />}

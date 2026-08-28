@@ -49,7 +49,12 @@ export function renderNotificationText(input: {
     case "collab_post_featured":
       return { headline: `Your post "${postTitle}" was featured`, href };
     case "collab_post_closed_by_staff":
-      return { headline: `Staff closed your post "${postTitle}"`, href };
+      return {
+        headline: moderationReason
+          ? `Staff closed your post "${postTitle}" — ${moderationReason}`
+          : `Staff closed your post "${postTitle}"`,
+        href,
+      };
     case "collab_post_expiring":
       return { headline: `"${postTitle}" closes soon — still looking?`, href };
     case "collab_post_expired":
@@ -69,6 +74,50 @@ export function renderNotificationText(input: {
       };
     case "team_auto_archived":
       return { headline: `${teamName} was archived after a quiet spell`, href: teamHref };
+    case "team_updated_by_staff":
+      return {
+        headline: moderationReason
+          ? `A moderator edited ${teamName} — ${moderationReason}`
+          : `A moderator edited ${teamName}`,
+        href: teamHref,
+      };
+    case "team_member_removed_by_staff":
+      return {
+        headline: moderationReason
+          ? `A moderator removed a member from ${teamName} — ${moderationReason}`
+          : `A moderator removed a member from ${teamName}`,
+        href: teamHref,
+      };
+    case "team_ownership_transferred_by_staff":
+      return {
+        headline: moderationReason
+          ? `A moderator transferred ownership of ${teamName} — ${moderationReason}`
+          : `A moderator transferred ownership of ${teamName}`,
+        href: teamHref,
+      };
+    case "team_hidden_by_staff":
+      return {
+        headline: moderationReason
+          ? `${teamName} is hidden pending review — ${moderationReason}`
+          : `${teamName} is hidden pending review`,
+        href: teamHref,
+      };
+    case "team_unhidden_by_staff":
+      return { headline: `${teamName} is visible again`, href: teamHref };
+    case "team_deleted_by_staff":
+      return {
+        headline: moderationReason
+          ? `Staff removed the team ${teamName} — ${moderationReason}`
+          : `Staff removed the team ${teamName}`,
+        href: null,
+      };
+    case "profile_updated_by_staff":
+      return {
+        headline: moderationReason
+          ? `A moderator edited your profile — ${moderationReason}`
+          : `A moderator edited your profile`,
+        href: "/profile",
+      };
     case "comment_received":
       return { headline: `${actor} commented on "${subjectTitle}"`, href: subjectHref };
     case "comment_reply":
@@ -133,6 +182,13 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   team_member_removed: "Teams — you were removed from a team",
   team_archive_warning: "Teams — your team is about to be archived",
   team_auto_archived: "Teams — your team was archived",
+  team_updated_by_staff: "Moderation — staff edited your team",
+  team_member_removed_by_staff: "Moderation — staff removed a member from your team",
+  team_ownership_transferred_by_staff: "Moderation — staff transferred your team's ownership",
+  team_hidden_by_staff: "Moderation — your team was hidden pending review",
+  team_unhidden_by_staff: "Moderation — your team is visible again",
+  team_deleted_by_staff: "Moderation — your team was removed",
+  profile_updated_by_staff: "Moderation — staff edited your profile",
   comment_received: "Comments — new comment in a thread you follow",
   comment_reply: "Comments — someone replied to your comment",
   comment_removed_by_staff: "Moderation — your comment was removed",
@@ -160,6 +216,13 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "team_member_removed",
   "team_archive_warning",
   "team_auto_archived",
+  "team_updated_by_staff",
+  "team_member_removed_by_staff",
+  "team_ownership_transferred_by_staff",
+  "team_hidden_by_staff",
+  "team_unhidden_by_staff",
+  "team_deleted_by_staff",
+  "profile_updated_by_staff",
   "comment_received",
   "comment_reply",
   "comment_removed_by_staff",
@@ -203,6 +266,15 @@ export const NOTIFICATION_DEFAULTS: Record<
   team_archive_warning: { inApp: true, email: true, digest: false },
   // The archive already happened and is reversible in-app; no email.
   team_auto_archived: { inApp: true, email: false, digest: false },
+  // Something of theirs changed without them present — same reasoning as
+  // comment_removed_by_staff: silence reads as the site being broken.
+  team_updated_by_staff: { inApp: true, email: true, digest: false },
+  team_member_removed_by_staff: { inApp: true, email: false, digest: false },
+  team_ownership_transferred_by_staff: { inApp: true, email: true, digest: false },
+  team_hidden_by_staff: { inApp: true, email: true, digest: false },
+  team_unhidden_by_staff: { inApp: true, email: false, digest: false },
+  team_deleted_by_staff: { inApp: true, email: true, digest: false },
+  profile_updated_by_staff: { inApp: true, email: true, digest: false },
   // Conversational volume: in-app + weekly digest, never transactional
   // email by default — users opt email up, not down.
   comment_received: { inApp: true, email: false, digest: true },
@@ -251,6 +323,13 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   team_member_removed: "teams",
   team_archive_warning: "teams",
   team_auto_archived: "teams",
+  team_updated_by_staff: "moderation",
+  team_member_removed_by_staff: "moderation",
+  team_ownership_transferred_by_staff: "moderation",
+  team_hidden_by_staff: "moderation",
+  team_unhidden_by_staff: "moderation",
+  team_deleted_by_staff: "moderation",
+  profile_updated_by_staff: "moderation",
   comment_received: "comments",
   comment_reply: "comments",
   comment_removed_by_staff: "moderation",

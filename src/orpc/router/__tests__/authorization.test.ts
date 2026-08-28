@@ -108,6 +108,19 @@ const STAFF_PROCEDURES = new Set([
   // Staff-only because it carries ban state; `searchProfiles` is the open one.
   "searchMembers",
   "listModerationActions",
+  // Team + profile moderation (plan 23). The owner-or-override team
+  // procedures are deliberately NOT here — their gate is caller-dependent
+  // and lives in the handler, covered by team-moderation-db.test.ts.
+  "setTeamHidden",
+  "listTeamReports",
+  "resolveTeamReport",
+  "listTeamsAdmin",
+  "proposeModerationEdit",
+  "listModerationProposals",
+  "approveModerationProposal",
+  "rejectModerationProposal",
+  "staffUpdateProfile",
+  "staffResetUrlStub",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

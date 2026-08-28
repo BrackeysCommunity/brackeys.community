@@ -26,8 +26,14 @@ export const Route = createFileRoute("/teams/$teamId")({
     const data = await queryClient.ensureQueryData(
       orpc.getTeam.queryOptions({ input: { teamId: params.teamId } }),
     );
-    if (!data) throw notFound();
-    return data;
+    if (data) return data;
+    // A hidden team 404s publicly but stays reachable for its members and
+    // staff; anonymous callers throw UNAUTHORIZED here and land on the 404.
+    const insider = await queryClient
+      .ensureQueryData(orpc.getTeamForInsider.queryOptions({ input: { teamId: params.teamId } }))
+      .catch(() => null);
+    if (!insider) throw notFound();
+    return insider;
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
@@ -72,6 +78,8 @@ export const Route = createFileRoute("/teams/$teamId")({
         path,
         card: ogCardPath("team", team.slug),
         imageAlt: `${team.name} on Brackeys Community`,
+        // Insider view of a hidden team — crawlers 404, but belt and braces.
+        ...(team.hiddenAt ? { noindexNofollow: true, canonical: false } : {}),
       }),
       scripts: jsonLd([
         {
@@ -106,14 +114,21 @@ function TeamById() {
   // Seeded by the loader; still a `useQuery` so writes have a subscriber.
   const { data, isLoading } = useQuery({ ...queryOptions, staleTime: STALE.viewer });
 
+  // The loader's hidden-team fallback, kept live for the same reason.
+  const insider = useQuery({
+    ...orpc.getTeamForInsider.queryOptions({ input: { teamId } }),
+    enabled: !isLoading && !data && Boolean(session?.user),
+  });
+
   // The anonymous core and the viewer's standing are two reads; the page
   // and everything under it still see one team object.
   const { viewerState, invalidate } = useTeamViewerState(teamId, Boolean(session?.user));
 
-  if (isLoading) return <TeamPageSkeleton />;
-  if (!data) return <TeamNotFoundState />;
+  if (isLoading || (!data && insider.isLoading)) return <TeamPageSkeleton />;
+  const core = data ?? insider.data;
+  if (!core) return <TeamNotFoundState />;
 
-  const team = { ...data, ...viewerState } as unknown as RpcTeam;
+  const team = { ...core, ...viewerState } as unknown as RpcTeam;
 
   return <TeamPage team={team} onInvalidate={invalidate} />;
 }

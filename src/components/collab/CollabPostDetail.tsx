@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
+import { CollabPostModerateButton } from "./CollabPostModerationFlyout";
 import { CollabPostResponseForm, ViewerResponseCard } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { ContactValue } from "./ContactValue";
@@ -624,7 +625,10 @@ export function CollabPostDetail({
                 </Confirm>
               </>
             ) : currentUserId ? (
-              <ReportPostAction report={reportMutation} />
+              <>
+                <ReportPostAction report={reportMutation} />
+                <CollabPostModerateButton post={post} onGone={onClose} />
+              </>
             ) : null}
           </div>
         </div>

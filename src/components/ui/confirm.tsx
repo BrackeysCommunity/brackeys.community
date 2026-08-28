@@ -31,6 +31,9 @@ type ConfirmProps = ConfirmOptions & {
   onConfirm?: () => void | Promise<void>;
   bypass?: boolean;
   disabled?: boolean;
+  /** Disables only the confirm action — for dialogs whose message collects
+   * required input (the trigger still opens, so the requirement is visible). */
+  confirmDisabled?: boolean;
   children: React.ReactElement;
 };
 
@@ -45,6 +48,7 @@ function Confirm({
   onConfirm,
   bypass = false,
   disabled = false,
+  confirmDisabled = false,
   children,
 }: ConfirmProps) {
   const [open, setOpen] = useState(false);
@@ -106,7 +110,7 @@ function Confirm({
               e.preventDefault();
               handleConfirm();
             }}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
           >
             {loading && <Spinner className="mr-1.5 size-3" />}
             {confirmText}

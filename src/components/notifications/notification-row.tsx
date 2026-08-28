@@ -216,6 +216,83 @@ export function renderCopy(n: NotificationItem): {
         line: <>{teamEm} was archived after a quiet spell — restore it from its page</>,
         href: teamHref,
       };
+    case "team_updated_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            A moderator edited {teamEm}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: teamHref,
+      };
+    }
+    case "team_member_removed_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            A moderator removed a member from {teamEm}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: teamHref,
+      };
+    }
+    case "team_ownership_transferred_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            A moderator transferred ownership of {teamEm}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: teamHref,
+      };
+    }
+    case "team_hidden_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            {teamEm} is hidden pending review
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: teamHref,
+      };
+    }
+    case "team_unhidden_by_staff":
+      return {
+        line: <>{teamEm} is visible again</>,
+        href: teamHref,
+      };
+    case "team_deleted_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            Staff removed the team {teamEm}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: null,
+      };
+    }
+    case "profile_updated_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            A moderator edited your profile
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: "/profile",
+      };
+    }
     case "comment_received": {
       const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "a thread you follow";
       return {

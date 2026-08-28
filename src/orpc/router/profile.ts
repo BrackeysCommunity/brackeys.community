@@ -43,6 +43,9 @@ import {
 import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { jamUrl } from "@/lib/jam-links";
+import { recordModerationAction } from "@/lib/moderation-audit";
+import { type ModOverride } from "@/lib/moderation-policy";
+import { notify } from "@/lib/notifications";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
@@ -59,11 +62,12 @@ import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { escapeLike, likeContains } from "@/lib/sql-like";
+import { resolveUserRoles } from "@/lib/staff-roles";
 import { isOwnedProfileProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { isValidTimezone } from "@/lib/timezones";
-import { STUB_REGEX } from "@/lib/url-stub";
-import { requireAuth } from "@/orpc/middleware/auth";
+import { discordUsernameToStub, STUB_REGEX } from "@/lib/url-stub";
+import { requireAdmin, requireAuth } from "@/orpc/middleware/auth";
 import { profileNameSearch } from "@/orpc/profile-projection";
 
 // Imported jam rows (source `itchio-jam`) carry only a jam_id reference;
@@ -1335,4 +1339,185 @@ export const listAvailableUsers = os
       })),
       total: totalResult?.count ?? 0,
     };
+  });
+
+// ── Staff moderation (plan 23) ───────────────────────────────────────────────
+
+/**
+ * The fields staff may edit on someone else's profile — the abuse
+ * surfaces. Nullable = blank the field. Rates/availability, display name,
+ * avatar, and skills are deliberately out of scope. Shared by the direct
+ * admin procedure and the proposal executor.
+ */
+export const profileModerationPatchSchema = z.object({
+  bio: z.string().optional().nullable(),
+  tagline: z.string().optional().nullable(),
+  lookingFor: z.string().max(280).optional().nullable(),
+  location: z.string().trim().max(100).optional().nullable(),
+  githubUrl: z.string().max(500).optional().nullable(),
+  twitterUrl: z.string().max(500).optional().nullable(),
+  websiteUrl: z.string().max(500).optional().nullable(),
+});
+export type ProfileModerationPatch = z.infer<typeof profileModerationPatchSchema>;
+
+const PROFILE_MODERATION_FIELDS = Object.keys(
+  profileModerationPatchSchema.shape,
+) as (keyof ProfileModerationPatch)[];
+
+/** Parity with `banUser`: mods don't open cases on their bosses through
+ * the tool, and a compromised staff session can't deface the staff. */
+export async function assertProfileModeratable(userId: string): Promise<void> {
+  if (checkIsAdmin(await resolveUserRoles(userId))) {
+    throw new ORPCError("BAD_REQUEST", { message: "Admins' profiles can't be moderated." });
+  }
+}
+
+export async function applyProfileUpdate(
+  userId: string,
+  patch: ProfileModerationPatch,
+  mod: ModOverride,
+) {
+  const [before] = await db
+    .select({
+      bio: developerProfiles.bio,
+      tagline: developerProfiles.tagline,
+      lookingFor: developerProfiles.lookingFor,
+      location: developerProfiles.location,
+      githubUrl: developerProfiles.githubUrl,
+      twitterUrl: developerProfiles.twitterUrl,
+      websiteUrl: developerProfiles.websiteUrl,
+    })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+  if (!before) throw new ORPCError("NOT_FOUND", { message: "Profile not found." });
+
+  const touched = PROFILE_MODERATION_FIELDS.filter((key) => patch[key] !== undefined);
+  if (touched.length === 0) {
+    throw new ORPCError("BAD_REQUEST", { message: "Nothing to change." });
+  }
+
+  const [updated] = await db
+    .update(developerProfiles)
+    .set({
+      ...Object.fromEntries(touched.map((key) => [key, patch[key] ?? null])),
+      updatedAt: new Date(),
+    })
+    .where(eq(developerProfiles.id, userId))
+    .returning();
+
+  await recordModerationAction({
+    action: "profile_updated",
+    actorId: mod.actorId,
+    targetType: "user",
+    targetId: userId,
+    subjectUserId: userId,
+    reason: mod.reason,
+    metadata: {
+      fields: touched,
+      previous: Object.fromEntries(touched.map((key) => [key, before[key]])),
+    },
+  });
+
+  await bestEffort("profile_moderation.notice", { user_id: userId }, () =>
+    notify({
+      userId,
+      type: "profile_updated_by_staff",
+      data: { fields: touched, ...(mod.reason ? { reason: mod.reason } : {}) },
+    }),
+  );
+
+  return updated;
+}
+
+/**
+ * Revert an offensive vanity stub to the Discord-derived default. When the
+ * default can't be minted (degenerate username, or someone else holds it),
+ * the vanity row is removed instead and the profile routes by id.
+ */
+export async function applyProfileStubReset(userId: string, mod: ModOverride) {
+  const [profile] = await db
+    .select({ discordUsername: developerProfiles.discordUsername })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+  if (!profile) throw new ORPCError("NOT_FOUND", { message: "Profile not found." });
+
+  const [current] = await db
+    .select({ stub: profileUrlStubs.stub })
+    .from(profileUrlStubs)
+    .where(eq(profileUrlStubs.profileId, userId))
+    .limit(1);
+
+  const derived = profile.discordUsername ? discordUsernameToStub(profile.discordUsername) : null;
+  const [taken] = derived
+    ? await db
+        .select({ profileId: profileUrlStubs.profileId })
+        .from(profileUrlStubs)
+        .where(eq(profileUrlStubs.stub, derived))
+        .limit(1)
+    : [undefined];
+  const target = derived && (!taken || taken.profileId === userId) ? derived : null;
+
+  if (target) {
+    await db
+      .insert(profileUrlStubs)
+      .values({ profileId: userId, stub: target, source: "discord", updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: profileUrlStubs.profileId,
+        set: { stub: target, source: "discord", updatedAt: new Date() },
+      });
+  } else {
+    await db.delete(profileUrlStubs).where(eq(profileUrlStubs.profileId, userId));
+  }
+
+  await recordModerationAction({
+    action: "profile_updated",
+    actorId: mod.actorId,
+    targetType: "user",
+    targetId: userId,
+    subjectUserId: userId,
+    reason: mod.reason,
+    metadata: { fields: ["urlStub"], previous: { urlStub: current?.stub ?? null }, to: target },
+  });
+
+  await bestEffort("profile_moderation.notice", { user_id: userId }, () =>
+    notify({
+      userId,
+      type: "profile_updated_by_staff",
+      data: { fields: ["urlStub"], ...(mod.reason ? { reason: mod.reason } : {}) },
+    }),
+  );
+
+  return { success: true, stub: target };
+}
+
+/** The admin direct path; mods go through the proposal queue. */
+export const staffUpdateProfile = os
+  .use(requireAdmin)
+  .input(
+    z.object({
+      userId: z.string(),
+      reason: z.string().trim().max(500).optional(),
+      ...profileModerationPatchSchema.shape,
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    await assertProfileModeratable(input.userId);
+    const { userId, reason, ...patch } = input;
+    return applyProfileUpdate(userId, patch, {
+      actorId: context.user.id,
+      reason: reason ?? null,
+    });
+  });
+
+export const staffResetUrlStub = os
+  .use(requireAdmin)
+  .input(z.object({ userId: z.string(), reason: z.string().trim().max(500).optional() }))
+  .handler(async ({ input, context }) => {
+    await assertProfileModeratable(input.userId);
+    return applyProfileStubReset(input.userId, {
+      actorId: context.user.id,
+      reason: input.reason ?? null,
+    });
   });

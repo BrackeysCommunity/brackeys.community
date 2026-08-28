@@ -766,8 +766,8 @@ export const getJamCommunity = os
         .from(teamProjects)
         .innerJoin(teams, eq(teamProjects.teamId, teams.id))
         // An archived team's page is read-only but still a real page, so its
-        // jam history stays visible.
-        .where(eq(teamProjects.jamId, input.jamId))
+        // jam history stays visible. Hidden teams don't exist publicly.
+        .where(and(eq(teamProjects.jamId, input.jamId), isNull(teams.hiddenAt)))
         .limit(COMMUNITY_TEAMS_MAX),
       db
         .select({ count: count() })

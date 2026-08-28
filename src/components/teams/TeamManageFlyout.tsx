@@ -3,12 +3,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
 import { uploadTeamAvatarImage } from "@/components/collab/CollabCreateFlyout/shared";
+import { MarkdownField } from "@/components/moderation/ModerationShell";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -131,14 +131,13 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
         <Field label="TAGLINE" className="sm:col-span-2">
           <Input value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={200} />
         </Field>
-        <Field label="BIO" className="sm:col-span-2">
-          <Textarea
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            rows={4}
-            maxLength={5000}
-          />
-        </Field>
+        <MarkdownField
+          label="BIO"
+          className="sm:col-span-2"
+          value={bio}
+          onChange={setBio}
+          maxLength={5000}
+        />
         <Field label="WEBSITE">
           <Input
             value={websiteUrl}

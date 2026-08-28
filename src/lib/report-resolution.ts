@@ -1,11 +1,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { collabPostReports, commentReports } from "@/db/schema";
+import { collabPostReports, commentReports, teamReports } from "@/db/schema";
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
 
-export type ReportKind = "post" | "comment";
+export type ReportKind = "post" | "comment" | "team";
 
 /** What the reporter is told: staff acted on the thing, or left it up. */
 export type ReportOutcome = "actioned" | "no_action";
@@ -27,8 +27,8 @@ export type ResolvedReport = { id: number; reporterId: string };
  */
 export async function resolveReportsForSubject(params: {
   kind: ReportKind;
-  /** `collab_posts.id` or `comments.id`. */
-  subjectId: number;
+  /** `collab_posts.id`, `comments.id`, or `teams.id`. */
+  subjectId: number | string;
   actorId: string;
 }): Promise<ResolvedReport[]> {
   const set = { resolvedAt: new Date(), resolvedById: params.actorId };
@@ -38,15 +38,31 @@ export async function resolveReportsForSubject(params: {
       .update(collabPostReports)
       .set(set)
       .where(
-        and(eq(collabPostReports.postId, params.subjectId), isNull(collabPostReports.resolvedAt)),
+        and(
+          eq(collabPostReports.postId, Number(params.subjectId)),
+          isNull(collabPostReports.resolvedAt),
+        ),
       )
       .returning({ id: collabPostReports.id, reporterId: collabPostReports.reporterId });
+  }
+
+  if (params.kind === "team") {
+    return db
+      .update(teamReports)
+      .set(set)
+      .where(and(eq(teamReports.teamId, String(params.subjectId)), isNull(teamReports.resolvedAt)))
+      .returning({ id: teamReports.id, reporterId: teamReports.reporterId });
   }
 
   return db
     .update(commentReports)
     .set(set)
-    .where(and(eq(commentReports.commentId, params.subjectId), isNull(commentReports.resolvedAt)))
+    .where(
+      and(
+        eq(commentReports.commentId, Number(params.subjectId)),
+        isNull(commentReports.resolvedAt),
+      ),
+    )
     .returning({ id: commentReports.id, reporterId: commentReports.reporterId });
 }
 
@@ -66,8 +82,8 @@ export async function notifyReporters(params: {
   reports: ResolvedReport[];
   actorId: string;
   outcome: ReportOutcome;
-  entityType: "collab_post" | "comment";
-  entityId: number;
+  entityType: "collab_post" | "comment" | "team";
+  entityId: number | string;
   subjectTitle: string;
   subjectUrl: string | null;
 }): Promise<void> {

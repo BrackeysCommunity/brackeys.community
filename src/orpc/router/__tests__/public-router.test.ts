@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vite-plus/test";
+import { call } from "@orpc/server";
+import { describe, expect, it, vi } from "vite-plus/test";
 
+import { teamMembers, teams } from "@/db/schema";
 import {
   authMiddleware,
   requireAdmin,
@@ -16,7 +18,15 @@ import {
 } from "@/orpc/public-procedures";
 import router from "@/orpc/router";
 import { publicRouter } from "@/orpc/router/public";
+import { getTeam } from "@/orpc/router/team";
 import { anonymousContext } from "@/routes/api.public.rpc.$";
+import { seedUser, type TestDb } from "@/test/db";
+import { asUser } from "@/test/orpc";
+
+vi.mock("@/db", async () => {
+  const { createTestDb } = await import("@/test/db");
+  return { db: await createTestDb() } as unknown as typeof import("@/db");
+});
 
 /**
  * The public tier's safety rests on responses being identical for every
@@ -154,5 +164,36 @@ describe("public router", () => {
       );
       expect(gated, `"${name}" is gated on the root router but exposed publicly`).toBe(false);
     }
+  });
+
+  it("keeps getTeam on the public tier with its edge TTL (plan 23)", () => {
+    // getTeamViewerState carries the session-varying half so this response
+    // can stay identical for every caller; a hidden team folds into the
+    // same guarantee by not existing here at all.
+    expect(isPublicProcedure("getTeam")).toBe(true);
+    expect(PUBLIC_EDGE_TTL.getTeam).toBeGreaterThan(0);
+  });
+
+  it("answers identically (null) for every anonymous caller on a hidden team", async () => {
+    // A cached null is a null for everyone — the edge must never be able to
+    // serve one visitor a hidden team another visitor was refused.
+    const { db } = (await import("@/db")) as unknown as { db: TestDb };
+    await seedUser(db, "owner");
+    const [team] = await db
+      .insert(teams)
+      .values({
+        slug: "hidden-crew",
+        name: "Hidden Crew",
+        createdBy: "owner",
+        hiddenAt: new Date(),
+        hiddenReason: "under review",
+      })
+      .returning();
+    await db.insert(teamMembers).values({ teamId: team!.id, userId: "owner", role: "owner" });
+
+    const first = await call(getTeam, { teamId: team!.id }, asUser(null));
+    const second = await call(getTeam, { teamId: team!.id }, asUser(null));
+    expect(first).toBeNull();
+    expect(second).toEqual(first);
   });
 });

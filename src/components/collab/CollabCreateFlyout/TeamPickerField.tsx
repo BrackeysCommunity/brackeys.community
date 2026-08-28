@@ -30,7 +30,9 @@ export function TeamPickerField({
 }) {
   const queryClient = useQueryClient();
   const queryOptions = orpc.listMyTeams.queryOptions({ input: {} });
-  const { data: myTeams, isLoading } = useQuery(queryOptions);
+  const { data: allMyTeams, isLoading } = useQuery(queryOptions);
+  // Hidden (under-review) teams aren't linkable to posts.
+  const myTeams = allMyTeams?.filter((t) => !t.hidden);
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");

@@ -35,7 +35,10 @@ type MyTeam = Awaited<ReturnType<typeof client.listMyTeams>>[number];
 export function StepTeam() {
   const form = useWizardForm();
   const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
-  const { data: myTeams, isLoading } = useQuery(orpc.listMyTeams.queryOptions({ input: {} }));
+  const { data: allMyTeams, isLoading } = useQuery(orpc.listMyTeams.queryOptions({ input: {} }));
+  // A hidden (under-review) team must not be linkable to new posts;
+  // `assertTeamLinkable` re-checks server-side.
+  const myTeams = allMyTeams?.filter((t) => !t.hidden);
 
   // Default is CREATE — quick-creation is the mainline path, not the
   // fallback. "Existing" only when the draft already carries a link.
