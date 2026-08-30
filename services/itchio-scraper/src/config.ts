@@ -74,6 +74,27 @@ const schema = z.object({
   // Set SWEEP_GAP_END equal to SWEEP_GAP_START to sweep it anyway.
   SWEEP_GAP_START: z.coerce.number().int().nonnegative().default(20_000),
   SWEEP_GAP_END: z.coerce.number().int().nonnegative().default(240_000),
+
+  // ── Entry scan ─────────────────────────────────────────────────────────────
+  // The moderation scan tier (docs/plans/22): fetches covers, hashes them,
+  // scores NSFW, and fills social.entry_flags for the /admin queue. Covers
+  // come from itch's image CDN but share the global pacer anyway, so the
+  // delay can sit below the page-scrape tiers'.
+  SCAN_DELAY_MS: z.coerce.number().int().nonnegative().default(150),
+  SCAN_DEADLINE_MINS: z.coerce.number().int().positive().default(45),
+  // Entries fetched per tick. Newest-jam-first, so a running jam's fresh
+  // submissions always beat backfill; stopping at the cap is free because
+  // due-ness is per entry and the next tick resumes.
+  SCAN_BATCH: z.coerce.number().int().positive().default(1500),
+  // Tuned high on purpose: game-art false positives are expected and cheap
+  // (a human confirms every flag), a missed borderline cover is not.
+  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.85),
+  // Kill switch for the classifier only — hashing and theft matching keep
+  // running without it.
+  NSFW_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
 });
 
 export const config = parseServiceConfig(schema);

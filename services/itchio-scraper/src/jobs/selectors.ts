@@ -1,6 +1,7 @@
-import { and, asc, eq, exists, gt, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, exists, gt, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import {
+  itchEntryScans,
   itchGameJamScans,
   type ItchJamStatus,
   itchJamEntries,
@@ -156,6 +157,57 @@ export function pendingJams(order: "newest" | "smallest"): Promise<PendingJam[]>
       // undated jams ahead of the recent ones this ordering exists to prioritize.
       .orderBy(order === "smallest" ? pending : sql`${itchJams.endsAt} desc nulls last`)
   );
+}
+
+export type DueScanEntry = {
+  entryId: number;
+  jamId: number;
+  gameCoverUrl: string | null;
+  gameTitle: string;
+  rateUrl: string;
+  authorId: number | null;
+  authorName: string | null;
+  submittedAt: Date | null;
+};
+
+/**
+ * Entries the scan tier owes a look: never scanned, scanned by an older
+ * detector, or wearing a different cover URL than the one that was hashed
+ * (itch derivative URLs change when a cover is replaced, so the URL is a
+ * content check that costs no fetch). Missing entries are excluded — their
+ * covers 404 — and nothing else is: due-ness is per entry, so a capped or
+ * deadline-cut tick resumes exactly where it stopped.
+ *
+ * Newest-jam-first, so a running jam's fresh submissions are always scanned
+ * ahead of historical backfill.
+ */
+export function dueScanEntries(detectorVersion: number, limit: number): Promise<DueScanEntry[]> {
+  return db
+    .select({
+      entryId: itchJamEntries.entryId,
+      jamId: itchJamEntries.jamId,
+      gameCoverUrl: itchJamEntries.gameCoverUrl,
+      gameTitle: itchJamEntries.gameTitle,
+      rateUrl: itchJamEntries.rateUrl,
+      authorId: itchJamEntries.authorId,
+      authorName: itchJamEntries.authorName,
+      submittedAt: itchJamEntries.submittedAt,
+    })
+    .from(itchJamEntries)
+    .innerJoin(itchJams, eq(itchJams.jamId, itchJamEntries.jamId))
+    .leftJoin(itchEntryScans, eq(itchEntryScans.entryId, itchJamEntries.entryId))
+    .where(
+      and(
+        isNull(itchJamEntries.missingSince),
+        or(
+          isNull(itchEntryScans.entryId),
+          lt(itchEntryScans.detectorVersion, detectorVersion),
+          sql`${itchEntryScans.coverUrl} IS DISTINCT FROM ${itchJamEntries.gameCoverUrl}`,
+        ),
+      ),
+    )
+    .orderBy(sql`${itchJams.startsAt} desc nulls last`, asc(itchJamEntries.entryId))
+    .limit(limit);
 }
 
 /** Every slug we hold, for discovery to diff its listings against. */

@@ -19,6 +19,8 @@ import {
   approveModerationProposal,
   rejectModerationProposal,
   listTeamsAdmin,
+  listEntryFlags,
+  resolveEntryFlag,
 } from "./admin";
 import {
   createPost,
@@ -272,6 +274,8 @@ export default {
   approveModerationProposal,
   rejectModerationProposal,
   listTeamsAdmin,
+  listEntryFlags,
+  resolveEntryFlag,
   staffUpdateProfile,
   staffResetUrlStub,
   listNotifications,

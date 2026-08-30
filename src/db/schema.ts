@@ -11,6 +11,7 @@ import {
   numeric,
   pgSchema,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -897,6 +898,43 @@ export const itchGameJamScans = itchSchema.table("game_jam_scans", {
  * learns lands in `itch.jams` / `itch.jam_entries` as it goes, so a lost
  * cursor costs re-probing, not data.
  */
+/**
+ * Detection bookkeeping for the entry-moderation scan worker (plan 22): one
+ * row per entry whose cover has been fetched and fingerprinted. Written only
+ * by the scan job — same scraper-owned family as `game_jam_scans` above,
+ * and the same ownership rule: detection state lives here, never as columns
+ * on `jam_entries` (see the comment on `jamWatches`). What the scan *found*
+ * is not stored here either — flags worth a human's time go to
+ * `social.entry_flags`; this table only answers "is this entry due?".
+ */
+export const itchEntryScans = itchSchema.table(
+  "entry_scans",
+  {
+    entryId: bigint("entry_id", { mode: "number" })
+      .primaryKey()
+      .references(() => itchJamEntries.entryId, { onDelete: "cascade" }),
+    // The cover URL that was actually fetched and hashed; null when the
+    // entry had none. Itch derivative URLs change when a cover is replaced,
+    // so `game_cover_url IS DISTINCT FROM cover_url` is the cheap "cover
+    // swapped after submission" re-scan trigger — itself a mild signal.
+    coverUrl: text("cover_url"),
+    // Perceptual hash (64-bit dHash, 16 hex chars) of that cover; null
+    // when the entry has no cover.
+    coverPhash: text("cover_phash"),
+    // Raw classifier output, kept so a threshold change re-flags with a
+    // SQL pass instead of re-running inference over the corpus.
+    nsfwScore: real("nsfw_score"),
+    // Bump the constant in the scan job to force a global re-scan.
+    detectorVersion: integer("detector_version").notNull(),
+    scannedAt: timestamp("scanned_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // The internal-theft matcher joins new hashes against the whole corpus
+    // by exact hash; near-hash comparison stays jam-scoped in the job.
+    index("entry_scans_cover_phash_idx").on(table.coverPhash),
+  ],
+);
+
 export const itchScrapeCursors = itchSchema.table("scrape_cursors", {
   name: text("name").primaryKey(),
   position: bigint("position", { mode: "number" }).notNull(),
@@ -1402,6 +1440,67 @@ export const commentReports = socialSchema.table("comment_reports", {
   resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
 });
 
+export type EntryFlagKind = "stolen_external" | "stolen_internal" | "nsfw" | "other";
+export type EntryFlagSource = "auto" | "staff" | "community";
+export type EntryFlagStatus = "open" | "confirmed" | "dismissed";
+
+/**
+ * A jam entry that deserves a human look — written by the scraper's scan
+ * worker today (`source: "auto"`), shaped so a staff note or a community
+ * "report entry" button can share the table later. Nothing acts on a flag
+ * automatically: the row exists to fill the `/admin` queue, and confirm/
+ * dismiss from there writes `moderation_actions` like every staff decision.
+ *
+ * Lives in `social`, not `itch`, by the `jamWatches` ownership rule — the
+ * scraper reconciles `itch.*` and would fight app-owned moderation state.
+ * `kind` includes `stolen_external` even though nothing writes it yet; it
+ * is the slot a report button or an on-demand reverse-image check fills.
+ */
+export const entryFlags = socialSchema.table(
+  "entry_flags",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    entryId: bigint("entry_id", { mode: "number" })
+      .notNull()
+      .references(() => itchJamEntries.entryId, { onDelete: "cascade" }),
+    // Denormalized: the queue is jam-scoped ("everything flagged in the
+    // running jam") and must not join the largest table in the database
+    // just to filter.
+    jamId: integer("jam_id")
+      .notNull()
+      .references(() => itchJams.jamId, { onDelete: "cascade" }),
+    kind: text("kind").$type<EntryFlagKind>().notNull(),
+    source: text("source").$type<EntryFlagSource>().notNull().default("auto"),
+    /** Detector confidence for queue ordering; null for human sources. */
+    score: real("score"),
+    /**
+     * Everything a mod needs to judge without re-running detection: the
+     * matched internal entry, hash distances, classifier scores, plus a
+     * snapshot of the entry's title/cover so the row stays legible if the
+     * scraper tombstones the entry.
+     */
+    evidence: jsonb("evidence")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    status: text("status").$type<EntryFlagStatus>().notNull().default("open"),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // The scan tick is idempotent against this: a re-detection updates the
+    // open flag's evidence/score instead of stacking duplicates. Resolved
+    // flags stay forever as the "we already looked" memory, and the job
+    // skips re-flagging anything a human has already ruled on.
+    uniqueIndex("entry_flags_open_kind_uidx")
+      .on(t.entryId, t.kind)
+      .where(sql`${t.status} = 'open'`),
+    index("entry_flags_entry_idx").on(t.entryId),
+    index("entry_flags_jam_idx").on(t.jamId),
+  ],
+);
+
 // ── Moderation log (social schema) ──────────────────────────────────────────
 
 /**
@@ -1446,7 +1545,9 @@ export type ModerationActionType =
   | "moderation_proposed"
   | "moderation_proposal_approved"
   | "moderation_proposal_rejected"
-  | "profile_updated";
+  | "profile_updated"
+  | "entry_flag_confirmed"
+  | "entry_flag_dismissed";
 
 export type ModerationTargetType =
   | "comment"
@@ -1460,7 +1561,8 @@ export type ModerationTargetType =
   | "user"
   | "team"
   | "team_report"
-  | "moderation_proposal";
+  | "moderation_proposal"
+  | "jam_entry";
 
 export const moderationActions = socialSchema.table(
   "moderation_actions",

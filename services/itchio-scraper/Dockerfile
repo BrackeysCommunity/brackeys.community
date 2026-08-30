@@ -29,8 +29,14 @@ RUN ln -s /app/services/itchio-scraper/node_modules /app/node_modules
 
 WORKDIR /app/services/itchio-scraper
 
+# Bake the scan tier's NSFW model into the image (~90MB into .model-cache).
+# A Railway cron service is a fresh container every tick; without this the
+# scan tier would re-download the weights from Hugging Face hourly, and a
+# HF outage would silently strip scores from that tick.
+RUN bun run src/scan/warm-nsfw.ts
+
 # No default tier. Every service supplies its own startCommand from its
-# railway.*.toml (live / discover / results / backfill), and defaulting to one
-# of them would mean a misconfigured service silently adds a second scraper to
-# itch's rate budget instead of failing where someone will see it.
-CMD ["sh", "-c", "echo 'No startCommand set. Pick a tier: bun run live | discover | results | backfill' >&2; exit 1"]
+# railway.*.toml (live / discover / results / backfill / scan), and defaulting
+# to one of them would mean a misconfigured service silently adds a second
+# scraper to itch's rate budget instead of failing where someone will see it.
+CMD ["sh", "-c", "echo 'No startCommand set. Pick a tier: bun run live | discover | results | backfill | scan' >&2; exit 1"]

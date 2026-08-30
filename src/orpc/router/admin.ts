@@ -23,6 +23,9 @@ import {
   collabRoles,
   commentReports,
   developerProfiles,
+  entryFlags,
+  itchJamEntries,
+  itchJams,
   moderationActions,
   moderationProposals,
   profileUrlStubs,
@@ -1384,6 +1387,166 @@ export const rejectModerationProposal = os
   });
 
 // ── Teams section ───────────────────────────────────────────────────────────
+
+// ── Entry flags (plan 22) ────────────────────────────────────────────────────
+
+const MAX_INT4 = 2_147_483_647;
+
+/**
+ * The detection queue: what the scraper's scan worker flagged, jam-scoped
+ * because "everything flagged in the running jam" is the question mods
+ * actually ask. Ordered by detector confidence so the likeliest real
+ * problems surface first.
+ */
+export const listEntryFlags = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      includeResolved: z.boolean().default(false),
+      // "live" scopes to jams still running or in voting — the default
+      // queue view; "all" is the backfill/history view.
+      jamScope: z.enum(["live", "all"]).default("live"),
+      jamId: z.number().int().min(1).max(MAX_INT4).optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(20),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const filters = [
+      input.includeResolved ? undefined : eq(entryFlags.status, "open"),
+      input.jamId != null ? eq(entryFlags.jamId, input.jamId) : undefined,
+      input.jamId == null && input.jamScope === "live"
+        ? inArray(itchJams.status, ["running", "voting"])
+        : undefined,
+    ].filter((f) => f != null);
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const [[totals], rows] = await Promise.all([
+      db
+        .select({ total: count() })
+        .from(entryFlags)
+        .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+        .where(where),
+      db
+        .select({
+          id: entryFlags.id,
+          entryId: entryFlags.entryId,
+          jamId: entryFlags.jamId,
+          kind: entryFlags.kind,
+          source: entryFlags.source,
+          score: entryFlags.score,
+          evidence: entryFlags.evidence,
+          status: entryFlags.status,
+          resolvedAt: entryFlags.resolvedAt,
+          resolvedById: entryFlags.resolvedById,
+          createdAt: entryFlags.createdAt,
+          gameTitle: itchJamEntries.gameTitle,
+          gameUrl: itchJamEntries.gameUrl,
+          gameCoverUrl: itchJamEntries.gameCoverUrl,
+          rateUrl: itchJamEntries.rateUrl,
+          authorName: itchJamEntries.authorName,
+          authorUrl: itchJamEntries.authorUrl,
+          submittedAt: itchJamEntries.submittedAt,
+          entryMissingSince: itchJamEntries.missingSince,
+          jamTitle: itchJams.title,
+          jamSlug: itchJams.slug,
+          jamStatus: itchJams.status,
+        })
+        .from(entryFlags)
+        .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
+        .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+        .where(where)
+        .orderBy(
+          sql`${entryFlags.resolvedAt} ASC NULLS FIRST`,
+          sql`${entryFlags.score} DESC NULLS LAST`,
+          desc(entryFlags.createdAt),
+        )
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const resolvers = await profilesByIds(
+      rows.map((r) => r.resolvedById).filter((id): id is string => id != null),
+    );
+
+    const total = totals?.total ?? 0;
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        resolvedBy: row.resolvedById ? (resolvers.get(row.resolvedById) ?? null) : null,
+      })),
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
+  });
+
+/**
+ * Confirm or dismiss a detection. Confirm does nothing beyond the record on
+ * purpose: the mods act on itch itself, and the confirmed flag (plus its
+ * `moderation_actions` row) is the durable account of why. Either way the
+ * detector stands down for this (entry, kind) — resolved flags are the
+ * scan worker's "already ruled" memory.
+ */
+export const resolveEntryFlag = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      flagId: z.number().int().positive(),
+      action: z.enum(["confirm", "dismiss"]),
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [flag] = await db
+      .select({
+        id: entryFlags.id,
+        entryId: entryFlags.entryId,
+        jamId: entryFlags.jamId,
+        kind: entryFlags.kind,
+        score: entryFlags.score,
+        status: entryFlags.status,
+        gameTitle: itchJamEntries.gameTitle,
+        jamTitle: itchJams.title,
+      })
+      .from(entryFlags)
+      .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
+      .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+      .where(eq(entryFlags.id, input.flagId))
+      .limit(1);
+    if (!flag) throw new ORPCError("NOT_FOUND", { message: "Flag not found." });
+    if (flag.status !== "open") return { success: true }; // idempotent re-click
+
+    await db
+      .update(entryFlags)
+      .set({
+        status: input.action === "confirm" ? "confirmed" : "dismissed",
+        resolvedAt: new Date(),
+        resolvedById: context.user.id,
+      })
+      .where(eq(entryFlags.id, flag.id));
+
+    await recordModerationAction({
+      action: input.action === "confirm" ? "entry_flag_confirmed" : "entry_flag_dismissed",
+      actorId: context.user.id,
+      targetType: "jam_entry",
+      targetId: flag.entryId,
+      reason: input.reason,
+      // The entry is a scraped row that can be tombstoned later — snapshot
+      // what keeps the log legible without the join.
+      metadata: {
+        flagId: flag.id,
+        kind: flag.kind,
+        score: flag.score,
+        gameTitle: flag.gameTitle,
+        jamId: flag.jamId,
+        jamTitle: flag.jamTitle,
+      },
+    });
+
+    return { success: true };
+  });
 
 export const listTeamsAdmin = os
   .use(requireStaff)

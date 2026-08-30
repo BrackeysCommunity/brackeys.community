@@ -2,6 +2,7 @@ import {
   BookOpen01Icon,
   BubbleChatIcon,
   CheckListIcon,
+  EyeIcon,
   Flag02Icon,
   PinIcon,
   ScrollIcon,
@@ -17,6 +18,7 @@ import { motion } from "framer-motion";
 import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
+import { AdminEntryFlags } from "@/components/admin/AdminEntryFlags";
 import { AdminFeatured } from "@/components/admin/AdminFeatured";
 import { AdminHeroJam } from "@/components/admin/AdminHeroJam";
 import { AdminLog } from "@/components/admin/AdminLog";
@@ -42,6 +44,7 @@ const searchSchema = z.object({
   section: z
     .enum([
       "reports",
+      "entry-flags",
       "proposals",
       "comments",
       "teams",
@@ -59,6 +62,7 @@ type View = z.infer<typeof searchSchema>["section"];
 
 const SECTIONS: readonly View[] = [
   "reports",
+  "entry-flags",
   "proposals",
   "comments",
   "teams",
@@ -72,6 +76,7 @@ const SECTIONS: readonly View[] = [
 
 const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgElement }> = {
   reports: { label: "Reports", hint: "Flagged posts, comments, teams", icon: Flag02Icon },
+  "entry-flags": { label: "Entry flags", hint: "Scanner detections to review", icon: EyeIcon },
   proposals: { label: "Proposals", hint: "Mod edits awaiting an admin", icon: CheckListIcon },
   comments: { label: "Comments", hint: "Newest across the site", icon: BubbleChatIcon },
   teams: { label: "Teams", hint: "Directory, hide, delete", icon: UserGroupIcon },
@@ -129,6 +134,11 @@ function useQueueCounts(): Partial<Record<View, number>> {
       input: { status: "pending", page: 1, pageSize: 10 },
     }),
   );
+  const entryFlags = useQuery(
+    orpc.listEntryFlags.queryOptions({
+      input: { includeResolved: false, jamScope: "live", page: 1, pageSize: 20 },
+    }),
+  );
 
   const open =
     (commentReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
@@ -137,6 +147,7 @@ function useQueueCounts(): Partial<Record<View, number>> {
 
   return {
     reports: open,
+    "entry-flags": entryFlags.data?.total ?? 0,
     proposals: pendingProposals.data?.total ?? 0,
     skills: skillRequests.data?.total ?? 0,
   };
@@ -244,6 +255,7 @@ function AdminPane({ section, isAdmin }: { section: View; isAdmin: boolean }) {
       className="flex min-w-0 flex-col gap-8"
     >
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
+      {section === "entry-flags" && <AdminEntryFlags />}
       {section === "proposals" && <AdminProposals isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
       {section === "teams" && <AdminTeams isAdmin={isAdmin} />}

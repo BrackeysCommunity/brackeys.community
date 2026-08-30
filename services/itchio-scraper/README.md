@@ -3,7 +3,7 @@
 Railway cron jobs that scrape itch.io jam data (metadata, entries,
 per-submission rankings) and sync it into the main brackeys Postgres DB.
 
-The scrape runs as **three independent cron services**, split by how
+The scrape runs as **four independent cron services**, split by how
 perishable their work is. They build the same image from the same Dockerfile
 and share one config module and one set of scrapers — only the entrypoint and
 the schedule differ.
@@ -13,6 +13,15 @@ the schedule differ.
 | **live**      | `:00` / `:30`   | 8–9 min        | `bun run live`     | jams that have started and haven't finished (~285)      |
 | **discovery** | 4-hourly, `:20` | ~1–2 min       | `bun run discover` | the listing walks, jams we don't hold, upcoming refresh |
 | **results**   | 6-hourly, `:40` | backlog-driven | `bun run results`  | ranking collection for finished jams                    |
+| **scan**      | hourly, `:10`   | batch-capped   | `bun run scan`     | cover hashing, NSFW scoring, theft matching (plan 22)   |
+
+The scan tier is the odd one out: it reads entries the other tiers already
+persisted, fetches only cover images (from itch's image CDN, still through
+the shared pacer), and writes detection state — `itch.entry_scans`
+bookkeeping plus `social.entry_flags` rows for the site's `/admin`
+entry-flags queue. Its NSFW classifier weights are baked into the Docker
+image at build time (`src/scan/warm-nsfw.ts`), so a cron container never
+downloads models at start.
 
 Live is the only tier with a meaningful runtime, and it drives the schedule:
 a full pass over all ~285 open jams takes 8–9 minutes (including one itch 429
@@ -156,10 +165,10 @@ Staging and prod migrations run automatically via
 ## Railway setup
 
 Each tier is a **Railway cron job** — the process starts on each schedule tick,
-runs to completion, and exits. No resident daemon, no `node-cron`. All three
+runs to completion, and exits. No resident daemon, no `node-cron`. All four
 build the same image from the same Dockerfile; only the config file differs.
 
-Create **three services**, all pointing at this repo, each with:
+Create **four services**, all pointing at this repo, each with:
 
 1. **Root Directory blank** — the Dockerfile uses the repo root as its build
    context so it can copy `src/db/schema.ts` into the image.
@@ -167,6 +176,7 @@ Create **three services**, all pointing at this repo, each with:
    - [`services/itchio-scraper/railway.live.toml`](./railway.live.toml)
    - [`services/itchio-scraper/railway.discovery.toml`](./railway.discovery.toml)
    - [`services/itchio-scraper/railway.results.toml`](./railway.results.toml)
+   - [`services/itchio-scraper/railway.scan.toml`](./railway.scan.toml)
 
    Each pins its own `startCommand` and `cronSchedule`. Override a schedule in
    the dashboard under Settings → Cron Schedule if needed, but keep the stagger.
@@ -213,6 +223,7 @@ bun run live       # open jams
 bun run discover   # listings + new jams + upcoming refresh
 bun run results    # ranking collection
 bun run sweep      # id-space sweep (also runs as the backfill tick's 2nd phase)
+bun run scan       # cover hashing + NSFW + theft matching (plan 22)
 ```
 
 Bound an exploratory run so it doesn't walk the whole set — the deadline is

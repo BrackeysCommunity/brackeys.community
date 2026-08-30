@@ -57,6 +57,8 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "moderation_proposal_approved", label: "Proposals approved" },
   { value: "moderation_proposal_rejected", label: "Proposals rejected" },
   { value: "profile_updated", label: "Profiles edited" },
+  { value: "entry_flag_confirmed", label: "Entry flags confirmed" },
+  { value: "entry_flag_dismissed", label: "Entry flags dismissed" },
 ];
 
 const ACTION_LABEL = new Map(ACTIONS.map((a) => [a.value, a.label]));

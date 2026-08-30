@@ -1,0 +1,27 @@
+# Config-as-code for the SCAN cron service — the moderation tier (plan 22).
+#
+# Fetches each entry's cover once, dHashes it into itch.entry_scans, scores
+# it with the in-process NSFW classifier, and matches it against the scanned
+# corpus for internal theft. What it finds lands in social.entry_flags, the
+# /admin entry-flags queue's table. Nothing acts automatically — every flag
+# ends at a person.
+#
+# Create a service pointing at this repo, leave Root Directory blank (the
+# Dockerfile builds from the repo root so it can copy src/db/schema.ts), set
+# "Config file path" to services/itchio-scraper/railway.scan.toml, and
+# reference the shared DATABASE_URL variable.
+#
+# Runs at :10 — the one stagger slot the other tiers leave free (live holds
+# :00/:30, discovery :20, results :40). The covers live on itch's image CDN
+# rather than itch.io, but they ride the same per-process pacer, and
+# SCAN_DEADLINE_MINS (default 45) plus SCAN_BATCH bound the tick; stopping
+# early is free, since due-ness is per entry and the next tick resumes.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/itchio-scraper/Dockerfile"
+
+[deploy]
+startCommand = "bun run scan"
+cronSchedule = "10 * * * *"
+restartPolicyType = "NEVER"
