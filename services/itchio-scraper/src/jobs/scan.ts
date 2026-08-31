@@ -43,7 +43,9 @@ import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
 /** Bump to force a global re-scan (hash algorithm, model, or threshold-shape changes). */
 // v2: alpha-flattened + information-gated dHash, SigLIP category classifier.
 // v3: horror-aesthetic safe anchors, stale-flag auto-close, version-scoped matching.
-export const DETECTOR_VERSION = 3;
+// v4: SigLIP2 (reads text covers; SigLIP1's contrast rode noise on minimal
+//     art), themed-iconography anchors (chalk outline, cartoon heart, censor bar).
+export const DETECTOR_VERSION = 4;
 
 /**
  * Bits of dHash drift tolerated by the within-jam near matcher. 128-bit

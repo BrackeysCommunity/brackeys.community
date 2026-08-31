@@ -1,54 +1,42 @@
 import { describe, expect, test } from "bun:test";
 
-import { contrastCategories } from "./nsfw.ts";
+import { contrastCategories, PROMPT_COUNT } from "./nsfw.ts";
 
-/** Turn a desired logit into the sigmoid prob the pipeline would emit. */
-const sig = (logit: number) => 1 / (1 + Math.exp(-logit));
+// Prompt order in nsfw.ts: 3 sexual, 3 gore, then the safe anchors.
+const SEXUAL = [0, 1, 2];
+const GORE = [3, 4, 5];
 
-// Label order matches nsfw.ts: 3 sexual prompts, 3 gore prompts, 6 safe.
-const LABELS = [
-  "a photo of a naked person",
-  "an image showing explicit nudity or sexual content",
-  "erotic artwork of a nude figure",
-  "a photo of a dead body covered in blood",
-  "an image showing graphic gore, blood, and mutilation",
-  "artwork of a corpse or severed body parts",
-  "video game cover art",
-  "pixel art from a video game",
-  "a cartoon illustration",
-  "a screenshot of a video game",
-  "a logo or text banner",
-  "a landscape painting",
-];
-
-function scored(logits: number[]) {
-  return LABELS.map((label, i) => ({ label, score: sig(logits[i] ?? -10) }));
+function logits(overrides: Record<number, number>): number[] {
+  const out = new Array<number>(PROMPT_COUNT).fill(-10);
+  for (const [i, v] of Object.entries(overrides)) out[Number(i)] = v;
+  return out;
 }
 
 describe("contrastCategories", () => {
-  test("categories sum to at most 1 and cover both kinds", () => {
-    const out = contrastCategories(scored([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
-    expect(out.sexual).toBeCloseTo(3 / 12);
-    expect(out.gore).toBeCloseTo(3 / 12);
+  test("uniform logits split probability by prompt count", () => {
+    const out = contrastCategories(new Array<number>(PROMPT_COUNT).fill(0));
+    expect(out.sexual).toBeCloseTo(SEXUAL.length / PROMPT_COUNT);
+    expect(out.gore).toBeCloseTo(GORE.length / PROMPT_COUNT);
   });
 
   test("a dominant gore prompt drives the gore category toward 1", () => {
-    // One gore prompt far above everything else.
-    const out = contrastCategories(scored([-5, -5, -5, 6, -5, -5, -5, -5, -5, -5, -5, -5]));
+    const out = contrastCategories(logits({ [GORE[0]!]: 6 }));
     expect(out.gore).toBeGreaterThan(0.99);
     expect(out.sexual).toBeLessThan(0.01);
   });
 
-  test("strong safe anchors suppress weak flag signals", () => {
-    // Flag prompts mildly positive, but a safe anchor wins the contrast.
-    const out = contrastCategories(scored([-2, -2, -2, -2, -2, -2, 5, 2, -5, -5, -5, -5]));
+  test("a strong safe anchor suppresses weak flag signals", () => {
+    // Flag prompts mildly positive relative to the floor, but a safe anchor
+    // (any index past the category prompts) wins the contrast.
+    const out = contrastCategories(logits({ 0: -2, 1: -2, 2: -2, 3: -2, 4: -2, 5: -2, 6: 5 }));
     expect(out.sexual).toBeLessThan(0.01);
     expect(out.gore).toBeLessThan(0.01);
   });
 
-  test("raw sigmoid magnitudes don't matter, only contrast does", () => {
-    // All sigmoids tiny (SigLIP's usual regime), gore relatively strongest.
-    const out = contrastCategories(scored([-9, -9, -9, -4, -9, -9, -8, -8, -8, -8, -8, -8]));
+  test("absolute logit magnitudes don't matter, only contrast does", () => {
+    // Everything deeply negative (SigLIP's usual regime), gore relatively strongest.
+    const shifted = logits({ [GORE[0]!]: -4 }).map((z) => z - 5);
+    const out = contrastCategories(shifted);
     expect(out.gore).toBeGreaterThan(0.5);
   });
 });
