@@ -22,6 +22,7 @@ type FlagEvidence = {
   nsfwScore?: number;
   nsfwReason?: string;
   nsfwCategories?: Record<string, number>;
+  nsfwTags?: string[];
   hashDistance?: number;
   coverUrl?: string | null;
   matchedEntry?: {
@@ -167,6 +168,8 @@ function FlagRow({
   const matched = flag.kind === "stolen_internal" ? evidence.matchedEntry : undefined;
   const nsfwReason = flag.kind === "nsfw" ? evidence.nsfwReason : undefined;
   const nsfwCategories = flag.kind === "nsfw" ? evidence.nsfwCategories : undefined;
+  const nsfwTags =
+    flag.kind === "nsfw" && evidence.nsfwTags?.length ? evidence.nsfwTags : undefined;
 
   return (
     <AdminRow muted={flag.resolvedAt != null}>
@@ -178,6 +181,11 @@ function FlagRow({
           {nsfwReason ? (
             <Badge size="label" variant="destructive">
               {NSFW_REASON_LABEL[nsfwReason] ?? nsfwReason.toUpperCase()}
+            </Badge>
+          ) : null}
+          {nsfwTags ? (
+            <Badge size="label" variant="destructive">
+              CREATOR-TAGGED ADULT
             </Badge>
           ) : null}
           {flag.score != null ? (
@@ -210,12 +218,17 @@ function FlagRow({
             authorUrl={flag.authorUrl}
             submittedAt={flag.submittedAt}
             detail={
-              nsfwCategories
-                ? Object.entries(nsfwCategories)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([category, score]) => `${category} ${Math.round(score * 100)}%`)
-                    .join(" · ")
-                : undefined
+              [
+                nsfwTags ? `tagged ${nsfwTags.join(", ")}` : null,
+                nsfwCategories
+                  ? Object.entries(nsfwCategories)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([category, score]) => `${category} ${Math.round(score * 100)}%`)
+                      .join(" · ")
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || undefined
             }
           />
           {matched ? (

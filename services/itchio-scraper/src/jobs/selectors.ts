@@ -163,6 +163,7 @@ export type DueScanEntry = {
   entryId: number;
   jamId: number;
   gameCoverUrl: string | null;
+  gameUrl: string;
   gameTitle: string;
   rateUrl: string;
   authorId: number | null;
@@ -187,6 +188,7 @@ export function dueScanEntries(detectorVersion: number, limit: number): Promise<
       entryId: itchJamEntries.entryId,
       jamId: itchJamEntries.jamId,
       gameCoverUrl: itchJamEntries.gameCoverUrl,
+      gameUrl: itchJamEntries.gameUrl,
       gameTitle: itchJamEntries.gameTitle,
       rateUrl: itchJamEntries.rateUrl,
       authorId: itchJamEntries.authorId,

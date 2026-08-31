@@ -11,24 +11,28 @@ import { db } from "../db/client.ts";
 import { describeError } from "../http.ts";
 import { fetchCover, hashCover } from "../scan/cover.ts";
 import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
-import { initNsfw, NSFW_MODEL, nsfwScore } from "../scan/nsfw.ts";
+import { fetchGameTags, matchNsfwTags } from "../scan/game-tags.ts";
+import { initNsfw, NSFW_MODEL, type NsfwResult, nsfwScore } from "../scan/nsfw.ts";
 import { createStopGate, runTier, sleep, type StopGate } from "./runner.ts";
 import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
 
 /**
  * SCAN tier — hourly. The automated first pass of jam-entry moderation
- * (docs/plans/22): fetch each entry's cover once, fingerprint it, score it,
- * and turn what that finds into `social.entry_flags` rows for the /admin
- * queue. Nothing here acts on an entry — every flag ends at a person.
+ * (docs/plans/22): fetch each entry's cover and its game's public data.json
+ * once, fingerprint and score what they hold, and turn that into
+ * `social.entry_flags` rows for the /admin queue. Nothing here acts on an
+ * entry — every flag ends at a person.
  *
- * Three detectors ride the one fetch:
+ * Three detectors ride the two fetches:
  *   - dHash into `itch.entry_scans` — the bookkeeping that makes every other
  *     pass incremental, and the corpus the theft matcher joins against.
  *   - internal theft: an entry whose cover matches another author's earlier
  *     entry (exact hash across the whole corpus, near hash within the jam)
  *     flags the newer entry as `stolen_internal`.
- *   - NSFW: an in-process ViT classifier; covers above the threshold flag
- *     as `nsfw`.
+ *   - NSFW, from both sides: an in-process classifier whose sexual-content
+ *     score clears the threshold (gore alone never flags — the policy only
+ *     gates nudity, Steam-style), and the creator's own adult tags from
+ *     data.json (see scan/game-tags.ts). Either flags as `nsfw`.
  *
  * Flags are idempotent per (entry, kind): a re-scan refreshes the open
  * flag's evidence instead of stacking duplicates, and an entry a human has
@@ -45,7 +49,11 @@ import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
 // v3: horror-aesthetic safe anchors, stale-flag auto-close, version-scoped matching.
 // v4: SigLIP2 (reads text covers; SigLIP1's contrast rode noise on minimal
 //     art), themed-iconography anchors (chalk outline, cartoon heart, censor bar).
-export const DETECTOR_VERSION = 4;
+// v6: sexual-only flagging — gore stays in the contrast as an absorber but
+//     never flags; the stored score is now the sexual category, not the max.
+//     creator-tag signal — each scan also reads the game's public data.json,
+//     and self-set adult tags flag as nsfw on their own.
+export const DETECTOR_VERSION = 6;
 
 /**
  * Bits of dHash drift tolerated by the within-jam near matcher. 128-bit
@@ -92,7 +100,7 @@ export async function runScan(gate?: StopGate): Promise<number> {
         `[scan] FAIL entry ${entry.entryId} (${entry.gameTitle}): ${describeError(err)}`,
       );
     }
-    if (entry.gameCoverUrl) await sleep(config.SCAN_DELAY_MS);
+    await sleep(config.SCAN_DELAY_MS);
   }
 
   console.log(
@@ -115,10 +123,16 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   // queue forever, since nothing else ever closes an open flag.
   const fired = new Set<EntryFlagKind>();
 
+  // The creator's own tag list, from the game's public data.json — the
+  // self-reported half of the NSFW verdict (see scan/game-tags.ts). Null
+  // means it couldn't be checked, which blocks clearing but never firing.
+  const tags = await fetchGameTags(entry.gameUrl);
+  const nsfwTags = tags == null ? null : matchNsfwTags(tags);
+
   if (!entry.gameCoverUrl) {
     await upsertScan(entry.entryId, { coverUrl: null, coverPhash: null, nsfwScore: null });
-    await clearStaleAutoFlags(entry.entryId, fired);
-    return { flagged: 0 };
+    const flagged = await flagCoverlessNsfw(entry, nsfwTags, fired);
+    return { flagged };
   }
 
   const bytes = await fetchCover(entry.gameCoverUrl);
@@ -130,8 +144,8 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
       coverPhash: null,
       nsfwScore: null,
     });
-    await clearStaleAutoFlags(entry.entryId, fired);
-    return { flagged: 0 };
+    const flagged = await flagCoverlessNsfw(entry, nsfwTags, fired);
+    return { flagged };
   }
 
   const phash = await hashCover(bytes);
@@ -142,26 +156,9 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
     nsfwScore: nsfw?.score ?? null,
   });
 
-  let flagged = 0;
-  if (nsfw != null && nsfw.score >= config.NSFW_THRESHOLD) {
-    fired.add("nsfw");
-    flagged += await upsertOpenFlag({
-      entryId: entry.entryId,
-      jamId: entry.jamId,
-      kind: "nsfw",
-      score: nsfw.score,
-      evidence: {
-        detectorVersion: DETECTOR_VERSION,
-        model: NSFW_MODEL,
-        nsfwScore: nsfw.score,
-        nsfwReason: nsfw.reason,
-        nsfwCategories: nsfw.categories,
-        coverUrl: entry.gameCoverUrl,
-        gameTitle: entry.gameTitle,
-        rateUrl: entry.rateUrl,
-      },
-    });
-  }
+  const nsfwFlag = await flagNsfw(entry, nsfw, nsfwTags);
+  if (nsfwFlag.fired) fired.add("nsfw");
+  let flagged = nsfwFlag.flagged;
 
   if (phash) {
     const matches = await flagInternalMatches(entry, phash, ctx);
@@ -169,15 +166,72 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
     if (matches.firedOnScanned) fired.add("stolen_internal");
   }
 
-  // A null nsfw result means the classifier didn't run (disabled or down) —
-  // absence of a verdict is not evidence, so nsfw flags are only clearable
-  // when the cover was actually scored.
+  // Both NSFW signals must have produced a verdict before an nsfw flag is
+  // clearable — a classifier that didn't run (disabled or down) or a
+  // data.json that couldn't be read might be the very signal that fired the
+  // standing flag, and absence of a verdict is not evidence.
   await clearStaleAutoFlags(
     entry.entryId,
     fired,
-    nsfw != null ? ["nsfw", "stolen_internal"] : ["stolen_internal"],
+    nsfw != null && nsfwTags != null ? ["nsfw", "stolen_internal"] : ["stolen_internal"],
   );
   return { flagged };
+}
+
+/**
+ * The tag-only NSFW pass for entries whose cover can't be scored (none set,
+ * or the URL 404s). The classifier verdict is vacuous here — there is no
+ * cover for a flag to be about — so tags alone decide, and a checked tag
+ * list (even an empty one) is enough to clear a stale flag.
+ */
+async function flagCoverlessNsfw(
+  entry: DueScanEntry,
+  nsfwTags: string[] | null,
+  fired: Set<EntryFlagKind>,
+): Promise<number> {
+  const nsfwFlag = await flagNsfw(entry, null, nsfwTags);
+  if (nsfwFlag.fired) fired.add("nsfw");
+  await clearStaleAutoFlags(
+    entry.entryId,
+    fired,
+    nsfwTags != null ? ["nsfw", "stolen_internal"] : ["stolen_internal"],
+  );
+  return nsfwFlag.flagged;
+}
+
+/**
+ * The NSFW verdict, from both signals: the classifier's sexual score over
+ * the cover, and the creator's own adult tags. Either alone flags — and the
+ * self-set tag is the surer of the two, so a tag hit pins the score to 1
+ * regardless of what the classifier saw.
+ */
+async function flagNsfw(
+  entry: DueScanEntry,
+  nsfw: NsfwResult | null,
+  nsfwTags: string[] | null,
+): Promise<{ fired: boolean; flagged: number }> {
+  const scored = nsfw != null && nsfw.score >= config.NSFW_THRESHOLD;
+  const tagged = nsfwTags != null && nsfwTags.length > 0;
+  if (!scored && !tagged) return { fired: false, flagged: 0 };
+
+  const flagged = await upsertOpenFlag({
+    entryId: entry.entryId,
+    jamId: entry.jamId,
+    kind: "nsfw",
+    score: tagged ? 1 : (nsfw?.score ?? 0),
+    evidence: {
+      detectorVersion: DETECTOR_VERSION,
+      model: nsfw ? NSFW_MODEL : undefined,
+      nsfwScore: nsfw?.score,
+      nsfwReason: scored ? "sexual" : undefined,
+      nsfwCategories: nsfw?.categories,
+      nsfwTags: tagged ? nsfwTags : undefined,
+      coverUrl: entry.gameCoverUrl,
+      gameTitle: entry.gameTitle,
+      rateUrl: entry.rateUrl,
+    },
+  });
+  return { fired: true, flagged };
 }
 
 /**

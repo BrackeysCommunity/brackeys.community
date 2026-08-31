@@ -10,9 +10,12 @@ import {
 } from "@huggingface/transformers";
 
 /**
- * In-process cover classifier: SigLIP2 zero-shot over category prompts, so a
- * flag says WHY it fired — "gore" is a different judgment call than
- * "sexual", and the queue shows the mod which one this is.
+ * In-process cover classifier: SigLIP2 zero-shot over category prompts.
+ * Policy is Steam-shaped: only sexual content gets gated behind a view
+ * button, so only the sexual category can open a flag. Gore is still scored
+ * — its prompts stay in the contrast so a gory cover dumps its probability
+ * there instead of leaking into the sexual prompts, and the score is kept
+ * as evidence — but it never fires on its own.
  *
  * Each category holds a few caption prompts; safe anchors describe what jam
  * covers normally are. The image is scored against every prompt at once and
@@ -49,11 +52,9 @@ export const NSFW_DTYPE = "fp16";
 export type NsfwCategory = "sexual" | "gore";
 
 export type NsfwResult = {
-  /** The highest category score — what the threshold compares against. */
+  /** The sexual-category score — the only one the threshold compares against. */
   score: number;
-  /** The category that produced it — the human-readable reason. */
-  reason: NsfwCategory;
-  /** All category scores, kept as evidence. */
+  /** All category scores, kept as evidence; gore never flags on its own. */
   categories: Record<NsfwCategory, number>;
 };
 
@@ -163,10 +164,7 @@ export async function nsfwScore(bytes: Uint8Array): Promise<NsfwResult | null> {
     const logits = Array.from(output.logits_per_image.data as Float32Array);
     if (logits.length !== PROMPT_COUNT) return null;
     const categories = contrastCategories(logits);
-    const [reason, score] = (Object.entries(categories) as Array<[NsfwCategory, number]>).reduce(
-      (best, next) => (next[1] > best[1] ? next : best),
-    );
-    return { score, reason, categories };
+    return { score: categories.sexual, categories };
   } catch {
     return null;
   }

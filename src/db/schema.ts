@@ -921,8 +921,9 @@ export const itchEntryScans = itchSchema.table(
     // Perceptual hash (64-bit dHash, 16 hex chars) of that cover; null
     // when the entry has no cover.
     coverPhash: text("cover_phash"),
-    // Raw classifier output, kept so a threshold change re-flags with a
-    // SQL pass instead of re-running inference over the corpus.
+    // Raw classifier output (the sexual-category score since detector v5),
+    // kept so a threshold change re-flags with a SQL pass instead of
+    // re-running inference over the corpus.
     nsfwScore: real("nsfw_score"),
     // Bump the constant in the scan job to force a global re-scan.
     detectorVersion: integer("detector_version").notNull(),

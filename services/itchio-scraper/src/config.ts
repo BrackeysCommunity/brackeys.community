@@ -86,9 +86,9 @@ const schema = z.object({
   // submissions always beat backfill; stopping at the cap is free because
   // due-ness is per entry and the next tick resumes.
   SCAN_BATCH: z.coerce.number().int().positive().default(1500),
-  // Minimum category score (sexual or gore, softmax contrast — see
-  // scan/nsfw.ts) that opens a flag. Calibrated on real covers: benign art
-  // tops out around 0.43, the weakest true positive measured 0.70.
+  // Minimum sexual-category score (softmax contrast — see scan/nsfw.ts)
+  // that opens a flag; gore never flags. Calibrated on real covers: benign
+  // art tops out around 0.43, the weakest true positive measured 0.70.
   NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
   // Kill switch for the classifier only — hashing and theft matching keep
   // running without it.

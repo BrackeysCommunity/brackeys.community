@@ -19,7 +19,9 @@ describe("contrastCategories", () => {
     expect(out.gore).toBeCloseTo(GORE.length / PROMPT_COUNT);
   });
 
-  test("a dominant gore prompt drives the gore category toward 1", () => {
+  test("a dominant gore prompt absorbs the contrast without raising sexual", () => {
+    // Gore never flags on its own — its prompts exist so a gory cover's
+    // probability lands here instead of leaking into the sexual category.
     const out = contrastCategories(logits({ [GORE[0]!]: 6 }));
     expect(out.gore).toBeGreaterThan(0.99);
     expect(out.sexual).toBeLessThan(0.01);
