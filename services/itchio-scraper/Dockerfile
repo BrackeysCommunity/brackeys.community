@@ -29,7 +29,7 @@ RUN ln -s /app/services/itchio-scraper/node_modules /app/node_modules
 
 WORKDIR /app/services/itchio-scraper
 
-# Bake the scan tier's NSFW model into the image (~90MB into .model-cache).
+# Bake the scan tier's NSFW model into the image (~400MB into .model-cache).
 # A Railway cron service is a fresh container every tick; without this the
 # scan tier would re-download the weights from Hugging Face hourly, and a
 # HF outage would silently strip scores from that tick.

@@ -41,14 +41,16 @@ import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
  */
 
 /** Bump to force a global re-scan (hash algorithm, model, or threshold-shape changes). */
-export const DETECTOR_VERSION = 1;
+// v2: alpha-flattened + information-gated dHash, SigLIP category classifier.
+export const DETECTOR_VERSION = 2;
 
 /**
- * Bits of dHash drift tolerated by the within-jam near matcher. 64-bit
- * dHashes of unrelated covers differ by ~32 bits; recompressed/resized
- * copies of the same art measure ≤ ~5.
+ * Bits of dHash drift tolerated by the within-jam near matcher. 128-bit
+ * dHashes of unrelated covers differ by ~64 bits and structural twins
+ * (same layout, different art) measure ≥ ~29; recompressed/resized copies
+ * of the same art measure ≤ ~12.
  */
-const NEAR_HAMMING_MAX = 6;
+const NEAR_HAMMING_MAX = 16;
 
 type ScanOutcome = { flagged: number };
 
@@ -122,24 +124,26 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   }
 
   const phash = await hashCover(bytes);
-  const score = ctx.nsfwEnabled ? await nsfwScore(bytes) : null;
+  const nsfw = ctx.nsfwEnabled ? await nsfwScore(bytes) : null;
   await upsertScan(entry.entryId, {
     coverUrl: entry.gameCoverUrl,
     coverPhash: phash,
-    nsfwScore: score,
+    nsfwScore: nsfw?.score ?? null,
   });
 
   let flagged = 0;
-  if (score != null && score >= config.NSFW_THRESHOLD) {
+  if (nsfw != null && nsfw.score >= config.NSFW_THRESHOLD) {
     flagged += await upsertOpenFlag({
       entryId: entry.entryId,
       jamId: entry.jamId,
       kind: "nsfw",
-      score,
+      score: nsfw.score,
       evidence: {
         detectorVersion: DETECTOR_VERSION,
         model: NSFW_MODEL,
-        nsfwScore: score,
+        nsfwScore: nsfw.score,
+        nsfwReason: nsfw.reason,
+        nsfwCategories: nsfw.categories,
         coverUrl: entry.gameCoverUrl,
         gameTitle: entry.gameTitle,
         rateUrl: entry.rateUrl,
@@ -260,7 +264,7 @@ async function flagInternalMatches(
       entryId: target.entryId,
       jamId: target.jamId,
       kind: "stolen_internal",
-      score: (64 - match.distance) / 64,
+      score: (128 - match.distance) / 128,
       evidence: {
         detectorVersion: DETECTOR_VERSION,
         hashDistance: match.distance,

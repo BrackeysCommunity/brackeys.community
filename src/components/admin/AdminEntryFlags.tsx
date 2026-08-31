@@ -20,6 +20,8 @@ type EntryFlag = Awaited<ReturnType<typeof client.listEntryFlags>>["items"][numb
 /** The shape the scan worker writes into `evidence` (jsonb, so read defensively). */
 type FlagEvidence = {
   nsfwScore?: number;
+  nsfwReason?: string;
+  nsfwCategories?: Record<string, number>;
   hashDistance?: number;
   coverUrl?: string | null;
   matchedEntry?: {
@@ -37,6 +39,12 @@ const KIND_LABEL: Record<EntryFlag["kind"], string> = {
   stolen_internal: "MATCHED COVER",
   nsfw: "NSFW",
   other: "FLAGGED",
+};
+
+/** Why the classifier fired — a dead body is a different call than nudity. */
+const NSFW_REASON_LABEL: Record<string, string> = {
+  sexual: "SEXUAL / NUDITY",
+  gore: "GORE / DEATH",
 };
 
 /**
@@ -157,6 +165,8 @@ function FlagRow({
 }) {
   const evidence = (flag.evidence ?? {}) as FlagEvidence;
   const matched = flag.kind === "stolen_internal" ? evidence.matchedEntry : undefined;
+  const nsfwReason = flag.kind === "nsfw" ? evidence.nsfwReason : undefined;
+  const nsfwCategories = flag.kind === "nsfw" ? evidence.nsfwCategories : undefined;
 
   return (
     <AdminRow muted={flag.resolvedAt != null}>
@@ -165,6 +175,11 @@ function FlagRow({
           <Badge size="label" variant={flag.kind === "nsfw" ? "destructive" : "default"}>
             {KIND_LABEL[flag.kind]}
           </Badge>
+          {nsfwReason ? (
+            <Badge size="label" variant="destructive">
+              {NSFW_REASON_LABEL[nsfwReason] ?? nsfwReason.toUpperCase()}
+            </Badge>
+          ) : null}
           {flag.score != null ? (
             <Badge size="label" variant="outline">
               {Math.round(flag.score * 100)}%
@@ -194,6 +209,14 @@ function FlagRow({
             authorName={flag.authorName}
             authorUrl={flag.authorUrl}
             submittedAt={flag.submittedAt}
+            detail={
+              nsfwCategories
+                ? Object.entries(nsfwCategories)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([category, score]) => `${category} ${Math.round(score * 100)}%`)
+                    .join(" · ")
+                : undefined
+            }
           />
           {matched ? (
             <CoverCard

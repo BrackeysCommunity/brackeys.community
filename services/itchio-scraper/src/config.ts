@@ -86,9 +86,10 @@ const schema = z.object({
   // submissions always beat backfill; stopping at the cap is free because
   // due-ness is per entry and the next tick resumes.
   SCAN_BATCH: z.coerce.number().int().positive().default(1500),
-  // Tuned high on purpose: game-art false positives are expected and cheap
-  // (a human confirms every flag), a missed borderline cover is not.
-  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.85),
+  // Minimum category score (sexual or gore, softmax contrast — see
+  // scan/nsfw.ts) that opens a flag. Calibrated on real covers: benign art
+  // tops out around 0.14, the weakest true positive measured 0.57.
+  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.4),
   // Kill switch for the classifier only — hashing and theft matching keep
   // running without it.
   NSFW_ENABLED: z
