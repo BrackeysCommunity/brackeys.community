@@ -52,7 +52,12 @@ const CATEGORY_PROMPTS: Record<NsfwCategory, string[]> = {
   ],
 };
 
-/** What jam covers normally are — the hypotheses a flag has to beat. */
+/**
+ * What jam covers normally are — the hypotheses a flag has to beat. The last
+ * two exist because horror AESTHETIC is normal jam art: without them,
+ * dripping-blood lettering scored 95% gore and a cartoon hand tripped the
+ * "severed body parts" prompt at 80%, while real gore stays ≥ ~78% with them.
+ */
 const SAFE_PROMPTS = [
   "video game cover art",
   "pixel art from a video game",
@@ -60,6 +65,8 @@ const SAFE_PROMPTS = [
   "a screenshot of a video game",
   "a logo or text banner",
   "a landscape painting",
+  "a horror game logo with spooky dripping letters",
+  "a cartoon drawing of a hand",
 ];
 
 const ALL_PROMPTS = [...Object.values(CATEGORY_PROMPTS).flat(), ...SAFE_PROMPTS];

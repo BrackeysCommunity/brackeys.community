@@ -88,8 +88,8 @@ const schema = z.object({
   SCAN_BATCH: z.coerce.number().int().positive().default(1500),
   // Minimum category score (sexual or gore, softmax contrast — see
   // scan/nsfw.ts) that opens a flag. Calibrated on real covers: benign art
-  // tops out around 0.14, the weakest true positive measured 0.57.
-  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.4),
+  // tops out around 0.34, the weakest true positive measured 0.64.
+  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
   // Kill switch for the classifier only — hashing and theft matching keep
   // running without it.
   NSFW_ENABLED: z

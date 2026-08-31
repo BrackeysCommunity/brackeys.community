@@ -42,7 +42,8 @@ import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
 
 /** Bump to force a global re-scan (hash algorithm, model, or threshold-shape changes). */
 // v2: alpha-flattened + information-gated dHash, SigLIP category classifier.
-export const DETECTOR_VERSION = 2;
+// v3: horror-aesthetic safe anchors, stale-flag auto-close, version-scoped matching.
+export const DETECTOR_VERSION = 3;
 
 /**
  * Bits of dHash drift tolerated by the within-jam near matcher. 128-bit
@@ -106,8 +107,15 @@ type ScanContext = {
 };
 
 async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOutcome> {
+  // Kinds this scan re-confirmed on THIS entry. Whatever didn't re-fire has
+  // its open auto flag cleared at the end — otherwise flags written by an
+  // older detector (or against a cover that has since changed) sit in the
+  // queue forever, since nothing else ever closes an open flag.
+  const fired = new Set<EntryFlagKind>();
+
   if (!entry.gameCoverUrl) {
     await upsertScan(entry.entryId, { coverUrl: null, coverPhash: null, nsfwScore: null });
+    await clearStaleAutoFlags(entry.entryId, fired);
     return { flagged: 0 };
   }
 
@@ -120,6 +128,7 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
       coverPhash: null,
       nsfwScore: null,
     });
+    await clearStaleAutoFlags(entry.entryId, fired);
     return { flagged: 0 };
   }
 
@@ -133,6 +142,7 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
 
   let flagged = 0;
   if (nsfw != null && nsfw.score >= config.NSFW_THRESHOLD) {
+    fired.add("nsfw");
     flagged += await upsertOpenFlag({
       entryId: entry.entryId,
       jamId: entry.jamId,
@@ -152,9 +162,46 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   }
 
   if (phash) {
-    flagged += await flagInternalMatches(entry, phash, ctx);
+    const matches = await flagInternalMatches(entry, phash, ctx);
+    flagged += matches.flagged;
+    if (matches.firedOnScanned) fired.add("stolen_internal");
   }
+
+  // A null nsfw result means the classifier didn't run (disabled or down) —
+  // absence of a verdict is not evidence, so nsfw flags are only clearable
+  // when the cover was actually scored.
+  await clearStaleAutoFlags(
+    entry.entryId,
+    fired,
+    nsfw != null ? ["nsfw", "stolen_internal"] : ["stolen_internal"],
+  );
   return { flagged };
+}
+
+/**
+ * Deletes open auto flags of detector-owned kinds this scan didn't
+ * re-confirm. Human-resolved flags are never touched — they're the "we
+ * already looked" memory — and flags this entry earned as the newer side of
+ * someone else's scan get re-created by that entry's own re-scan if still
+ * real.
+ */
+async function clearStaleAutoFlags(
+  entryId: number,
+  fired: ReadonlySet<EntryFlagKind>,
+  clearable: EntryFlagKind[] = ["nsfw", "stolen_internal"],
+): Promise<void> {
+  const stale = clearable.filter((kind) => !fired.has(kind));
+  if (stale.length === 0) return;
+  await db
+    .delete(entryFlags)
+    .where(
+      and(
+        eq(entryFlags.entryId, entryId),
+        eq(entryFlags.status, "open"),
+        eq(entryFlags.source, "auto"),
+        inArray(entryFlags.kind, stale),
+      ),
+    );
 }
 
 function upsertScan(
@@ -187,12 +234,17 @@ type InternalMatch = HashedEntry & {
  * Whichever entry of a matched pair is newer gets the flag, with the older
  * one as evidence — resubmitting your own game across jams is normal, the
  * same cover under a different author is what the queue should see.
+ *
+ * Both pools are scoped to hashes from THIS detector version: hashes from
+ * different algorithms aren't comparable, and matching against a stale
+ * corpus mid-re-scan is how v1's degenerate zero-hashes once flagged three
+ * unrelated covers against one newly scanned black square.
  */
 async function flagInternalMatches(
   entry: DueScanEntry,
   phash: string,
   ctx: ScanContext,
-): Promise<number> {
+): Promise<{ flagged: number; firedOnScanned: boolean }> {
   const exact = await db
     .select({
       entryId: itchEntryScans.entryId,
@@ -210,6 +262,7 @@ async function flagInternalMatches(
     .where(
       and(
         eq(itchEntryScans.coverPhash, phash),
+        eq(itchEntryScans.detectorVersion, DETECTOR_VERSION),
         ne(itchEntryScans.entryId, entry.entryId),
         isNull(itchJamEntries.missingSince),
         // Same author is not theft, however many jams the cover spans.
@@ -234,6 +287,7 @@ async function flagInternalMatches(
   jamPool.push({ entryId: entry.entryId, authorId: entry.authorId, coverPhash: phash });
 
   let flagged = 0;
+  let firedOnScanned = false;
   for (const match of matches) {
     const matchIsOlder = isOlder(
       { submittedAt: match.submittedAt, entryId: match.entryId },
@@ -259,6 +313,7 @@ async function flagInternalMatches(
     };
     const target = matchIsOlder ? scanned : matched;
     const original = matchIsOlder ? matched : scanned;
+    if (target.entryId === entry.entryId) firedOnScanned = true;
 
     flagged += await upsertOpenFlag({
       entryId: target.entryId,
@@ -275,7 +330,7 @@ async function flagInternalMatches(
       },
     });
   }
-  return flagged;
+  return { flagged, firedOnScanned };
 }
 
 /** Older wins by submission time; entries without one fall back to id order. */
@@ -305,6 +360,7 @@ async function jamHashPool(jamId: number, ctx: ScanContext): Promise<HashedEntry
         eq(itchJamEntries.jamId, jamId),
         isNull(itchJamEntries.missingSince),
         sql`${itchEntryScans.coverPhash} IS NOT NULL`,
+        eq(itchEntryScans.detectorVersion, DETECTOR_VERSION),
       ),
     );
   ctx.jamHashes.set(jamId, rows);
