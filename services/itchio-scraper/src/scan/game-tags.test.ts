@@ -1,26 +1,37 @@
 import { describe, expect, test } from "bun:test";
 
-import { matchNsfwTags, parseGameTags } from "./game-tags.ts";
+import { matchNsfwTags, parseGameData } from "./game-tags.ts";
 
-describe("parseGameTags", () => {
+describe("parseGameData", () => {
   test("reads the tags array from a game payload", () => {
     expect(
-      parseGameTags({ id: 3361070, title: "x", tags: ["adult", "roguelike", "nsfw"] }),
+      parseGameData({ id: 3361070, title: "x", tags: ["adult", "roguelike", "nsfw"] })?.tags,
     ).toEqual(["adult", "roguelike", "nsfw"]);
   });
 
   test("an untagged game is a verdict, not a failure", () => {
-    expect(parseGameTags({ id: 1, title: "x" })).toEqual([]);
+    expect(parseGameData({ id: 1, title: "x" })?.tags).toEqual([]);
   });
 
   test("drops non-string entries instead of failing the payload", () => {
-    expect(parseGameTags({ tags: ["adult", 7, null, { url: "/soundtracks" }] })).toEqual(["adult"]);
+    expect(parseGameData({ tags: ["adult", 7, null, { url: "/soundtracks" }] })?.tags).toEqual([
+      "adult",
+    ]);
+  });
+
+  test("carries the current cover URL when the payload has one", () => {
+    expect(parseGameData({ tags: [], cover_image: "https://img.itch.zone/x.png" })).toEqual({
+      tags: [],
+      coverImage: "https://img.itch.zone/x.png",
+    });
+    expect(parseGameData({ tags: [] })?.coverImage).toBeNull();
+    expect(parseGameData({ tags: [], cover_image: 7 })?.coverImage).toBeNull();
   });
 
   test("itch error bodies and non-objects yield no verdict", () => {
-    expect(parseGameTags({ errors: ["invalid game"] })).toBeNull();
-    expect(parseGameTags("<!doctype html>")).toBeNull();
-    expect(parseGameTags(null)).toBeNull();
+    expect(parseGameData({ errors: ["invalid game"] })).toBeNull();
+    expect(parseGameData("<!doctype html>")).toBeNull();
+    expect(parseGameData(null)).toBeNull();
   });
 });
 

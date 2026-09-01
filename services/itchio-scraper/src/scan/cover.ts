@@ -16,8 +16,11 @@ import {
  * Fetches a cover image through the shared pacer. The covers live on itch's
  * image CDN rather than itch.io itself, but they still ride the global gate —
  * the scan tier's slot is staggered like the others, and a CDN 429 arms the
- * same pool cooldown either way. Returns null when the cover is gone (404 —
- * common on older entries whose games were deleted).
+ * same pool cooldown either way. Returns null when the cover is gone: 404 —
+ * common on older entries whose games were deleted — and 403, which is how
+ * the CDN answers for a derivative whose source image was garbage-collected
+ * (the original 404s; typical of covers replaced after a terminal jam froze
+ * its entry list).
  */
 export async function fetchCover(url: string): Promise<Uint8Array | null> {
   const res = await pacedFetch(
@@ -31,7 +34,7 @@ export async function fetchCover(url: string): Promise<Uint8Array | null> {
     },
     45_000,
   );
-  if (res.status === 404 || res.status === 410) return null;
+  if (res.status === 403 || res.status === 404 || res.status === 410) return null;
   if (!res.ok) throw new HttpStatusError(res.status, url);
   return new Uint8Array(await res.arrayBuffer());
 }

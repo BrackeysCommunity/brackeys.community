@@ -13,7 +13,7 @@ import { describeError } from "../http.ts";
 import { fetchCover, hashCover } from "../scan/cover.ts";
 import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
 import { encodeEmbedding } from "../scan/embedding.ts";
-import { fetchGameTags, matchNsfwTags } from "../scan/game-tags.ts";
+import { fetchGameData, matchNsfwTags } from "../scan/game-tags.ts";
 import { initNsfw, NSFW_MODEL, type NsfwResult, nsfwScore } from "../scan/nsfw.ts";
 import { createStopGate, runTier, sleep, type StopGate } from "./runner.ts";
 import { type DueScanEntry, dueScanEntries, dueScanJams } from "./selectors.ts";
@@ -227,28 +227,30 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   // queue forever, since nothing else ever closes an open flag.
   const fired = new Set<EntryFlagKind>();
 
-  // The creator's own tag list, from the game's public data.json — the
-  // self-reported half of the NSFW verdict (see scan/game-tags.ts). Null
-  // means it couldn't be checked, which blocks clearing but never firing.
-  const tags = await fetchGameTags(entry.gameUrl);
-  const nsfwTags = tags == null ? null : matchNsfwTags(tags);
+  // The game's public data.json: the creator's own tag list — the
+  // self-reported half of the NSFW verdict (see scan/game-tags.ts; null
+  // means it couldn't be checked, which blocks clearing but never firing) —
+  // and the game's current cover URL.
+  const game = await fetchGameData(entry.gameUrl);
+  const nsfwTags = game == null ? null : matchNsfwTags(game.tags);
 
-  if (!entry.gameCoverUrl) {
-    await upsertScan(entry.entryId, {
-      coverUrl: null,
-      coverPhash: null,
-      nsfwScore: null,
-      coverEmbedding: null,
-      embeddingModel: null,
-    });
-    const flagged = await flagCoverlessNsfw(entry, nsfwTags, fired);
-    return { flagged };
+  // The jam entry's cover first; when that is gone (jam entry lists freeze
+  // once a jam is terminal, and itch garbage-collects replaced covers), fall
+  // back to the live cover from data.json. `live` carries whichever URL the
+  // bytes actually came from, for flag evidence a mod can still open.
+  let live = entry;
+  let bytes = entry.gameCoverUrl ? await fetchCover(entry.gameCoverUrl) : null;
+  if (!bytes && game?.coverImage && game.coverImage !== entry.gameCoverUrl) {
+    const fresh = await fetchCover(game.coverImage);
+    if (fresh) {
+      bytes = fresh;
+      live = { ...entry, gameCoverUrl: game.coverImage };
+    }
   }
 
-  const bytes = await fetchCover(entry.gameCoverUrl);
   if (!bytes) {
-    // Cover URL 404s: record the URL so the entry isn't re-fetched every
-    // tick; a future cover change makes it due again.
+    // Record the entry-list URL (dead or null) so the entry isn't
+    // re-fetched every tick; a future cover change makes it due again.
     await upsertScan(entry.entryId, {
       coverUrl: entry.gameCoverUrl,
       coverPhash: null,
@@ -262,6 +264,9 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
 
   const phash = await hashCover(bytes);
   const nsfw = ctx.nsfwEnabled ? await nsfwScore(bytes) : null;
+  // Always the entry-list URL, even when the bytes came from the fallback:
+  // due-ness compares this column against the entry list, and recording the
+  // data.json URL would leave the entry due forever.
   await upsertScan(entry.entryId, {
     coverUrl: entry.gameCoverUrl,
     coverPhash: phash,
@@ -270,12 +275,12 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
     embeddingModel: nsfw?.embedding ? NSFW_MODEL : null,
   });
 
-  const nsfwFlag = await flagNsfw(entry, nsfw, nsfwTags);
+  const nsfwFlag = await flagNsfw(live, nsfw, nsfwTags);
   if (nsfwFlag.fired) fired.add("nsfw");
   let flagged = nsfwFlag.flagged;
 
   if (phash) {
-    const matches = await flagInternalMatches(entry, phash, ctx);
+    const matches = await flagInternalMatches(live, phash, ctx);
     flagged += matches.flagged;
     if (matches.firedOnScanned) fired.add("stolen_internal");
   }
