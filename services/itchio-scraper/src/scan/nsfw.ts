@@ -136,7 +136,15 @@ async function loadClassifier(): Promise<Classifier | null> {
     const [tokenizer, processor, model] = await Promise.all([
       AutoTokenizer.from_pretrained(NSFW_MODEL),
       AutoProcessor.from_pretrained(NSFW_MODEL),
-      AutoModel.from_pretrained(NSFW_MODEL, { dtype: NSFW_DTYPE }),
+      AutoModel.from_pretrained(NSFW_MODEL, {
+        dtype: NSFW_DTYPE,
+        // Cap the ORT thread pool: at 224x224 the default (one thread per
+        // visible core) mostly burns CPU on contention — measured ~6.7
+        // CPU-seconds per cover versus ~2.8 at 4 threads, for ~230ms more
+        // latency. Deliberately constant, not config: this file must load
+        // without env (see warm-nsfw.ts).
+        session_options: { intraOpNumThreads: 4, interOpNumThreads: 1 },
+      }),
     ]);
     const textInputs = tokenizer(ALL_PROMPTS, {
       padding: "max_length",
