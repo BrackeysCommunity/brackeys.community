@@ -9,7 +9,7 @@ import {
 } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db, pool } from "../db/client.ts";
-import { describeError } from "../http.ts";
+import { describeError, HttpStatusError } from "../http.ts";
 import { fetchCover, hashCover } from "../scan/cover.ts";
 import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
 import { encodeEmbedding } from "../scan/embedding.ts";
@@ -234,12 +234,24 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   const game = await fetchGameData(entry.gameUrl);
   const nsfwTags = game == null ? null : matchNsfwTags(game.tags);
 
-  // The jam entry's cover first; when that is gone (jam entry lists freeze
-  // once a jam is terminal, and itch garbage-collects replaced covers), fall
-  // back to the live cover from data.json. `live` carries whichever URL the
-  // bytes actually came from.
+  // The jam entry's cover first; when that is gone (404 — jam entry lists
+  // freeze once a jam is terminal, so replaced covers go stale) or the CDN's
+  // bot gate 403s it, fall back to the live cover from data.json. `live`
+  // carries whichever URL the bytes actually came from. A 403 the fallback
+  // couldn't rescue rethrows so the entry stays due — unlike a 404 it says
+  // nothing about the cover, and recording it would freeze a scannable
+  // entry as coverless.
   let live = entry;
-  let bytes = entry.gameCoverUrl ? await fetchCover(entry.gameCoverUrl) : null;
+  let bytes: Uint8Array | null = null;
+  let blocked: unknown = null;
+  if (entry.gameCoverUrl) {
+    try {
+      bytes = await fetchCover(entry.gameCoverUrl);
+    } catch (err) {
+      if (!(err instanceof HttpStatusError && err.status === 403)) throw err;
+      blocked = err;
+    }
+  }
   if (!bytes && game?.coverImage && game.coverImage !== entry.gameCoverUrl) {
     const fresh = await fetchCover(game.coverImage);
     if (fresh) {
@@ -247,13 +259,14 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
       live = { ...entry, gameCoverUrl: game.coverImage };
     }
   }
+  if (!bytes && blocked != null) throw blocked;
 
   if (live !== entry) {
-    // Adopt the live URL on the entry itself — the frozen one renders as a
-    // broken image everywhere the site shows this cover, and this scan is
-    // the only process that ever learns the replacement. Before the scan
-    // row: if the tick dies between the two writes, the entry stays due and
-    // the next pass takes the fallback path again.
+    // Adopt the live URL on the entry itself — the frozen one is the art
+    // the creator has since replaced, and this scan is the only process
+    // that ever learns the replacement. Before the scan row: if the tick
+    // dies between the two writes, the entry stays due and the next pass
+    // takes the fallback path again.
     await db
       .update(itchJamEntries)
       .set({ gameCoverUrl: live.gameCoverUrl })
