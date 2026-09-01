@@ -277,6 +277,7 @@ type InternalMatch = HashedEntry & {
   distance: number;
   jamId: number;
   gameTitle: string;
+  gameUrl: string;
   rateUrl: string;
   gameCoverUrl: string | null;
   authorName: string | null;
@@ -308,6 +309,7 @@ async function flagInternalMatches(
       coverPhash: itchEntryScans.coverPhash,
       jamId: itchJamEntries.jamId,
       gameTitle: itchJamEntries.gameTitle,
+      gameUrl: itchJamEntries.gameUrl,
       rateUrl: itchJamEntries.rateUrl,
       gameCoverUrl: itchJamEntries.gameCoverUrl,
       authorName: itchJamEntries.authorName,
@@ -353,6 +355,7 @@ async function flagInternalMatches(
       entryId: entry.entryId,
       jamId: entry.jamId,
       gameTitle: entry.gameTitle,
+      gameUrl: entry.gameUrl,
       rateUrl: entry.rateUrl,
       coverUrl: entry.gameCoverUrl,
       authorName: entry.authorName,
@@ -362,6 +365,7 @@ async function flagInternalMatches(
       entryId: match.entryId,
       jamId: match.jamId,
       gameTitle: match.gameTitle,
+      gameUrl: match.gameUrl,
       rateUrl: match.rateUrl,
       coverUrl: match.gameCoverUrl,
       authorName: match.authorName,
@@ -434,6 +438,7 @@ async function hydrateMatches(
       entryId: itchJamEntries.entryId,
       jamId: itchJamEntries.jamId,
       gameTitle: itchJamEntries.gameTitle,
+      gameUrl: itchJamEntries.gameUrl,
       rateUrl: itchJamEntries.rateUrl,
       gameCoverUrl: itchJamEntries.gameCoverUrl,
       authorName: itchJamEntries.authorName,

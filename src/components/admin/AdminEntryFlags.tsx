@@ -28,6 +28,7 @@ type FlagEvidence = {
   matchedEntry?: {
     entryId?: number;
     gameTitle?: string;
+    gameUrl?: string;
     rateUrl?: string;
     coverUrl?: string | null;
     authorName?: string | null;
@@ -213,7 +214,7 @@ function FlagRow({
             label={matched ? "Flagged entry" : undefined}
             coverUrl={flag.gameCoverUrl}
             title={flag.gameTitle}
-            href={flag.rateUrl}
+            href={flag.gameUrl}
             authorName={flag.authorName}
             authorUrl={flag.authorUrl}
             submittedAt={flag.submittedAt}
@@ -236,7 +237,7 @@ function FlagRow({
               label="Matches this earlier entry"
               coverUrl={matched.coverUrl ?? null}
               title={matched.gameTitle ?? "Unknown entry"}
-              href={matched.rateUrl}
+              href={matched.gameUrl}
               authorName={matched.authorName ?? null}
               authorUrl={null}
               submittedAt={matched.submittedAt ? new Date(matched.submittedAt) : null}
