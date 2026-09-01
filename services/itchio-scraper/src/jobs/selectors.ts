@@ -1,4 +1,4 @@
-import { and, asc, eq, exists, gt, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, exists, gt, isNull, lt, lte, ne, notInArray, or, sql } from "drizzle-orm";
 
 import {
   itchEntryScans,
@@ -172,17 +172,64 @@ export type DueScanEntry = {
 };
 
 /**
- * Entries the scan tier owes a look: never scanned, scanned by an older
+ * An entry the scan tier owes a look: never scanned, scanned by an older
  * detector, or wearing a different cover URL than the one that was hashed
  * (itch derivative URLs change when a cover is replaced, so the URL is a
  * content check that costs no fetch). Missing entries are excluded — their
  * covers 404 — and nothing else is: due-ness is per entry, so a capped or
  * deadline-cut tick resumes exactly where it stopped.
- *
- * Newest-jam-first, so a running jam's fresh submissions are always scanned
- * ahead of historical backfill.
  */
-export function dueScanEntries(detectorVersion: number, limit: number): Promise<DueScanEntry[]> {
+function scanDue(detectorVersion: number) {
+  return and(
+    isNull(itchJamEntries.missingSince),
+    or(
+      isNull(itchEntryScans.entryId),
+      lt(itchEntryScans.detectorVersion, detectorVersion),
+      sql`${itchEntryScans.coverUrl} IS DISTINCT FROM ${itchJamEntries.gameCoverUrl}`,
+    ),
+  );
+}
+
+/**
+ * Jams holding at least one due entry, newest-jam-first so a running jam's
+ * fresh submissions are always scanned ahead of historical backfill. The
+ * scan tier claims work jam-by-jam (advisory lock per jam) rather than
+ * entry-by-entry: within a jam entries must be scanned sequentially for the
+ * near matcher's comparison pool to see its predecessors, and the jam is
+ * therefore the natural unit for concurrent workers — in one process or
+ * across machines — to divide.
+ *
+ * `exclude` carries the jams this tick already claimed or skipped, so a
+ * refill can't spin on jams other instances hold locks on.
+ */
+export function dueScanJams(
+  detectorVersion: number,
+  limit: number,
+  exclude: readonly number[] = [],
+): Promise<number[]> {
+  return db
+    .select({ jamId: itchJamEntries.jamId })
+    .from(itchJamEntries)
+    .innerJoin(itchJams, eq(itchJams.jamId, itchJamEntries.jamId))
+    .leftJoin(itchEntryScans, eq(itchEntryScans.entryId, itchJamEntries.entryId))
+    .where(
+      and(
+        scanDue(detectorVersion),
+        exclude.length > 0 ? notInArray(itchJamEntries.jamId, [...exclude]) : undefined,
+      ),
+    )
+    .groupBy(itchJamEntries.jamId, itchJams.startsAt)
+    .orderBy(sql`${itchJams.startsAt} desc nulls last`, asc(itchJamEntries.jamId))
+    .limit(limit)
+    .then((rows) => rows.map((r) => r.jamId));
+}
+
+/** One jam's due entries, in the stable order the near matcher relies on. */
+export function dueScanEntries(
+  jamId: number,
+  detectorVersion: number,
+  limit: number,
+): Promise<DueScanEntry[]> {
   return db
     .select({
       entryId: itchJamEntries.entryId,
@@ -196,19 +243,9 @@ export function dueScanEntries(detectorVersion: number, limit: number): Promise<
       submittedAt: itchJamEntries.submittedAt,
     })
     .from(itchJamEntries)
-    .innerJoin(itchJams, eq(itchJams.jamId, itchJamEntries.jamId))
     .leftJoin(itchEntryScans, eq(itchEntryScans.entryId, itchJamEntries.entryId))
-    .where(
-      and(
-        isNull(itchJamEntries.missingSince),
-        or(
-          isNull(itchEntryScans.entryId),
-          lt(itchEntryScans.detectorVersion, detectorVersion),
-          sql`${itchEntryScans.coverUrl} IS DISTINCT FROM ${itchJamEntries.gameCoverUrl}`,
-        ),
-      ),
-    )
-    .orderBy(sql`${itchJams.startsAt} desc nulls last`, asc(itchJamEntries.entryId))
+    .where(and(eq(itchJamEntries.jamId, jamId), scanDue(detectorVersion)))
+    .orderBy(asc(itchJamEntries.entryId))
     .limit(limit);
 }
 

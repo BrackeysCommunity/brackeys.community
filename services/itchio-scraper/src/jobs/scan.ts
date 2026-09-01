@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import type { PoolClient } from "pg";
 
 import {
   type EntryFlagKind,
@@ -7,7 +8,7 @@ import {
   itchJamEntries,
 } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
-import { db } from "../db/client.ts";
+import { db, pool } from "../db/client.ts";
 import { describeError } from "../http.ts";
 import { fetchCover, hashCover } from "../scan/cover.ts";
 import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
@@ -15,7 +16,7 @@ import { encodeEmbedding } from "../scan/embedding.ts";
 import { fetchGameTags, matchNsfwTags } from "../scan/game-tags.ts";
 import { initNsfw, NSFW_MODEL, type NsfwResult, nsfwScore } from "../scan/nsfw.ts";
 import { createStopGate, runTier, sleep, type StopGate } from "./runner.ts";
-import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
+import { type DueScanEntry, dueScanEntries, dueScanJams } from "./selectors.ts";
 
 /**
  * SCAN tier — hourly. The automated first pass of jam-entry moderation
@@ -41,8 +42,16 @@ import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
  *
  *   bun run scan
  *
+ * Work is divided jam-by-jam: a worker claims a jam with a Postgres advisory
+ * lock, scans its due entries in order, and releases it. The lock lives on
+ * the shared DB, so any number of processes — the Railway cron and several
+ * laptops draining the backfill at once — split the jams instead of scanning
+ * the same batch twice, and a crashed process's claims release themselves
+ * with its session. Within one jam, order still matters: the near matcher's
+ * comparison pool must contain every predecessor, so a jam is never split.
+ *
  * Env knobs (all optional): SCAN_DELAY_MS, SCAN_DEADLINE_MINS, SCAN_BATCH,
- * NSFW_THRESHOLD, NSFW_ENABLED.
+ * SCAN_PARALLEL, NSFW_THRESHOLD, NSFW_ENABLED.
  */
 
 /** Bump to force a global re-scan (hash algorithm, model, or threshold-shape changes). */
@@ -70,6 +79,27 @@ const NEAR_HAMMING_MAX = 16;
 
 type ScanOutcome = { flagged: number };
 
+/** Advisory-lock namespace for jam claims ("SCAN" in ASCII). */
+const JAM_LOCK_NS = 0x53_43_41_4e;
+
+/** Candidate jams pulled per refill of the shared work feed. */
+const JAM_REFILL_LIMIT = 100;
+
+type Tally = { done: number; failed: number; flagged: number; jams: number };
+
+/**
+ * The shared jam feed the workers draw from. `seen` accumulates every jam a
+ * worker has drawn this tick — claimed, finished, or found locked by another
+ * instance — and refills exclude it, so a jam someone else is scanning is
+ * skipped once instead of spun on, and the feed provably drains.
+ */
+type JamFeed = {
+  queue: number[];
+  seen: Set<number>;
+  exhausted: boolean;
+  refill: Promise<void> | null;
+};
+
 export async function runScan(gate?: StopGate): Promise<number> {
   const stopGate = gate ?? createStopGate("scan", config.SCAN_DEADLINE_MINS);
 
@@ -78,42 +108,111 @@ export async function runScan(gate?: StopGate): Promise<number> {
     console.warn("[scan] NSFW scoring unavailable this tick — hashing and matching continue");
   }
 
-  const due = await dueScanEntries(DETECTOR_VERSION, config.SCAN_BATCH);
-  console.log(`[scan] ${due.length} entries due (batch cap ${config.SCAN_BATCH})`);
-  if (due.length === 0) return 0;
+  // One dedicated session owns every advisory lock this process takes.
+  // Locks are session-scoped: they must not hop pool connections between
+  // queries, and a dying session (crash, dropped connection) releases its
+  // claims so another instance can pick those jams up.
+  const lockSession = await pool.connect();
 
-  // Per-jam hash lists for the near matcher, loaded once per jam and kept
-  // current as the tick hashes new covers. The due list is jam-ordered, so
-  // in practice this holds one or two jams at a time.
-  const jamHashes = new Map<number, HashedEntry[]>();
+  const feed: JamFeed = { queue: [], seen: new Set(), exhausted: false, refill: null };
+  const budget = { remaining: config.SCAN_BATCH };
+  const tally: Tally = { done: 0, failed: 0, flagged: 0, jams: 0 };
 
-  let done = 0;
-  let failed = 0;
-  let flagged = 0;
-  let stopped: string | null = null;
+  console.log(`[scan] batch cap ${config.SCAN_BATCH}, workers ${config.SCAN_PARALLEL}`);
+  try {
+    await Promise.all(
+      Array.from({ length: config.SCAN_PARALLEL }, () =>
+        scanWorker({ gate: stopGate, lock: lockSession, feed, budget, tally, nsfwEnabled }),
+      ),
+    );
+  } finally {
+    lockSession.release();
+  }
 
-  for (const entry of due) {
-    stopped = stopGate.reason();
-    if (stopped) break;
+  const stopped = stopGate.reason();
+  console.log(
+    `[scan] scanned ${tally.done} entries across ${tally.jams} jams, flagged=${tally.flagged}, failed=${tally.failed}${
+      stopped ? ` (stopped early: ${stopped} — next tick resumes)` : ""
+    }`,
+  );
+  return tally.failed;
+}
+
+type WorkerContext = {
+  gate: StopGate;
+  lock: PoolClient;
+  feed: JamFeed;
+  budget: { remaining: number };
+  tally: Tally;
+  nsfwEnabled: boolean;
+};
+
+async function scanWorker(ctx: WorkerContext): Promise<void> {
+  while (!ctx.gate.reason() && ctx.budget.remaining > 0) {
+    const jamId = await nextDueJam(ctx.feed);
+    if (jamId == null) return;
+    if (!(await tryClaimJam(ctx.lock, jamId))) continue;
     try {
-      const outcome = await scanEntry(entry, { nsfwEnabled, jamHashes });
-      flagged += outcome.flagged;
-      done++;
+      await scanJam(jamId, ctx);
+    } finally {
+      await releaseJam(ctx.lock, jamId);
+    }
+  }
+}
+
+/** One claimed jam, scanned in entry order under a fresh per-jam hash cache. */
+async function scanJam(jamId: number, ctx: WorkerContext): Promise<void> {
+  const due = await dueScanEntries(jamId, DETECTOR_VERSION, ctx.budget.remaining);
+  // Empty is normal: another instance finished the jam between our feed
+  // refill and our claim.
+  if (due.length === 0) return;
+  ctx.tally.jams++;
+
+  const scanCtx: ScanContext = { nsfwEnabled: ctx.nsfwEnabled, jamHashes: new Map() };
+  for (const entry of due) {
+    if (ctx.gate.reason() || ctx.budget.remaining <= 0) return;
+    ctx.budget.remaining--;
+    try {
+      const outcome = await scanEntry(entry, scanCtx);
+      ctx.tally.flagged += outcome.flagged;
+      ctx.tally.done++;
     } catch (err) {
-      failed++;
+      ctx.tally.failed++;
       console.error(
         `[scan] FAIL entry ${entry.entryId} (${entry.gameTitle}): ${describeError(err)}`,
       );
     }
     await sleep(config.SCAN_DELAY_MS);
   }
+}
 
-  console.log(
-    `[scan] scanned ${done}/${due.length} entries, flagged=${flagged}, failed=${failed}${
-      stopped ? ` (stopped early: ${stopped} — next tick resumes)` : ""
-    }`,
+async function nextDueJam(feed: JamFeed): Promise<number | null> {
+  for (;;) {
+    const jamId = feed.queue.shift();
+    if (jamId != null) {
+      feed.seen.add(jamId);
+      return jamId;
+    }
+    if (feed.exhausted) return null;
+    feed.refill ??= dueScanJams(DETECTOR_VERSION, JAM_REFILL_LIMIT, [...feed.seen]).then((ids) => {
+      if (ids.length === 0) feed.exhausted = true;
+      feed.queue.push(...ids);
+      feed.refill = null;
+    });
+    await feed.refill;
+  }
+}
+
+async function tryClaimJam(lock: PoolClient, jamId: number): Promise<boolean> {
+  const res = await lock.query<{ locked: boolean }>(
+    "select pg_try_advisory_lock($1, $2) as locked",
+    [JAM_LOCK_NS, jamId],
   );
-  return failed;
+  return res.rows[0]?.locked === true;
+}
+
+async function releaseJam(lock: PoolClient, jamId: number): Promise<void> {
+  await lock.query("select pg_advisory_unlock($1, $2)", [JAM_LOCK_NS, jamId]);
 }
 
 type ScanContext = {

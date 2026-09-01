@@ -86,6 +86,12 @@ const schema = z.object({
   // submissions always beat backfill; stopping at the cap is free because
   // due-ness is per entry and the next tick resumes.
   SCAN_BATCH: z.coerce.number().int().positive().default(1500),
+  // Concurrent scan workers, each claiming whole jams via advisory locks so
+  // parallel workers — and parallel machines — never share a jam. Requests
+  // still ride the global pacer, so extra workers overlap inference and DB
+  // time with network waits rather than multiplying the request rate. The
+  // default keeps the Railway cron serial; local backfill runs raise it.
+  SCAN_PARALLEL: z.coerce.number().int().positive().default(1),
   // Minimum sexual-category score (softmax contrast — see scan/nsfw.ts)
   // that opens a flag; gore never flags. Calibrated on real covers: benign
   // art tops out around 0.43, the weakest true positive measured 0.70.
