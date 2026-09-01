@@ -11,6 +11,7 @@ import { db } from "../db/client.ts";
 import { describeError } from "../http.ts";
 import { fetchCover, hashCover } from "../scan/cover.ts";
 import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
+import { encodeEmbedding } from "../scan/embedding.ts";
 import { fetchGameTags, matchNsfwTags } from "../scan/game-tags.ts";
 import { initNsfw, NSFW_MODEL, type NsfwResult, nsfwScore } from "../scan/nsfw.ts";
 import { createStopGate, runTier, sleep, type StopGate } from "./runner.ts";
@@ -53,7 +54,11 @@ import { type DueScanEntry, dueScanEntries } from "./selectors.ts";
 //     never flags; the stored score is now the sexual category, not the max.
 //     creator-tag signal — each scan also reads the game's public data.json,
 //     and self-set adult tags flag as nsfw on their own.
-export const DETECTOR_VERSION = 6;
+// v7: photographic/painterly safe anchors (face close-ups, product shots,
+//     even a grayscale door drawing were topping 90% — the only "photo of…"
+//     hypotheses were the flag prompts). First version to persist cover
+//     embeddings, so later prompt/threshold changes rescore from the DB.
+export const DETECTOR_VERSION = 7;
 
 /**
  * Bits of dHash drift tolerated by the within-jam near matcher. 128-bit
@@ -130,7 +135,13 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   const nsfwTags = tags == null ? null : matchNsfwTags(tags);
 
   if (!entry.gameCoverUrl) {
-    await upsertScan(entry.entryId, { coverUrl: null, coverPhash: null, nsfwScore: null });
+    await upsertScan(entry.entryId, {
+      coverUrl: null,
+      coverPhash: null,
+      nsfwScore: null,
+      coverEmbedding: null,
+      embeddingModel: null,
+    });
     const flagged = await flagCoverlessNsfw(entry, nsfwTags, fired);
     return { flagged };
   }
@@ -143,6 +154,8 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
       coverUrl: entry.gameCoverUrl,
       coverPhash: null,
       nsfwScore: null,
+      coverEmbedding: null,
+      embeddingModel: null,
     });
     const flagged = await flagCoverlessNsfw(entry, nsfwTags, fired);
     return { flagged };
@@ -154,6 +167,8 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
     coverUrl: entry.gameCoverUrl,
     coverPhash: phash,
     nsfwScore: nsfw?.score ?? null,
+    coverEmbedding: nsfw?.embedding ? encodeEmbedding(nsfw.embedding) : null,
+    embeddingModel: nsfw?.embedding ? NSFW_MODEL : null,
   });
 
   const nsfwFlag = await flagNsfw(entry, nsfw, nsfwTags);
@@ -262,7 +277,13 @@ async function clearStaleAutoFlags(
 
 function upsertScan(
   entryId: number,
-  values: { coverUrl: string | null; coverPhash: string | null; nsfwScore: number | null },
+  values: {
+    coverUrl: string | null;
+    coverPhash: string | null;
+    nsfwScore: number | null;
+    coverEmbedding: Buffer | null;
+    embeddingModel: string | null;
+  },
 ) {
   return db
     .insert(itchEntryScans)

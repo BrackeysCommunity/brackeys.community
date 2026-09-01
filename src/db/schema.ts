@@ -4,6 +4,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  bytea,
   check,
   index,
   integer,
@@ -918,13 +919,20 @@ export const itchEntryScans = itchSchema.table(
     // so `game_cover_url IS DISTINCT FROM cover_url` is the cheap "cover
     // swapped after submission" re-scan trigger — itself a mild signal.
     coverUrl: text("cover_url"),
-    // Perceptual hash (64-bit dHash, 16 hex chars) of that cover; null
+    // Perceptual hash (128-bit dHash, 32 hex chars) of that cover; null
     // when the entry has no cover.
     coverPhash: text("cover_phash"),
     // Raw classifier output (the sexual-category score since detector v5),
     // kept so a threshold change re-flags with a SQL pass instead of
     // re-running inference over the corpus.
     nsfwScore: real("nsfw_score"),
+    // The cover's L2-normalized SigLIP2 image embedding (fp16 little-endian,
+    // 768 dims → 1536 bytes; codec in the scraper's scan/embedding.ts), and
+    // the model id that produced it. Together with nsfw_score this makes
+    // prompt/anchor/category changes a DB-only rescore — only swapping the
+    // image encoder itself (embedding_model changes) forces a cover re-fetch.
+    coverEmbedding: bytea("cover_embedding"),
+    embeddingModel: text("embedding_model"),
     // Bump the constant in the scan job to force a global re-scan.
     detectorVersion: integer("detector_version").notNull(),
     scannedAt: timestamp("scanned_at", { withTimezone: true }).defaultNow().notNull(),

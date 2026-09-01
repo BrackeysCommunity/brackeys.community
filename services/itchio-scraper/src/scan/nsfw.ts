@@ -56,6 +56,13 @@ export type NsfwResult = {
   score: number;
   /** All category scores, kept as evidence; gore never flags on its own. */
   categories: Record<NsfwCategory, number>;
+  /**
+   * The cover's L2-normalized image embedding (768 dims), persisted so
+   * prompt/threshold changes re-score from the DB without re-fetching the
+   * cover (see scan/embedding.ts). Null only if the ONNX graph ever stops
+   * exposing `image_embeds`.
+   */
+  embedding: Float32Array | null;
 };
 
 const CATEGORY_PROMPTS: Record<NsfwCategory, string[]> = {
@@ -93,6 +100,19 @@ const SAFE_PROMPTS = [
   "a cute cartoon heart",
   "an anatomical diagram of a human heart",
   "a person with a black censor bar over their face",
+  // Photographic and painterly covers. Before these, the only "a photo of…"
+  // hypotheses in the contrast were the flag prompts themselves, so any
+  // photo-styled cover leaked there — face close-ups scored 83–99% sexual,
+  // a product shot of a cocktail 79%, and a grayscale drawing of a door 95%.
+  // Each measured against real flagged covers at the scanner's 315x250 crop
+  // (scores differ sharply from the original image — calibrate on the crop).
+  "a close-up photograph of a person's face",
+  "a photograph of an old man with long hair and a beard",
+  "a photograph of a drink in a glass",
+  "a photograph of an everyday object",
+  "a drawing of a door in a stone wall",
+  "a surreal painting of a woman with long hair",
+  "a dark video game menu screen with buttons",
 ];
 
 const ALL_PROMPTS = [...Object.values(CATEGORY_PROMPTS).flat(), ...SAFE_PROMPTS];
@@ -164,8 +184,29 @@ export async function nsfwScore(bytes: Uint8Array): Promise<NsfwResult | null> {
     const logits = Array.from(output.logits_per_image.data as Float32Array);
     if (logits.length !== PROMPT_COUNT) return null;
     const categories = contrastCategories(logits);
-    return { score: categories.sexual, categories };
+    const embedding = imageEmbedding(output);
+    return { score: categories.sexual, categories, embedding };
   } catch {
     return null;
   }
+}
+
+/**
+ * The graph's pooled image embedding, verified L2-normalized on output (the
+ * export normalizes before the logit head; the check guards a future export
+ * that doesn't). Missing or misshapen output degrades to null — the score
+ * still stands, the entry just can't join a DB-only rescore.
+ */
+function imageEmbedding(output: Record<string, unknown>): Float32Array | null {
+  const embeds = output["image_embeds"] as { data?: unknown; dims?: number[] } | undefined;
+  if (!(embeds?.data instanceof Float32Array) || embeds.data.length === 0) return null;
+  const vec = embeds.data.slice();
+  let sumSq = 0;
+  for (const x of vec) sumSq += x * x;
+  if (!Number.isFinite(sumSq) || sumSq === 0) return null;
+  const norm = Math.sqrt(sumSq);
+  if (Math.abs(norm - 1) > 1e-3) {
+    for (let i = 0; i < vec.length; i++) vec[i] = (vec[i] ?? 0) / norm;
+  }
+  return vec;
 }
