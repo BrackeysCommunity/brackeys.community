@@ -237,7 +237,7 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   // The jam entry's cover first; when that is gone (jam entry lists freeze
   // once a jam is terminal, and itch garbage-collects replaced covers), fall
   // back to the live cover from data.json. `live` carries whichever URL the
-  // bytes actually came from, for flag evidence a mod can still open.
+  // bytes actually came from.
   let live = entry;
   let bytes = entry.gameCoverUrl ? await fetchCover(entry.gameCoverUrl) : null;
   if (!bytes && game?.coverImage && game.coverImage !== entry.gameCoverUrl) {
@@ -246,6 +246,18 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
       bytes = fresh;
       live = { ...entry, gameCoverUrl: game.coverImage };
     }
+  }
+
+  if (live !== entry) {
+    // Adopt the live URL on the entry itself — the frozen one renders as a
+    // broken image everywhere the site shows this cover, and this scan is
+    // the only process that ever learns the replacement. Before the scan
+    // row: if the tick dies between the two writes, the entry stays due and
+    // the next pass takes the fallback path again.
+    await db
+      .update(itchJamEntries)
+      .set({ gameCoverUrl: live.gameCoverUrl })
+      .where(eq(itchJamEntries.entryId, entry.entryId));
   }
 
   if (!bytes) {
@@ -264,11 +276,10 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
 
   const phash = await hashCover(bytes);
   const nsfw = ctx.nsfwEnabled ? await nsfwScore(bytes) : null;
-  // Always the entry-list URL, even when the bytes came from the fallback:
-  // due-ness compares this column against the entry list, and recording the
-  // data.json URL would leave the entry due forever.
+  // Matches the entry row (updated above on fallback) — due-ness compares
+  // the two, so they must agree or the entry stays due forever.
   await upsertScan(entry.entryId, {
-    coverUrl: entry.gameCoverUrl,
+    coverUrl: live.gameCoverUrl,
     coverPhash: phash,
     nsfwScore: nsfw?.score ?? null,
     coverEmbedding: nsfw?.embedding ? encodeEmbedding(nsfw.embedding) : null,
