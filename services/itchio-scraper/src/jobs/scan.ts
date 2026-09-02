@@ -9,7 +9,7 @@ import {
 } from "../../../../src/db/schema.ts";
 import { config } from "../config.ts";
 import { db, pool } from "../db/client.ts";
-import { describeError, HttpStatusError } from "../http.ts";
+import { describeError } from "../http.ts";
 import { fetchCover, hashCover } from "../scan/cover.ts";
 import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
 import { encodeEmbedding } from "../scan/embedding.ts";
@@ -92,10 +92,17 @@ type Tally = { done: number; failed: number; flagged: number; jams: number };
  * worker has drawn this tick — claimed, finished, or found locked by another
  * instance — and refills exclude it, so a jam someone else is scanning is
  * skipped once instead of spun on, and the feed provably drains.
+ *
+ * When a refill comes back empty, `sweepsLeft` grants one fresh pass with
+ * `seen` cleared before the feed calls itself exhausted: entries that failed
+ * transiently and jams another instance held are still due, and get one
+ * more look — the same one-retry shape as syncSlugs. A clean drain pays one
+ * extra empty query.
  */
 type JamFeed = {
   queue: number[];
   seen: Set<number>;
+  sweepsLeft: number;
   exhausted: boolean;
   refill: Promise<void> | null;
 };
@@ -114,7 +121,13 @@ export async function runScan(gate?: StopGate): Promise<number> {
   // claims so another instance can pick those jams up.
   const lockSession = await pool.connect();
 
-  const feed: JamFeed = { queue: [], seen: new Set(), exhausted: false, refill: null };
+  const feed: JamFeed = {
+    queue: [],
+    seen: new Set(),
+    sweepsLeft: 1,
+    exhausted: false,
+    refill: null,
+  };
   const budget = { remaining: config.SCAN_BATCH };
   const tally: Tally = { done: 0, failed: 0, flagged: 0, jams: 0 };
 
@@ -195,7 +208,14 @@ async function nextDueJam(feed: JamFeed): Promise<number | null> {
     }
     if (feed.exhausted) return null;
     feed.refill ??= dueScanJams(DETECTOR_VERSION, JAM_REFILL_LIMIT, [...feed.seen]).then((ids) => {
-      if (ids.length === 0) feed.exhausted = true;
+      if (ids.length === 0) {
+        if (feed.sweepsLeft > 0) {
+          feed.sweepsLeft--;
+          feed.seen.clear();
+        } else {
+          feed.exhausted = true;
+        }
+      }
       feed.queue.push(...ids);
       feed.refill = null;
     });
@@ -234,24 +254,14 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
   const game = await fetchGameData(entry.gameUrl);
   const nsfwTags = game == null ? null : matchNsfwTags(game.tags);
 
-  // The jam entry's cover first; when that is gone (404 — jam entry lists
-  // freeze once a jam is terminal, so replaced covers go stale) or the CDN's
-  // bot gate 403s it, fall back to the live cover from data.json. `live`
-  // carries whichever URL the bytes actually came from. A 403 the fallback
-  // couldn't rescue rethrows so the entry stays due — unlike a 404 it says
-  // nothing about the cover, and recording it would freeze a scannable
-  // entry as coverless.
+  // The jam entry's cover first; when that is gone (jam entry lists freeze
+  // once a jam is terminal, so replaced covers rot — and deleted games take
+  // their covers with them), fall back to the live cover from data.json.
+  // `live` carries whichever URL the bytes actually came from. Nothing to
+  // fall back on (deleted game) records as coverless below instead of
+  // failing: the gone-ness is as permanent as a 404's.
   let live = entry;
-  let bytes: Uint8Array | null = null;
-  let blocked: unknown = null;
-  if (entry.gameCoverUrl) {
-    try {
-      bytes = await fetchCover(entry.gameCoverUrl);
-    } catch (err) {
-      if (!(err instanceof HttpStatusError && err.status === 403)) throw err;
-      blocked = err;
-    }
-  }
+  let bytes = entry.gameCoverUrl ? await fetchCover(entry.gameCoverUrl) : null;
   if (!bytes && game?.coverImage && game.coverImage !== entry.gameCoverUrl) {
     const fresh = await fetchCover(game.coverImage);
     if (fresh) {
@@ -259,7 +269,6 @@ async function scanEntry(entry: DueScanEntry, ctx: ScanContext): Promise<ScanOut
       live = { ...entry, gameCoverUrl: game.coverImage };
     }
   }
-  if (!bytes && blocked != null) throw blocked;
 
   if (live !== entry) {
     // Adopt the live URL on the entry itself — the frozen one is the art
