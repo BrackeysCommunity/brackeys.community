@@ -15,11 +15,15 @@ import { listingMeta, ogCardPath } from "@/lib/site-meta";
 //                  `team`/`project` preselect in the wizard instead of
 //                  filtering the board (the jam modal's "FIND A TEAM",
 //                  the team page's "POST AN OPENING", and the project
-//                  page's "RECRUIT" CTAs send those pairs).
+//                  page's "RECRUIT" CTAs send those pairs), and
+//                  `flow=wizard` opens the five-step wizard instead of
+//                  the one-screen post — a tester's escape hatch for one
+//                  release.
 //   `?post=<id>`   opens the post detail popover so direct links land on
 //                  the right post
 const searchSchema = z.object({
   new: z.boolean().optional(),
+  flow: z.enum(["wizard"]).optional(),
   post: z.coerce.number().int().positive().optional(),
   type: z.enum(["paid", "hobby"]).optional(),
   status: z.enum(["recruiting", "party_full"]).optional(),

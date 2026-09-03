@@ -1,18 +1,27 @@
 import { useStore } from "@tanstack/react-store";
+import { useState } from "react";
 
+import { CollabQuickPostForm } from "@/components/collab/CollabQuickPost/CollabQuickPostForm";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { authStore } from "@/lib/auth-store";
+import { collabStore } from "@/lib/collab-store";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 
 import { CollabCreateForm } from "./CollabCreateForm";
 import { CollabCreateUnauth } from "./CollabCreateUnauth";
 
+/** Which create surface the drawer opens on. Edits always use the wizard. */
+export type CollabCreateSurface = "quick" | "wizard";
+
 export interface CollabCreateFlyoutProps {
   open: boolean;
   onClose: () => void;
   /** Called with the post id once the create/update mutation resolves. */
   onCreated?: (postId: number) => void;
+  /** The create surface: the one-screen post by default, the five-step
+   *  wizard behind the `?flow=wizard` hatch. */
+  surface?: CollabCreateSurface;
 }
 
 /**
@@ -22,7 +31,12 @@ export interface CollabCreateFlyoutProps {
  * carries no close button of its own; the draft is auto-saved, so
  * dismissing never costs work.
  */
-export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFlyoutProps) {
+export function CollabCreateFlyout({
+  open,
+  onClose,
+  onCreated,
+  surface = "quick",
+}: CollabCreateFlyoutProps) {
   const { session, isPending } = useStore(authStore);
   const isMobile = useIsMobile();
   useReleaseFocusOnOpen(open);
@@ -57,8 +71,9 @@ export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFly
         ) : (
           /* Keyed on `open` so each opening mounts a fresh form — that's
              what re-runs the draft restore and re-seeds an edit. */
-          <CollabCreateForm
+          <CollabCreateBody
             key={open ? "open" : "closed"}
+            surface={surface}
             onCreated={(id) => {
               onCreated?.(id);
               onClose();
@@ -67,5 +82,27 @@ export function CollabCreateFlyout({ open, onClose, onCreated }: CollabCreateFly
         )}
       </DrawerContent>
     </Drawer>
+  );
+}
+
+/**
+ * The quick screen for a new post, the wizard for an edit or when asked.
+ * The quick screen's own FULL FORM control flips to the wizard for this
+ * opening only — the draft is shared, so nothing typed is lost.
+ */
+function CollabCreateBody({
+  surface,
+  onCreated,
+}: {
+  surface: CollabCreateSurface;
+  onCreated: (postId: number) => void;
+}) {
+  const editing = useStore(collabStore, (s) => s.wizard.editingPostId !== null);
+  const [wizardRequested, setWizardRequested] = useState(false);
+  if (editing || surface === "wizard" || wizardRequested) {
+    return <CollabCreateForm onCreated={onCreated} />;
+  }
+  return (
+    <CollabQuickPostForm onCreated={onCreated} onSwitchToWizard={() => setWizardRequested(true)} />
   );
 }

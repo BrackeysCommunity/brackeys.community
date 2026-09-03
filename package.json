@@ -44,7 +44,7 @@
     "railway:scraper:drain": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper drain'",
     "railway:scraper:backfill": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper backfill'",
     "railway:scraper:resync": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" bun run --cwd services/itchio-scraper resync'",
-    "railway:scraper:scan": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" SCAN_PARALLEL=10 SCAN_BATCH=100000 SCAN_DEADLINE_MINS=1440 bun run --cwd services/itchio-scraper scan'"
+    "railway:scraper:scan": "railway run --service TimescaleDB -- sh -c 'DATABASE_URL=\"$DATABASE_PUBLIC_URL\" SCAN_PARALLEL=20 SCAN_BATCH=100000 SCAN_DEADLINE_MINS=1440 bun run --cwd services/itchio-scraper scan'"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { collabStore, setWizardStep } from "@/lib/collab-store";
+import { setWizardStep } from "@/lib/collab-store";
 import { CONTACT_TYPE_LABELS } from "@/lib/collab-vocabulary";
 import { formatRate } from "@/lib/format-rate";
 import { useRolesCatalog, useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
@@ -46,8 +46,6 @@ export function StepReview() {
     staleTime: STALE.listing,
   });
 
-  const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
-
   const selectedRoles = roles?.filter((r) => v.roleIds.includes(r.id)) ?? [];
   const selectedSkills = allSkills?.filter((s) => v.skillIds.includes(s.id)) ?? [];
   const jam = jamData?.jams.find((j) => j.jamId === v.jamId) ?? null;
@@ -61,15 +59,13 @@ export function StepReview() {
   const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
 
-  const checks = getPreflightChecks(v, { legacyUnlinkedEdit: editingLegacyUnlinked });
+  const checks = getPreflightChecks(v);
   const completed = checks.filter((c) => c.ok).length;
   const percent = Math.round((completed / checks.length) * 100);
 
   const contactDisplay = v.contactMethod
     ? `${v.contactType ? (CONTACT_TYPE_LABELS[v.contactType] ?? v.contactType) + ": " : ""}${v.contactMethod}`
-    : v.isIndividual
-      ? "Discord DM (via your profile)"
-      : null;
+    : "Discord DM (via your profile)";
 
   return (
     <div className="flex flex-col gap-5">
@@ -204,7 +200,12 @@ export function StepReview() {
             </Text>
           </>
         ) : (
-          <Absence>no team picked yet</Absence>
+          <>
+            <Text size="sm">A team, unnamed for now</Text>
+            <Text size="xs" variant="muted" className="tracking-widest uppercase">
+              Start the crew when you accept someone
+            </Text>
+          </>
         )}
         {jam ? (
           <Text size="xs" variant="muted" className="tracking-widest">
@@ -243,11 +244,7 @@ export function StepReview() {
       </FieldRow>
 
       <FieldRow label="CONTACT">
-        {contactDisplay ? (
-          <Text size="xs">{contactDisplay}</Text>
-        ) : (
-          <Absence>no contact method yet</Absence>
-        )}
+        <Text size="xs">{contactDisplay}</Text>
       </FieldRow>
     </div>
   );

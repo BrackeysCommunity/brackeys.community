@@ -7,15 +7,17 @@ import {
 } from "@/components/collab/collab-filters";
 import {
   getPreflightChecks,
+  getQuickFieldErrors,
   getStepValidationError,
   projectLengthForJam,
   projectPrefillValues,
   type PickableProject,
+  type QuickFieldErrors,
   type WizardFormValues,
 } from "@/components/collab/CollabCreateFlyout/shared";
 import { draftFromPost, isEditablePostType } from "@/lib/collab-store";
 import router from "@/orpc/router";
-import { assertTeamRequired, postContentSchema, stripContact } from "@/orpc/router/collab";
+import { postContentSchema, stripContact } from "@/orpc/router/collab";
 
 /** A payload that satisfies every requirement, for tests to break one at a time. */
 function validPost(overrides: Record<string, unknown> = {}) {
@@ -50,6 +52,11 @@ describe("collab router surface", () => {
     expect(router.listMyResponses).toBeDefined();
     expect(router.listMyPostsSummary).toBeDefined();
   });
+
+  it("registers the publish-first strengthen and accept procedures", () => {
+    expect(router.updatePostLinks).toBeDefined();
+    expect(router.acceptAndInvite).toBeDefined();
+  });
 });
 
 describe("createPost / updatePost input schema", () => {
@@ -81,8 +88,11 @@ describe("createPost / updatePost input schema", () => {
     expect(postContentSchema.safeParse(validPost({ description: "short" })).success).toBe(false);
   });
 
-  it("rejects a post with no platforms", () => {
-    expect(postContentSchema.safeParse(validPost({ platforms: [] })).success).toBe(false);
+  it("accepts a post with no platforms — the board reads that as any", () => {
+    expect(postContentSchema.safeParse(validPost({ platforms: [] })).success).toBe(true);
+    const input = validPost();
+    delete (input as Record<string, unknown>).platforms;
+    expect(postContentSchema.safeParse(input).success).toBe(true);
   });
 
   it("rejects a post with no roles", () => {
@@ -90,26 +100,37 @@ describe("createPost / updatePost input schema", () => {
   });
 
   it.each(["projectLength", "experienceLevel", "projectName"])(
-    "rejects a post missing %s",
+    "accepts a post missing %s — a post-publish upgrade, not a gate",
     (field) => {
       const input = validPost();
       delete (input as Record<string, unknown>)[field];
-      expect(postContentSchema.safeParse(input).success).toBe(false);
+      expect(postContentSchema.safeParse(input).success).toBe(true);
     },
   );
 
-  it("requires contact details on a team post", () => {
-    const input = validPost();
-    delete (input as Record<string, unknown>).contactType;
-    delete (input as Record<string, unknown>).contactMethod;
-    expect(postContentSchema.safeParse(input).success).toBe(false);
+  it("still bounds a project name when one is given", () => {
+    expect(postContentSchema.safeParse(validPost({ projectName: "ab" })).success).toBe(false);
   });
 
-  it("lets a solo post omit contact details, since a DM is the fallback", () => {
-    const input = validPost({ isIndividual: true });
-    delete (input as Record<string, unknown>).contactType;
-    delete (input as Record<string, unknown>).contactMethod;
-    expect(postContentSchema.safeParse(input).success).toBe(true);
+  it.each([false, true])(
+    "lets a post omit contact details (isIndividual=%s) — an accepted responder gets the Discord handoff",
+    (isIndividual) => {
+      const input = validPost({ isIndividual });
+      delete (input as Record<string, unknown>).contactType;
+      delete (input as Record<string, unknown>).contactMethod;
+      expect(postContentSchema.safeParse(input).success).toBe(true);
+    },
+  );
+
+  it("accepts the five-field quick post", () => {
+    expect(
+      postContentSchema.safeParse({
+        type: "hobby",
+        title: "Pixel artist for a PSX horror RPG",
+        description: "A short atmospheric horror RPG in the PSX style. Looking for a pixel artist.",
+        roleIds: [1],
+      }).success,
+    ).toBe(true);
   });
 
   // ── Compensation ────────────────────────────────────────────────────
@@ -158,32 +179,24 @@ describe("createPost / updatePost input schema", () => {
   });
 });
 
-// ── Required linkage (v2): solo/team × linked/legacy × create/edit ────
+// ── Team linkage: unlinked is normal, solo + team is contradictory ────
 
-describe("assertTeamRequired", () => {
-  const linked = { isIndividual: false, teamId: "t1" };
-  const legacyUnlinked = { isIndividual: false, teamId: null };
-  const solo = { isIndividual: true, teamId: null };
-
-  it("lets solo posts and linked team posts through", () => {
-    expect(() => assertTeamRequired({ isIndividual: true })).not.toThrow();
-    expect(() => assertTeamRequired({ teamId: "t1" })).not.toThrow();
+describe("team linkage in the post payload", () => {
+  it("accepts an unlinked team post — the crew is attached at accept time", () => {
+    expect(postContentSchema.safeParse(validPost({ isIndividual: false })).success).toBe(true);
+    expect(
+      postContentSchema.safeParse(validPost({ isIndividual: false, teamId: null })).success,
+    ).toBe(true);
   });
 
-  it("rejects creating an unlinked team post", () => {
-    expect(() => assertTeamRequired({})).toThrow(/team page/i);
-    expect(() => assertTeamRequired({ isIndividual: false, teamId: null })).toThrow(/team page/i);
+  it("accepts solo posts and linked team posts", () => {
+    expect(postContentSchema.safeParse(validPost({ isIndividual: true })).success).toBe(true);
+    expect(postContentSchema.safeParse(validPost({ teamId: "t1" })).success).toBe(true);
   });
 
-  it("exempts editing a legacy unlinked team post", () => {
-    expect(() => assertTeamRequired({ teamId: null }, legacyUnlinked)).not.toThrow();
-  });
-
-  it("won't let an edit unlink a linked post or flip solo→team without a link", () => {
-    expect(() => assertTeamRequired({ teamId: null }, linked)).toThrow(/team page/i);
-    expect(() => assertTeamRequired({ isIndividual: false, teamId: null }, solo)).toThrow(
-      /team page/i,
-    );
+  it("still refuses a solo post that also names a team", () => {
+    const parsed = postContentSchema.safeParse(validPost({ isIndividual: true, teamId: "t1" }));
+    expect(parsed.success).toBe(false);
   });
 });
 
@@ -244,8 +257,8 @@ describe("wizard step validation", () => {
     ).toBeNull();
   });
 
-  it("requires a team post to pick or name a team", () => {
-    expect(getStepValidationError("team", validWizardValues({ newTeamName: "" }))).not.toBeNull();
+  it("lets a team post leave the team for later — but still validates a typed name", () => {
+    expect(getStepValidationError("team", validWizardValues({ newTeamName: "" }))).toBeNull();
     expect(getStepValidationError("team", validWizardValues({ newTeamName: "x" }))).not.toBeNull();
   });
 
@@ -261,23 +274,11 @@ describe("wizard step validation", () => {
     ).toBeNull();
   });
 
-  it("exempts a legacy unlinked edit — but still validates a typed name", () => {
-    const legacy = { legacyUnlinkedEdit: true };
-    expect(
-      getStepValidationError("team", validWizardValues({ newTeamName: "" }), legacy),
-    ).toBeNull();
-    expect(
-      getStepValidationError("team", validWizardValues({ newTeamName: "x" }), legacy),
-    ).not.toBeNull();
-  });
-
   it("re-checks the team step at review", () => {
-    expect(getStepValidationError("review", validWizardValues({ newTeamName: "" }))).not.toBeNull();
     expect(
-      getStepValidationError("review", validWizardValues({ newTeamName: "" }), {
-        legacyUnlinkedEdit: true,
-      }),
-    ).toBeNull();
+      getStepValidationError("review", validWizardValues({ newTeamName: "x" })),
+    ).not.toBeNull();
+    expect(getStepValidationError("review", validWizardValues({ newTeamName: "" }))).toBeNull();
   });
 
   it("requires at least one role — the step used to be silently optional", () => {
@@ -286,10 +287,21 @@ describe("wizard step validation", () => {
 
   it("re-checks earlier steps at review, so submit can't be reached around them", () => {
     expect(getStepValidationError("review", validWizardValues({ roleIds: [] }))).not.toBeNull();
-    expect(getStepValidationError("review", validWizardValues({ platforms: [] }))).not.toBeNull();
-    expect(
-      getStepValidationError("review", validWizardValues({ contactMethod: "" })),
-    ).not.toBeNull();
+    expect(getStepValidationError("review", validWizardValues({ title: "short" }))).not.toBeNull();
+  });
+
+  // The terms and the project name are post-publish upgrades: the server
+  // accepts a post without them, so no step may refuse one either.
+  it("gates nothing on platforms, timeline, experience, contact, or project name", () => {
+    for (const partial of [
+      { platforms: [] },
+      { projectLength: undefined },
+      { experienceLevel: undefined },
+      { contactMethod: "", contactType: undefined },
+      { projectName: "" },
+    ] satisfies Partial<WizardFormValues>[]) {
+      expect(getStepValidationError("review", validWizardValues(partial))).toBeNull();
+    }
   });
 
   it("requires a compensation range on paid posts, matching the server", () => {
@@ -302,29 +314,42 @@ describe("wizard step validation", () => {
     ).toBeNull();
   });
 
-  // The PROJECT step describes the project entity and nothing else, so
-  // the post's own terms have to gate on BASICS or they gate nowhere.
-  it("gates the post's terms on basics, not on the project step", () => {
-    for (const partial of [
-      { platforms: [] },
-      { projectLength: undefined },
-      { experienceLevel: undefined },
-      { contactMethod: "" },
-    ] satisfies Partial<WizardFormValues>[]) {
+  // ── The quick screen: one step, the same gates ─────────────────────
+
+  it("passes the quick screen with the five fields alone", () => {
+    const v = validWizardValues({
+      newTeamName: "",
+      projectName: "",
+      platforms: [],
+      projectLength: undefined,
+      experienceLevel: undefined,
+      contactType: undefined,
+      contactMethod: "",
+    });
+    expect(getStepValidationError("quick", v)).toBeNull();
+    expect(getQuickFieldErrors(v)).toEqual({});
+  });
+
+  it("blocks the quick screen on exactly what the server would refuse", () => {
+    const cases: [Partial<WizardFormValues>, keyof QuickFieldErrors][] = [
+      [{ roleIds: [] }, "roles"],
+      [{ title: "short" }, "title"],
+      [{ description: "short" }, "description"],
+      [{ type: undefined }, "type"],
+      [{ type: "paid" }, "compensation"],
+      [{ title: "shit shit shit shit" }, "title"],
+    ];
+    for (const [partial, field] of cases) {
       const v = validWizardValues(partial);
-      expect(getStepValidationError("basics", v)).not.toBeNull();
-      expect(getStepValidationError("details", v)).toBeNull();
+      const errors = getQuickFieldErrors(v);
+      expect(Object.keys(errors)).toEqual([field]);
+      expect(getStepValidationError("quick", v)).toBe(errors[field]);
     }
   });
 
-  it("still gates a free-text project name on the project step", () => {
-    expect(
-      getStepValidationError("details", validWizardValues({ projectName: "" })),
-    ).not.toBeNull();
-    // A linked project owns the name, so the readout can't be a gate.
-    expect(
-      getStepValidationError("details", validWizardValues({ projectName: "", projectId: "p1" })),
-    ).toBeNull();
+  it("reads the quick screen's errors in field order", () => {
+    const v = validWizardValues({ roleIds: [], title: "" });
+    expect(getStepValidationError("quick", v)).toMatch(/role/i);
   });
 });
 
@@ -338,15 +363,26 @@ describe("pre-flight checklist", () => {
   it("drops below 100% for anything that would block submit", () => {
     for (const partial of [
       { roleIds: [] },
-      { platforms: [] },
-      { projectName: "" },
       { title: "short" },
-      { contactMethod: "" },
-      { newTeamName: "" },
+      { type: "paid" },
+      { newTeamName: "x" },
     ] satisfies Partial<WizardFormValues>[]) {
       const v = validWizardValues(partial);
       expect(getPreflightChecks(v).every((c) => c.ok)).toBe(false);
       expect(getStepValidationError("review", v)).not.toBeNull();
+    }
+  });
+
+  it("stays at 100% for the upgrades submit no longer needs", () => {
+    for (const partial of [
+      { platforms: [] },
+      { projectName: "" },
+      { contactMethod: "", contactType: undefined },
+      { newTeamName: "" },
+    ] satisfies Partial<WizardFormValues>[]) {
+      const v = validWizardValues(partial);
+      expect(getPreflightChecks(v).every((c) => c.ok)).toBe(true);
+      expect(getStepValidationError("review", v)).toBeNull();
     }
   });
 });
@@ -616,23 +652,26 @@ describe("projectPrefillValues", () => {
   });
 });
 
-describe("a linked project owns the post's project name", () => {
-  it("stops gating on the name the user cannot edit", () => {
-    // Without a link, a too-short name is a real block…
-    const typed = validWizardValues({ projectName: "ab" });
-    expect(getStepValidationError("details", typed)).toMatch(/at least 3/);
-    // …with one, the field is a readout fed by the canonical row, so it
+describe("the project name is optional, and a linked project owns it", () => {
+  it("gates only a typed name the server would refuse — never a blank or a linked one", () => {
+    expect(getStepValidationError("details", validWizardValues({ projectName: "ab" }))).toMatch(
+      /at least 3/,
+    );
+    expect(getStepValidationError("details", validWizardValues({ projectName: "" }))).toBeNull();
+    // With a link the field is a readout fed by the canonical row, so it
     // must never be what stands between the user and SUBMIT.
     const linked = validWizardValues({ projectName: "ab", projectId: "proj-1" });
     expect(getStepValidationError("details", linked)).toBeNull();
     expect(getStepValidationError("review", linked)).toBeNull();
   });
 
-  it("keeps the pre-flight row satisfied and relabels it", () => {
-    const linked = validWizardValues({ projectName: "", projectId: "proj-1" });
-    const row = getPreflightChecks(linked).find((c) => c.tabId === "project" && c.ok);
-    expect(row?.label).toBe("Project linked");
-    const unlinked = getPreflightChecks(validWizardValues({ projectName: "" }));
-    expect(unlinked.find((c) => c.label === "Project named")?.ok).toBe(false);
+  it("appears on the pre-flight only once a name is typed", () => {
+    const blank = getPreflightChecks(validWizardValues({ projectName: "" }));
+    expect(blank.some((c) => c.tabId === "project")).toBe(false);
+    const typed = getPreflightChecks(validWizardValues({ projectName: "ab" }));
+    expect(typed.find((c) => c.tabId === "project")?.ok).toBe(false);
+    expect(
+      getStepValidationError("review", validWizardValues({ projectName: "ab" })),
+    ).not.toBeNull();
   });
 });

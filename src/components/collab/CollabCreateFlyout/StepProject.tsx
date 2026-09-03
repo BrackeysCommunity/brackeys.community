@@ -91,8 +91,8 @@ export function StepProject() {
             </FieldRow>
           ) : (
             <TextField
-              label="PROJECT NAME *"
-              hint="working title is fine"
+              label="PROJECT NAME"
+              hint="optional · a working title is fine"
               value={field.state.value}
               onChange={field.handleChange}
               onBlur={field.handleBlur}

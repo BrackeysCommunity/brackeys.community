@@ -22,3 +22,21 @@ export function teamSlug(team: TeamLinkTarget): string {
 export function teamLinkParams(team: TeamLinkTarget) {
   return { teamId: teamSlug(team) };
 }
+
+/**
+ * The slug a team name becomes: kebab-case, degenerate names falling back
+ * to a generic stem. The server suffixes -2, -3… past collisions; the
+ * client uses the bare form to preview the page a name would get.
+ */
+export function slugifyTeamName(name: string): string {
+  const base = name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32)
+    .replace(/^-+|-+$/g, "");
+  // Too short/degenerate names ("!!", "无") fall back to a generic stem.
+  return base.length >= 3 ? base : `team${base ? `-${base}` : ""}`;
+}

@@ -1,19 +1,22 @@
 import { LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DiscordMessageButton } from "@/components/ui/discord-message-button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { Censored } from "@/lib/hooks/use-censored";
 import { reportMutationError } from "@/lib/product-insights";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
+import { CrewCreateInline } from "./CollabCreateFlyout/CrewCreateInline";
 import { TeamPickerField } from "./CollabCreateFlyout/TeamPickerField";
 import { ResponseThreadPanel } from "./ResponseThreadPanel";
 
@@ -39,17 +42,25 @@ interface ResponseItem {
   threadCommentCount: number;
 }
 
+/** The parts of the post the triage list decides from. */
+interface ResponsePost {
+  id: number;
+  title: string;
+  projectName: string | null;
+  /** "No crew yet". A solo post may be accepted without one; a team post
+   *  without a team may not — accepting is what attaches the crew. */
+  isIndividual: boolean | null;
+  /** The named team behind the post, when there is one — unlocks the
+   *  accept → invite handoff. */
+  team: { id: string; name: string } | null;
+}
+
 interface CollabPostResponseListProps {
   responses: ResponseItem[];
-  postId: number;
-  /** The named team behind the post, when there is one — unlocks the
-   *  accept → "invite to the team" handoff on accepted rows. */
-  team?: { id: string; name: string } | null;
-  /** A legacy team post with no linked team. Accepting is server-gated
-   *  until one is linked, so ACCEPT opens an inline link-or-create flow
-   *  instead of firing a doomed request. */
-  needsTeamLink?: boolean;
+  post: ResponsePost;
 }
+
+type AcceptInput = Parameters<typeof client.acceptAndInvite>[0];
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
   accepted: "success",
@@ -59,22 +70,26 @@ const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
 
 /**
  * Owner-only list of responses to a post — each row is a `Well`
- * (debossed) carrying the responder's avatar + handle, message, and
- * optional accept/decline actions for pending entries.
+ * (debossed) carrying the responder's avatar + handle, message, and the
+ * accept/decline actions for pending entries.
+ *
+ * Accepting is where the crew becomes real: on a post with a team, ACCEPT
+ * & INVITE puts the person on its roster in one click; on a post without
+ * one, ACCEPT opens the choice to start a crew (named after the post),
+ * use an existing team, or — solo posts only — just accept and talk.
  */
-export function CollabPostResponseList({
-  responses,
-  postId,
-  team,
-  needsTeamLink = false,
-}: CollabPostResponseListProps) {
+export function CollabPostResponseList({ responses, post }: CollabPostResponseListProps) {
   const queryClient = useQueryClient();
-  // Accepting or declining changes the applicant rows, which live in
-  // `listResponses` — the post itself is untouched, so `getPost` (now the
-  // anonymous, cacheable core) has nothing to re-read.
+  const team = post.team;
+  const invalidateResponses = () =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.listResponses.queryOptions({ input: { postId: post.id } }).queryKey,
+    });
+  // Attaching or minting a crew changes the post itself — its team tile,
+  // the strengthen panel — so the page's `getPost` re-reads too.
   const invalidatePost = () =>
     queryClient.invalidateQueries({
-      queryKey: orpc.listResponses.queryOptions({ input: { postId } }).queryKey,
+      queryKey: orpc.getPost.queryOptions({ input: { postId: post.id } }).queryKey,
     });
 
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -83,40 +98,40 @@ export function CollabPostResponseList({
       client.updateResponseStatus({ responseId, status }),
     onSuccess: () => {
       setStatusError(null);
-      void invalidatePost();
+      void invalidateResponses();
     },
-    // The server's accept gate (unlinked team post) lands here if the
-    // inline flow was somehow skipped — surface it rather than failing
-    // silently.
     onError: (err) => {
       reportMutationError(err, "collab.response_status");
       setStatusError(errorMessage(err, "Could not update the response."));
     },
   });
 
-  // §3.2 accept-time fix for legacy unlinked posts: pick or create the
-  // team right here, link it, then finish the accept — one flow, no
-  // page hopping.
-  const [linkPromptResponseId, setLinkPromptResponseId] = useState<number | null>(null);
-  const linkAndAccept = useMutation({
-    mutationFn: async ({ teamId, responseId }: { teamId: string; responseId: number }) => {
-      await client.linkPostTeam({ postId, teamId });
-      await client.updateResponseStatus({ responseId, status: "accepted" });
-    },
-    onSuccess: () => {
-      setLinkPromptResponseId(null);
+  const [crewPromptResponseId, setCrewPromptResponseId] = useState<number | null>(null);
+  const acceptAndInvite = useMutation({
+    mutationFn: (input: AcceptInput) => client.acceptAndInvite(input),
+    onSuccess: (result) => {
+      setCrewPromptResponseId(null);
       setStatusError(null);
-      void invalidatePost();
+      void invalidateResponses();
+      if (result.createdTeam || result.teamId !== team?.id) {
+        void invalidatePost();
+        void queryClient.invalidateQueries({ queryKey: orpc.listMyTeams.key() });
+      }
+      if (result.createdTeam) {
+        toast.success(`Accepted — and ${result.createdTeam.name} is now a team page.`);
+      } else if (result.inviteId) {
+        toast.success("Accepted and invited.");
+      }
     },
     onError: (err) => {
-      reportMutationError(err, "collab.link_and_accept");
-      setStatusError(errorMessage(err, "Could not link the team."));
+      reportMutationError(err, "collab.accept_and_invite");
+      setStatusError(errorMessage(err, "Could not accept the response."));
     },
   });
 
   // Accepting is a decision to work together; joining the team page is
-  // the destination that makes it real. One click, but explicit — teams
-  // may accept-to-talk before committing a roster spot.
+  // the destination that makes it real. Rows accepted via ACCEPT ONLY keep
+  // this as the follow-up.
   const [inviteError, setInviteError] = useState<string | null>(null);
   const invite = useMutation({
     mutationFn: (resp: ResponseItem) =>
@@ -127,13 +142,15 @@ export function CollabPostResponseList({
       }),
     onSuccess: () => {
       setInviteError(null);
-      void invalidatePost();
+      void invalidateResponses();
     },
     onError: (err) => {
       reportMutationError(err, "collab.invite_from_response");
       setInviteError(errorMessage(err, "Could not send the invite."));
     },
   });
+
+  const busy = updateStatus.isPending || acceptAndInvite.isPending;
 
   return (
     <div className="flex flex-col gap-2">
@@ -185,54 +202,72 @@ export function CollabPostResponseList({
           />
           {resp.status === "pending" ? (
             <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() =>
-                    needsTeamLink
-                      ? setLinkPromptResponseId(resp.id)
-                      : updateStatus.mutate({ responseId: resp.id, status: "accepted" })
-                  }
-                  disabled={updateStatus.isPending || linkAndAccept.isPending}
-                  className="tracking-widest"
-                >
-                  ACCEPT
-                </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {team ? (
+                  <>
+                    <Button
+                      size="xs"
+                      onClick={() =>
+                        acceptAndInvite.mutate({
+                          responseId: resp.id,
+                          team: { id: team.id },
+                          invite: true,
+                        })
+                      }
+                      disabled={busy}
+                      className="tracking-widest"
+                    >
+                      ACCEPT & INVITE
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() =>
+                        updateStatus.mutate({ responseId: resp.id, status: "accepted" })
+                      }
+                      disabled={busy}
+                      title="Accept without a roster invite — you can invite them after"
+                      className="tracking-widest"
+                    >
+                      ACCEPT ONLY
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() =>
+                      setCrewPromptResponseId(crewPromptResponseId === resp.id ? null : resp.id)
+                    }
+                    disabled={busy}
+                    className="tracking-widest"
+                  >
+                    ACCEPT
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="xs"
                   onClick={() => updateStatus.mutate({ responseId: resp.id, status: "declined" })}
-                  disabled={updateStatus.isPending || linkAndAccept.isPending}
+                  disabled={busy}
                   className="tracking-widest"
                 >
                   DECLINE
                 </Button>
               </div>
-              {linkPromptResponseId === resp.id ? (
-                <Well variant="ghost" className="gap-2 border-warning/40 p-3">
-                  <Text size="xs" variant="muted">
-                    Link your team page before accepting — accepted members get invited to it.
-                  </Text>
-                  <TeamPickerField
-                    value={undefined}
-                    onChange={(teamId) => {
-                      if (teamId) linkAndAccept.mutate({ teamId, responseId: resp.id });
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setLinkPromptResponseId(null)}
-                    className="self-start tracking-widest"
-                  >
-                    CANCEL
-                  </Button>
-                </Well>
+              {!team && crewPromptResponseId === resp.id ? (
+                <CrewOnAcceptPrompt
+                  post={post}
+                  responderLabel={resp.responderUsername ? `@${resp.responderUsername}` : "them"}
+                  pending={acceptAndInvite.isPending}
+                  onAccept={(choice) => acceptAndInvite.mutate({ responseId: resp.id, ...choice })}
+                  onCancel={() => setCrewPromptResponseId(null)}
+                />
               ) : null}
               {statusError &&
-              (linkPromptResponseId === resp.id ||
-                updateStatus.variables?.responseId === resp.id) ? (
+              (crewPromptResponseId === resp.id ||
+                updateStatus.variables?.responseId === resp.id ||
+                acceptAndInvite.variables?.responseId === resp.id) ? (
                 <Text size="xs" className="text-destructive">
                   {statusError}
                 </Text>
@@ -285,6 +320,93 @@ export function CollabPostResponseList({
         </Well>
       ))}
     </div>
+  );
+}
+
+type CrewMode = "create" | "existing";
+
+/**
+ * The accept-time crew choice for a post with no team: start one (named
+ * after the post, editable), use one the poster already has, or — solo
+ * posts only — accept and talk. A team post with no team has no
+ * accept-only path: the accept → roster rule stays hard there.
+ */
+function CrewOnAcceptPrompt({
+  post,
+  responderLabel,
+  pending,
+  onAccept,
+  onCancel,
+}: {
+  post: ResponsePost;
+  responderLabel: string;
+  pending: boolean;
+  onAccept: (choice: Pick<AcceptInput, "team" | "invite">) => void;
+  onCancel: () => void;
+}) {
+  const { data: allMyTeams } = useQuery(orpc.listMyTeams.queryOptions({ input: {} }));
+  const myTeams = allMyTeams?.filter((t) => !t.hidden) ?? [];
+  const [mode, setMode] = useState<CrewMode>("create");
+  const canAcceptOnly = Boolean(post.isIndividual);
+
+  return (
+    <Well variant="ghost" className="gap-3 border-primary/40 p-3">
+      <Text size="xs" variant="muted">
+        Accepting {responderLabel} — put them on a crew so they land on a roster.
+      </Text>
+
+      {myTeams.length > 0 ? (
+        <SegmentedControl
+          value={mode}
+          onChange={(next) => setMode(next as CrewMode)}
+          size="sm"
+          priority="primary"
+        >
+          <SegmentedControl.Item value="create">START A CREW</SegmentedControl.Item>
+          <SegmentedControl.Item value="existing">USE AN EXISTING TEAM</SegmentedControl.Item>
+        </SegmentedControl>
+      ) : null}
+
+      {mode === "existing" && myTeams.length > 0 ? (
+        <TeamPickerField
+          value={undefined}
+          onChange={(teamId) => {
+            if (teamId) onAccept({ team: { id: teamId }, invite: true });
+          }}
+        />
+      ) : (
+        <CrewCreateInline
+          initialName={post.projectName ?? post.title}
+          submitLabel={(name) => `ACCEPT & INVITE TO "${name.toUpperCase()}"`}
+          pending={pending}
+          onSubmit={(name) => onAccept({ team: { create: { name } }, invite: true })}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {canAcceptOnly ? (
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={pending}
+            onClick={() => onAccept({ team: null, invite: false })}
+            title="Accept without a crew — you can attach one later"
+            className="tracking-widest"
+          >
+            ACCEPT ONLY
+          </Button>
+        ) : null}
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={onCancel}
+          disabled={pending}
+          className="tracking-widest"
+        >
+          CANCEL
+        </Button>
+      </div>
+    </Well>
   );
 }
 

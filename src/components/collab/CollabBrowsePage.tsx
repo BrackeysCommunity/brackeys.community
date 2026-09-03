@@ -26,7 +26,7 @@ import { STALE } from "@/orpc/public-procedures";
 
 import { type CollabBoardSearch } from "./collab-filters";
 import { CollabActiveFilters } from "./CollabActiveFilters";
-import { CollabCreateFlyout } from "./CollabCreateFlyout";
+import { CollabCreateFlyout, type CollabCreateSurface } from "./CollabCreateFlyout";
 import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel";
 import { CollabInspector } from "./CollabInspector";
 import { CollabPostFeed, CollabPostFeedStatic } from "./CollabPostFeed";
@@ -81,6 +81,7 @@ export function CollabBrowsePage() {
   const isMobile = useIsMobile();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSurface, setCreateSurface] = useState<CollabCreateSurface>("quick");
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
 
@@ -114,11 +115,15 @@ export function CollabBrowsePage() {
   const jamForNewPost = search.new ? search.jam : undefined;
   const teamForNewPost = search.new ? search.team : undefined;
   const projectForNewPost = search.new ? search.project : undefined;
+  const flowForNewPost = search.new ? search.flow : undefined;
   const newFlag = Boolean(search.new);
   const [newFlagSeen, setNewFlagSeen] = useState(false);
   if (newFlag !== newFlagSeen) {
     setNewFlagSeen(newFlag);
-    if (newFlag) setCreateOpen(true);
+    if (newFlag) {
+      setCreateSurface(flowForNewPost === "wizard" ? "wizard" : "quick");
+      setCreateOpen(true);
+    }
   }
   useEffect(() => {
     if (!search.new) return;
@@ -138,6 +143,7 @@ export function CollabBrowsePage() {
       search: (prev) => ({
         ...prev,
         new: undefined,
+        flow: undefined,
         jam: undefined,
         team: undefined,
         project: undefined,
@@ -229,6 +235,7 @@ export function CollabBrowsePage() {
     // A fresh post, not a continuation of an edit the user backed out
     // of — but any unfinished draft of their own comes back.
     beginWizardCreate();
+    setCreateSurface("quick");
     setCreateOpen(true);
   };
 
@@ -346,6 +353,7 @@ export function CollabBrowsePage() {
           store, then flips this open. */}
       <CollabCreateFlyout
         open={createOpen}
+        surface={createSurface}
         onClose={() => {
           setCreateOpen(false);
           // Backing out of an edit must not leave the store primed to

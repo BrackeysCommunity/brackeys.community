@@ -81,7 +81,7 @@ export function CollabActiveFilters() {
   if (search.solo !== undefined) {
     chips.push({
       key: "solo",
-      label: search.solo ? "SOLO DEVS" : "TEAMS",
+      label: search.solo ? "SOLO" : "HAS A CREW",
       clear: () => setSearch({ solo: undefined }),
     });
   }

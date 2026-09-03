@@ -54,20 +54,20 @@ export const WIZARD_TABS: WizardTabDef[] = [
   {
     id: "basics",
     num: "01",
-    label: "BASICS",
+    label: "THE POST",
     desc: "The pitch and the terms — what kind of post this is, the headline people scan on the board, the scope of the work, and how to reach you.",
   },
   {
     id: "team",
     num: "02",
-    label: "TEAM",
-    desc: "Who's behind the post — just you, or a team with a page people can join.",
+    label: "WHO'S POSTING",
+    desc: "Just you, or a team with a page — people you accept get invited to its roster. Leave it blank and start the crew when you accept someone.",
   },
   {
     id: "project",
     num: "03",
-    label: "PROJECT",
-    desc: "What you're building — link the project page this recruits for, or name it, and tie it to a jam.",
+    label: "WHAT IT'S FOR",
+    desc: "Link the game's page and the post shows up on it, using its cover. Tag the jam and it reaches people watching that jam.",
   },
   {
     id: "roles",
@@ -287,17 +287,48 @@ export function projectLengthForJam(
 export const TEAM_NAME_MAX = 100;
 export const TEAM_DESCRIPTION_MAX = 200;
 
-export interface StepValidationOpts {
-  /** Editing a pre-v2 unlinked team post — it may save without a team,
-   *  so the TEAM step only validates what the user actually typed. */
-  legacyUnlinkedEdit?: boolean;
+/**
+ * The field-level gates the quick screen shows inline. Same rules as the
+ * wizard's steps, keyed by field so each can render under its own control;
+ * `getStepValidationError("quick", …)` reads them in order for the footer.
+ */
+export interface QuickFieldErrors {
+  roles?: string;
+  title?: string;
+  description?: string;
+  type?: string;
+  compensation?: string;
 }
 
-export function getStepValidationError(
-  stepId: string,
-  v: WizardFormValues,
-  opts: StepValidationOpts = {},
-): string | null {
+export function getQuickFieldErrors(v: WizardFormValues): QuickFieldErrors {
+  const errors: QuickFieldErrors = {};
+  if (v.roleIds.length === 0) errors.roles = "Pick at least one role you're looking for.";
+  if (!v.title.trim()) errors.title = "Please enter a title.";
+  else if (v.title.trim().length < 10) errors.title = "Title must be at least 10 characters.";
+  else errors.title = profanityCheck(v.title, "Title");
+  if (!v.description.trim()) errors.description = "Please enter a description.";
+  else if (v.description.trim().length < 30)
+    errors.description = "Description must be at least 30 characters.";
+  if (!v.type) errors.type = "Please select a post type.";
+  if (v.type === "paid") {
+    if (!v.compensationType) errors.compensation = "Please select a compensation type.";
+    else if (v.compensationType !== "negotiable" && v.compensationMin === undefined)
+      errors.compensation = "Please select a compensation range.";
+  }
+  for (const key of Object.keys(errors) as (keyof QuickFieldErrors)[]) {
+    if (errors[key] === undefined) delete errors[key];
+  }
+  return errors;
+}
+
+/**
+ * What blocks a step, or null. These are the submit requirements — the
+ * server's `postContentShape` and nothing more — so the wizard, the quick
+ * screen, and the pre-flight checklist all agree on what "done" means.
+ * Platforms, timeline, experience, contact, and a project name are not
+ * gates anywhere: they are post-publish upgrades.
+ */
+export function getStepValidationError(stepId: string, v: WizardFormValues): string | null {
   switch (stepId) {
     case "basics": {
       if (!v.type) return "Please select a post type.";
@@ -305,48 +336,34 @@ export function getStepValidationError(
       if (v.title.trim().length < 10) return "Title must be at least 10 characters.";
       if (!v.description.trim()) return "Please enter a description.";
       if (v.description.trim().length < 30) return "Description must be at least 30 characters.";
-      if (v.platforms.length === 0) return "Please select at least one platform.";
-      if (!v.projectLength) return "Please select a timeline.";
-      if (!v.experienceLevel) return "Please select an experience level.";
       if (v.type === "paid") {
         if (!v.compensationType) return "Please select a compensation type.";
         if (v.compensationType !== "negotiable" && v.compensationMin === undefined)
           return "Please select a compensation range.";
-      }
-      if (!v.isIndividual) {
-        if (!v.contactType) return "Please select a contact type.";
-        if (!v.contactMethod.trim()) return "Please enter contact info.";
       }
       const titleCheck = profanityCheck(v.title, "Title");
       if (titleCheck) return titleCheck;
       break;
     }
     case "team": {
-      // Solo posts and posts linked to an existing team pass; the
-      // new-team form is what needs checking.
+      // An unlinked team post is a normal state — the crew gets attached
+      // when the poster accepts someone. Only a *typed* new-team name is
+      // checked, since submit will mint it.
       if (v.isIndividual || v.teamId !== undefined) break;
       const name = v.newTeamName.trim();
-      if (name.length === 0) {
-        if (opts.legacyUnlinkedEdit) break;
-        return "Pick or create your team page.";
-      }
+      if (name.length === 0) break;
       if (name.length < 2) return "Team name must be at least 2 characters.";
       const teamNameCheck = profanityCheck(v.newTeamName, "Team name");
       if (teamNameCheck) return teamNameCheck;
       break;
     }
-    // Only what the project entity itself owns. Everything else the step
-    // used to gate — platforms, timeline, experience, compensation,
-    // contact — describes the post, not the project, so it moved to
-    // BASICS with the rest of the post's own terms.
+    // The project name is optional — the title carries the pitch — and a
+    // linked project supplies it. Only a *typed* name too short for the
+    // server is a gate.
     case "details": {
-      // A linked project supplies the name and the field is a readout, so
-      // these two can't be a gate — the user has no way to satisfy them, and
-      // the server derives the column from the canonical row anyway.
-      if (v.projectId === undefined) {
-        if (!v.projectName.trim()) return "Project name is required.";
-        if (v.projectName.trim().length < 3) return "Project name must be at least 3 characters.";
-      }
+      if (v.projectId !== undefined) break;
+      const name = v.projectName.trim();
+      if (name.length > 0 && name.length < 3) return "Project name must be at least 3 characters.";
       break;
     }
     // Roles used to be a step you could walk straight through, which put
@@ -354,16 +371,27 @@ export function getStepValidationError(
     case "roles":
       if (v.roleIds.length === 0) return "Please select at least one role.";
       break;
+    case "quick": {
+      const errors = getQuickFieldErrors(v);
+      return (
+        errors.roles ??
+        errors.title ??
+        errors.description ??
+        errors.type ??
+        errors.compensation ??
+        null
+      );
+    }
     case "review": {
       // The last gate before submit, so it re-runs every requirement
       // rather than trusting that the user walked the steps in order.
-      const basics = getStepValidationError("basics", v, opts);
+      const basics = getStepValidationError("basics", v);
       if (basics) return basics;
-      const team = getStepValidationError("team", v, opts);
+      const team = getStepValidationError("team", v);
       if (team) return team;
-      const details = getStepValidationError("details", v, opts);
+      const details = getStepValidationError("details", v);
       if (details) return details;
-      return getStepValidationError("roles", v, opts);
+      return getStepValidationError("roles", v);
     }
   }
   return null;
@@ -377,7 +405,6 @@ export function getStepValidationError(
  */
 export function getFirstIncompleteStep(
   v: WizardFormValues,
-  opts: StepValidationOpts = {},
 ): { tabId: WizardTabId; label: string; error: string } | null {
   const order: { stepId: string; tabId: WizardTabId }[] = [
     { stepId: "basics", tabId: "basics" },
@@ -386,7 +413,7 @@ export function getFirstIncompleteStep(
     { stepId: "roles", tabId: "roles" },
   ];
   for (const { stepId, tabId } of order) {
-    const error = getStepValidationError(stepId, v, opts);
+    const error = getStepValidationError(stepId, v);
     if (error) {
       const tab = WIZARD_TABS.find((t) => t.id === tabId);
       return { tabId, label: tab?.label ?? tabId.toUpperCase(), error };
@@ -403,23 +430,15 @@ export function getFirstIncompleteStep(
  */
 export function getPreflightChecks(
   v: WizardFormValues,
-  opts: StepValidationOpts = {},
 ): { label: string; ok: boolean; tabId: WizardTabId }[] {
-  return [
+  const checks: { label: string; ok: boolean; tabId: WizardTabId }[] = [
     { label: "Post type selected", ok: !!v.type, tabId: "basics" },
-    { label: "Title is descriptive", ok: v.title.trim().length >= 10, tabId: "basics" },
-    { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30, tabId: "basics" },
     {
-      label: "Team page picked or named",
-      ok: getStepValidationError("team", v, opts) === null,
-      tabId: "team",
-    },
-    { label: "At least one platform", ok: v.platforms.length > 0, tabId: "basics" },
-    {
-      label: "Timeline and experience",
-      ok: !!v.projectLength && !!v.experienceLevel,
+      label: "Title is descriptive",
+      ok: v.title.trim().length >= 10 && !profanityCheck(v.title, "Title"),
       tabId: "basics",
     },
+    { label: "Description ≥ 30 chars", ok: v.description.trim().length >= 30, tabId: "basics" },
     {
       label: "Compensation set",
       ok:
@@ -428,18 +447,26 @@ export function getPreflightChecks(
           (v.compensationType === "negotiable" || v.compensationMin !== undefined)),
       tabId: "basics",
     },
-    {
-      label: "Contact method chosen",
-      ok: v.isIndividual || (!!v.contactType && !!v.contactMethod.trim()),
-      tabId: "basics",
-    },
-    {
-      label: v.projectId !== undefined ? "Project linked" : "Project named",
-      ok: v.projectId !== undefined || v.projectName.trim().length >= 3,
-      tabId: "project",
-    },
     { label: "At least one role", ok: v.roleIds.length > 0, tabId: "roles" },
   ];
+  // A typed new-team name or project name is a requirement the moment it
+  // exists — the team gets minted at submit, the name has a server minimum
+  // — and not a row at all before that.
+  if (!v.isIndividual && v.teamId === undefined && v.newTeamName.trim().length > 0) {
+    checks.splice(3, 0, {
+      label: "Team name OK",
+      ok: getStepValidationError("team", v) === null,
+      tabId: "team",
+    });
+  }
+  if (v.projectId === undefined && v.projectName.trim().length > 0) {
+    checks.splice(checks.length - 1, 0, {
+      label: "Project name OK",
+      ok: getStepValidationError("details", v) === null,
+      tabId: "project",
+    });
+  }
+  return checks;
 }
 
 // ── Form context types ─────────────────────────────────────────────────────

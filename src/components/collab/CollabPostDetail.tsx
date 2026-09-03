@@ -22,7 +22,13 @@ import { Heading, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { draftFromPost, isEditablePostType, startWizardEdit } from "@/lib/collab-store";
-import { compensationLabel, postTypeLabel } from "@/lib/collab-vocabulary";
+import {
+  compensationLabel,
+  experienceReading,
+  platformsReading,
+  postTypeLabel,
+  projectLengthReading,
+} from "@/lib/collab-vocabulary";
 import { formatRate } from "@/lib/format-rate";
 import { Censored } from "@/lib/hooks/use-censored";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -366,15 +372,9 @@ export function CollabPostDetail({
 
             <DetailGrid>
               {post.projectName ? <DetailRow label="PROJECT" value={post.projectName} /> : null}
-              {post.platforms && post.platforms.length > 0 ? (
-                <DetailRow label="PLATFORMS" value={post.platforms.join(" · ")} />
-              ) : null}
-              {post.projectLength ? (
-                <DetailRow label="TIMELINE" value={post.projectLength} />
-              ) : null}
-              {post.experienceLevel ? (
-                <DetailRow label="EXPERIENCE" value={post.experienceLevel} />
-              ) : null}
+              <DetailRow label="PLATFORMS" value={platformsReading(post.platforms)} />
+              <DetailRow label="TIMELINE" value={projectLengthReading(post.projectLength)} />
+              <DetailRow label="EXPERIENCE" value={experienceReading(post.experienceLevel)} />
               {post.compensationType ? (
                 <DetailRow label="COMP" value={compensationLabel(post.compensationType)} />
               ) : null}
@@ -461,12 +461,7 @@ export function CollabPostDetail({
                   Responses ({responses.length})
                 </Text>
                 {responses.length > 0 ? (
-                  <CollabPostResponseList
-                    responses={responses}
-                    postId={postId}
-                    team={post.team}
-                    needsTeamLink={!post.isIndividual && !post.team}
-                  />
+                  <CollabPostResponseList responses={responses} post={post} />
                 ) : (
                   <Text size="xs" variant="muted" className="tracking-widest uppercase">
                     No responses yet.

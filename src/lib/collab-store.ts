@@ -92,10 +92,6 @@ type CollabState = {
      *  creating one — submit routes to `updatePost` and the draft is
      *  seeded from the server instead of restored from storage. */
     editingPostId: number | null;
-    /** The post being edited was a pre-v2 unlinked team post. Those may
-     *  save without a team (the server exempts them); the TEAM step's
-     *  validation needs the *seeded* state, not the live draft. */
-    editingLegacyUnlinked: boolean;
     /** The open draft came back from storage. Surfaced in the header so
      *  a form that refills itself says so. */
     draftRestored: boolean;
@@ -134,7 +130,6 @@ export const collabStore = new Store<CollabState>({
     step: 0,
     draft: { ...defaultDraft },
     editingPostId: null,
-    editingLegacyUnlinked: false,
     draftRestored: false,
   },
 });
@@ -169,7 +164,6 @@ export function resetWizard() {
       step: 0,
       draft: { ...defaultDraft },
       editingPostId: null,
-      editingLegacyUnlinked: false,
       draftRestored: false,
     },
   }));
@@ -189,7 +183,6 @@ export function beginWizardCreate() {
       step: 0,
       draft: { ...defaultDraft },
       editingPostId: null,
-      editingLegacyUnlinked: false,
       draftRestored: false,
     },
   }));
@@ -205,7 +198,6 @@ export function startWizardEdit(postId: number, draft: WizardDraft) {
       step: 0,
       draft,
       editingPostId: postId,
-      editingLegacyUnlinked: !draft.isIndividual && draft.teamId === undefined,
       draftRestored: false,
     },
   }));
@@ -372,7 +364,6 @@ function restorePersistedWizardDraft(): boolean {
       step: 0,
       draft,
       editingPostId: null,
-      editingLegacyUnlinked: false,
       draftRestored: true,
     },
   }));

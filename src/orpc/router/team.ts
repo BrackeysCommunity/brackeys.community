@@ -62,6 +62,7 @@ import { escapeLike } from "@/lib/sql-like";
 import { isTeamProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
+import { slugifyTeamName } from "@/lib/team-links";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
   requireAuth,
@@ -84,28 +85,18 @@ const SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$/;
 const RESERVED_SLUGS = new Set(["new", "index", "all", "mine", "settings", "archive"]);
 
 /**
- * Derives a claimable slug from a team name: kebab-case the name, then
- * suffix -2, -3… past collisions. Raced claims fall through to the
- * unique constraint, which callers map back through `insertTeamRow`.
+ * Either the shared connection or a transaction handle — the drizzle
+ * surface the helpers below write through, so a caller that already holds
+ * a transaction (accept-time crew minting) can keep the team insert inside
+ * it.
  */
-export function slugifyTeamName(name: string): string {
-  const base = name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32)
-    .replace(/^-+|-+$/g, "");
-  // Too short/degenerate names ("!!", "无") fall back to a generic stem.
-  return base.length >= 3 ? base : `team${base ? `-${base}` : ""}`;
-}
+export type DbExecutor = Pick<typeof db, "select" | "insert" | "update" | "delete">;
 
-async function claimSlug(name: string): Promise<string> {
+async function claimSlug(executor: DbExecutor, name: string): Promise<string> {
   const base = slugifyTeamName(name);
   const taken = new Set(
     (
-      await db
+      await executor
         .select({ slug: teams.slug })
         .from(teams)
         .where(sql`${teams.slug} LIKE ${base + "%"}`)
@@ -277,6 +268,67 @@ const teamContentShape = {
   recruiting: z.boolean().optional(),
 };
 
+/** The name-and-tagline subset a crew is minted from at accept time. */
+export const teamQuickCreateSchema = z.object({
+  name: teamContentShape.name,
+  tagline: teamContentShape.tagline,
+});
+
+type TeamContent = z.infer<z.ZodObject<typeof teamContentShape>>;
+
+/**
+ * Inserts a team owned by `userId` and seats them as its owner. The one
+ * team-minting path: `createTeam` wraps it for the directory and the
+ * wizard, and `acceptAndInvite` runs it inside the accept transaction so a
+ * crew that fails to link never exists.
+ *
+ * The name only is profanity-checked: it is the team's identity and titles
+ * every invite and membership notification. Tagline and bio are prose,
+ * stored as written and censored at render.
+ */
+export async function createTeamForUser(
+  executor: DbExecutor,
+  userId: string,
+  input: Partial<TeamContent> & Pick<TeamContent, "name">,
+): Promise<TeamRow> {
+  checkProfanity(input.name, "Team name");
+
+  // A slug race between the pre-check and the insert lands on the
+  // unique constraint; retry once with a fresh suffix before giving up.
+  let team: TeamRow | undefined;
+  for (let attempt = 0; attempt < 2 && !team; attempt++) {
+    const slug = await claimSlug(executor, input.name);
+    [team] = await executor
+      .insert(teams)
+      .values({
+        slug,
+        name: input.name,
+        tagline: input.tagline || null,
+        bio: input.bio || null,
+        websiteUrl: input.websiteUrl || null,
+        itchUrl: input.itchUrl || null,
+        recruiting: input.recruiting ?? false,
+        createdBy: userId,
+      })
+      .returning()
+      .catch((err: unknown) => {
+        if (isUniqueViolation(err) && attempt === 0) return [undefined];
+        throw err;
+      });
+  }
+  if (!team) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Could not claim a team handle." });
+  }
+
+  await executor.insert(teamMembers).values({
+    teamId: team.id,
+    userId,
+    role: "owner",
+  });
+
+  return team;
+}
+
 /**
  * Creating a team is deliberately cheap — a name is enough — because the
  * wizard's quick-create path must not turn posting into a detour. The
@@ -286,46 +338,8 @@ export const createTeam = os
   .use(requireGuildMember)
   .input(z.object(teamContentShape))
   .handler(async ({ input, context }) => {
-    // The name only: it is the team's identity and it titles every invite
-    // and membership notification. Tagline and bio are prose, stored as
-    // written and censored at render.
-    checkProfanity(input.name, "Team name");
-
-    // A slug race between the pre-check and the insert lands on the
-    // unique constraint; retry once with a fresh suffix before giving up.
-    let team;
-    for (let attempt = 0; attempt < 2 && !team; attempt++) {
-      const slug = await claimSlug(input.name);
-      [team] = await db
-        .insert(teams)
-        .values({
-          slug,
-          name: input.name,
-          tagline: input.tagline || null,
-          bio: input.bio || null,
-          websiteUrl: input.websiteUrl || null,
-          itchUrl: input.itchUrl || null,
-          recruiting: input.recruiting ?? false,
-          createdBy: context.user.id,
-        })
-        .returning()
-        .catch((err: unknown) => {
-          if (isUniqueViolation(err) && attempt === 0) return [undefined];
-          throw err;
-        });
-    }
-    if (!team) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Could not claim a team handle." });
-    }
-
-    await db.insert(teamMembers).values({
-      teamId: team.id,
-      userId: context.user.id,
-      role: "owner",
-    });
-
+    const team = await createTeamForUser(db, context.user.id, input);
     captureServerEvent(EVENTS.teamCreated, context.user.id, { team_id: team.id });
-
     return team;
   });
 
@@ -1417,6 +1431,100 @@ const ALREADY_INVITED = "That person already has a pending invite.";
  * invite handoff comes from post authors who may not be the owner.
  * Removal and role changes stay owner-only.
  */
+/**
+ * Who may be invited where. Shared by the direct invite and the accept-time
+ * handoff so the two can't drift: never yourself, only people with a
+ * profile, nobody already seated, nobody across a block, and one live
+ * invite per person per team. `teamId` is omitted when the team is about to
+ * be minted in the same transaction — the roster and invite checks have
+ * nothing to read yet.
+ */
+export async function assertCanInvite(params: {
+  teamId?: string;
+  inviterId: string;
+  inviteeId: string;
+}): Promise<void> {
+  if (params.inviteeId === params.inviterId) {
+    throw new ORPCError("BAD_REQUEST", { message: "You are already on this team." });
+  }
+
+  const [inviteeProfile] = await db
+    .select({ id: developerProfiles.id })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, params.inviteeId))
+    .limit(1);
+  if (!inviteeProfile) {
+    throw new ORPCError("BAD_REQUEST", { message: "That person doesn't have a profile." });
+  }
+
+  // Neutral on purpose — never reveal a block or its direction.
+  if (await blockPairExists(params.inviteeId, params.inviterId)) {
+    throw new ORPCError("FORBIDDEN", { message: "You can't invite this person." });
+  }
+
+  if (params.teamId === undefined) return;
+
+  if (await getMembership(params.teamId, params.inviteeId)) {
+    throw new ORPCError("BAD_REQUEST", { message: "That person is already on this team." });
+  }
+
+  const [existing] = await db
+    .select({ id: teamInvites.id })
+    .from(teamInvites)
+    .where(
+      and(
+        eq(teamInvites.teamId, params.teamId),
+        eq(teamInvites.inviteeId, params.inviteeId),
+        eq(teamInvites.status, "pending"),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    throw new ORPCError("BAD_REQUEST", { message: ALREADY_INVITED });
+  }
+}
+
+/** The invite row itself; racing duplicates land on the partial unique
+ *  index and read back as the same "already invited" the pre-check gives. */
+export async function insertTeamInvite(
+  executor: DbExecutor,
+  values: {
+    teamId: string;
+    inviteeId: string;
+    invitedBy: string;
+    sourceResponseId?: number;
+    message?: string;
+  },
+) {
+  const [invite] = await executor
+    .insert(teamInvites)
+    .values(values)
+    .returning()
+    .catch((err: unknown) => {
+      if (isUniqueViolation(err)) {
+        throw new ORPCError("BAD_REQUEST", { message: ALREADY_INVITED });
+      }
+      throw err;
+    });
+  return invite!;
+}
+
+/** The invitee's notification — one shape for every invite path. */
+export async function notifyTeamInvite(
+  team: { id: string; slug: string; name: string },
+  invite: { id: number; inviteeId: string },
+  actorId: string,
+): Promise<void> {
+  await notify({
+    userId: invite.inviteeId,
+    type: "team_invite_received",
+    actorId,
+    entityType: "team_invite",
+    entityId: String(invite.id),
+    data: { teamId: team.id, teamSlug: team.slug, teamName: team.name, inviteId: invite.id },
+  });
+}
+
 export const inviteToTeam = os
   .use(requireAuthWithPermissions)
   .input(
@@ -1441,27 +1549,11 @@ export const inviteToTeam = os
     const { isOverride } = await requireMembershipOrOverride("team_invite", team.id, context);
     assertNotFrozen(team, isOverride);
 
-    if (input.inviteeId === context.user.id) {
-      throw new ORPCError("BAD_REQUEST", { message: "You are already on this team." });
-    }
-
-    const [inviteeProfile] = await db
-      .select({ id: developerProfiles.id })
-      .from(developerProfiles)
-      .where(eq(developerProfiles.id, input.inviteeId))
-      .limit(1);
-    if (!inviteeProfile) {
-      throw new ORPCError("BAD_REQUEST", { message: "That person doesn't have a profile." });
-    }
-
-    if (await getMembership(input.teamId, input.inviteeId)) {
-      throw new ORPCError("BAD_REQUEST", { message: "That person is already on this team." });
-    }
-
-    // Neutral on purpose — never reveal a block or its direction.
-    if (await blockPairExists(input.inviteeId, context.user.id)) {
-      throw new ORPCError("FORBIDDEN", { message: "You can't invite this person." });
-    }
+    await assertCanInvite({
+      teamId: input.teamId,
+      inviterId: context.user.id,
+      inviteeId: input.inviteeId,
+    });
 
     await assertRateLimit(
       "team-invite",
@@ -1471,47 +1563,15 @@ export const inviteToTeam = os
       86400,
     );
 
-    const [existing] = await db
-      .select({ id: teamInvites.id })
-      .from(teamInvites)
-      .where(
-        and(
-          eq(teamInvites.teamId, input.teamId),
-          eq(teamInvites.inviteeId, input.inviteeId),
-          eq(teamInvites.status, "pending"),
-        ),
-      )
-      .limit(1);
-    if (existing) {
-      throw new ORPCError("BAD_REQUEST", { message: ALREADY_INVITED });
-    }
-
-    // Racing duplicates land on the partial unique index; same message.
-    const [invite] = await db
-      .insert(teamInvites)
-      .values({
-        teamId: input.teamId,
-        inviteeId: input.inviteeId,
-        invitedBy: context.user.id,
-        sourceResponseId: input.sourceResponseId,
-        message: input.message,
-      })
-      .returning()
-      .catch((err: unknown) => {
-        if (isUniqueViolation(err)) {
-          throw new ORPCError("BAD_REQUEST", { message: ALREADY_INVITED });
-        }
-        throw err;
-      });
-
-    await notify({
-      userId: input.inviteeId,
-      type: "team_invite_received",
-      actorId: context.user.id,
-      entityType: "team_invite",
-      entityId: String(invite.id),
-      data: { teamId: team.id, teamSlug: team.slug, teamName: team.name, inviteId: invite.id },
+    const invite = await insertTeamInvite(db, {
+      teamId: input.teamId,
+      inviteeId: input.inviteeId,
+      invitedBy: context.user.id,
+      sourceResponseId: input.sourceResponseId,
+      message: input.message,
     });
+
+    await notifyTeamInvite(team, invite, context.user.id);
 
     await touchTeamActivity(input.teamId);
 

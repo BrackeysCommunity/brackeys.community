@@ -74,8 +74,8 @@ const COMP_OPTIONS: Option[] = [
 /** Solo devs and teams — the board's two kinds of poster. */
 const POSTER_OPTIONS: Option[] = [
   { value: "all", label: "Anyone" },
-  { value: "solo", label: "Solo devs" },
-  { value: "team", label: "Teams" },
+  { value: "solo", label: "Solo" },
+  { value: "team", label: "Has a crew" },
 ];
 
 /** The `solo` search value behind each poster menu choice. */

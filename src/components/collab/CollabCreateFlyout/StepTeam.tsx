@@ -1,7 +1,6 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
 import { nanoid } from "nanoid";
 import { useRef, useState } from "react";
 
@@ -11,7 +10,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { collabStore, type UploadedImage } from "@/lib/collab-store";
+import type { UploadedImage } from "@/lib/collab-store";
 import { type client, orpc } from "@/orpc/client";
 
 import { AddImageCard, FieldRow, TextAreaField, TextField } from "./fields";
@@ -26,15 +25,15 @@ type MyTeam = Awaited<ReturnType<typeof client.listMyTeams>>[number];
 /**
  * Step 02 — who's behind the post. The RECRUITING AS switch lives here
  * with the rest of the team decisions; solo posts see only it. Team
- * posts default to creating a new team inline (optional image, required
- * name, optional description); picking one of the caller's existing
- * teams is the secondary path. Nothing is written here — the team row
- * is created at submit, like post images, so an abandoned draft mints
- * no junk teams.
+ * posts may name a new team inline (optional image, name, optional
+ * description) or pick one of the caller's existing teams — or leave it
+ * for later: an unlinked team post attaches its crew the moment the
+ * poster accepts someone. Nothing is written here — the team row is
+ * created at submit, like post images, so an abandoned draft mints no
+ * junk teams.
  */
 export function StepTeam() {
   const form = useWizardForm();
-  const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
   const { data: allMyTeams, isLoading } = useQuery(orpc.listMyTeams.queryOptions({ input: {} }));
   // A hidden (under-review) team must not be linkable to new posts;
   // `assertTeamLinkable` re-checks server-side.
@@ -77,7 +76,7 @@ export function StepTeam() {
           {soloField.state.value ? null : (
             <>
               {(myTeams?.length ?? 0) > 0 ? (
-                <FieldRow label="TEAM PAGE *">
+                <FieldRow label="TEAM PAGE" hint="optional · attach one later from the post">
                   <SegmentedControl
                     value={mode}
                     onChange={(next) => {
@@ -100,13 +99,6 @@ export function StepTeam() {
               ) : isLoading ? null : (
                 <NewTeamForm />
               )}
-
-              {editingLegacyUnlinked ? (
-                <Text size="xs" variant="muted" className="tracking-wide">
-                  This post predates team pages — it can stay unlinked, but accepting responses will
-                  ask for one.
-                </Text>
-              ) : null}
             </>
           )}
         </div>
@@ -115,7 +107,8 @@ export function StepTeam() {
   );
 }
 
-/** The default path: name a team into existence with the post. */
+/** Name a team into existence with the post — optional, since the crew
+ *  can also be minted when the first response is accepted. */
 function NewTeamForm() {
   const form = useWizardForm();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -192,8 +185,8 @@ function NewTeamForm() {
       >
         {(field) => (
           <TextField
-            label="TEAM NAME *"
-            hint="your page lives at /teams/<name>"
+            label="TEAM NAME"
+            hint="optional · your page lives at /teams/<name>"
             value={field.state.value}
             onChange={field.handleChange}
             onBlur={field.handleBlur}
@@ -222,6 +215,7 @@ function NewTeamForm() {
 
       <Text size="xs" variant="muted" className="tracking-wide">
         The team page is created when your post goes live — backing out now leaves nothing behind.
+        Leave it blank and you can start the crew when you accept someone.
       </Text>
     </>
   );

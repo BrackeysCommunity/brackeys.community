@@ -2,9 +2,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { collabFacetInput } from "@/components/collab/collab-filters";
 import { draftFromPost } from "@/lib/collab-store";
+import { slugifyTeamName } from "@/lib/team-links";
 import router from "@/orpc/router";
 import { postContentSchema } from "@/orpc/router/collab";
-import { slugifyTeamName } from "@/orpc/router/team";
 
 describe("team router surface", () => {
   it("registers the team procedures", () => {

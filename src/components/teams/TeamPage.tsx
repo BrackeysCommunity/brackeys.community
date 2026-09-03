@@ -12,6 +12,7 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
+import { CollabFunnelExplainer } from "@/components/collab/CollabQuickPost/CollabFunnelExplainer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -410,6 +411,19 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
             This page is still empty
           </Text>
         </Well>
+      ) : null}
+      {/* A team started at accept time lands its owner here with a roster of
+          one — the note says where the rest comes from. */}
+      {isMember && team.members.length <= 1 && showcase.length === 0 ? (
+        <CollabFunnelExplainer
+          title="Your team page is just getting started"
+          steps={[
+            "Right now it's just you. When you accept someone on one of your posts, they're invited here and show up on the roster once they say yes.",
+            "You can rename the team, add an image, and write a short description from the manage panel whenever you like.",
+            "If your game has a page on the site, you can add it to this team's showcase. If it doesn't have one yet, there's no rush.",
+          ]}
+          note="Nothing here is final. Everything on this page can be changed later."
+        />
       ) : null}
 
       {isMember ? (

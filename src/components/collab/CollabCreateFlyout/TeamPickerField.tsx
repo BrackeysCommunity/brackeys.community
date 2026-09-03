@@ -5,7 +5,6 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
-import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -13,13 +12,13 @@ import { errorMessage } from "@/lib/error-message";
 import { reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
 
+import { CrewCreateInline } from "./CrewCreateInline";
 import { FieldRow } from "./fields";
 
 /**
- * Pick-or-quick-create a team, backed by `listMyTeams`. Since the
- * wizard grew a dedicated TEAM step this renders only in the
- * accept-time link flow for legacy unlinked posts
- * (`CollabPostResponseList`) — new team posts link at create.
+ * Pick-or-quick-create a team, backed by `listMyTeams`. Renders in the
+ * post page's STRENGTHEN panel (attach a crew to a live post) and in the
+ * accept-time USE AN EXISTING TEAM choice.
  */
 export function TeamPickerField({
   value,
@@ -35,7 +34,6 @@ export function TeamPickerField({
   const myTeams = allMyTeams?.filter((t) => !t.hidden);
 
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
 
   const createMutation = useMutation({
     mutationFn: (name: string) => client.createTeam({ name }),
@@ -43,7 +41,6 @@ export function TeamPickerField({
       void queryClient.invalidateQueries({ queryKey: queryOptions.queryKey });
       onChange(team.id);
       setCreating(false);
-      setNewName("");
     },
     onError: (err) => reportMutationError(err, "team.create"),
   });
@@ -100,32 +97,17 @@ export function TeamPickerField({
           ))}
 
           {creating ? (
-            <div className="flex items-center gap-2">
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Team name"
-                maxLength={100}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (newName.trim().length >= 2) createMutation.mutate(newName.trim());
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                disabled={newName.trim().length < 2 || createMutation.isPending}
-                onClick={() => createMutation.mutate(newName.trim())}
-              >
-                {createMutation.isPending ? "…" : "CREATE"}
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCreating(false)}>
-                CANCEL
-              </Button>
-            </div>
+            <CrewCreateInline
+              submitLabel="CREATE"
+              pending={createMutation.isPending}
+              error={
+                createMutation.isError
+                  ? errorMessage(createMutation.error, "Could not create the team.")
+                  : null
+              }
+              onSubmit={(name) => createMutation.mutate(name)}
+              onCancel={() => setCreating(false)}
+            />
           ) : (
             <Button
               type="button"
@@ -137,11 +119,6 @@ export function TeamPickerField({
               {(myTeams?.length ?? 0) > 0 ? "+ NEW TEAM PAGE" : "+ CREATE A TEAM PAGE"}
             </Button>
           )}
-          {createMutation.isError ? (
-            <Text size="xs" className="text-destructive">
-              {errorMessage(createMutation.error, "Could not create the team.")}
-            </Text>
-          ) : null}
         </div>
       )}
     </FieldRow>

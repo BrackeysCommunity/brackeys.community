@@ -44,7 +44,6 @@ const TITLE_SOFT_LIMIT = 80;
 export function StepBasics() {
   const form = useWizardForm();
   const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type);
-  const isIndividual = useStore(form.store, (s: AnyFormStore) => s.values.isIndividual);
   const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType);
   const projectId = useStore(form.store, (s: AnyFormStore) => s.values.projectId);
   return (
@@ -180,7 +179,7 @@ export function StepBasics() {
       <form.Field name="platforms">
         {(field) => (
           <MultiSelectField
-            label="PLATFORMS *"
+            label="PLATFORMS"
             value={field.state.value}
             onChange={field.handleChange}
             options={PLATFORM_OPTIONS}
@@ -192,7 +191,7 @@ export function StepBasics() {
       <form.Field name="projectLength">
         {(field) => (
           <SelectField
-            label="TIMELINE *"
+            label="TIMELINE"
             value={field.state.value}
             onChange={field.handleChange}
             options={PROJECT_LENGTH_OPTIONS}
@@ -204,7 +203,7 @@ export function StepBasics() {
       <form.Field name="experienceLevel">
         {(field) => (
           <SelectField
-            label="EXPERIENCE LEVEL *"
+            label="EXPERIENCE LEVEL"
             value={field.state.value}
             onChange={field.handleChange}
             options={EXPERIENCE_LEVEL_OPTIONS}
@@ -247,10 +246,7 @@ export function StepBasics() {
         </>
       ) : null}
 
-      {/* Solo posters used to have contact silently forced to Discord DM
-          with the fields hidden — a solo dev who prefers email had no
-          way to say so. DM is now just the default. */}
-      <ContactFields isIndividual={isIndividual} />
+      <ContactFields />
     </div>
   );
 }

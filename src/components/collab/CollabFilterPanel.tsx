@@ -54,8 +54,8 @@ const COMP_OPTIONS = [
 
 const POSTER_OPTIONS = [
   { value: "all", label: "ANYONE" },
-  { value: "solo", label: "SOLO DEVS" },
-  { value: "team", label: "TEAMS" },
+  { value: "solo", label: "SOLO" },
+  { value: "team", label: "HAS A CREW" },
 ] as const;
 
 // Sort presets pair a column with a direction, mirroring the toolbar's

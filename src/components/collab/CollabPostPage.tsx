@@ -32,7 +32,13 @@ import {
   resetWizard,
   startWizardEdit,
 } from "@/lib/collab-store";
-import { compensationLabel, postTypeLabel } from "@/lib/collab-vocabulary";
+import {
+  compensationLabel,
+  experienceReading,
+  platformsReading,
+  postTypeLabel,
+  projectLengthReading,
+} from "@/lib/collab-vocabulary";
 import { formatCount } from "@/lib/format-count";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
@@ -55,6 +61,7 @@ import {
   type ViewerResponse,
 } from "./CollabPostResponseForm";
 import { CollabPostResponseList } from "./CollabPostResponseList";
+import { CollabStrengthenPanel } from "./CollabStrengthenPanel";
 import { ContactValue } from "./ContactValue";
 import { useCollabPostActions } from "./use-collab-post-actions";
 import { usePostViewerState } from "./use-post-viewer-state";
@@ -204,34 +211,38 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           ) : null}
 
           {isOwner ? (
-            <Section
-              id="responses"
-              title="RESPONSES"
-              size="sm"
-              blurb={
-                post.responseCount === 0
-                  ? "Nobody has responded yet."
-                  : post.responseCount === 1
-                    ? "One person has responded."
-                    : `${post.responseCount} people have responded.`
-              }
-            >
-              {responses && responses.length > 0 ? (
-                <CollabPostResponseList
-                  responses={responses}
-                  postId={postId}
-                  team={post.team}
-                  needsTeamLink={!post.isIndividual && !post.team}
-                />
-              ) : (
-                <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
-                  <MicroLabel>NO RESPONSES YET</MicroLabel>
-                  <Text size="xs" variant="muted">
-                    Responses land here as they come in.
-                  </Text>
-                </Well>
-              )}
-            </Section>
+            <>
+              <CollabStrengthenPanel
+                post={post}
+                onOpenEdit={() => {
+                  startWizardEdit(post.id, draftFromPost(post, contact));
+                  setEditOpen(true);
+                }}
+              />
+              <Section
+                id="responses"
+                title="RESPONSES"
+                size="sm"
+                blurb={
+                  post.responseCount === 0
+                    ? "Nobody has responded yet."
+                    : post.responseCount === 1
+                      ? "One person has responded."
+                      : `${post.responseCount} people have responded.`
+                }
+              >
+                {responses && responses.length > 0 ? (
+                  <CollabPostResponseList responses={responses} post={post} />
+                ) : (
+                  <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
+                    <MicroLabel>NO RESPONSES YET</MicroLabel>
+                    <Text size="xs" variant="muted">
+                      Responses land here as they come in.
+                    </Text>
+                  </Well>
+                )}
+              </Section>
+            </>
           ) : (
             <RespondSection
               postId={postId}
@@ -248,13 +259,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           <Section id="details" title="THE DETAILS" size="sm">
             <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
               {post.projectName ? <SpecRow label="PROJECT" value={post.projectName} /> : null}
-              {post.platforms && post.platforms.length > 0 ? (
-                <SpecRow label="PLATFORMS" value={post.platforms.join(" · ")} />
-              ) : null}
-              {post.projectLength ? <SpecRow label="TIMELINE" value={post.projectLength} /> : null}
-              {post.experienceLevel ? (
-                <SpecRow label="EXPERIENCE" value={post.experienceLevel} />
-              ) : null}
+              <SpecRow label="PLATFORMS" value={platformsReading(post.platforms)} />
+              <SpecRow label="TIMELINE" value={projectLengthReading(post.projectLength)} />
+              <SpecRow label="EXPERIENCE" value={experienceReading(post.experienceLevel)} />
               {post.compensationType ? (
                 <SpecRow label="COMP" value={compensationLabel(post.compensationType)} />
               ) : null}

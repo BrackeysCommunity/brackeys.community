@@ -11,12 +11,12 @@ import { useWizardForm } from "./form-context";
 import { CONTACT_PLACEHOLDERS, CONTACT_TYPE_OPTIONS } from "./shared";
 
 /**
- * How responders reach the poster. Solo posts default to a Discord DM
- * prefilled from the author's profile — but they're only a default:
- * hiding these fields behind `isIndividual` (as this used to) meant a
- * solo dev who prefers email simply couldn't say so.
+ * Seeds the contact block with a Discord DM from the author's profile.
+ * Prefills once, and only into empty fields — never over a choice the
+ * user already made (or one an edit loaded from the post). Returns the
+ * handle so a collapsed contact row can name it.
  */
-export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
+export function useDiscordContactPrefill(): string | null {
   const form = useWizardForm();
   const { data: profile } = useQuery({
     ...orpc.getMyProfile.queryOptions({ input: {} }),
@@ -24,10 +24,8 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
   });
   const discordUsername = profile?.profile?.discordUsername ?? null;
 
-  // Prefill once, and only into empty fields — never overwrite a choice
-  // the user has already made (or one an edit loaded from the post).
   useEffect(() => {
-    if (!isIndividual || !discordUsername) return;
+    if (!discordUsername) return;
     const values = form.state.values as {
       contactType?: CollabContactType;
       contactMethod: string;
@@ -35,14 +33,28 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
     if (values.contactType || values.contactMethod.trim()) return;
     form.setFieldValue("contactType", "discord_dm");
     form.setFieldValue("contactMethod", discordUsername);
-  }, [isIndividual, discordUsername, form]);
+  }, [discordUsername, form]);
+
+  return discordUsername;
+}
+
+/**
+ * How responders reach the poster. Every post defaults to a Discord DM
+ * prefilled from the author's profile — a default, not a lock: hiding
+ * these fields (as this used to for solo posts) meant a dev who prefers
+ * email simply couldn't say so. Optional throughout: an accepted
+ * responder is handed the author's Discord handle regardless.
+ */
+export function ContactFields() {
+  const form = useWizardForm();
+  const discordUsername = useDiscordContactPrefill();
 
   return (
     <>
       <form.Field name="contactType">
         {(field) => (
           <SelectField
-            label="CONTACT TYPE *"
+            label="CONTACT TYPE"
             value={field.state.value}
             onChange={field.handleChange}
             options={CONTACT_TYPE_OPTIONS}
@@ -60,7 +72,7 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
               {(field) => (
                 <>
                   <TextField
-                    label="CONTACT INFO *"
+                    label="CONTACT INFO"
                     value={field.state.value}
                     onChange={field.handleChange}
                     onBlur={field.handleBlur}
@@ -68,7 +80,7 @@ export function ContactFields({ isIndividual }: { isIndividual: boolean }) {
                     maxLength={500}
                     error={field.state.meta.errors.map(String).join(" ") || null}
                   />
-                  {ct === "discord_dm" && isIndividual && discordUsername ? (
+                  {ct === "discord_dm" && discordUsername ? (
                     <Text size="xs" variant="muted">
                       Prefilled from your Discord profile.
                     </Text>

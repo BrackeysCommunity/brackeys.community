@@ -28,6 +28,8 @@ export interface CollabBoardSearch {
   /** Opens the create flyout on arrival. Alongside it, `jam`/`team`/
    *  `project` address the wizard (preselect) rather than the board. */
   new?: boolean;
+  /** With `new`: open the five-step wizard instead of the one-screen post. */
+  flow?: "wizard";
   /** The selected post — the inspector pane / detail overlay. */
   post?: number;
   type?: CollabPostType;

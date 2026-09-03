@@ -26,7 +26,6 @@ import {
   uploadCollabPostImage,
   uploadTeamAvatarImage,
   WIZARD_TABS,
-  type StepValidationOpts,
   type WizardFormValues,
   type WizardTabId,
 } from "./shared";
@@ -197,8 +196,6 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   const direction = activeIndex >= previousIndex ? 1 : -1;
 
   const validationStepId = currentTab === "project" ? "details" : currentTab;
-  const editingLegacyUnlinked = useStore(collabStore, (s) => s.wizard.editingLegacyUnlinked);
-  const validationOpts: StepValidationOpts = { legacyUnlinkedEdit: editingLegacyUnlinked };
 
   const stepProps = () =>
     flowStep(FLOWS.collabPost, currentTab, activeIndex + 1, WIZARD_TABS.length);
@@ -207,7 +204,6 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
     const validationError = getStepValidationError(
       validationStepId,
       form.state.values as WizardFormValues,
-      validationOpts,
     );
     if (validationError) {
       // Separating "wouldn't let them through" from "walked away" — both
@@ -227,6 +223,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       captureEvent(EVENTS.collabPostSubmitted, {
         ...stepProps(),
         mode: editingPostId !== null ? "edit" : "create",
+        surface: "wizard",
       });
       form.handleSubmit();
     } else {
@@ -268,9 +265,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   // string selector keeps the subscription cheap (Object.is), and only
   // the REVIEW step pays for the validation re-run per keystroke.
   const submitBlockedBy = useStore(form.store, (s) =>
-    isLastStep
-      ? (getFirstIncompleteStep(s.values as WizardFormValues, validationOpts)?.label ?? null)
-      : null,
+    isLastStep ? (getFirstIncompleteStep(s.values as WizardFormValues)?.label ?? null) : null,
   );
 
   return (
@@ -341,7 +336,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
  * are the deliverables, and a failed image can be re-added from the
  * team page later.
  */
-async function createDraftTeam(v: WizardFormValues): Promise<string> {
+export async function createDraftTeam(v: WizardFormValues): Promise<string> {
   const team = await client.createTeam({
     name: v.newTeamName.trim(),
     tagline: v.newTeamDescription.trim() || undefined,
@@ -356,8 +351,13 @@ async function createDraftTeam(v: WizardFormValues): Promise<string> {
   return team.id;
 }
 
-/** Creates or updates the post, returning its id either way. */
-async function savePost(v: WizardFormValues, editingPostId: number | null): Promise<number> {
+/**
+ * Creates or updates the post, returning its id either way. Shared with
+ * the quick screen, which fills a subset of the same draft — the rest
+ * rides through untouched, so nothing typed in one surface is lost by
+ * submitting from the other.
+ */
+export async function savePost(v: WizardFormValues, editingPostId: number | null): Promise<number> {
   let portfolioUrl: string | undefined;
   if (v.portfolioUrl.trim()) {
     const url = v.portfolioUrl.trim();
@@ -377,13 +377,13 @@ async function savePost(v: WizardFormValues, editingPostId: number | null): Prom
     projectId: v.projectId ?? null,
     title: v.title.trim(),
     description: v.description.trim(),
-    projectName: v.projectName.trim(),
+    projectName: v.projectName.trim() || undefined,
     compensationType: v.compensationType,
     compensationMin: v.compensationType === "negotiable" ? undefined : v.compensationMin,
     compensationMax: v.compensationType === "negotiable" ? undefined : v.compensationMax,
-    projectLength: v.projectLength!,
+    projectLength: v.projectLength,
     platforms: v.platforms,
-    experienceLevel: v.experienceLevel!,
+    experienceLevel: v.experienceLevel,
     portfolioUrl,
     contactMethod: v.contactMethod || undefined,
     contactType: v.contactType,
@@ -406,7 +406,7 @@ async function savePost(v: WizardFormValues, editingPostId: number | null): Prom
  * MinIO; the cost is that this step can fail after the post is already
  * live, which is why the caller keeps a retry path open.
  */
-async function attachImages(postId: number, images: UploadedImage[], isEdit: boolean) {
+export async function attachImages(postId: number, images: UploadedImage[], isEdit: boolean) {
   const uploaded = await Promise.all(images.map((img) => uploadCollabPostImage(postId, img.file)));
   await Promise.all(
     uploaded.map((rec, idx) =>
@@ -429,21 +429,28 @@ function renderStep(tab: WizardTabId) {
   return <StepProject />;
 }
 
-/** No close control — the drawer owns dismissal. */
-function CollabCreateHeader({
+/** No close control — the drawer owns dismissal. Shared with the quick
+ *  screen so the two create surfaces read as one drawer. */
+export function CollabCreateHeader({
   title,
   stepLabel,
   restored,
+  action,
 }: {
   title: string;
   stepLabel: string;
   restored: boolean;
+  /** Trailing slot on the title line. */
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex shrink-0 flex-col gap-0.5 border-b border-muted/30 px-5 pt-4 pb-4">
-      <Heading as="h2" className="text-lg tracking-widest uppercase">
-        {title}
-      </Heading>
+      <div className="flex items-center justify-between gap-3">
+        <Heading as="h2" className="text-lg tracking-widest uppercase">
+          {title}
+        </Heading>
+        {action}
+      </div>
       <div className="flex flex-wrap items-baseline gap-x-2">
         <Text size="xs" variant="muted" className="tracking-widest">
           {stepLabel}

@@ -21,6 +21,7 @@ import router from "@/orpc/router";
  * it belongs on.
  */
 const WRITE_VERBS = [
+  "accept",
   "add",
   "approve",
   "ban",

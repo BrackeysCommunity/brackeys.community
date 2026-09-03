@@ -67,6 +67,13 @@ import {
   requireAdmin,
 } from "@/orpc/middleware/auth";
 import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
+import {
+  assertCanInvite,
+  createTeamForUser,
+  insertTeamInvite,
+  notifyTeamInvite,
+  teamQuickCreateSchema,
+} from "@/orpc/router/team";
 
 const compensationTypeSchema = z.enum(COLLAB_COMPENSATION_TYPES);
 const projectLengthSchema = z.enum(COLLAB_PROJECT_LENGTHS);
@@ -87,21 +94,26 @@ const MAX_POST_SKILLS = 10;
 
 /**
  * The full post payload, shared by create and edit. Every constraint the
- * wizard enforces client-side is expressed here too — before this, the
- * RPC accepted `min(1)` titles and no roles at all, so a direct caller
- * could create posts the board's own components don't expect to render.
+ * client enforces is expressed here too — before this, the RPC accepted
+ * `min(1)` titles and no roles at all, so a direct caller could create
+ * posts the board's own components don't expect to render.
+ *
+ * Only what a post needs to be *findable* is required: type, title,
+ * description, and at least one role (the board's primary filter). The
+ * project name, platforms, timeline, and experience level are upgrades a
+ * poster adds once the post is live, so the board reads their absence as
+ * "any" rather than refusing the post.
  */
 const postContentShape = {
   type: postTypeSchema,
   title: z.string().trim().min(10).max(200),
   description: z.string().trim().min(30).max(5000),
-  projectName: z.string().trim().min(3).max(200),
+  projectName: z.string().trim().min(3).max(200).optional(),
   // null unlinks on edit; undefined leaves the post jam-less on create.
   jamId: z.number().int().positive().nullish(),
-  // The named team behind the post; null unlinks on edit. Nullish in
-  // the shape, but team posts must link one — enforced in
-  // `assertTeamRequired`, handler-level because the legacy escape hatch
-  // needs the stored row, which a zod refine can't see.
+  // The named team behind the post; null unlinks on edit. An unlinked
+  // team post is a normal state — the crew is attached when the poster
+  // accepts someone (`acceptAndInvite`) or from the post page.
   teamId: z.string().nullish(),
   // The canonical project the post recruits for; null unlinks on edit.
   // Always optional (a lot of posts are pre-project) and never minted
@@ -110,9 +122,9 @@ const postContentShape = {
   compensationType: compensationTypeSchema.optional(),
   compensationMin: z.number().int().min(0).max(1_000_000).optional(),
   compensationMax: z.number().int().min(0).max(1_000_000).optional(),
-  projectLength: projectLengthSchema,
-  platforms: z.array(z.string().max(50)).min(1).max(20),
-  experienceLevel: experienceLevelSchema,
+  projectLength: projectLengthSchema.optional(),
+  platforms: z.array(z.string().max(50)).max(20).optional(),
+  experienceLevel: experienceLevelSchema.optional(),
   portfolioUrl: z.url().max(500).optional().or(z.literal("")),
   contactMethod: z.string().max(500).optional(),
   contactType: contactTypeSchema.optional(),
@@ -130,8 +142,6 @@ function refinePostContent(
     compensationMax?: number;
     isIndividual?: boolean;
     teamId?: string | null;
-    contactType?: string;
-    contactMethod?: string;
   },
   ctx: z.RefinementCtx,
 ) {
@@ -168,24 +178,9 @@ function refinePostContent(
       message: "Compensation maximum must be at least the minimum.",
     });
   }
-  // Solo posters fall back to a Discord DM (their profile handle is the
-  // contact), so only team posts must spell a channel out.
-  if (!v.isIndividual) {
-    if (!v.contactType) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["contactType"],
-        message: "Please choose a contact type.",
-      });
-    }
-    if (!v.contactMethod?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["contactMethod"],
-        message: "Please provide contact info.",
-      });
-    }
-  }
+  // No contact requirement for any post: `getPostViewerState` releases the
+  // author's Discord id and handle to an accepted responder regardless,
+  // so a stored contact block is a preference, not the only channel.
 }
 
 /**
@@ -264,24 +259,6 @@ async function resolveReferences(input: PostContent) {
       : null;
 
   return { roleIds, skillIds, jamWarning, jam };
-}
-
-/**
- * v2: a team post must name its team — the accept → invite loop and
- * `/teams` discovery both hang off the link. One escape hatch: a legacy
- * pre-v2 unlinked team post may be *edited* without linking (an old
- * post's typo fix must not demand a team), but creates never exempt and
- * flipping a solo post to a team post always requires the link.
- */
-export function assertTeamRequired(
-  input: { isIndividual?: boolean; teamId?: string | null },
-  existing?: { isIndividual: boolean | null; teamId: string | null },
-) {
-  if (input.isIndividual || input.teamId != null) return;
-  if (existing && !existing.isIndividual && existing.teamId === null) return;
-  throw new ORPCError("BAD_REQUEST", {
-    message: "Team posts need a team page — pick or create one.",
-  });
 }
 
 /**
@@ -366,13 +343,13 @@ function postColumns(input: PostContent, projectName?: string) {
     projectId: input.projectId ?? null,
     title: input.title,
     description: input.description,
-    projectName: projectName ?? input.projectName,
+    projectName: projectName ?? input.projectName ?? null,
     compensationType: input.compensationType ?? null,
     compensationMin: input.compensationMin ?? null,
     compensationMax: input.compensationMax ?? null,
-    projectLength: input.projectLength,
-    platforms: input.platforms,
-    experienceLevel: input.experienceLevel,
+    projectLength: input.projectLength ?? null,
+    platforms: input.platforms ?? [],
+    experienceLevel: input.experienceLevel ?? null,
     portfolioUrl: input.portfolioUrl || null,
     contactMethod: input.contactMethod ?? null,
     contactType: input.contactType ?? null,
@@ -385,7 +362,6 @@ export const createPost = os
   .input(postContentSchema)
   .handler(async ({ input, context }) => {
     checkPostProfanity(input);
-    assertTeamRequired(input);
     await assertRateLimit(
       "collab-post",
       context.user.id,
@@ -526,7 +502,6 @@ export const updatePost = os
     );
 
     checkPostProfanity(input);
-    assertTeamRequired(input, post);
     const { roleIds, skillIds, jamWarning } = await resolveReferences(input);
     // Only a *changed* link needs re-verifying — an author who has since
     // left the team (or a staff edit) can still save with the existing
@@ -574,12 +549,112 @@ export const updatePost = os
     return { ...updated, jamWarning };
   });
 
+type PostRow = typeof collabPosts.$inferSelect;
+
+const postLinksPatchShape = {
+  jamId: z.number().int().positive().nullish(),
+  projectId: z.string().nullish(),
+  teamId: z.string().nullish(),
+  /** Written only when the post has no timeline yet — the client derives
+   *  it from the jam's dates, and a poster's own pick is theirs to keep. */
+  projectLength: projectLengthSchema.optional(),
+};
+
+type PostLinksPatch = {
+  [K in keyof typeof postLinksPatchShape]?: z.infer<(typeof postLinksPatchShape)[K]>;
+};
+
 /**
- * Sets just the team link on a legacy unlinked post. Exists so the
- * accept-time fix (§3.2 of the v2 plan) is one call — `updatePost`
- * requires the full payload and would force the client to reconstruct
- * it for what is a single-FK change.
+ * Verifies a links patch against the post's author and turns it into the
+ * columns to write. Every present key applies; `null` unlinks. Linking a
+ * team flips a solo post into a team post — "solo" means "no crew yet",
+ * and the crew arriving is the moment it stops being solo.
+ *
+ * Pure with respect to the write so `acceptAndInvite` can run the same
+ * verification and then apply the columns inside its own transaction.
  */
+async function resolvePostLinks(post: PostRow, patch: PostLinksPatch): Promise<Partial<PostRow>> {
+  const set: Partial<PostRow> = {};
+
+  if (patch.jamId !== undefined) {
+    if (patch.jamId !== null) {
+      const [jam] = await db
+        .select({ jamId: itchJams.jamId })
+        .from(itchJams)
+        .where(eq(itchJams.jamId, patch.jamId))
+        .limit(1);
+      if (!jam) {
+        throw new ORPCError("BAD_REQUEST", { message: "That jam no longer exists." });
+      }
+    }
+    set.jamId = patch.jamId;
+    if (patch.jamId !== null && patch.projectLength && post.projectLength === null) {
+      set.projectLength = patch.projectLength;
+    }
+  }
+
+  if (patch.projectId !== undefined) {
+    if (patch.projectId !== null) {
+      if (patch.projectId !== post.projectId) {
+        await assertProjectLinkable(patch.projectId, post.authorId);
+      }
+      // The canonical row owns the name — same rule as `updatePost`.
+      set.projectName = await linkedProjectName(patch.projectId);
+    }
+    set.projectId = patch.projectId;
+  }
+
+  if (patch.teamId !== undefined) {
+    if (patch.teamId !== null && patch.teamId !== post.teamId) {
+      await assertTeamLinkable(patch.teamId, post.authorId);
+    }
+    set.teamId = patch.teamId;
+    if (patch.teamId !== null) set.isIndividual = false;
+  }
+
+  return set;
+}
+
+async function writePostLinks(post: PostRow, set: Partial<PostRow>) {
+  const [updated] = await db
+    .update(collabPosts)
+    .set({ ...set, updatedAt: new Date() })
+    .where(eq(collabPosts.id, post.id))
+    .returning();
+  await touchTeamActivity(set.teamId);
+  return updated!;
+}
+
+/**
+ * The post page's STRENGTHEN panel: link or unlink the jam, project, and
+ * team one at a time. `updatePost` takes the post's complete state, which
+ * would force the panel to reconstruct the whole payload for a single-FK
+ * change — and that panel exists precisely so a poster never has to open
+ * the full form to attach a crew.
+ */
+export const updatePostLinks = os
+  .use(requireAuth)
+  .input(z.object({ postId: z.number(), ...postLinksPatchShape }))
+  .handler(async ({ input, context }) => {
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id },
+      "You can only link your own posts.",
+    );
+    const { postId: _postId, ...patch } = input;
+    const set = await resolvePostLinks(post, patch);
+    const updated = await writePostLinks(post, set);
+
+    captureServerEvent(EVENTS.collabPostUpdated, context.user.id, {
+      post_id: post.id,
+      via: "strengthen",
+      fields: Object.keys(set),
+    });
+
+    return updated;
+  });
+
+/** Just the team link — kept for the accept-time flow's older client. */
 export const linkPostTeam = os
   .use(requireAuth)
   .input(z.object({ postId: z.number(), teamId: z.string() }))
@@ -589,20 +664,8 @@ export const linkPostTeam = os
       { userId: context.user.id },
       "You can only link your own posts.",
     );
-    if (post.isIndividual) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "A solo post cannot also be linked to a team.",
-      });
-    }
-    await assertTeamLinkable(input.teamId, post.authorId);
-
-    const [updated] = await db
-      .update(collabPosts)
-      .set({ teamId: input.teamId, updatedAt: new Date() })
-      .where(eq(collabPosts.id, input.postId))
-      .returning();
-
-    return updated;
+    const set = await resolvePostLinks(post, { teamId: input.teamId });
+    return writePostLinks(post, set);
   });
 
 export const deletePost = os
@@ -1914,6 +1977,10 @@ export const listMyPostsSummary = os
     }));
   });
 
+/** The refusal shared by both accept paths on a team post with no team. */
+const TEAM_LINK_REQUIRED =
+  "Link your team page before accepting — accepted members get invited to it.";
+
 export const updateResponseStatus = os
   .use(requireAuthWithPermissions)
   .input(
@@ -1948,12 +2015,10 @@ export const updateResponseStatus = os
 
     // Accepting onto a team post without a team is a notification
     // dead-end — the accept → invite handoff has nowhere to point. The
-    // client renders an inline link-or-create flow on this error, then
-    // retries via `linkPostTeam`.
+    // client routes those through `acceptAndInvite`, which attaches or
+    // mints the crew in the same call.
     if (input.status === "accepted" && post && !post.isIndividual && post.teamId === null) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "Link your team page before accepting — accepted members get invited to it.",
-      });
+      throw new ORPCError("BAD_REQUEST", { message: TEAM_LINK_REQUIRED });
     }
 
     const [updated] = await db
@@ -1982,6 +2047,155 @@ export const updateResponseStatus = os
     });
 
     return updated;
+  });
+
+/**
+ * Accept a response and, in the same breath, put the responder on a crew:
+ * pick an existing team, mint one now, or neither. One transaction — the
+ * team, the post link, the accept, and the invite either all land or none
+ * do, so a crew is never created for an accept that failed.
+ *
+ * `team: null` is the plain accept. On a solo post it simply accepts
+ * (`invite` is then meaningless without a team and refused); on a team
+ * post with no team it hits the same gate `updateResponseStatus` has —
+ * the one place the accept-to-roster rule stays hard.
+ */
+export const acceptAndInvite = os
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({
+      responseId: z.number(),
+      team: z
+        .union([z.object({ id: z.string() }), z.object({ create: teamQuickCreateSchema })])
+        .nullable(),
+      invite: z.boolean(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [response] = await db
+      .select()
+      .from(collabResponses)
+      .where(eq(collabResponses.id, input.responseId))
+      .limit(1);
+    if (!response) {
+      throw new ORPCError("NOT_FOUND", { message: "Response not found." });
+    }
+    const post = await loadPost(response.postId);
+    const isOwner = post.authorId === context.user.id;
+    if (!isOwner && !context.isStaff) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "Only the post owner or staff can manage responses.",
+      });
+    }
+
+    // Everything that can refuse runs before the transaction opens, against
+    // the shared connection — the transaction below only writes.
+    const existingTeamId = input.team && "id" in input.team ? input.team.id : null;
+    const linkSet = existingTeamId ? await resolvePostLinks(post, { teamId: existingTeamId }) : {};
+    const willHaveTeam = input.team !== null || post.teamId !== null;
+    if (!post.isIndividual && !willHaveTeam) {
+      throw new ORPCError("BAD_REQUEST", { message: TEAM_LINK_REQUIRED });
+    }
+    if (input.invite && !willHaveTeam) {
+      throw new ORPCError("BAD_REQUEST", { message: "Pick or start a crew to invite them to." });
+    }
+    if (input.invite) {
+      await assertCanInvite({
+        teamId: existingTeamId ?? (input.team === null ? (post.teamId ?? undefined) : undefined),
+        inviterId: context.user.id,
+        inviteeId: response.responderId,
+      });
+      await assertRateLimit(
+        "team-invite",
+        context.user.id,
+        50,
+        "You've sent a lot of invites today — try again tomorrow.",
+        86400,
+      );
+    }
+
+    const result = await db.transaction(async (tx) => {
+      // The crew belongs to the poster even when staff run the accept.
+      const created =
+        input.team && "create" in input.team
+          ? await createTeamForUser(tx, post.authorId, input.team.create)
+          : null;
+      const teamId = created?.id ?? existingTeamId ?? post.teamId;
+
+      const set: Partial<PostRow> = created ? { teamId: created.id, isIndividual: false } : linkSet;
+      if (Object.keys(set).length > 0) {
+        await tx
+          .update(collabPosts)
+          .set({ ...set, updatedAt: new Date() })
+          .where(eq(collabPosts.id, post.id));
+      }
+
+      const [updated] = await tx
+        .update(collabResponses)
+        .set({ status: "accepted" })
+        .where(eq(collabResponses.id, response.id))
+        .returning();
+
+      const invite =
+        input.invite && teamId
+          ? await insertTeamInvite(tx, {
+              teamId,
+              inviteeId: response.responderId,
+              invitedBy: context.user.id,
+              sourceResponseId: response.id,
+            })
+          : null;
+
+      return { response: updated!, teamId, created, invite };
+    });
+
+    await notify({
+      userId: response.responderId,
+      type: "collab_response_accepted",
+      actorId: context.user.id,
+      entityType: "collab_response",
+      entityId: String(response.id),
+      data: { postId: post.id, postTitle: post.title, responseId: response.id },
+    });
+
+    if (result.invite && result.teamId) {
+      const [linked] = result.created
+        ? [result.created]
+        : await db
+            .select({ id: teams.id, slug: teams.slug, name: teams.name })
+            .from(teams)
+            .where(eq(teams.id, result.teamId))
+            .limit(1);
+      if (linked) await notifyTeamInvite(linked, result.invite, context.user.id);
+    }
+    await touchTeamActivity(result.teamId);
+
+    // Same attribution as `updateResponseStatus`: the applicant's funnel.
+    captureServerEvent(EVENTS.collabResponseStatusChanged, response.responderId, {
+      post_id: post.id,
+      status: "accepted",
+    });
+    if (result.created) {
+      captureServerEvent(EVENTS.teamCreated, post.authorId, {
+        team_id: result.created.id,
+        via: "accept",
+      });
+    }
+    if (result.invite) {
+      captureServerEvent(EVENTS.teamInviteSent, context.user.id, {
+        team_id: result.teamId,
+        via: "accept",
+      });
+    }
+
+    return {
+      ...result.response,
+      teamId: result.teamId,
+      inviteId: result.invite?.id ?? null,
+      createdTeam: result.created
+        ? { id: result.created.id, slug: result.created.slug, name: result.created.name }
+        : null,
+    };
   });
 
 // ── Roles ────────────────────────────────────────────────────────────────────

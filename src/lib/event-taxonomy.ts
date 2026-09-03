@@ -67,6 +67,8 @@ export const EVENTS = {
   collabPostSubmitted: "collab_post_submitted",
   collabPostCreated: "collab_post_created",
   collabPostUpdated: "collab_post_updated",
+  // The post-publish upgrades — `field` names which row was completed.
+  collabPostStrengthened: "collab_post_strengthened",
 
   // Collab post responses — the other half of the loop.
   collabResponseFormOpened: "collab_response_form_opened",

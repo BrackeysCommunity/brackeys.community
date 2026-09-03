@@ -87,6 +87,27 @@ export function experienceLabel(value: string): string {
   return experience.label[value] ?? value;
 }
 
+// ── Unspecified readings ───────────────────────────────────────────────────
+
+/**
+ * How a post reads when it never said. Platforms, timeline, and
+ * experience are optional at post time — a post that skipped them is open
+ * to anyone, and the board says so instead of leaving a blank row.
+ */
+export const UNSPECIFIED_LABEL = "Any";
+
+export function platformsReading(platforms: string[] | null | undefined): string {
+  return platforms && platforms.length > 0 ? platforms.join(" · ") : UNSPECIFIED_LABEL;
+}
+
+export function projectLengthReading(value: string | null | undefined): string {
+  return value || UNSPECIFIED_LABEL;
+}
+
+export function experienceReading(value: string | null | undefined): string {
+  return value ? experienceLabel(value) : UNSPECIFIED_LABEL;
+}
+
 // ── Contact ────────────────────────────────────────────────────────────────
 
 export const COLLAB_CONTACT_TYPES = ["discord_dm", "discord_server", "email", "other"] as const;
