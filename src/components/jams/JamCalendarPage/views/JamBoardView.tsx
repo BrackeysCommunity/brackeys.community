@@ -71,9 +71,9 @@ export function JamBoardView() {
         )}
       >
         {panel && (
-          // `z-30`, one over the toolbar band: the collab inspector wins that
-          // overlap by DOM order, but here the panel leads the DOM so it
-          // stacks on top below `lg`. `mt-4` pays the sticky inset in flow.
+          // `z-30`, one over the toolbar band: the panel leads the DOM, so
+          // without it the band would stack on top below `lg`. `mt-4` pays
+          // the sticky inset in flow.
           <aside className="header-follow z-30 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:mt-4">
             {panel}
           </aside>

@@ -12,7 +12,7 @@ import type {
 
 /**
  * The board's filter vocabulary, shared by the toolbar, the mobile filter
- * drawer, the chip readout, and the idle inspector — the same split the
+ * drawer, and the chip readout — the same split the
  * team and member directories use, and for the same reason: those
  * surfaces must not drift, and the page needs to import them without a
  * cycle back through its own module.
@@ -30,7 +30,8 @@ export interface CollabBoardSearch {
   new?: boolean;
   /** With `new`: open the five-step wizard instead of the one-screen post. */
   flow?: "wizard";
-  /** The selected post — the inspector pane / detail overlay. */
+  /** A post id from before posts had their own page. The route redirects
+   *  it to `/collab/$postId`; nothing on the board reads it. */
   post?: number;
   type?: CollabPostType;
   status?: CollabStatus;
@@ -104,9 +105,9 @@ export function collabFacetInput(search: CollabBoardSearch) {
 
 /**
  * Everything the board's listing query is keyed on, and nothing else: the
- * URL also carries `new` and `post`, which address the create flyout and
- * the inspector rather than the list. `/collab`'s loader takes this as its
- * `loaderDeps`, so opening a post doesn't re-run the prefetch.
+ * URL also carries `new`, which addresses the create flyout rather than
+ * the list. `/collab`'s loader takes this as its `loaderDeps`, so opening
+ * the flyout doesn't re-run the prefetch.
  */
 export function collabListingDeps(search: CollabBoardSearch) {
   const { by: sortBy, order: sortOrder } = sortPreset(search.sort);

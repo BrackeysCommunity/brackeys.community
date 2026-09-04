@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { collabListingDeps } from "@/components/collab/collab-filters";
@@ -19,8 +19,9 @@ import { listingMeta, ogCardPath } from "@/lib/site-meta";
 //                  `flow=wizard` opens the five-step wizard instead of
 //                  the one-screen post — a tester's escape hatch for one
 //                  release.
-//   `?post=<id>`   opens the post detail popover so direct links land on
-//                  the right post
+//   `?post=<id>`   the pre-page way to address one post. Redirected to
+//                  `/collab/$postId` in `beforeLoad` so old shared links
+//                  still land on the post.
 const searchSchema = z.object({
   new: z.boolean().optional(),
   flow: z.enum(["wizard"]).optional(),
@@ -42,12 +43,17 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/collab/")({
   validateSearch: searchSchema,
+  loaderDeps: ({ search }) => collabListingDeps(search),
   // Keyed on the filters the URL actually describes, so a shared link to a
   // narrowed board server-renders that board rather than the default one.
-  // `new`/`post` are deliberately not deps — they open the flyout and the
-  // inspector, and re-running the prefetch on every post click would refetch
-  // the whole list once its 15s staleness elapsed.
-  loaderDeps: ({ search }) => collabListingDeps(search),
+  // `new` is deliberately not a dep — it opens the flyout, and re-running
+  // the prefetch for that would refetch the whole list once its 15s
+  // staleness elapsed.
+  beforeLoad: ({ search }) => {
+    if (search.post !== undefined) {
+      throw redirect({ to: "/collab/$postId", params: { postId: String(search.post) } });
+    }
+  },
   loader: ({ context: { queryClient }, deps }) =>
     prefetchInLoader(queryClient.prefetchInfiniteQuery(collabPostsQueryOptions(deps))),
   head: ({ match }) =>

@@ -20,10 +20,6 @@ import { type CollabListingItem, useCollabListing } from "./use-collab-listing";
 interface CollabPostFeedProps {
   /** Currently authenticated user id — drives owner-specific UI. */
   currentUserId?: string | null;
-  /** Post currently loaded in the inspector, if any. */
-  selectedPostId?: number | null;
-  /** Load a post into the inspector (desktop) or popover (mobile). */
-  onSelectPost: (postId: number) => void;
 }
 
 /** Rough mounted height of one row in each layout, until measured. */
@@ -41,11 +37,7 @@ const LIST_ROW_ESTIMATE = 86;
  * hundreds of post cards — each with its own art — mounted behind you.
  * The paging sentinel rides in the footer so it stays mounted.
  */
-export function CollabPostFeed({
-  currentUserId,
-  selectedPostId,
-  onSelectPost,
-}: CollabPostFeedProps) {
+export function CollabPostFeed({ currentUserId }: CollabPostFeedProps) {
   const { search } = useCollabBoardSearch();
   const layout = useStore(collabStore, (s) => s.layout);
   const { items, isLoading, hasNextPage, isFetchingNext, fetchNext } =
@@ -70,14 +62,7 @@ export function CollabPostFeed({
       getItemKey={(item) => `post-${item.post.id}`}
       renderItem={(item) => {
         const Card = isCards ? CollabPostGridCard : CollabPostCard;
-        return (
-          <Card
-            post={item.post}
-            pinned={item.pinned}
-            selected={item.post.id === selectedPostId}
-            onSelect={onSelectPost}
-          />
-        );
+        return <Card post={item.post} pinned={item.pinned} />;
       }}
       // Cards are art-led tiles on the same column rhythm as the team
       // directory; the list is one row per post, full width, so a scan
@@ -109,23 +94,12 @@ export function CollabPostFeed({
  * top, and the first page is all there is to mount) and no toolbar: this
  * renders exactly what a reader without JavaScript can use.
  */
-export function CollabPostFeedStatic({
-  items,
-  onSelectPost,
-}: {
-  items: CollabListingItem[];
-  onSelectPost: (postId: number) => void;
-}) {
+export function CollabPostFeedStatic({ items }: { items: CollabListingItem[] }) {
   if (items.length === 0) return null;
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {items.map((item) => (
-        <CollabPostGridCard
-          key={item.post.id}
-          post={item.post}
-          pinned={item.pinned}
-          onSelect={onSelectPost}
-        />
+        <CollabPostGridCard key={item.post.id} post={item.post} pinned={item.pinned} />
       ))}
     </div>
   );

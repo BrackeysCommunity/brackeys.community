@@ -4,10 +4,9 @@ import { toastMutationError } from "@/lib/mutation-errors";
 import { client, orpc } from "@/orpc/client";
 
 /**
- * The owner/viewer mutations every post surface shares — the board's
- * inspector, the mobile drawer, and the dedicated page all close, reopen,
- * extend, delete, and report a post the same way, and all refresh the
- * same `getPost` cache entry afterwards.
+ * The owner/viewer mutations the post page and its actions share — close,
+ * reopen, extend, delete, and report a post the same way, and all refresh
+ * the same `getPost` cache entry afterwards.
  */
 export function useCollabPostActions(postId: number, opts: { onDeleted?: () => void } = {}) {
   const queryClient = useQueryClient();

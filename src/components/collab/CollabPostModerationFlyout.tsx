@@ -10,7 +10,7 @@ import { reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
-import type { CollabPostDetailData } from "./CollabPostDetail";
+import type { CollabPostDetailData } from "./collab-post-data";
 
 /**
  * MODERATE affordance for the post detail's action row. Renders nothing

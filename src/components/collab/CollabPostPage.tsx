@@ -1,6 +1,7 @@
 import {
   Cancel01Icon,
   Delete02Icon,
+  Flag01Icon,
   Login01Icon,
   PencilEdit01Icon,
   Tick01Icon,
@@ -19,6 +20,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
+import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
 import { Heading, Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -49,12 +51,14 @@ import { fadeLeft, fadeUp } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
 import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { teamLinkParams } from "@/lib/team-links";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
+import type { CollabPostDetailData } from "./collab-post-data";
 import { CollabCreateFlyout } from "./CollabCreateFlyout";
-import { type CollabPostDetailData, ReportPostAction } from "./CollabPostDetail";
+import { CollabPostModerateButton } from "./CollabPostModerationFlyout";
 import {
   CollabPostResponseForm,
   ViewerResponseCard,
@@ -80,9 +84,9 @@ const STATUS_BADGE: Record<
 /**
  * A post's own page, spoken in the same layout language as the jam,
  * project, and team pages: masthead `Well` with letterboxed
- * art and stat blocks, then titled sections. The board's inspector shows
- * the same post at panel zoom; this is the full spread — and the page a
- * crawler or a shared link lands on.
+ * art and stat blocks, then titled sections. Every board card links
+ * here; this is the full spread — and the page a crawler or a shared link
+ * lands on.
  */
 export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailData }) {
   const postId = initialPost.id;
@@ -419,8 +423,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
         />
       </motion.div>
 
-      {/* Mounted so the owner's EDIT lands in the same wizard the board
-          uses — the detail panel elsewhere relies on the board's mount. */}
+      {/* The owner's EDIT lands in the same wizard the board's create uses. */}
       <CollabCreateFlyout
         open={editOpen}
         onClose={() => {
@@ -601,6 +604,7 @@ function HeroActions({
   actions: ReturnType<typeof useCollabPostActions>;
   onEdit: () => void;
 }) {
+  const navigate = useNavigate();
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
       {!isOwner && !isClosed ? (
@@ -698,11 +702,52 @@ function HeroActions({
       ) : null}
 
       {!isOwner && currentUserId ? (
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <ReportPostAction report={actions.report} />
+          <CollabPostModerateButton
+            post={post}
+            onGone={() => navigate({ to: "/collab", search: {} })}
+          />
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * REPORT for a post — the reason is collected in the shared dialog, and
+ * the button becomes a receipt once staff have it.
+ */
+function ReportPostAction({
+  report,
+}: {
+  report: ReturnType<typeof useCollabPostActions>["report"];
+}) {
+  const [reported, setReported] = useState(false);
+
+  if (reported) {
+    return (
+      <Text size="xs" variant="success" className="tracking-widest uppercase">
+        Report submitted
+      </Text>
+    );
+  }
+
+  return (
+    <ReportDialog
+      title="Report this post?"
+      message="Tell staff what's wrong with it. Only staff see this."
+      onSubmit={async (reason) => {
+        await report.mutateAsync(reason);
+        setReported(true);
+        toast.success("Report sent — staff will take a look.");
+      }}
+    >
+      <Button variant="outline" size="sm" className="tracking-widest">
+        <HugeiconsIcon icon={Flag01Icon} size={12} />
+        REPORT
+      </Button>
+    </ReportDialog>
   );
 }
 

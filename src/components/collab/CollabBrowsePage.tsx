@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -28,52 +28,45 @@ import { type CollabBoardSearch } from "./collab-filters";
 import { CollabActiveFilters } from "./CollabActiveFilters";
 import { CollabCreateFlyout, type CollabCreateSurface } from "./CollabCreateFlyout";
 import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel";
-import { CollabInspector } from "./CollabInspector";
 import { CollabPostFeed, CollabPostFeedStatic } from "./CollabPostFeed";
-import { CollabPostPopover } from "./CollabPostPopover";
 import { COLLAB_SEARCH_INPUT_ID, CollabFloatingControls, CollabToolbar } from "./CollabToolbar";
 import { useCollabListing } from "./use-collab-listing";
 
-/** Matches the `lg` breakpoint that switches the board to two panes. */
-const SPLIT_QUERY = "(min-width: 1024px)";
+/** The `lg` breakpoint, above which the toolbar carries the filters inline. */
+const WIDE_QUERY = "(min-width: 1024px)";
 
-function subscribeToSplit(onChange: () => void) {
-  const mql = window.matchMedia(SPLIT_QUERY);
+function subscribeToWide(onChange: () => void) {
+  const mql = window.matchMedia(WIDE_QUERY);
   mql.addEventListener("change", onChange);
   return () => mql.removeEventListener("change", onChange);
 }
 
 /**
- * Whether the board has room for two panes. Picked in JS rather than
- * with `lg:` visibility classes because the two layouts differ in more
- * than visibility: only the split view mounts the inspector and answers
- * to arrow-key selection, and only the stacked one mounts the drawer.
+ * Whether the toolbar has room for its filter menus inline. Picked in JS
+ * rather than with `lg:` visibility classes because the narrow layout
+ * mounts a filter sheet the wide one never does.
  */
-function useIsSplitView() {
+function useIsWide() {
   return useSyncExternalStore(
-    subscribeToSplit,
-    () => window.matchMedia(SPLIT_QUERY).matches,
+    subscribeToWide,
+    () => window.matchMedia(WIDE_QUERY).matches,
     () => false,
   );
 }
 
 /**
- * Top-level collab browser, laid out as a split view: the list lane on
- * the left, a persistent inspector on the right. Selecting a post loads
- * it into the inspector rather than over the board, so you can walk the
- * list and compare without losing your place.
+ * Top-level collab browser: the toolbar, the active-filter readout, and
+ * the list lane. Every card is a link to the post's own page — the board
+ * is for scanning, the page is for reading and acting.
  *
  * The lane grows the page — scrolling is the page's, not a nested
- * scroller's — and the inspector sticks alongside it.
- *
- * Below `lg` there isn't room for two panes, so the lane becomes the
- * whole page and the same detail renders in an overlay instead.
+ * scroller's.
  */
 export function CollabBrowsePage() {
   const { session, isPending } = useStore(authStore);
   const navigate = useNavigate();
   const search = (useSearch({ strict: false }) as CollabBoardSearch) ?? {};
-  const isSplit = useIsSplitView();
+  const isWide = useIsWide();
   const isHydrated = useIsHydrated();
   // Keyed on the shell's breakpoint, not this board's: the floating controls
   // sit above the bottom nav island, which only the mobile shell mounts.
@@ -91,12 +84,10 @@ export function CollabBrowsePage() {
   const laneRelease = useLaneRelease(toolbarEl);
 
   const currentUserId = session?.user?.id ?? null;
-  const selectedPostId = typeof search.post === "number" ? search.post : null;
 
-  // Same query the lane renders, deduped by react-query — gives the
-  // page the ordered ids that arrow-key selection walks through, and
-  // the items themselves for the pre-hydration static feed.
-  const { items, postIds } = useCollabListing(currentUserId);
+  // Same query the lane renders, deduped by react-query — gives the page
+  // the items for the pre-hydration static feed.
+  const { items } = useCollabListing(currentUserId);
 
   // Open the create flyout when arriving via /collab/new (which
   // redirects here with `?new=1`), or via a jam's "FIND A TEAM" CTA
@@ -153,45 +144,12 @@ export function CollabBrowsePage() {
     });
   }, [search.new, jamForNewPost, teamForNewPost, projectForNewPost, navigate]);
 
-  // Selection lives in the URL so it survives reload, back/forward, and
-  // sharing. Clicking pushes (back returns to the idle pane); walking
-  // with the arrows replaces, so a long scan leaves one history entry.
-  // Both preserve the rest of the search so selecting a post inside a
-  // filtered board doesn't silently drop the filter.
-  //
-  // `resetScroll: false` throughout: these write a URL, they don't
-  // navigate anywhere. The board stays where it is and the inspector
-  // changes beside it, so the router's scroll-to-top would throw away
-  // the reader's place in the list on every click.
-  const selectPost = useCallback(
-    (postId: number, replace = false) => {
-      navigate({
-        from: "/collab/",
-        search: (prev) => ({ ...prev, post: postId }),
-        replace,
-        resetScroll: false,
-      });
-    },
-    [navigate],
-  );
-  const clearSelection = useCallback(() => {
-    navigate({
-      from: "/collab/",
-      search: (prev) => ({ ...prev, post: undefined }),
-      replace: false,
-      resetScroll: false,
-    });
-  }, [navigate]);
-
-  // Global keyboard shortcuts:
-  //   `/`      focuses the lane's search input
-  //   `↑` `↓`  walk the selection through the lane (split view only)
-  //   `Esc`    clears the selection
-  // All are skipped while typing in an input, textarea, or
-  // contenteditable so they don't hijack normal keys.
+  // `/` focuses the lane's search input — skipped while typing in an
+  // input, textarea, or contenteditable so it doesn't hijack normal keys.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key !== "/") return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (
@@ -202,30 +160,12 @@ export function CollabBrowsePage() {
       ) {
         return;
       }
-
-      if (e.key === "/") {
-        e.preventDefault();
-        document.getElementById(COLLAB_SEARCH_INPUT_ID)?.focus();
-        return;
-      }
-      if (e.key === "Escape" && selectedPostId !== null) {
-        e.preventDefault();
-        clearSelection();
-        return;
-      }
-      // Arrow selection only makes sense where the inspector is visible;
-      // on narrow screens it would fire an overlay on every keypress.
-      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && isSplit && postIds.length > 0) {
-        e.preventDefault();
-        const current = selectedPostId === null ? -1 : postIds.indexOf(selectedPostId);
-        const delta = e.key === "ArrowDown" ? 1 : -1;
-        const next = current === -1 ? 0 : current + delta;
-        if (next >= 0 && next < postIds.length) selectPost(postIds[next], true);
-      }
+      e.preventDefault();
+      document.getElementById(COLLAB_SEARCH_INPUT_ID)?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isSplit, postIds, selectedPostId, selectPost, clearSelection]);
+  }, []);
 
   const handleCreate = () => {
     if (!isPending && !session?.user) {
@@ -239,44 +179,17 @@ export function CollabBrowsePage() {
     setCreateOpen(true);
   };
 
-  // The board itself gets the full-width controls; only the narrow
-  // stacked layout falls back to the filter sheet.
-  // The controls pin under the app header and ride with it (`.header-follow`),
-  // carrying its surface so the list passes behind an opaque band. Split, a
-  // pseudo-element extends that background across the inspector column.
-  const lane = (
-    <>
-      <div
-        ref={setToolbarEl}
-        data-cursor-occlude=""
-        className="header-follow toolbar-band sticky top-0 z-20 lg:before:absolute lg:before:inset-y-0 lg:before:left-full lg:before:w-96 lg:before:bg-background lg:before:content-['']"
-        style={{ marginBottom: laneRelease }}
-      >
-        <CollabToolbar
-          onOpenFilters={isSplit ? undefined : () => setFiltersOpen(true)}
-          controlsElsewhere={isMobile}
-        />
-      </div>
-      {/* A wrapper rather than the readout itself: the margin the overhang
-          gives back has to land whatever the readout renders. */}
-      <div style={{ marginTop: -laneRelease }}>
-        <CollabActiveFilters />
-      </div>
-    </>
-  );
-
   return (
     <PageStack className="flex flex-col gap-5 selection:bg-primary selection:text-white">
       <motion.div variants={fadeUp}>
         <CollabHero authenticated={!!session?.user} onCreate={handleCreate} />
       </motion.div>
       {/* The interactive board waits for hydration rather than rendering
-          off `isSplit` directly. That hook can't know the viewport on the
-          server, so it reports stacked every time and a desktop load would
-          paint the one-column board, then swap the whole thing for the
-          two-column one — the layout, the inspector, and the lane's
-          measured overhang all changing at once, which reads as the page
-          rendering twice.
+          off `isWide` directly. That hook can't know the viewport on the
+          server, so it reports narrow every time and a desktop load would
+          paint the sheet-style toolbar, then swap it for the inline one —
+          the toolbar and the lane's measured overhang both changing at
+          once, which reads as the page rendering twice.
 
           The *posts* don't wait: the loader prefetches the first page, so
           the server document carries it as a plain static grid — that is
@@ -285,72 +198,50 @@ export function CollabBrowsePage() {
           while every child of the stack is still held at opacity 0 for
           its first 250ms, so the static frame is never on screen.
 
-          One tagged wrapper around all branches, too: a tag inside each
+          One tagged wrapper around both branches, too: a tag inside each
           would remount on the swap and inherit this stack's `hidden`
           initial, fading the body in a second time.
 
-          `fadeIn` rather than `fadeUp` because both the lane's toolbar and
-          the inspector are sticky — see the variant's own note. */}
+          `fadeIn` rather than `fadeUp` because the lane's toolbar is
+          sticky — see the variant's own note. */}
       <motion.div variants={fadeIn} className="flex flex-col gap-5">
         {!isHydrated ? (
-          <CollabPostFeedStatic items={items} onSelectPost={selectPost} />
-        ) : isSplit ? (
-          <>
-            {/* `items-start` is what lets the inspector stick: a stretched
-              grid item is already as tall as the lane, so it would have
-              nothing to travel through. */}
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(360px,360px)] items-start gap-6">
-              <section className="flex flex-col gap-3">
-                {lane}
-                <CollabPostFeed
-                  currentUserId={currentUserId}
-                  selectedPostId={selectedPostId}
-                  onSelectPost={selectPost}
-                />
-              </section>
-
-              {/* Same inset as the toolbar, travelling with the header; `mt-4`
-                pays that inset in flow. No `--app-header-shift` term in the
-                cap — the header returning moves the whole pane. */}
-              <aside className="header-follow sticky top-4 z-20 mt-4 flex max-h-[calc(100vh-2.5rem)] flex-col">
-                <CollabInspector
-                  postId={selectedPostId}
-                  currentUserId={currentUserId}
-                  onClose={clearSelection}
-                  onEdit={() => setCreateOpen(true)}
-                  compact
-                />
-              </aside>
+          <CollabPostFeedStatic items={items} />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {/* The controls pin under the app header and ride with it
+                (`.header-follow`), carrying its surface so the list passes
+                behind an opaque band. */}
+            <div
+              ref={setToolbarEl}
+              data-cursor-occlude=""
+              className="header-follow toolbar-band sticky top-0 z-20"
+              style={{ marginBottom: laneRelease }}
+            >
+              <CollabToolbar
+                onOpenFilters={isWide ? undefined : () => setFiltersOpen(true)}
+                controlsElsewhere={isMobile}
+              />
             </div>
-
-            <div className="flex flex-wrap items-center gap-4">
+            {/* A wrapper rather than the readout itself: the margin the
+                overhang gives back has to land whatever the readout renders. */}
+            <div style={{ marginTop: -laneRelease }}>
+              <CollabActiveFilters />
+            </div>
+            <CollabPostFeed currentUserId={currentUserId} />
+            {isWide ? (
               <Text size="sm" variant="muted" className="flex items-center gap-1.5">
                 Press <Kbd>/</Kbd> to search.
               </Text>
-              <Text size="sm" variant="muted" className="flex items-center gap-1.5">
-                <Kbd>↑</Kbd> <Kbd>↓</Kbd> to walk posts.
-              </Text>
-            </div>
-          </>
-        ) : (
-          /* No room for two panes: the lane is the page, detail opens over it. */
-          <div className="flex flex-col gap-3">
-            {lane}
-            <CollabPostFeed
-              currentUserId={currentUserId}
-              selectedPostId={selectedPostId}
-              onSelectPost={selectPost}
-            />
+            ) : null}
           </div>
         )}
       </motion.div>
 
-      {isMobile && !isSplit ? (
+      {isMobile && !isWide ? (
         <CollabFloatingControls onOpenFilters={() => setFiltersOpen(true)} />
       ) : null}
 
-      {/* Doubles as the edit surface: the detail panel seeds the wizard
-          store, then flips this open. */}
       <CollabCreateFlyout
         open={createOpen}
         surface={createSurface}
@@ -360,21 +251,13 @@ export function CollabBrowsePage() {
           // overwrite that post the next time someone hits POST A GIG.
           if (collabStore.state.wizard.editingPostId !== null) resetWizard();
         }}
-        onCreated={(postId) => selectPost(postId)}
+        // A new post lands on its own page, where the STRENGTHEN panel is.
+        onCreated={(postId) =>
+          navigate({ to: "/collab/$postId", params: { postId: String(postId) } })
+        }
       />
 
-      {/* The drawer is the narrow-screen counterpart to the inspector,
-          so it must not also mount behind the split view. */}
-      {!isSplit ? (
-        <CollabPostPopover
-          postId={selectedPostId}
-          currentUserId={currentUserId}
-          onClose={clearSelection}
-          onEdit={() => setCreateOpen(true)}
-        />
-      ) : null}
-
-      {/* Same drawer as the post detail — one overlay idiom on mobile,
+      {/* Same drawer as the create flyout — one overlay idiom on mobile,
           dismissed the same way (swipe, scrim, or the panel's own CTA). */}
       <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
         <DrawerContent className="max-h-[88vh] p-0">

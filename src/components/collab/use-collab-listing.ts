@@ -40,8 +40,8 @@ export function collabPostsQueryOptions({ filters, sortBy, sortOrder }: CollabLi
 
 /**
  * The board's listing query, shared by the lane that renders it and the
- * page that drives keyboard selection over it. Both call this hook;
- * react-query dedupes on the key so it stays one request.
+ * page's pre-hydration static feed. Both call this hook; react-query
+ * dedupes on the key so it stays one request.
  *
  * Posts authored by the current viewer are hoisted to the top — they
  * render first regardless of sort, keeping server ordering within each
@@ -105,12 +105,8 @@ export function useCollabListing(currentUserId?: string | null) {
     return [...mine, ...others];
   }, [allPosts, currentUserId, viewerSkillIds]);
 
-  /** Selection order for keyboard navigation. */
-  const postIds = useMemo(() => items.map((item) => item.post.id), [items]);
-
   return {
     items,
-    postIds,
     isLoading: postsQuery.isLoading,
     hasNextPage: postsQuery.hasNextPage,
     isFetchingNext: postsQuery.isFetchingNextPage,

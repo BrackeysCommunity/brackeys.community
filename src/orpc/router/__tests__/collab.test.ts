@@ -55,6 +55,7 @@ describe("collab router surface", () => {
 
   it("registers the publish-first strengthen and accept procedures", () => {
     expect(router.updatePostLinks).toBeDefined();
+    expect(router.updatePostTerms).toBeDefined();
     expect(router.acceptAndInvite).toBeDefined();
   });
 });

@@ -654,6 +654,48 @@ export const updatePostLinks = os
     return updated;
   });
 
+/**
+ * The STRENGTHEN panel's TERMS flyout: platforms, timeline, and experience
+ * level on their own, for the same reason `updatePostLinks` exists — the
+ * panel must never have to reconstruct the full `updatePost` payload to
+ * change three optional facets. Every present key applies; `null` clears.
+ */
+export const updatePostTerms = os
+  .use(requireAuth)
+  .input(
+    z.object({
+      postId: z.number(),
+      platforms: z.array(z.string().max(50)).max(20).optional(),
+      projectLength: projectLengthSchema.nullish(),
+      experienceLevel: experienceLevelSchema.nullish(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id },
+      "You can only edit your own posts.",
+    );
+    const set: Partial<PostRow> = {};
+    if (input.platforms !== undefined) set.platforms = input.platforms;
+    if (input.projectLength !== undefined) set.projectLength = input.projectLength;
+    if (input.experienceLevel !== undefined) set.experienceLevel = input.experienceLevel;
+
+    const [updated] = await db
+      .update(collabPosts)
+      .set({ ...set, updatedAt: new Date() })
+      .where(eq(collabPosts.id, post.id))
+      .returning();
+
+    captureServerEvent(EVENTS.collabPostUpdated, context.user.id, {
+      post_id: post.id,
+      via: "strengthen",
+      fields: Object.keys(set),
+    });
+
+    return updated!;
+  });
+
 /** Just the team link — kept for the accept-time flow's older client. */
 export const linkPostTeam = os
   .use(requireAuth)

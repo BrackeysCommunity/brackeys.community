@@ -22,9 +22,6 @@ const LIST_ROW_ESTIMATE = 86;
  * gained: cover thumbnails, FEATURED and CLOSED badges, the jam and team
  * chips. Sharing the row means the next thing added to a board row shows
  * up here too instead of drifting apart again.
- *
- * No `onSelect`: there's no inspector on this page, so a click on a row
- * navigates to the post like the anchor says it will.
  */
 export function RecentCollabPosts() {
   const { data, isLoading } = useQuery(recentCollabPostsQueryOptions());

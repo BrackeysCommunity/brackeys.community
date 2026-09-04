@@ -22,6 +22,7 @@ import {
   linkPostTeam,
   respondToPost,
   updatePostLinks,
+  updatePostTerms,
   updateResponseStatus,
 } from "@/orpc/router/collab";
 import {
@@ -503,6 +504,27 @@ describe("post links", () => {
     await expect(
       call(updatePostLinks, { postId, projectId: null }, asUser("outsider")),
     ).rejects.toThrow(/own posts/);
+    await expect(
+      call(updatePostTerms, { postId, platforms: ["PC"] }, asUser("outsider")),
+    ).rejects.toThrow(/own posts/);
+  });
+
+  it("updatePostTerms writes only the keys present and clears with null", async () => {
+    const postId = await seedCollabPost(db, "author", { projectLength: "6+ months" });
+
+    const set = await call(
+      updatePostTerms,
+      { postId, platforms: ["PC", "Web"], experienceLevel: "beginner" },
+      asUser("author"),
+    );
+    expect(set).toMatchObject({
+      platforms: ["PC", "Web"],
+      experienceLevel: "beginner",
+      projectLength: "6+ months",
+    });
+
+    const cleared = await call(updatePostTerms, { postId, projectLength: null }, asUser("author"));
+    expect(cleared).toMatchObject({ platforms: ["PC", "Web"], projectLength: null });
   });
 });
 

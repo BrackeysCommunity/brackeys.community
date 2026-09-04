@@ -39,38 +39,23 @@ interface CollabPostCardPost {
 
 interface CollabPostCardProps {
   post: CollabPostCardPost;
-  /** Highlighted because it's the post loaded in the inspector. */
-  selected?: boolean;
   /** Hoisted to the top because the viewer owns it. */
   pinned?: boolean;
-  /**
-   * Load the post into the board's inspector instead of navigating. Omit it
-   * off the board — the home ticker has no inspector to drive, and a row
-   * that swallows its own click there would go nowhere.
-   */
-  onSelect?: (postId: number) => void;
 }
 
 const typeLabel = (type: string) => postTypeLabelShort(type).toUpperCase();
 const compLabel = (comp: string) => compensationLabelShort(comp).toUpperCase();
 
 /**
- * The card's click target: a real anchor to the post's own page, so
- * every post is a crawlable link and cmd/middle-click opens the page —
- * but a plain click is intercepted to drive the board's inspector
- * selection instead, exactly as the old button did. Without `onSelect`
- * (off the board) the anchor is left to navigate. `preload={false}`
- * because hover-preloading a whole post per card the pointer crosses
- * would hammer `getPost` for nothing.
+ * The card's click target: a real anchor to the post's own page, so every
+ * post is a crawlable link and cmd/middle-click opens it in a tab.
+ * `preload={false}` because hover-preloading a whole post per card the
+ * pointer crosses would hammer `getPost` for nothing.
  */
 function PostCardLink({
   post,
-  selected,
-  onSelect,
   ...merged
-}: Pick<CollabPostCardProps, "post" | "selected" | "onSelect"> &
-  // `onSelect` is also a DOM event handler on anchors — ours wins.
-  Omit<React.ComponentProps<"a">, "href" | "onSelect">) {
+}: Pick<CollabPostCardProps, "post"> & Omit<React.ComponentProps<"a">, "href">) {
   return (
     <Link
       // Chonk's `useRender` clones this element with the tile's className,
@@ -80,13 +65,6 @@ function PostCardLink({
       to="/collab/$postId"
       params={{ postId: String(post.id) }}
       preload={false}
-      onClick={(e) => {
-        if (!onSelect) return;
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-        e.preventDefault();
-        onSelect(post.id);
-      }}
-      aria-current={selected ? "true" : undefined}
       aria-label={`${post.title} — ${typeLabel(post.type)}`}
     />
   );
@@ -96,20 +74,17 @@ function PostCardLink({
  * Shared shell for both post layouts, matching the team directory's
  * tile: an embossed surface that lifts on hover, opaque `bg-card` so
  * the dot field doesn't read through it, and the whole tile as the
- * click target. Selection swaps the emboss to primary rather than
- * painting a tint over the content.
+ * click target.
  */
-function postCardClasses(selected: boolean, closed: boolean) {
+function postCardClasses(closed: boolean) {
   return cn(
     "w-full cursor-pointer bg-card backdrop-blur-none",
-    // `--emboss-shadow` is inherited, so the tile's hover/selected switch
-    // to primary would repaint every badge inside it too. The badges'
-    // own row pins the var back to the theme value — `--color-emboss-shadow`
-    // is substituted at `:root`, so it still carries the neutral colour.
+    // `--emboss-shadow` is inherited, so the tile's hover switch to primary
+    // would repaint every badge inside it too. The badges' own row pins the
+    // var back to the theme value — `--color-emboss-shadow` is substituted
+    // at `:root`, so it still carries the neutral colour.
     "[&_[data-emboss-reset]]:[--emboss-shadow:var(--color-emboss-shadow)]",
-    closed && !selected && "opacity-60",
-    selected &&
-      "border-primary bg-[color-mix(in_srgb,var(--primary)_12%,var(--card))] [--emboss-shadow:var(--primary)] hover:bg-[color-mix(in_srgb,var(--primary)_16%,var(--card))]",
+    closed && "opacity-60",
   );
 }
 
@@ -184,10 +159,10 @@ function YoursBadge() {
  * user-uploaded and tends to be small and roughly square — cropping that
  * to a wide strip upscales it into mush.
  *
- * Carries no action buttons: the inspector owns everything you can do
- * to a post, leaving the row free to be scannable.
+ * Carries no action buttons: the post's own page owns everything you can
+ * do to a post, leaving the row free to be scannable.
  */
-export function CollabPostCard({ post, selected = false, pinned, onSelect }: CollabPostCardProps) {
+export function CollabPostCard({ post, pinned }: CollabPostCardProps) {
   const isClosed = post.status !== "recruiting";
 
   return (
@@ -196,8 +171,8 @@ export function CollabPostCard({ post, selected = false, pinned, onSelect }: Col
         variant="surface"
         size="lg"
         {...BUTTON_CUES}
-        render={<PostCardLink post={post} selected={selected} onSelect={onSelect} />}
-        className={cn(postCardClasses(selected, isClosed), "items-center gap-3 p-3")}
+        render={<PostCardLink post={post} />}
+        className={cn(postCardClasses(isClosed), "items-center gap-3 p-3")}
       >
         <CardThumb url={post.primaryImageUrl ?? null} />
 
@@ -231,20 +206,12 @@ export function CollabPostCard({ post, selected = false, pinned, onSelect }: Col
  * shown whole against a blurred copy of itself rather than cropped to
  * the banner's aspect.
  */
-export function CollabPostGridCard({
-  post,
-  selected = false,
-  pinned,
-  onSelect,
-}: CollabPostCardProps) {
+export function CollabPostGridCard({ post, pinned }: CollabPostCardProps) {
   const isClosed = post.status !== "recruiting";
 
   return (
     <motion.div layout="position" className="h-full">
-      <MediaCardTile
-        render={<PostCardLink post={post} selected={selected} onSelect={onSelect} />}
-        className={postCardClasses(selected, isClosed)}
-      >
+      <MediaCardTile render={<PostCardLink post={post} />} className={postCardClasses(isClosed)}>
         <span className={cn(mediaCardClasses.media, "bg-muted/20")}>
           {post.primaryImageUrl ? <MediaCardImage src={post.primaryImageUrl} /> : <DotGrid />}
           <MediaCardScrim />

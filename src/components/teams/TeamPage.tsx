@@ -309,7 +309,13 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                   variant="surface"
                   size="lg"
                   className="flex-wrap items-center gap-2 bg-card p-3 backdrop-blur-none"
-                  render={<Link to="/collab" search={{ post: p.id }} aria-label={p.title} />}
+                  render={
+                    <Link
+                      to="/collab/$postId"
+                      params={{ postId: String(p.id) }}
+                      aria-label={p.title}
+                    />
+                  }
                 >
                   <Text as="span" size="sm" bold ellipsis className="min-w-0 flex-1 tracking-wider">
                     {p.title}

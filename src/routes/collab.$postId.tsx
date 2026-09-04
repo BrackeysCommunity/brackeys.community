@@ -10,9 +10,8 @@ import { client } from "@/orpc/client";
 /**
  * A post's permanent page — the shareable, indexable URL for one post.
  *
- * The board keeps its own `?post=<id>` selection for the inspector and
- * drawer; this page exists so a post can be linked, unfurled, and
- * crawled. Like the jam page, it loads through a server `loader` rather
+ * Every board card links here, and the board's legacy `?post=<id>`
+ * redirects here too. Like the jam page, it loads through a server `loader` rather
  * than a `useQuery` so the content and meta tags are in the document a
  * crawler receives, not fetched into an empty shell afterwards.
  */
