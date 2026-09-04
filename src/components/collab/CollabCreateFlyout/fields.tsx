@@ -1,9 +1,10 @@
-import { Delete02Icon, Image01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Delete02Icon, Image01Icon, ViewIcon, ViewOffSlashIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { nanoid } from "nanoid";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,7 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { MicroLabel, Text } from "@/components/ui/typography";
+import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
+import { Well } from "@/components/ui/well";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
 import { itchImageUrl } from "@/lib/itch-image";
@@ -117,6 +119,64 @@ export function SelectField<T extends string>({
 }
 
 // ── Multi-select dropdown with badges ──────────────────────────────────────
+
+export interface ChoiceCardOption<T extends string> {
+  value: T;
+  label: string;
+  desc: string;
+  icon: IconSvgElement;
+}
+
+interface ChoiceCardsProps<T extends string> {
+  options: ChoiceCardOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+}
+
+/** A row of icon + label + blurb cards, one pressed. The POST TYPE and
+ *  RECRUITING AS pickers share it so the two read as one control. */
+export function ChoiceCards<T extends string>({ options, value, onChange }: ChoiceCardsProps<T>) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <Chonk
+            key={opt.value}
+            variant={active ? "default" : "surface"}
+            size="lg"
+            render={
+              <button type="button" aria-pressed={active} onClick={() => onChange(opt.value)} />
+            }
+            className="flex w-full flex-col items-stretch gap-2 p-3 text-left"
+          >
+            <HugeiconsIcon
+              icon={opt.icon}
+              size={16}
+              className={active ? "text-primary" : "text-muted-foreground"}
+            />
+            <div className="flex flex-col gap-0.5">
+              <Text
+                as="span"
+                bold
+                size="xs"
+                className={cn(
+                  "tracking-widest uppercase",
+                  active ? "text-primary" : "text-foreground",
+                )}
+              >
+                {opt.label}
+              </Text>
+              <Text size="xs" variant="muted">
+                {opt.desc}
+              </Text>
+            </div>
+          </Chonk>
+        );
+      })}
+    </div>
+  );
+}
 
 interface MultiSelectFieldProps {
   label: string;
@@ -269,6 +329,8 @@ export function TextField({
 
 interface TextAreaFieldProps extends TextFieldProps {
   rows?: number;
+  /** Renders as markdown on the live post: adds the EDIT/PREVIEW toggle. */
+  markdown?: boolean;
 }
 
 export function TextAreaField({
@@ -281,23 +343,53 @@ export function TextAreaField({
   maxLength,
   rows = 5,
   error,
+  markdown = false,
 }: TextAreaFieldProps) {
+  const [preview, setPreview] = useState(false);
   return (
     <FieldRow
       label={label}
-      hint={hint}
-      action={<CharCount current={value.length} max={maxLength} />}
+      hint={markdown && preview ? "preview" : hint}
+      action={
+        <>
+          <CharCount current={value.length} max={maxLength} />
+          {markdown ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => setPreview((p) => !p)}
+              className="tracking-widest"
+            >
+              <HugeiconsIcon icon={preview ? ViewOffSlashIcon : ViewIcon} size={12} />
+              {preview ? "EDIT" : "PREVIEW"}
+            </Button>
+          ) : null}
+        </>
+      }
       error={error}
     >
-      <Textarea
-        value={value}
-        onBlur={onBlur}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        rows={rows}
-        className="min-h-32 resize-none"
-      />
+      {markdown && preview ? (
+        <Well className="min-h-32 p-3">
+          {value.trim() ? (
+            <MarkedText censor={false}>{value}</MarkedText>
+          ) : (
+            <Text size="sm" variant="muted" className="italic">
+              Nothing to preview yet.
+            </Text>
+          )}
+        </Well>
+      ) : (
+        <Textarea
+          value={value}
+          onBlur={onBlur}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          rows={rows}
+          className="min-h-32 resize-none"
+        />
+      )}
     </FieldRow>
   );
 }

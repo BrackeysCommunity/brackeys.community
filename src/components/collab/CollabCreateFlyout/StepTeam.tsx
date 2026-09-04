@@ -7,15 +7,18 @@ import { useRef, useState } from "react";
 import { TeamDirectoryCard } from "@/components/teams/TeamDirectoryCard";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
-import { Well } from "@/components/ui/well";
 import type { UploadedImage } from "@/lib/collab-store";
 import { type client, orpc } from "@/orpc/client";
 
-import { AddImageCard, FieldRow, TextAreaField, TextField } from "./fields";
+import { AddImageCard, ChoiceCards, FieldRow, TextAreaField, TextField } from "./fields";
 import { useWizardForm } from "./form-context";
-import { profanityCheck, TEAM_DESCRIPTION_MAX, TEAM_NAME_MAX } from "./shared";
+import {
+  profanityCheck,
+  RECRUITING_AS_OPTIONS,
+  TEAM_DESCRIPTION_MAX,
+  TEAM_NAME_MAX,
+} from "./shared";
 
 type TeamStepMode = "new" | "existing";
 
@@ -23,7 +26,7 @@ type TeamStepMode = "new" | "existing";
 type MyTeam = Awaited<ReturnType<typeof client.listMyTeams>>[number];
 
 /**
- * Step 02 — who's behind the post. The RECRUITING AS switch lives here
+ * Step 02 — who's behind the post. The RECRUITING AS picker lives here
  * with the rest of the team decisions; solo posts see only it. Team
  * posts may name a new team inline (optional image, name, optional
  * description) or pick one of the caller's existing teams — or leave it
@@ -49,29 +52,21 @@ export function StepTeam() {
     <form.Field name="isIndividual">
       {(soloField) => (
         <div className="flex flex-col gap-5">
-          <Well variant="ghost" className="gap-3 p-3">
-            {/* Not an availability listing — that's the people lane.
-                This is still a team-seeking post; the switch only says
-                who's behind it. */}
-            <FieldRow label="RECRUITING AS" hint={soloField.state.value ? "solo dev" : "a team"}>
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="collab-create-is-individual"
-                  checked={soloField.state.value}
-                  onCheckedChange={(checked) => {
-                    soloField.handleChange(!!checked);
-                    // A solo post can't also be a team's post.
-                    if (checked) form.setFieldValue("teamId", undefined);
-                  }}
-                />
-                <Text size="sm" variant="muted">
-                  {soloField.state.value
-                    ? "It's just me looking for collaborators."
-                    : "I'm posting on behalf of a team."}
-                </Text>
-              </div>
-            </FieldRow>
-          </Well>
+          {/* Not an availability listing — that's the people lane.
+              This is still a team-seeking post; the picker only says
+              who's behind it. */}
+          <FieldRow label="RECRUITING AS">
+            <ChoiceCards
+              options={RECRUITING_AS_OPTIONS}
+              value={soloField.state.value ? "solo" : "team"}
+              onChange={(next) => {
+                const solo = next === "solo";
+                soloField.handleChange(solo);
+                // A solo post can't also be a team's post.
+                if (solo) form.setFieldValue("teamId", undefined);
+              }}
+            />
+          </FieldRow>
 
           {soloField.state.value ? null : (
             <>

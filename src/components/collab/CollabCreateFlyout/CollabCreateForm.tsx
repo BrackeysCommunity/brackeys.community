@@ -280,8 +280,8 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       (s.values as WizardFormValues).images.length +
       (s.values as WizardFormValues).removedImageIds.length,
   );
-  const handleSaveImages = async () => {
-    if (editingPostId === null) return;
+  const handleSaveImages = async (): Promise<boolean> => {
+    if (editingPostId === null) return false;
     const v = form.state.values as WizardFormValues;
     setSavingImages(true);
     setError(null);
@@ -291,7 +291,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       reportMutationError(err, "collab.post_images");
       setError(errorMessage(err, "Could not save the images."));
       setSavingImages(false);
-      return;
+      return false;
     }
     form.setFieldValue("images", []);
     form.setFieldValue("removedImageIds", []);
@@ -299,7 +299,11 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       queryKey: orpc.getPost.queryOptions({ input: { postId: editingPostId } }).queryKey,
     });
     setSavingImages(false);
-    toast.success("Images saved.");
+    toast.success("Images saved.", { position: "bottom-left" });
+    return true;
+  };
+  const handleSaveImagesAndNext = async () => {
+    if (await handleSaveImages()) handleNext();
   };
 
   // The step label blocking submit, or null when the post is valid. A
@@ -369,7 +373,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
             ? {
                 count: pendingImageChanges,
                 saving: savingImages,
-                onSave: () => void handleSaveImages(),
+                onSaveAndNext: () => void handleSaveImagesAndNext(),
               }
             : null
         }

@@ -1,15 +1,12 @@
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 
-import { Chonk } from "@/components/ui/chonk";
-import { Text } from "@/components/ui/typography";
 import { collabStore, type UploadedImage } from "@/lib/collab-store";
-import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 
 import { ContactFields } from "./ContactFields";
 import {
+  ChoiceCards,
   CompensationField,
   FieldRow,
   ImageUploader,
@@ -100,48 +97,11 @@ export function StepBasics() {
             label="POST TYPE *"
             error={field.state.meta.errors.map(String).join(" ") || null}
           >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {POST_TYPES.map((t) => {
-                const active = field.state.value === t.value;
-                return (
-                  <Chonk
-                    key={t.value}
-                    variant={active ? "default" : "surface"}
-                    size="lg"
-                    render={
-                      <button
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => field.handleChange(t.value)}
-                      />
-                    }
-                    className="flex w-full flex-col items-stretch gap-2 p-3 text-left"
-                  >
-                    <HugeiconsIcon
-                      icon={t.icon}
-                      size={16}
-                      className={active ? "text-primary" : "text-muted-foreground"}
-                    />
-                    <div className="flex flex-col gap-0.5">
-                      <Text
-                        as="span"
-                        bold
-                        size="xs"
-                        className={cn(
-                          "tracking-widest uppercase",
-                          active ? "text-primary" : "text-foreground",
-                        )}
-                      >
-                        {t.label}
-                      </Text>
-                      <Text size="xs" variant="muted">
-                        {t.desc}
-                      </Text>
-                    </div>
-                  </Chonk>
-                );
-              })}
-            </div>
+            <ChoiceCards
+              options={POST_TYPES}
+              value={field.state.value}
+              onChange={field.handleChange}
+            />
           </FieldRow>
         )}
       </form.Field>
@@ -188,6 +148,7 @@ export function StepBasics() {
           <TextAreaField
             label="DESCRIPTION *"
             hint="markdown supported"
+            markdown
             value={field.state.value}
             onChange={field.handleChange}
             onBlur={field.handleBlur}

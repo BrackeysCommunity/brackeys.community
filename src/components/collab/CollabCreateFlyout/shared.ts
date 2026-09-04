@@ -1,5 +1,9 @@
-import { BriefcaseIcon, GameController01Icon } from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
+import {
+  BriefcaseIcon,
+  GameController01Icon,
+  UserGroupIcon,
+  UserIcon,
+} from "@hugeicons/core-free-icons";
 
 import type {
   CollabCompensationType,
@@ -14,6 +18,8 @@ import { DAY_MS } from "@/lib/format-time";
 import { postImageForm } from "@/lib/image-upload";
 import type { UploadedImageRecord } from "@/lib/image-upload";
 import { hasProfanity } from "@/lib/profanity";
+
+import type { ChoiceCardOption } from "./fields";
 
 // ── Profanity ──────────────────────────────────────────────────────────────
 
@@ -85,14 +91,7 @@ export const WIZARD_TABS: WizardTabDef[] = [
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-export interface PostTypeOption {
-  value: CollabPostType;
-  label: string;
-  desc: string;
-  icon: IconSvgElement;
-}
-
-export const POST_TYPES: PostTypeOption[] = [
+export const POST_TYPES: ChoiceCardOption<CollabPostType>[] = [
   {
     value: "paid",
     label: "PAID WORK",
@@ -104,6 +103,23 @@ export const POST_TYPES: PostTypeOption[] = [
     label: "HOBBY",
     desc: "Passion, jam crews, rev-share.",
     icon: GameController01Icon,
+  },
+];
+
+/** RECRUITING AS — stored as the boolean `isIndividual`, so the card
+ *  values are its two spellings. */
+export const RECRUITING_AS_OPTIONS: ChoiceCardOption<"solo" | "team">[] = [
+  {
+    value: "solo",
+    label: "SOLO DEV",
+    desc: "It's just me looking for collaborators.",
+    icon: UserIcon,
+  },
+  {
+    value: "team",
+    label: "A TEAM",
+    desc: "I'm posting on behalf of a team.",
+    icon: UserGroupIcon,
   },
 ];
 

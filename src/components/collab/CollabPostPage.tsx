@@ -23,7 +23,13 @@ import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
-import { Heading, Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
+import {
+  Heading,
+  Link as TextLink,
+  MarkedText,
+  MicroLabel,
+  Text,
+} from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { signInWithDiscord } from "@/lib/auth-client";
@@ -165,9 +171,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
             size="sm"
             blurb={`What ${post.team?.name ?? (post.author ? `@${post.author.discordUsername}` : "they")} is looking for, in their own words.`}
           >
-            <Text size="md" className="max-w-prose whitespace-pre-wrap text-foreground/90">
+            <MarkedText className="max-w-prose text-base text-foreground/90">
               {post.description}
-            </Text>
+            </MarkedText>
             {post.images.length > 1 ? (
               <div className="flex flex-wrap gap-2">
                 {post.images.slice(1).map((img) => (
