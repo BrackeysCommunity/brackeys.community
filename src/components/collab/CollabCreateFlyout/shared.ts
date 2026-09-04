@@ -220,6 +220,7 @@ export type WizardFormValues = {
   roleIds: number[];
   skillIds: number[];
   images: UploadedImage[];
+  removedImageIds: number[];
 };
 
 // ── Project-derived defaults ───────────────────────────────────────────────

@@ -1,10 +1,12 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
-import type { UploadedImage } from "@/lib/collab-store";
+import { collabStore, type UploadedImage } from "@/lib/collab-store";
 import { cn } from "@/lib/utils";
+import { orpc } from "@/orpc/client";
 
 import { ContactFields } from "./ContactFields";
 import {
@@ -46,6 +48,21 @@ export function StepBasics() {
   const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type);
   const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType);
   const projectId = useStore(form.store, (s: AnyFormStore) => s.values.projectId);
+  const removedImageIds = useStore(
+    form.store,
+    (s: AnyFormStore) => s.values.removedImageIds as number[],
+  );
+
+  // Editing: the images already on the post share the uploader (and its
+  // cap) with the new picks. Same query the post page holds, so this is
+  // a cache hit and the strip refreshes when a save invalidates it.
+  const editingPostId = useStore(collabStore, (s) => s.wizard.editingPostId);
+  const { data: editingPost } = useQuery({
+    ...orpc.getPost.queryOptions({ input: { postId: editingPostId ?? 0 } }),
+    enabled: editingPostId !== null,
+  });
+  const existing = (editingPost?.images ?? []).filter((img) => !removedImageIds.includes(img.id));
+
   return (
     <div className="flex flex-col gap-5">
       {/* The visual sell leads: it's the first thing a card shows, so
@@ -60,6 +77,12 @@ export function StepBasics() {
               field.handleChange(
                 field.state.value.filter((_: UploadedImage, i: number) => i !== idx),
               )
+            }
+            existing={editingPostId !== null ? existing : undefined}
+            onRemoveExisting={
+              editingPostId !== null
+                ? (id) => form.setFieldValue("removedImageIds", [...removedImageIds, id])
+                : undefined
             }
             label={projectId ? "POST IMAGES" : undefined}
             note={

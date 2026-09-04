@@ -145,18 +145,27 @@ export function CollabStrengthenPanel({
                 return (
                   <Well
                     key={row.field}
-                    variant="ghost"
-                    className="gap-2 border-success/30 bg-success/5 p-3"
+                    className="gap-2 bg-success p-3 text-success-foreground backdrop-blur-none [--deboss-shadow:color-mix(in_srgb,var(--success)_60%,black)]"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-success/15 text-success">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-success-foreground/15">
                         <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} />
                       </span>
-                      <MicroLabel as="span" className="text-success">
+                      <MicroLabel as="span" className="flex-1 text-success-foreground">
                         {copy.title}
                       </MicroLabel>
+                      <MicroLabel
+                        as="span"
+                        className="rounded bg-success-foreground/15 px-1.5 py-0.5 text-success-foreground"
+                      >
+                        DONE
+                      </MicroLabel>
                     </div>
-                    <Text size="xs" variant="muted" textWrap="pretty" className="line-clamp-2">
+                    <Text
+                      size="xs"
+                      textWrap="pretty"
+                      className="line-clamp-2 flex-1 text-success-foreground/80"
+                    >
                       {row.doneText}
                     </Text>
                     <Button
@@ -164,7 +173,7 @@ export function CollabStrengthenPanel({
                       size="xs"
                       disabled={links.isPending}
                       onClick={row.doneAction.onClick}
-                      className="mt-auto self-start tracking-widest"
+                      className="-ml-2 self-start tracking-widest text-success-foreground hover:bg-success-foreground/10 hover:text-success-foreground"
                     >
                       {row.doneAction.label}
                     </Button>
@@ -202,12 +211,12 @@ export function CollabStrengthenPanel({
                   <Text size="xs" variant="muted" textWrap="pretty" className="flex-1">
                     {copy.payoff}
                   </Text>
-                  <span className="flex items-center gap-1 text-[10px] tracking-widest text-foreground">
+                  <span className="flex items-center gap-1 text-[10px] leading-none tracking-widest text-foreground">
                     {row.action}
                     <HugeiconsIcon
                       icon={ArrowRight01Icon}
-                      size={12}
-                      className="transition-transform group-hover:translate-x-0.5"
+                      size={10}
+                      className="shrink-0 transition-transform group-hover:translate-x-0.5"
                     />
                   </span>
                 </Chonk>

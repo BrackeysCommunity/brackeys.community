@@ -230,6 +230,7 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
     roleIds: [1],
     skillIds: [],
     images: [],
+    removedImageIds: [],
     ...overrides,
   };
 }

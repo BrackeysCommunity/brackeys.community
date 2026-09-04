@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -15,7 +16,8 @@ import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { EASE_OUT } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
-import { client } from "@/orpc/client";
+import { toast } from "@/lib/toast";
+import { client, orpc } from "@/orpc/client";
 
 import { CollabCreateFooter } from "./CollabCreateFooter";
 import { CollabCreateStepper } from "./CollabCreateStepper";
@@ -124,6 +126,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
       roleIds: initialDraft.roleIds,
       skillIds: initialDraft.skillIds,
       images: initialDraft.images,
+      removedImageIds: initialDraft.removedImageIds,
     },
     onSubmit: async ({ value }) => {
       const v = value as WizardFormValues;
@@ -157,9 +160,9 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
         return;
       }
 
-      if (v.images.length > 0) {
+      if (v.images.length > 0 || v.removedImageIds.length > 0) {
         try {
-          await attachImages(postId, v.images, editingPostId !== null);
+          await applyImageChanges(postId, v.images, v.removedImageIds, editingPostId !== null);
         } catch {
           setImageRetryPostId(postId);
           setError("Your post is live, but the images didn't upload. Retry below.");
@@ -241,7 +244,12 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
     if (imageRetryPostId === null) return;
     const v = form.state.values as WizardFormValues;
     try {
-      await attachImages(imageRetryPostId, v.images, editingPostId !== null);
+      await applyImageChanges(
+        imageRetryPostId,
+        v.images,
+        v.removedImageIds,
+        editingPostId !== null,
+      );
     } catch {
       setError("The images still didn't upload. Try again, or continue without them.");
       return;
@@ -260,6 +268,39 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   };
 
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+
+  // Editing: the POST step's images save on their own, so a cover swap
+  // doesn't wait for a walk to REVIEW. Pending picks and removals both
+  // count; closing the panel drops whatever wasn't saved.
+  const queryClient = useQueryClient();
+  const [savingImages, setSavingImages] = useState(false);
+  const pendingImageChanges = useStore(
+    form.store,
+    (s) =>
+      (s.values as WizardFormValues).images.length +
+      (s.values as WizardFormValues).removedImageIds.length,
+  );
+  const handleSaveImages = async () => {
+    if (editingPostId === null) return;
+    const v = form.state.values as WizardFormValues;
+    setSavingImages(true);
+    setError(null);
+    try {
+      await applyImageChanges(editingPostId, v.images, v.removedImageIds, true);
+    } catch (err) {
+      reportMutationError(err, "collab.post_images");
+      setError(errorMessage(err, "Could not save the images."));
+      setSavingImages(false);
+      return;
+    }
+    form.setFieldValue("images", []);
+    form.setFieldValue("removedImageIds", []);
+    void queryClient.invalidateQueries({
+      queryKey: orpc.getPost.queryOptions({ input: { postId: editingPostId } }).queryKey,
+    });
+    setSavingImages(false);
+    toast.success("Images saved.");
+  };
 
   // The step label blocking submit, or null when the post is valid. A
   // string selector keeps the subscription cheap (Object.is), and only
@@ -321,6 +362,15 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
         imageRetry={
           imageRetryPostId !== null
             ? { onRetry: () => void handleRetryImages(), onSkip: handleSkipImages }
+            : null
+        }
+        imageSave={
+          editingPostId !== null && activeIndex === 0 && pendingImageChanges > 0
+            ? {
+                count: pendingImageChanges,
+                saving: savingImages,
+                onSave: () => void handleSaveImages(),
+              }
             : null
         }
         onBack={handleBack}
@@ -407,6 +457,20 @@ export async function savePost(v: WizardFormValues, editingPostId: number | null
  * live, which is why the caller keeps a retry path open.
  */
 export async function attachImages(postId: number, images: UploadedImage[], isEdit: boolean) {
+  await applyImageChanges(postId, images, [], isEdit);
+}
+
+/**
+ * Removals first, then uploads, so a swap never trips the post's image
+ * cap on the way through.
+ */
+export async function applyImageChanges(
+  postId: number,
+  images: UploadedImage[],
+  removedImageIds: number[],
+  isEdit: boolean,
+) {
+  await Promise.all(removedImageIds.map((imageId) => client.removePostImage({ imageId })));
   const uploaded = await Promise.all(images.map((img) => uploadCollabPostImage(postId, img.file)));
   await Promise.all(
     uploaded.map((rec, idx) =>

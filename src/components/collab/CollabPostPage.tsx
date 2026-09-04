@@ -148,6 +148,17 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           a rail of micro-labeled cards beside it. */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2.4fr)_minmax(19rem,1fr)]">
         <motion.div variants={fadeUp} className="flex min-w-0 flex-col gap-8">
+          {/* Owners get their upgrades first: the panel is the fastest way
+              to change the post, so it outranks re-reading the brief. */}
+          {isOwner ? (
+            <CollabStrengthenPanel
+              post={post}
+              onOpenEdit={() => {
+                startWizardEdit(post.id, draftFromPost(post, contact));
+                setEditOpen(true);
+              }}
+            />
+          ) : null}
           <Section
             id="brief"
             title="THE BRIEF"
@@ -217,13 +228,6 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
           {isOwner ? (
             <>
-              <CollabStrengthenPanel
-                post={post}
-                onOpenEdit={() => {
-                  startWizardEdit(post.id, draftFromPost(post, contact));
-                  setEditOpen(true);
-                }}
-              />
               <Section
                 id="responses"
                 title="RESPONSES"

@@ -28,6 +28,12 @@ interface CollabCreateFooterProps {
    * here would invite a duplicate.
    */
   imageRetry: { onRetry: () => void; onSkip: () => void } | null;
+  /**
+   * Editing, on the POST step, with image picks or removals waiting: a
+   * save for just those, above the step controls, so art changes land
+   * without walking to REVIEW.
+   */
+  imageSave?: { count: number; saving: boolean; onSave: () => void } | null;
   onBack: () => void;
   onNext: () => void;
 }
@@ -44,6 +50,7 @@ export function CollabCreateFooter({
   submitBlockedBy = null,
   submitLabel,
   imageRetry,
+  imageSave = null,
   onBack,
   onNext,
 }: CollabCreateFooterProps) {
@@ -55,6 +62,24 @@ export function CollabCreateFooter({
           <Text size="xs" variant="danger">
             {error}
           </Text>
+        </div>
+      ) : null}
+      {imageSave ? (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-warning/30 bg-warning/5 px-5 py-2">
+          <Text size="xs" variant="muted" className="tracking-widest">
+            {imageSave.count === 1 ? "1 IMAGE CHANGE" : `${imageSave.count} IMAGE CHANGES`} ·
+            UNSAVED
+          </Text>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={imageSave.onSave}
+            disabled={imageSave.saving}
+            className="tracking-widest"
+          >
+            {imageSave.saving ? "SAVING…" : "SAVE IMAGES"}
+            <HugeiconsIcon icon={Tick01Icon} size={12} />
+          </Button>
         </div>
       ) : null}
       <div className="flex shrink-0 items-center justify-between gap-3 border-t border-muted/30 px-5 py-3">

@@ -74,6 +74,10 @@ export type WizardDraft = {
   roleIds: number[];
   skillIds: number[];
   images: UploadedImage[];
+  /** Editing only: images already on the post, marked for removal. Applied
+   *  with the pending uploads — by the POST step's own save or the final
+   *  SAVE CHANGES — and dropped with them when the panel closes. */
+  removedImageIds: number[];
 };
 
 /**
@@ -122,6 +126,7 @@ const defaultDraft: WizardDraft = {
   roleIds: [],
   skillIds: [],
   images: [],
+  removedImageIds: [],
 };
 
 export const collabStore = new Store<CollabState>({
@@ -271,8 +276,10 @@ export function draftFromPost(
     isIndividual: post.isIndividual ?? false,
     roleIds: post.roles.map((r) => r.id),
     skillIds: post.skills.map((s) => s.id),
-    // Images already live on the post; the uploader only adds more.
+    // Images already live on the post; the uploader shows them alongside
+    // anything new, and both kinds of change wait for a save.
     images: [],
+    removedImageIds: [],
     newTeamName: "",
     newTeamDescription: "",
     newTeamImage: null,
@@ -294,11 +301,16 @@ const DRAFT_STORAGE_KEY = "brackeys:collab-wizard-draft:v1";
  * isn't possible anyway, so images (and the team avatar) are the things
  * a restored draft asks the user to re-pick.
  */
-type PersistedDraft = Omit<WizardDraft, "images" | "newTeamImage">;
+type PersistedDraft = Omit<WizardDraft, "images" | "newTeamImage" | "removedImageIds">;
 
 function persistWizardDraft(draft: WizardDraft) {
   if (typeof window === "undefined") return;
-  const { images: _images, newTeamImage: _newTeamImage, ...rest } = draft;
+  const {
+    images: _images,
+    newTeamImage: _newTeamImage,
+    removedImageIds: _removedImageIds,
+    ...rest
+  } = draft;
   try {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(rest));
   } catch {
@@ -352,7 +364,13 @@ function restorePersistedWizardDraft(): boolean {
   // Spread over the defaults rather than trusting the stored shape — a
   // draft written by an older build is missing whatever fields the
   // wizard has grown since.
-  const draft: WizardDraft = { ...defaultDraft, ...stored, images: [], newTeamImage: null };
+  const draft: WizardDraft = {
+    ...defaultDraft,
+    ...stored,
+    images: [],
+    newTeamImage: null,
+    removedImageIds: [],
+  };
   if (!isDraftMeaningful(draft)) {
     clearPersistedWizardDraft();
     return false;

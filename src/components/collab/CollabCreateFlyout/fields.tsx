@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
 import { formatRate } from "@/lib/format-rate";
+import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import { COMP_SLIDER_CONFIG, type CompSliderConfig } from "./shared";
@@ -343,10 +344,20 @@ export function AddImageCard({
 
 // ── Image uploader ─────────────────────────────────────────────────────────
 
+/** An image already saved on the post, shown ahead of the pending picks. */
+export interface ExistingImage {
+  id: number;
+  url: string;
+  alt?: string | null;
+}
+
 interface ImageUploaderProps {
   images: UploadedImage[];
   onAdd: (img: UploadedImage) => void;
   onRemove: (idx: number) => void;
+  /** Editing: what's on the post now. Counts toward the cap like a pick. */
+  existing?: ExistingImage[];
+  onRemoveExisting?: (id: number) => void;
   /** Defaults to PROJECT IMAGES. A post linked to a canonical project says
    *  POST IMAGES instead — these rows are the post's own, and calling them
    *  the project's invites "0/5" to read as a fact about the project. */
@@ -359,13 +370,18 @@ export function ImageUploader({
   images,
   onAdd,
   onRemove,
+  existing = [],
+  onRemoveExisting,
   label = "PROJECT IMAGES",
   note,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
+  const total = existing.length + images.length;
+  const full = total >= 5;
 
   const handleFile = (file: File) => {
+    if (full) return;
     if (!file.type.startsWith("image/")) {
       setError("Only image files are allowed.");
       return;
@@ -383,9 +399,31 @@ export function ImageUploader({
   };
 
   return (
-    <FieldRow label={label} hint={`${images.length}/5`} error={error || null}>
-      {images.length > 0 ? (
+    <FieldRow label={label} hint={`${total}/5`} error={error || null}>
+      {total > 0 ? (
         <div className="flex flex-wrap gap-2">
+          {existing.map((img) => (
+            <div key={`saved-${img.id}`} className="group relative h-16 w-16">
+              <img
+                src={itchImageUrl(img.url, { width: 128 })}
+                alt={img.alt ?? ""}
+                className="h-full w-full border border-muted/40 object-cover"
+              />
+              {onRemoveExisting ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon-xs"
+                  onClick={() => onRemoveExisting(img.id)}
+                  className="absolute -top-1 -right-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  aria-label="Remove image"
+                  title="Remove image"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} size={10} />
+                </Button>
+              ) : null}
+            </div>
+          ))}
           {images.map((img, idx) => (
             <div key={img.localId} className="group relative h-16 w-16">
               <img
@@ -410,8 +448,8 @@ export function ImageUploader({
       ) : null}
       <AddImageCard
         onClick={() => inputRef.current?.click()}
-        disabled={images.length >= 5}
-        label={images.length >= 5 ? "MAX 5 IMAGES" : "ADD IMAGE"}
+        disabled={full}
+        label={full ? "MAX 5 IMAGES" : "ADD IMAGE"}
       />
       {note ? (
         <Text size="xs" variant="muted" className="tracking-wide">
