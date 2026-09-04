@@ -44,7 +44,7 @@ export function CollabCreateStepper({ tabs, activeIndex, onSelect }: CollabCreat
             onClick={() => onSelect(i)}
             {...PAGE_CUES}
             className={cn(
-              "relative flex cursor-pointer flex-col items-center justify-center gap-1 px-2 py-3 transition-colors",
+              "relative flex cursor-pointer flex-col items-center justify-start gap-1 px-1 py-3 transition-colors",
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -59,7 +59,7 @@ export function CollabCreateStepper({ tabs, activeIndex, onSelect }: CollabCreat
             >
               {tab.num}
             </Text>
-            <span className="text-[10px] tracking-widest">{tab.label}</span>
+            <span className="text-[10px] tracking-widest whitespace-nowrap">{tab.label}</span>
           </button>
         );
       })}

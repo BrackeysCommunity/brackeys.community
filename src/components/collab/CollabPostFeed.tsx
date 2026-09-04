@@ -17,6 +17,14 @@ import {
 import { CollabPostCard, CollabPostGridCard } from "./CollabPostCard";
 import { type CollabListingItem, useCollabListing } from "./use-collab-listing";
 
+/**
+ * As many card columns as fit, capped at four: each track is at least
+ * 16rem and at least a quarter of the row (minus the three gaps), so the
+ * count follows the feed's own width rather than the viewport's.
+ */
+const CARD_GRID =
+  "grid grid-cols-[repeat(auto-fill,minmax(max(min(16rem,100%),calc((100%_-_2.25rem)/4)),1fr))]";
+
 interface CollabPostFeedProps {
   /** Currently authenticated user id — drives owner-specific UI. */
   currentUserId?: string | null;
@@ -67,12 +75,7 @@ export function CollabPostFeed({ currentUserId }: CollabPostFeedProps) {
       // Cards are art-led tiles on the same column rhythm as the team
       // directory; the list is one row per post, full width, so a scan
       // reads straight down instead of snaking across columns.
-      rowClassName={cn(
-        "gap-3",
-        isCards
-          ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-          : "flex flex-col gap-2",
-      )}
+      rowClassName={cn("gap-3", isCards ? CARD_GRID : "flex flex-col gap-2")}
       estimateRowHeight={isCards ? CARD_ROW_ESTIMATE : LIST_ROW_ESTIMATE}
       footer={
         hasNextPage ? (
@@ -97,7 +100,7 @@ export function CollabPostFeed({ currentUserId }: CollabPostFeedProps) {
 export function CollabPostFeedStatic({ items }: { items: CollabListingItem[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className={cn(CARD_GRID, "gap-3")}>
       {items.map((item) => (
         <CollabPostGridCard key={item.post.id} post={item.post} pinned={item.pinned} />
       ))}
@@ -136,14 +139,7 @@ function FeedEmptyState({ filtered }: { filtered: boolean }) {
 
 function FeedSkeleton({ cards, count = 6 }: { cards: boolean; count?: number }) {
   return (
-    <div
-      className={cn(
-        "gap-3",
-        cards
-          ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-          : "flex flex-col gap-2",
-      )}
-    >
+    <div className={cn("gap-3", cards ? CARD_GRID : "flex flex-col gap-2")}>
       {Array.from({ length: count }).map((_, i) => (
         <Skeleton key={i} className={cn("w-full", cards ? "h-[264px]" : "h-[86px]")} />
       ))}

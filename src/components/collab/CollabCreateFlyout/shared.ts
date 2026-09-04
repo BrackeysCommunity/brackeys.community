@@ -54,19 +54,19 @@ export const WIZARD_TABS: WizardTabDef[] = [
   {
     id: "basics",
     num: "01",
-    label: "THE POST",
+    label: "POST",
     desc: "The pitch and the terms — what kind of post this is, the headline people scan on the board, the scope of the work, and how to reach you.",
   },
   {
     id: "team",
     num: "02",
-    label: "WHO'S POSTING",
+    label: "TEAM",
     desc: "Just you, or a team with a page — people you accept get invited to its roster. Leave it blank and start the crew when you accept someone.",
   },
   {
     id: "project",
     num: "03",
-    label: "WHAT IT'S FOR",
+    label: "PROJECT",
     desc: "Link the game's page and the post shows up on it, using its cover. Tag the jam and it reaches people watching that jam.",
   },
   {

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
+import { GraphPaper } from "@/components/ui/graph-paper";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
@@ -462,26 +463,22 @@ function PostHero({
   const status = STATUS_BADGE[post.status] ?? STATUS_BADGE.recruiting!;
 
   return (
-    <Well className="overflow-hidden p-0">
+    <Well notchOpts surfaceClassName="bg-card backdrop-blur-none">
       {art ? (
-        <div className="relative h-44 w-full shrink-0 overflow-hidden sm:h-56 lg:h-64">
+        <div className="relative h-44 w-full shrink-0 overflow-hidden bg-muted/20 sm:h-56 lg:h-64">
           {/* Fully under the crisp layer, so its hover never arms — a
-              permanent still. Blurred to invisibility, so it requests
-              almost nothing. */}
+              permanent still. Same treatment as the board cards'
+              letterboxed art. */}
           <HoverPlayImage
             src={art}
             transform={BACKDROP_TRANSFORM}
-            className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl saturate-150"
+            className="absolute inset-0 h-full w-full scale-125 object-cover blur-lg brightness-[0.6] saturate-150"
           />
           <HoverPlayImage
             src={art}
             transform={artTransform}
             alt={`${post.title} art`}
             className="absolute inset-0 h-full w-full object-contain"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent"
           />
           <div className="absolute top-3 left-3">
             <Badge variant={status.variant} size="label">
@@ -491,62 +488,87 @@ function PostHero({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" size="label" className="uppercase">
-              {postTypeLabel(post.type)}
-            </Badge>
-            {post.featuredAt ? (
-              <Badge variant="warning" size="label">
-                FEATURED
-              </Badge>
-            ) : null}
-            {/* Without art there's no banner to carry the status chip. */}
-            {!art ? (
-              <Badge variant={status.variant} size="label">
-                {status.label}
-              </Badge>
-            ) : null}
-            {post.isIndividual ? (
-              <Badge variant="outline" size="label">
-                SOLO DEV
-              </Badge>
+      {/* Same masthead surface as the browse pages' heroes: the corner
+          gradient and the ruling live on the body so the art above stays
+          untouched. */}
+      <div className="relative bg-linear-to-br from-deboss-surface via-deboss-surface to-primary/12">
+        <GraphPaper fade="bottom-left" />
+        <div className="relative flex flex-wrap items-stretch justify-between gap-x-8 gap-y-4 p-4 sm:p-6">
+          <div className="flex min-w-0 flex-1 basis-80 flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" size="label" className="uppercase">
+                  {postTypeLabel(post.type)}
+                </Badge>
+                {post.featuredAt ? (
+                  <Badge variant="warning" size="label">
+                    FEATURED
+                  </Badge>
+                ) : null}
+                {/* Without art there's no banner to carry the status chip. */}
+                {!art ? (
+                  <Badge variant={status.variant} size="label">
+                    {status.label}
+                  </Badge>
+                ) : null}
+                {post.isIndividual ? (
+                  <Badge variant="outline" size="label">
+                    SOLO DEV
+                  </Badge>
+                ) : null}
+              </div>
+
+              <Heading as="h1" className="text-3xl leading-tight md:text-4xl">
+                {post.title}
+              </Heading>
+
+              <MicroLabel as="div" className="uppercase">
+                Posted {timeAgo(post.createdAt)}
+                {post.author ? ` · by @${post.author.discordUsername ?? "unknown"}` : ""}
+                {post.team ? ` · ${post.team.name}` : ""}
+              </MicroLabel>
+            </div>
+
+            {post.compensationType || rateDisplay || post.responseCount > 0 ? (
+              <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+                {post.compensationType ? (
+                  <HeroStat
+                    label="COMP"
+                    value={compensationLabel(post.compensationType).toUpperCase()}
+                  />
+                ) : null}
+                {rateDisplay ? <HeroStat label="RATE" value={rateDisplay} /> : null}
+                {post.responseCount > 0 ? (
+                  <HeroStat label="RESPONSES" value={formatCount(post.responseCount)} />
+                ) : null}
+              </div>
             ) : null}
           </div>
 
-          <Heading as="h1" className="text-3xl leading-tight md:text-4xl">
-            {post.title}
-          </Heading>
-
-          <MicroLabel as="div" className="uppercase">
-            Posted {timeAgo(post.createdAt)}
-            {post.author ? ` · by @${post.author.discordUsername ?? "unknown"}` : ""}
-            {post.team ? ` · ${post.team.name}` : ""}
-          </MicroLabel>
+          {/* The clock and the actions share the right column — the
+              countdown at the top, the buttons at the bottom, like the
+              browse heroes' CTA; on a narrow screen it wraps below. */}
+          <div className="flex shrink-0 flex-col items-end justify-between gap-4">
+            {closesIn && !closesIn.past ? (
+              <HeroStat
+                label="CLOSES IN"
+                value={closesIn.text.toUpperCase()}
+                tint="warning"
+                align="end"
+              />
+            ) : isClosed ? (
+              <HeroStat
+                label="STATUS"
+                value={post.status === "expired" ? "EXPIRED" : "CLOSED"}
+                tint="destructive"
+                align="end"
+              />
+            ) : (
+              <span />
+            )}
+            {children}
+          </div>
         </div>
-
-        <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
-          {closesIn && !closesIn.past ? (
-            <HeroStat label="CLOSES IN" value={closesIn.text.toUpperCase()} tint="warning" />
-          ) : null}
-          {isClosed ? (
-            <HeroStat
-              label="STATUS"
-              value={post.status === "expired" ? "EXPIRED" : "CLOSED"}
-              tint="destructive"
-            />
-          ) : null}
-          {post.compensationType ? (
-            <HeroStat label="COMP" value={compensationLabel(post.compensationType).toUpperCase()} />
-          ) : null}
-          {rateDisplay ? <HeroStat label="RATE" value={rateDisplay} /> : null}
-          {post.responseCount > 0 ? (
-            <HeroStat label="RESPONSES" value={formatCount(post.responseCount)} />
-          ) : null}
-        </div>
-
-        {children}
       </div>
     </Well>
   );
@@ -557,13 +579,15 @@ function HeroStat({
   label,
   value,
   tint,
+  align = "start",
 }: {
   label: string;
   value: string;
   tint?: "warning" | "destructive";
+  align?: "start" | "end";
 }) {
   return (
-    <div className="min-w-0">
+    <div className={cn("min-w-0", align === "end" && "text-right")}>
       <MicroLabel as="div">{label}</MicroLabel>
       <Text
         as="div"
@@ -606,7 +630,7 @@ function HeroActions({
 }) {
   const navigate = useNavigate();
   return (
-    <div className="flex flex-wrap items-center gap-2 pt-1">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {!isOwner && !isClosed ? (
         currentUserId ? (
           <Button
