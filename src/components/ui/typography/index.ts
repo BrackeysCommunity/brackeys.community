@@ -5,5 +5,6 @@ export { InlineCode, inlineCodeVariants, type InlineCodeProps } from "./inline-c
 export { Quote, type QuoteProps, type QuoteSource } from "./quote";
 export { Prose, type ProseProps } from "./prose";
 export { MarkedText, type MarkedTextProps } from "./marked-text";
+export { Censored, CensoredMark, useCensorNodes } from "./censored";
 export { RichHtml } from "./rich-html";
 export { Link, type LinkProps } from "./link";

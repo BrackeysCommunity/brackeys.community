@@ -28,11 +28,11 @@ import {
   Link as TextLink,
   Text,
 } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { timeAgo } from "@/lib/format-time";
-import { Censored } from "@/lib/hooks/use-censored";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeUp } from "@/lib/motion";
@@ -696,7 +696,7 @@ function ShowcaseCard({ project }: { project: TeamProject }) {
         </span>
         {project.description ? (
           <Text as="span" size="xs" variant="muted" className="line-clamp-2">
-            {project.description}
+            <Censored>{project.description}</Censored>
           </Text>
         ) : null}
         {project.jamName ? (

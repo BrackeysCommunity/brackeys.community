@@ -883,6 +883,7 @@ export const addProject = os
     }),
   )
   .handler(async ({ input, context }) => {
+    checkProfanity(input.title, "Title");
     const { image, links, ...projectInput } = input;
     if (image) {
       assertOwnedUploadedProjectImage(context.user.id, image);
@@ -958,6 +959,7 @@ export const updateProject = os
     // `type` is pulled out of the spread: it now names a *canonical* kind,
     // which the placement's enum column can't hold.
     const { projectId, image, links, type, ...data } = input;
+    checkProfanity(input.title, "Title");
     const [existingProject] = await db
       .select({
         id: profileProjects.id,

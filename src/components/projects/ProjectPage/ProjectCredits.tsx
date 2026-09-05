@@ -11,6 +11,7 @@ import { Confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
@@ -180,10 +181,10 @@ function ContributorCard({
       />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
-          {contributor.displayName}
+          <Censored>{contributor.displayName}</Censored>
         </Text>
         <Text as="span" size="xs" variant="muted" ellipsis>
-          {contributor.role ?? "Contributor"}
+          <Censored>{contributor.role ?? "Contributor"}</Censored>
         </Text>
       </span>
     </>

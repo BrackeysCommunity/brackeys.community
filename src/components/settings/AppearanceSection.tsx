@@ -76,8 +76,8 @@ function ThemePreview({ theme }: { theme: Theme }) {
 export function AppearanceSection() {
   return (
     <>
-      <ThemePicker />
       <LanguageSection />
+      <ThemePicker />
     </>
   );
 }
@@ -88,9 +88,9 @@ function ThemePicker() {
 
   return (
     <SettingsSection
-      index="01"
+      index="02"
       title="Theme"
-      hint="Applies instantly and only to this browser — nothing here is saved to your account."
+      hint="Applies instantly and, like the filter, only to this browser — nothing here is saved to your account."
       action={
         active ? (
           <Badge size="label" variant="outline">
@@ -136,12 +136,12 @@ function LanguageSection() {
 
   return (
     <SettingsSection
-      index="02"
+      index="01"
       title="Language"
-      hint="Also stored only in this browser. It changes what you see, never what anyone wrote."
+      hint="Stored only in this browser. It changes what you see, never what anyone wrote."
     >
       <SettingRow
-        label="Hide strong language"
+        label="Hide profanity"
         hint={
           censorProfanity
             ? "Swearing in bios, posts and comments renders as asterisks."
@@ -152,7 +152,7 @@ function LanguageSection() {
           <Switch
             checked={censorProfanity}
             onCheckedChange={setCensorProfanity}
-            aria-label="Hide strong language"
+            aria-label="Hide profanity"
           />
         }
       />

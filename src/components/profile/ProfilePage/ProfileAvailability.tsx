@@ -4,8 +4,8 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { Censored } from "@/lib/hooks/use-censored";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 

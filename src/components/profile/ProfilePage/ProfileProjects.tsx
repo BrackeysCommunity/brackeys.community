@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { itchImageUrl } from "@/lib/itch-image";
 import { toastMutationError } from "@/lib/mutation-errors";
@@ -394,7 +395,7 @@ function ProjectCard({
             {project.jamName ? (
               <span className="font-medium text-foreground/80">Entry note: </span>
             ) : null}
-            {project.shortDescription}
+            <Censored>{project.shortDescription}</Censored>
           </Text>
         </div>
       ) : null}

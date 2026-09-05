@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { Spinner } from "@/components/ui/spinner";
 import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS } from "@/lib/event-taxonomy";
@@ -122,7 +123,7 @@ export function ProjectHero({
 
           {project.description ? (
             <Text size="md" variant="muted" className="max-w-prose">
-              {project.description}
+              <Censored>{project.description}</Censored>
             </Text>
           ) : null}
 

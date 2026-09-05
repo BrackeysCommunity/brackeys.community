@@ -9,6 +9,7 @@ import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-o
 import { siteUrl } from "@/env";
 import { authClient } from "@/lib/auth-client";
 import { memberName } from "@/lib/member-name";
+import { censorText } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
@@ -53,9 +54,12 @@ export const Route = createFileRoute("/profile/$userId")({
       .map((role) => role.name)
       .slice(0, 3)
       .join(", ");
+    // No viewer preference on the server, so meta follows the email rule
+    // and censors unconditionally.
+    const tagline = censorText(profile.tagline?.trim() || null);
     const description =
-      profile.tagline?.trim() ||
-      profile.bio?.trim().slice(0, 180) ||
+      tagline ||
+      censorText(profile.bio?.trim().slice(0, 180) || null) ||
       [craft && `${craft}.`, skills.length > 0 && `Works in ${skills[0]!.name}.`]
         .filter(Boolean)
         .join(" ") ||
@@ -88,7 +92,7 @@ export const Route = createFileRoute("/profile/$userId")({
           name,
           url: siteUrl(path),
           ...(avatar ? { image: avatar } : {}),
-          ...(profile.tagline ? { description: profile.tagline } : {}),
+          ...(tagline ? { description: tagline } : {}),
           ...(craft ? { jobTitle: craft } : {}),
           ...(profile.location ? { homeLocation: profile.location } : {}),
           ...(skills.length > 0 ? { knowsAbout: skills.map((skill) => skill.name) } : {}),

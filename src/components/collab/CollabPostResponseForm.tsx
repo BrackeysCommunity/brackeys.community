@@ -10,9 +10,9 @@ import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { timeAgo } from "@/lib/format-time";
-import { Censored } from "@/lib/hooks/use-censored";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
 

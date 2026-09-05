@@ -8,6 +8,7 @@ import { TeamPageSkeleton } from "@/components/teams/TeamPageSkeleton";
 import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
 import { siteUrl } from "@/env";
 import { authStore } from "@/lib/auth-store";
+import { censorText } from "@/lib/profanity";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { orpc } from "@/orpc/client";
@@ -51,9 +52,10 @@ export const Route = createFileRoute("/teams/$teamId")({
       .slice(0, 3)
       .map((skill) => skill.name)
       .join(", ");
+    const tagline = censorText(team.tagline?.trim() || null);
     const description =
-      team.tagline?.trim() ||
-      team.bio?.trim().slice(0, 180) ||
+      tagline ||
+      censorText(team.bio?.trim().slice(0, 180) || null) ||
       [
         `${memberCount} ${memberCount === 1 ? "member" : "members"} on Brackeys Community.`,
         stack && `Works in ${stack}.`,
@@ -88,7 +90,7 @@ export const Route = createFileRoute("/teams/$teamId")({
           name: team.name,
           url: siteUrl(path),
           ...(logo ? { logo } : {}),
-          ...(team.tagline ? { description: team.tagline } : {}),
+          ...(tagline ? { description: tagline } : {}),
           ...(sameAs.length > 0 ? { sameAs } : {}),
           numberOfEmployees: memberCount,
         },

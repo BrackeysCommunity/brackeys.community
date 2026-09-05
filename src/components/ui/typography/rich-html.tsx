@@ -1,10 +1,16 @@
 import DOMPurify from "dompurify";
 import { useMemo } from "react";
 
-import { useCensorFn } from "@/lib/hooks/use-censored";
+import {
+  CENSORED_MARK_CLASS,
+  CENSORED_MARK_TITLE,
+  Censored,
+} from "@/components/ui/typography/censored";
+import { useCensorSegments } from "@/lib/hooks/use-censored";
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
 import { htmlToParagraphs } from "@/lib/html-text";
 import { type ItchImageOpts, isTransformable, itchImageUrl } from "@/lib/itch-image";
+import type { CensorSegment } from "@/lib/profanity";
 import { cn } from "@/lib/utils";
 
 /** Body images render inside a prose column narrower than 768px on every
@@ -276,7 +282,7 @@ function sanitize(html: string): string {
  * DOMPurify rejected: the parse only sees what already survived, and the
  * one attribute we write (`href`) is re-checked for scheme first.
  */
-function normalizeBody(html: string, censor: (text: string) => string): string {
+function normalizeBody(html: string, censor: (text: string) => CensorSegment[]): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
 
   // Class names are read for intent, then dropped. They are never left on
@@ -463,13 +469,33 @@ function normalizeBody(html: string, censor: (text: string) => string): string {
   }
 
   // Text nodes only, so a host's URL or class-derived data attribute can't
-  // be mangled into a broken link by the censor.
+  // be mangled into a broken link by the censor. This markup ends up as a
+  // string, so the censored runs carry a native `title` instead of the
+  // React tooltip; the mark itself looks the same.
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    textNodes.push(node as Text);
+  }
+  for (const node of textNodes) {
     const text = node.nodeValue;
     if (!text) continue;
-    const clean = censor(text);
-    if (clean !== text) node.nodeValue = clean;
+    const segments = censor(text);
+    if (segments.length === 1 && !segments[0]!.censored) continue;
+    const frag = doc.createDocumentFragment();
+    for (const segment of segments) {
+      if (!segment.censored) {
+        frag.appendChild(doc.createTextNode(segment.text));
+        continue;
+      }
+      const mark = doc.createElement("span");
+      mark.setAttribute("data-slot", "censored");
+      mark.setAttribute("class", CENSORED_MARK_CLASS);
+      mark.setAttribute("title", CENSORED_MARK_TITLE);
+      mark.textContent = segment.text;
+      frag.appendChild(mark);
+    }
+    node.replaceWith(frag);
   }
 
   for (const summary of doc.querySelectorAll("summary")) {
@@ -539,16 +565,13 @@ interface RichHtmlProps {
  */
 export function RichHtml({ html, className }: RichHtmlProps) {
   const canSanitize = useIsHydrated();
-  const censor = useCensorFn();
+  const censor = useCensorSegments();
 
   const safe = useMemo(
     () => (canSanitize ? normalizeBody(sanitize(html), censor) : null),
     [canSanitize, html, censor],
   );
-  const paragraphs = useMemo(
-    () => (safe == null ? htmlToParagraphs(html).map(censor) : []),
-    [safe, html, censor],
-  );
+  const paragraphs = useMemo(() => (safe == null ? htmlToParagraphs(html) : []), [safe, html]);
 
   if (safe == null) {
     return (
@@ -557,7 +580,9 @@ export function RichHtml({ html, className }: RichHtmlProps) {
           // Index keys: this list is a one-shot pre-hydration rendering of
           // an immutable string, never reordered.
           // biome-ignore lint/suspicious/noArrayIndexKey: static list
-          <p key={i}>{p}</p>
+          <p key={i}>
+            <Censored>{p}</Censored>
+          </p>
         ))}
       </div>
     );

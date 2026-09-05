@@ -5,6 +5,7 @@ import { jamDateLong } from "@/lib/jam-links";
 import { safeThemeColor } from "@/lib/jam-palette";
 import { memberName } from "@/lib/member-name";
 import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
+import { censorText } from "@/lib/profanity";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
 import { isServableImageKey } from "@/lib/stored-image-keys";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
@@ -176,7 +177,7 @@ export async function projectCard(slug: string): Promise<OgCardInput | null> {
     kind: "project",
     eyebrow: project.type ?? "Project",
     title: project.title,
-    subtitle: project.description ?? (credits ? `By ${credits}` : null),
+    subtitle: censorText(project.description) ?? (credits ? `By ${credits}` : null),
     stats,
     art: await fetchArt(coverSource(project.imageUrl), "panel"),
   };
@@ -203,7 +204,7 @@ export async function collabCard(postId: number): Promise<OgCardInput | null> {
     kind: "collab",
     eyebrow: "Open role",
     title: post.title,
-    subtitle: htmlToPlainText(post.description, 150) ?? null,
+    subtitle: censorText(htmlToPlainText(post.description, 150)) ?? null,
     stats,
     art: await fetchArt(
       coverSource(post.images[0]?.url ?? post.project?.imageUrl ?? post.jam?.bannerUrl),
@@ -236,9 +237,11 @@ export async function profileCard(handle: string): Promise<OgCardInput | null> {
     kind: "profile",
     eyebrow: craft || "Member",
     title: memberName(profile, "A Brackeys member"),
+    // Public and cached with no viewer to ask, so the card follows the
+    // email rule and censors unconditionally.
     subtitle:
-      profile.tagline?.trim() ||
-      [profile.location, profile.availableForWork ? "Open to work" : null]
+      censorText(profile.tagline?.trim()) ||
+      [censorText(profile.location), profile.availableForWork ? "Open to work" : null]
         .filter(Boolean)
         .join(" · ") ||
       null,
@@ -362,7 +365,7 @@ export async function teamCard(handle: string): Promise<OgCardInput | null> {
     kind: "team",
     eyebrow: "Team",
     title: team.name,
-    subtitle: team.tagline ?? null,
+    subtitle: censorText(team.tagline) ?? null,
     stats,
     art: await fetchArt(
       coverSource(team.bannerUrl ?? team.avatarUrl),

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 
 import { useOptionalAppSettings } from "@/lib/hooks/use-app-settings";
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
-import { censorText } from "@/lib/profanity";
+import { type CensorSegment, censorSegments, censorText } from "@/lib/profanity";
 
 /**
  * Whether prose should render censored for this viewer.
@@ -42,10 +42,15 @@ export function useCensorFn(): (text: string) => string {
 }
 
 /**
- * Prose inside a list, where a hook per row isn't available. Renders the
- * string and nothing else, so it drops into any `Text` or heading.
+ * The censor as a splitter: the text in runs, each flagged as written or
+ * replaced, so a renderer can mark the replaced ones. A single clean run
+ * when the viewer has the censor off. `Censored` in `@/components/ui/typography`
+ * is the ready-made renderer for this.
  */
-export function Censored({ children }: { children: string | null | undefined }) {
-  const text = useCensored(children);
-  return <>{text ?? null}</>;
+export function useCensorSegments(): (text: string) => CensorSegment[] {
+  const active = useCensorProfanity();
+  return useCallback(
+    (text: string) => (active ? censorSegments(text) : [{ text, censored: false }]),
+    [active],
+  );
 }

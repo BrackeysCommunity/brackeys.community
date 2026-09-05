@@ -1,6 +1,7 @@
 import { marked, type Tokens } from "marked";
 import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } from "react";
 
+import { useCensorNodes } from "@/components/ui/typography/censored";
 import { InlineCode } from "@/components/ui/typography/inline-code";
 import { useCensorFn } from "@/lib/hooks/use-censored";
 import { cn } from "@/lib/utils";
@@ -20,8 +21,9 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
 type AnyToken = Tokens.Generic;
 
 /** Applied to every text leaf on the way out. Identity when the viewer
- * has the censor off, which is the common case for the app's own copy. */
-type Censor = (text: string) => string;
+ * has the censor off, which is the common case for the app's own copy.
+ * `nodes` marks censored runs for the hover; `plain` is for attributes. */
+type Censor = { nodes: (text: string) => ReactNode; plain: (text: string) => string };
 
 function decodeEntities(s: string): string {
   return s
@@ -93,7 +95,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       const block = t as Tokens.Code;
       return (
         <pre>
-          <code>{censor(block.text)}</code>
+          <code>{censor.nodes(block.text)}</code>
         </pre>
       );
     }
@@ -104,7 +106,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     case "text": {
       const text = t as Tokens.Text;
       if (text.tokens) return <>{renderTokens(text.tokens as AnyToken[], censor)}</>;
-      return censor(decodeEntities(text.text));
+      return censor.nodes(decodeEntities(text.text));
     }
     case "strong":
       return <strong>{renderTokens(t.tokens as AnyToken[], censor)}</strong>;
@@ -115,7 +117,9 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     case "codespan": {
       const code = t as Tokens.Codespan;
       return (
-        <InlineCode className="translate-y-px">{censor(decodeEntities(code.text))}</InlineCode>
+        <InlineCode className="translate-y-px">
+          {censor.nodes(decodeEntities(code.text))}
+        </InlineCode>
       );
     }
     case "link": {
@@ -139,7 +143,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       return (
         <img
           src={image.href}
-          alt={censor(image.text ?? "")}
+          alt={censor.plain(image.text ?? "")}
           title={image.title ?? undefined}
           loading="lazy"
           decoding="async"
@@ -147,7 +151,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       );
     }
     case "escape":
-      return censor((t as Tokens.Escape).text);
+      return censor.nodes((t as Tokens.Escape).text);
     // `html` stays dropped on purpose: this renderer's whole safety story
     // is that it never emits markup the author wrote.
     default:
@@ -157,9 +161,12 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
 
 const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
   ({ as: Tag = "div", children, inline, censor = true, className, ...props }, ref) => {
-    const censorFn = useCensorFn();
-    const identity = useMemo(() => (text: string) => text, []);
-    const apply = censor ? censorFn : identity;
+    const plain = useCensorFn();
+    const nodes = useCensorNodes();
+    const apply = useMemo<Censor>(
+      () => (censor ? { nodes, plain } : { nodes: (text) => text, plain: (text) => text }),
+      [censor, nodes, plain],
+    );
 
     const rendered = useMemo(() => {
       if (inline) {

@@ -55,7 +55,9 @@ function MagneticLink({
 }
 
 const NAV_ITEMS = [
-  { to: "/collab", label: "COLLAB", slug: "collab" },
+  // Only the browse list. A post page is a leaf under it, and the tab must
+  // stay clickable there so it can lead back to the list.
+  { to: "/collab", label: "COLLAB", slug: "collab", exact: true },
   { to: "/jams", label: "JAMS", slug: "jams" },
   { to: "/teams", label: "TEAMS", slug: "teams" },
   // Where PROFILE used to sit. The viewer's own profile is one click away in
@@ -64,9 +66,11 @@ const NAV_ITEMS = [
   { to: "/members", label: "MEMBERS", slug: "members" },
 ] as const;
 
-/** A section stays lit on its detail pages — `/jams/foo` is still JAMS. */
-function isActivePath(pathname: string, to: string) {
-  return pathname === to || pathname.startsWith(`${to}/`);
+/** A section stays lit on its detail pages — `/jams/foo` is still JAMS —
+ *  unless the item opts into `exact`. */
+function isActivePath(pathname: string, item: (typeof NAV_ITEMS)[number]) {
+  if (pathname === item.to) return true;
+  return !("exact" in item && item.exact) && pathname.startsWith(`${item.to}/`);
 }
 
 export function AppHeader() {
@@ -164,7 +168,7 @@ export function AppHeader() {
         <div className="pointer-events-auto hidden items-center gap-6 lg:flex">
           <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
             {NAV_ITEMS.map((item) => {
-              const active = isActivePath(pathname, item.to);
+              const active = isActivePath(pathname, item);
               return (
                 // The active item keeps the hover tick but drops the page
                 // toggle: nothing is about to tear down.
@@ -250,7 +254,7 @@ export function AppHeader() {
           >
             <nav className="flex flex-col gap-1 p-4">
               {NAV_ITEMS.map((item) => {
-                const active = isActivePath(pathname, item.to);
+                const active = isActivePath(pathname, item);
                 return (
                   <Link
                     key={item.to}

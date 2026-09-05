@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { censorText, hasProfanity } from "@/lib/profanity";
+import { censorSegments, censorText, hasProfanity } from "@/lib/profanity";
 
 describe("hasProfanity", () => {
   it("is clean for absent and empty text", () => {
@@ -57,5 +57,28 @@ describe("censorText", () => {
     // rejected bio was bad enough, a mangled place name is worse.
     const town = "Based in Scunthorpe, open to remote work";
     expect(censorText(town)).toBe(town);
+  });
+});
+
+describe("censorSegments", () => {
+  it("is a single clean run for ordinary prose", () => {
+    expect(censorSegments("hello there")).toEqual([{ text: "hello there", censored: false }]);
+  });
+
+  it("splits around the match and keeps the surrounding text as written", () => {
+    expect(censorSegments("this shit is broken")).toEqual([
+      { text: "this ", censored: false },
+      { text: "****", censored: true },
+      { text: " is broken", censored: false },
+    ]);
+  });
+
+  it("agrees with censorText", () => {
+    const text = "shit and more shit, fucking hell";
+    expect(
+      censorSegments(text)
+        .map((s) => s.text)
+        .join(""),
+    ).toBe(censorText(text));
   });
 });

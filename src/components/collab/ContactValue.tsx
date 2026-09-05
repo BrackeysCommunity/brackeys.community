@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Link as TextLink, Text } from "@/components/ui/typography";
+import { Censored, Link as TextLink, Text } from "@/components/ui/typography";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { CONTACT_TYPE_LABELS } from "@/lib/collab-vocabulary";
 
@@ -73,7 +73,9 @@ export function ContactValue({
           {method}
         </TextLink>
       ) : (
-        method
+        // A URL or address has to stay intact to work; only a plain handle
+        // or free-text line is prose the viewer's censor should touch.
+        <Censored>{method}</Censored>
       )}
     </>
   );

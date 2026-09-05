@@ -30,6 +30,7 @@ import {
   MicroLabel,
   Text,
 } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { signInWithDiscord } from "@/lib/auth-client";
@@ -273,7 +274,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
         <motion.div variants={fadeLeft} className="flex flex-col gap-6">
           <Section id="details" title="THE DETAILS" size="sm">
             <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
-              {post.projectName ? <SpecRow label="PROJECT" value={post.projectName} /> : null}
+              {post.projectName ? (
+                <SpecRow label="PROJECT" value={<Censored>{post.projectName}</Censored>} />
+              ) : null}
               <SpecRow label="PLATFORMS" value={platformsReading(post.platforms)} />
               <SpecRow label="TIMELINE" value={projectLengthReading(post.projectLength)} />
               <SpecRow label="EXPERIENCE" value={experienceReading(post.experienceLevel)} />
@@ -853,7 +856,7 @@ function CrewTile({
         </Text>
         {caption ? (
           <Text as="span" size="xs" variant="muted" ellipsis className="max-w-56">
-            {caption}
+            <Censored>{caption}</Censored>
           </Text>
         ) : null}
       </span>

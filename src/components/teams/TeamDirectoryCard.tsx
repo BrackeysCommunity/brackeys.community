@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { Censored } from "@/lib/hooks/use-censored";
 import { cn } from "@/lib/utils";
 import type { client } from "@/orpc/client";
 
