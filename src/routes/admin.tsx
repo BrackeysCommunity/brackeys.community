@@ -147,7 +147,7 @@ function useQueueCounts(): Partial<Record<View, number>> {
 
   return {
     reports: open,
-    "entry-flags": entryFlags.data?.total ?? 0,
+    "entry-flags": entryFlags.data?.flagCount ?? 0,
     proposals: pendingProposals.data?.total ?? 0,
     skills: skillRequests.data?.total ?? 0,
   };

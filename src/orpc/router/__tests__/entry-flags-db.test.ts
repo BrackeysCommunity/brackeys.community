@@ -10,7 +10,7 @@ import {
   moderationActions,
   user,
 } from "@/db/schema";
-import { listEntryFlags, resolveEntryFlag } from "@/orpc/router/admin";
+import { listEntryFlags, resolveEntryFlag, resolveEntryFlags } from "@/orpc/router/admin";
 import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
@@ -131,15 +131,27 @@ describe("worker flag upsert", () => {
   });
 });
 
+type ListInput = {
+  includeResolved?: boolean;
+  jamScope?: "live" | "all";
+  kind?: "all" | "nsfw" | "stolen_internal";
+  nsfwSource?: "all" | "creator" | "classifier";
+  groupBy?: "game" | "cover" | "none";
+  page?: number;
+  pageSize?: number;
+};
+
 describe("listEntryFlags", () => {
+  const list = (input: ListInput, who = "staff") =>
+    call(
+      listEntryFlags,
+      { includeResolved: false, jamScope: "all", page: 1, pageSize: 20, ...input },
+      asUser(who),
+    );
+  const flat = (r: Awaited<ReturnType<typeof list>>) => r.groups.flatMap((g) => g.flags);
+
   it("refuses non-staff", async () => {
-    await expect(
-      call(
-        listEntryFlags,
-        { includeResolved: false, jamScope: "all", page: 1, pageSize: 20 },
-        asUser("rita"),
-      ),
-    ).rejects.toThrow();
+    await expect(list({}, "rita")).rejects.toThrow();
   });
 
   it("scopes to live jams by default and orders by confidence", async () => {
@@ -153,22 +165,78 @@ describe("listEntryFlags", () => {
     });
     await workerUpsertFlag({ entryId: 201, jamId: 2, kind: "nsfw", score: 0.99, evidence: {} });
 
-    const live = await call(
-      listEntryFlags,
-      { includeResolved: false, jamScope: "live", page: 1, pageSize: 20 },
-      asUser("staff"),
-    );
-    expect(live.items.map((i) => i.entryId)).toEqual([101, 101]);
-    expect(live.items.map((i) => i.kind)).toEqual(["stolen_internal", "nsfw"]);
-    expect(live.items[0]!.gameTitle).toBe("Fresh Entry");
-    expect(live.items[0]!.jamTitle).toBe("Live Jam");
+    const live = await list({ jamScope: "live", groupBy: "none" });
+    expect(flat(live).map((i) => i.entryId)).toEqual([101, 101]);
+    expect(flat(live).map((i) => i.kind)).toEqual(["stolen_internal", "nsfw"]);
+    expect(flat(live)[0]!.gameTitle).toBe("Fresh Entry");
+    expect(flat(live)[0]!.jamTitle).toBe("Live Jam");
+    expect(live.flagCount).toBe(2);
 
-    const all = await call(
-      listEntryFlags,
-      { includeResolved: false, jamScope: "all", page: 1, pageSize: 20 },
-      asUser("staff"),
-    );
+    const all = await list({ groupBy: "none" });
     expect(all.total).toBe(3);
+    expect(all.flagCount).toBe(3);
+  });
+
+  it("groups a game's flags across jams into one row, paging by row", async () => {
+    // The same game entered in both jams.
+    await db.insert(itchJamEntries).values({
+      entryId: 202,
+      jamId: 2,
+      gameId: 9101,
+      rateUrl: "https://itch.io/jam/old-jam/rate/9101",
+      gameTitle: "Fresh Entry",
+      gameUrl: "https://someone.itch.io/fresh",
+      authorName: "someone",
+    });
+    await workerUpsertFlag({ entryId: 101, jamId: 1, kind: "nsfw", score: 0.9, evidence: {} });
+    await workerUpsertFlag({ entryId: 202, jamId: 2, kind: "nsfw", score: 0.995, evidence: {} });
+    await workerUpsertFlag({ entryId: 201, jamId: 2, kind: "nsfw", score: 0.95, evidence: {} });
+
+    const byGame = await list({ groupBy: "game" });
+    expect(byGame.total).toBe(2);
+    expect(byGame.flagCount).toBe(3);
+    // The shared game leads (best flag 0.995), its own flags best-first.
+    expect(byGame.groups[0]!.flags.map((f) => f.entryId)).toEqual([202, 101]);
+    expect(byGame.groups[1]!.flags.map((f) => f.entryId)).toEqual([201]);
+
+    const secondPage = await list({ groupBy: "game", pageSize: 1, page: 2 });
+    expect(secondPage.pageCount).toBe(2);
+    expect(flat(secondPage).map((f) => f.entryId)).toEqual([201]);
+
+    const perFlag = await list({ groupBy: "none" });
+    expect(perFlag.total).toBe(3);
+    expect(perFlag.groups.every((g) => g.flags.length === 1)).toBe(true);
+  });
+
+  it("filters by kind and by which NSFW signal fired", async () => {
+    await workerUpsertFlag({
+      entryId: 101,
+      jamId: 1,
+      kind: "nsfw",
+      score: 1,
+      evidence: { nsfwTags: ["adult"] },
+    });
+    await workerUpsertFlag({
+      entryId: 201,
+      jamId: 2,
+      kind: "nsfw",
+      score: 0.99,
+      evidence: { nsfwScore: 0.99, scorer: "probe" },
+    });
+    await workerUpsertFlag({
+      entryId: 201,
+      jamId: 2,
+      kind: "stolen_internal",
+      score: 1,
+      evidence: {},
+    });
+
+    expect(flat(await list({ kind: "stolen_internal" })).map((f) => f.kind)).toEqual([
+      "stolen_internal",
+    ]);
+    expect(flat(await list({ kind: "nsfw" }))).toHaveLength(2);
+    expect(flat(await list({ nsfwSource: "creator" })).map((f) => f.entryId)).toEqual([101]);
+    expect(flat(await list({ nsfwSource: "classifier" })).map((f) => f.entryId)).toEqual([201]);
   });
 
   it("hides resolved flags unless asked, and hydrates the resolver", async () => {
@@ -176,20 +244,45 @@ describe("listEntryFlags", () => {
     const [flag] = await db.select().from(entryFlags);
     await call(resolveEntryFlag, { flagId: flag!.id, action: "confirm" }, asUser("staff"));
 
-    const open = await call(
-      listEntryFlags,
-      { includeResolved: false, jamScope: "all", page: 1, pageSize: 20 },
-      asUser("staff"),
-    );
+    const open = await list({});
     expect(open.total).toBe(0);
 
-    const everything = await call(
-      listEntryFlags,
-      { includeResolved: true, jamScope: "all", page: 1, pageSize: 20 },
+    const everything = await list({ includeResolved: true });
+    expect(flat(everything)[0]!.status).toBe("confirmed");
+    expect(flat(everything)[0]!.resolvedBy?.id).toBe("staff");
+  });
+});
+
+describe("resolveEntryFlags", () => {
+  it("rules on every open flag in one call, one log record each", async () => {
+    await workerUpsertFlag({ entryId: 101, jamId: 1, kind: "nsfw", score: 0.9, evidence: {} });
+    await workerUpsertFlag({ entryId: 201, jamId: 2, kind: "nsfw", score: 0.95, evidence: {} });
+    const ids = (await db.select({ id: entryFlags.id }).from(entryFlags)).map((r) => r.id);
+
+    const first = await call(
+      resolveEntryFlags,
+      { flagIds: ids, action: "dismiss" },
       asUser("staff"),
     );
-    expect(everything.items[0]!.status).toBe("confirmed");
-    expect(everything.items[0]!.resolvedBy?.id).toBe("staff");
+    expect(first.resolved).toBe(2);
+    const rows = await db.select().from(entryFlags);
+    expect(rows.every((r) => r.status === "dismissed" && r.resolvedById === "staff")).toBe(true);
+    expect(await db.select().from(moderationActions)).toHaveLength(2);
+
+    // Already-ruled flags are skipped, not re-logged.
+    const again = await call(
+      resolveEntryFlags,
+      { flagIds: ids, action: "confirm" },
+      asUser("staff"),
+    );
+    expect(again.resolved).toBe(0);
+    expect(await db.select().from(moderationActions)).toHaveLength(2);
+  });
+
+  it("refuses non-staff", async () => {
+    await expect(
+      call(resolveEntryFlags, { flagIds: [1], action: "confirm" }, asUser("rita")),
+    ).rejects.toThrow();
   });
 });
 

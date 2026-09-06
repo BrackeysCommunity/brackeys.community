@@ -24,6 +24,7 @@ import {
   commentReports,
   developerProfiles,
   entryFlags,
+  itchEntryScans,
   itchJamEntries,
   itchJams,
   moderationActions,
@@ -1398,6 +1399,22 @@ const MAX_INT4 = 2_147_483_647;
  * actually ask. Ordered by detector confidence so the likeliest real
  * problems surface first.
  */
+/**
+ * How the queue collapses flags into rows. Creators enter the same game in
+ * many jams, so one cover earns one flag per jam; grouping by game shows the
+ * game once with every jam it was flagged in. Grouping by cover goes one
+ * step further — different games wearing the same art (the theft case) sit
+ * together too. `none` is one row per flag.
+ */
+const FLAG_GROUP_KEYS = {
+  game: sql<string>`${itchJamEntries.gameId}::text`,
+  cover: sql<string>`coalesce(${itchEntryScans.coverPhash}, 'entry:' || ${entryFlags.entryId}::text)`,
+  none: sql<string>`${entryFlags.id}::text`,
+} as const;
+
+/** `evidence.nsfwTags` is only written when the creator marked the game adult. */
+const creatorTagged = sql`jsonb_exists(${entryFlags.evidence}, 'nsfwTags')`;
+
 export const listEntryFlags = os
   .use(requireStaff)
   .input(
@@ -1407,6 +1424,11 @@ export const listEntryFlags = os
       // queue view; "all" is the backfill/history view.
       jamScope: z.enum(["live", "all"]).default("live"),
       jamId: z.number().int().min(1).max(MAX_INT4).optional(),
+      kind: z.enum(["all", "nsfw", "stolen_internal"]).default("all"),
+      // Which NSFW signal fired: the creator's own adult tag, or our cover
+      // scorer. Either narrows to nsfw flags.
+      nsfwSource: z.enum(["all", "creator", "classifier"]).default("all"),
+      groupBy: z.enum(["game", "cover", "none"]).default("game"),
       page: z.number().int().min(1).default(1),
       pageSize: z.number().int().min(1).max(50).default(20),
     }),
@@ -1418,64 +1440,109 @@ export const listEntryFlags = os
       input.jamId == null && input.jamScope === "live"
         ? inArray(itchJams.status, ["running", "voting"])
         : undefined,
+      input.kind !== "all" ? eq(entryFlags.kind, input.kind) : undefined,
+      input.nsfwSource !== "all" ? eq(entryFlags.kind, "nsfw") : undefined,
+      input.nsfwSource === "creator" ? creatorTagged : undefined,
+      input.nsfwSource === "classifier" ? sql`not ${creatorTagged}` : undefined,
     ].filter((f) => f != null);
     const where = filters.length > 0 ? and(...filters) : undefined;
+    const key = FLAG_GROUP_KEYS[input.groupBy];
 
-    const [[totals], rows] = await Promise.all([
-      db
-        .select({ total: count() })
-        .from(entryFlags)
-        .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
-        .where(where),
+    // Two reads: the page of group keys (ordered by the group's best flag),
+    // then every flag behind those keys. Paging by group is what keeps a
+    // game that entered five jams from spilling across page boundaries.
+    const [[totals], pageGroups] = await Promise.all([
       db
         .select({
-          id: entryFlags.id,
-          entryId: entryFlags.entryId,
-          jamId: entryFlags.jamId,
-          kind: entryFlags.kind,
-          source: entryFlags.source,
-          score: entryFlags.score,
-          evidence: entryFlags.evidence,
-          status: entryFlags.status,
-          resolvedAt: entryFlags.resolvedAt,
-          resolvedById: entryFlags.resolvedById,
-          createdAt: entryFlags.createdAt,
-          gameTitle: itchJamEntries.gameTitle,
-          gameUrl: itchJamEntries.gameUrl,
-          gameCoverUrl: itchJamEntries.gameCoverUrl,
-          rateUrl: itchJamEntries.rateUrl,
-          authorName: itchJamEntries.authorName,
-          authorUrl: itchJamEntries.authorUrl,
-          submittedAt: itchJamEntries.submittedAt,
-          entryMissingSince: itchJamEntries.missingSince,
-          jamTitle: itchJams.title,
-          jamSlug: itchJams.slug,
-          jamStatus: itchJams.status,
+          groups: sql<number>`count(distinct ${key})::int`,
+          flags: count(),
         })
         .from(entryFlags)
         .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
         .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+        .leftJoin(itchEntryScans, eq(itchEntryScans.entryId, entryFlags.entryId))
+        .where(where),
+      db
+        .select({ key })
+        .from(entryFlags)
+        .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
+        .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+        .leftJoin(itchEntryScans, eq(itchEntryScans.entryId, entryFlags.entryId))
         .where(where)
+        .groupBy(key)
         .orderBy(
-          sql`${entryFlags.resolvedAt} ASC NULLS FIRST`,
-          sql`${entryFlags.score} DESC NULLS LAST`,
-          desc(entryFlags.createdAt),
+          sql`bool_or(${entryFlags.resolvedAt} is null) desc`,
+          sql`max(${entryFlags.score}) desc nulls last`,
+          sql`max(${entryFlags.createdAt}) desc`,
+          key,
         )
         .limit(input.pageSize)
         .offset((input.page - 1) * input.pageSize),
     ]);
 
+    const keys = pageGroups.map((g) => g.key);
+    const rows =
+      keys.length === 0
+        ? []
+        : await db
+            .select({
+              id: entryFlags.id,
+              groupKey: key,
+              entryId: entryFlags.entryId,
+              jamId: entryFlags.jamId,
+              kind: entryFlags.kind,
+              source: entryFlags.source,
+              score: entryFlags.score,
+              evidence: entryFlags.evidence,
+              status: entryFlags.status,
+              resolvedAt: entryFlags.resolvedAt,
+              resolvedById: entryFlags.resolvedById,
+              createdAt: entryFlags.createdAt,
+              gameId: itchJamEntries.gameId,
+              gameTitle: itchJamEntries.gameTitle,
+              gameUrl: itchJamEntries.gameUrl,
+              gameCoverUrl: itchJamEntries.gameCoverUrl,
+              rateUrl: itchJamEntries.rateUrl,
+              authorName: itchJamEntries.authorName,
+              authorUrl: itchJamEntries.authorUrl,
+              submittedAt: itchJamEntries.submittedAt,
+              entryMissingSince: itchJamEntries.missingSince,
+              jamTitle: itchJams.title,
+              jamSlug: itchJams.slug,
+              jamStatus: itchJams.status,
+            })
+            .from(entryFlags)
+            .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
+            .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+            .leftJoin(itchEntryScans, eq(itchEntryScans.entryId, entryFlags.entryId))
+            .where(and(where, inArray(key, keys)))
+            .orderBy(
+              sql`${entryFlags.resolvedAt} ASC NULLS FIRST`,
+              sql`${entryFlags.score} DESC NULLS LAST`,
+              desc(entryFlags.createdAt),
+            );
+
     const resolvers = await profilesByIds(
       rows.map((r) => r.resolvedById).filter((id): id is string => id != null),
     );
+    const items = rows.map((row) => ({
+      ...row,
+      resolvedBy: row.resolvedById ? (resolvers.get(row.resolvedById) ?? null) : null,
+    }));
+    const byKey = new Map<string, typeof items>();
+    for (const item of items) {
+      const bucket = byKey.get(item.groupKey);
+      if (bucket) bucket.push(item);
+      else byKey.set(item.groupKey, [item]);
+    }
 
-    const total = totals?.total ?? 0;
+    const total = totals?.groups ?? 0;
     return {
-      items: rows.map((row) => ({
-        ...row,
-        resolvedBy: row.resolvedById ? (resolvers.get(row.resolvedById) ?? null) : null,
-      })),
+      groups: keys.map((k) => ({ key: k, flags: byKey.get(k) ?? [] })),
+      /** Rows on offer (groups, under the requested grouping). */
       total,
+      /** Flags behind those rows — the number the sidebar badge shows. */
+      flagCount: totals?.flags ?? 0,
       page: input.page,
       pageSize: input.pageSize,
       pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
@@ -1489,63 +1556,94 @@ export const listEntryFlags = os
  * detector stands down for this (entry, kind) — resolved flags are the
  * scan worker's "already ruled" memory.
  */
+async function resolveFlag(
+  flagId: number,
+  action: "confirm" | "dismiss",
+  reason: string | undefined,
+  actorId: string,
+): Promise<"resolved" | "already" | "missing"> {
+  const [flag] = await db
+    .select({
+      id: entryFlags.id,
+      entryId: entryFlags.entryId,
+      jamId: entryFlags.jamId,
+      kind: entryFlags.kind,
+      score: entryFlags.score,
+      status: entryFlags.status,
+      gameTitle: itchJamEntries.gameTitle,
+      jamTitle: itchJams.title,
+    })
+    .from(entryFlags)
+    .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
+    .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
+    .where(eq(entryFlags.id, flagId))
+    .limit(1);
+  if (!flag) return "missing";
+  if (flag.status !== "open") return "already"; // idempotent re-click
+
+  await db
+    .update(entryFlags)
+    .set({
+      status: action === "confirm" ? "confirmed" : "dismissed",
+      resolvedAt: new Date(),
+      resolvedById: actorId,
+    })
+    .where(eq(entryFlags.id, flag.id));
+
+  await recordModerationAction({
+    action: action === "confirm" ? "entry_flag_confirmed" : "entry_flag_dismissed",
+    actorId,
+    targetType: "jam_entry",
+    targetId: flag.entryId,
+    reason,
+    // The entry is a scraped row that can be tombstoned later — snapshot
+    // what keeps the log legible without the join.
+    metadata: {
+      flagId: flag.id,
+      kind: flag.kind,
+      score: flag.score,
+      gameTitle: flag.gameTitle,
+      jamId: flag.jamId,
+      jamTitle: flag.jamTitle,
+    },
+  });
+  return "resolved";
+}
+
+const resolveFlagInput = {
+  action: z.enum(["confirm", "dismiss"]),
+  reason: z.string().trim().max(500).optional(),
+};
+
 export const resolveEntryFlag = os
+  .use(requireStaff)
+  .input(z.object({ flagId: z.number().int().positive(), ...resolveFlagInput }))
+  .handler(async ({ input, context }) => {
+    const outcome = await resolveFlag(input.flagId, input.action, input.reason, context.user.id);
+    if (outcome === "missing") throw new ORPCError("NOT_FOUND", { message: "Flag not found." });
+    return { success: true };
+  });
+
+/**
+ * One ruling for every flag in a queue row — a game flagged across five
+ * jams is one judgment, not five. Each flag still gets its own
+ * `moderation_actions` record; flags already ruled on are skipped.
+ */
+export const resolveEntryFlags = os
   .use(requireStaff)
   .input(
     z.object({
-      flagId: z.number().int().positive(),
-      action: z.enum(["confirm", "dismiss"]),
-      reason: z.string().trim().max(500).optional(),
+      flagIds: z.array(z.number().int().positive()).min(1).max(100),
+      ...resolveFlagInput,
     }),
   )
   .handler(async ({ input, context }) => {
-    const [flag] = await db
-      .select({
-        id: entryFlags.id,
-        entryId: entryFlags.entryId,
-        jamId: entryFlags.jamId,
-        kind: entryFlags.kind,
-        score: entryFlags.score,
-        status: entryFlags.status,
-        gameTitle: itchJamEntries.gameTitle,
-        jamTitle: itchJams.title,
-      })
-      .from(entryFlags)
-      .innerJoin(itchJamEntries, eq(itchJamEntries.entryId, entryFlags.entryId))
-      .innerJoin(itchJams, eq(itchJams.jamId, entryFlags.jamId))
-      .where(eq(entryFlags.id, input.flagId))
-      .limit(1);
-    if (!flag) throw new ORPCError("NOT_FOUND", { message: "Flag not found." });
-    if (flag.status !== "open") return { success: true }; // idempotent re-click
-
-    await db
-      .update(entryFlags)
-      .set({
-        status: input.action === "confirm" ? "confirmed" : "dismissed",
-        resolvedAt: new Date(),
-        resolvedById: context.user.id,
-      })
-      .where(eq(entryFlags.id, flag.id));
-
-    await recordModerationAction({
-      action: input.action === "confirm" ? "entry_flag_confirmed" : "entry_flag_dismissed",
-      actorId: context.user.id,
-      targetType: "jam_entry",
-      targetId: flag.entryId,
-      reason: input.reason,
-      // The entry is a scraped row that can be tombstoned later — snapshot
-      // what keeps the log legible without the join.
-      metadata: {
-        flagId: flag.id,
-        kind: flag.kind,
-        score: flag.score,
-        gameTitle: flag.gameTitle,
-        jamId: flag.jamId,
-        jamTitle: flag.jamTitle,
-      },
-    });
-
-    return { success: true };
+    let resolved = 0;
+    for (const flagId of new Set(input.flagIds)) {
+      const outcome = await resolveFlag(flagId, input.action, input.reason, context.user.id);
+      if (outcome === "resolved") resolved++;
+    }
+    return { resolved };
   });
 
 export const listTeamsAdmin = os

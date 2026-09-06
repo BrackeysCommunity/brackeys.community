@@ -15,6 +15,7 @@ import { type HashedEntry, nearMatches } from "../scan/dhash.ts";
 import { encodeEmbedding } from "../scan/embedding.ts";
 import { fetchGameData, matchNsfwTags } from "../scan/game-tags.ts";
 import { initNsfw, NSFW_MODEL, type NsfwResult, nsfwScore } from "../scan/nsfw.ts";
+import { PROBE_VERSION } from "../scan/probe.ts";
 import { createStopGate, runTier, sleep, type StopGate } from "./runner.ts";
 import { type DueScanEntry, dueScanEntries, dueScanJams } from "./selectors.ts";
 
@@ -67,6 +68,9 @@ import { type DueScanEntry, dueScanEntries, dueScanJams } from "./selectors.ts";
 //     even a grayscale door drawing were topping 90% — the only "photo of…"
 //     hypotheses were the flag prompts). First version to persist cover
 //     embeddings, so later prompt/threshold changes rescore from the DB.
+// (unbumped) the verdict moved from prompt contrast to an embedding probe
+//     (scan/probe.ts). Stored embeddings are unchanged, so new weights are
+//     applied with `bun run rescore`, never by forcing a cover re-fetch.
 export const DETECTOR_VERSION = 7;
 
 /**
@@ -374,9 +378,9 @@ async function flagNsfw(
     evidence: {
       detectorVersion: DETECTOR_VERSION,
       model: nsfw ? NSFW_MODEL : undefined,
+      scorer: nsfw ? PROBE_VERSION : undefined,
       nsfwScore: nsfw?.score,
       nsfwReason: scored ? "sexual" : undefined,
-      nsfwCategories: nsfw?.categories,
       nsfwTags: tagged ? nsfwTags : undefined,
       coverUrl: entry.gameCoverUrl,
       gameTitle: entry.gameTitle,

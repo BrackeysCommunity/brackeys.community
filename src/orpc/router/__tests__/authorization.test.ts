@@ -118,6 +118,7 @@ const STAFF_PROCEDURES = new Set([
   // Entry-flag queue (plan 22).
   "listEntryFlags",
   "resolveEntryFlag",
+  "resolveEntryFlags",
   "proposeModerationEdit",
   "listModerationProposals",
   "approveModerationProposal",

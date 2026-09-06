@@ -13,6 +13,7 @@
     "scan": "bun run src/jobs/scan.ts",
     "drain": "bun run src/jobs/drain-results.ts",
     "resync": "bun run src/jobs/resync-stale.ts",
+    "rescore": "bun run src/jobs/rescore.ts",
     "test": "bun test src",
     "typecheck": "tsc --noEmit"
   },

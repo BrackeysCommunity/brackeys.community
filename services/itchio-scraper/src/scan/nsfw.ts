@@ -9,6 +9,8 @@ import {
   RawImage,
 } from "@huggingface/transformers";
 
+import { PROBE_MODEL, probeScore } from "./probe.ts";
+
 /**
  * In-process cover classifier: SigLIP2 zero-shot over category prompts.
  * Policy is Steam-shaped: only sexual content gets gated behind a view
@@ -52,9 +54,15 @@ export const NSFW_DTYPE = "fp16";
 export type NsfwCategory = "sexual" | "gore";
 
 export type NsfwResult = {
-  /** The sexual-category score — the only one the threshold compares against. */
+  /**
+   * Probability of sexual content from the embedding probe (scan/probe.ts)
+   * — the only number the threshold compares against.
+   */
   score: number;
-  /** All category scores, kept as evidence; gore never flags on its own. */
+  /**
+   * Zero-shot prompt-contrast scores, kept as evidence only. They were the
+   * verdict before the probe and proved ~5% precise on the real corpus.
+   */
   categories: Record<NsfwCategory, number>;
   /**
    * The cover's L2-normalized image embedding (768 dims), persisted so
@@ -158,6 +166,12 @@ async function loadClassifier(): Promise<Classifier | null> {
   }
 }
 
+if (PROBE_MODEL !== NSFW_MODEL) {
+  throw new Error(
+    `nsfw-probe.json was fit on ${PROBE_MODEL}; the scan encodes with ${NSFW_MODEL} — retrain the probe`,
+  );
+}
+
 /** Loads (or reports) the model once per process; true when scoring works. */
 export function initNsfw(): Promise<boolean> {
   classifierPromise ??= loadClassifier();
@@ -193,7 +207,9 @@ export async function nsfwScore(bytes: Uint8Array): Promise<NsfwResult | null> {
     if (logits.length !== PROMPT_COUNT) return null;
     const categories = contrastCategories(logits);
     const embedding = imageEmbedding(output);
-    return { score: categories.sexual, categories, embedding };
+    const score = embedding ? probeScore(embedding) : null;
+    if (score == null) return null;
+    return { score, categories, embedding };
   } catch {
     return null;
   }
@@ -202,8 +218,8 @@ export async function nsfwScore(bytes: Uint8Array): Promise<NsfwResult | null> {
 /**
  * The graph's pooled image embedding, verified L2-normalized on output (the
  * export normalizes before the logit head; the check guards a future export
- * that doesn't). Missing or misshapen output degrades to null — the score
- * still stands, the entry just can't join a DB-only rescore.
+ * that doesn't). Missing or misshapen output degrades to null, which leaves
+ * the cover unscored: the probe has nothing to read.
  */
 function imageEmbedding(output: Record<string, unknown>): Float32Array | null {
   const embeds = output["image_embeds"] as { data?: unknown; dims?: number[] } | undefined;

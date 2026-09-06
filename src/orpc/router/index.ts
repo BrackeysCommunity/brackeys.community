@@ -21,6 +21,7 @@ import {
   listTeamsAdmin,
   listEntryFlags,
   resolveEntryFlag,
+  resolveEntryFlags,
 } from "./admin";
 import {
   createPost,
@@ -282,6 +283,7 @@ export default {
   listTeamsAdmin,
   listEntryFlags,
   resolveEntryFlag,
+  resolveEntryFlags,
   staffUpdateProfile,
   staffResetUrlStub,
   listNotifications,

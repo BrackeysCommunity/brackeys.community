@@ -92,10 +92,18 @@ const schema = z.object({
   // time with network waits rather than multiplying the request rate. The
   // default keeps the Railway cron serial; local backfill runs raise it.
   SCAN_PARALLEL: z.coerce.number().int().positive().default(1),
-  // Minimum sexual-category score (softmax contrast — see scan/nsfw.ts)
-  // that opens a flag; gore never flags. Calibrated on real covers: benign
-  // art tops out around 0.43, the weakest true positive measured 0.70.
-  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
+  // Minimum probe probability (scan/probe.ts) that opens a flag. The probe
+  // is calibrated for a balanced prior, so the useful range sits near 1:
+  // on the 2026-09-06 corpus 0.99 catches every hand-labeled explicit cover
+  // and 37/50 suggestive ones for ~750 flags corpus-wide, while 0.9 lets
+  // ~5,500 through, mostly clean visual-novel art.
+  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.99),
+  // DB-only re-score of stored embeddings (jobs/rescore.ts).
+  RESCORE_BATCH: z.coerce.number().int().positive().default(2000),
+  RESCORE_DRY_RUN: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   // Kill switch for the classifier only — hashing and theft matching keep
   // running without it.
   NSFW_ENABLED: z
