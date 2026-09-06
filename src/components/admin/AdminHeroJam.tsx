@@ -83,7 +83,7 @@ export function AdminHeroJam() {
   });
 
   const trimmed = search.trim();
-  // Only jams a pin could actually promote — live or upcoming.
+  // Only jams a pin could actually promote — live, upcoming, or recently ended.
   const candidates = useMemo(
     () =>
       trimmed.length <= 1
@@ -137,7 +137,7 @@ export function AdminHeroJam() {
       <AdminSection
         title="Pinned jams"
         count={isPending ? undefined : pins.length}
-        hint="Newest pin wins. A pin stops applying once its jam ends, and the next one down takes over on its own — nothing has to be unpinned on time."
+        hint="Newest pin wins. A pin keeps fronting the hero for a month after its jam ends, then the next one down takes over on its own — nothing has to be unpinned on time."
       >
         {isPending ? (
           <Skeleton className="h-16 w-full" />
@@ -184,7 +184,7 @@ export function AdminHeroJam() {
 
       <AdminSection
         title="Pin a jam"
-        hint="Search live and upcoming jams by title, hashtag, or host."
+        hint="Search live, upcoming, or recently ended jams by title, hashtag, or host."
       >
         <Field label="Search" htmlFor="admin-hero-jam-search">
           <Input
@@ -199,7 +199,7 @@ export function AdminHeroJam() {
         {trimmed.length <= 1 ? null : board.isPending ? (
           <Skeleton className="h-16 w-full" />
         ) : candidates.length === 0 ? (
-          <Empty>No live or upcoming jam matches “{trimmed}”.</Empty>
+          <Empty>No live, upcoming, or recently ended jam matches “{trimmed}”.</Empty>
         ) : (
           <div className="flex flex-col gap-3">
             {candidates.map((jam) => {
@@ -271,7 +271,7 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
   }, [rotating, index, slides.length]);
 
   const [bgColor1, bgColor2] = useJamGradient(jam);
-  const state = effectiveJamState(jam.startsAt, jam.endsAt, now);
+  const state = effectiveJamState(jam.startsAt, jam.endsAt, now, jam.votingEndsAt);
   const signal = jamSignal(jam, now);
   const start = jamMonthDay(jam.startsAt);
   const end = jamMonthDay(jam.endsAt);

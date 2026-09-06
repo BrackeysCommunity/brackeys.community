@@ -4,6 +4,7 @@ import {
   type JamHeroPin,
   jamShelf,
 } from "@/components/jams/JamCalendarPage/helpers";
+import { DAY_MS } from "@/lib/format-time";
 
 export interface HeroJam {
   jam: JamFromList;
@@ -16,11 +17,19 @@ export interface HeroJam {
  * `SHOWCASE_MAX_JAMS + HERO_SLIDE_MAX` or the covers request 400s. */
 export const HERO_SLIDE_MAX = 4;
 
-/** A pin applies only while its jam is still worth leading with. Past that
- *  the rotation moves on by itself, so nothing has to be unpinned on time. */
+/** A pin keeps fronting the hero for this long after its jam ends, so a
+ *  wrap-up can still lead — e.g. results, a highlight reel, a thank-you. */
+const RECENTLY_ENDED_DAYS = 30;
+
+/** A pin applies while its jam is live or upcoming, or ended within
+ *  `RECENTLY_ENDED_DAYS`. Past that the rotation moves on by itself, so
+ *  nothing has to be unpinned on time. */
 export function heroPinApplies(jam: JamFromList, now: Date): boolean {
   const shelf = jamShelf(jam, now);
-  return shelf === "live" || shelf === "upcoming";
+  if (shelf === "live" || shelf === "upcoming") return true;
+  if (!jam.endsAt) return false;
+  const endedMsAgo = now.getTime() - new Date(jam.endsAt).getTime();
+  return endedMsAgo >= 0 && endedMsAgo <= RECENTLY_ENDED_DAYS * DAY_MS;
 }
 
 /**

@@ -44,18 +44,26 @@ export function formatJamShortDates(startsAt: Date | string | null, endsAt: Date
  * Effective jam state derived from `now` vs scrape dates. The DB `status`
  * column lags reality (the scraper updates on a cadence, and itch's status
  * field is occasionally stale), so anything time-sensitive should use this.
+ *
+ * `votingEndsAt` is optional so existing two-date callers keep treating the
+ * post-submission window as "ended" outright; pass it to distinguish a jam
+ * still being voted on from one that's fully wrapped up.
  */
 export function effectiveJamState(
   startsAt: Date | string | null,
   endsAt: Date | string | null,
   now: Date = new Date(),
-): "upcoming" | "running" | "ended" | "unknown" {
+  votingEndsAt?: Date | string | null,
+): "upcoming" | "running" | "voting" | "ended" | "unknown" {
   const s = startsAt ? new Date(startsAt).getTime() : null;
   const e = endsAt ? new Date(endsAt).getTime() : null;
   const t = now.getTime();
   if (s == null && e == null) return "unknown";
   if (s != null && t < s) return "upcoming";
-  if (e != null && t >= e) return "ended";
+  if (e != null && t >= e) {
+    const v = votingEndsAt ? new Date(votingEndsAt).getTime() : null;
+    return v != null && t < v ? "voting" : "ended";
+  }
   return "running";
 }
 

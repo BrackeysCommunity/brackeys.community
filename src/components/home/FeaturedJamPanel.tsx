@@ -285,7 +285,7 @@ export function FeaturedJamPanel({
 
   const [bgColor1, bgColor2] = useJamGradient(jam);
 
-  const state = effectiveJamState(jam.startsAt, jam.endsAt, now);
+  const state = effectiveJamState(jam.startsAt, jam.endsAt, now, jam.votingEndsAt);
   const milestone = nextMilestone(jam, now);
   const counted = milestone ? formatCountdown(milestone.date, now) : null;
   const signal = jamSignal(jam, now);

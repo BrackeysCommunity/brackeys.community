@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { HERO_SLIDE_MAX, heroJamSlides, pickHeroJam } from "@/components/home/hero-jam";
+import {
+  HERO_SLIDE_MAX,
+  heroJamSlides,
+  heroPinApplies,
+  pickHeroJam,
+} from "@/components/home/hero-jam";
 import type { JamFromList, JamHeroPin } from "@/components/jams/JamCalendarPage/helpers";
 
 const DAY_MS = 86_400_000;
@@ -61,7 +66,7 @@ describe("pickHeroJam", () => {
   });
 
   it("hands the front to a pin once the Brackeys jam has ended", () => {
-    const all = [jam(1), brackeysJam(2, { startsIn: -30, lengthDays: 7 })];
+    const all = [jam(1), brackeysJam(2, { startsIn: -45, lengthDays: 7 })];
     const hero = pickHeroJam(all, all, [pin(1)], NOW);
     expect(hero?.jam.jamId).toBe(1);
     expect(hero?.source).toBe("pinned");
@@ -86,18 +91,25 @@ describe("pickHeroJam", () => {
     expect(hero?.jam.jamId).toBe(2);
   });
 
-  it("falls through a pin whose jam has ended", () => {
-    const ended = jam(2, { startsIn: -30, lengthDays: 7 });
+  it("falls through a pin whose jam ended long ago", () => {
+    const ended = jam(2, { startsIn: -45, lengthDays: 7 });
     const all = [jam(1), ended];
     const hero = pickHeroJam(all, all, [pin(2)], NOW);
     expect(hero?.jam.jamId).toBe(1);
     expect(hero?.source).toBe("ranked");
   });
 
-  it("lets the next pin down take over when the one above it ends", () => {
-    const ended = jam(3, { startsIn: -30, lengthDays: 7 });
+  it("lets the next pin down take over once the one above it aged out", () => {
+    const ended = jam(3, { startsIn: -45, lengthDays: 7 });
     const all = [jam(1), jam(2), ended];
     const hero = pickHeroJam(all, all, [pin(3), pin(2)], NOW);
+    expect(hero?.jam.jamId).toBe(2);
+    expect(hero?.source).toBe("pinned");
+  });
+
+  it("keeps a pin fronting the hero for a jam that recently ended", () => {
+    const all = [jam(1), jam(2, { startsIn: -20, lengthDays: 7 })];
+    const hero = pickHeroJam(all, all, [pin(2)], NOW);
     expect(hero?.jam.jamId).toBe(2);
     expect(hero?.source).toBe("pinned");
   });
@@ -144,7 +156,7 @@ describe("heroJamSlides", () => {
   });
 
   it("skips pins whose jams have aged out rather than counting them", () => {
-    const ended = jam(2, { startsIn: -30, lengthDays: 7 });
+    const ended = jam(2, { startsIn: -45, lengthDays: 7 });
     const all = [jam(1), ended];
     const slides = heroJamSlides(all, all, [pin(2), pin(1)], NOW);
     expect(slideIds(slides)).toEqual([1]);
@@ -164,5 +176,30 @@ describe("heroJamSlides", () => {
 
   it("is empty when there is nothing live or upcoming", () => {
     expect(heroJamSlides([], [], [pin(1)], NOW)).toEqual([]);
+  });
+});
+
+describe("heroPinApplies", () => {
+  it("accepts a live jam", () => {
+    expect(heroPinApplies(jam(1), NOW)).toBe(true);
+  });
+
+  it("accepts an upcoming jam", () => {
+    expect(heroPinApplies(jam(1, { startsIn: 5 }), NOW)).toBe(true);
+  });
+
+  it("accepts a jam that ended within the last month", () => {
+    const endedRecently = jam(1, { startsIn: -20, lengthDays: 7 });
+    expect(heroPinApplies(endedRecently, NOW)).toBe(true);
+  });
+
+  it("rejects a jam that ended over a month ago", () => {
+    const endedLongAgo = jam(1, { startsIn: -60, lengthDays: 7 });
+    expect(heroPinApplies(endedLongAgo, NOW)).toBe(false);
+  });
+
+  it("rejects a dateless jam that never applied in the first place", () => {
+    const dateless = { ...jam(1), startsAt: null, endsAt: null } as JamFromList;
+    expect(heroPinApplies(dateless, NOW)).toBe(false);
   });
 });

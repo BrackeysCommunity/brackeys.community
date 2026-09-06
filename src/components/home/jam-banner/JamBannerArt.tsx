@@ -75,5 +75,8 @@ export function JamStateBadge({ state }: { state: JamState }) {
       </Badge>
     );
   }
+  if (state === "voting") {
+    return <Badge variant="warning">VOTING</Badge>;
+  }
   return <Badge variant="secondary">{state.toUpperCase()}</Badge>;
 }

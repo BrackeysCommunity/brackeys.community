@@ -170,6 +170,26 @@ describe("effectiveJamState", () => {
     const end = new Date(NOW.getTime() + 86_400_000).toISOString();
     expect(effectiveJamState(start, end, NOW)).toBe("running");
   });
+
+  it("returns 'voting' when submissions closed but votingEndsAt hasn't passed", () => {
+    const start = new Date(NOW.getTime() - 5 * 86_400_000);
+    const end = new Date(NOW.getTime() - 86_400_000);
+    const votingEnd = new Date(NOW.getTime() + 86_400_000);
+    expect(effectiveJamState(start, end, NOW, votingEnd)).toBe("voting");
+  });
+
+  it("returns 'ended' once votingEndsAt has also passed", () => {
+    const start = new Date(NOW.getTime() - 10 * 86_400_000);
+    const end = new Date(NOW.getTime() - 5 * 86_400_000);
+    const votingEnd = new Date(NOW.getTime() - 86_400_000);
+    expect(effectiveJamState(start, end, NOW, votingEnd)).toBe("ended");
+  });
+
+  it("still returns 'ended' without votingEndsAt, unchanged for existing callers", () => {
+    const start = new Date(NOW.getTime() - 5 * 86_400_000);
+    const end = new Date(NOW.getTime() - 86_400_000);
+    expect(effectiveJamState(start, end, NOW)).toBe("ended");
+  });
 });
 
 describe("durationDays", () => {
