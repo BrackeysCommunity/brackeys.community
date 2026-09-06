@@ -248,23 +248,23 @@ user-only commands. Do not have agents execute them.
 
 ## Versioning
 
-The app version displayed in the hero is driven by `package.json`'s `version` field via Vite's `define` (`__APP_VERSION__`).
-
-A GitHub Actions workflow (`.github/workflows/version-bump.yml`) auto-bumps the prerelease number on every push to `main`:
+`__APP_VERSION__` (footer, PostHog `app_version`, source-map release) is a Vite
+`define` assembled at build time in `vite.config.ts`:
 
 ```
-0.0.0-alpha.127 → 0.0.0-alpha.128 → 0.0.0-alpha.129 …
+<package.json version>+<UTC build stamp>.<short sha>
+0.0.0-alpha+20260906.0441.8ab5478
 ```
 
-For bigger jumps, update manually:
+The stamp orders builds and the sha pins one. Railway exposes
+`RAILWAY_GIT_COMMIT_SHA`, GitLab exposes `CI_COMMIT_SHA`, and a local build
+falls back to `git rev-parse`. Nothing bumps `package.json` automatically;
+change its `version` by hand when the release line moves:
 
 ```bash
 npm version preminor --preid=beta --no-git-tag-version  # → 0.1.0-beta.0
 npm version minor --no-git-tag-version                   # → 0.1.0
-npm version premajor --preid=alpha --no-git-tag-version  # → 1.0.0-alpha.0
 ```
-
-CI will continue auto-incrementing from wherever you set it.
 
 ## Development Notes
 

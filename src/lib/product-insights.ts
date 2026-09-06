@@ -245,8 +245,7 @@ async function loadAndInit() {
     disable_session_recording: true,
   });
 
-  // Ties events and error reports to a release. `__APP_VERSION__` is
-  // `pkg.version+sha`, defined in vite.config.ts.
+  // Ties events and error reports to a release; defined in vite.config.ts.
   posthog.register({ app_version: __APP_VERSION__ });
 
   client = posthog;

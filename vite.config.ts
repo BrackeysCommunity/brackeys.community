@@ -17,14 +17,10 @@ import { createLogger, defineConfig } from "vite-plus";
 import pkg from "./package.json" with { type: "json" };
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
-// The counter comes from package.json, bumped by the `version-bump` GitLab job
-// on every merge to main, so it is committed and therefore present in every
-// build — Railpack unpacks a snapshot with no .git dir, so nothing derived from
-// git can be relied on here.
-//
-// The commit is a best-effort suffix on top: it pins the exact build when the
-// builder knows it. Env first, since a snapshot build has the vars but not the
-// repo, and `railway up` has neither.
+// Railpack builds from a snapshot with no .git dir and `railway up` has no
+// env either, so the version is assembled from whatever the builder can see:
+// the static base in package.json, a UTC build stamp for ordering, and the
+// commit when it is known. Nothing is committed back to main to produce it.
 const resolveCommitSha = () => {
   const fromEnv =
     process.env.APP_COMMIT_SHA ?? process.env.CI_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA;
@@ -39,8 +35,13 @@ const resolveCommitSha = () => {
   }
 };
 
+const buildStamp = new Date()
+  .toISOString()
+  .replace(/[-:]/g, "")
+  .replace(/T(\d{4})\d{2}\.\d{3}Z$/, ".$1");
+
 const commitSha = resolveCommitSha();
-const appVersion = commitSha ? `${pkg.version}+${commitSha}` : pkg.version;
+const appVersion = `${pkg.version}+${[buildStamp, commitSha].filter(Boolean).join(".")}`;
 
 // Source-map upload is keyed off the credential being present, never off
 // NODE_ENV — MR previews build as `staging`, and a gate on

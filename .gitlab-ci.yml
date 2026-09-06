@@ -1,16 +1,9 @@
-workflow:
-  rules:
-    - if: "$CI_COMMIT_MESSAGE =~ /^chore: bump version to/"
-      when: never
-    - when: always
-
 stages:
   - check
   - test
   - sonar
   - deploy
   - db-migrate
-  - version
   - renovate
 
 include:
@@ -18,6 +11,5 @@ include:
   - local: .gitlab/sonar.gitlab-ci.yml
   - local: .gitlab/db-migrate.gitlab-ci.yml
   - local: .gitlab/railway-preview.gitlab-ci.yml
-  - local: .gitlab/version-bump.gitlab-ci.yml
   - local: .gitlab/renovate.gitlab-ci.yml
   - local: .gitlab/chromatic.gitlab-ci.yml
