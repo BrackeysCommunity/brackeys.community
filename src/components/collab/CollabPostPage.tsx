@@ -16,7 +16,6 @@ import { type ReactNode, useState } from "react";
 import { CommentThread } from "@/components/comments/CommentThread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
@@ -75,6 +74,7 @@ import {
 import { CollabPostResponseList } from "./CollabPostResponseList";
 import { CollabStrengthenPanel } from "./CollabStrengthenPanel";
 import { ContactValue } from "./ContactValue";
+import { CrewTile } from "./CrewTile";
 import { useCollabPostActions } from "./use-collab-post-actions";
 import { usePostViewerState } from "./use-post-viewer-state";
 
@@ -827,43 +827,6 @@ function SpecRow({ label, value }: { label: string; value: ReactNode }) {
  * A destination tile, same grammar as the project page's MADE BY tiles:
  * emboss means clickable, deboss stays for readouts.
  */
-function CrewTile({
-  label,
-  title,
-  caption,
-  avatar,
-  link,
-}: {
-  label: string;
-  title: string;
-  caption?: string | null;
-  avatar: React.ReactNode;
-  link: React.ReactElement;
-}) {
-  return (
-    <Chonk
-      variant="surface"
-      size="lg"
-      data-hover-play-group
-      className="w-full items-center gap-3 bg-card px-3 py-2 backdrop-blur-none"
-      render={link}
-    >
-      {avatar}
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <MicroLabel as="span">{label}</MicroLabel>
-        <Text as="span" size="sm" bold ellipsis className="tracking-wider">
-          {title}
-        </Text>
-        {caption ? (
-          <Text as="span" size="xs" variant="muted" ellipsis className="max-w-56">
-            <Censored>{caption}</Censored>
-          </Text>
-        ) : null}
-      </span>
-    </Chonk>
-  );
-}
-
 /**
  * The visitor's half of the responses story. Closed posts say so instead
  * of hiding the section — a shared link shouldn't dead-end silently — and

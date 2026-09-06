@@ -21,15 +21,18 @@ import { useLaneRelease } from "@/lib/hooks/use-lane-release";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 import { fadeIn, fadeUp } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
 import { type CollabBoardSearch } from "./collab-filters";
 import { CollabActiveFilters } from "./CollabActiveFilters";
-import { CollabCreateFlyout, type CollabCreateSurface } from "./CollabCreateFlyout";
+import { CollabCreateFlyout } from "./CollabCreateFlyout";
+import { CollabCreateModal } from "./CollabCreateModal";
 import { CollabFilterClearButton, CollabFilterPanel } from "./CollabFilterPanel";
 import { CollabPostFeed, CollabPostFeedStatic } from "./CollabPostFeed";
 import { COLLAB_SEARCH_INPUT_ID, CollabFloatingControls, CollabToolbar } from "./CollabToolbar";
+import { FeaturedCollabPanel, useFeaturedCollabPosts } from "./FeaturedCollabPanel";
 import { useCollabListing } from "./use-collab-listing";
 
 /** The `lg` breakpoint, above which the toolbar carries the filters inline. */
@@ -56,8 +59,10 @@ function useIsWide() {
 
 /**
  * Top-level collab browser: the toolbar, the active-filter readout, and
- * the list lane. Every card is a link to the post's own page — the board
- * is for scanning, the page is for reading and acting.
+ * the list lane, with the staff picks in a sticky panel beside the lane
+ * whenever there are any — the jam board's split. Every card is a link to
+ * the post's own page — the board is for scanning, the page is for
+ * reading and acting.
  *
  * The lane grows the page — scrolling is the page's, not a nested
  * scroller's.
@@ -73,8 +78,10 @@ export function CollabBrowsePage() {
   // Between the two the board is stacked with its controls inline.
   const isMobile = useIsMobile();
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createSurface, setCreateSurface] = useState<CollabCreateSurface>("quick");
+  // Two create surfaces: the three-step modal is the board's own, the
+  // drawer wizard stays behind the `?flow=wizard` hatch.
+  const [modalOpen, setModalOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   useReleaseFocusOnOpen(filtersOpen);
 
@@ -89,7 +96,10 @@ export function CollabBrowsePage() {
   // the items for the pre-hydration static feed.
   const { items } = useCollabListing(currentUserId);
 
-  // Open the create flyout when arriving via /collab/new (which
+  const { posts: featuredPosts } = useFeaturedCollabPosts();
+  const panel = featuredPosts.length > 0 ? <FeaturedCollabPanel posts={featuredPosts} /> : null;
+
+  // Open the create surface when arriving via /collab/new (which
   // redirects here with `?new=1`), or via a jam's "FIND A TEAM" CTA
   // (`?new=1&jam=<id>`), which additionally preselects that jam. After
   // consuming the flags we strip them from the URL so back-navigation
@@ -102,7 +112,7 @@ export function CollabBrowsePage() {
   // writes to systems outside React and stay in the effect (`beginWizardCreate`
   // is explicitly not render-safe — other mounts subscribe to that store).
   // Comparing against the flag's last-seen value re-arms both halves, so a
-  // second arrival at `?new=1` reopens the flyout.
+  // second arrival at `?new=1` reopens the surface.
   const jamForNewPost = search.new ? search.jam : undefined;
   const teamForNewPost = search.new ? search.team : undefined;
   const projectForNewPost = search.new ? search.project : undefined;
@@ -112,8 +122,8 @@ export function CollabBrowsePage() {
   if (newFlag !== newFlagSeen) {
     setNewFlagSeen(newFlag);
     if (newFlag) {
-      setCreateSurface(flowForNewPost === "wizard" ? "wizard" : "quick");
-      setCreateOpen(true);
+      if (flowForNewPost === "wizard") setWizardOpen(true);
+      else setModalOpen(true);
     }
   }
   useEffect(() => {
@@ -175,9 +185,12 @@ export function CollabBrowsePage() {
     // A fresh post, not a continuation of an edit the user backed out
     // of — but any unfinished draft of their own comes back.
     beginWizardCreate();
-    setCreateSurface("quick");
-    setCreateOpen(true);
+    setModalOpen(true);
   };
+
+  // A new post lands on its own page, where the STRENGTHEN panel is.
+  const handleCreated = (postId: number) =>
+    navigate({ to: "/collab/$postId", params: { postId: String(postId) } });
 
   return (
     <PageStack className="flex flex-col gap-5 selection:bg-primary selection:text-white">
@@ -204,60 +217,87 @@ export function CollabBrowsePage() {
 
           `fadeIn` rather than `fadeUp` because the lane's toolbar is
           sticky — see the variant's own note. */}
-      <motion.div variants={fadeIn} className="flex flex-col gap-5">
-        {!isHydrated ? (
-          <CollabPostFeedStatic items={items} />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {/* The controls pin under the app header and ride with it
-                (`.header-follow`), carrying its surface so the list passes
-                behind an opaque band. */}
-            <div
-              ref={setToolbarEl}
-              data-cursor-occlude=""
-              className="header-follow toolbar-band sticky top-0 z-20"
-              style={{ marginBottom: laneRelease }}
-            >
-              <CollabToolbar
-                onOpenFilters={isWide ? undefined : () => setFiltersOpen(true)}
-                controlsElsewhere={isMobile}
-              />
-            </div>
-            {/* A wrapper rather than the readout itself: the margin the
-                overhang gives back has to land whatever the readout renders. */}
-            <div style={{ marginTop: -laneRelease }}>
-              <CollabActiveFilters />
-            </div>
-            <CollabPostFeed currentUserId={currentUserId} />
-            {isWide ? (
-              <Text size="sm" variant="muted" className="flex items-center gap-1.5">
-                Press <Kbd>/</Kbd> to search.
-              </Text>
-            ) : null}
-          </div>
+      <motion.div
+        variants={fadeIn}
+        className={cn(
+          "flex flex-col gap-5",
+          // Same split as the jam board. Explicit placement because the
+          // panel leads the DOM order (it stacks on top below `lg`) but
+          // belongs in the right column once there's room.
+          panel &&
+            "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,360px)] lg:items-start lg:gap-6",
         )}
+      >
+        {panel && (
+          // `z-30`, one over the toolbar band: the panel leads the DOM, so
+          // without it the band would stack on top below `lg`. `mt-4` pays
+          // the sticky inset in flow.
+          <aside className="header-follow z-30 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:mt-4">
+            {panel}
+          </aside>
+        )}
+        <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1">
+          {!isHydrated ? (
+            <CollabPostFeedStatic items={items} />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {/* The controls pin under the app header and ride with it
+                  (`.header-follow`), carrying its surface so the list passes
+                  behind an opaque band. With the panel beside the lane, the
+                  pseudo-element extends that background across its column. */}
+              <div
+                ref={setToolbarEl}
+                data-cursor-occlude=""
+                className={cn(
+                  "header-follow toolbar-band sticky top-0 z-20",
+                  panel &&
+                    "lg:before:absolute lg:before:inset-y-0 lg:before:left-full lg:before:w-96 lg:before:bg-background lg:before:content-['']",
+                )}
+                style={{ marginBottom: laneRelease }}
+              >
+                <CollabToolbar
+                  onOpenFilters={isWide ? undefined : () => setFiltersOpen(true)}
+                  controlsElsewhere={isMobile}
+                />
+              </div>
+              {/* A wrapper rather than the readout itself: the margin the
+                  overhang gives back has to land whatever the readout renders. */}
+              <div style={{ marginTop: -laneRelease }}>
+                <CollabActiveFilters />
+              </div>
+              <CollabPostFeed currentUserId={currentUserId} />
+              {isWide ? (
+                <Text size="sm" variant="muted" className="flex items-center gap-1.5">
+                  Press <Kbd>/</Kbd> to search.
+                </Text>
+              ) : null}
+            </div>
+          )}
+        </div>
       </motion.div>
 
       {isMobile && !isWide ? (
         <CollabFloatingControls onOpenFilters={() => setFiltersOpen(true)} />
       ) : null}
 
-      <CollabCreateFlyout
-        open={createOpen}
-        surface={createSurface}
-        onClose={() => {
-          setCreateOpen(false);
-          // Backing out of an edit must not leave the store primed to
-          // overwrite that post the next time someone hits POST A GIG.
-          if (collabStore.state.wizard.editingPostId !== null) resetWizard();
-        }}
-        // A new post lands on its own page, where the STRENGTHEN panel is.
-        onCreated={(postId) =>
-          navigate({ to: "/collab/$postId", params: { postId: String(postId) } })
-        }
+      <CollabCreateModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreated={handleCreated}
       />
 
-      {/* Same drawer as the create flyout — one overlay idiom on mobile,
+      <CollabCreateFlyout
+        open={wizardOpen}
+        onClose={() => {
+          setWizardOpen(false);
+          // Backing out of an edit must not leave the store primed to
+          // overwrite that post the next time someone hits POST A ROLE.
+          if (collabStore.state.wizard.editingPostId !== null) resetWizard();
+        }}
+        onCreated={handleCreated}
+      />
+
+      {/* Same drawer as the wizard — one overlay idiom on mobile,
           dismissed the same way (swipe, scrim, or the panel's own CTA). */}
       <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
         <DrawerContent className="max-h-[88vh] p-0">

@@ -115,7 +115,9 @@ export function JamPickerField({ value, onChange }: JamPickerFieldProps) {
           {search.trim() ? "No jams match that search." : "No upcoming jams right now."}
         </Text>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        // Capped and scrolling, scrollbar hidden: the list would otherwise
+        // push the step's footer out of reach in the modal.
+        <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {results.map((jam) => (
             <Chonk
               key={jam.jamId}

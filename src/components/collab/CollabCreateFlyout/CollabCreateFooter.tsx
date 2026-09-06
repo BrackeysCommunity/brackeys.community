@@ -38,6 +38,8 @@ interface CollabCreateFooterProps {
     saving: boolean;
     onSaveAndNext: () => void;
   } | null;
+  /** Drop the resting AUTO-SAVED note; the slot still carries live status. */
+  autoSaveNote?: boolean;
   onBack: () => void;
   onNext: () => void;
 }
@@ -55,6 +57,7 @@ export function CollabCreateFooter({
   submitLabel,
   imageRetry,
   imageSave = null,
+  autoSaveNote = true,
   onBack,
   onNext,
 }: CollabCreateFooterProps) {
@@ -80,7 +83,9 @@ export function CollabCreateFooter({
                   : imageSave.count === 1
                     ? "1 UNSAVED CHANGE"
                     : `${imageSave.count} UNSAVED CHANGES`
-                : "⟢ AUTO-SAVED"}
+                : autoSaveNote
+                  ? "⟢ AUTO-SAVED"
+                  : ""}
         </Text>
         <div className="flex items-center gap-2">
           {imageRetry ? (

@@ -5,28 +5,21 @@ import {
   GameController01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { collabStore, resetWizard, updateWizardDraft } from "@/lib/collab-store";
 import { CONTACT_TYPE_LABELS } from "@/lib/collab-vocabulary";
-import { errorMessage } from "@/lib/error-message";
-import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
-import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
-import { CollabCreateFooter } from "../CollabCreateFlyout/CollabCreateFooter";
-import { CollabCreateHeader, savePost } from "../CollabCreateFlyout/CollabCreateForm";
 import { ContactFields, useDiscordContactPrefill } from "../CollabCreateFlyout/ContactFields";
 import {
   CompensationField,
@@ -35,26 +28,16 @@ import {
   TextAreaField,
   TextField,
 } from "../CollabCreateFlyout/fields";
-import { useWizardForm, WizardFormContext } from "../CollabCreateFlyout/form-context";
+import { useWizardForm } from "../CollabCreateFlyout/form-context";
 import { JamPickerField } from "../CollabCreateFlyout/JamPickerField";
 import { RoleSearchPanel } from "../CollabCreateFlyout/RoleSearchPanel";
 import {
   COMPENSATION_TYPE_OPTIONS,
-  getQuickFieldErrors,
-  getStepValidationError,
   profanityCheck,
   projectLengthForJam,
   type AnyFormStore,
-  type QuickFieldErrors,
-  type WizardFormValues,
 } from "../CollabCreateFlyout/shared";
 import { SkillSearchPanel } from "../CollabCreateFlyout/SkillSearchPanel";
-import { CollabFunnelExplainer } from "./CollabFunnelExplainer";
-
-const EXPLAINER_DISMISS_KEY = "collab.quickpost.explainer.dismissed";
-
-/** One flow, one step: the funnel reads the quick screen as a single stage. */
-const QUICK_STEP = flowStep(FLOWS.collabPost, "quick", 1, 1);
 
 /**
  * The KIND control's three faces. JAM LFG is not a post type — it is a
@@ -80,149 +63,13 @@ const KIND_OPTIONS: { value: Kind; label: string; desc: string; icon: IconSvgEle
 ];
 
 /**
- * The one-screen post: who you need, the pitch, what kind of post, and how
- * to reach you. Everything the five-step wizard also asked — team, project,
- * platforms, timeline, experience, images — moved to the live post's
- * STRENGTHEN panel, where each has a payoff to state.
- *
- * Reads and writes the same draft the wizard does, as the same
- * `WizardFormValues`: a draft started here can be finished there and vice
- * versa, and fields this screen doesn't show ride through to `createPost`
- * untouched.
- */
-export function CollabQuickPostForm({
-  onCreated,
-  onSwitchToWizard,
-}: {
-  onCreated: (postId: number) => void;
-  /** The `?flow=wizard` hatch, one click away for a tester who hits a wall. */
-  onSwitchToWizard: () => void;
-}) {
-  const draftRestored = useStore(collabStore, (s) => s.wizard.draftRestored);
-  const [initialDraft] = useState(() => collabStore.state.wizard.draft);
-  const [error, setError] = useState<string | null>(null);
-  // Inline errors appear after the first refused PUBLISH, then track live.
-  const [showFieldErrors, setShowFieldErrors] = useState(false);
-  const [jamMode, setJamMode] = useState(initialDraft.jamId !== undefined);
-
-  const form = useForm({
-    defaultValues: { ...initialDraft },
-    onSubmit: async ({ value }) => {
-      const v = value as WizardFormValues;
-      setError(null);
-      try {
-        const postId = await savePost(
-          {
-            ...v,
-            // No crew yet unless the entrance carried one: the crew is
-            // minted when the poster accepts someone.
-            isIndividual: v.teamId === undefined,
-            // A fragment left in a wizard draft is not a project name.
-            projectName: v.projectName.trim().length >= 3 ? v.projectName : "",
-          },
-          null,
-        );
-        resetWizard();
-        onCreated(postId);
-      } catch (err) {
-        reportMutationError(err, "collab.post_save");
-        setError(errorMessage(err, "Could not publish the post."));
-      }
-    },
-  });
-
-  // Mirror the live values into the store so a reload survives — same
-  // contract as the wizard.
-  useEffect(() => {
-    const sync = () => updateWizardDraft(form.state.values as WizardFormValues);
-    sync();
-    return form.store.subscribe(sync);
-  }, [form]);
-
-  const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
-  const values = useStore(form.store, (s) =>
-    showFieldErrors ? (s.values as WizardFormValues) : null,
-  );
-  const fieldErrors: QuickFieldErrors = values ? getQuickFieldErrors(values) : {};
-
-  const handlePublish = () => {
-    const v = form.state.values as WizardFormValues;
-    const validationError = getStepValidationError("quick", v);
-    if (validationError) {
-      setShowFieldErrors(true);
-      // The message, not a code: the set is bounded by `getQuickFieldErrors`
-      // and names the field that stopped them.
-      captureEvent(EVENTS.collabPostStepBlocked, { ...QUICK_STEP, reason: validationError });
-      setError(validationError);
-      return;
-    }
-    setError(null);
-    captureEvent(EVENTS.collabPostSubmitted, { ...QUICK_STEP, mode: "create", surface: "quick" });
-    form.handleSubmit();
-  };
-
-  return (
-    <>
-      <CollabCreateHeader
-        title="POST A GIG."
-        stepLabel="FIVE FIELDS · ADD THE REST ONCE IT'S LIVE"
-        restored={draftRestored}
-        action={
-          <Button
-            variant="ghost"
-            size="xs"
-            className="tracking-widest"
-            onClick={onSwitchToWizard}
-            title="Open the full five-step form instead"
-          >
-            FULL FORM
-          </Button>
-        }
-      />
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-        <WizardFormContext.Provider value={form}>
-          <div className="flex flex-col gap-6">
-            <CollabFunnelExplainer dismissKey={EXPLAINER_DISMISS_KEY} />
-            <ContextChips />
-            <WhoSection error={fieldErrors.roles} />
-            <PitchSection
-              titleError={fieldErrors.title}
-              descriptionError={fieldErrors.description}
-            />
-            <KindSection
-              jamMode={jamMode}
-              onJamMode={setJamMode}
-              typeError={fieldErrors.type}
-              compensationError={fieldErrors.compensation}
-            />
-            <ContactSection />
-          </div>
-        </WizardFormContext.Provider>
-      </div>
-      <CollabCreateFooter
-        error={error}
-        isFirstStep
-        isLastStep
-        isSubmitting={isSubmitting}
-        submitLabel="PUBLISH"
-        imageRetry={null}
-        onBack={() => {}}
-        onNext={handlePublish}
-      />
-    </>
-  );
-}
-
-// ── Context chips ──────────────────────────────────────────────────────────
-
-/**
  * What a team page's POST AN OPENING or a project's RECRUIT entrance
  * carried, as removable chips. Nothing else about teams or projects
- * appears on this screen: a team chip means the post is that team's,
+ * appears in the modal: a team chip means the post is that team's,
  * removing it makes the post solo again. A jam entrance shows up on the
  * KIND control instead, as JAM LFG with the jam under it.
  */
-function ContextChips() {
+export function ContextChips() {
   const form = useWizardForm();
   const teamId = useStore(form.store, (s: AnyFormStore) => s.values.teamId);
   const projectId = useStore(form.store, (s: AnyFormStore) => s.values.projectId);
@@ -281,11 +128,9 @@ function ContextChips() {
   );
 }
 
-// ── Sections ───────────────────────────────────────────────────────────────
-
 /** Roles first: "I need a…" is the sentence the poster came to say, and
  *  the role filter is how most people find posts. */
-function WhoSection({ error }: { error?: string }) {
+export function WhoSection({ error }: { error?: string }) {
   const form = useWizardForm();
   const roleIds = useStore(form.store, (s: AnyFormStore) => s.values.roleIds);
   const skillIds = useStore(form.store, (s: AnyFormStore) => s.values.skillIds);
@@ -325,7 +170,7 @@ function titlePlaceholder(roleNames: string[]): string {
   return `e.g. ${roleNames[0]} and ${roleNames[1]!.toLowerCase()} for …`;
 }
 
-function PitchSection({
+export function PitchSection({
   titleError,
   descriptionError,
 }: {
@@ -401,10 +246,10 @@ function PitchSection({
  * PAID WORK / HOBBY / JAM LFG. Paid reveals the compensation fields; JAM
  * LFG opens the jam picker inline, keeps the picked jam showing under the
  * control, and fills a blank timeline from the jam's dates. Switching off
- * JAM LFG drops the jam — the control is the jam's only representation on
- * this screen.
+ * JAM LFG drops the jam — the control is the jam's only representation in
+ * the modal.
  */
-function KindSection({
+export function KindSection({
   jamMode,
   onJamMode,
   typeError,
@@ -533,7 +378,7 @@ function KindSection({
  * the full contact fields. A poster with no handle on file sees the
  * fields directly.
  */
-function ContactSection() {
+export function ContactSection() {
   const form = useWizardForm();
   const discordUsername = useDiscordContactPrefill();
   const contactType = useStore(form.store, (s: AnyFormStore) => s.values.contactType);

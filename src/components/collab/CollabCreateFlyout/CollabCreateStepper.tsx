@@ -5,11 +5,16 @@ import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
 import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-import type { WizardTabDef } from "./shared";
+/** What the strip needs of a step — the wizard's tabs and the modal's steps both fit. */
+export interface StepperTab {
+  id: string;
+  num: string;
+  label: string;
+}
 
 interface CollabCreateStepperProps {
-  /** All visible tabs (3 or 4 depending on post type). */
-  tabs: WizardTabDef[];
+  /** All visible tabs, in order. */
+  tabs: readonly StepperTab[];
   /** Index of the active tab within `tabs`. */
   activeIndex: number;
   /** Click handler for tab buttons — index argument matches `tabs`. */

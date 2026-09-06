@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { collabListingDeps } from "@/components/collab/collab-filters";
 import { CollabBrowsePage } from "@/components/collab/CollabBrowsePage";
+import { featuredCollabPostsQueryOptions } from "@/components/collab/FeaturedCollabPanel";
 import { collabPostsQueryOptions } from "@/components/collab/use-collab-listing";
 import { prefetchInLoader } from "@/lib/route-prefetch";
 import { listingMeta, ogCardPath } from "@/lib/site-meta";
@@ -54,8 +55,16 @@ export const Route = createFileRoute("/collab/")({
       throw redirect({ to: "/collab/$postId", params: { postId: String(search.post) } });
     }
   },
+  // The staff picks ride along: the side panel only mounts when there are
+  // any, and the server document has to know that to lay the board out
+  // right the first time.
   loader: ({ context: { queryClient }, deps }) =>
-    prefetchInLoader(queryClient.prefetchInfiniteQuery(collabPostsQueryOptions(deps))),
+    prefetchInLoader(
+      Promise.all([
+        queryClient.prefetchInfiniteQuery(collabPostsQueryOptions(deps)),
+        queryClient.prefetchQuery(featuredCollabPostsQueryOptions()),
+      ]).then(() => undefined),
+    ),
   head: ({ match }) =>
     listingMeta({
       title: "Collab board",

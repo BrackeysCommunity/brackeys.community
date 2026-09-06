@@ -39,10 +39,11 @@ import { StepTeam } from "./StepTeam";
 
 // Step body cross-fade matches the profile flyout: a short ease-out on
 // opacity/scale plus a directional x nudge so 1→2 enters from the
-// right and 2→1 enters from the left.
-const STEP_BODY_TRANSITION = { duration: 0.16, ease: EASE_OUT };
+// right and 2→1 enters from the left. Shared with the create modal so
+// the two stepped surfaces move the same way.
+export const STEP_BODY_TRANSITION = { duration: 0.16, ease: EASE_OUT };
 const STEP_SHIFT_PX = 28;
-const STEP_VARIANTS = {
+export const STEP_VARIANTS = {
   enter: (dir: number) => ({
     opacity: 0,
     scale: 0.97,

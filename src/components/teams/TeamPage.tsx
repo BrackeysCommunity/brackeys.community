@@ -12,7 +12,7 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
-import { CollabFunnelExplainer } from "@/components/collab/CollabQuickPost/CollabFunnelExplainer";
+import { CollabFunnelExplainer } from "@/components/collab/CollabFunnelExplainer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";

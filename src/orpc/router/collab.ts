@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, eq, ilike, inArray, isNull, or, desc, asc, count, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNull, ne, or, desc, asc, count, sql } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -1213,12 +1213,13 @@ function buildPostFilter(input: PostFilterInput) {
   const conditions = [];
 
   if (input.type) conditions.push(eq(collabPosts.type, input.type));
-  if (input.status === "party_full") {
-    // The board's CLOSED filter sends `party_full` and means "not
-    // recruiting" — owner-closed and sweep-expired posts both qualify.
-    conditions.push(inArray(collabPosts.status, ["party_full", "expired"]));
-  } else if (input.status) {
+  // Sweep-expired posts only surface when asked for by name: a post nobody
+  // renewed is not a result, and the board's CLOSED filter means
+  // owner-closed.
+  if (input.status) {
     conditions.push(eq(collabPosts.status, input.status));
+  } else {
+    conditions.push(ne(collabPosts.status, "expired"));
   }
   if (input.experienceLevel)
     conditions.push(eq(collabPosts.experienceLevel, input.experienceLevel));

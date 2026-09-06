@@ -119,126 +119,131 @@ export function AppHeader() {
         transition={slide}
         inert={hidden}
         data-cursor-occlude=""
-        className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex h-[var(--app-header-height)] items-center justify-between border-b border-b-emboss-shadow bg-background px-4 shadow-sm sm:px-6 lg:px-10"
+        className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex h-[var(--app-header-height)] items-center border-b border-b-emboss-shadow bg-background px-4 shadow-sm sm:px-6 lg:px-10"
       >
-        {/* Logo */}
-        <MagneticLink className="pointer-events-auto shrink-0">
-          <Link to="/" className="flex items-center gap-2">
-            <motion.div
-              className="h-7 w-7"
-              style={{
-                // The gradient sweep below repaints every frame; its own layer
-                // keeps the bar's hide/reveal a pure composited transform.
-                transform: "translateZ(0)",
-                maskImage: "url(/brackeys-logo.svg)",
-                maskSize: "contain",
-                maskRepeat: "no-repeat",
-                maskPosition: "center",
-                WebkitMaskImage: "url(/brackeys-logo.svg)",
-                WebkitMaskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-              }}
-              initial={{
-                backgroundImage:
-                  "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
-                backgroundPosition: "0 0%",
-                backgroundSize: "100% 500%",
-              }}
-              animate={{
-                backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"],
-              }}
-              transition={{
-                duration: 6,
-                times: [0, 0.2, 0.4, 0.6, 0.8],
-                repeat: Infinity,
-                ease: "linear",
-              }}
-            />
-            <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
-              Brackeys
-              <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-                Community
+        {/* A hair wider than the page column (`max-w-7xl`), so the logo and
+            the menus bracket the content instead of drifting to the viewport
+            edges on a wide monitor. */}
+        <div className="mx-auto flex w-full max-w-[84rem] items-center justify-between">
+          {/* Logo */}
+          <MagneticLink className="pointer-events-auto shrink-0">
+            <Link to="/" className="flex items-center gap-2">
+              <motion.div
+                className="h-7 w-7"
+                style={{
+                  // The gradient sweep below repaints every frame; its own layer
+                  // keeps the bar's hide/reveal a pure composited transform.
+                  transform: "translateZ(0)",
+                  maskImage: "url(/brackeys-logo.svg)",
+                  maskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  WebkitMaskImage: "url(/brackeys-logo.svg)",
+                  WebkitMaskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                }}
+                initial={{
+                  backgroundImage:
+                    "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
+                  backgroundPosition: "0 0%",
+                  backgroundSize: "100% 500%",
+                }}
+                animate={{
+                  backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"],
+                }}
+                transition={{
+                  duration: 6,
+                  times: [0, 0.2, 0.4, 0.6, 0.8],
+                  repeat: Infinity,
+                  ease: "linear",
+                }}
+              />
+              <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
+                Brackeys
+                <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
+                  Community
+                </span>
               </span>
-            </span>
-          </Link>
-        </MagneticLink>
+            </Link>
+          </MagneticLink>
 
-        {/* Desktop nav */}
-        <div className="pointer-events-auto hidden items-center gap-6 lg:flex">
-          <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
-            {NAV_ITEMS.map((item) => {
-              const active = isActivePath(pathname, item);
-              return (
-                // The active item keeps the hover tick but drops the page
-                // toggle: nothing is about to tear down.
-                <MagneticLink key={item.to} cues={active ? HOVER_CUE : NAV_LINK_CUES}>
-                  <Link
-                    data-testid={`desktop-${item.slug}-link`}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "relative px-2 py-1 transition-colors after:absolute after:inset-x-2 after:-bottom-0.5 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:content-['']",
-                      active
-                        ? "cursor-default text-primary after:scale-x-100"
-                        : "text-foreground after:scale-x-0 hover:text-primary",
-                    )}
-                    to={item.to}
-                    onClick={(e) => {
-                      // Re-navigating to where you already are restarts the
-                      // page transition for no reason.
-                      if (active) e.preventDefault();
-                    }}
-                  >
-                    {item.label}
-                  </Link>
-                </MagneticLink>
-              );
-            })}
-          </nav>
+          {/* Desktop nav */}
+          <div className="pointer-events-auto hidden items-center gap-6 lg:flex">
+            <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
+              {NAV_ITEMS.map((item) => {
+                const active = isActivePath(pathname, item);
+                return (
+                  // The active item keeps the hover tick but drops the page
+                  // toggle: nothing is about to tear down.
+                  <MagneticLink key={item.to} cues={active ? HOVER_CUE : NAV_LINK_CUES}>
+                    <Link
+                      data-testid={`desktop-${item.slug}-link`}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "relative px-2 py-1 transition-colors after:absolute after:inset-x-2 after:-bottom-0.5 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:content-['']",
+                        active
+                          ? "cursor-default text-primary after:scale-x-100"
+                          : "text-foreground after:scale-x-0 hover:text-primary",
+                      )}
+                      to={item.to}
+                      onClick={(e) => {
+                        // Re-navigating to where you already are restarts the
+                        // page transition for no reason.
+                        if (active) e.preventDefault();
+                      }}
+                    >
+                      {item.label}
+                    </Link>
+                  </MagneticLink>
+                );
+              })}
+            </nav>
 
-          {/* Tighter than the nav's gap-6 — these read as one control cluster
+            {/* Tighter than the nav's gap-6 — these read as one control cluster
               rather than more nav destinations. The cog sits outside the
               session branch: theme, motion, and sound are browser-local, so
               signed-out visitors get the same one-click access to them. */}
-          <div className="flex items-center gap-2">
-            <SettingsMenu />
-            {session?.user ? (
-              <>
-                {/* Before the bell: an outstanding decision outranks an unread
+            <div className="flex items-center gap-2">
+              <SettingsMenu />
+              {session?.user ? (
+                <>
+                  {/* Before the bell: an outstanding decision outranks an unread
                     event, and this one renders only when there is one. */}
-                <AttentionMenu />
-                <NotificationBell />
-                <UserMenu user={session.user} compact />
-              </>
-            ) : (
-              <Button
-                variant="default"
-                className="px-5 text-xs font-bold tracking-widest"
-                onClick={() => signInWithDiscord("header")}
-              >
-                LOGIN
-              </Button>
-            )}
+                  <AttentionMenu />
+                  <NotificationBell />
+                  <UserMenu user={session.user} compact />
+                </>
+              ) : (
+                <Button
+                  variant="default"
+                  className="px-5 text-xs font-bold tracking-widest"
+                  onClick={() => signInWithDiscord("header")}
+                >
+                  LOGIN
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Mobile page title + menu button */}
-        <div className="pointer-events-auto flex items-center gap-3 lg:hidden">
-          {mobileTitle && (
-            <span className="text-xs font-bold tracking-widest text-foreground/70 uppercase">
-              {mobileTitle}
-            </span>
-          )}
-          <Button
-            variant="outline"
-            size="icon-lg"
-            data-testid="mobile-menu-toggle"
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            title={mobileMenuOpen ? "Close menu" : "Open menu"}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            <HugeiconsIcon icon={mobileMenuOpen ? Cancel01Icon : Menu01Icon} size={18} />
-          </Button>
+          {/* Mobile page title + menu button */}
+          <div className="pointer-events-auto flex items-center gap-3 lg:hidden">
+            {mobileTitle && (
+              <span className="text-xs font-bold tracking-widest text-foreground/70 uppercase">
+                {mobileTitle}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="icon-lg"
+              data-testid="mobile-menu-toggle"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              title={mobileMenuOpen ? "Close menu" : "Open menu"}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <HugeiconsIcon icon={mobileMenuOpen ? Cancel01Icon : Menu01Icon} size={18} />
+            </Button>
+          </div>
         </div>
       </motion.header>
 
