@@ -71,7 +71,7 @@ describe("/jam now", () => {
     expect(reply.buttons).toEqual([
       {
         kind: "link",
-        label: "Open on brackeys.dev",
+        label: "Open on brackeys.test",
         url: "https://brackeys.test/jams/brackeys-14",
       },
       { kind: "link", label: "itch.io", url: "https://itch.io/jam/brackeys-14" },

@@ -42,7 +42,7 @@ describe("/member", () => {
     const reply = await memberByDiscordId(api, { discordId: "200000000000000009" }, ctx);
     expect(reply.outcome).toBe("not_found");
     expect(reply.ephemeral).toBe(true);
-    expect(reply.content).toContain("isn't on brackeys.dev yet");
+    expect(reply.content).toContain("isn't on brackeys.test yet");
     expect(reply.content).toContain("https://brackeys.test");
     expect(reply.embeds).toEqual([]);
   });

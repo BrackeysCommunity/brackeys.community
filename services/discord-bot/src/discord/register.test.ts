@@ -29,7 +29,7 @@ function asRemote(command: Record<string, unknown>, i: number) {
 }
 
 describe("registration diff", () => {
-  const manifest = buildManifest() as unknown as Record<string, unknown>[];
+  const manifest = buildManifest("brackeys.test") as unknown as Record<string, unknown>[];
 
   test("the manifest equals its own Discord echo, in any order", () => {
     const remote = manifest.map(asRemote).reverse();
@@ -75,7 +75,7 @@ describe("syncGuildCommands", () => {
   }
 
   test("five boots against a current guild make zero PUTs", async () => {
-    const commands = buildManifest();
+    const commands = buildManifest("brackeys.test");
     const { rest, puts } = fakeRest(
       (commands as unknown as Record<string, unknown>[]).map(asRemote),
     );
@@ -86,14 +86,14 @@ describe("syncGuildCommands", () => {
   });
 
   test("a stale guild gets exactly one PUT of the whole manifest", async () => {
-    const commands = buildManifest();
+    const commands = buildManifest("brackeys.test");
     const { rest, puts } = fakeRest([]);
     expect(await syncGuildCommands(rest, { ...options, commands })).toBe("updated");
     expect(puts).toEqual([commands]);
   });
 
   test("--force skips the diff", async () => {
-    const commands = buildManifest();
+    const commands = buildManifest("brackeys.test");
     const { rest, puts } = fakeRest(
       (commands as unknown as Record<string, unknown>[]).map(asRemote),
     );

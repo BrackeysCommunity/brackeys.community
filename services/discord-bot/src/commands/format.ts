@@ -2,7 +2,7 @@ import { effectiveJamState, jamLengthDays } from "../../../../src/lib/jam-countd
 import { hostName as jamHostName, jamSlug, jamUrl } from "../../../../src/lib/jam-links.ts";
 import { profileSlug } from "../../../../src/lib/profile-links.ts";
 import { teamSlug } from "../../../../src/lib/team-links.ts";
-import { type Button, type Embed, hexColor, httpUrl, plural, ts } from "../reply.ts";
+import { type Button, type Embed, hexColor, httpUrl, plural, siteName, ts } from "../reply.ts";
 import { encodeCustomId, type PageState } from "./custom-id.ts";
 
 /**
@@ -100,7 +100,7 @@ export function jamPageUrl(appUrl: string, jam: { jamId: number; slug?: string |
 
 export function jamButtons(appUrl: string, jam: JamLike): Button[] {
   return [
-    { kind: "link", label: "Open on brackeys.dev", url: jamPageUrl(appUrl, jam) },
+    { kind: "link", label: `Open on ${siteName(appUrl)}`, url: jamPageUrl(appUrl, jam) },
     { kind: "link", label: "itch.io", url: jamUrl(jam.slug) },
   ];
 }

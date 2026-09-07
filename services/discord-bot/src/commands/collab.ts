@@ -3,14 +3,15 @@ import { formatRate } from "../../../../src/lib/format-rate.ts";
 import type { PublicApi } from "../api.ts";
 import {
   type Embed,
+  type Reply,
   embedReply,
   link,
   notFound,
   oneLine,
   plural,
-  type Reply,
-  ts,
+  siteName,
   truncate,
+  ts,
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
 import { type CollabType, type PageState, truncateSearch } from "./custom-id.ts";
@@ -212,7 +213,13 @@ export async function collabPost(
       image: mediaUrl(ctx.appUrl, post.images[0]?.url ?? post.project?.imageUrl),
     },
     {
-      buttons: [{ kind: "link", label: "Open on brackeys.dev", url: postUrl(ctx.appUrl, post.id) }],
+      buttons: [
+        {
+          kind: "link",
+          label: `Open on ${siteName(ctx.appUrl)}`,
+          url: postUrl(ctx.appUrl, post.id),
+        },
+      ],
       ephemeral: !input.share,
     },
   );

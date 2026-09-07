@@ -21,7 +21,7 @@ interface Shareable {
   addBooleanOption(fn: (option: SlashCommandBooleanOption) => SlashCommandBooleanOption): unknown;
 }
 
-export function buildManifest(): RESTPostAPIApplicationCommandsJSONBody[] {
+export function buildManifest(site: string): RESTPostAPIApplicationCommandsJSONBody[] {
   const jamOption = (o: SlashCommandStringOption, description: string) =>
     o
       .setName(OPT.jam)
@@ -41,7 +41,7 @@ export function buildManifest(): RESTPostAPIApplicationCommandsJSONBody[] {
 
   const jam = new SlashCommandBuilder()
     .setName(COMMAND.jam)
-    .setDescription("Game jams on brackeys.dev")
+    .setDescription(`Game jams on ${site}`)
     .addSubcommand((sub) =>
       sub.setName(SUB.jam.now).setDescription("The current or next Brackeys jam"),
     )
@@ -79,7 +79,7 @@ export function buildManifest(): RESTPostAPIApplicationCommandsJSONBody[] {
 
   const collab = new SlashCommandBuilder()
     .setName(COMMAND.collab)
-    .setDescription("The collab board on brackeys.dev")
+    .setDescription(`The collab board on ${site}`)
     .addSubcommand((sub) =>
       shareOption(
         sub
@@ -138,7 +138,7 @@ export function buildManifest(): RESTPostAPIApplicationCommandsJSONBody[] {
   const member = shareOption(
     new SlashCommandBuilder()
       .setName(COMMAND.member)
-      .setDescription("A member's brackeys.dev profile")
+      .setDescription(`A member's ${site} profile`)
       .addUserOption((o) => o.setName(OPT.user).setDescription("Mention a server member"))
       .addStringOption((o) =>
         o.setName(OPT.name).setDescription("…or type part of their site name").setMaxLength(100),
@@ -148,7 +148,7 @@ export function buildManifest(): RESTPostAPIApplicationCommandsJSONBody[] {
   const team = shareOption(
     new SlashCommandBuilder()
       .setName(COMMAND.team)
-      .setDescription("A team on brackeys.dev")
+      .setDescription(`A team on ${site}`)
       .addStringOption((o) =>
         o
           .setName(OPT.name)
@@ -161,7 +161,7 @@ export function buildManifest(): RESTPostAPIApplicationCommandsJSONBody[] {
 
   const pingCmd = new SlashCommandBuilder()
     .setName(COMMAND.ping)
-    .setDescription("Is brackeys.dev reachable, and how fast?");
+    .setDescription(`Is ${site} reachable, and how fast?`);
 
   const profileMenu = new ContextMenuCommandBuilder()
     .setName(PROFILE_CONTEXT_MENU)

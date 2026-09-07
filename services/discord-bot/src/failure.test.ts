@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import { ApiUnavailableError } from "./api.ts";
-import { classifyFailure, failureEmbed, siteName } from "./failure.ts";
+import { classifyFailure, failureEmbed } from "./failure.ts";
+import { siteName } from "./reply.ts";
 
 const opts = { appUrl: "https://brackeys.community", label: "member" };
 

@@ -93,6 +93,20 @@ export function httpUrl(url: string | null | undefined): string | undefined {
   }
 }
 
+/**
+ * The site as a member knows it — `brackeys.community` in prod,
+ * `staging.brackeys.dev` on staging. Every user-facing mention of the site
+ * derives from `APP_URL` through this, so the copy cannot name a domain the
+ * bot is not actually talking to.
+ */
+export function siteName(appUrl: string): string {
+  try {
+    return new URL(appUrl).host.replace(/^www\./, "");
+  } catch {
+    return appUrl;
+  }
+}
+
 /** Markdown link with a label that cannot break out of the brackets. */
 export function link(label: string, url: string): string {
   const safe = label.replace(/[[\]]/g, "").replace(/\\/g, "") || "link";

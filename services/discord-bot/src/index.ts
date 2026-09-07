@@ -8,6 +8,7 @@ import { createCooldown } from "./cooldown.ts";
 import { createInteractionHandler } from "./discord/adapter.ts";
 import { syncGuildCommands } from "./discord/register.ts";
 import { createMemo } from "./memo.ts";
+import { siteName } from "./reply.ts";
 
 /**
  * The Discord bot (plan 28): slash commands answered from the site's public
@@ -48,7 +49,7 @@ client.once(Events.ClientReady, async (ready) => {
     await syncGuildCommands(ready.rest, {
       applicationId: config.DISCORD_APPLICATION_ID,
       guildId: config.DISCORD_GUILD_ID,
-      commands: buildManifest(),
+      commands: buildManifest(siteName(config.APP_URL)),
       log,
     });
   } catch (error) {

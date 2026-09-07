@@ -1,7 +1,7 @@
 import { DiscordAPIError } from "discord.js";
 
 import { ApiUnavailableError } from "./api.ts";
-import { type Embed, embedReply, type Reply } from "./reply.ts";
+import { type Embed, embedReply, type Reply, siteName } from "./reply.ts";
 
 /**
  * What to say when a command cannot answer. Every failure the bot can hit
@@ -54,15 +54,6 @@ function httpStatus(error: unknown): number | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const status = (error as { status?: unknown }).status;
   return typeof status === "number" ? status : undefined;
-}
-
-/** `brackeys.community` — the site as a member knows it, not the full URL. */
-export function siteName(appUrl: string): string {
-  try {
-    return new URL(appUrl).host.replace(/^www\./, "");
-  } catch {
-    return appUrl;
-  }
 }
 
 function copy(kind: FailureKind, site: string): { title: string; body: string } {

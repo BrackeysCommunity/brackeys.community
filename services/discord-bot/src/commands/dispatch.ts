@@ -1,5 +1,5 @@
 import type { PublicApi } from "../api.ts";
-import { type Reply, textReply } from "../reply.ts";
+import { type Reply, siteName, textReply } from "../reply.ts";
 import { collabBrowse, collabBrowsePage, collabPost, collabStats } from "./collab.ts";
 import type { CommandContext } from "./context.ts";
 import {
@@ -126,7 +126,7 @@ export async function runInvocation(
         case SUB.collab.post: {
           const id = int(OPT.id);
           if (id == null || id < 1)
-            return textReply("Give the post's number — it's in its brackeys.dev URL.");
+            return textReply(`Give the post's number — it's in its ${siteName(ctx.appUrl)} URL.`);
           return collabPost(api, { id, share }, ctx);
         }
         case SUB.collab.stats:

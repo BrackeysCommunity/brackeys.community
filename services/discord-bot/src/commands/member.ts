@@ -2,12 +2,13 @@ import { formatRate } from "../../../../src/lib/format-rate.ts";
 import type { PublicApi } from "../api.ts";
 import {
   type Embed,
+  type Reply,
   embedReply,
   link,
   notFound,
   oneLine,
   plural,
-  type Reply,
+  siteName,
   textReply,
   truncate,
 } from "../reply.ts";
@@ -30,7 +31,9 @@ export async function memberByDiscordId(
   const result = await api.getProfileByDiscordId({ discordId: input.discordId });
   if (!result) {
     return notFound(
-      `That member isn't on brackeys.dev yet — signing in with Discord at ${ctx.appUrl} creates their profile.`,
+      // Angle brackets keep the link clickable without Discord unfurling a
+      // full preview card underneath a one-line answer.
+      `That member isn't on ${siteName(ctx.appUrl)} yet — signing in with Discord at <${ctx.appUrl}> creates their profile.`,
     );
   }
   return renderProfile(api, result, ctx, !input.share);
@@ -45,7 +48,7 @@ export async function memberByName(
   if (!name) return textReply("Type part of a member's name.");
   const { members } = await api.listMembers({ search: name, limit: CANDIDATES_MAX });
   if (members.length === 0)
-    return notFound(`Nobody on brackeys.dev matches **${oneLine(name, 60)}**.`);
+    return notFound(`Nobody on ${siteName(ctx.appUrl)} matches **${oneLine(name, 60)}**.`);
 
   const wanted = name.toLowerCase();
   const exact = members.find(
@@ -60,7 +63,8 @@ export async function memberByName(
   }
 
   const result = await api.getProfile({ userId: match.id });
-  if (!result) return notFound(`Nobody on brackeys.dev matches **${oneLine(name, 60)}**.`);
+  if (!result)
+    return notFound(`Nobody on ${siteName(ctx.appUrl)} matches **${oneLine(name, 60)}**.`);
   return renderProfile(api, result, ctx, !input.share);
 }
 
