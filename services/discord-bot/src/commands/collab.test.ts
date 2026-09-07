@@ -77,13 +77,32 @@ describe("/collab browse", () => {
       "**[Post 1](https://brackeys.test/collab/1)** · PAID · $25 - $50 /hr · [Cosy Crew](https://brackeys.test/teams/cosy-crew) · Unity, FMOD, Ableton, +1 · <t:1788220800:R>",
     );
     expect(reply.ephemeral).toBe(true);
-    expect(decodeCustomId((reply.buttons[1] as { customId: string }).customId)).toEqual({
+    // One page of results: no pager at all. Both ends would clamp to page 0
+    // and Discord rejects a message carrying two identical custom_ids.
+    expect(reply.buttons.map((b) => b.kind)).toEqual(["link"]);
+  });
+
+  test("a multi-page result pages with distinct custom_ids", async () => {
+    const api = fakeApi({
+      listPosts: async () => ({ posts: [post(1), post(2)], total: 24 }),
+      countPostsByType: async () => ({ paid: 24, hobby: 0, all: 24 }),
+    });
+    const reply = await collabBrowse(api, { type: "paid", skillId: 7, search: "cosy" }, ctx);
+    const pages = reply.buttons.filter(
+      (b): b is { kind: "page"; label: string; customId: string; disabled?: boolean } =>
+        b.kind === "page",
+    );
+    expect(pages).toHaveLength(2);
+    expect(pages[0]!.disabled).toBe(true);
+    expect(pages[1]!.disabled).toBe(false);
+    expect(pages[0]!.customId).not.toBe(pages[1]!.customId);
+    expect(decodeCustomId(pages[1]!.customId)).toEqual({
       kind: "collab_browse",
       type: "paid",
       skillId: 7,
       roleId: undefined,
       jamId: undefined,
-      page: 0,
+      page: 1,
       search: "cosy",
     });
   });

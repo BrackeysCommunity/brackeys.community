@@ -3,6 +3,7 @@ import { hostName as jamHostName, jamSlug, jamUrl } from "../../../../src/lib/ja
 import { profileSlug } from "../../../../src/lib/profile-links.ts";
 import { teamSlug } from "../../../../src/lib/team-links.ts";
 import { type Button, type Embed, hexColor, httpUrl, plural, ts } from "../reply.ts";
+import { encodeCustomId, type PageState } from "./custom-id.ts";
 
 /**
  * The jam fields every `/jam` embed shares. Typed structurally on the
@@ -65,6 +66,32 @@ export function phaseLine(jam: JamLike, now: Date): string {
 export function mediaUrl(appUrl: string, url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   return httpUrl(url.startsWith("/") ? `${appUrl}${url}` : url);
+}
+
+/**
+ * Prev/next for a paged listing — omitted entirely on a single page.
+ * There, both ends clamp to page 0 and the two buttons encode the *same*
+ * `custom_id`, which Discord rejects outright
+ * (50035 `COMPONENT_CUSTOM_ID_DUPLICATED`) and takes the whole reply with
+ * it. Past one page every pair of clamps differs, so the ends stay
+ * disabled-but-present.
+ */
+export function pagerButtons(state: PageState, pages: number): Button[] {
+  if (pages <= 1) return [];
+  return [
+    {
+      kind: "page",
+      label: "◀ Previous",
+      customId: encodeCustomId({ ...state, page: Math.max(0, state.page - 1) }),
+      disabled: state.page === 0,
+    },
+    {
+      kind: "page",
+      label: "Next ▶",
+      customId: encodeCustomId({ ...state, page: Math.min(pages - 1, state.page + 1) }),
+      disabled: state.page + 1 >= pages,
+    },
+  ];
 }
 
 export function jamPageUrl(appUrl: string, jam: { jamId: number; slug?: string | null }): string {

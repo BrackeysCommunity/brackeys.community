@@ -8,16 +8,16 @@ import {
   ButtonStyle,
   type ChatInputCommandInteraction,
   type CommandInteractionOption,
-  DiscordAPIError,
   type Interaction,
   type InteractionEditReplyOptions,
+  type InteractionReplyOptions,
   MessageFlags,
   type UserContextMenuCommandInteraction,
 } from "discord.js";
 
 import { EVENTS } from "../../../../src/lib/event-taxonomy.ts";
 import type { ServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
-import { type ApiOutcome, ApiUnavailableError, type PublicApi } from "../api.ts";
+import { ApiUnavailableError, type PublicApi } from "../api.ts";
 import type { CommandContext } from "../commands/context.ts";
 import { decodeCustomId } from "../commands/custom-id.ts";
 import {
@@ -30,6 +30,7 @@ import {
   runPage,
 } from "../commands/dispatch.ts";
 import type { Cooldown } from "../cooldown.ts";
+import { classifyFailure, type Failure, failureReply } from "../failure.ts";
 import type { Choice, Memo } from "../memo.ts";
 import { type Button, type Embed, httpUrl, type Reply } from "../reply.ts";
 
@@ -41,7 +42,6 @@ import { type Button, type Embed, httpUrl, type Reply } from "../reply.ts";
  * again" for a stale button, and a loud log (never a retry) on 403.
  */
 
-export const OUTAGE_LINE = "brackeys.dev isn't reachable right now — try again in a minute.";
 export const STALE_BUTTON_LINE =
   "That button is from an older version of the bot — run the command again.";
 export const COOLDOWN_LINE =
@@ -119,32 +119,33 @@ export function createInteractionHandler(options: AdapterOptions) {
       return;
     }
 
-    let outcome: ApiOutcome = "error";
     try {
       // Defer first, always: a cold origin must never race the 3 s window.
       await interaction.deferReply(
         visibility === "ephemeral" ? { flags: MessageFlags.Ephemeral } : {},
       );
       const reply = await runInvocation(api, inv, context());
-      outcome = reply.outcome;
       await interaction.editReply(toMessage(reply));
       telemetry.capture(EVENTS.botCommandInvoked, {
         ...props,
-        api_outcome: outcome,
+        api_outcome: reply.outcome,
         latency_ms: elapsed(startedAt),
       });
     } catch (error) {
-      outcome = error instanceof ApiUnavailableError ? error.outcome : "error";
-      log(`[command] ${label} failed (${outcome}): ${describe(error)}`);
+      const failure = classifyFailure(error);
+      log(`[command] ${label} failed (${failure.kind} ${failure.code}): ${describe(error)}`);
+      // An unreachable origin is an outage, not a defect; everything else is
+      // worth a stack trace.
       if (!(error instanceof ApiUnavailableError)) {
         telemetry.captureException(error, { ...props, scope: "command" });
       }
       telemetry.capture(EVENTS.botCommandFailed, {
         ...props,
-        api_outcome: outcome,
+        api_outcome: failure.kind,
+        failure_code: failure.code,
         latency_ms: elapsed(startedAt),
       });
-      await answerFailure(interaction, visibility, error);
+      await answerFailure(interaction, visibility, failure, label, failureHint(inv, failure));
     }
   }
 
@@ -159,29 +160,27 @@ export function createInteractionHandler(options: AdapterOptions) {
       | UserContextMenuCommandInteraction
       | ButtonInteraction,
     visibility: "public" | "ephemeral",
-    error: unknown,
+    failure: Failure,
+    label: string,
+    hint?: string,
   ) {
-    if (isForbidden(error)) {
-      // 403s count toward the invalid-request ban that took sign-in down in
-      // July. State, not a retry: log it where someone will see it and stop.
-      log(`[command] 403 from Discord — not retrying: ${describe(error)}`);
+    if (failure.forbidden) {
+      // State, not a retry: log it where someone will see it and stop.
+      log(`[command] 403 from Discord — not retrying (${failure.code})`);
       return;
     }
-    const content =
-      error instanceof ApiUnavailableError
-        ? OUTAGE_LINE
-        : "Something went wrong on our side. Try again in a minute.";
+    const message = toMessage(failureReply(failure, { appUrl, label, hint }));
     try {
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ ...message, flags: MessageFlags.Ephemeral });
       } else if (visibility === "ephemeral") {
-        await interaction.editReply({ content, embeds: [], components: [] });
+        await interaction.editReply(message);
       } else {
         await interaction.deleteReply().catch(() => {});
-        await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+        await interaction.followUp({ ...message, flags: MessageFlags.Ephemeral });
       }
     } catch (replyError) {
-      log(`[command] could not deliver failure line: ${describe(replyError)}`);
+      log(`[command] could not deliver failure embed: ${describe(replyError)}`);
     }
   }
 
@@ -233,29 +232,31 @@ export function createInteractionHandler(options: AdapterOptions) {
         latency_ms: elapsed(startedAt),
       });
     } catch (error) {
-      const outcome = error instanceof ApiUnavailableError ? error.outcome : "error";
-      log(`[button] ${state.kind} failed (${outcome}): ${describe(error)}`);
+      const failure = classifyFailure(error);
+      log(`[button] ${state.kind} failed (${failure.kind} ${failure.code}): ${describe(error)}`);
       if (!(error instanceof ApiUnavailableError))
         telemetry.captureException(error, { ...props, scope: "button" });
       telemetry.capture(EVENTS.botCommandFailed, {
         ...props,
-        api_outcome: outcome,
+        api_outcome: failure.kind,
+        failure_code: failure.code,
         latency_ms: elapsed(startedAt),
       });
-      if (isForbidden(error)) {
-        log(`[button] 403 from Discord — not retrying: ${describe(error)}`);
+      if (failure.forbidden) {
+        log(`[button] 403 from Discord — not retrying (${failure.code})`);
         return;
       }
       // A page turn that fails leaves the previous page in place and says so.
+      const message = toMessage(
+        failureReply(failure, {
+          appUrl,
+          label: `${state.kind} page`,
+          hint: "The page you were on is still above.",
+        }),
+      );
       await interaction
-        .followUp({
-          content:
-            error instanceof ApiUnavailableError
-              ? OUTAGE_LINE
-              : "Couldn't turn the page — try again.",
-          flags: MessageFlags.Ephemeral,
-        })
-        .catch((e: unknown) => log(`[button] could not deliver failure line: ${describe(e)}`));
+        .followUp({ ...message, flags: MessageFlags.Ephemeral })
+        .catch((e: unknown) => log(`[button] could not deliver failure embed: ${describe(e)}`));
     }
   }
 
@@ -265,6 +266,15 @@ export function createInteractionHandler(options: AdapterOptions) {
     if (interaction.isButton()) return onButton(interaction);
     if (interaction.isUserContextMenuCommand()) return onUserContextMenu(interaction);
   };
+}
+
+/** The one case where there is a better thing for a member to try. */
+function failureHint(inv: Invocation, failure: Failure): string | undefined {
+  if (failure.kind !== "unsupported") return undefined;
+  if (inv.command === COMMAND.member || inv.command === PROFILE_CONTEXT_MENU) {
+    return "Looking someone up by mention needs that update — `/member name:` works in the meantime.";
+  }
+  return undefined;
 }
 
 /** Options as plain values. One level of subcommand; the manifest has no groups. */
@@ -291,7 +301,7 @@ export function toInvocation(interaction: ChatInputCommandInteraction): Invocati
   return inv;
 }
 
-export function toMessage(reply: Reply): InteractionEditReplyOptions {
+export function toMessage(reply: Reply): InteractionEditReplyOptions & InteractionReplyOptions {
   return {
     content: reply.content ?? "",
     embeds: reply.embeds.map(toApiEmbed),
@@ -321,7 +331,15 @@ function toApiEmbed(embed: Embed): APIEmbed {
  *  is malformed is dropped for the same reason `clampEmbed` drops one: it
  *  would fail the whole message. */
 function toRows(buttons: Button[]): ActionRowBuilder<ButtonBuilder>[] {
-  const usable = buttons.filter((b) => b.kind !== "link" || httpUrl(b.url));
+  const seen = new Set<string>();
+  const usable = buttons.filter((b) => {
+    if (b.kind === "link") return Boolean(httpUrl(b.url));
+    // Discord rejects a message carrying the same custom_id twice; dropping
+    // the duplicate costs one button instead of the whole reply.
+    if (seen.has(b.customId)) return false;
+    seen.add(b.customId);
+    return true;
+  });
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let i = 0; i < usable.length && rows.length < 5; i += 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -337,10 +355,6 @@ function toRows(buttons: Button[]): ActionRowBuilder<ButtonBuilder>[] {
     rows.push(row);
   }
   return rows;
-}
-
-function isForbidden(error: unknown): boolean {
-  return error instanceof DiscordAPIError && error.status === 403;
 }
 
 function describe(error: unknown): string {

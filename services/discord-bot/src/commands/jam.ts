@@ -11,8 +11,16 @@ import {
   ts,
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
-import { encodeCustomId, type JamEntrySort, type PageState, truncateSearch } from "./custom-id.ts";
-import { jamButtons, jamEmbed, type JamLike, jamPageUrl, jamPhase, PHASE_LABEL } from "./format.ts";
+import { type JamEntrySort, type PageState, truncateSearch } from "./custom-id.ts";
+import {
+  PHASE_LABEL,
+  jamButtons,
+  jamEmbed,
+  jamPageUrl,
+  jamPhase,
+  pagerButtons,
+  type JamLike,
+} from "./format.ts";
 
 type HostJams = Awaited<ReturnType<PublicApi["listJamsByHost"]>>["jams"];
 type JamDetail = NonNullable<Awaited<ReturnType<PublicApi["getJam"]>>>;
@@ -190,18 +198,7 @@ async function renderEntriesPage(
 
   return embedReply(embed, {
     buttons: [
-      {
-        kind: "page",
-        label: "◀ Previous",
-        customId: encodeCustomId({ ...state, page: Math.max(0, state.page - 1) }),
-        disabled: state.page === 0,
-      },
-      {
-        kind: "page",
-        label: "Next ▶",
-        customId: encodeCustomId({ ...state, page: Math.min(pages - 1, state.page + 1) }),
-        disabled: state.page + 1 >= pages,
-      },
+      ...pagerButtons(state, pages),
       { kind: "link", label: "All entries", url: jamPageUrl(ctx.appUrl, jam) },
     ],
     ephemeral,

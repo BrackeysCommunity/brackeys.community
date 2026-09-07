@@ -13,8 +13,16 @@ import {
   truncate,
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
-import { type CollabType, encodeCustomId, type PageState, truncateSearch } from "./custom-id.ts";
-import { displayName, jamPageUrl, mediaUrl, postUrl, profileUrl, teamUrl } from "./format.ts";
+import { type CollabType, type PageState, truncateSearch } from "./custom-id.ts";
+import {
+  displayName,
+  jamPageUrl,
+  mediaUrl,
+  pagerButtons,
+  postUrl,
+  profileUrl,
+  teamUrl,
+} from "./format.ts";
 
 export const BROWSE_PAGE_SIZE = 10;
 const ROW_TITLE_MAX = 70;
@@ -132,18 +140,7 @@ export async function collabBrowsePage(
 
   return embedReply(embed, {
     buttons: [
-      {
-        kind: "page",
-        label: "◀ Previous",
-        customId: encodeCustomId({ ...state, page: Math.max(0, state.page - 1) }),
-        disabled: state.page === 0,
-      },
-      {
-        kind: "page",
-        label: "Next ▶",
-        customId: encodeCustomId({ ...state, page: Math.min(pages - 1, state.page + 1) }),
-        disabled: state.page + 1 >= pages,
-      },
+      ...pagerButtons(state, pages),
       { kind: "link", label: "Open the board", url: `${ctx.appUrl}/collab` },
     ],
     ephemeral,
