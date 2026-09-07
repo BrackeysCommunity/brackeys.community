@@ -49,6 +49,7 @@ const PUBLIC_PROCEDURES = new Set([
   // Public profile/project/team pages; viewer-specific fields degrade
   // to their anonymous shape via authMiddleware.
   "getProfile",
+  "getProfileByDiscordId",
   "getProject",
   "listProjectsForGames",
   "resolveProjectForGame",

@@ -111,6 +111,7 @@ import {
 } from "./notifications";
 import {
   getProfile,
+  getProfileByDiscordId,
   getMyProfile,
   getMySkillIds,
   updateProfile,
@@ -202,6 +203,7 @@ export default {
   updateProjectDetails,
   setProjectSlug,
   getProfile,
+  getProfileByDiscordId,
   getMyProfile,
   getMySkillIds,
   updateProfile,

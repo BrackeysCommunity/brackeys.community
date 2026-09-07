@@ -1,0 +1,20 @@
+# Config-as-code for the DISCORD-BOT service — slash commands over the public
+# API (plan 28). One resident gateway connection with the `Guilds` intent
+# only; every answer is a GET to $APP_URL/api/public/rpc through the edge.
+# No database, no Redis, no queue: plan 20's phases add those to this
+# process when they land.
+#
+# Create a service pointing at this repo, leave Root Directory blank (the
+# Dockerfile builds from the repo root so it can copy the shared src/lib
+# helpers), set "Config file path" to services/discord-bot/railway.toml, and
+# set DISCORD_BOT_TOKEN, DISCORD_APPLICATION_ID, DISCORD_GUILD_ID and
+# APP_URL. Staging deploys a *second* Discord application against a scratch
+# guild — never two live bots on the real guild.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/discord-bot/Dockerfile"
+
+[deploy]
+startCommand = "bun run start"
+restartPolicyType = "ALWAYS"

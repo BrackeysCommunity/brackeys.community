@@ -452,79 +452,102 @@ export const getProfile = os
     }
 
     if (!profile) return null;
-
-    const profileId = profile.id;
-
-    const [
-      skillList,
-      roleList,
-      projects,
-      urlStub,
-      linkedAccountsList,
-      creditRows,
-      wallThread,
-      collabsCount,
-    ] = await Promise.all([
-      queryUserSkills(profileId),
-      queryUserRoles(profileId),
-      queryProfileProjects(
-        and(
-          eq(profileProjects.profileId, profileId),
-          eq(profileProjects.status, "approved"),
-          // Unpublished titles (e.g. itch.io drafts) are owner-only.
-          eq(profileProjects.published, true),
-          // itch.io "Restricted" pages report published=true from the
-          // API but 404 for anonymous visitors; the library-sync
-          // sweep's URL probe records that here. Owner-only too.
-          isNull(profileProjects.restrictedAt),
-          // Games that vanished from the linked library (deleted on
-          // itch, or access lost) are owner-only until removed.
-          isNull(profileProjects.missingSince),
-        ),
-      ),
-      db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
-      // Display-safe columns only. `tokenInvalidAt` says whether someone's
-      // linked account needs reconnecting, which is between them and the
-      // provider — only the owner's own `getMyProfile` carries it, and the
-      // page's "reconnect" prompt already reads it from there.
-      db
-        .select({
-          id: linkedAccounts.id,
-          provider: linkedAccounts.provider,
-          providerUsername: linkedAccounts.providerUsername,
-          providerProfileUrl: linkedAccounts.providerProfileUrl,
-          linkedAt: linkedAccounts.linkedAt,
-        })
-        .from(linkedAccounts)
-        .where(eq(linkedAccounts.profileId, profileId)),
-      queryProfileCredits(profileId),
-      db
-        .select({ commentCount: threads.commentCount })
-        .from(threads)
-        .where(eq(threads.profileUserId, profileId))
-        .limit(1),
-      countCollabCollaborators(profileId),
-    ]);
-
-    // A credit on a project the member already showcases would repeat the
-    // SHIPPED WORK card one section down; the credits list is for the work
-    // that reaches their profile *only* through `project_contributors`.
-    const placedProjectIds = new Set(
-      projects.map((p) => p.projectId).filter((id): id is string => id != null),
-    );
-
-    return {
-      profile,
-      skills: skillList,
-      roles: roleList,
-      projects: await serializeProfileProjects(projects),
-      credits: creditRows.filter((credit) => !placedProjectIds.has(credit.projectId)).slice(0, 12),
-      urlStub: urlStub[0]?.stub ?? null,
-      linkedAccounts: linkedAccountsList,
-      wallNotesCount: wallThread[0]?.commentCount ?? 0,
-      collabsCount,
-    };
+    return buildPublicProfile(profile);
   });
+
+/**
+ * The same anonymous projection as `getProfile`, keyed by Discord id — for
+ * the Discord bot's `/member @someone`, which knows a guild member only by
+ * that id. Reveals nothing `getProfile` doesn't: profile pages are public
+ * and already show the Discord username. `discord_id` is unique-indexed.
+ */
+export const getProfileByDiscordId = os
+  .route({ method: "GET" })
+  .input(z.object({ discordId: z.string().regex(/^\d{17,20}$/) }))
+  .handler(async ({ input }) => {
+    const [profile] = await db
+      .select()
+      .from(developerProfiles)
+      .where(eq(developerProfiles.discordId, input.discordId))
+      .limit(1);
+    if (!profile) return null;
+    return buildPublicProfile(profile);
+  });
+
+/** Everything a public profile read returns once the row is resolved. */
+async function buildPublicProfile(profile: typeof developerProfiles.$inferSelect) {
+  const profileId = profile.id;
+
+  const [
+    skillList,
+    roleList,
+    projects,
+    urlStub,
+    linkedAccountsList,
+    creditRows,
+    wallThread,
+    collabsCount,
+  ] = await Promise.all([
+    queryUserSkills(profileId),
+    queryUserRoles(profileId),
+    queryProfileProjects(
+      and(
+        eq(profileProjects.profileId, profileId),
+        eq(profileProjects.status, "approved"),
+        // Unpublished titles (e.g. itch.io drafts) are owner-only.
+        eq(profileProjects.published, true),
+        // itch.io "Restricted" pages report published=true from the
+        // API but 404 for anonymous visitors; the library-sync
+        // sweep's URL probe records that here. Owner-only too.
+        isNull(profileProjects.restrictedAt),
+        // Games that vanished from the linked library (deleted on
+        // itch, or access lost) are owner-only until removed.
+        isNull(profileProjects.missingSince),
+      ),
+    ),
+    db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
+    // Display-safe columns only. `tokenInvalidAt` says whether someone's
+    // linked account needs reconnecting, which is between them and the
+    // provider — only the owner's own `getMyProfile` carries it, and the
+    // page's "reconnect" prompt already reads it from there.
+    db
+      .select({
+        id: linkedAccounts.id,
+        provider: linkedAccounts.provider,
+        providerUsername: linkedAccounts.providerUsername,
+        providerProfileUrl: linkedAccounts.providerProfileUrl,
+        linkedAt: linkedAccounts.linkedAt,
+      })
+      .from(linkedAccounts)
+      .where(eq(linkedAccounts.profileId, profileId)),
+    queryProfileCredits(profileId),
+    db
+      .select({ commentCount: threads.commentCount })
+      .from(threads)
+      .where(eq(threads.profileUserId, profileId))
+      .limit(1),
+    countCollabCollaborators(profileId),
+  ]);
+
+  // A credit on a project the member already showcases would repeat the
+  // SHIPPED WORK card one section down; the credits list is for the work
+  // that reaches their profile *only* through `project_contributors`.
+  const placedProjectIds = new Set(
+    projects.map((p) => p.projectId).filter((id): id is string => id != null),
+  );
+
+  return {
+    profile,
+    skills: skillList,
+    roles: roleList,
+    projects: await serializeProfileProjects(projects),
+    credits: creditRows.filter((credit) => !placedProjectIds.has(credit.projectId)).slice(0, 12),
+    urlStub: urlStub[0]?.stub ?? null,
+    linkedAccounts: linkedAccountsList,
+    wallNotesCount: wallThread[0]?.commentCount ?? 0,
+    collabsCount,
+  };
+}
 
 export const getMyProfile = os
   .use(requireAuth)

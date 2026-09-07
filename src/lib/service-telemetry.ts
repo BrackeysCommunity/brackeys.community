@@ -51,6 +51,9 @@ const COMMON_PROPS: Record<string, unknown> = {
 export interface ServiceTelemetry {
   /** Report a failure. Never throws — reporting must not break the job. */
   captureException(error: unknown, properties?: Record<string, unknown>): void;
+  /** Record a product event under the service's own distinct id — a
+   *  process's doing, never attributed to a person. Never throws. */
+  capture(event: string, properties?: Record<string, unknown>): void;
   /** Drain the queue. Safe to call when unconfigured, and safe to call twice. */
   shutdown(): Promise<void>;
 }
@@ -64,7 +67,7 @@ export function createServiceTelemetry(service: string): ServiceTelemetry {
   if (!KEY) {
     // Unconfigured: hand back no-ops so call sites stay unconditional and a
     // key-less deploy behaves exactly as it did before this existed.
-    return { captureException: () => {}, shutdown: async () => {} };
+    return { captureException: () => {}, capture: () => {}, shutdown: async () => {} };
   }
 
   const client = new PostHog(KEY, { host: HOST });
@@ -75,6 +78,17 @@ export function createServiceTelemetry(service: string): ServiceTelemetry {
         client.captureException(error, service, { ...COMMON_PROPS, service, ...properties });
       } catch (reportingError) {
         console.error(`[telemetry] failed to report from ${service}:`, reportingError);
+      }
+    },
+    capture(event, properties) {
+      try {
+        client.capture({
+          distinctId: service,
+          event,
+          properties: { ...COMMON_PROPS, service, ...properties },
+        });
+      } catch (reportingError) {
+        console.error(`[telemetry] failed to capture from ${service}:`, reportingError);
       }
     },
     async shutdown() {

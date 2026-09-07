@@ -26,6 +26,7 @@ describe("event taxonomy", () => {
       "notification",
       "profile",
       "search",
+      "bot",
     ]);
     for (const name of names) {
       expect(domains, `${name} introduces an unlisted domain`).toContain(name.split("_")[0]);

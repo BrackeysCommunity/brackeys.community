@@ -105,6 +105,13 @@ export const EVENTS = {
   profileEditStepAdvanced: "profile_edit_step_advanced",
   profileEditStepBlocked: "profile_edit_step_blocked",
   profileSaved: "profile_saved",
+
+  // The Discord bot's slash commands (`services/discord-bot`). Captured
+  // under the service's distinct id with no Discord user id: someone who
+  // never signed in has no identity here and doesn't acquire one by typing
+  // a command.
+  botCommandInvoked: "bot_command_invoked",
+  botCommandFailed: "bot_command_failed",
 } as const;
 
 export type AnalyticsEvent = (typeof EVENTS)[keyof typeof EVENTS];

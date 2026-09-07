@@ -30,6 +30,9 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "countMembersByRole",
   "listAvailableUsers",
   "getProfile",
+  // The Discord bot's `/member @someone`: the same projection, keyed by the
+  // one id a guild member is known by.
+  "getProfileByDiscordId",
   // Shared taxonomies — rarely written, but see their TTLs below.
   "listSkills",
   "listCollabRoles",
@@ -125,6 +128,7 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   countMembersByRole: 60,
   listAvailableUsers: 60,
   getProfile: 30,
+  getProfileByDiscordId: 30,
   listTeams: 60,
   countTeamsBySkill: 60,
   getTeam: 30,
