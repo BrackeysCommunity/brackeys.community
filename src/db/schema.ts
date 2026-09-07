@@ -29,6 +29,7 @@ export const teamSchema = pgSchema("team");
 export const itchSchema = pgSchema("itch");
 export const projectSchema = pgSchema("project");
 export const socialSchema = pgSchema("social");
+export const mediaSchema = pgSchema("media");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
   "game",
@@ -273,7 +274,7 @@ export const profileProjects = userSchema.table(
     // Set when the provider page 404s for anonymous visitors even though
     // the API reports it published (itch.io "Restricted" visibility — the
     // API exposes no field for it). Owned exclusively by the
-    // itchio-library-sync sweep's URL probe; `published` stays mirrored
+    // crawler's library tier URL probe; `published` stays mirrored
     // from the API, so restricted state must not be encoded there or the
     // next sync would flip it back. NULL = publicly reachable.
     restrictedAt: timestamp("restricted_at"),
@@ -359,7 +360,8 @@ export type NotificationType =
   | "jam_starting"
   | "jam_voting_open"
   | "jam_results_posted"
-  | "jam_team_post_created";
+  | "jam_team_post_created"
+  | "image_quarantined";
 
 export type NotificationEntityType =
   | "collab_post"
@@ -367,6 +369,7 @@ export type NotificationEntityType =
   | "team"
   | "team_invite"
   | "thread"
+  | "stored_image"
   | "comment"
   | "skill_request"
   | "jam";
@@ -933,6 +936,12 @@ export const itchEntryScans = itchSchema.table(
     // image encoder itself (embedding_model changes) forces a cover re-fetch.
     coverEmbedding: bytea("cover_embedding"),
     embeddingModel: text("embedding_model"),
+    // What the fetch found: `fetched` (bytes in hand), `gone` (the CDN
+    // 403/404s it — deleted game or replaced cover), `none` (the entry has
+    // no cover). Tells a dead cover apart from a fetched one whose hash was
+    // gated out, so "embedding missing" can be a due condition without
+    // re-fetching every dead cover daily.
+    coverStatus: text("cover_status").$type<ScanCoverStatus>().notNull().default("fetched"),
     // Bump the constant in the scan job to force a global re-scan.
     detectorVersion: integer("detector_version").notNull(),
     scannedAt: timestamp("scanned_at", { withTimezone: true }).defaultNow().notNull(),
@@ -943,6 +952,46 @@ export const itchEntryScans = itchSchema.table(
     index("entry_scans_cover_phash_idx").on(table.coverPhash),
   ],
 );
+
+export type ScanCoverStatus = "fetched" | "gone" | "none";
+
+/**
+ * The banner twin of `entry_scans`: one row per jam whose banner has been
+ * fetched and fingerprinted. Same ownership rule — written only by the
+ * media-scan worker, never a column on `itch.jams`. No flags table for
+ * banners: a banner over threshold is logged, and hosts reuse banners
+ * across editions, so theft matching would flag every annual jam against
+ * itself.
+ */
+export const itchJamScans = itchSchema.table("jam_scans", {
+  jamId: integer("jam_id")
+    .primaryKey()
+    .references(() => itchJams.jamId, { onDelete: "cascade" }),
+  bannerUrl: text("banner_url"),
+  bannerStatus: text("banner_status").$type<ScanCoverStatus>().notNull().default("fetched"),
+  bannerPhash: text("banner_phash"),
+  nsfwScore: real("nsfw_score"),
+  bannerEmbedding: bytea("banner_embedding"),
+  embeddingModel: text("embedding_model"),
+  detectorVersion: integer("detector_version").notNull(),
+  scannedAt: timestamp("scanned_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Liveness for the resident workers' loops: one row per crawler tier and
+ * one for the media-scan reconciler. `nextRunAt` is the tier loop's
+ * persisted schedule (so a redeploy resumes the cadence instead of firing
+ * everything at boot); the rest is what an alert on a stale heartbeat
+ * reads. The cron services this replaced had no failure signal at all.
+ */
+export const itchTierHeartbeats = itchSchema.table("tier_heartbeats", {
+  tier: text("tier").primaryKey(),
+  nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+  lastStartedAt: timestamp("last_started_at", { withTimezone: true }),
+  lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const itchScrapeCursors = itchSchema.table("scrape_cursors", {
   name: text("name").primaryKey(),
@@ -1556,7 +1605,10 @@ export type ModerationActionType =
   | "moderation_proposal_rejected"
   | "profile_updated"
   | "entry_flag_confirmed"
-  | "entry_flag_dismissed";
+  | "entry_flag_dismissed"
+  | "image_flag_confirmed"
+  | "image_flag_dismissed"
+  | "image_rescan_requested";
 
 export type ModerationTargetType =
   | "comment"
@@ -1571,7 +1623,8 @@ export type ModerationTargetType =
   | "team"
   | "team_report"
   | "moderation_proposal"
-  | "jam_entry";
+  | "jam_entry"
+  | "stored_image";
 
 export const moderationActions = socialSchema.table(
   "moderation_actions",
@@ -1652,5 +1705,102 @@ export const moderationProposals = socialSchema.table(
       .on(t.targetType, t.targetId, t.action)
       .where(sql`${t.status} = 'pending'`),
     index("moderation_proposals_status_idx").on(t.status, t.createdAt.desc()),
+  ],
+);
+
+// ── Uploaded-image moderation (media + social schemas) ──────────────────────
+
+export type ImageOwnerType =
+  | "team_avatar"
+  | "team_banner"
+  | "collab_post_image"
+  | "project_cover"
+  | "profile_project_image"
+  | "team_project_image";
+
+/**
+ * `pending` — row minted at upload, not yet scanned. `scanned` — fingerprinted
+ * and scored, live. `quarantined` — auto-hidden: detached from its owner row
+ * and moved under the bucket's `quarantine/` prefix, awaiting a human.
+ * `cleared` — a human dismissed the flag; the image is live again and a
+ * rescan must never re-quarantine it. `purged` — a human confirmed; the
+ * object is gone and the row is the record that it existed.
+ */
+export type ImageScanStatus = "pending" | "scanned" | "quarantined" | "cleared" | "purged";
+
+/**
+ * The upload twin of `itch.entry_scans`: one row per object our upload
+ * handlers mint, keyed by the MinIO key. Keys are nanoid-unique and never
+ * rewritten, so a row is the scan of exactly one image forever — a
+ * replacement is a new key and a new row. Detection state lives here and
+ * never as columns on `teams`, `collab_post_images`, or the project rows
+ * (the `entry_scans` ownership rule). Owner type and id are denormalized
+ * from the key prefix at upload so the queue never parses keys.
+ */
+export const imageScans = mediaSchema.table(
+  "image_scans",
+  {
+    objectKey: text("object_key").primaryKey(),
+    ownerType: text("owner_type").$type<ImageOwnerType>().notNull(),
+    ownerId: text("owner_id").notNull(),
+    uploaderId: text("uploader_id").references(() => user.id, { onDelete: "set null" }),
+    phash: text("phash"),
+    nsfwScore: real("nsfw_score"),
+    embedding: bytea("embedding"),
+    embeddingModel: text("embedding_model"),
+    // 0 until the first scan; the reconciler treats anything behind the
+    // worker's constant as due, which is also how a staff rescan works.
+    detectorVersion: integer("detector_version").notNull().default(0),
+    status: text("status").$type<ImageScanStatus>().notNull().default("pending"),
+    // Every row that referenced the key when it was quarantined, so a
+    // dismiss can put the image back where it was (shape: image-quarantine.ts).
+    detached: jsonb("detached").$type<Record<string, unknown>>(),
+    scannedAt: timestamp("scanned_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    // "Everything on this team", and the reconciler's sweep for pending rows.
+    index("image_scans_owner_idx").on(t.ownerType, t.ownerId),
+    index("image_scans_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * `entry_flags` for uploads. A separate table rather than a polymorphic
+ * `entry_flags`: that one has a hard FK to `jam_entries` the admin queue
+ * leans on, and the two resolve differently — an upload flag resolves into
+ * a purge or a restore of our own object, an entry flag into a note about
+ * someone else's site.
+ */
+export const imageFlags = socialSchema.table(
+  "image_flags",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    objectKey: text("object_key")
+      .notNull()
+      .references(() => imageScans.objectKey, { onDelete: "cascade" }),
+    ownerType: text("owner_type").$type<ImageOwnerType>().notNull(),
+    ownerId: text("owner_id").notNull(),
+    uploaderId: text("uploader_id").references(() => user.id, { onDelete: "set null" }),
+    kind: text("kind").$type<EntryFlagKind>().notNull(),
+    source: text("source").$type<EntryFlagSource>().notNull().default("auto"),
+    score: real("score"),
+    evidence: jsonb("evidence")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    status: text("status").$type<EntryFlagStatus>().notNull().default("open"),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // Same idempotence as entry_flags: a re-scan refreshes the open flag,
+    // resolved rows stay as the "already ruled" memory.
+    uniqueIndex("image_flags_open_kind_uidx")
+      .on(t.objectKey, t.kind)
+      .where(sql`${t.status} = 'open'`),
+    index("image_flags_owner_idx").on(t.ownerType, t.ownerId),
+    index("image_flags_status_idx").on(t.status, t.createdAt.desc()),
   ],
 );

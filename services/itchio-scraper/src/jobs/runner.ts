@@ -1,18 +1,24 @@
 import { createServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { pool } from "../db/client.ts";
 import { describeError, sleep } from "../http.ts";
+import { closeQueue } from "../queue.ts";
+import { disconnectRedis } from "../redis.ts";
 import { syncJam } from "./sync-jam.ts";
+import type { TierOutcome } from "./tier-loop.ts";
 
 /**
- * Shared scaffolding for the cron tiers (live / discovery / results).
+ * Shared scaffolding for the tiers (live / discovery / results / library /
+ * sweep). Every tier wants the same things and used to hand-roll them:
+ * finish the jam in flight when the platform sends SIGTERM, stop at a
+ * deadline so work is chunked, and — for the one-shot dev entrypoints —
+ * tear the pool down exactly once so a finished run actually exits.
  *
- * Every tier wants the same three things and used to hand-roll all of them:
- * finish the jam in flight when the platform sends SIGTERM, stop before the
- * next tick would overlap this one, and tear the pool down exactly once so a
- * finished run actually exits.
+ * In production the tiers run inside the crawler's loop (tier-loop.ts),
+ * which hands each one a gate; `runTier` is the local `bun run live` path.
  */
 
 export { sleep };
+export type { TierOutcome };
 
 export type StopGate = {
   /** The reason to stop now, or null to keep going. */
@@ -28,14 +34,11 @@ type StopGateOptions = {
 /**
  * Signal- and deadline-aware stop condition.
  *
- * The deadline is what keeps tiers from colliding. Railway skips a cron tick
- * while the previous run of *that service* is still going, so a slow tier
- * starves only itself — but three services now share one itch.io rate budget,
- * and a live run that overruns its hour lands on top of the next discovery
- * tick. Bounding each run keeps the stagger in the cron schedules meaningful.
- *
- * Work is never lost by stopping early: every tier's progress is persisted
- * (`scraped_at`, `results_fetched_at`), so the next tick resumes from it.
+ * The deadline is what chunks a tier's work: inside the crawler loop it is
+ * one turn, and a tier that stops at it resumes on a later turn unless
+ * something more urgent is due. Work is never lost by stopping early: every
+ * tier's progress is persisted (`scraped_at`, `results_fetched_at`, the
+ * sweep cursor), so the next turn resumes from it.
  */
 export function createStopGate(
   label: string,
@@ -144,29 +147,36 @@ export async function syncSlugs(
 }
 
 /**
- * Runs a tier's main function as a one-shot cron process: times it and closes
- * the pool.
+ * Runs a tier's main function as a one-shot process — the local dev
+ * entrypoint (`bun run live`): times it and closes the pool.
  *
- * `main` returns the number of failures (0 for a clean run), which is reported
- * but deliberately does *not* fail the process. A handful of jams itch refused
+ * `main` reports its failures (0 for a clean run), which is logged but
+ * deliberately does *not* fail the process. A handful of jams itch refused
  * — after the retry pass has already had a go at them — is the normal steady
- * state, not a broken tick: the work is resumable, so the next tick picks them
- * up. Exiting non-zero for it only made every Railway run red, which is worse
- * than no signal at all. A thrown error still exits 1: that means the tick
- * couldn't run, which is a real alert.
+ * state, not a broken run: the work is resumable, so the next run picks them
+ * up. A thrown error still exits 1: that means the run couldn't happen,
+ * which is a real alert.
  */
-export async function runTier(label: string, main: () => Promise<number>): Promise<void> {
+export async function runTier(
+  label: string,
+  main: () => Promise<number | TierOutcome>,
+): Promise<void> {
   const telemetry = createServiceTelemetry("itchio-scraper");
   const started = Date.now();
   try {
-    const failures = await main();
+    const out = await main();
+    const outcome: TierOutcome = typeof out === "number" ? { failed: out, complete: true } : out;
     const mins = ((Date.now() - started) / 60_000).toFixed(1);
-    console.log(`[${label}] tick finished in ${mins}m — failures=${failures}`);
+    console.log(
+      `[${label}] run finished in ${mins}m — failures=${outcome.failed}${outcome.complete ? "" : " (stopped early)"}`,
+    );
   } catch (err) {
     console.error(`[${label}] fatal: ${describeError(err)}`);
     telemetry.captureException(err, { tier: label });
     process.exitCode = 1;
   } finally {
+    await closeQueue();
+    disconnectRedis();
     await pool.end().catch(() => {});
     // `process.exitCode` (not `exit()`) above, so the runtime drains this
     // before leaving — but only because the await is inside the finally.

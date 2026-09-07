@@ -1,0 +1,23 @@
+# Config-as-code for the MEDIA-SCAN service — the image-moderation worker
+# (plan 27). One resident process with the SigLIP2 model loaded once,
+# consuming the `media-scan` BullMQ queue: entry covers and jam banners the
+# crawler observed, uploads the web app just stored, and whatever the
+# hourly reconciler finds due in the DB. What it finds lands in
+# social.entry_flags and social.image_flags for the /admin queues; the one
+# automatic action is the upload quarantine (UPLOAD_QUARANTINE_THRESHOLD).
+#
+# Create a service pointing at this repo, leave Root Directory blank (the
+# Dockerfile builds from the repo root so it can copy src/db/schema.ts), set
+# "Config file path" to services/media-scan/railway.toml, and reference the
+# shared DATABASE_URL, REDIS_URL, and MINIO_* variables. Resident, not cron:
+# a redeploy drains the job in flight and BullMQ hands the rest to the new
+# container. A second instance against the same Redis is the multi-machine
+# backfill recipe.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/media-scan/Dockerfile"
+
+[deploy]
+startCommand = "bun run start"
+restartPolicyType = "ALWAYS"

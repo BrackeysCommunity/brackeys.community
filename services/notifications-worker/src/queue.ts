@@ -14,6 +14,8 @@ export const publisher = createBullRedis(config.REDIS_URL);
 export { NOTIFICATIONS_QUEUE };
 export const EMAIL_QUEUE = "email";
 
+/** Producer handle on our own queue: the repeatable jobs, and the sweep's notifications. */
+export const notificationsQueue = new Queue(NOTIFICATIONS_QUEUE, { connection: redis });
 export const emailQueue = new Queue(EMAIL_QUEUE, { connection: redis });
 
 export type NotificationSideEffectsJob = { notificationId: number };

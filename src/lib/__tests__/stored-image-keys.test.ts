@@ -6,6 +6,7 @@ import {
   buildProjectImageObjectKey,
   buildTeamAvatarObjectKey,
   buildTeamProjectImageObjectKey,
+  describeImageKey,
   isCollabPostImageKey,
   isServableImageKey,
   isTeamProjectImageKey,
@@ -73,5 +74,40 @@ describe("uploadedImageUrlSchema", () => {
     expect(uploadedImageUrlSchema.safeParse("/etc/passwd").success).toBe(false);
     expect(uploadedImageUrlSchema.safeParse("images/x.png").success).toBe(false);
     expect(uploadedImageUrlSchema.safeParse("").success).toBe(false);
+  });
+});
+
+describe("describeImageKey", () => {
+  it("reads the owner type and id off every builder's prefix", () => {
+    expect(describeImageKey(buildProfileProjectImageObjectKey("user1", "a.png"))).toEqual({
+      ownerType: "profile_project_image",
+      ownerId: "user1",
+    });
+    expect(describeImageKey(buildTeamAvatarObjectKey("team1", "a.png"))).toEqual({
+      ownerType: "team_avatar",
+      ownerId: "team1",
+    });
+    expect(describeImageKey("team-banners/team1/x-banner.png")).toEqual({
+      ownerType: "team_banner",
+      ownerId: "team1",
+    });
+    expect(describeImageKey(buildProjectImageObjectKey("proj1", "a.png"))).toEqual({
+      ownerType: "project_cover",
+      ownerId: "proj1",
+    });
+    expect(describeImageKey(buildCollabPostImageObjectKey(42, "a.png"))).toEqual({
+      ownerType: "collab_post_image",
+      ownerId: "42",
+    });
+    expect(describeImageKey(buildTeamProjectImageObjectKey("team1", "a.png"))).toEqual({
+      ownerType: "team_project_image",
+      ownerId: "team1",
+    });
+  });
+
+  it("returns null outside the upload namespaces", () => {
+    expect(describeImageKey("quarantine/team-avatars/team1/a.png")).toBeNull();
+    expect(describeImageKey("backups/db.sql")).toBeNull();
+    expect(describeImageKey("team-avatars/../a.png")).toBeNull();
   });
 });

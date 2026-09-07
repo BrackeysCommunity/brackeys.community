@@ -2,8 +2,11 @@
 
 Long-lived Railway service that consumes BullMQ jobs enqueued by the main
 brackeys web app. It runs notification side-effects (in-app row enrichment,
-SSE broadcast in Phase 9, email delivery in Phase 10) and the weekly digest
-cron.
+SSE broadcast, email delivery) and owns the app's repeatable jobs: the
+weekly digest and the lifecycle sweep (expiring collab posts, warning and
+archiving quiet never-shipped teams, jam-phase pings for watchers — what
+`services/lifecycle-sweep` did as a 6-hourly cron until plan 27 folded it in
+here).
 
 ## Why a separate service
 
@@ -20,10 +23,10 @@ applied via the same `drizzle-kit` flow as the rest of the app.
 
 ## Queues
 
-| Queue           | Job names                        | Source                                     |
-| --------------- | -------------------------------- | ------------------------------------------ |
-| `notifications` | `side_effects`, `weekly_digests` | Web app `notify()` helper; repeatable cron |
-| `email`         | (default)                        | The notifications worker (Phase 10)        |
+| Queue           | Job names                                           | Source                                                        |
+| --------------- | --------------------------------------------------- | ------------------------------------------------------------- |
+| `notifications` | `side_effects`, `weekly_digests`, `lifecycle_sweep` | Web app `notify()` helper; repeatable jobs registered at boot |
+| `email`         | (default)                                           | The notifications worker (Phase 10)                           |
 
 ## Railway setup
 
@@ -34,7 +37,8 @@ applied via the same `drizzle-kit` flow as the rest of the app.
    (also set in `railway.toml`).
 4. **Long-lived, not cron** — the `restartPolicy=ALWAYS` keeps the workers
    resident so they can pick up jobs the moment they're enqueued. Weekly
-   digests are scheduled via a BullMQ repeatable job registered at boot.
+   digests (Mondays 14:00 UTC) and the lifecycle sweep (every 6h) are BullMQ
+   repeatable jobs registered at boot with stable ids.
 5. **Environment variables** — see [`.env.example`](./.env.example):
    - `DATABASE_URL` — reference the Railway Postgres service variable
    - `REDIS_URL` — reference the Railway Redis service variable

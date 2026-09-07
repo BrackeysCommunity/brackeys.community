@@ -4,6 +4,7 @@ import {
   CheckListIcon,
   EyeIcon,
   Flag02Icon,
+  Image01Icon,
   PinIcon,
   ScrollIcon,
   StarIcon,
@@ -21,6 +22,7 @@ import { AdminBans } from "@/components/admin/AdminBans";
 import { AdminEntryFlags } from "@/components/admin/AdminEntryFlags";
 import { AdminFeatured } from "@/components/admin/AdminFeatured";
 import { AdminHeroJam } from "@/components/admin/AdminHeroJam";
+import { AdminImageFlags } from "@/components/admin/AdminImageFlags";
 import { AdminLog } from "@/components/admin/AdminLog";
 import { AdminProposals } from "@/components/admin/AdminProposals";
 import { AdminRecentComments } from "@/components/admin/AdminRecentComments";
@@ -45,6 +47,7 @@ const searchSchema = z.object({
     .enum([
       "reports",
       "entry-flags",
+      "image-flags",
       "proposals",
       "comments",
       "teams",
@@ -63,6 +66,7 @@ type View = z.infer<typeof searchSchema>["section"];
 const SECTIONS: readonly View[] = [
   "reports",
   "entry-flags",
+  "image-flags",
   "proposals",
   "comments",
   "teams",
@@ -77,6 +81,7 @@ const SECTIONS: readonly View[] = [
 const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgElement }> = {
   reports: { label: "Reports", hint: "Flagged posts, comments, teams", icon: Flag02Icon },
   "entry-flags": { label: "Entry flags", hint: "Scanner detections to review", icon: EyeIcon },
+  "image-flags": { label: "Upload flags", hint: "Flagged member uploads", icon: Image01Icon },
   proposals: { label: "Proposals", hint: "Mod edits awaiting an admin", icon: CheckListIcon },
   comments: { label: "Comments", hint: "Newest across the site", icon: BubbleChatIcon },
   teams: { label: "Teams", hint: "Directory, hide, delete", icon: UserGroupIcon },
@@ -139,6 +144,11 @@ function useQueueCounts(): Partial<Record<View, number>> {
       input: { includeResolved: false, jamScope: "live", page: 1, pageSize: 20 },
     }),
   );
+  const imageFlags = useQuery(
+    orpc.listImageFlags.queryOptions({
+      input: { includeResolved: false, page: 1, pageSize: 20 },
+    }),
+  );
 
   const open =
     (commentReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
@@ -148,6 +158,7 @@ function useQueueCounts(): Partial<Record<View, number>> {
   return {
     reports: open,
     "entry-flags": entryFlags.data?.flagCount ?? 0,
+    "image-flags": imageFlags.data?.total ?? 0,
     proposals: pendingProposals.data?.total ?? 0,
     skills: skillRequests.data?.total ?? 0,
   };
@@ -256,6 +267,7 @@ function AdminPane({ section, isAdmin }: { section: View; isAdmin: boolean }) {
     >
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
       {section === "entry-flags" && <AdminEntryFlags />}
+      {section === "image-flags" && <AdminImageFlags />}
       {section === "proposals" && <AdminProposals isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
       {section === "teams" && <AdminTeams isAdmin={isAdmin} />}

@@ -15,5 +15,5 @@ export default defineConfig({
   // list keeps `introspect`/`pull`/`push` from reporting its tables as
   // drift (`generate` derives its schemas from the definitions themselves,
   // and `src/db/hammer.ts` sits outside the `schema` path above).
-  schemaFilter: ["public", "auth", "user", "collab", "team", "itch", "project", "social"],
+  schemaFilter: ["public", "auth", "user", "collab", "team", "itch", "project", "social", "media"],
 });

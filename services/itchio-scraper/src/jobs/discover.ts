@@ -5,11 +5,11 @@ import {
   discoverRecentlyEndedSlugs,
   discoverUpcomingSlugs,
 } from "../scrape/discover-listings.ts";
-import { createStopGate, runTier, syncSlugs } from "./runner.ts";
+import { createStopGate, runTier, type StopGate, syncSlugs, type TierOutcome } from "./runner.ts";
 import { persistedSlugs, scannedJamSlugs, upcomingJamSlugs } from "./selectors.ts";
 
 /**
- * DISCOVERY tier — every 4 hours, offset from the live tier.
+ * DISCOVERY tier — every DISCOVERY_INTERVAL_MINS (4 hours).
  *
  * Walks itch's jam listings and ingests every jam we don't already hold,
  * then spends a small fixed budget refreshing announced-but-not-started jams.
@@ -29,7 +29,7 @@ import { persistedSlugs, scannedJamSlugs, upcomingJamSlugs } from "./selectors.t
  *
  * Env knobs (all optional):
  *   DISCOVERY_DELAY_MS         pause between jams (default: 250)
- *   DISCOVERY_DEADLINE_MINS    stop mid-list after this long (default: 25)
+ *   DISCOVERY_DEADLINE_MINS    one-shot runs: stop mid-list after this long (default: 25)
  *   DISCOVERY_UPCOMING_LIMIT   upcoming jams refreshed per tick (default: 50)
  */
 
@@ -43,8 +43,8 @@ async function listing(label: string, walk: () => Promise<string[]>): Promise<st
   }
 }
 
-export async function runDiscovery(): Promise<number> {
-  const gate = createStopGate("discover", config.DISCOVERY_DEADLINE_MINS);
+export async function runDiscovery(stopGate?: StopGate): Promise<TierOutcome> {
+  const gate = stopGate ?? createStopGate("discover", config.DISCOVERY_DEADLINE_MINS);
 
   const walks: { label: string; run: () => Promise<string[]> }[] = [
     { label: "/jams/upcoming", run: discoverUpcomingSlugs },
@@ -137,9 +137,12 @@ export async function runDiscovery(): Promise<number> {
     );
   }
 
-  return listingFailures + newJams.failed + refreshed.failed;
+  return {
+    failed: listingFailures + newJams.failed + refreshed.failed,
+    complete: !newJams.stoppedEarly && !refreshed.stoppedEarly,
+  };
 }
 
 if (import.meta.main) {
-  await runTier("discover", runDiscovery);
+  await runTier("discover", () => runDiscovery());
 }

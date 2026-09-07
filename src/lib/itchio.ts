@@ -1,6 +1,6 @@
 /**
  * Shared itch.io API client, used by the app (router, library sync) and by
- * the itchio-library-sync cron service — which imports this file relatively
+ * the itchio-scraper crawler's library tier — which imports this file relatively
  * and is copied into its Docker image, so it must stay dependency-free: no
  * `@/` aliases, no env access, nothing outside this module.
  */
@@ -69,10 +69,12 @@ export class ItchApiError extends Error {
 }
 
 export interface ItchApiOptions {
-  /** The cron sweep passes its own configured UA; the app default follows
+  /** The crawler passes its own configured UA; the app default follows
    * the "identify yourself" convention itch asks of API consumers. */
   userAgent?: string;
   timeoutMs?: number;
+  /** The crawler routes API calls through its per-host pacer this way. */
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
 }
 
 export async function itchApiFetch<T>(
@@ -80,7 +82,8 @@ export async function itchApiFetch<T>(
   accessToken: string,
   opts?: ItchApiOptions,
 ): Promise<T> {
-  const res = await fetch(`${ITCHIO_API_BASE}${endpoint}`, {
+  const doFetch = opts?.fetch ?? ((url: string, init: RequestInit) => fetch(url, init));
+  const res = await doFetch(`${ITCHIO_API_BASE}${endpoint}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "User-Agent": opts?.userAgent ?? DEFAULT_USER_AGENT,

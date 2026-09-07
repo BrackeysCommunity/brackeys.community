@@ -5,7 +5,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
  * visibility kept in step with itch.io).
  *
  * Called from two places: the explicit "Import games" ORPC route, and
- * (re-implemented against its own client) the itchio-library-sync cron
+ * (re-implemented against its own client) the crawler's library tier
  * service, which is what keeps libraries fresh without anyone asking.
  */
 

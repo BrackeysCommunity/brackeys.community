@@ -6,9 +6,11 @@ import {
   itchJams,
   itchMissingJams,
 } from "../../../../src/db/schema.ts";
+import { itchImageId } from "../../../../src/lib/media-scan-queue.ts";
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
 import { describeError, isNotFound } from "../http.ts";
+import { emitBannerScan, emitEntryScans } from "../queue.ts";
 import { fetchJamEntries, type ItchEntry } from "../scrape/entries.ts";
 import { scrapeJamPage, type ScrapedJam } from "../scrape/jam-page.ts";
 import { scrapeRatePage } from "../scrape/rate-page.ts";
@@ -38,6 +40,12 @@ export async function upsertJam(jam: ScrapedJam) {
     .select({ jamId: itchJams.jamId })
     .from(itchJams)
     .where(and(eq(itchJams.slug, jam.slug), ne(itchJams.jamId, jam.jamId)));
+  // What banner we held before the upsert, so a changed one (by image id,
+  // not URL — derivatives differ) is handed to the media-scan worker.
+  const [held] = await db
+    .select({ bannerUrl: itchJams.bannerUrl })
+    .from(itchJams)
+    .where(eq(itchJams.jamId, jam.jamId));
   if (stale) {
     const parkedSlug = displacedSlug(jam.slug, stale.jamId);
     await db
@@ -92,6 +100,9 @@ export async function upsertJam(jam: ScrapedJam) {
         updatedAt: now,
       },
     });
+  if (jam.bannerUrl && (!held || itchImageId(held.bannerUrl) !== itchImageId(jam.bannerUrl))) {
+    emitBannerScan(jam.jamId, jam.bannerUrl);
+  }
 }
 
 export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
@@ -99,6 +110,23 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
   const now = new Date();
   // Batch to keep Postgres parameter count comfortable (~20 cols * 500 rows).
   for (const batch of chunk(entries, 500)) {
+    // Covers we already hold for this batch, read before the upsert so the
+    // ones that changed image (or are new) can be handed to the media-scan
+    // worker. Comparison is by image id: the entries.json derivative URL
+    // differs from data.json's for the very same picture.
+    const held = new Map(
+      (
+        await db
+          .select({ entryId: itchJamEntries.entryId, gameCoverUrl: itchJamEntries.gameCoverUrl })
+          .from(itchJamEntries)
+          .where(
+            inArray(
+              itchJamEntries.entryId,
+              batch.map((e) => e.entryId),
+            ),
+          )
+      ).map((r) => [r.entryId, r.gameCoverUrl]),
+    );
     await db
       .insert(itchJamEntries)
       .values(
@@ -145,6 +173,12 @@ export async function upsertEntries(jamId: number, entries: ItchEntry[]) {
           updatedAt: now,
         },
       });
+    emitEntryScans(
+      batch.filter(
+        (e) =>
+          !held.has(e.entryId) || itchImageId(held.get(e.entryId)) !== itchImageId(e.gameCoverUrl),
+      ),
+    );
   }
 }
 

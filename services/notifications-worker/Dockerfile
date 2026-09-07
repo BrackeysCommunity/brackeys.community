@@ -19,7 +19,9 @@ COPY services/notifications-worker/src ./services/notifications-worker/src
 # The worker imports the shared drizzle schema, notification-copy
 # helpers, and unsubscribe-token helper from the main app so that
 # schema, default prefs, email headline text, and one-click-unsub
-# token logic all live in a single source of truth.
+# token logic all live in a single source of truth. This list is the
+# service's whole view of the repo root: anything src/ reaches through
+# `../../../src/` has to be here or the container dies on start.
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/db/service-client.ts ./src/db/service-client.ts
 COPY src/lib/service-config.ts ./src/lib/service-config.ts
@@ -34,6 +36,11 @@ COPY src/lib/email.ts ./src/lib/email.ts
 COPY src/lib/email-utm.ts ./src/lib/email-utm.ts
 COPY src/emails ./src/emails
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
+# The lifecycle sweep (tasks/lifecycle-sweep.ts): the same day-count
+# constants the app's write paths stamp with, and the jam-watch pass.
+COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
+COPY src/lib/jam-watch.ts ./src/lib/jam-watch.ts
+COPY src/lib/jam-watch-sweep.ts ./src/lib/jam-watch-sweep.ts
 
 RUN ln -s /app/services/notifications-worker/node_modules /app/node_modules
 

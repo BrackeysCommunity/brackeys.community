@@ -1,22 +1,29 @@
-import { Queue, Worker } from "bullmq";
+import { Worker } from "bullmq";
 
 import { createServiceTelemetry } from "../../../src/lib/service-telemetry.ts";
 import { config } from "./config.ts";
 import { pool } from "./db/client.ts";
-import { EMAIL_QUEUE, NOTIFICATIONS_QUEUE, publisher, redis, type SendEmailJob } from "./queue.ts";
+import {
+  EMAIL_QUEUE,
+  NOTIFICATIONS_QUEUE,
+  notificationsQueue,
+  publisher,
+  redis,
+  type SendEmailJob,
+} from "./queue.ts";
+import { handleLifecycleSweep } from "./tasks/lifecycle-sweep.ts";
 import { handleSideEffects } from "./tasks/notification-side-effects.ts";
 import { handleSendEmail } from "./tasks/send-email.ts";
 import { handleWeeklyDigests } from "./tasks/send-weekly-digests.ts";
 
 const telemetry = createServiceTelemetry("notifications-worker");
 
-const notificationsQueue = new Queue(NOTIFICATIONS_QUEUE, { connection: redis });
-
 const notificationsWorker = new Worker(
   NOTIFICATIONS_QUEUE,
   async (job) => {
     if (job.name === "side_effects") return handleSideEffects(job.data);
     if (job.name === "weekly_digests") return handleWeeklyDigests();
+    if (job.name === "lifecycle_sweep") return handleLifecycleSweep();
     console.warn("[notifications] unknown job", { name: job.name });
   },
   { connection: redis, concurrency: config.NOTIFICATIONS_CONCURRENCY },
@@ -39,14 +46,29 @@ for (const w of [notificationsWorker, emailWorker]) {
   });
 }
 
-// Repeatable job for weekly digests (Mondays 14:00 UTC). Stable jobId
-// prevents BullMQ from registering duplicate schedulers across redeploys.
+// Repeatable jobs. Stable jobIds prevent BullMQ from registering duplicate
+// schedulers across redeploys.
+//
+// Weekly digests: Mondays 14:00 UTC.
 await notificationsQueue.add(
   "weekly_digests",
   {},
   {
     repeat: { pattern: "0 14 * * 1", tz: "UTC" },
     jobId: "weekly_digests",
+  },
+);
+// Lifecycle sweep: every 6h, not daily. Most of its steps watch for a
+// *persisting* condition and can only ever run late, but three watch for a
+// condition inside a *window* — narrowest is `jam_voting_open`, between a
+// jam's `ends_at` and `voting_ends_at`, which the host picks. 6h catches
+// anything down to a 6h window. Safe this often: every step is idempotent.
+await notificationsQueue.add(
+  "lifecycle_sweep",
+  {},
+  {
+    repeat: { pattern: "0 */6 * * *", tz: "UTC" },
+    jobId: "lifecycle_sweep",
   },
 );
 

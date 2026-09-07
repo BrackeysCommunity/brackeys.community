@@ -2,7 +2,7 @@
  * Canonical-project writes, bound to the app's database.
  *
  * The implementations live in `project-sync.ts`, which takes the drizzle
- * handle as an argument and never imports `@/db` — the `itchio-library-sync`
+ * handle as an argument and never imports `@/db` — the `itchio-scraper` crawler's library tier
  * cron service runs its own copy of the sync orchestration against its own
  * client and imports that module directly. This file is the app-side
  * convenience layer: same functions, `db` already applied.

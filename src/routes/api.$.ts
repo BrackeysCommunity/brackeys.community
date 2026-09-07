@@ -267,6 +267,7 @@ const handleTeamAvatarUpload = withImageUpload(
     if (kind === "project") {
       const uploaded = await uploadImageToStorage({
         file: image,
+        uploaderId: session.user.id,
         objectKey: buildTeamProjectImageObjectKey(teamId, image.name),
       });
       return Response.json(uploaded, { status: 201 });
@@ -274,6 +275,7 @@ const handleTeamAvatarUpload = withImageUpload(
 
     const uploaded = await uploadImageToStorage({
       file: image,
+      uploaderId: session.user.id,
       objectKey:
         kind === "banner"
           ? buildTeamBannerObjectKey(teamId, image.name)
@@ -337,6 +339,7 @@ const handleProjectImageUpload = withImageUpload(
 
     const uploaded = await uploadImageToStorage({
       file: image,
+      uploaderId: session.user.id,
       objectKey: buildProjectImageObjectKey(projectId, image.name),
     });
 
@@ -388,6 +391,7 @@ const handleCollabPostImageUpload = withImageUpload(
 
     const uploaded = await uploadImageToStorage({
       file: image,
+      uploaderId: session.user.id,
       objectKey: buildCollabPostImageObjectKey(postId, image.name),
     });
 

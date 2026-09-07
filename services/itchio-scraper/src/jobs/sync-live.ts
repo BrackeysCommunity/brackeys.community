@@ -1,9 +1,10 @@
 import { config } from "../config.ts";
-import { createStopGate, runTier, syncSlugs } from "./runner.ts";
+import { createStopGate, runTier, type StopGate, syncSlugs, type TierOutcome } from "./runner.ts";
 import { openJamSlugs } from "./selectors.ts";
 
 /**
- * LIVE tier — hourly. The only perishable work the scraper does.
+ * LIVE tier — every LIVE_INTERVAL_MINS. The only perishable work the
+ * crawler does.
  *
  * Re-syncs every jam that has started and hasn't finished: ~280 jams taking
  * submissions or in voting. Each costs a jam-page fetch plus an entries.json
@@ -17,36 +18,36 @@ import { openJamSlugs } from "./selectors.ts";
  *
  * Flipping a jam to `over` is also this tier's job — the selector is keyed on
  * dates rather than status, so a jam whose deadline passed is re-scraped, its
- * status corrected, and it becomes visible to the results tier within an hour
- * of finishing rather than at the next midnight.
+ * status corrected, and it becomes visible to the results tier within one
+ * interval of finishing.
  *
  *   bun run live
  *
  * Env knobs (all optional):
  *   LIVE_DELAY_MS       pause between jams (default: 250)
- *   LIVE_DEADLINE_MINS  stop mid-list after this long (default: 45)
+ *   LIVE_DEADLINE_MINS  one-shot runs: stop mid-list after this long (default: 45)
  */
 
-export async function runLive(): Promise<number> {
-  const gate = createStopGate("live", config.LIVE_DEADLINE_MINS);
+export async function runLive(gate?: StopGate): Promise<TierOutcome> {
+  const stopGate = gate ?? createStopGate("live", config.LIVE_DEADLINE_MINS);
 
   const slugs = await openJamSlugs();
   console.log(`[live] ${slugs.length} open jams to re-sync`);
-  if (slugs.length === 0) return 0;
+  if (slugs.length === 0) return { failed: 0, complete: true };
 
   const { done, failed, stoppedEarly } = await syncSlugs("live", slugs, {
     delayMs: config.LIVE_DELAY_MS,
-    gate,
+    gate: stopGate,
   });
 
   console.log(
     `[live] synced ${done}/${slugs.length} jams, failed=${failed}${
-      stoppedEarly ? ` (stopped early: ${stoppedEarly} — next tick resumes)` : ""
+      stoppedEarly ? ` (stopped early: ${stoppedEarly} — next turn resumes)` : ""
     }`,
   );
-  return failed;
+  return { failed, complete: !stoppedEarly };
 }
 
 if (import.meta.main) {
-  await runTier("live", runLive);
+  await runTier("live", () => runLive());
 }

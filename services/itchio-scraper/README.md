@@ -1,46 +1,51 @@
-# itch.io Scraper — Railway Deployment
+# itch.io Crawler — Railway Deployment
 
-Railway cron jobs that scrape itch.io jam data (metadata, entries,
-per-submission rankings) and sync it into the main brackeys Postgres DB.
+One resident Railway service that scrapes itch.io jam data (metadata,
+entries, per-submission rankings), keeps linked members' itch libraries in
+sync, and syncs it all into the main brackeys Postgres DB.
 
-The scrape runs as **four independent cron services**, split by how
-perishable their work is. They build the same image from the same Dockerfile
-and share one config module and one set of scrapers — only the entrypoint and
-the schedule differ.
+Every scrape tier runs from **one priority loop** in one process
+([src/crawler.ts](./src/crawler.ts), [src/jobs/tier-loop.ts](./src/jobs/tier-loop.ts)).
+They were five cron services (plus a sixth for the library sync) until plan
+27: the itch rate pacer was per-process, so the only thing keeping six
+processes from multiplying the request rate was that their cron minutes
+didn't overlap. Now the pacer lives in Redis, per host, shared with the
+media-scan worker, and the tiers can interleave however they like.
 
-| Tier          | Schedule        | Measured tick  | Command            | Works                                                   |
-| ------------- | --------------- | -------------- | ------------------ | ------------------------------------------------------- |
-| **live**      | `:00` / `:30`   | 8–9 min        | `bun run live`     | jams that have started and haven't finished (~285)      |
-| **discovery** | 4-hourly, `:20` | ~1–2 min       | `bun run discover` | the listing walks, jams we don't hold, upcoming refresh |
-| **results**   | 6-hourly, `:40` | backlog-driven | `bun run results`  | ranking collection for finished jams                    |
-| **scan**      | hourly, `:10`   | batch-capped   | `bun run scan`     | cover hashing, NSFW scoring, theft matching (plan 22)   |
+| Tier             | Priority | Interval             | Works                                                                                   |
+| ---------------- | -------- | -------------------- | --------------------------------------------------------------------------------------- |
+| **live**         | 1        | 15 min               | jams that have started and haven't finished (~285): jam page + entries.json             |
+| **jam-backfill** | 2        | 15 min               | DB-only: linked members' jam entries → `profile_projects`, converged onto projects      |
+| **discovery**    | 3        | 4 h                  | the listing walks, jams we don't hold, upcoming refresh                                 |
+| **results**      | 4        | 6 h                  | ranking collection for finished jams (backlog-driven)                                   |
+| **library**      | 5        | 1 h                  | linked accounts: identity refresh, API library sync, restricted probe + jam-banner scan |
+| **sweep**        | 6        | continuous when idle | the jam-id sweep, until the cursor reaches the frontier; then 6-hourly                  |
 
-The scan tier is the odd one out: it reads entries the other tiers already
-persisted, fetches only cover images (from itch's image CDN, still through
-the shared pacer), and writes detection state — `itch.entry_scans`
-bookkeeping plus `social.entry_flags` rows for the site's `/admin`
-entry-flags queue. Its NSFW classifier weights are baked into the Docker
-image at build time (`src/scan/warm-nsfw.ts`), so a cron container never
-downloads models at start.
+Each turn runs the highest-priority due tier under a **chunk** deadline
+(`CRAWLER_CHUNK_MINS`, default 10) rather than a cron slot. A tier that
+finishes its list is re-armed on its interval; one that stops at the chunk
+stays due and continues next turn — unless something higher-priority became
+due meanwhile, which then runs first. That is what makes live's 15-minute
+interval honest: results can hold hours of backlog and never delay live by
+more than one chunk.
 
-Live is the only tier with a meaningful runtime, and it drives the schedule:
-a full pass over all ~285 open jams takes 8–9 minutes (including one itch 429
-and its 60s pool cooldown), which fits the half-hour slot with room to spare
-and leaves `:20` clear for discovery. Running it faster than every 30 minutes
-means moving discovery — at `*/15` the live ticks occupy `:00-:09`, `:15-:24`,
-`:30-:39`, `:45-:54` and `:20` collides.
+The loop persists each tier's `nextRunAt` in `itch.tier_heartbeats` along
+with `last_ok_at` / `last_error`, so a redeploy resumes the cadence instead of
+firing everything at boot, and a stale heartbeat is the alert the crons never
+had (plan 27's cheapest deliverable — the one that would have caught the June
+outage).
 
-They were one nightly tick until the coupling became the problem: ranking
-collection is unbounded in size and worthless to hurry (a finished jam's scores
-never change), while re-syncing open jams is small, bounded, and the only thing
-that captures new submissions. Sharing a schedule meant the least urgent work
-set the cadence for the most urgent, and every open jam waited up to 24 hours
-for a refresh.
+Image moderation is **not** here anymore. The crawler hands what it observes
+— a new entry, an entry whose cover image changed, a jam whose banner changed
+— to the media-scan worker as a job (`src/queue.ts`, fire-and-forget), and
+[services/media-scan](../media-scan/README.md) does the fetching, hashing, and
+scoring with the model resident. Without `REDIS_URL` the crawler emits
+nothing; the worker's hourly reconciler derives the same set from the DB.
 
 ## What it scrapes
 
 Everything is fetched with plain HTTP (`fetch` + cheerio) — every page the
-scraper reads is fully server-rendered by itch.io and served without a JS
+crawler reads is fully server-rendered by itch.io and served without a JS
 challenge, even to our self-identifying bot user agent. No headless browser
 is involved (see
 [docs/research/itch-scraper-browserless-deep-dive.md](../../docs/research/itch-scraper-browserless-deep-dive.md)
@@ -52,21 +57,23 @@ for the investigation that removed Browserless).
 | `/jams/in-progress` (paginated)             | jam slugs for jams already running (catches jams first seen mid-flight)                                                                                                                                                                                            |
 | `/jams/past/sort-date` (paginated, bounded) | jam slugs that ended within `ENDED_LOOKBACK_DAYS` (catches jams that started _and_ ended between runs)                                                                                                                                                             |
 | `/search?q=brackeys&type=jams` (paginated)  | jam slugs for one-time Brackeys backfill                                                                                                                                                                                                                           |
-| `itch.game_jam_scans` (no itch traffic)     | jam slugs read off members' own game pages by the library sync — the only route for a jam itch's listings omit (see discovery, below)                                                                                                                              |
+| `itch.game_jam_scans` (no itch traffic)     | jam slugs read off members' own game pages by the library tier — the only route for a jam itch's listings omit (see discovery, below)                                                                                                                              |
 | `/jam/{slug}`                               | title, numeric jam id, hosts, hashtag, status, start/end/voting-end dates, banner, entries count, ratings count, description HTML                                                                                                                                  |
 | `/jam/{jamId}/entries.json`                 | every submission's id, rating count, coolness, rate URL, submission timestamp, game metadata (title, short text, cover, platforms), author and contributors — undocumented API per [itch.io thread](https://itch.io/t/1487695/solved-any-api-to-fetch-jam-entries) |
 | `/jam/{slug}/rate/{gameId}`                 | per-criterion rank, adjusted score, raw score (only available on the rate page — not in the API)                                                                                                                                                                   |
+| `api.itch.io/profile`, `/profile/games`     | a linked member's identity and game library (library tier, bearer token)                                                                                                                                                                                           |
+| `<user>.itch.io/<game>` (HEAD / GET)        | the restricted-visibility probe, and the "Submission to <jam>" banner scan                                                                                                                                                                                         |
 
 ### How each tier picks its jams
 
 Every selector lives in [src/jobs/selectors.ts](./src/jobs/selectors.ts), in one
-place because they are now the seam between three services — a jam that falls
-out of every tier stops being scraped at all.
+place because they are the seam between the tiers — a jam that falls out of
+every tier stops being scraped at all.
 
 **live** ([sync-live.ts](./src/jobs/sync-live.ts)) — jams with
 `status != 'over'` whose `starts_at` has passed (a null `starts_at` counts as
 started). Jam page + `entries.json` each. The entries fetch is the whole point:
-it is the only capture of submissions added since the last tick, and a missed
+it is the only capture of submissions added since the last turn, and a missed
 window while a jam is open is not recoverable later.
 
 Keyed on dates rather than `status`, which matters in two directions. A jam
@@ -74,11 +81,11 @@ whose stored status lags reality is still selected and gets corrected by the
 re-scrape — that is what `resync-stale` had to exist to do when the tick keyed
 off status alone. And a jam whose deadline just passed is still selected, so
 the run that flips it to `over` is the same one that hands it to the results
-tier, within an hour of the jam finishing rather than at the next midnight.
+tier.
 
-Ordered **staleest-first**, which is what makes a truncated tick self-healing.
-itch's rate limiter does cut runs short (a 429 costs a 60s pool-wide cooldown),
-and unordered, the next tick would re-read the same arbitrary prefix while the
+Ordered **staleest-first**, which is what makes a truncated turn self-healing.
+itch's rate limiter does cut runs short (a 429 costs a pool-wide cooldown),
+and unordered, the next turn would re-read the same arbitrary prefix while the
 tail was never synced at all. Ordering by `scraped_at` sends the jams just
 synced to the back of the queue, so every open jam is visited before any is
 visited twice.
@@ -88,17 +95,17 @@ then syncs the slugs **not already in `itch.jams`**, in this order:
 
 1. `/jams/in-progress` — a jam we've never seen that is _already_ running is
    accruing submissions right now, so it should reach the live tier's set this
-   tick rather than next.
+   turn rather than next.
 2. `/jams/upcoming` — newly announced jams.
 3. `/search?q=brackeys&type=jams` — historical Brackeys jams (brackeys-1 …
    brackeys-15) the first time we see them, then never again.
 4. `itch.game_jam_scans` — jams a member's own game page says it was submitted
-   to, written by the library sync's page scan. itch's listings are **not** a
+   to, written by the library tier's page scan. itch's listings are **not** a
    complete index of past jams: the 2014 cohort (Candy Jam is `jam_id` 1) is in
    none of them, and spot checks find ordinary older jams missing too. For a
    jam a member actually entered, their game page is the only way in. Slugs in
    `itch.missing_jams` are excluded — this set is permanent, so a dead slug
-   would otherwise be re-fetched every tick forever.
+   would otherwise be re-fetched every turn forever.
 5. `/jams/past/sort-date`, walked until `ENDED_LOOKBACK_DAYS` — the
    outage-recovery walk. Jams created _and_ finished between successful runs
    are invisible to every other selector forever (as happened in the June 2026
@@ -113,10 +120,8 @@ live tier's set within the non-terminal jams, and the reason discovery refreshes
 anything at all: an upcoming jam's dates and description do get edited, and
 nothing else would notice until the jam started. They're cheap but numerous
 (~205, some starting years out) and none of it is perishable, so the pool
-round-robins — a full turnover roughly every 17 hours for ~300 requests a day,
-against ~10k to refresh all of them hourly. Ingestion runs first: a jam we
-don't hold is invisible in the product, while a stale upcoming jam is merely
-slightly wrong.
+round-robins. Ingestion runs first: a jam we don't hold is invisible in the
+product, while a stale upcoming jam is merely slightly wrong.
 
 **results** ([collect-results.ts](./src/jobs/collect-results.ts)) — jams at
 `status = 'over'` that still have entries with `results_fetched_at IS NULL`,
@@ -124,92 +129,65 @@ newest first. These cost no metadata requests; `syncEntryResults` reads the bulk
 `/jam/{slug}/results` listing. Terminal jams with everything collected are in no
 tier at all, so we don't burn cycles re-scraping historical submissions.
 
+**library** and **jam-backfill** ([library-sync.ts](./src/jobs/library-sync.ts))
+— what `services/itchio-library-sync` did as a 15-minute cron, split by whether
+it touches itch. The DB-only jam backfill keeps the 15-minute cadence (it is
+a join from `itch.jam_entries` to `linked_accounts`; itch's API has no jam
+endpoints). The itch-facing half runs hourly: refresh each linked account's
+identity (renames change every game URL), sync its library from
+`api.itch.io`, then anonymously probe every published game page — a 404 means
+Restricted on itch, which the API can't express — and read the page's
+"Submission to <jam>" button into `itch.game_jam_scans` for discovery.
+`LINKED_ACCOUNTS_ENC_KEY` must equal the Web service's: the tier decrypts the
+tokens the app sealed.
+
+**sweep** ([sweep-ids.ts](./src/jobs/sweep-ids.ts)) — the walk that finds jams
+itch.io never lists; see below.
+
 The `/jams` calendar page is intentionally **not** scraped — it only encodes
 dates as CSS pixels and gives us nothing the per-jam page doesn't already
 provide.
 
-### Why the schedules are staggered
+### Pacing
 
-The itch.io rate pacer (`MIN_REQUEST_INTERVAL_MS`) is **per-process**. Three
-services running concurrently would triple the request rate itch sees, which
-the pacer has no way to know about. So the tiers run at `:00`, `:20`, and `:40`,
-and each carries a `*_DEADLINE_MINS` that bounds its run well inside its slot.
-
-Stopping at a deadline is always free. Every tier's progress is persisted —
-`scraped_at` for the two jam-syncing tiers, `results_fetched_at` per entry for
-results — so the next tick resumes from it rather than restarting. Railway also
-skips a cron tick while the previous run of _that same service_ is still going,
-so a slow tier starves only itself.
+Every itch request goes through [src/http.ts](./src/http.ts), which builds the
+shared client from `src/lib/itch-http.ts` over one pacer per host
+(`src/lib/itch-pacer.ts`): `itch.io` (HTML pages, entries.json, data.json,
+the game-page probes), `img.itch.zone` (covers — the media-scan worker's
+traffic, on the same budget), and `api.itch.io` (the library tier's bearer
+calls). With `REDIS_URL` set the pacer is a Lua-reserved slot in Redis, so
+this process and the media-scan worker draw on one budget per host; a 429
+arms a pool-wide cooldown that escalates per strike. Without Redis, or while
+it is unreachable, the pacer paces this process alone and says so once.
 
 ## Schema
 
-The scraper does **not** manage its own migrations. All tables live in the
-main brackeys drizzle schema under the `itch` Postgres schema:
-
-- `itch.jams`
-- `itch.jam_entries`
-- `itch.jam_entry_results`
-
-They're defined in `src/db/schema.ts` and picked up by `drizzle.config.ts`
-(`schemaFilter: [..., "itch"]`). To materialize them:
-
-```bash
-# From repo root, after pulling this change:
-bun run db:generate       # emits drizzle/00XX_*.sql + meta/ snapshot
-bun run db:migrate        # applies pending migrations to DATABASE_URL
-```
-
-Staging and prod migrations run automatically via
-`.gitlab/db-migrate.gitlab-ci.yml` on `main` / `prod`.
+The crawler does **not** manage its own migrations. Everything it writes lives
+in the main brackeys drizzle schema (`src/db/schema.ts`): the `itch.*` tables,
+`user.profile_projects` / `user.linked_accounts` (library tiers), and the
+canonical `project.*` rows the shared `src/lib/project-sync.ts` mints.
 
 ## Railway setup
 
-Each tier is a **Railway cron job** — the process starts on each schedule tick,
-runs to completion, and exits. No resident daemon, no `node-cron`. All four
-build the same image from the same Dockerfile; only the config file differs.
-
-Create **four services**, all pointing at this repo, each with:
+Create **one service** pointing at this repo:
 
 1. **Root Directory blank** — the Dockerfile uses the repo root as its build
-   context so it can copy `src/db/schema.ts` into the image.
-2. **Config file path** set to the tier's toml:
-   - [`services/itchio-scraper/railway.live.toml`](./railway.live.toml)
-   - [`services/itchio-scraper/railway.discovery.toml`](./railway.discovery.toml)
-   - [`services/itchio-scraper/railway.results.toml`](./railway.results.toml)
-   - [`services/itchio-scraper/railway.scan.toml`](./railway.scan.toml)
+   context so it can copy `src/db/schema.ts` and the shared `src/lib` modules.
+2. **Config file path** [`services/itchio-scraper/railway.toml`](./railway.toml)
+   — resident (`restartPolicyType = "ALWAYS"`, `bun run start`). No cron
+   schedule: the loop is the scheduler.
+3. **Variables**: `DATABASE_URL`, `REDIS_URL` (the same Dragonfly Web and
+   media-scan use), `LINKED_ACCOUNTS_ENC_KEY` (equal to Web's). Everything else
+   is optional — see [`.env.example`](./.env.example).
 
-   Each pins its own `startCommand` and `cronSchedule`. Override a schedule in
-   the dashboard under Settings → Cron Schedule if needed, but keep the stagger.
+A redeploy sends SIGTERM: the tier in flight finishes its current jam, the
+process exits, and the new container resumes every tier from its persisted
+`nextRunAt` and progress (`scraped_at`, `results_fetched_at`, the sweep
+cursor).
 
-3. **`DATABASE_URL`** referencing the database service's variable. Everything
-   else is optional — see [`.env.example`](./.env.example). The tiers read one
-   shared config, so a single shared variable group works.
-
-Note that a `railway redeploy` of a cron service only re-arms the schedule; to
-force an immediate run, use the dashboard's run button (or the GraphQL
-`deploymentRestart` mutation).
-
-**Two traps when creating these services**, both of which produce a service that
-builds green and never runs:
-
-- **`cronSchedule` in the toml does not arm the scheduler.** Railway's cron
-  scheduler reads the _service-instance_ field, not the deployment manifest. A
-  service whose schedule comes only from config-as-code shows
-  `nextCronRunAt: null` and simply never fires. Set the schedule on the service
-  too (dashboard → Settings → Cron Schedule), matching the toml. Verify with
-  `nextCronRunAt` — if it's null, the cron is not armed, whatever the toml says.
-- **Setting the config file path after creating the service is too late for the
-  first build.** Creating a repo-linked service triggers a deploy immediately,
-  before `railwayConfigFile` is applied, so that build uses Railpack and ignores
-  the toml entirely — including `startCommand`, which leaves it running as a
-  resident service rather than a cron. Set the config file path, then trigger a
-  fresh deploy and confirm the manifest reports
-  `builder: DOCKERFILE` and the right `startCommand`.
-
-There is no combined entrypoint and no default tier — the image's `CMD` fails
-with a usage message if a service is deployed without a `startCommand`. That's
-deliberate: defaulting to one of the tiers would let a misconfigured service
-quietly add a second scraper to itch's rate budget.
+The old per-tier services (live, discovery, results, scan, backfill) and
+`itchio-library-sync` are retired by this one; delete them once it is running,
+or they will scrape alongside it.
 
 ## Running locally
 
@@ -219,14 +197,15 @@ bun install
 cp .env.example .env
 # edit .env — point DATABASE_URL at a local or staging DB
 
-bun run live       # open jams
-bun run discover   # listings + new jams + upcoming refresh
-bun run results    # ranking collection
-bun run sweep      # id-space sweep (also runs as the backfill tick's 2nd phase)
-bun run scan       # cover hashing + NSFW + theft matching (plan 22)
+bun run start      # the loop, every tier
+bun run live       # one-shot: open jams
+bun run discover   # one-shot: listings + new jams + upcoming refresh
+bun run results    # one-shot: ranking collection
+bun run library    # one-shot: jam backfill, then the itch-facing library sync
+bun run sweep      # one-shot: id-space sweep
 ```
 
-Bound an exploratory run so it doesn't walk the whole set — the deadline is
+Bound a one-shot run so it doesn't walk the whole set — the deadline is
 checked before each jam, so a jam is never left half-written:
 
 ```bash
@@ -242,9 +221,9 @@ rank. It is idempotent and resumable: a jam only counts as done once its
 entries landed, so interrupting mid-run (SIGTERM, crash, redeploy) is safe —
 re-running continues where it left off. Knobs: `BACKFILL_MAX_JAMS` (cap per
 invocation), `BACKFILL_OLDEST` (ISO date cutoff), `BACKFILL_DELAY_MS`
-(default 400). Sizing expectations are documented in
-[the deep-dive doc](../../docs/research/itch-scraper-browserless-deep-dive.md)
-(~3-6 h for metadata + entries; rankings drain over subsequent cron runs).
+(default 400). It is a one-shot for a laptop now; the temporary Railway
+service that ran it hourly is gone, and its second phase — the id sweep — is
+the crawler's idle-time tier.
 
 ### The id sweep
 
@@ -255,21 +234,20 @@ to find: Candy Jam (`jam_id` 1) and the rest of the 2014 cohort appear in no
 listing at all, and probing ids turns up ordinary 2016 and 2021 jams whose
 pages scrape perfectly well.
 
-So `bun run sweep` ([sweep-ids.ts](./src/jobs/sweep-ids.ts)) walks the id space
-directly, and runs as the **second phase of every backfill tick** — no separate
-service. `/jam/{id}/entries.json` needs no slug and settles an id in one
-request; a hit's payload carries the entries _and_ the slug (inside each entry's
-rate URL), so the jam page is the only extra fetch. Legacy raw-jam pages parse
-since [jam-page.ts](./src/scrape/jam-page.ts) learned that layout.
+So the sweep ([sweep-ids.ts](./src/jobs/sweep-ids.ts)) walks the id space
+directly, whenever nothing more urgent is due. `/jam/{id}/entries.json` needs
+no slug and settles an id in one request; a hit's payload carries the entries
+_and_ the slug (inside each entry's rate URL), so the jam page is the only extra
+fetch. Legacy raw-jam pages parse since [jam-page.ts](./src/scrape/jam-page.ts)
+learned that layout.
 
-Sizing, measured August 2026: **~178k probes**, ~17h of pacer time, resumed
-across hourly ticks bounded by `SWEEP_DEADLINE_MINS` (default 45) — call it a
-day and a half. Sampling put the hit rate at 12/60 unheld ids below 20k and
-4/120 above 240k, i.e. **on the order of 8k jams we don't hold**.
+Sizing, measured August 2026: **~178k probes**, ~17h of pacer time. Sampling
+put the hit rate at 12/60 unheld ids below 20k and 4/120 above 240k, i.e.
+**on the order of 8k jams we don't hold**.
 
 | Knob                  | Default  | Why                                                                               |
 | --------------------- | -------- | --------------------------------------------------------------------------------- |
-| `SWEEP_DEADLINE_MINS` | 45       | keeps a tick inside its hourly slot; stopping early is free (the cursor resumes)  |
+| `SWEEP_INTERVAL_MINS` | 360      | once the cursor reaches the frontier, how often it trails the frontier up         |
 | `SWEEP_FROM`          | 1        | floor for the cursor — raise it to skip ahead, lower it to re-probe a bad stretch |
 | `SWEEP_GAP_START/END` | 20k/240k | the barren middle of the id space, skipped by default and logged when it is       |
 
@@ -282,21 +260,6 @@ The cursor lives in `itch.scrape_cursors` and only moves forward. A jam with
 **no entries** is invisible to this walk by construction — the probe is empty
 either way, and with no entry there is no rate URL, so no slug, and `/jam/{id}`
 404s. Those stay the listings' job.
-
-**Running it on Railway** (recommended for the full multi-hour pull):
-
-1. Create a new service in the project pointing at this repo.
-2. In service Settings, set **Config file path** to
-   `services/itchio-scraper/railway.backfill.toml` (leave Root Directory
-   blank, same as the main scraper service).
-3. Add `DATABASE_URL` referencing the database service's variable.
-4. Deploy. The hourly cron doubles as the resume mechanism — interrupted or
-   partial runs continue on the next tick, ticks during an active run are
-   SKIPPED, and once everything is ingested each tick is a ~5-minute no-op.
-5. Watch progress via the run logs (`[backfill] page N done — ingested=…`,
-   then `[sweep] probed=… found=… cursor=…`), and **delete the service** once
-   the walk reports nothing left to ingest _and_ the sweep reports "complete
-   through the frontier".
 
 ## Draining the ratings backlog by hand
 
@@ -311,7 +274,8 @@ bun run railway:scraper:resync   # unstick jams whose status is stale, then coll
 
 (Each wraps `railway run --service TimescaleDB` and maps `DATABASE_PUBLIC_URL`
 onto `DATABASE_URL`. Inside this directory the underlying scripts are
-`bun run drain` and `bun run resync`.)
+`bun run drain` and `bun run resync`.) Set `REDIS_URL` too if you want the run
+to share the deployed pacer's budget rather than pace itself.
 
 **`drain`** ([src/jobs/drain-results.ts](./src/jobs/drain-results.ts)) walks
 jams already at `status = 'over'` that still have entries with no rankings and
@@ -331,10 +295,10 @@ in the same pass. Scoped to jams whose `voting_ends_at` — or `ends_at`, for
 jams with no voting phase — has already passed. Knobs: `RESYNC_MAX_JAMS`,
 `RESYNC_DELAY_MS`.
 
-Since the split, `resync` should rarely have anything to do: the live tier
+Since the tier split, `resync` should rarely have anything to do: the live tier
 selects on dates rather than `status`, so a jam carrying a stale status is
-picked up and corrected within the hour. It's kept for forcing that correction
-immediately, and as the fallback if the live tier is ever wedged.
+picked up and corrected within the interval. It's kept for forcing that
+correction immediately, and as the fallback if the live tier is ever wedged.
 
 If a `results_fetched_at IS NULL` count looks large but `drain` reports nothing
 to do, run `resync` and then re-check. A count that stays high after both is
@@ -353,15 +317,13 @@ drain on their own as voting closes.
   (`SCRAPE_ENTRY_RESULTS=after-voting`) it only runs once the jam has moved
   into the `over` status, and each entry is only scraped until
   `results_fetched_at` is populated.
-- **Polite pacing.** Every itch.io request flows through one global pacer
-  (`MIN_REQUEST_INTERVAL_MS` between any two requests, shared by all
-  workers); a 429/503 pauses the whole pool for `Retry-After` (or
-  `RATE_LIMIT_COOLDOWN_MS` when itch doesn't send one). The pacer is
-  **per-process**, so it only holds within one tier — the schedule stagger and
-  the per-tier deadlines are what keep the _aggregate_ rate polite.
-- **A truncated tick loses nothing.** Both jam-syncing tiers select
-  staleest-first and every tier persists progress as it goes, so a run cut
-  short by its deadline, a redeploy, or a rate-limit storm resumes at the tail
+- **Polite pacing.** Every itch request flows through one pacer per host,
+  shared through Redis with the media-scan worker; a 429/503 pauses the whole
+  pool for `Retry-After` (or an escalating cooldown starting at
+  `RATE_LIMIT_COOLDOWN_MS` from the second consecutive strike).
+- **A truncated turn loses nothing.** Both jam-syncing tiers select
+  staleest-first and every tier persists progress as it goes, so a turn cut
+  short by its chunk, a redeploy, or a rate-limit storm resumes at the tail
   rather than restarting at the head.
 - **Nothing is ever deleted.** A jam or entry that 404s or drops off itch is
   stamped `missing_since` instead of being removed. Missing jams keep being
@@ -374,15 +336,13 @@ drain on their own as voting closes.
   SELECT slug, missing_since FROM itch.jams WHERE missing_since IS NOT NULL;
   SELECT entry_id, jam_id, missing_since FROM itch.jam_entries WHERE missing_since IS NOT NULL;
   SELECT slug, first_seen_at FROM itch.missing_jams; -- never-persisted 404s from the backfill walk
+  SELECT tier, next_run_at, last_ok_at, last_error FROM itch.tier_heartbeats; -- the loop's health
   ```
 
-- **Failures are retried once, then tolerated.** Whatever failed during a tick
+- **Failures are retried once, then tolerated.** Whatever failed during a turn
   gets one more attempt at the end of it — almost every failure is itch
   rate-limiting a jam that goes through fine once the pacer has cooled off, so
   the retry costs one request per failure and usually clears the set. Anything
-  still failing is logged and left to the next tick, and the process **exits
-  0**: a handful of refused jams is the steady state, not a broken tick, and
-  failing the process for it only made every Railway run red. A thrown error
-  still exits non-zero — that means the tick couldn't run at all, which is a
-  real alert. The discovery tier retries a failed _listing walk_ immediately
-  rather than at the end, since the rest of the tick is derived from it.
+  still failing is logged and left to the next turn. A tier that _throws_ is
+  backed off five minutes and recorded in `tier_heartbeats.last_error`; the
+  loop itself never dies for one tier's fault.

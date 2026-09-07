@@ -28,6 +28,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "../../src/db/schema.ts",
+    "../../src/lib/collab-lifecycle.ts",
     "../../src/lib/notification-copy.ts",
     "../../src/lib/unsubscribe.ts",
     "../../src/emails/**/*.tsx"

@@ -22,6 +22,10 @@ import {
   listEntryFlags,
   resolveEntryFlag,
   resolveEntryFlags,
+  listImageFlags,
+  resolveImageFlag,
+  resolveImageFlags,
+  requestImageRescan,
 } from "./admin";
 import {
   createPost,
@@ -284,6 +288,10 @@ export default {
   listEntryFlags,
   resolveEntryFlag,
   resolveEntryFlags,
+  listImageFlags,
+  resolveImageFlag,
+  resolveImageFlags,
+  requestImageRescan,
   staffUpdateProfile,
   staffResetUrlStub,
   listNotifications,

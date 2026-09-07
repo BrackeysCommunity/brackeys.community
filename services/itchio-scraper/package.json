@@ -2,28 +2,28 @@
   "name": "@brackeys/itchio-scraper",
   "version": "0.1.0",
   "private": true,
-  "description": "Railway cron services that scrape itch.io jam data and sync it into the main brackeys Postgres DB.",
+  "description": "Resident Railway crawler: every itch.io scrape tier (live, discovery, results, library sync, id sweep) in one priority loop, syncing into the main brackeys Postgres DB.",
   "type": "module",
   "scripts": {
+    "start": "bun run src/crawler.ts",
     "live": "bun run src/jobs/sync-live.ts",
     "discover": "bun run src/jobs/discover.ts",
     "results": "bun run src/jobs/collect-results.ts",
     "backfill": "bun run src/jobs/backfill-history.ts",
     "sweep": "bun run src/jobs/sweep-ids.ts",
-    "scan": "bun run src/jobs/scan.ts",
+    "library": "bun run src/jobs/library-sync.ts",
     "drain": "bun run src/jobs/drain-results.ts",
     "resync": "bun run src/jobs/resync-stale.ts",
-    "rescore": "bun run src/jobs/rescore.ts",
     "test": "bun test src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.7.0",
+    "bullmq": "^5.34.0",
     "cheerio": "^1.2.0",
     "drizzle-orm": "1.0.0-rc.4",
+    "ioredis": "^5.4.2",
     "pg": "^8.20.0",
     "posthog-node": "^5.49.1",
-    "sharp": "^0.34.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -32,10 +32,5 @@
     "@types/pg": "^8.20.0",
     "typescript": "^6.0.2"
   },
-  "packageManager": "bun@1.3.14",
-  "trustedDependencies": [
-    "onnxruntime-node",
-    "protobufjs",
-    "sharp"
-  ]
+  "packageManager": "bun@1.3.14"
 }

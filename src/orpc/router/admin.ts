@@ -20,16 +20,20 @@ import { db } from "@/db";
 import {
   collabPostReports,
   collabPostRoles,
+  collabPosts,
   collabRoles,
   commentReports,
   developerProfiles,
   entryFlags,
+  imageFlags,
+  imageScans,
   itchEntryScans,
   itchJamEntries,
   itchJams,
   moderationActions,
   moderationProposals,
   profileUrlStubs,
+  projects,
   session,
   skillRequests,
   skills,
@@ -39,6 +43,7 @@ import {
   teams,
   user,
   userSkills,
+  type ImageOwnerType,
   type ModerationActionType,
   type ModerationProposalTargetType,
 } from "@/db/schema";
@@ -48,11 +53,15 @@ import {
   isStaffMember as checkIsStaff,
   purgeGuildBanCache,
 } from "@/lib/discord";
+import { purgeImage, restoreImage } from "@/lib/image-quarantine";
+import { enqueueImageRescan } from "@/lib/media-scan";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { PROPOSABLE_ACTIONS, type ModOverride, type ModPowerAction } from "@/lib/moderation-policy";
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
+import { profileSlug } from "@/lib/profile-links";
+import { storedImageStore } from "@/lib/profile-project-image-storage";
 import { escapeLike, likeContains } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
@@ -1721,4 +1730,302 @@ export const listTeamsAdmin = os
       pageSize: input.pageSize,
       pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
     };
+  });
+
+// ── Upload flags (plan 27) ───────────────────────────────────────────────────
+
+const IMAGE_OWNER_TYPES = [
+  "team_avatar",
+  "team_banner",
+  "collab_post_image",
+  "project_cover",
+  "profile_project_image",
+  "team_project_image",
+] as const satisfies readonly ImageOwnerType[];
+
+type ImageOwnerRef = { label: string; href: string | null };
+
+/**
+ * Where each flagged upload lives, as a link. Each owner type is one lookup
+ * over the ids on the page; a row whose owner is gone (post deleted, team
+ * removed) still renders, labelled by type.
+ */
+async function imageOwnerRefs(
+  rows: readonly { ownerType: ImageOwnerType; ownerId: string }[],
+): Promise<Map<string, ImageOwnerRef>> {
+  const idsOf = (...types: ImageOwnerType[]) => [
+    ...new Set(rows.filter((r) => types.includes(r.ownerType)).map((r) => r.ownerId)),
+  ];
+  const teamIds = idsOf("team_avatar", "team_banner", "team_project_image");
+  const postIds = idsOf("collab_post_image")
+    .map(Number)
+    .filter((id) => Number.isInteger(id));
+  const projectIds = idsOf("project_cover");
+  const profileIds = idsOf("profile_project_image");
+
+  const [teamRows, postRows, projectRows, profiles] = await Promise.all([
+    teamIds.length > 0
+      ? db
+          .select({ id: teams.id, name: teams.name, slug: teams.slug })
+          .from(teams)
+          .where(inArray(teams.id, teamIds))
+      : Promise.resolve([]),
+    postIds.length > 0
+      ? db
+          .select({ id: collabPosts.id, title: collabPosts.title })
+          .from(collabPosts)
+          .where(inArray(collabPosts.id, postIds))
+      : Promise.resolve([]),
+    projectIds.length > 0
+      ? db
+          .select({ id: projects.id, title: projects.title, slug: projects.slug })
+          .from(projects)
+          .where(inArray(projects.id, projectIds))
+      : Promise.resolve([]),
+    profilesByIds(profileIds),
+  ]);
+
+  const refs = new Map<string, ImageOwnerRef>();
+  for (const t of teamRows) refs.set(`team:${t.id}`, { label: t.name, href: `/teams/${t.slug}` });
+  for (const p of postRows) {
+    refs.set(`post:${p.id}`, { label: p.title, href: `/collab/${p.id}` });
+  }
+  for (const p of projectRows) {
+    refs.set(`project:${p.id}`, { label: p.title, href: `/projects/${p.slug}` });
+  }
+  for (const [id, p] of profiles) {
+    refs.set(`profile:${id}`, {
+      label: `${p.displayName}'s profile`,
+      href: `/profile/${profileSlug(p)}`,
+    });
+  }
+  return refs;
+}
+
+function imageOwnerKey(row: { ownerType: ImageOwnerType; ownerId: string }): string {
+  switch (row.ownerType) {
+    case "team_avatar":
+    case "team_banner":
+    case "team_project_image":
+      return `team:${row.ownerId}`;
+    case "collab_post_image":
+      return `post:${row.ownerId}`;
+    case "project_cover":
+      return `project:${row.ownerId}`;
+    case "profile_project_image":
+      return `profile:${row.ownerId}`;
+  }
+}
+
+const IMAGE_OWNER_TYPE_LABEL: Record<ImageOwnerType, string> = {
+  team_avatar: "Team avatar",
+  team_banner: "Team banner",
+  collab_post_image: "Post image",
+  project_cover: "Project cover",
+  profile_project_image: "Profile project image",
+  team_project_image: "Team showcase image",
+};
+
+/** The staff-only route that serves a key whether it is live or quarantined. */
+function staffImageUrl(objectKey: string): string {
+  return `/staff-image/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+export const listImageFlags = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      includeResolved: z.boolean().default(false),
+      ownerType: z.enum(IMAGE_OWNER_TYPES).optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(20),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const filters = [
+      input.includeResolved ? undefined : eq(imageFlags.status, "open"),
+      input.ownerType ? eq(imageFlags.ownerType, input.ownerType) : undefined,
+    ].filter((f) => f != null);
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(imageFlags).where(where),
+      db
+        .select({
+          id: imageFlags.id,
+          objectKey: imageFlags.objectKey,
+          ownerType: imageFlags.ownerType,
+          ownerId: imageFlags.ownerId,
+          uploaderId: imageFlags.uploaderId,
+          kind: imageFlags.kind,
+          source: imageFlags.source,
+          score: imageFlags.score,
+          evidence: imageFlags.evidence,
+          status: imageFlags.status,
+          resolvedAt: imageFlags.resolvedAt,
+          resolvedById: imageFlags.resolvedById,
+          createdAt: imageFlags.createdAt,
+          scanStatus: imageScans.status,
+          scannedAt: imageScans.scannedAt,
+        })
+        .from(imageFlags)
+        .innerJoin(imageScans, eq(imageScans.objectKey, imageFlags.objectKey))
+        .where(where)
+        .orderBy(
+          sql`${imageFlags.resolvedAt} ASC NULLS FIRST`,
+          sql`${imageFlags.score} DESC NULLS LAST`,
+          desc(imageFlags.createdAt),
+        )
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const [owners, people] = await Promise.all([
+      imageOwnerRefs(rows),
+      profilesByIds(
+        rows
+          .flatMap((r) => [r.uploaderId, r.resolvedById])
+          .filter((id): id is string => id != null),
+      ),
+    ]);
+
+    const total = totals?.total ?? 0;
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        imageUrl: row.scanStatus === "purged" ? null : staffImageUrl(row.objectKey),
+        ownerTypeLabel: IMAGE_OWNER_TYPE_LABEL[row.ownerType],
+        owner: owners.get(imageOwnerKey(row)) ?? null,
+        uploader: row.uploaderId ? (people.get(row.uploaderId) ?? null) : null,
+        resolvedBy: row.resolvedById ? (people.get(row.resolvedById) ?? null) : null,
+      })),
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
+  });
+
+/**
+ * Confirm or dismiss an upload flag. Unlike entry flags, resolving acts on
+ * our own object: confirm purges it (from wherever it sits — live or
+ * quarantined), dismiss restores a quarantined image to where it was. The
+ * scan row remembers the ruling, so a rescan never re-quarantines a
+ * cleared image, and the detector stands down on the resolved kind.
+ */
+async function resolveImageFlagRow(
+  flagId: number,
+  action: "confirm" | "dismiss",
+  reason: string | undefined,
+  actorId: string,
+): Promise<"resolved" | "already" | "missing"> {
+  const [flag] = await db
+    .select({
+      id: imageFlags.id,
+      objectKey: imageFlags.objectKey,
+      ownerType: imageFlags.ownerType,
+      ownerId: imageFlags.ownerId,
+      uploaderId: imageFlags.uploaderId,
+      kind: imageFlags.kind,
+      score: imageFlags.score,
+      status: imageFlags.status,
+    })
+    .from(imageFlags)
+    .where(eq(imageFlags.id, flagId))
+    .limit(1);
+  if (!flag) return "missing";
+  if (flag.status !== "open") return "already";
+
+  if (action === "confirm") {
+    await purgeImage(db, storedImageStore, flag.objectKey);
+  } else {
+    await restoreImage(db, storedImageStore, flag.objectKey);
+  }
+
+  await db
+    .update(imageFlags)
+    .set({
+      status: action === "confirm" ? "confirmed" : "dismissed",
+      resolvedAt: new Date(),
+      resolvedById: actorId,
+    })
+    .where(eq(imageFlags.id, flag.id));
+
+  await recordModerationAction({
+    action: action === "confirm" ? "image_flag_confirmed" : "image_flag_dismissed",
+    actorId,
+    targetType: "stored_image",
+    targetId: flag.objectKey,
+    subjectUserId: flag.uploaderId,
+    reason,
+    metadata: {
+      flagId: flag.id,
+      kind: flag.kind,
+      score: flag.score,
+      ownerType: flag.ownerType,
+      ownerId: flag.ownerId,
+    },
+  });
+  return "resolved";
+}
+
+export const resolveImageFlag = os
+  .use(requireStaff)
+  .input(z.object({ flagId: z.number().int().positive(), ...resolveFlagInput }))
+  .handler(async ({ input, context }) => {
+    const outcome = await resolveImageFlagRow(
+      input.flagId,
+      input.action,
+      input.reason,
+      context.user.id,
+    );
+    if (outcome === "missing") throw new ORPCError("NOT_FOUND", { message: "Flag not found." });
+    return { success: true };
+  });
+
+export const resolveImageFlags = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      flagIds: z.array(z.number().int().positive()).min(1).max(100),
+      ...resolveFlagInput,
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    let resolved = 0;
+    for (const flagId of new Set(input.flagIds)) {
+      const outcome = await resolveImageFlagRow(
+        flagId,
+        input.action,
+        input.reason,
+        context.user.id,
+      );
+      if (outcome === "resolved") resolved++;
+    }
+    return { resolved };
+  });
+
+/** Re-run the detectors on one upload — after a probe retrain, or on a hunch. */
+export const requestImageRescan = os
+  .use(requireStaff)
+  .input(z.object({ objectKey: z.string().min(1).max(500) }))
+  .handler(async ({ input, context }) => {
+    const [scan] = await db
+      .select({ status: imageScans.status, uploaderId: imageScans.uploaderId })
+      .from(imageScans)
+      .where(eq(imageScans.objectKey, input.objectKey))
+      .limit(1);
+    if (!scan) throw new ORPCError("NOT_FOUND", { message: "Image not found." });
+    if (scan.status === "purged") {
+      throw new ORPCError("BAD_REQUEST", { message: "This image has been deleted." });
+    }
+    await enqueueImageRescan(input.objectKey);
+    await recordModerationAction({
+      action: "image_rescan_requested",
+      actorId: context.user.id,
+      targetType: "stored_image",
+      targetId: input.objectKey,
+      subjectUserId: scan.uploaderId,
+    });
+    return { success: true };
   });

@@ -5,7 +5,7 @@ import { config } from "../config.ts";
 import { db } from "../db/client.ts";
 import { describeError } from "../http.ts";
 import { fetchJamEntries, type ItchEntry } from "../scrape/entries.ts";
-import { createStopGate, runTier, type StopGate } from "./runner.ts";
+import { createStopGate, runTier, type StopGate, type TierOutcome } from "./runner.ts";
 import { ingestJam } from "./sync-jam.ts";
 
 /**
@@ -28,9 +28,10 @@ import { ingestJam } from "./sync-jam.ts";
  * Sampling (August 2026) put the hit rate at 12/60 unheld ids below 20k and
  * 4/120 between 240k and the frontier — on the order of 8k jams we don't hold,
  * against ~178k probes. At the shared 350ms pacer that is ~20 hours of
- * requests, which is why this is a cursor-driven cron phase rather than one
- * long run: each tick sweeps until `SWEEP_DEADLINE_MINS` and the next resumes
- * at the cursor.
+ * requests, which is why this is cursor-driven rather than one long run: the
+ * crawler runs it whenever nothing more urgent is due, one chunk at a time,
+ * and each turn resumes at the cursor. Once the cursor reaches the frontier
+ * it re-arms on SWEEP_INTERVAL_MINS to trail the frontier up.
  *
  * What it cannot find: a jam with no entries at all. The probe's answer is
  * empty either way, and with no entry there is no rate URL, so no slug, so no
@@ -101,7 +102,7 @@ async function probeJamId(jamId: number): Promise<ItchEntry[] | null> {
   }
 }
 
-export async function runIdSweep(gate?: StopGate): Promise<number> {
+export async function runIdSweep(gate?: StopGate): Promise<TierOutcome> {
   const stopGate = gate ?? createStopGate("sweep", config.SWEEP_DEADLINE_MINS);
 
   // The frontier is whatever the corpus reaches today; new jams above it
@@ -120,7 +121,7 @@ export async function runIdSweep(gate?: StopGate): Promise<number> {
   };
   if (range.to <= 0) {
     console.log("[sweep] no jams persisted yet — nothing to sweep against");
-    return 0;
+    return { failed: 0, complete: true };
   }
 
   const startAt = Math.max(await readCursor(), range.from);
@@ -193,7 +194,7 @@ export async function runIdSweep(gate?: StopGate): Promise<number> {
       stopped ? ` (stopped: ${stopped})` : ""
     }${done ? " — sweep complete through the frontier" : ""}`,
   );
-  return failed;
+  return { failed, complete: done };
 }
 
 if (import.meta.main) {

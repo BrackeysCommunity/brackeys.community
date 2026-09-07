@@ -11,7 +11,7 @@
  *
  * The type import below is relative rather than aliased because
  * `project-sync.ts` imports this module and is itself imported by the
- * `itchio-library-sync` service, which resolves neither the app's `@/` alias
+ * `itchio-scraper` crawler, which resolves neither the app's `@/` alias
  * nor a bundler.
  */
 import type { ProjectType } from "../db/schema";

@@ -1,11 +1,11 @@
 import { config } from "../config.ts";
 import { describeError } from "../http.ts";
-import { createStopGate, runTier, sleep } from "./runner.ts";
+import { createStopGate, runTier, sleep, type StopGate, type TierOutcome } from "./runner.ts";
 import { pendingJams } from "./selectors.ts";
 import { syncEntryResults } from "./sync-jam.ts";
 
 /**
- * RESULTS tier — every 6 hours.
+ * RESULTS tier — every RESULTS_INTERVAL_MINS (6 hours).
  *
  * Collects per-criterion rankings for finished jams that still have entries
  * with `results_fetched_at IS NULL`. No discovery, no jam-page or
@@ -29,24 +29,24 @@ import { syncEntryResults } from "./sync-jam.ts";
  *
  * Env knobs (all optional):
  *   RESULTS_DELAY_MS       pause between jams (default: 250)
- *   RESULTS_DEADLINE_MINS  stop mid-list after this long (default: 240)
+ *   RESULTS_DEADLINE_MINS  one-shot runs: stop mid-list after this long (default: 240)
  *   RESULTS_ORDER          "newest" (default) or "smallest"
  */
 
-export async function runResults(): Promise<number> {
+export async function runResults(stopGate?: StopGate): Promise<TierOutcome> {
   if (config.SCRAPE_ENTRY_RESULTS === "never") {
     console.warn("[results] SCRAPE_ENTRY_RESULTS=never — nothing to do");
-    return 0;
+    return { failed: 0, complete: true };
   }
 
-  const gate = createStopGate("results", config.RESULTS_DEADLINE_MINS);
+  const gate = stopGate ?? createStopGate("results", config.RESULTS_DEADLINE_MINS);
 
   const jams = await pendingJams(config.RESULTS_ORDER);
   const totalEntries = jams.reduce((sum, j) => sum + j.pending, 0);
   console.log(
     `[results] ${jams.length} jams with ${totalEntries} pending entries (order=${config.RESULTS_ORDER})`,
   );
-  if (jams.length === 0) return 0;
+  if (jams.length === 0) return { failed: 0, complete: true };
 
   let done = 0;
   let ranked = 0;
@@ -105,12 +105,12 @@ export async function runResults(): Promise<number> {
 
   console.log(
     `[results] jams=${done}/${jams.length} resolved=${fetched + unratable} (fetched=${fetched} unrated=${unratable}) ranked=${ranked} failed=${failed}${
-      stoppedEarly ? ` (stopped early: ${stoppedEarly} — next tick resumes)` : ""
+      stoppedEarly ? ` (stopped early: ${stoppedEarly} — next turn resumes)` : ""
     }`,
   );
-  return failed;
+  return { failed, complete: !stoppedEarly };
 }
 
 if (import.meta.main) {
-  await runTier("results", runResults);
+  await runTier("results", () => runResults());
 }

@@ -2,7 +2,7 @@
   "name": "@brackeys/notifications-worker",
   "version": "0.1.0",
   "private": true,
-  "description": "Long-lived Railway service that consumes BullMQ notification jobs and runs side-effects (email, push, SSE).",
+  "description": "Long-lived Railway service that consumes BullMQ notification jobs, runs side-effects (email, push, SSE), and owns the app's repeatable jobs (weekly digests, the lifecycle sweep).",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

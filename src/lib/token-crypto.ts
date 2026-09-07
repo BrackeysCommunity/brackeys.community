@@ -12,7 +12,7 @@
  * reads tolerate both, writes always seal, and the one-off script in
  * `scripts/encrypt-linked-account-tokens.ts` converts the stragglers.
  *
- * Imported relatively by the itchio-library-sync service (copied into its
+ * Imported relatively by the itchio-scraper crawler's library tier (copied into its
  * image), so: no `@/` imports, nothing beyond node:crypto, and the key is
  * read from process.env on every call — no caching, so tests and the
  * service's env handling stay simple.

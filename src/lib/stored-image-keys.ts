@@ -152,3 +152,36 @@ function getMimeTypeFromFilename(filename: string) {
       return "";
   }
 }
+
+export type StoredImageOwnerType =
+  | "team_avatar"
+  | "team_banner"
+  | "collab_post_image"
+  | "project_cover"
+  | "profile_project_image"
+  | "team_project_image";
+
+const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
+  [PROFILE_PROJECT_IMAGE_PREFIX]: "profile_project_image",
+  [TEAM_AVATAR_IMAGE_PREFIX]: "team_avatar",
+  [TEAM_BANNER_IMAGE_PREFIX]: "team_banner",
+  [PROJECT_IMAGE_PREFIX]: "project_cover",
+  [COLLAB_POST_IMAGE_PREFIX]: "collab_post_image",
+  [TEAM_PROJECT_IMAGE_PREFIX]: "team_project_image",
+};
+
+/**
+ * What a key is for, read off its prefix: every builder above scopes the
+ * second segment to the owning team, post, project, or user. This is what
+ * the media-scan bookkeeping row records at upload, so the scan queue never
+ * has to parse keys. Null for anything outside the upload namespaces.
+ */
+export function describeImageKey(
+  key: string,
+): { ownerType: StoredImageOwnerType; ownerId: string } | null {
+  if (!isServableImageKey(key)) return null;
+  const [prefix, ownerId] = key.split("/");
+  const ownerType = prefix ? OWNER_TYPE_BY_PREFIX[prefix] : undefined;
+  if (!ownerType || !ownerId) return null;
+  return { ownerType, ownerId };
+}

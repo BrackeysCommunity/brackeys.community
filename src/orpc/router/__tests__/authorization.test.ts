@@ -119,6 +119,11 @@ const STAFF_PROCEDURES = new Set([
   "listEntryFlags",
   "resolveEntryFlag",
   "resolveEntryFlags",
+  // Upload-flag queue (plan 27).
+  "listImageFlags",
+  "resolveImageFlag",
+  "resolveImageFlags",
+  "requestImageRescan",
   "proposeModerationEdit",
   "listModerationProposals",
   "approveModerationProposal",

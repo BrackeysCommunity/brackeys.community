@@ -3,11 +3,14 @@ import { Readable } from "node:stream";
 import { Client } from "minio";
 
 import { env } from "@/env";
+import type { ImageObjectStore } from "@/lib/image-quarantine";
 import {
   isAllowedProfileProjectImageType,
   PROFILE_PROJECT_IMAGE_MAX_SIZE_BYTES,
   type UploadedProfileProjectImage,
 } from "@/lib/image-upload-policy";
+import { requestUploadScan } from "@/lib/media-scan";
+import { bestEffort } from "@/lib/posthog-server";
 import { buildProfileProjectImageObjectKey } from "@/lib/stored-image-keys";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 
@@ -77,13 +80,21 @@ export async function getProfileProjectImageUrls(
   return Promise.all(objectKeys.map((key) => getProfileProjectImageUrl(key)));
 }
 
-/** Shared validate + put + presign for any image object this app stores. */
+/**
+ * Shared validate + put + presign for any image object this app stores.
+ * Every upload also mints its media-scan bookkeeping row and enqueues the
+ * scan — the row is what makes the image due for the worker's hourly
+ * reconciler even if the enqueue is lost, so it is best-effort but never
+ * skipped on purpose.
+ */
 export async function uploadImageToStorage({
   file,
   objectKey,
+  uploaderId,
 }: {
   file: File;
   objectKey: string;
+  uploaderId: string;
 }): Promise<UploadedProfileProjectImage> {
   if (!isAllowedProfileProjectImageType(file.type)) {
     throw new ProfileProjectImageUploadError("Unsupported image type. Use PNG, JPG, WEBP, or GIF.");
@@ -112,6 +123,10 @@ export async function uploadImageToStorage({
     );
   }
 
+  await bestEffort("media_scan.request", { object_key: objectKey }, () =>
+    requestUploadScan(objectKey, uploaderId),
+  );
+
   return {
     key: objectKey,
     url,
@@ -131,6 +146,7 @@ export async function uploadProfileProjectImageToStorage({
   return uploadImageToStorage({
     file,
     objectKey: buildProfileProjectImageObjectKey(userId, file.name),
+    uploaderId: userId,
   });
 }
 
@@ -162,7 +178,11 @@ export async function resolveTeamBannerUrl(team: {
  * vite.config.ts; it's set here too so dev and conditional responses agree.
  * Keys are validated by the route before this is called.
  */
-export async function streamStoredImage(objectKey: string, request: Request): Promise<Response> {
+export async function streamStoredImage(
+  objectKey: string,
+  request: Request,
+  opts: { cacheControl?: string } = {},
+): Promise<Response> {
   const bucket = env.MINIO_BUCKET;
   if (!bucket) {
     return new Response("Not Found", { status: 404 });
@@ -176,7 +196,7 @@ export async function streamStoredImage(objectKey: string, request: Request): Pr
   }
 
   const headers = new Headers({
-    "cache-control": "public, max-age=31536000, immutable",
+    "cache-control": opts.cacheControl ?? "public, max-age=31536000, immutable",
   });
   const contentType = stat.metaData?.["content-type"];
   if (contentType) headers.set("content-type", contentType);
@@ -215,3 +235,38 @@ export async function removeProfileProjectImageFromStorage(objectKey: string | n
 
   await getMinioClient().removeObject(bucket, objectKey);
 }
+
+function isMissingObject(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "NoSuchKey" || code === "NotFound";
+}
+
+/**
+ * The bucket operations quarantine needs (`image-quarantine.ts`), bound to
+ * the app's MinIO client. A missing source is not an error on either side:
+ * a retried move finds its work already done, and a purge of an object a
+ * previous attempt already removed is a purge.
+ */
+export const storedImageStore: ImageObjectStore = {
+  async move(from, to) {
+    const bucket = env.MINIO_BUCKET;
+    if (!bucket) return;
+    const client = getMinioClient();
+    try {
+      await client.copyObject(bucket, to, `/${bucket}/${from}`);
+    } catch (error) {
+      if (isMissingObject(error)) return;
+      throw error;
+    }
+    await client.removeObject(bucket, from);
+  },
+  async remove(key) {
+    const bucket = env.MINIO_BUCKET;
+    if (!bucket) return;
+    try {
+      await getMinioClient().removeObject(bucket, key);
+    } catch (error) {
+      if (!isMissingObject(error)) throw error;
+    }
+  },
+};

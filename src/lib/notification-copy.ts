@@ -36,6 +36,9 @@ export function renderNotificationText(input: {
   // the scraper may have tombstoned since.
   const jamTitle = (input.data.jamTitle as string | undefined) ?? "a jam";
   const jamHref = (input.data.jamUrl as string | undefined) ?? null;
+  // Upload moderation names the surface, never the verdict: the image is
+  // hidden pending a human look, and nothing about why belongs in a bell.
+  const imageOwnerLabel = (input.data.ownerLabel as string | undefined) ?? "your page";
 
   switch (input.type) {
     case "collab_response_received":
@@ -162,6 +165,11 @@ export function renderNotificationText(input: {
       return { headline: `Results are up for ${jamTitle}`, href: jamHref };
     case "jam_team_post_created":
       return { headline: `${actor} is crewing up for ${jamTitle}`, href };
+    case "image_quarantined":
+      return {
+        headline: `An image you uploaded to ${imageOwnerLabel} is under review`,
+        href: (input.data.ownerUrl as string | undefined) ?? null,
+      };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -199,6 +207,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   jam_voting_open: "Jams — voting opened on a jam you're watching",
   jam_results_posted: "Jams — results are up for a jam you're watching",
   jam_team_post_created: "Jams — someone is crewing up for a jam you're watching",
+  image_quarantined: "Moderation — an image you uploaded is under review",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -233,6 +242,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "jam_voting_open",
   "jam_results_posted",
   "jam_team_post_created",
+  "image_quarantined",
 ];
 
 /**
@@ -299,6 +309,9 @@ export const NOTIFICATION_DEFAULTS: Record<
   // Fan-out scales with watchers × posts, so this one stays in-app only —
   // it is the funnel-closer, not an announcement worth an inbox.
   jam_team_post_created: { inApp: true, email: false, digest: false },
+  // Their banner just vanished from the page; silence reads as the site
+  // being broken. Same reasoning as comment_removed_by_staff.
+  image_quarantined: { inApp: true, email: true, digest: false },
 };
 
 /**
@@ -340,6 +353,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   jam_voting_open: "jams",
   jam_results_posted: "jams",
   jam_team_post_created: "jams",
+  image_quarantined: "moderation",
 };
 
 export const NOTIFICATION_CATEGORIES: readonly NotificationCategory[] = [

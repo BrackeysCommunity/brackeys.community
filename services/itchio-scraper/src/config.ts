@@ -4,6 +4,11 @@ import { parseServiceConfig } from "../../../src/lib/service-config.ts";
 
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
+  // Optional: with it, the itch pacer is shared pool-wide (src/lib/itch-pacer.ts)
+  // and every new entry, changed cover, and changed banner is handed to the
+  // media-scan worker as a job. Without it the crawler paces itself and the
+  // worker's hourly reconciler finds the same work in the DB.
+  REDIS_URL: z.string().min(1).optional(),
   SCRAPE_ENTRY_RESULTS: z.enum(["always", "after-voting", "never"]).default("after-voting"),
   ENTRY_RESULTS_CONCURRENCY: z.coerce.number().int().positive().default(5),
   ENTRY_RESULTS_DELAY_MS: z.coerce.number().int().nonnegative().default(300),
@@ -17,6 +22,10 @@ const schema = z.object({
   // interval instead (itch's limiter usually clears in seconds); from the
   // second consecutive 429 the pause starts here and doubles per strike.
   MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().nonnegative().default(350),
+  // The image CDN and the authenticated API are separate budgets — neither
+  // shares the HTML pages' limiter.
+  IMAGE_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().nonnegative().default(150),
+  API_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().nonnegative().default(500),
   RATE_LIMIT_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
   // How long a jam whose page 404s keeps being retried before it drops out of
   // every tier's selector. Rows are never deleted — after this window they sit
@@ -32,21 +41,27 @@ const schema = z.object({
     .transform((v) => v === "true"),
   USER_AGENT: z.string().default("brackeys-itchio-scraper/0.1 (+https://brackeys.community)"),
 
-  // ── Cron tiers ─────────────────────────────────────────────────────────────
-  // The scrape runs as three independent Railway cron services (live,
-  // discovery, results) rather than one nightly tick. Each has its own pacing
-  // and its own deadline; the deadlines are what keep a slow tier from
-  // overrunning into another tier's slot, since the in-process rate pacer is
-  // per-process and three concurrent services would otherwise triple the
-  // request rate itch.io sees. Schedules are staggered to match (see the
-  // railway.*.toml files).
+  // ── Tiers ──────────────────────────────────────────────────────────────────
+  // The crawler is one resident process running every tier from a priority
+  // loop (src/jobs/tier-loop.ts): each tier has an interval, and a turn runs
+  // under a CRAWLER_CHUNK_MINS deadline rather than a cron slot — a tier
+  // with a backlog resumes next turn unless something more urgent is due.
+  // The *_DEADLINE_MINS knobs bound the one-shot dev entrypoints
+  // (`bun run live` etc.) only.
+  CRAWLER_CHUNK_MINS: z.coerce.number().int().positive().default(10),
+  LIVE_INTERVAL_MINS: z.coerce.number().int().positive().default(15),
+  DISCOVERY_INTERVAL_MINS: z.coerce.number().int().positive().default(240),
+  RESULTS_INTERVAL_MINS: z.coerce.number().int().positive().default(360),
+  LIBRARY_INTERVAL_MINS: z.coerce.number().int().positive().default(60),
+  JAM_BACKFILL_INTERVAL_MINS: z.coerce.number().int().positive().default(15),
+  // Re-armed only once the id sweep reaches the frontier; until then it
+  // runs whenever nothing else is due.
+  SWEEP_INTERVAL_MINS: z.coerce.number().int().positive().default(360),
+
   LIVE_DELAY_MS: z.coerce.number().int().nonnegative().default(250),
   LIVE_DEADLINE_MINS: z.coerce.number().int().positive().default(45),
 
   DISCOVERY_DELAY_MS: z.coerce.number().int().nonnegative().default(250),
-  // Tighter than the other tiers: discovery starts at :20, so anything past
-  // ~25 minutes runs into the live tier's :00/:30 slots and the results tier's
-  // :40 slot. Stopping early is free — both halves resume next tick.
   DISCOVERY_DEADLINE_MINS: z.coerce.number().int().positive().default(25),
   // Announced-but-not-started jams refreshed per discovery tick, staleest
   // first. Nothing about them is perishable, so the pool round-robins instead
@@ -75,41 +90,20 @@ const schema = z.object({
   SWEEP_GAP_START: z.coerce.number().int().nonnegative().default(20_000),
   SWEEP_GAP_END: z.coerce.number().int().nonnegative().default(240_000),
 
-  // ── Entry scan ─────────────────────────────────────────────────────────────
-  // The moderation scan tier (docs/plans/22): fetches covers, hashes them,
-  // scores NSFW, and fills social.entry_flags for the /admin queue. Covers
-  // come from itch's image CDN but share the global pacer anyway, so the
-  // delay can sit below the page-scrape tiers'.
-  SCAN_DELAY_MS: z.coerce.number().int().nonnegative().default(150),
-  SCAN_DEADLINE_MINS: z.coerce.number().int().positive().default(45),
-  // Entries fetched per tick. Newest-jam-first, so a running jam's fresh
-  // submissions always beat backfill; stopping at the cap is free because
-  // due-ness is per entry and the next tick resumes.
-  SCAN_BATCH: z.coerce.number().int().positive().default(1500),
-  // Concurrent scan workers, each claiming whole jams via advisory locks so
-  // parallel workers — and parallel machines — never share a jam. Requests
-  // still ride the global pacer, so extra workers overlap inference and DB
-  // time with network waits rather than multiplying the request rate. The
-  // default keeps the Railway cron serial; local backfill runs raise it.
-  SCAN_PARALLEL: z.coerce.number().int().positive().default(1),
-  // Minimum probe probability (scan/probe.ts) that opens a flag. The probe
-  // is calibrated for a balanced prior, so the useful range sits near 1:
-  // on the 2026-09-06 corpus 0.99 catches every hand-labeled explicit cover
-  // and 37/50 suggestive ones for ~750 flags corpus-wide, while 0.9 lets
-  // ~5,500 through, mostly clean visual-novel art.
-  NSFW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.99),
-  // DB-only re-score of stored embeddings (jobs/rescore.ts).
-  RESCORE_BATCH: z.coerce.number().int().positive().default(2000),
-  RESCORE_DRY_RUN: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((v) => v === "true"),
-  // Kill switch for the classifier only — hashing and theft matching keep
-  // running without it.
-  NSFW_ENABLED: z
-    .enum(["true", "false"])
-    .default("true")
-    .transform((v) => v === "true"),
+  // ── Library sync (formerly services/itchio-library-sync) ───────────────────
+  // Sleep between linked accounts on the API pass; the API rides its own
+  // pacer host, this is the per-account courtesy on top.
+  SYNC_DELAY_MS: z.coerce.number().int().nonnegative().default(500),
+  // How long a game's "Submission to <jam>" scan stays good for. A game's jam
+  // is fixed once it is submitted, so this is only about catching a *new*
+  // submission on a game we already hold — and a jam running now is one the
+  // discovery tier sees anyway.
+  JAM_SCAN_MAX_AGE_DAYS: z.coerce.number().int().positive().default(30),
+  // Seals linked_accounts.access_token at rest; must equal the Web service's.
+  // Read by src/lib/token-crypto.ts from the environment directly; declared
+  // here so a missing key is a boot-time warning rather than a silent
+  // "0 accounts synced".
+  LINKED_ACCOUNTS_ENC_KEY: z.string().min(1).optional(),
 });
 
 export const config = parseServiceConfig(schema);

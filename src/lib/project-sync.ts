@@ -3,7 +3,7 @@
  *
  * **Every write that mints or links a `project.projects` row lives here**, and
  * nothing in this file may import `@/db`. That is the whole point: the
- * `itchio-library-sync` cron service runs its own copy of the sync
+ * `itchio-scraper` crawler's library tier runs its own copy of the sync
  * orchestration against its own drizzle client (deliberately — see the
  * hardening plan's non-goals), and it imports this module by path the same way
  * it imports `src/db/schema.ts`. If the upsert lived behind the app's `db`
@@ -45,7 +45,7 @@ import {
 /**
  * Any drizzle node-postgres client: the app's `db` singleton or the sync
  * service's pool-bound one. Deliberately not the app's concrete type — this
- * module has to typecheck inside `services/itchio-library-sync` too.
+ * module has to typecheck inside `services/itchio-scraper` too.
  */
 export type ProjectDb = NodePgDatabase<Record<string, never>>;
 

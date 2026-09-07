@@ -269,6 +269,18 @@ export function renderCopy(n: NotificationItem): {
         line: <>{teamEm} is visible again</>,
         href: teamHref,
       };
+    case "image_quarantined": {
+      const ownerLabel = (n.data.ownerLabel as string | undefined) ?? "your page";
+      return {
+        line: (
+          <>
+            An image you uploaded to <em className="font-medium not-italic">{ownerLabel}</em> is
+            under review
+          </>
+        ),
+        href: (n.data.ownerUrl as string | undefined) ?? null,
+      };
+    }
     case "team_deleted_by_staff": {
       const reason = n.data.reason as string | undefined;
       return {

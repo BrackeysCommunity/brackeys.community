@@ -1,6 +1,6 @@
 /**
  * The jam-phase notification pass of the lifecycle sweep — step 5 of
- * `services/lifecycle-sweep`. Lives in `src/lib` in the import-graph-neutral
+ * the notifications worker's lifecycle sweep. Lives in `src/lib` in the import-graph-neutral
  * shape of `notify-core.ts` (relative imports, schema + drizzle only, caller
  * passes its own drizzle handle and notify) so the service and DB-backed
  * tests run the same code.

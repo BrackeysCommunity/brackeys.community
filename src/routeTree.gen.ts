@@ -34,6 +34,7 @@ import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
+import { Route as StaffImageSplatRouteImport } from './routes/staff-image.$'
 import { Route as SettingsPrivacyRouteImport } from './routes/settings.privacy'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications'
 import { Route as SettingsMotionRouteImport } from './routes/settings.motion'
@@ -183,6 +184,11 @@ const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
   id: '/$teamId',
   path: '/$teamId',
   getParentRoute: () => TeamsRoute,
+} as any)
+const StaffImageSplatRoute = StaffImageSplatRouteImport.update({
+  id: '/staff-image/$',
+  path: '/staff-image/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsPrivacyRoute = SettingsPrivacyRouteImport.update({
   id: '/privacy',
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/settings/motion': typeof SettingsMotionRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/privacy': typeof SettingsPrivacyRoute
+  '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
@@ -385,6 +392,7 @@ export interface FileRoutesByTo {
   '/settings/motion': typeof SettingsMotionRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/privacy': typeof SettingsPrivacyRoute
+  '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
@@ -437,6 +445,7 @@ export interface FileRoutesById {
   '/settings/motion': typeof SettingsMotionRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/privacy': typeof SettingsPrivacyRoute
+  '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
@@ -490,6 +499,7 @@ export interface FileRouteTypes {
     | '/settings/motion'
     | '/settings/notifications'
     | '/settings/privacy'
+    | '/staff-image/$'
     | '/teams/$teamId'
     | '/collab/'
     | '/game/'
@@ -535,6 +545,7 @@ export interface FileRouteTypes {
     | '/settings/motion'
     | '/settings/notifications'
     | '/settings/privacy'
+    | '/staff-image/$'
     | '/teams/$teamId'
     | '/collab'
     | '/game'
@@ -586,6 +597,7 @@ export interface FileRouteTypes {
     | '/settings/motion'
     | '/settings/notifications'
     | '/settings/privacy'
+    | '/staff-image/$'
     | '/teams/$teamId'
     | '/collab/'
     | '/game/'
@@ -627,6 +639,7 @@ export interface RootRouteChildren {
   JamsJamSlugRoute: typeof JamsJamSlugRoute
   OgSplatRoute: typeof OgSplatRoute
   ProjectsProjectSlugRoute: typeof ProjectsProjectSlugRoute
+  StaffImageSplatRoute: typeof StaffImageSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
   ApiNotificationsUnsubRoute: typeof ApiNotificationsUnsubRoute
@@ -813,6 +826,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/teams/$teamId'
       preLoaderRoute: typeof TeamsTeamIdRouteImport
       parentRoute: typeof TeamsRoute
+    }
+    '/staff-image/$': {
+      id: '/staff-image/$'
+      path: '/staff-image/$'
+      fullPath: '/staff-image/$'
+      preLoaderRoute: typeof StaffImageSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/settings/privacy': {
       id: '/settings/privacy'
@@ -1097,6 +1117,7 @@ const rootRouteChildren: RootRouteChildren = {
   JamsJamSlugRoute: JamsJamSlugRoute,
   OgSplatRoute: OgSplatRoute,
   ProjectsProjectSlugRoute: ProjectsProjectSlugRoute,
+  StaffImageSplatRoute: StaffImageSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
   ApiNotificationsUnsubRoute: ApiNotificationsUnsubRoute,

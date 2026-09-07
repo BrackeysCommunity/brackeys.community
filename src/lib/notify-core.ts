@@ -1,6 +1,6 @@
 /**
  * Shared write path for notifications — consumed by the app's `notify()`
- * (src/lib/notifications.ts) and the lifecycle-sweep service's mirror.
+ * (src/lib/notifications.ts) and the workers' mirrors of it.
  * Import-graph neutral, same contract as `unsubscribe.ts`: relative
  * imports only, schema + drizzle only, and the caller passes its own
  * drizzle handle so this module works in both environments.
@@ -41,7 +41,7 @@ export type NotifyParams = {
 
 /** bullmq options every producer of `side_effects` jobs shares. */
 /**
- * The bullmq queue both producers (the app, lifecycle-sweep) and the
+ * The bullmq queue every producer (the app, the media-scan worker) and the
  * consumer (notifications-worker) meet on. One constant, because a typo'd
  * queue name is a silently-empty queue.
  */

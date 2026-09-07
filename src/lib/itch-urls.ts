@@ -2,7 +2,7 @@
  * itch.io identity normalization. Pure — no database, no environment.
  *
  * Lives on its own because three places need the same comparison and one of
- * them (`project-sync.ts`) is imported by the `itchio-library-sync` service:
+ * them (`project-sync.ts`) is imported by the `itchio-scraper` crawler (its library tier):
  * the jam participation match, the contributor→profile match in the backfill,
  * and the canonical credits written by the syncs. A second spelling of "is
  * this the same itch account" is how those three quietly disagree.

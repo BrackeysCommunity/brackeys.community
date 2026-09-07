@@ -1,6 +1,6 @@
 /**
  * Lifecycle windows for collab posts and teams — the write-side stamps
- * and the `services/lifecycle-sweep` cron both read these, so every
+ * and the notifications worker's `lifecycle_sweep` job both read these, so every
  * number lives here and nowhere else. Pure module: no imports, no db,
  * so the service can copy it into its image the same way it copies
  * `schema.ts`.

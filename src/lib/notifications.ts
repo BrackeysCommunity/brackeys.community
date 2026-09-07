@@ -12,7 +12,8 @@ export type { NotifyParams };
  * and never fails the caller if Redis is unreachable.
  *
  * The write itself (preference gating, dedupe, insert) lives in
- * `notify-core.ts`, shared with the lifecycle-sweep service.
+ * `notify-core.ts`, shared with the workers (the notifications worker's lifecycle
+ * sweep, the media-scan worker's quarantine notice).
  */
 export async function notify(params: NotifyParams): Promise<void> {
   if (params.actorId && params.actorId === params.userId) return;

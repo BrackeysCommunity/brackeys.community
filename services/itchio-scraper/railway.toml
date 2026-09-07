@@ -1,0 +1,32 @@
+# Config-as-code for the CRAWLER service — every itch.io scrape tier in one
+# resident process (plan 27 phase 4).
+#
+# src/crawler.ts runs a priority loop over the tiers (src/jobs/tier-loop.ts):
+#
+#   live         every 15 min   open jams: jam page + entries.json
+#   jam-backfill every 15 min   DB-only: members' jam entries → profile_projects
+#   discovery    every 4 h      listing walks, new jams, upcoming refresh
+#   results      every 6 h      rankings for finished jams (backlog-driven)
+#   library      hourly         linked accounts: identity, API library, probes
+#   sweep        when idle       the jam-id sweep, until it reaches the frontier
+#
+# Each turn runs under a CRAWLER_CHUNK_MINS deadline instead of a cron slot: a
+# tier with a backlog resumes next turn unless something more urgent is due,
+# so results can hold hours of work without delaying live by more than one
+# chunk. Every itch request rides the per-host pacer shared through Redis with
+# the media-scan worker, which is why nothing here needs a minute stagger.
+#
+# Create a service pointing at this repo, leave Root Directory blank (the
+# Dockerfile builds from the repo root so it can copy src/db/schema.ts), set
+# "Config file path" to services/itchio-scraper/railway.toml, and reference the
+# shared DATABASE_URL, REDIS_URL, and LINKED_ACCOUNTS_ENC_KEY (equal to Web's)
+# variables. Resident, not cron: SIGTERM finishes the jam in flight, and the
+# new container resumes each tier from its persisted schedule and progress.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/itchio-scraper/Dockerfile"
+
+[deploy]
+startCommand = "bun run start"
+restartPolicyType = "ALWAYS"

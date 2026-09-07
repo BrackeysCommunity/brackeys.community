@@ -59,6 +59,9 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "profile_updated", label: "Profiles edited" },
   { value: "entry_flag_confirmed", label: "Entry flags confirmed" },
   { value: "entry_flag_dismissed", label: "Entry flags dismissed" },
+  { value: "image_flag_confirmed", label: "Upload flags confirmed" },
+  { value: "image_flag_dismissed", label: "Upload flags dismissed" },
+  { value: "image_rescan_requested", label: "Upload rescans requested" },
 ];
 
 const ACTION_LABEL = new Map(ACTIONS.map((a) => [a.value, a.label]));
