@@ -40,7 +40,32 @@ describe("/team", () => {
     expect(byName.Stack).toBe("Unity");
     expect(byName["Open posts"]).toBe("• [Need a composer](https://brackeys.test/collab/5)");
     expect(byName.Links).toBe("[Website](https://cosy.example)");
+    expect(embed.thumbnail).toBe("https://cdn/team.png");
     expect(reply.ephemeral).toBe(true);
+  });
+
+  test("site-relative avatar is absolutized against appUrl", async () => {
+    const api = fakeApi({
+      getTeam: async () => ({
+        id: "t1",
+        slug: "orange-crew",
+        name: "Orange crew",
+        tagline: null,
+        bio: null,
+        avatarUrl: "/images/team-avatars/t1/orange.png",
+        websiteUrl: null,
+        itchUrl: null,
+        recruiting: false,
+        members: [],
+        skills: [],
+        projects: [],
+        openPosts: [],
+      }),
+    });
+    const reply = await teamInfo(api, { team: "orange-crew" }, ctx);
+    expect(reply.embeds[0]!.thumbnail).toBe(
+      "https://brackeys.test/images/team-avatars/t1/orange.png",
+    );
   });
 
   test("unknown team → not_found", async () => {

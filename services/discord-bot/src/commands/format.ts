@@ -2,7 +2,7 @@ import { effectiveJamState, jamLengthDays } from "../../../../src/lib/jam-countd
 import { hostName as jamHostName, jamSlug, jamUrl } from "../../../../src/lib/jam-links.ts";
 import { profileSlug } from "../../../../src/lib/profile-links.ts";
 import { teamSlug } from "../../../../src/lib/team-links.ts";
-import { type Button, type Embed, hexColor, plural, ts } from "../reply.ts";
+import { type Button, type Embed, hexColor, httpUrl, plural, ts } from "../reply.ts";
 
 /**
  * The jam fields every `/jam` embed shares. Typed structurally on the
@@ -56,6 +56,17 @@ export function phaseLine(jam: JamLike, now: Date): string {
   }
 }
 
+/**
+ * An image URL fit for an embed. The public API returns site-relative
+ * paths for anything uploaded to the site (`/images/team-avatars/…`) and
+ * absolute ones for Discord's CDN and itch.io; Discord accepts only the
+ * latter, and rejects the entire message otherwise.
+ */
+export function mediaUrl(appUrl: string, url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  return httpUrl(url.startsWith("/") ? `${appUrl}${url}` : url);
+}
+
 export function jamPageUrl(appUrl: string, jam: { jamId: number; slug?: string | null }): string {
   return `${appUrl}/jams/${jamSlug(jam)}`;
 }
@@ -107,7 +118,7 @@ export function jamEmbed(
     description: lines.join("\n"),
     color: hexColor(jam.themeColor),
     fields,
-    image: jam.bannerUrl ?? undefined,
+    image: mediaUrl(ctx.appUrl, jam.bannerUrl),
   };
 }
 

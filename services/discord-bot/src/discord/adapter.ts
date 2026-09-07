@@ -31,7 +31,7 @@ import {
 } from "../commands/dispatch.ts";
 import type { Cooldown } from "../cooldown.ts";
 import type { Choice, Memo } from "../memo.ts";
-import type { Button, Embed, Reply } from "../reply.ts";
+import { type Button, type Embed, httpUrl, type Reply } from "../reply.ts";
 
 /**
  * The one file that touches discord.js interaction objects. It turns an
@@ -317,12 +317,15 @@ function toApiEmbed(embed: Embed): APIEmbed {
   };
 }
 
-/** Five buttons to a row, five rows to a message. */
+/** Five buttons to a row, five rows to a message. A link button whose URL
+ *  is malformed is dropped for the same reason `clampEmbed` drops one: it
+ *  would fail the whole message. */
 function toRows(buttons: Button[]): ActionRowBuilder<ButtonBuilder>[] {
+  const usable = buttons.filter((b) => b.kind !== "link" || httpUrl(b.url));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  for (let i = 0; i < buttons.length && rows.length < 5; i += 5) {
+  for (let i = 0; i < usable.length && rows.length < 5; i += 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
-    for (const button of buttons.slice(i, i + 5)) {
+    for (const button of usable.slice(i, i + 5)) {
       const b = new ButtonBuilder().setLabel(button.label.slice(0, 80));
       if (button.kind === "link") b.setStyle(ButtonStyle.Link).setURL(button.url);
       else

@@ -75,6 +75,24 @@ export function oneLine(text: string | null | undefined, max: number): string {
   return truncate(text.replace(/\s+/g, " ").trim(), max);
 }
 
+/**
+ * Discord rejects the whole message (50035 `URL_TYPE_INVALID_URL`) if any
+ * embed URL is not absolute http(s), and the public API returns
+ * site-relative paths for anything uploaded to the site. Call sites
+ * absolutize first (`mediaUrl` in `commands/format.ts`); this is the
+ * backstop that turns anything still malformed into a missing image
+ * rather than a failed command.
+ */
+export function httpUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Markdown link with a label that cannot break out of the brackets. */
 export function link(label: string, url: string): string {
   const safe = label.replace(/[[\]]/g, "").replace(/\\/g, "") || "link";
@@ -106,6 +124,16 @@ export function hexColor(hex: string | null | undefined): number | undefined {
  */
 export function clampEmbed(embed: Embed): Embed {
   const out: Embed = { ...embed };
+  out.url = httpUrl(out.url);
+  out.image = httpUrl(out.image);
+  out.thumbnail = httpUrl(out.thumbnail);
+  if (out.author) {
+    out.author = {
+      ...out.author,
+      url: httpUrl(out.author.url),
+      iconUrl: httpUrl(out.author.iconUrl),
+    };
+  }
   if (out.title) out.title = truncate(out.title, EMBED_TITLE_MAX);
   if (out.description) out.description = truncate(out.description, EMBED_DESCRIPTION_MAX);
   if (out.footer) out.footer = truncate(out.footer, EMBED_FOOTER_MAX);

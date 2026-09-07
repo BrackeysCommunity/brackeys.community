@@ -116,11 +116,18 @@ bun run register --force  # PUT regardless
 ```bash
 cd services/discord-bot
 bun install
-cp .env.example .env
-# fill in the staging application's token/ids and APP_URL
+cp .env.example .env.staging
+# the *staging* application's token/ids, and APP_URL=https://staging.brackeys.dev
 
-bun run start
+bun run staging          # gateway + boot registration, against .env.staging
+bun run register:staging # registration only, no gateway
 ```
+
+`bun run start` / `bun run register` read `.env` instead, so the two
+environments sit side by side; both files are gitignored. `--env-file`
+_replaces_ `.env` rather than layering over it, so a leftover production
+`.env` cannot bleed into a staging run. Never point a local process at the
+real guild — the gateway would run a second live bot alongside Railway's.
 
 You should see `[boot] gateway ready as …`, one `[register] …` line, and
 `[memo] warm {…}`. Each API call logs `[api] <procedure> <status> <ms> cf=<HIT|MISS>`;

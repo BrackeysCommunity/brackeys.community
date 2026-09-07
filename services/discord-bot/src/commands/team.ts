@@ -10,7 +10,7 @@ import {
   truncate,
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
-import { postUrl, teamUrl } from "./format.ts";
+import { mediaUrl, postUrl, teamUrl } from "./format.ts";
 
 const ROSTER_MAX = 15;
 const BIO_MAX = 600;
@@ -83,7 +83,7 @@ export async function teamInfo(
       title: team.name,
       url,
       description: description || undefined,
-      thumbnail: team.avatarUrl ?? undefined,
+      thumbnail: mediaUrl(ctx.appUrl, team.avatarUrl),
       fields,
     },
     { buttons: [{ kind: "link", label: "Open team", url }], ephemeral: !input.share },

@@ -12,7 +12,7 @@ import {
   truncate,
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
-import { displayName, profileUrl, teamUrl } from "./format.ts";
+import { displayName, mediaUrl, profileUrl, teamUrl } from "./format.ts";
 
 type ProfileResult = NonNullable<Awaited<ReturnType<PublicApi["getProfile"]>>>;
 
@@ -121,11 +121,11 @@ async function renderProfile(
 
   return embedReply(
     {
-      author: { name: displayName(profile), url, iconUrl: profile.avatarUrl ?? undefined },
+      author: { name: displayName(profile), url, iconUrl: mediaUrl(ctx.appUrl, profile.avatarUrl) },
       title: profile.tagline ? oneLine(profile.tagline, 200) : undefined,
       url,
       description: profile.bio ? truncate(profile.bio.trim(), BIO_MAX) : undefined,
-      thumbnail: profile.avatarUrl ?? undefined,
+      thumbnail: mediaUrl(ctx.appUrl, profile.avatarUrl),
       fields,
     },
     { buttons: [{ kind: "link", label: "Open profile", url }], ephemeral },

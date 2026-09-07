@@ -140,7 +140,7 @@ describe("/collab post", () => {
           jam: { jamId: 1, slug: "brackeys-14", title: "Brackeys Game Jam 2026.1" },
         }),
         roles: [{ id: 3, name: "Composer", category: null }],
-        images: [{ url: "https://img/1.png" }],
+        images: [{ url: "/images/collab/12/shot.png" }],
         responseCount: 4,
         author: {
           id: "u1",
@@ -161,7 +161,7 @@ describe("/collab post", () => {
       url: "https://brackeys.test/profile/josh",
       iconUrl: undefined,
     });
-    expect(embed.image).toBe("https://img/1.png");
+    expect(embed.image).toBe("https://brackeys.test/images/collab/12/shot.png");
     expect(embed.fields?.map((f) => f.name)).toEqual([
       "Type",
       "Compensation",

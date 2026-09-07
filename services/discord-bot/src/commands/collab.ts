@@ -14,7 +14,7 @@ import {
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
 import { type CollabType, encodeCustomId, type PageState, truncateSearch } from "./custom-id.ts";
-import { displayName, jamPageUrl, postUrl, profileUrl, teamUrl } from "./format.ts";
+import { displayName, jamPageUrl, mediaUrl, postUrl, profileUrl, teamUrl } from "./format.ts";
 
 export const BROWSE_PAGE_SIZE = 10;
 const ROW_TITLE_MAX = 70;
@@ -201,7 +201,7 @@ export async function collabPost(
     ? {
         name: displayName(post.author),
         url: profileUrl(ctx.appUrl, post.author),
-        iconUrl: post.author.avatarUrl ?? undefined,
+        iconUrl: mediaUrl(ctx.appUrl, post.author.avatarUrl),
       }
     : undefined;
 
@@ -212,7 +212,7 @@ export async function collabPost(
       description: truncate(post.description.trim(), POST_DESCRIPTION_MAX),
       author,
       fields,
-      image: post.images[0]?.url ?? post.project?.imageUrl ?? undefined,
+      image: mediaUrl(ctx.appUrl, post.images[0]?.url ?? post.project?.imageUrl),
     },
     {
       buttons: [{ kind: "link", label: "Open on brackeys.dev", url: postUrl(ctx.appUrl, post.id) }],
