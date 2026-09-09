@@ -1,0 +1,33 @@
+{
+  "vectors": [
+    {
+      "name": "plain / perfect launch",
+      "digest": 1478102099
+    },
+    {
+      "name": "plain / missed launch",
+      "digest": 3425770372
+    },
+    {
+      "name": "plain / nudged",
+      "digest": 2718066039
+    },
+    {
+      "name": "gaffed pockets / la partage",
+      "digest": 2172909828
+    },
+    {
+      "name": "slow rotor",
+      "digest": 1400882050
+    },
+    {
+      "name": "two balls / fast rotor / en prison",
+      "digest": 228389914
+    },
+    {
+      "name": "scripted run / twelve tables",
+      "digest": 1378899194
+    }
+  ],
+  "digest": 245443349
+}

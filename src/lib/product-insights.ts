@@ -13,10 +13,16 @@ import type { AnalyticsEvent } from "@/lib/event-taxonomy";
  *
  * Runs **cookieless** (`cookieless_mode: "always"`) — nothing is written to
  * cookies, localStorage, or sessionStorage, and visitor identity is a
- * privacy-preserving hash PostHog computes server-side and rotates daily.
- * That is what lets the app ship without a consent banner; it also means an
- * anonymous visitor looks like a new one every 24h, so treat unique-visitor
- * counts as approximate.
+ * privacy-preserving hash PostHog computes server-side. That is what lets the
+ * app ship without a consent banner.
+ *
+ * The cost is identity resolution, and it is steeper than "a new visitor each
+ * day": with no persistence the session id is regenerated on every page load,
+ * so each load is a fresh anonymous person. Route changes inside one load
+ * share an id; a reload does not. Measured on staging — 7 pageviews across 6
+ * loads produced 6 anonymous persons. Treat unique-visitor and session metrics
+ * as unusable for anonymous traffic, and build funnels on identified users,
+ * whose id (`identifyUser`) is stable across loads.
  *
  * ⚠️ Cookieless mode must **also** be switched on in the PostHog project
  * settings. Until it is, every event this sends is dropped at ingestion.
@@ -238,6 +244,11 @@ async function loadAndInit() {
     // ("if_capture_pageview") would switch itself off alongside.
     capture_pageview: false,
     capture_pageleave: true,
+    // Off: `$autocapture` names events after the DOM that fired them, which
+    // is the opposite of the taxonomy in `@/lib/event-taxonomy` — a renamed
+    // button silently becomes a different event. Clicks worth measuring get
+    // a named event instead.
+    autocapture: false,
     capture_exceptions: true,
     // Replay needs persistent storage to stitch a session together, so it
     // cannot work cookieless — say so rather than ship a recorder that

@@ -11,6 +11,10 @@
 export const FEATURE_FLAGS = {
   /** Wiring check: flip it in PostHog to confirm flags reach the client. */
   "flag-smoke-test": false,
+  /** The `/arcade` subtree: the landing, the store, and every game route. */
+  "arcade-enabled": false,
+  /** En Prison specifically, so it can soft-launch behind `arcade-enabled`. */
+  "arcade-en-prison": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

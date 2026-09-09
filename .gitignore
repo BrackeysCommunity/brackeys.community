@@ -26,3 +26,6 @@ ds_bundle
 ds_bundle/**/*
 .design-sync
 .ds-sync
+docs/plans
+docs/game-drafts
+docs/research

@@ -24,6 +24,7 @@ import { Route as GameRouteImport } from './routes/game'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
+import { Route as ArcadeRouteImport } from './routes/arcade'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
@@ -33,6 +34,7 @@ import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
+import { Route as ArcadeIndexRouteImport } from './routes/arcade.index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as StaffImageSplatRouteImport } from './routes/staff-image.$'
 import { Route as SettingsPrivacyRouteImport } from './routes/settings.privacy'
@@ -50,6 +52,7 @@ import { Route as ImagesSplatRouteImport } from './routes/images.$'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
+import { Route as ArcadeEnPrisonRouteImport } from './routes/arcade.en-prison'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as ProjectsGameGameIdRouteImport } from './routes/projects.game.$gameId'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
@@ -135,6 +138,11 @@ const CollabRoute = CollabRouteImport.update({
   path: '/collab',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArcadeRoute = ArcadeRouteImport.update({
+  id: '/arcade',
+  path: '/arcade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -179,6 +187,11 @@ const CollabIndexRoute = CollabIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => CollabRoute,
+} as any)
+const ArcadeIndexRoute = ArcadeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ArcadeRoute,
 } as any)
 const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
   id: '/$teamId',
@@ -265,6 +278,11 @@ const CollabPostIdRoute = CollabPostIdRouteImport.update({
   path: '/$postId',
   getParentRoute: () => CollabRoute,
 } as any)
+const ArcadeEnPrisonRoute = ArcadeEnPrisonRouteImport.update({
+  id: '/en-prison',
+  path: '/en-prison',
+  getParentRoute: () => ArcadeRoute,
+} as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
@@ -315,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
+  '/arcade': typeof ArcadeRouteWithChildren
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
@@ -331,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
@@ -348,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/settings/privacy': typeof SettingsPrivacyRoute
   '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/arcade/': typeof ArcadeIndexRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
@@ -377,6 +398,7 @@ export interface FileRoutesByTo {
   '/suspended': typeof SuspendedRoute
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
@@ -394,6 +416,7 @@ export interface FileRoutesByTo {
   '/settings/privacy': typeof SettingsPrivacyRoute
   '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/arcade': typeof ArcadeIndexRoute
   '/collab': typeof CollabIndexRoute
   '/game': typeof GameIndexRoute
   '/jams': typeof JamsIndexRoute
@@ -414,6 +437,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
+  '/arcade': typeof ArcadeRouteWithChildren
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
@@ -430,6 +454,7 @@ export interface FileRoutesById {
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
@@ -447,6 +472,7 @@ export interface FileRoutesById {
   '/settings/privacy': typeof SettingsPrivacyRoute
   '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/arcade/': typeof ArcadeIndexRoute
   '/collab/': typeof CollabIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
@@ -468,6 +494,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/arcade'
     | '/collab'
     | '/command-center'
     | '/feed.xml'
@@ -484,6 +511,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/terms'
     | '/api/$'
+    | '/arcade/en-prison'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
@@ -501,6 +529,7 @@ export interface FileRouteTypes {
     | '/settings/privacy'
     | '/staff-image/$'
     | '/teams/$teamId'
+    | '/arcade/'
     | '/collab/'
     | '/game/'
     | '/jams/'
@@ -530,6 +559,7 @@ export interface FileRouteTypes {
     | '/suspended'
     | '/terms'
     | '/api/$'
+    | '/arcade/en-prison'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
@@ -547,6 +577,7 @@ export interface FileRouteTypes {
     | '/settings/privacy'
     | '/staff-image/$'
     | '/teams/$teamId'
+    | '/arcade'
     | '/collab'
     | '/game'
     | '/jams'
@@ -566,6 +597,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/arcade'
     | '/collab'
     | '/command-center'
     | '/feed.xml'
@@ -582,6 +614,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/terms'
     | '/api/$'
+    | '/arcade/en-prison'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
@@ -599,6 +632,7 @@ export interface FileRouteTypes {
     | '/settings/privacy'
     | '/staff-image/$'
     | '/teams/$teamId'
+    | '/arcade/'
     | '/collab/'
     | '/game/'
     | '/jams/'
@@ -619,6 +653,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRoute
+  ArcadeRoute: typeof ArcadeRouteWithChildren
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
@@ -757,6 +792,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollabRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/arcade': {
+      id: '/arcade'
+      path: '/arcade'
+      fullPath: '/arcade'
+      preLoaderRoute: typeof ArcadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
       id: '/admin'
       path: '/admin'
@@ -819,6 +861,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/collab/'
       preLoaderRoute: typeof CollabIndexRouteImport
       parentRoute: typeof CollabRoute
+    }
+    '/arcade/': {
+      id: '/arcade/'
+      path: '/'
+      fullPath: '/arcade/'
+      preLoaderRoute: typeof ArcadeIndexRouteImport
+      parentRoute: typeof ArcadeRoute
     }
     '/teams/$teamId': {
       id: '/teams/$teamId'
@@ -939,6 +988,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollabPostIdRouteImport
       parentRoute: typeof CollabRoute
     }
+    '/arcade/en-prison': {
+      id: '/arcade/en-prison'
+      path: '/en-prison'
+      fullPath: '/arcade/en-prison'
+      preLoaderRoute: typeof ArcadeEnPrisonRouteImport
+      parentRoute: typeof ArcadeRoute
+    }
     '/api/$': {
       id: '/api/$'
       path: '/api/$'
@@ -1004,6 +1060,19 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface ArcadeRouteChildren {
+  ArcadeEnPrisonRoute: typeof ArcadeEnPrisonRoute
+  ArcadeIndexRoute: typeof ArcadeIndexRoute
+}
+
+const ArcadeRouteChildren: ArcadeRouteChildren = {
+  ArcadeEnPrisonRoute: ArcadeEnPrisonRoute,
+  ArcadeIndexRoute: ArcadeIndexRoute,
+}
+
+const ArcadeRouteWithChildren =
+  ArcadeRoute._addFileChildren(ArcadeRouteChildren)
 
 interface CollabRouteChildren {
   CollabPostIdRoute: typeof CollabPostIdRoute
@@ -1097,6 +1166,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRoute,
+  ArcadeRoute: ArcadeRouteWithChildren,
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
