@@ -126,7 +126,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
   const isClosed = post.status !== "recruiting";
   const closesIn = !isClosed && post.expiresAt ? formatCountdown(post.expiresAt) : null;
   const rateDisplay =
-    formatRate(post.compensationType, post.compensationMin, post.compensationMax) ||
+    formatRate(post.compensationType, post.compensationMin, post.compensationMax, {
+      currency: post.currency,
+    }) ||
     post.compensation ||
     "";
 

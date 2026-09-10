@@ -9,6 +9,7 @@ import type { ActiveUserProfile } from "@/lib/active-user-store";
 
 const mockSession = { user: { id: "user-abc", name: "Joshe", image: null } };
 let sessionData: typeof mockSession | null = null;
+let currentPath = "/";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: (props: Record<string, unknown>) => {
@@ -26,7 +27,7 @@ vi.mock("@tanstack/react-router", () => ({
     );
   },
   useNavigate: () => vi.fn(),
-  useRouterState: () => "/",
+  useRouterState: () => currentPath,
 }));
 
 vi.mock("framer-motion", () => ({
@@ -140,12 +141,31 @@ function setActiveProfile(profile: ActiveUserProfile | null) {
   activeUserStore.setState(() => ({ profile, isPending: false }));
 }
 
+/**
+ * Click a nav link and report whether its handler suppressed the navigation.
+ * The document-level listener reads `defaultPrevented` after React's own
+ * handler has run, then stops jsdom trying to follow the href — which it
+ * cannot do, and complains about loudly.
+ */
+function clickSuppressesNavigation(element: Element) {
+  let prevented = false;
+  const spy = (event: Event) => {
+    prevented = event.defaultPrevented;
+    event.preventDefault();
+  };
+  document.addEventListener("click", spy);
+  fireEvent.click(element);
+  document.removeEventListener("click", spy);
+  return prevented;
+}
+
 function resetStore() {
   activeUserStore.setState(() => ({ profile: null, isPending: false }));
 }
 
 afterEach(() => {
   sessionData = null;
+  currentPath = "/";
   resetStore();
   cleanup();
 });
@@ -198,5 +218,45 @@ describe("AppHeader navigation", () => {
 
     expect(screen.queryByTestId("desktop-profile-link")).toBeNull();
     expect(screen.queryByTestId("mobile-profile-link")).toBeNull();
+  });
+});
+
+// "This section is lit" and "you are already here" used to share one
+// boolean, so a lit tab on a detail page called preventDefault and the only
+// way back to the list was the browser's back button.
+describe("AppHeader section links from detail pages", () => {
+  const SECTIONS = [
+    { slug: "teams", detail: "/teams/comfy", root: "/teams" },
+    { slug: "jams", detail: "/jams/412", root: "/jams" },
+    { slug: "members", detail: "/members/someone", root: "/members" },
+    { slug: "collab", detail: "/collab/412", root: "/collab" },
+  ];
+
+  it.each(SECTIONS)("$slug still navigates from $detail", ({ slug, detail, root }) => {
+    currentPath = detail;
+    renderHeader();
+
+    const link = screen.getByTestId(`desktop-${slug}-link`);
+    expect(link.getAttribute("href")).toBe(root);
+    // Lit, but not the page itself.
+    expect(link.getAttribute("aria-current")).toBe("true");
+    expect(clickSuppressesNavigation(link)).toBe(false);
+  });
+
+  it.each(SECTIONS)("$slug does not re-navigate from $root", ({ slug, root }) => {
+    currentPath = root;
+    renderHeader();
+
+    const link = screen.getByTestId(`desktop-${slug}-link`);
+    expect(link.getAttribute("aria-current")).toBe("page");
+    expect(clickSuppressesNavigation(link)).toBe(true);
+  });
+
+  it.each(SECTIONS)("$slug in the mobile menu navigates from $detail", ({ slug, detail }) => {
+    currentPath = detail;
+    renderHeader();
+    fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
+
+    expect(clickSuppressesNavigation(screen.getByTestId(`mobile-${slug}-link`))).toBe(false);
   });
 });

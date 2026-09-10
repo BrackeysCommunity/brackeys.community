@@ -1,7 +1,6 @@
 import {
   ArrowRight01Icon,
   Flag01Icon,
-  Link01Icon,
   Settings02Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
@@ -17,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { DotGrid } from "@/components/ui/dot-grid";
+import { ExternalLink } from "@/components/ui/external-link";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { PageStack } from "@/components/ui/page-motion";
@@ -32,6 +32,7 @@ import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
+import { isHostOrSubdomainOf } from "@/lib/external-url";
 import { timeAgo } from "@/lib/format-time";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
@@ -400,9 +401,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                         .toUpperCase()}
                     </MicroLabel>
                   ) : null}
-                  {(p.submissionUrl ?? p.url) ? (
-                    <ExternalLink href={(p.submissionUrl ?? p.url)!} label="ENTRY" />
-                  ) : null}
+                  <ExternalLink href={p.submissionUrl ?? p.url} label="ENTRY" />
                 </div>
               ))}
             </Well>
@@ -557,8 +556,11 @@ function TeamMasthead({
               ) : null}
               {team.websiteUrl || team.itchUrl ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  {team.websiteUrl ? <ExternalLink href={team.websiteUrl} label="WEBSITE" /> : null}
-                  {team.itchUrl ? <ExternalLink href={team.itchUrl} label="ITCH.IO" /> : null}
+                  <ExternalLink href={team.websiteUrl} label="WEBSITE" />
+                  <ExternalLink
+                    href={team.itchUrl}
+                    label={isHostOrSubdomainOf(team.itchUrl, "itch.io") ? "ITCH.IO" : undefined}
+                  />
                 </div>
               ) : null}
             </div>
@@ -768,22 +770,5 @@ function TeamReportButton({ teamId }: { teamId: string }) {
         REPORT
       </Button>
     </ReportDialog>
-  );
-}
-
-/** An off-site destination, in the micro-label voice. */
-function ExternalLink({ href, label }: { href: string; label: string }) {
-  return (
-    <TextLink
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      size="xs"
-      monospace
-      className="inline-flex items-center gap-1 tracking-widest text-primary uppercase hover:underline"
-    >
-      <HugeiconsIcon icon={Link01Icon} size={11} />
-      {label}
-    </TextLink>
   );
 }

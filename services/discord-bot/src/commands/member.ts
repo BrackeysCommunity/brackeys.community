@@ -89,6 +89,7 @@ async function renderProfile(
   }
   const rate = formatRate(profile.rateType, profile.rateMin, profile.rateMax, {
     negotiableLabel: "negotiable",
+    currency: profile.currency,
   });
   const availability = profile.availableForWork
     ? ["Open to work", profile.availability, rate].filter(Boolean).join(" · ")

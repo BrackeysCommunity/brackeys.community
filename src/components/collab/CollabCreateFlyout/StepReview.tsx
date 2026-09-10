@@ -56,7 +56,9 @@ export function StepReview() {
   const pendingTeamName = !v.isIndividual && v.teamId === undefined ? v.newTeamName.trim() : "";
   const teamName = team?.name ?? pendingTeamName;
 
-  const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax);
+  const compDisplay = formatRate(v.compensationType, v.compensationMin, v.compensationMax, {
+    currency: v.currency,
+  });
   const postTypeIcon = POST_TYPES.find((t) => t.value === v.type)?.icon;
 
   const checks = getPreflightChecks(v);

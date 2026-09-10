@@ -1,7 +1,7 @@
 import { Delete02Icon, Image01Icon, ViewIcon, ViewOffSlashIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { nanoid } from "nanoid";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -15,16 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
+import { CURRENCY_OPTIONS, type Currency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
 import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
-import { COMP_SLIDER_CONFIG, type CompSliderConfig } from "./shared";
+import { MAX_COMPENSATION, compensationProblem } from "./shared";
 
 // ── FieldRow ───────────────────────────────────────────────────────────────
 
@@ -214,74 +214,98 @@ export function MultiSelectField({
   );
 }
 
-// ── Compensation range slider ──────────────────────────────────────────────
+// ── Compensation range ─────────────────────────────────────────────────────
 
 interface CompensationFieldProps {
   compensationType: CollabCompensationType | undefined;
   min: number | undefined;
   max: number | undefined;
+  currency: Currency;
   onMinChange: (v: number | undefined) => void;
   onMaxChange: (v: number | undefined) => void;
+  onCurrencyChange: (v: Currency) => void;
 }
 
+/**
+ * Two numbers and, for money, what they are denominated in.
+ *
+ * This was a two-thumb slider with no minimum separation, so the pair could
+ * meet and the grab target went ambiguous — and the tracks quantised the
+ * answer besides: `step: 5` from a floor of 5 made `$4.99/hr` and every
+ * other sub-5 rate unexpressible, and the fixed track's `step: 100` did the
+ * same under a hundred. The profile's AVAILABILITY step already asks this
+ * question with a type select plus numeric min/max, and that is the control
+ * nobody filed a report about, so the wizard uses it too.
+ *
+ * `rev_share` keeps numeric inputs but not the currency picker: it is a
+ * percentage of the project, not an amount of money.
+ */
 export function CompensationField({
   compensationType,
   min,
   max,
+  currency,
   onMinChange,
   onMaxChange,
+  onCurrencyChange,
 }: CompensationFieldProps) {
-  const config = compensationType ? COMP_SLIDER_CONFIG[compensationType] : undefined;
-  const onMinRef = useRef(onMinChange);
-  const onMaxRef = useRef(onMaxChange);
-  useEffect(() => {
-    onMinRef.current = onMinChange;
-    onMaxRef.current = onMaxChange;
-  });
+  if (!compensationType || compensationType === "negotiable") return null;
+  const isShare = compensationType === "rev_share";
+  const unitMax = isShare ? 100 : MAX_COMPENSATION;
+  const problem = compensationProblem(compensationType, min, max);
 
-  // A range only means anything in its own type's units: carrying a
-  // fixed-price 500–5000 across to rev share renders "500% - 5000%" and
-  // pins both thumbs off the end of a 5–100 track. Re-seed whenever the
-  // type changes, or when the stored pair can't be expressed on this
-  // track at all — which is also how a stale draft or a remount after a
-  // detour through "negotiable" gets straightened out.
-  const lastTypeRef = useRef(compensationType);
-  const onTrack = (v: number | undefined, cfg: CompSliderConfig) =>
-    v !== undefined && v >= cfg.min && v <= cfg.max;
-  useEffect(() => {
-    if (!config) return;
-    const typeChanged = lastTypeRef.current !== compensationType;
-    lastTypeRef.current = compensationType;
-    if (typeChanged || !onTrack(min, config) || !onTrack(max, config)) {
-      onMinRef.current(config.defaultMin);
-      onMaxRef.current(config.defaultMax);
-    }
-  }, [config, compensationType, min, max]);
-
-  if (!config) return null;
-  // Same test for display, so a carried-over pair never gets one frame
-  // to render as nonsense before the effect above re-seeds it.
-  const currentMin = onTrack(min, config) ? min! : config.defaultMin;
-  const currentMax = onTrack(max, config) ? max! : config.defaultMax;
   return (
-    <FieldRow label="RATE RANGE">
-      <div className="px-1">
-        <Slider
-          min={config.min}
-          max={config.max}
-          step={config.step}
-          value={[currentMin, currentMax]}
-          onValueChange={(newValue) => {
-            if (Array.isArray(newValue)) {
-              onMinChange(newValue[0]);
-              onMaxChange(newValue[1]);
-            }
-          }}
+    <FieldRow label="RATE RANGE" error={problem}>
+      <div className="flex flex-wrap items-center gap-2">
+        {isShare ? null : (
+          <Select
+            value={currency}
+            onValueChange={(v) => {
+              if (typeof v === "string") onCurrencyChange(v as Currency);
+            }}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CURRENCY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Input
+          type="number"
+          min={0}
+          max={unitMax}
+          placeholder="min"
+          className="w-24"
+          value={min ?? ""}
+          onChange={(e) => onMinChange(e.target.value === "" ? undefined : Number(e.target.value))}
         />
+        <Text variant="muted">–</Text>
+        <Input
+          type="number"
+          min={0}
+          max={unitMax}
+          placeholder="max"
+          className="w-24"
+          value={max ?? ""}
+          onChange={(e) => onMaxChange(e.target.value === "" ? undefined : Number(e.target.value))}
+        />
+        {isShare ? (
+          <Text variant="muted" size="sm">
+            % of revenue
+          </Text>
+        ) : null}
       </div>
-      <Text as="p" size="xs" variant="success" className="text-center tracking-wider">
-        {formatRate(compensationType, currentMin, currentMax)}
-      </Text>
+      {problem ? null : (
+        <Text as="p" size="xs" variant="success" className="tracking-wider">
+          {formatRate(compensationType, min, max, { currency })}
+        </Text>
+      )}
     </FieldRow>
   );
 }

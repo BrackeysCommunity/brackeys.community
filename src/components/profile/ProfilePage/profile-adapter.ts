@@ -1,3 +1,4 @@
+import { normalizeCurrency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
 import { memberName } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
@@ -41,6 +42,7 @@ export interface RpcProfile {
     rateType: string | null;
     rateMin: number | null;
     rateMax: number | null;
+    currency?: string | null;
     timezone: string | null;
     location: string | null;
     createdAt: Date;
@@ -278,10 +280,12 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
       rate:
         formatRate(profile.rateType, profile.rateMin, profile.rateMax, {
           negotiableLabel: "Negotiable",
+          currency: profile.currency,
         }) || null,
       rateType: profile.rateType,
       rateMin: profile.rateMin,
       rateMax: profile.rateMax,
+      currency: normalizeCurrency(profile.currency),
       responseTime: null,
       timezone: profile.timezone,
       lookingFor: profile.lookingFor,

@@ -199,6 +199,43 @@
       display: none;
     }
   }
+  /* Every nested scroller drew the platform's own bar: invisible on macOS,
+     where they are overlay bars, and a fat light rectangle on Windows. The
+     `.no-scrollbar` utility is not the answer for these — a modal body
+     taller than its box needs to say so, and on Windows the bar is the only
+     thing that does. So: style it, don't hide it.
+
+     Scoped away from `html`/`body` (which hide theirs above) and from the
+     surfaces that opt into `.no-scrollbar`, where the clipped row at the
+     edge is the affordance instead. Form controls are in on purpose — the
+     report dialog's textarea drew one too. */
+  *:not(html, body, .no-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+
+    /* WebKit ignores the two above; these are the same design again. */
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background-color: var(--color-border);
+      /* Inset via a transparent border so the thumb reads as a slim pill
+         in a wide-enough hit target. */
+      border: 3px solid transparent;
+      background-clip: content-box;
+    }
+    &::-webkit-scrollbar-thumb:hover {
+      background-color: var(--color-muted-foreground);
+    }
+    &::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+  }
   a,
   button,
   [role="button"],
@@ -214,7 +251,11 @@
   input,
   select,
   textarea,
-  label,
+  /* Only a label that actually targets a control — the house `FieldRow`
+     and every tag-picker heading render a bare <Label> as a caption, and
+     a hand cursor on those promises a click that does nothing. */
+  label[for],
+  label:has(input, select, textarea),
   [tabindex]:not([tabindex="-1"]),
   [cmdk-item] {
     pointer-events: auto;

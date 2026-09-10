@@ -36,6 +36,7 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
   const rate = member.availableForWork
     ? formatRate(member.rateType, member.rateMin, member.rateMax, {
         negotiableLabel: "NEGOTIABLE",
+        currency: member.currency,
       })
     : null;
   const commitment = member.availableForWork ? availabilityLabel(member.availability) : null;

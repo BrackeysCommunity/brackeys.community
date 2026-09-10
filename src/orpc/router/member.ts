@@ -343,6 +343,7 @@ export const listMembers = os
           rateType: developerProfiles.rateType,
           rateMin: developerProfiles.rateMin,
           rateMax: developerProfiles.rateMax,
+          currency: developerProfiles.currency,
           timezone: developerProfiles.timezone,
           location: developerProfiles.location,
           createdAt: developerProfiles.createdAt,

@@ -1,3 +1,4 @@
+import { compensationLabel } from "@/lib/collab-vocabulary";
 /**
  * View model for the redesigned profile page. The current backend
  * (`getProfile` oRPC) covers most of this, but a few fields don't exist
@@ -6,7 +7,7 @@
  * the layout-pass phases we hand the components a typed view model and
  * adapt from real data + sample data at the boundary.
  */
-import { compensationLabel } from "@/lib/collab-vocabulary";
+import type { Currency } from "@/lib/currency";
 import { availabilityLabel } from "@/lib/member-vocabulary";
 
 export interface ProfileViewModel {
@@ -113,6 +114,8 @@ export interface ProfileAvailability {
   rateType: string | null;
   rateMin: number | null;
   rateMax: number | null;
+  /** ISO 4217 the two numbers are in. Display only — nothing converts. */
+  currency: Currency;
   /** Mean response time, surfaced as `~4h`. */
   responseTime: string | null;
   /** Short "what I'm looking for" blurb. The people lane is the

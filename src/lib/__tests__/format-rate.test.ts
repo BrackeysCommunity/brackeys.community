@@ -21,6 +21,22 @@ describe("formatRate", () => {
     expect(formatRate("fixed", 900, undefined)).toBe("$900+");
   });
 
+  it("renders the currency the amounts are stored in, never converting", () => {
+    expect(formatRate("hourly", 40, 60, { currency: "EUR" })).toBe("€40 - €60 /hr");
+    expect(formatRate("fixed", 5000, null, { currency: "SEK" })).toBe("SEK 5K+");
+    expect(formatRate("hourly", 40, null, { currency: "JPY" })).toBe("¥40+ /hr");
+  });
+
+  it("reads an unset or unknown currency as USD, which is what those rows rendered as", () => {
+    expect(formatRate("hourly", 40, 60)).toBe("$40 - $60 /hr");
+    expect(formatRate("hourly", 40, 60, { currency: null })).toBe("$40 - $60 /hr");
+    expect(formatRate("hourly", 40, 60, { currency: "XYZ" })).toBe("$40 - $60 /hr");
+  });
+
+  it("ignores currency for rev_share, which is a percentage of the project", () => {
+    expect(formatRate("rev_share", 10, 30, { currency: "EUR" })).toBe("10% - 30%");
+  });
+
   it("renders rev_share as percentages, not dollars", () => {
     expect(formatRate("rev_share", 10, 30)).toBe("10% - 30%");
     expect(formatRate("rev_share", 15, null)).toBe("15%+");

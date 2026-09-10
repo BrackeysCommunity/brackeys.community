@@ -14,6 +14,7 @@ import type {
   UploadedImage,
 } from "@/lib/collab-store";
 import { COMPENSATION_VOCAB, CONTACT_VOCAB, EXPERIENCE_VOCAB } from "@/lib/collab-vocabulary";
+import type { Currency } from "@/lib/currency";
 import { DAY_MS } from "@/lib/format-time";
 import { postImageForm } from "@/lib/image-upload";
 import type { UploadedImageRecord } from "@/lib/image-upload";
@@ -101,7 +102,7 @@ export const POST_TYPES: ChoiceCardOption<CollabPostType>[] = [
   {
     value: "hobby",
     label: "HOBBY",
-    desc: "Passion, jam crews, rev-share.",
+    desc: "Passion projects, jam crews, unpaid.",
     icon: GameController01Icon,
   },
 ];
@@ -161,21 +162,36 @@ export const CONTACT_PLACEHOLDERS: Record<CollabContactType, string> = {
   other: "How to reach you",
 };
 
-// ── Compensation slider config ─────────────────────────────────────────────
+// ── Compensation ───────────────────────────────────────────────────────────
 
-export type CompSliderConfig = {
-  min: number;
-  max: number;
-  step: number;
-  defaultMin: number;
-  defaultMax: number;
-};
+/** Mirrors the server's cap in `postContentShape` (`collab.ts`). */
+export const MAX_COMPENSATION = 1_000_000;
 
-export const COMP_SLIDER_CONFIG: Record<string, CompSliderConfig> = {
-  hourly: { min: 5, max: 200, step: 5, defaultMin: 25, defaultMax: 75 },
-  fixed: { min: 100, max: 25000, step: 100, defaultMin: 500, defaultMax: 5000 },
-  rev_share: { min: 5, max: 100, step: 5, defaultMin: 10, defaultMax: 30 },
-};
+/**
+ * What's wrong with a compensation pair, in the words the field shows.
+ *
+ * The inverted-pair rule lived only on the server (`refinePostContent`),
+ * which a two-thumb slider could never trigger — so it surfaced as oRPC's
+ * own "Input validation failed" the moment §1.4's numeric inputs made it
+ * reachable. Same rule, both sides.
+ */
+export function compensationProblem(
+  compensationType: string | undefined,
+  min: number | undefined,
+  max: number | undefined,
+): string | null {
+  if (!compensationType || compensationType === "negotiable") return null;
+  const isShare = compensationType === "rev_share";
+  const unitMax = isShare ? 100 : MAX_COMPENSATION;
+  const amounts = [min, max].filter((n): n is number => n !== undefined);
+  if (amounts.some((n) => n < 0)) return "Rates can't be negative.";
+  if (amounts.some((n) => !Number.isInteger(n))) return "Whole numbers only.";
+  if (amounts.some((n) => n > unitMax))
+    return isShare ? "A share can't exceed 100%." : "Rates cap out at 1,000,000.";
+  if (min !== undefined && max !== undefined && max < min)
+    return "Maximum can't be below the minimum.";
+  return null;
+}
 
 // ── MinIO upload ───────────────────────────────────────────────────────────
 
@@ -230,6 +246,8 @@ export type WizardFormValues = {
   compensationType: CollabCompensationType | undefined;
   compensationMin: number | undefined;
   compensationMax: number | undefined;
+  /** Display only — see `@/lib/currency`; nothing converts. */
+  currency: Currency;
   contactType: CollabContactType | undefined;
   contactMethod: string;
   portfolioUrl: string;
@@ -332,6 +350,8 @@ export function getQuickFieldErrors(v: WizardFormValues): QuickFieldErrors {
     else if (v.compensationType !== "negotiable" && v.compensationMin === undefined)
       errors.compensation = "Please select a compensation range.";
   }
+  errors.compensation ??=
+    compensationProblem(v.compensationType, v.compensationMin, v.compensationMax) ?? undefined;
   for (const key of Object.keys(errors) as (keyof QuickFieldErrors)[]) {
     if (errors[key] === undefined) delete errors[key];
   }
@@ -358,6 +378,14 @@ export function getStepValidationError(stepId: string, v: WizardFormValues): str
         if (v.compensationType !== "negotiable" && v.compensationMin === undefined)
           return "Please select a compensation range.";
       }
+      // Not gated on `type === "paid"`: a hobby post can carry a rev-share
+      // range too, and the server checks the pair either way.
+      const compCheck = compensationProblem(
+        v.compensationType,
+        v.compensationMin,
+        v.compensationMax,
+      );
+      if (compCheck) return compCheck;
       const titleCheck = profanityCheck(v.title, "Title");
       if (titleCheck) return titleCheck;
       break;

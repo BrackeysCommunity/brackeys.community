@@ -74,6 +74,13 @@ type SegmentedControlProps = Omit<
   onChange: (value: string) => void;
   size?: Size;
   priority?: Priority;
+  /**
+   * Emit `onChange` when the selected item is tapped again. Off by default,
+   * because for a filter that is a no-op — but a control used to *navigate*
+   * needs it: tapping COLLAB from `/collab/412` has somewhere to go, and
+   * swallowing it is what made the tab dead on its own detail pages.
+   */
+  emitOnReselect?: boolean;
 };
 
 function SegmentedControlRoot({
@@ -81,6 +88,7 @@ function SegmentedControlRoot({
   onChange,
   size = "md",
   priority = "default",
+  emitOnReselect = false,
   className,
   children,
   ...props
@@ -95,8 +103,13 @@ function SegmentedControlRoot({
         value={[value]}
         onValueChange={(next) => {
           const last = next[next.length - 1];
-          // Always single-select: ignore attempts to deselect the current item.
-          if (last && last !== value) onChange(last);
+          // Always single-select: a tap on the current item arrives as an
+          // empty `next` (a deselect), which is a re-selection here.
+          if (!last) {
+            if (emitOnReselect) onChange(value);
+            return;
+          }
+          if (last !== value || emitOnReselect) onChange(last);
         }}
         className={cn(
           // button-group layout: items keep `rounded`, but interior edges

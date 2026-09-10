@@ -227,6 +227,10 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         priority="default"
         value={pending ?? active}
         onChange={handleChange}
+        // A tab is lit on its detail pages too, so a re-tap is how you get
+        // back to the section root — `navigate` no-ops when you are already
+        // there.
+        emitOnReselect
         aria-label="Primary navigation"
         className="w-full max-w-md"
       >

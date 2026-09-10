@@ -128,6 +128,10 @@ export const developerProfiles = userSchema.table(
     rateType: text("rate_type"),
     rateMin: integer("rate_min"),
     rateMax: integer("rate_max"),
+    /** ISO 4217, display only — see `@/lib/currency`. Nothing converts.
+     *  Rows predating the column read as USD, which is what they rendered
+     *  as when every rate was an unlabelled integer behind a hardcoded $. */
+    currency: text("currency").notNull().default("USD"),
     // The people lane is the individual-availability surface (there is no
     // "I'm available" post type — a profile flag maintains itself, a post
     // goes stale the moment its author finds work). These two carry what
@@ -467,6 +471,8 @@ export const collabPosts = collabSchema.table("collab_posts", {
   compensationType: text("compensation_type"),
   compensationMin: integer("compensation_min"),
   compensationMax: integer("compensation_max"),
+  /** ISO 4217, display only — see `developerProfiles.currency`. */
+  currency: text("currency").notNull().default("USD"),
   // Legacy: no longer written or rendered. A linked team already shows
   // its member count and a project its credits, so the wizard stopped
   // asking. Kept so pre-existing rows survive.

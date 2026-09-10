@@ -28,6 +28,7 @@ COPY src/lib/event-taxonomy.ts ./src/lib/event-taxonomy.ts
 COPY src/lib/jam-countdown.ts ./src/lib/jam-countdown.ts
 COPY src/lib/jam-links.ts ./src/lib/jam-links.ts
 COPY src/lib/format-rate.ts ./src/lib/format-rate.ts
+COPY src/lib/currency.ts ./src/lib/currency.ts
 COPY src/lib/collab-vocabulary.ts ./src/lib/collab-vocabulary.ts
 COPY src/lib/profile-links.ts ./src/lib/profile-links.ts
 COPY src/lib/team-links.ts ./src/lib/team-links.ts

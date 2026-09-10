@@ -10,6 +10,7 @@ import type {
   CollabContactType,
   CollabProjectLength,
 } from "@/lib/collab-vocabulary";
+import { type Currency, DEFAULT_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { captureEvent } from "@/lib/product-insights";
 
@@ -64,6 +65,9 @@ export type WizardDraft = {
   compensationType: CollabCompensationType | undefined;
   compensationMin: number | undefined;
   compensationMax: number | undefined;
+  /** What the two numbers are denominated in. Display only — see
+   *  `@/lib/currency`; nothing converts. */
+  currency: Currency;
   projectLength: CollabProjectLength | undefined;
   platforms: string[];
   experienceLevel: CollabExperienceLevel | undefined;
@@ -116,6 +120,7 @@ const defaultDraft: WizardDraft = {
   compensationType: undefined,
   compensationMin: undefined,
   compensationMax: undefined,
+  currency: DEFAULT_CURRENCY,
   projectLength: undefined,
   platforms: [],
   experienceLevel: undefined,
@@ -221,6 +226,7 @@ export type EditableCollabPost = {
   compensationType: string | null;
   compensationMin: number | null;
   compensationMax: number | null;
+  currency?: string | null;
   projectLength: string | null;
   platforms: string[] | null;
   experienceLevel: string | null;
@@ -237,7 +243,7 @@ export type EditableCollabPost = {
 /**
  * Seeds the wizard from a saved post. This only became possible once
  * compensation was stored as numbers — the old `"$25 - $75 /hr"` display
- * string could not be parsed back into the sliders, which is why editing
+ * string could not be parsed back into the rate fields, which is why editing
  * a typo used to mean deleting the post and losing every response.
  *
  * The narrowing casts are safe by construction: the server only accepts
@@ -267,6 +273,7 @@ export function draftFromPost(
     compensationType: (post.compensationType as CollabCompensationType | null) ?? undefined,
     compensationMin: post.compensationMin ?? undefined,
     compensationMax: post.compensationMax ?? undefined,
+    currency: normalizeCurrency(post.currency),
     projectLength: (post.projectLength as CollabProjectLength | null) ?? undefined,
     platforms: post.platforms ?? [],
     experienceLevel: (post.experienceLevel as CollabExperienceLevel | null) ?? undefined,

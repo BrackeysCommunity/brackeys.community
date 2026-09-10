@@ -37,7 +37,9 @@ import {
   COLLAB_POST_TYPES,
   COLLAB_PROJECT_LENGTHS,
 } from "@/lib/collab-vocabulary";
+import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { optionalExternalUrlSchema } from "@/lib/external-url";
 import { jamSlug } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
@@ -122,10 +124,12 @@ const postContentShape = {
   compensationType: compensationTypeSchema.optional(),
   compensationMin: z.number().int().min(0).max(1_000_000).optional(),
   compensationMax: z.number().int().min(0).max(1_000_000).optional(),
+  // Display only — no conversion happens anywhere. See `@/lib/currency`.
+  currency: z.enum(CURRENCIES).optional(),
   projectLength: projectLengthSchema.optional(),
   platforms: z.array(z.string().max(50)).max(20).optional(),
   experienceLevel: experienceLevelSchema.optional(),
-  portfolioUrl: z.url().max(500).optional().or(z.literal("")),
+  portfolioUrl: optionalExternalUrlSchema,
   contactMethod: z.string().max(500).optional(),
   contactType: contactTypeSchema.optional(),
   isIndividual: z.boolean().optional(),
@@ -347,6 +351,7 @@ function postColumns(input: PostContent, projectName?: string) {
     compensationType: input.compensationType ?? null,
     compensationMin: input.compensationMin ?? null,
     compensationMax: input.compensationMax ?? null,
+    currency: input.currency ?? DEFAULT_CURRENCY,
     projectLength: input.projectLength ?? null,
     platforms: input.platforms ?? [],
     experienceLevel: input.experienceLevel ?? null,
@@ -1641,7 +1646,7 @@ export const respondToPost = os
     z.object({
       postId: z.number(),
       message: z.string().min(1).max(2000),
-      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
+      portfolioUrl: optionalExternalUrlSchema,
     }),
   )
   .handler(async ({ input, context }) => {
@@ -1736,7 +1741,7 @@ export const updateMyResponse = os
     z.object({
       postId: z.number(),
       message: z.string().min(1).max(2000),
-      portfolioUrl: z.url().max(500).optional().or(z.literal("")),
+      portfolioUrl: optionalExternalUrlSchema,
     }),
   )
   .handler(async ({ input, context }) => {

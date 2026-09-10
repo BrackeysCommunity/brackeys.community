@@ -55,9 +55,7 @@ function MagneticLink({
 }
 
 const NAV_ITEMS = [
-  // Only the browse list. A post page is a leaf under it, and the tab must
-  // stay clickable there so it can lead back to the list.
-  { to: "/collab", label: "COLLAB", slug: "collab", exact: true },
+  { to: "/collab", label: "COLLAB", slug: "collab" },
   { to: "/jams", label: "JAMS", slug: "jams" },
   { to: "/teams", label: "TEAMS", slug: "teams" },
   // Where PROFILE used to sit. The viewer's own profile is one click away in
@@ -66,11 +64,9 @@ const NAV_ITEMS = [
   { to: "/members", label: "MEMBERS", slug: "members" },
 ] as const;
 
-/** A section stays lit on its detail pages — `/jams/foo` is still JAMS —
- *  unless the item opts into `exact`. */
+/** A section stays lit on its detail pages — `/jams/foo` is still JAMS. */
 function isActivePath(pathname: string, item: (typeof NAV_ITEMS)[number]) {
-  if (pathname === item.to) return true;
-  return !("exact" in item && item.exact) && pathname.startsWith(`${item.to}/`);
+  return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
 export function AppHeader() {
@@ -173,24 +169,31 @@ export function AppHeader() {
             <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
               {NAV_ITEMS.map((item) => {
                 const active = isActivePath(pathname, item);
+                const atRoot = pathname === item.to;
                 return (
-                  // The active item keeps the hover tick but drops the page
-                  // toggle: nothing is about to tear down.
-                  <MagneticLink key={item.to} cues={active ? HOVER_CUE : NAV_LINK_CUES}>
+                  // The item you are already on keeps the hover tick but drops
+                  // the page toggle: nothing is about to tear down.
+                  <MagneticLink key={item.to} cues={atRoot ? HOVER_CUE : NAV_LINK_CUES}>
                     <Link
                       data-testid={`desktop-${item.slug}-link`}
-                      aria-current={active ? "page" : undefined}
+                      // "page" only where it is the page; a lit section on one
+                      // of its detail pages is `true`, which is what the token
+                      // is for.
+                      aria-current={atRoot ? "page" : active ? "true" : undefined}
                       className={cn(
                         "relative px-2 py-1 transition-colors after:absolute after:inset-x-2 after:-bottom-0.5 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:content-['']",
                         active
-                          ? "cursor-default text-primary after:scale-x-100"
+                          ? "text-primary after:scale-x-100"
                           : "text-foreground after:scale-x-0 hover:text-primary",
+                        atRoot && "cursor-default",
                       )}
                       to={item.to}
                       onClick={(e) => {
                         // Re-navigating to where you already are restarts the
-                        // page transition for no reason.
-                        if (active) e.preventDefault();
+                        // page transition for no reason. Note `atRoot`, not
+                        // `active`: a detail page lights its section but is
+                        // not the section, and the link has to lead back.
+                        if (atRoot) e.preventDefault();
                       }}
                     >
                       {item.label}
@@ -260,22 +263,24 @@ export function AppHeader() {
             <nav className="flex flex-col gap-1 p-4">
               {NAV_ITEMS.map((item) => {
                 const active = isActivePath(pathname, item);
+                const atRoot = pathname === item.to;
                 return (
                   <Link
                     key={item.to}
                     data-testid={`mobile-${item.slug}-link`}
                     to={item.to}
-                    aria-current={active ? "page" : undefined}
+                    aria-current={atRoot ? "page" : active ? "true" : undefined}
                     onClick={(e) => {
-                      if (active) e.preventDefault();
+                      if (atRoot) e.preventDefault();
                       setMobileMenuOpen(false);
                     }}
-                    {...(active ? HOVER_CUE : NAV_LINK_CUES)}
+                    {...(atRoot ? HOVER_CUE : NAV_LINK_CUES)}
                     className={cn(
                       "border-l-2 px-4 py-3 text-sm font-bold tracking-widest transition-colors",
                       active
-                        ? "cursor-default border-primary bg-primary/10 text-primary"
+                        ? "border-primary bg-primary/10 text-primary"
                         : "border-transparent text-foreground hover:bg-primary/5 hover:text-primary",
+                      atRoot && "cursor-default",
                     )}
                   >
                     {item.label}

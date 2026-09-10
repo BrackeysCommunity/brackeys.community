@@ -224,6 +224,7 @@ function validWizardValues(overrides: Partial<WizardFormValues> = {}): WizardFor
     compensationType: undefined,
     compensationMin: undefined,
     compensationMax: undefined,
+    currency: "USD",
     contactType: "discord_dm",
     contactMethod: "someone",
     portfolioUrl: "",
@@ -281,6 +282,75 @@ describe("wizard step validation", () => {
       getStepValidationError("review", validWizardValues({ newTeamName: "x" })),
     ).not.toBeNull();
     expect(getStepValidationError("review", validWizardValues({ newTeamName: "" }))).toBeNull();
+  });
+
+  // ── Compensation pair ──────────────────────────────────────────────
+
+  // The server has always rejected an inverted pair (`refinePostContent`),
+  // but a two-thumb slider could not produce one, so the rule was untested
+  // client-side. §1.4's numeric inputs can, and this is what stops the
+  // wizard surfacing oRPC's "Input validation failed" instead.
+  it("refuses an inverted compensation pair, the way the server does", () => {
+    const inverted = validWizardValues({
+      type: "paid",
+      compensationType: "hourly",
+      compensationMin: 80,
+      compensationMax: 40,
+    });
+    expect(getStepValidationError("basics", inverted)).toMatch(/below the minimum/);
+    expect(getStepValidationError("review", inverted)).toMatch(/below the minimum/);
+    expect(getQuickFieldErrors(inverted).compensation).toMatch(/below the minimum/);
+  });
+
+  it("accepts an ordered pair and an open-ended one", () => {
+    for (const comp of [
+      { compensationMin: 40, compensationMax: 80 },
+      { compensationMin: 40, compensationMax: undefined },
+      { compensationMin: 40, compensationMax: 40 },
+    ]) {
+      const v = validWizardValues({ type: "paid", compensationType: "hourly", ...comp });
+      expect(getStepValidationError("basics", v)).toBeNull();
+    }
+  });
+
+  it("caps a rev share at 100% and a rate at a million", () => {
+    expect(
+      getStepValidationError(
+        "basics",
+        validWizardValues({
+          compensationType: "rev_share",
+          compensationMin: 5,
+          compensationMax: 120,
+        }),
+      ),
+    ).toMatch(/100%/);
+    expect(
+      getStepValidationError(
+        "basics",
+        validWizardValues({
+          type: "paid",
+          compensationType: "fixed",
+          compensationMin: 1,
+          compensationMax: 2_000_000,
+        }),
+      ),
+    ).toMatch(/1,000,000/);
+  });
+
+  // A hobby post can carry a rev-share range, and the server checks the
+  // pair regardless of post type — so no gate may be scoped to `paid`.
+  it("checks the pair on a hobby post too", () => {
+    expect(
+      getStepValidationError(
+        "basics",
+        validWizardValues({
+          type: "hobby",
+          compensationType: "rev_share",
+          compensationMin: 30,
+          compensationMax: 10,
+        }),
+      ),
+    ).toMatch(/below the minimum/);
   });
 
   it("requires at least one role — the step used to be silently optional", () => {

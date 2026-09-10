@@ -40,8 +40,14 @@ import {
   userRoles,
   userSkills,
 } from "@/db/schema";
+import { CURRENCIES } from "@/lib/currency";
 import { applyRoleOverrides, isAdmin as checkIsAdmin, isStaffMember } from "@/lib/discord";
 import { EVENTS } from "@/lib/event-taxonomy";
+import {
+  externalUrlSchema,
+  normalizingExternalUrlSchema,
+  optionalExternalUrlSchema,
+} from "@/lib/external-url";
 import { jamUrl } from "@/lib/jam-links";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { type ModOverride } from "@/lib/moderation-policy";
@@ -334,7 +340,13 @@ function queryUserRoles(userId: string) {
     .where(eq(userRoles.userId, userId));
 }
 
-const optionalUrlSchema = z.url().optional().or(z.literal(""));
+/**
+ * The profile's GITHUB / TWITTER / PORTFOLIO rows. They render under labels
+ * that name a host, and were untyped strings — so a bare handle-style entry
+ * is normalized to https rather than refused, and everything else is.
+ */
+const socialUrlSchema = normalizingExternalUrlSchema.or(z.literal("")).optional().nullable();
+
 /** The *canonical* kind the member picked. The placement stores a lossy
  * stand-in for it (`placementTypeForProjectType`) because its column is a pg
  * enum; `project.projects.type` is the real answer. */
@@ -347,7 +359,7 @@ const projectLinksSchema = z
   .array(
     z.object({
       label: z.string().trim().min(1).max(40),
-      url: z.url(),
+      url: externalUrlSchema,
     }),
   )
   .max(6)
@@ -676,14 +688,16 @@ export const updateProfile = os
       .object({
         bio: z.string().optional(),
         tagline: z.string().optional(),
-        githubUrl: z.string().max(500).optional().nullable(),
-        twitterUrl: z.string().max(500).optional().nullable(),
-        websiteUrl: z.string().max(500).optional().nullable(),
+        githubUrl: socialUrlSchema,
+        twitterUrl: socialUrlSchema,
+        websiteUrl: socialUrlSchema,
         availableForWork: z.boolean().optional(),
         availability: availabilitySchema.optional().nullable(),
         rateType: rateTypeSchema.optional().nullable(),
         rateMin: rateAmountSchema,
         rateMax: rateAmountSchema,
+        // Display only — no conversion happens anywhere. See `@/lib/currency`.
+        currency: z.enum(CURRENCIES).optional(),
         // The people lane is the availability listing, so what an "I'm
         // available" post would have said lives on the profile instead.
         lookingFor: z.string().max(280).optional().nullable(),
@@ -896,7 +910,7 @@ export const addProject = os
     z.object({
       title: z.string().min(1),
       description: z.string().optional(),
-      url: optionalUrlSchema,
+      url: optionalExternalUrlSchema,
       image: uploadedProjectImageSchema,
       tags: z.array(z.string()).optional(),
       pinned: z.boolean().optional(),
@@ -969,7 +983,7 @@ export const updateProject = os
       projectId: z.string(),
       title: z.string().optional(),
       description: z.string().optional(),
-      url: optionalUrlSchema,
+      url: optionalExternalUrlSchema,
       image: uploadedProjectImageSchema,
       tags: z.array(z.string()).optional(),
       pinned: z.boolean().optional(),
@@ -1122,9 +1136,9 @@ export const addJamParticipation = os
   .input(
     z.object({
       jamName: z.string().min(1),
-      jamUrl: optionalUrlSchema,
+      jamUrl: optionalExternalUrlSchema,
       submissionTitle: z.string().optional(),
-      submissionUrl: optionalUrlSchema,
+      submissionUrl: optionalExternalUrlSchema,
       result: z.string().optional(),
       teamMembers: z.array(z.string()).optional(),
       participatedAt: z.string().optional(),
@@ -1379,9 +1393,9 @@ export const profileModerationPatchSchema = z.object({
   tagline: z.string().optional().nullable(),
   lookingFor: z.string().max(280).optional().nullable(),
   location: z.string().trim().max(100).optional().nullable(),
-  githubUrl: z.string().max(500).optional().nullable(),
-  twitterUrl: z.string().max(500).optional().nullable(),
-  websiteUrl: z.string().max(500).optional().nullable(),
+  githubUrl: socialUrlSchema,
+  twitterUrl: socialUrlSchema,
+  websiteUrl: socialUrlSchema,
 });
 export type ProfileModerationPatch = z.infer<typeof profileModerationPatchSchema>;
 

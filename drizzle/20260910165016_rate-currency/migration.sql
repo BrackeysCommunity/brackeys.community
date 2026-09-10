@@ -1,0 +1,2 @@
+ALTER TABLE "collab"."collab_posts" ADD COLUMN "currency" text DEFAULT 'USD' NOT NULL;--> statement-breakpoint
+ALTER TABLE "user"."developer_profiles" ADD COLUMN "currency" text DEFAULT 'USD' NOT NULL;

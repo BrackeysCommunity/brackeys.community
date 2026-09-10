@@ -39,6 +39,7 @@ import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { compensationLabel } from "@/lib/collab-vocabulary";
+import { CURRENCY_OPTIONS, type Currency, normalizeCurrency } from "@/lib/currency";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
@@ -1024,7 +1025,7 @@ function rateProblem(min: number | null, max: number | null): string | null {
   const amounts = [min, max].filter((n): n is number => n != null);
   if (amounts.some((n) => n < 0)) return "Rates can't be negative.";
   if (amounts.some((n) => !Number.isInteger(n))) return "Whole numbers only.";
-  if (amounts.some((n) => n > MAX_RATE)) return "Rates cap out at $1,000,000.";
+  if (amounts.some((n) => n > MAX_RATE)) return "Rates cap out at 1,000,000.";
   if (min != null && max != null && max < min) return "Maximum can't be below the minimum.";
   return null;
 }
@@ -1047,6 +1048,9 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const [lookingFor, setLookingFor] = useState<string>(profile.availability.lookingFor ?? "");
   const [collabPreference, setCollabPreference] = useState<string | null>(
     profile.availability.collabPreference,
+  );
+  const [currency, setCurrency] = useState<Currency>(
+    normalizeCurrency(profile.availability.currency),
   );
   const [rateError, setRateError] = useState<string | null>(null);
 
@@ -1090,7 +1094,7 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
         />
       </FieldRow>
       <FieldRow label="RATE" error={rateError}>
-        <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+        <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,7rem)_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
           <OptionalSelect
             value={rateType}
             options={RATE_OPTIONS}
@@ -1100,6 +1104,26 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
               update.mutate({ rateType: next });
             }}
           />
+          {/* Display only — nothing here or anywhere else converts. */}
+          <Select
+            value={currency}
+            onValueChange={(v) => {
+              if (typeof v !== "string") return;
+              setCurrency(v as Currency);
+              update.mutate({ currency: v as Currency });
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CURRENCY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             type="number"
             min={0}

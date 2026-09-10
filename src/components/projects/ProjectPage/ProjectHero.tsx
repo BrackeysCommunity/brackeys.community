@@ -10,13 +10,15 @@ import { useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ExternalLink } from "@/components/ui/external-link";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { Spinner } from "@/components/ui/spinner";
-import { Heading, Link, MicroLabel, Text } from "@/components/ui/typography";
+import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { externalUrlHost } from "@/lib/external-url";
 import { postImageForm } from "@/lib/image-upload";
 import { jamEntryUrl } from "@/lib/jam-links";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
@@ -61,6 +63,7 @@ export function ProjectHero({
   // don't offer them. Same semantics as the library sync's URL probe.
   const restricted = project.restrictedAt != null;
   const showCta = project.url != null && !restricted;
+  const ctaHost = showCta ? externalUrlHost(project.url) : null;
 
   return (
     <Well data-header-hero className="overflow-hidden p-0">
@@ -149,6 +152,11 @@ export function ProjectHero({
               <MicroLabel>THIS PROJECT'S PAGE IS NO LONGER PUBLIC ON ITCH.IO</MicroLabel>
             ) : null}
 
+            {/* The CTA's own label is host-checked (`projectCtaLabel`), but
+                the neutral ones name no destination at all — so the host
+                rides beside the button either way. */}
+            {ctaHost ? <MicroLabel className="normal-case">{ctaHost}</MicroLabel> : null}
+
             {fromJam?.submissionUrl ? (
               <Button
                 size="sm"
@@ -209,19 +217,11 @@ export function ProjectHero({
               </>
             ) : null}
 
-            {/* Secondary links: repo, live site, store page. */}
+            {/* Secondary links: repo, live site, store page. The label is
+                free text the owner typed, so the host rides along. */}
             {!restricted &&
               project.links.map((link) => (
-                <Link
-                  key={link.url}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="sm"
-                  className="tracking-widest uppercase"
-                >
-                  {link.label} →
-                </Link>
+                <ExternalLink key={link.url} href={link.url} label={link.label} />
               ))}
           </div>
         </div>

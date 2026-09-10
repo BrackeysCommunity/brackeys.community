@@ -9,6 +9,7 @@
  * was designed to avoid.
  */
 import type { ProjectType } from "@/db/schema";
+import { isHostOrSubdomainOf } from "@/lib/external-url";
 // Taxonomy, not `lib/projects` — that module opens the database, and this
 // one is imported by a route (so, by every page).
 import { projectTypeFromClassification } from "@/lib/project-taxonomy";
@@ -75,9 +76,13 @@ export function projectTypeLabel(project: {
  *
  * `embedType: 'html'` is itch's "playable in the browser" signal, which is
  * the only case where the CTA can promise something better than a download.
+ *
+ * Any label that names a destination is checked against the URL before it
+ * is used: the type is owner-editable and so is the link, so `type: game`
+ * alone was enough to put PLAY ON ITCH.IO on a button pointing anywhere.
  */
 const TYPE_CTA: Record<ProjectType, string> = {
-  game: "PLAY ON ITCH.IO",
+  game: "PLAY",
   tool: "DOWNLOAD",
   app: "DOWNLOAD",
   assets: "GET THE PACK",
@@ -93,6 +98,9 @@ export function projectCtaLabel(project: {
 }): string {
   if (project.type === "game" && project.embedType?.toLowerCase() === "html") {
     return "PLAY IN BROWSER";
+  }
+  if (project.type === "game" && isHostOrSubdomainOf(project.url, "itch.io")) {
+    return "PLAY ON ITCH.IO";
   }
   return TYPE_CTA[project.type as ProjectType] ?? "VIEW PROJECT";
 }

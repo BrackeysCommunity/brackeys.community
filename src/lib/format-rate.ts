@@ -9,6 +9,7 @@
  */
 
 import type { CollabCompensationType } from "@/lib/collab-vocabulary";
+import { currencySymbol } from "@/lib/currency";
 
 export type RateType = CollabCompensationType;
 
@@ -19,20 +20,26 @@ interface FormatRateOptions {
    * twice); callers using this as the whole value pass a label.
    */
   negotiableLabel?: string;
+  /**
+   * ISO-4217 code the amounts are stored in. Display only — nothing here
+   * converts, and nothing anywhere else should. Rows written before the
+   * column existed read as USD, which is what they were rendered as.
+   */
+  currency?: string | null;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const trim = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
-/** `$1.5M`, `$1.5K`, `$750` — each tier collapses, and only to one decimal. */
-function money(n: number): string {
-  if (n < 1000) return `$${n}`;
+/** `$1.5M`, `€1.5K`, `SEK 750` — each tier collapses, and only to one decimal. */
+function money(n: number, symbol: string): string {
+  if (n < 1000) return `${symbol}${n}`;
   const thousands = round1(n / 1000);
   // Ten million used to render `$10000K`. A four-digit thousands figure is
   // the bug, so anything that reaches one — including `999_950`, which
   // rounds *up* into it — is a million instead.
-  if (n < 1_000_000 && thousands < 1000) return `$${trim(thousands)}K`;
-  return `$${trim(round1(n / 1_000_000))}M`;
+  if (n < 1_000_000 && thousands < 1000) return `${symbol}${trim(thousands)}K`;
+  return `${symbol}${trim(round1(n / 1_000_000))}M`;
 }
 
 /** Every caller reads the type out of a row, so the parameter is a plain
@@ -53,11 +60,12 @@ export function formatRate(
     return max < min ? `${min}%` : `${min}% - ${max}%`;
   }
 
+  const symbol = currencySymbol(options.currency);
   const suffix = type === "hourly" ? " /hr" : "";
-  if (max == null) return `${money(min)}+${suffix}`;
+  if (max == null) return `${money(min, symbol)}+${suffix}`;
   // Nothing validated the pair until `updateProfile` grew a `superRefine`,
   // so rows where max < min already exist. `$10000K - $150K` reads as a
   // range nobody offered; the higher figure alone is at least true.
-  if (max < min) return `${money(min)}${suffix}`;
-  return `${money(min)} - ${money(max)}${suffix}`;
+  if (max < min) return `${money(min, symbol)}${suffix}`;
+  return `${money(min, symbol)} - ${money(max, symbol)}${suffix}`;
 }

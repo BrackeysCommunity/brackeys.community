@@ -20,6 +20,7 @@ import {
   teamProjects,
   teams,
 } from "@/db/schema";
+import { externalUrlSchema, optionalExternalUrlSchema } from "@/lib/external-url";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -453,11 +454,11 @@ export const updateProjectDetails = os
       projectId: z.string(),
       title: z.string().trim().min(1).max(200).optional(),
       description: z.string().trim().max(2000).nullable().optional(),
-      url: z.url().nullable().optional().or(z.literal("")),
+      url: optionalExternalUrlSchema.nullable(),
       type: z.enum(MANUAL_PROJECT_TYPES).optional(),
       subTypes: z.array(z.enum(PROFILE_PROJECT_SUBTYPES)).optional(),
       links: z
-        .array(z.object({ label: z.string().trim().min(1).max(40), url: z.url() }))
+        .array(z.object({ label: z.string().trim().min(1).max(40), url: externalUrlSchema }))
         .max(6)
         .optional(),
       releaseStatus: z.enum(RELEASE_STATUSES).nullable().optional(),

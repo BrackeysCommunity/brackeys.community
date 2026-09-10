@@ -80,7 +80,7 @@ interface CollabCreateFormProps {
  * the same four steps submit through `updatePost` instead. That reuse
  * is only possible because compensation, jam, and stack round-trip as
  * structured values — the old formatted `"$25 - $75 /hr"` string could
- * never repopulate the sliders.
+ * never repopulate the rate fields.
  */
 export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
   // Selector subscriptions, not the whole store: the draft now updates
@@ -422,7 +422,7 @@ export async function savePost(v: WizardFormValues, editingPostId: number | null
   // Compensation goes over the wire as numbers now. It used to be
   // flattened to a display string here and stored that way, which made
   // it unfilterable, unsortable, and impossible to load back into the
-  // sliders — the single reason no edit flow could exist.
+  // wizard — the single reason no edit flow could exist.
   const payload = {
     type: v.type!,
     // `null` unlinks on edit; the create path treats both the same.
@@ -436,6 +436,7 @@ export async function savePost(v: WizardFormValues, editingPostId: number | null
     compensationType: v.compensationType,
     compensationMin: v.compensationType === "negotiable" ? undefined : v.compensationMin,
     compensationMax: v.compensationType === "negotiable" ? undefined : v.compensationMax,
+    currency: v.currency,
     projectLength: v.projectLength,
     platforms: v.platforms,
     experienceLevel: v.experienceLevel,

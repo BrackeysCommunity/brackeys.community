@@ -40,6 +40,7 @@ import {
   type NotificationType,
 } from "@/db/schema";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { optionalExternalUrlSchema } from "@/lib/external-url";
 import { jamUrl } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
@@ -263,8 +264,8 @@ const teamContentShape = {
   name: z.string().trim().min(2).max(100),
   tagline: z.string().trim().max(200).optional(),
   bio: z.string().max(5000).optional(),
-  websiteUrl: z.url().max(500).optional().or(z.literal("")),
-  itchUrl: z.url().max(500).optional().or(z.literal("")),
+  websiteUrl: optionalExternalUrlSchema,
+  itchUrl: optionalExternalUrlSchema,
   recruiting: z.boolean().optional(),
 };
 
@@ -351,8 +352,8 @@ export const teamUpdatePatchSchema = z.object({
   name: teamContentShape.name.optional(),
   tagline: z.string().trim().max(200).optional().nullable(),
   bio: z.string().max(5000).optional().nullable(),
-  websiteUrl: z.url().max(500).optional().nullable().or(z.literal("")),
-  itchUrl: z.url().max(500).optional().nullable().or(z.literal("")),
+  websiteUrl: optionalExternalUrlSchema.nullable(),
+  itchUrl: optionalExternalUrlSchema.nullable(),
   recruiting: z.boolean().optional(),
 });
 export type TeamUpdatePatch = z.infer<typeof teamUpdatePatchSchema>;
@@ -1972,12 +1973,10 @@ export const updateMemberTitle = os
 
 // ── Showcase ─────────────────────────────────────────────────────────────────
 
-const optionalUrlSchema = z.url().optional().or(z.literal(""));
-
 const teamProjectShape = {
   title: z.string().trim().min(1).max(200),
   description: z.string().max(2000).optional(),
-  url: optionalUrlSchema,
+  url: optionalExternalUrlSchema,
   image: z
     .object({
       key: z.string().min(1),
@@ -1989,8 +1988,8 @@ const teamProjectShape = {
     .optional(),
   pinned: z.boolean().optional(),
   jamName: z.string().max(200).optional(),
-  jamUrl: optionalUrlSchema,
-  submissionUrl: optionalUrlSchema,
+  jamUrl: optionalExternalUrlSchema,
+  submissionUrl: optionalExternalUrlSchema,
   result: z.string().max(200).optional(),
   participatedAt: z.string().optional(),
 };
@@ -2166,7 +2165,7 @@ export const teamProjectPatchSchema = z.object({
   projectId: z.string(),
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
-  url: optionalUrlSchema.nullable().optional(),
+  url: optionalExternalUrlSchema.nullable().optional(),
   /** `null` clears the cover; omitted leaves it untouched. */
   image: z.null().optional(),
 });
@@ -2268,7 +2267,7 @@ export const updateTeamProject = os
       projectId: z.string(),
       title: z.string().trim().min(1).max(200).optional(),
       description: z.string().max(2000).optional().nullable(),
-      url: optionalUrlSchema.nullable(),
+      url: optionalExternalUrlSchema.nullable(),
       // `null` clears the cover; omitted leaves it untouched.
       image: z
         .object({

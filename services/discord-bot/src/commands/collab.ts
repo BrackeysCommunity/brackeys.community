@@ -115,6 +115,7 @@ export async function collabBrowsePage(
     ];
     const rate = formatRate(post.compensationType, post.compensationMin, post.compensationMax, {
       negotiableLabel: "Negotiable",
+      currency: post.currency,
     });
     if (rate) bits.push(rate);
     if (post.team) bits.push(link(oneLine(post.team.name, 30), teamUrl(ctx.appUrl, post.team)));
@@ -169,6 +170,7 @@ export async function collabPost(
   const rate =
     formatRate(post.compensationType, post.compensationMin, post.compensationMax, {
       negotiableLabel: "Negotiable",
+      currency: post.currency,
     }) || post.compensation;
   if (rate) fields.push({ name: "Compensation", value: oneLine(rate, 100), inline: true });
   fields.push({ name: "Status", value: STATUS_LABEL[post.status] ?? post.status, inline: true });

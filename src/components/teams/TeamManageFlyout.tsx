@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { uploadTeamAvatarImage } from "@/components/collab/CollabCreateFlyout/shared";
 import { MarkdownField } from "@/components/moderation/ModerationShell";
 import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/ui/confirm";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -634,7 +635,6 @@ function DangerSection({
 }) {
   const navigate = useNavigate();
   const isOwner = team.isOwner;
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const archiveMutation = useMutation({
@@ -683,34 +683,39 @@ function DangerSection({
             {team.status === "active" ? "ARCHIVE TEAM" : "RESTORE TEAM"}
           </Button>
         ) : null}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={leaveMutation.isPending}
-          onClick={() => leaveMutation.mutate()}
+        {/* Irreversible for a non-owner — rejoining needs an invite — so it
+            is coloured like it and asks first. ARCHIVE above stays outline:
+            it is undoable from this same panel. */}
+        <Confirm
+          title="Leave this team?"
+          message="You lose access to the team's page and roster. Rejoining needs an invite from a member."
+          confirmText="LEAVE TEAM"
+          variant="destructive"
+          onConfirm={async () => {
+            // Swallowed so the dialog closes either way: the mutation's
+            // `onError` puts the reason in the panel's own error line,
+            // which an open dialog would be covering.
+            await leaveMutation.mutateAsync().catch(() => null);
+          }}
         >
-          LEAVE TEAM
-        </Button>
+          <Button variant="destructive" size="sm" disabled={leaveMutation.isPending}>
+            LEAVE TEAM
+          </Button>
+        </Confirm>
         {isOwner ? (
-          confirmDelete ? (
-            <>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate()}
-              >
-                REALLY DELETE — POSTS UNLINK, PAGE GOES AWAY
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
-                CANCEL
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setConfirmDelete(true)}>
+          <Confirm
+            title="Delete this team?"
+            message="The page goes away and every collab post linked to it unlinks. This cannot be undone."
+            confirmText="DELETE TEAM"
+            variant="destructive"
+            onConfirm={async () => {
+              await deleteMutation.mutateAsync().catch(() => null);
+            }}
+          >
+            <Button variant="destructive" size="sm" disabled={deleteMutation.isPending}>
               DELETE TEAM
             </Button>
-          )
+          </Confirm>
         ) : null}
       </div>
       {error ? (

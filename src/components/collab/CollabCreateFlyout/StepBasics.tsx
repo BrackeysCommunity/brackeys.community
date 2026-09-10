@@ -215,13 +215,19 @@ export function StepBasics() {
               {(minField) => (
                 <form.Field name="compensationMax">
                   {(maxField) => (
-                    <CompensationField
-                      compensationType={compensationType}
-                      min={minField.state.value}
-                      max={maxField.state.value}
-                      onMinChange={(v) => minField.handleChange(v)}
-                      onMaxChange={(v) => maxField.handleChange(v)}
-                    />
+                    <form.Field name="currency">
+                      {(currencyField) => (
+                        <CompensationField
+                          compensationType={compensationType}
+                          min={minField.state.value}
+                          max={maxField.state.value}
+                          currency={currencyField.state.value}
+                          onMinChange={(v) => minField.handleChange(v)}
+                          onMaxChange={(v) => maxField.handleChange(v)}
+                          onCurrencyChange={(v) => currencyField.handleChange(v)}
+                        />
+                      )}
+                    </form.Field>
                   )}
                 </form.Field>
               )}
