@@ -8,8 +8,11 @@
  * the canonical one (it was already what users saw most).
  */
 
-import type { CollabCompensationType } from "@/lib/collab-vocabulary";
-import { currencySymbol } from "@/lib/currency";
+// Relative, not `@/` — this module is copied into the Discord bot's image
+// (`services/discord-bot/Dockerfile`), where Bun resolves each file against
+// the nearest tsconfig and `/app/src` has none.
+import type { CollabCompensationType } from "./collab-vocabulary";
+import { currencySymbol } from "./currency";
 
 export type RateType = CollabCompensationType;
 
