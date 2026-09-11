@@ -18,6 +18,7 @@ import { authStore } from "@/lib/auth-store";
 import { collabStore, resetWizard, updateWizardDraft } from "@/lib/collab-store";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
+import { isExternalUrl } from "@/lib/external-url";
 import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 
@@ -34,11 +35,13 @@ import { WizardFormContext } from "../CollabCreateFlyout/form-context";
 import {
   getQuickFieldErrors,
   getStepValidationError,
+  normalizePortfolioUrl,
+  postValidationErrors,
   type QuickFieldErrors,
   type WizardFormValues,
 } from "../CollabCreateFlyout/shared";
 import { CollabFunnelExplainer } from "../CollabFunnelExplainer";
-import { ContactSection, ContextChips, KindSection, PitchSection, WhoSection } from "./sections";
+import { ContextChips, KindSection, PitchSection, WhoSection } from "./sections";
 
 const EXPLAINER_DISMISS_KEY = "collab.quickpost.explainer.dismissed";
 
@@ -55,7 +58,7 @@ const MODAL_STEPS: { id: ModalStepId; num: string; label: string; desc: string }
     id: "details",
     num: "02",
     label: "DETAILS",
-    desc: "The headline people scan on the board, the pitch, and how to reach you.",
+    desc: "The headline people scan on the board, and the pitch under it.",
   },
   {
     id: "type",
@@ -69,12 +72,18 @@ const MODAL_STEPS: { id: ModalStepId; num: string; label: string; desc: string }
 function stepError(step: ModalStepId, errors: QuickFieldErrors): string | null {
   switch (step) {
     case "roles":
-      return errors.roles ?? null;
+      return errors.roles ?? errors.skills ?? null;
     case "details":
       return errors.title ?? errors.description ?? null;
     case "type":
       return errors.type ?? errors.compensation ?? null;
   }
+}
+
+/** Which step a refused field belongs to, for routing a server rejection. */
+function stepOwning(errors: QuickFieldErrors): number {
+  const index = MODAL_STEPS.findIndex((s) => stepError(s.id, errors) !== null);
+  return index === -1 ? 0 : index;
 }
 
 export interface CollabCreateModalProps {
@@ -138,6 +147,9 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
   const [error, setError] = useState<string | null>(null);
   // Inline errors appear after the first refused NEXT, then track live.
   const [showFieldErrors, setShowFieldErrors] = useState(false);
+  // What the server refused that the client's own gates let through. Held
+  // separately because nothing in the draft can clear it — only an edit can.
+  const [serverErrors, setServerErrors] = useState<QuickFieldErrors>({});
   const [jamMode, setJamMode] = useState(initialDraft.jamId !== undefined);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -146,6 +158,7 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
     onSubmit: async ({ value }) => {
       const v = value as WizardFormValues;
       setError(null);
+      setServerErrors({});
       try {
         const postId = await savePost(
           {
@@ -155,6 +168,13 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
             isIndividual: v.teamId === undefined,
             // A fragment left in a wizard draft is not a project name.
             projectName: v.projectName.trim().length >= 3 ? v.projectName : "",
+            // The modal has no portfolio input — only the full wizard
+            // does — so a draft carrying a link the schema refuses would
+            // block PUBLISH from a surface with nowhere to fix it. A
+            // valid one still rides through.
+            portfolioUrl: isExternalUrl(normalizePortfolioUrl(v.portfolioUrl))
+              ? v.portfolioUrl
+              : "",
           },
           null,
         );
@@ -162,24 +182,47 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
         onCreated(postId);
       } catch (err) {
         reportMutationError(err, "collab.post_save");
-        setError(errorMessage(err, "Could not publish the post."));
+        const refused = postValidationErrors(err);
+        if (Object.keys(refused.fields).length > 0) {
+          // The server named fields the client's gates missed: show each
+          // under its own control and land on the step that owns the
+          // first one, rather than printing oRPC's phrasing in the footer.
+          setServerErrors(refused.fields);
+          setShowFieldErrors(true);
+          setActiveIndex(stepOwning(refused.fields));
+          setError(refused.other);
+        } else {
+          setError(refused.other ?? errorMessage(err, "Could not publish the post."));
+        }
       }
     },
   });
 
   // Mirror the live values into the store so a reload survives — same
-  // contract as the wizard.
+  // contract as the wizard. A server rejection is cleared by the first
+  // edit after it: the values it described no longer exist.
   useEffect(() => {
     const sync = () => updateWizardDraft(form.state.values as WizardFormValues);
     sync();
-    return form.store.subscribe(sync);
+    let seen = form.state.values;
+    return form.store.subscribe(() => {
+      sync();
+      // Values only — the store also ticks for `isSubmitting`, which is
+      // what flips right after the catch that set these.
+      if (form.state.values === seen) return;
+      seen = form.state.values;
+      setServerErrors((prev) => (Object.keys(prev).length > 0 ? {} : prev));
+    });
   }, [form]);
 
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
   const values = useStore(form.store, (s) =>
     showFieldErrors ? (s.values as WizardFormValues) : null,
   );
-  const fieldErrors: QuickFieldErrors = values ? getQuickFieldErrors(values) : {};
+  const fieldErrors: QuickFieldErrors = {
+    ...(values ? getQuickFieldErrors(values) : {}),
+    ...serverErrors,
+  };
 
   const step = MODAL_STEPS[activeIndex]!;
   const isLastStep = activeIndex === MODAL_STEPS.length - 1;
@@ -272,16 +315,13 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
                   <>
                     <CollabFunnelExplainer dismissKey={EXPLAINER_DISMISS_KEY} />
                     <ContextChips />
-                    <WhoSection error={fieldErrors.roles} />
+                    <WhoSection error={fieldErrors.roles ?? fieldErrors.skills} />
                   </>
                 ) : step.id === "details" ? (
-                  <>
-                    <PitchSection
-                      titleError={fieldErrors.title}
-                      descriptionError={fieldErrors.description}
-                    />
-                    <ContactSection />
-                  </>
+                  <PitchSection
+                    titleError={fieldErrors.title}
+                    descriptionError={fieldErrors.description}
+                  />
                 ) : (
                   <KindSection
                     jamMode={jamMode}

@@ -13,8 +13,15 @@ import type {
   CollabProjectLength,
   UploadedImage,
 } from "@/lib/collab-store";
-import { COMPENSATION_VOCAB, CONTACT_VOCAB, EXPERIENCE_VOCAB } from "@/lib/collab-vocabulary";
+import {
+  COMPENSATION_VOCAB,
+  CONTACT_VOCAB,
+  EXPERIENCE_VOCAB,
+  MAX_POST_ROLES,
+  MAX_POST_SKILLS,
+} from "@/lib/collab-vocabulary";
 import type { Currency } from "@/lib/currency";
+import { validationIssues } from "@/lib/error-message";
 import { DAY_MS } from "@/lib/format-time";
 import { postImageForm } from "@/lib/image-upload";
 import type { UploadedImageRecord } from "@/lib/image-upload";
@@ -62,7 +69,7 @@ export const WIZARD_TABS: WizardTabDef[] = [
     id: "basics",
     num: "01",
     label: "POST",
-    desc: "The pitch and the terms — what kind of post this is, the headline people scan on the board, the scope of the work, and how to reach you.",
+    desc: "The pitch and the terms — what kind of post this is, the headline people scan on the board, and the scope of the work.",
   },
   {
     id: "team",
@@ -329,6 +336,7 @@ export const TEAM_DESCRIPTION_MAX = 200;
  */
 export interface QuickFieldErrors {
   roles?: string;
+  skills?: string;
   title?: string;
   description?: string;
   type?: string;
@@ -338,6 +346,10 @@ export interface QuickFieldErrors {
 export function getQuickFieldErrors(v: WizardFormValues): QuickFieldErrors {
   const errors: QuickFieldErrors = {};
   if (v.roleIds.length === 0) errors.roles = "Pick at least one role you're looking for.";
+  else if (v.roleIds.length > MAX_POST_ROLES)
+    errors.roles = `${MAX_POST_ROLES} roles is the limit — remove one.`;
+  if (v.skillIds.length > MAX_POST_SKILLS)
+    errors.skills = `${MAX_POST_SKILLS} is the limit — remove one.`;
   if (!v.title.trim()) errors.title = "Please enter a title.";
   else if (v.title.trim().length < 10) errors.title = "Title must be at least 10 characters.";
   else errors.title = profanityCheck(v.title, "Title");
@@ -356,6 +368,79 @@ export function getQuickFieldErrors(v: WizardFormValues): QuickFieldErrors {
     if (errors[key] === undefined) delete errors[key];
   }
   return errors;
+}
+
+/**
+ * The wizard's spelling of a portfolio link: trimmed, and read as https
+ * when the poster left the scheme off. Not a validator — `isExternalUrl`
+ * is — just the normalisation both submit paths apply before checking.
+ *
+ * Only a value with *no* scheme gets one, matching
+ * `normalizingExternalUrlSchema`. Prefixing anything that merely wasn't
+ * http(s) turned `javascript:…` into `https://javascript:…`, which is
+ * refused either way but for the wrong reason.
+ */
+export function normalizePortfolioUrl(raw: string): string {
+  const url = raw.trim();
+  if (!url) return "";
+  return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
+}
+
+/**
+ * Which control owns each column the server can reject, so a refused
+ * publish lands under the field instead of rendering oRPC's own
+ * "Input validation failed" in the footer.
+ */
+const FIELD_OWNER: Record<string, keyof QuickFieldErrors> = {
+  title: "title",
+  description: "description",
+  type: "type",
+  roleIds: "roles",
+  skillIds: "skills",
+  compensationType: "compensation",
+  compensationMin: "compensation",
+  compensationMax: "compensation",
+  currency: "compensation",
+};
+
+/** Columns no wizard control can show — named in the footer instead. */
+const FIELD_LABELS: Record<string, string> = {
+  portfolioUrl: "portfolio link",
+  contactMethod: "contact details",
+  contactType: "contact type",
+  projectName: "project name",
+  platforms: "platforms",
+  projectLength: "timeline",
+  experienceLevel: "experience level",
+  teamId: "team link",
+  projectId: "project link",
+  jamId: "jam link",
+};
+
+/**
+ * A refused publish, re-read as the wizard's own errors. `fields` go under
+ * the controls that own them; `other` is the footer's line for a column
+ * the wizard can't show — a restored draft can carry one, which is the
+ * whole reason this isn't unreachable. Empty means the error wasn't an
+ * input rejection at all and the caller should fall back to
+ * `errorMessage`.
+ */
+export function postValidationErrors(err: unknown): {
+  fields: QuickFieldErrors;
+  other: string | null;
+} {
+  const fields: QuickFieldErrors = {};
+  let other: string | null = null;
+  for (const issue of validationIssues(err)) {
+    const owner = FIELD_OWNER[issue.field];
+    if (owner) {
+      fields[owner] ??= issue.message;
+      continue;
+    }
+    const label = FIELD_LABELS[issue.field];
+    other ??= label ? `Check the ${label}: ${issue.message}` : issue.message;
+  }
+  return { fields, other };
 }
 
 /**
@@ -415,11 +500,15 @@ export function getStepValidationError(stepId: string, v: WizardFormValues): str
     // posts on the board that the board's own role filter couldn't find.
     case "roles":
       if (v.roleIds.length === 0) return "Please select at least one role.";
+      if (v.roleIds.length > MAX_POST_ROLES) return `${MAX_POST_ROLES} roles is the limit.`;
+      if (v.skillIds.length > MAX_POST_SKILLS)
+        return `${MAX_POST_SKILLS} tech-stack entries is the limit.`;
       break;
     case "quick": {
       const errors = getQuickFieldErrors(v);
       return (
         errors.roles ??
+        errors.skills ??
         errors.title ??
         errors.description ??
         errors.type ??

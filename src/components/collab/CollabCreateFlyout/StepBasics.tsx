@@ -32,7 +32,7 @@ const TITLE_SOFT_LIMIT = 80;
 
 /**
  * Step 01 — the post itself: art, type, headline, description, then the
- * scope (platforms, timeline, experience), pay, and contact.
+ * scope (platforms, timeline, experience) and pay.
  *
  * Those last groups used to sit on the PROJECT step, which made that
  * step read as if it were describing the project entity — but none of
@@ -45,6 +45,14 @@ export function StepBasics() {
   const typeVal = useStore(form.store, (s: AnyFormStore) => s.values.type);
   const compensationType = useStore(form.store, (s: AnyFormStore) => s.values.compensationType);
   const projectId = useStore(form.store, (s: AnyFormStore) => s.values.projectId);
+  // The wizard stopped asking for a contact block — accepting a response
+  // already hands over the poster's Discord — so the fields survive only
+  // as the edit path for posts written before that. Rendering them is
+  // also what suppresses the Discord prefill, which lives in the hook.
+  const hasContact = useStore(
+    form.store,
+    (s: AnyFormStore) => Boolean(s.values.contactType) || s.values.contactMethod.trim().length > 0,
+  );
   const removedImageIds = useStore(
     form.store,
     (s: AnyFormStore) => s.values.removedImageIds as number[],
@@ -236,7 +244,7 @@ export function StepBasics() {
         </>
       ) : null}
 
-      <ContactFields />
+      {hasContact ? <ContactFields /> : null}
     </div>
   );
 }

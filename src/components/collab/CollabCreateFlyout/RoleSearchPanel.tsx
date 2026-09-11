@@ -1,3 +1,4 @@
+import { MAX_POST_ROLES } from "@/lib/collab-vocabulary";
 import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 
 import { TagPickerPanel } from "./TagPickerPanel";
@@ -22,12 +23,14 @@ export function RoleSearchPanel({ label, roleIds, onChange }: RoleSearchPanelPro
   return (
     <TagPickerPanel
       label={label}
-      hint={`${roleIds.length} selected`}
+      hint={`${roleIds.length}/${MAX_POST_ROLES} selected`}
       options={roles ?? []}
       selectedIds={roleIds}
       onChange={onChange}
       searchPlaceholder="Search roles…"
       emptyMessage="No roles available."
+      max={MAX_POST_ROLES}
+      atCapMessage={`${MAX_POST_ROLES} is the limit — remove one to add another.`}
     />
   );
 }

@@ -134,3 +134,11 @@ export const COLLAB_PROJECT_LENGTHS = [
   "ongoing",
 ] as const;
 export type CollabProjectLength = (typeof COLLAB_PROJECT_LENGTHS)[number];
+
+// ── Post caps ──────────────────────────────────────────────────────────────
+
+/** A post's stack is a shortlist, not a tag dump. */
+export const MAX_POST_SKILLS = 10;
+
+/** Seats one post can recruit for. */
+export const MAX_POST_ROLES = 20;

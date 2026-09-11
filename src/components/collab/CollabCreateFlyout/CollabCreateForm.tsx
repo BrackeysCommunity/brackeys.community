@@ -25,6 +25,7 @@ import { WizardFormContext } from "./form-context";
 import {
   getFirstIncompleteStep,
   getStepValidationError,
+  normalizePortfolioUrl,
   uploadCollabPostImage,
   uploadTeamAvatarImage,
   WIZARD_TABS,
@@ -413,11 +414,7 @@ export async function createDraftTeam(v: WizardFormValues): Promise<string> {
  * submitting from the other.
  */
 export async function savePost(v: WizardFormValues, editingPostId: number | null): Promise<number> {
-  let portfolioUrl: string | undefined;
-  if (v.portfolioUrl.trim()) {
-    const url = v.portfolioUrl.trim();
-    portfolioUrl = /^https?:\/\//.test(url) ? url : `https://${url}`;
-  }
+  const portfolioUrl = normalizePortfolioUrl(v.portfolioUrl) || undefined;
 
   // Compensation goes over the wire as numbers now. It used to be
   // flattened to a display string here and stored that way, which made
@@ -441,8 +438,11 @@ export async function savePost(v: WizardFormValues, editingPostId: number | null
     platforms: v.platforms,
     experienceLevel: v.experienceLevel,
     portfolioUrl,
-    contactMethod: v.contactMethod || undefined,
-    contactType: v.contactType,
+    // Paired: a type with no method would leave `hasContact` true and
+    // print an empty CONTACT row, so clearing the method clears both.
+    // That is how an older post drops the block it was created with.
+    contactMethod: v.contactMethod.trim() || undefined,
+    contactType: v.contactMethod.trim() ? v.contactType : undefined,
     isIndividual: v.isIndividual || undefined,
     roleIds: v.roleIds,
     skillIds: v.skillIds.length > 0 ? v.skillIds : undefined,

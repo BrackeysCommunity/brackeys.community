@@ -7,20 +7,15 @@ import {
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Text } from "@/components/ui/typography";
-import { Well } from "@/components/ui/well";
-import { CONTACT_TYPE_LABELS } from "@/lib/collab-vocabulary";
 import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
-import { ContactFields, useDiscordContactPrefill } from "../CollabCreateFlyout/ContactFields";
 import {
   CompensationField,
   FieldRow,
@@ -376,44 +371,5 @@ export function KindSection({
         </>
       ) : null}
     </div>
-  );
-}
-
-/**
- * Collapsed behind the prefilled Discord DM for everyone; CHANGE opens
- * the full contact fields. A poster with no handle on file sees the
- * fields directly.
- */
-export function ContactSection() {
-  const form = useWizardForm();
-  const discordUsername = useDiscordContactPrefill();
-  const contactType = useStore(form.store, (s: AnyFormStore) => s.values.contactType);
-  const contactMethod = useStore(form.store, (s: AnyFormStore) => s.values.contactMethod);
-  const [expanded, setExpanded] = useState(false);
-
-  const prefilled = Boolean(contactType && contactMethod.trim());
-  if (expanded || !prefilled) return <ContactFields />;
-
-  return (
-    <FieldRow label="CONTACT" hint="optional · accepted people also get your Discord">
-      <Well variant="ghost" className="flex-row items-center justify-between gap-3 p-2.5">
-        <Text size="sm" ellipsis className="min-w-0">
-          {CONTACT_TYPE_LABELS[contactType!] ?? contactType}
-          {" · "}
-          {contactType === "discord_dm" && contactMethod === discordUsername
-            ? `@${contactMethod}`
-            : contactMethod}
-        </Text>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className="shrink-0 tracking-widest"
-          onClick={() => setExpanded(true)}
-        >
-          CHANGE
-        </Button>
-      </Well>
-    </FieldRow>
   );
 }

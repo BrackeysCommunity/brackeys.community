@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/client";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -9,6 +10,8 @@ import {
   getPreflightChecks,
   getQuickFieldErrors,
   getStepValidationError,
+  normalizePortfolioUrl,
+  postValidationErrors,
   projectLengthForJam,
   projectPrefillValues,
   type PickableProject,
@@ -16,6 +19,7 @@ import {
   type WizardFormValues,
 } from "@/components/collab/CollabCreateFlyout/shared";
 import { draftFromPost, isEditablePostType } from "@/lib/collab-store";
+import { MAX_POST_ROLES, MAX_POST_SKILLS } from "@/lib/collab-vocabulary";
 import router from "@/orpc/router";
 import { postContentSchema, stripContact } from "@/orpc/router/collab";
 
@@ -419,9 +423,101 @@ describe("wizard step validation", () => {
     }
   });
 
+  // ── Vocabulary caps ────────────────────────────────────────────────
+
+  // `roleIds` has always been `.max(20)` on the server while the roles
+  // picker passed no cap at all — so the 21st pick published as
+  // "Input validation failed", on the one field Cookie had just been told
+  // to use more of.
+  it("caps roles and skills at the numbers the server takes", () => {
+    const overRoles = validWizardValues({
+      roleIds: Array.from({ length: MAX_POST_ROLES + 1 }, (_, i) => i + 1),
+    });
+    expect(getQuickFieldErrors(overRoles).roles).toMatch(/limit/);
+    expect(getStepValidationError("roles", overRoles)).not.toBeNull();
+    expect(postContentSchema.safeParse(validPost({ roleIds: overRoles.roleIds })).success).toBe(
+      false,
+    );
+
+    const overSkills = validWizardValues({
+      skillIds: Array.from({ length: MAX_POST_SKILLS + 1 }, (_, i) => i + 1),
+    });
+    expect(getQuickFieldErrors(overSkills).skills).toMatch(/limit/);
+    expect(getStepValidationError("roles", overSkills)).not.toBeNull();
+    expect(postContentSchema.safeParse(validPost({ skillIds: overSkills.skillIds })).success).toBe(
+      false,
+    );
+  });
+
+  it("accepts exactly the cap", () => {
+    const v = validWizardValues({
+      roleIds: Array.from({ length: MAX_POST_ROLES }, (_, i) => i + 1),
+      skillIds: Array.from({ length: MAX_POST_SKILLS }, (_, i) => i + 1),
+    });
+    expect(getQuickFieldErrors(v)).toEqual({});
+    expect(
+      postContentSchema.safeParse(validPost({ roleIds: v.roleIds, skillIds: v.skillIds })).success,
+    ).toBe(true);
+  });
+
   it("reads the quick screen's errors in field order", () => {
     const v = validWizardValues({ roleIds: [], title: "" });
     expect(getStepValidationError("quick", v)).toMatch(/role/i);
+  });
+});
+
+describe("a refused publish, re-read", () => {
+  /** What oRPC throws when zod refuses `createPost`'s input. */
+  function refused(issues: { message: string; path: string[] }[]) {
+    return new ORPCError("BAD_REQUEST", {
+      message: "Input validation failed",
+      data: { issues },
+    });
+  }
+
+  it("routes each named column to the control that owns it", () => {
+    const { fields, other } = postValidationErrors(
+      refused([
+        { message: "Too small", path: ["title"] },
+        { message: "Maximum must be at least the minimum.", path: ["compensationMax"] },
+        { message: "Too big", path: ["roleIds"] },
+      ]),
+    );
+    expect(fields).toEqual({
+      title: "Too small",
+      compensation: "Maximum must be at least the minimum.",
+      roles: "Too big",
+    });
+    expect(other).toBeNull();
+  });
+
+  // A draft is shared between the modal and the full wizard, and
+  // `portfolioUrl` only has an input in the wizard — so the modal can be
+  // handed one it cannot show. The footer at least has to name it.
+  it("names a column no control can show", () => {
+    const { fields, other } = postValidationErrors(
+      refused([{ message: "Must be an http(s) link.", path: ["portfolioUrl"] }]),
+    );
+    expect(fields).toEqual({});
+    expect(other).toBe("Check the portfolio link: Must be an http(s) link.");
+  });
+
+  it("reports nothing for an error that isn't an input rejection", () => {
+    expect(postValidationErrors(new Error("Network down"))).toEqual({ fields: {}, other: null });
+  });
+});
+
+describe("normalizePortfolioUrl", () => {
+  it("reads a scheme-less link as https and leaves a real one alone", () => {
+    expect(normalizePortfolioUrl("  example.com/me  ")).toBe("https://example.com/me");
+    expect(normalizePortfolioUrl("http://example.com")).toBe("http://example.com");
+    expect(normalizePortfolioUrl("")).toBe("");
+  });
+
+  // The prefix is why most garbage used to parse. It no longer rescues a
+  // hostile scheme, which is what the modal checks before submitting one.
+  it("does not turn a refused scheme into an accepted link", () => {
+    expect(normalizePortfolioUrl("javascript:alert(1)")).toBe("javascript:alert(1)");
   });
 });
 

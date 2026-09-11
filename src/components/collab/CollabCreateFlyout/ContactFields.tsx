@@ -13,8 +13,10 @@ import { CONTACT_PLACEHOLDERS, CONTACT_TYPE_OPTIONS } from "./shared";
 /**
  * Seeds the contact block with a Discord DM from the author's profile.
  * Prefills once, and only into empty fields — never over a choice the
- * user already made (or one an edit loaded from the post). Returns the
- * handle so a collapsed contact row can name it.
+ * user already made (or one an edit loaded from the post). In practice
+ * it no longer fires: its only caller renders for posts that already
+ * have a block. Returns the handle so the field can say where it came
+ * from.
  */
 export function useDiscordContactPrefill(): string | null {
   const form = useWizardForm();
@@ -39,11 +41,12 @@ export function useDiscordContactPrefill(): string | null {
 }
 
 /**
- * How responders reach the poster. Every post defaults to a Discord DM
- * prefilled from the author's profile — a default, not a lock: hiding
- * these fields (as this used to for solo posts) meant a dev who prefers
- * email simply couldn't say so. Optional throughout: an accepted
- * responder is handed the author's Discord handle regardless.
+ * How responders reach the poster, for the posts that still carry a
+ * block. New posts are no longer asked: accepting a response already
+ * hands over the author's Discord handle, so the field was asking a
+ * question the funnel had already answered. `StepBasics` renders this
+ * only for a post that already has one, which is the edit-and-clear
+ * path — nothing offers it to a fresh draft.
  */
 export function ContactFields() {
   const form = useWizardForm();

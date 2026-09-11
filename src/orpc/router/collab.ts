@@ -36,6 +36,8 @@ import {
   COLLAB_EXPERIENCE_LEVELS,
   COLLAB_POST_TYPES,
   COLLAB_PROJECT_LENGTHS,
+  MAX_POST_ROLES,
+  MAX_POST_SKILLS,
 } from "@/lib/collab-vocabulary";
 import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency";
 import { EVENTS } from "@/lib/event-taxonomy";
@@ -89,9 +91,6 @@ const contactTypeSchema = z.enum(COLLAB_CONTACT_TYPES);
  */
 const postTypeSchema = z.enum(COLLAB_POST_TYPES);
 
-/** A post's stack is a shortlist, not a tag dump. */
-const MAX_POST_SKILLS = 10;
-
 // ── Post CRUD ────────────────────────────────────────────────────────────────
 
 /**
@@ -133,7 +132,7 @@ const postContentShape = {
   contactMethod: z.string().max(500).optional(),
   contactType: contactTypeSchema.optional(),
   isIndividual: z.boolean().optional(),
-  roleIds: z.array(z.number().int().positive()).min(1).max(20),
+  roleIds: z.array(z.number().int().positive()).min(1).max(MAX_POST_ROLES),
   skillIds: z.array(z.number().int().positive()).max(MAX_POST_SKILLS).optional(),
 };
 

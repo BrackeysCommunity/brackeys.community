@@ -2,14 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MAX_POST_SKILLS } from "@/lib/collab-vocabulary";
 import { useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
 import { TagPickerPanel } from "./TagPickerPanel";
-
-/** A post's stack is a shortlist, not a tag dump. Mirrors the server cap. */
-export const MAX_POST_SKILLS = 10;
 
 interface SkillSearchPanelProps {
   skillIds: number[];

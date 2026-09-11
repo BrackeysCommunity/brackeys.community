@@ -22,6 +22,24 @@ COPY services/discord-bot/src ./services/discord-bot/src
 # reaches through `../../../src/` has to be here or the container dies on
 # start. The public router is imported as a *type only* and is deliberately
 # absent — the image must not be able to run it.
+#
+# TWO invariants hold for every file on this list, and the second one is
+# not enforced by any check that runs in CI:
+#
+#   1. It is copied here. A module a listed file imports needs its own line.
+#   2. It contains NO VALUE IMPORTS THROUGH THE `@/` ALIAS. Use a relative
+#      specifier (`./currency`) instead.
+#
+# (2) exists because Bun resolves each file against the nearest tsconfig,
+# and these land at /app/src/lib/ where the image has none — the service's
+# own tsconfig maps `@/*` but does not apply outside services/discord-bot/.
+# `import type` through the alias is survivable only because Bun erases it,
+# which is what hid this until 2026-09-11: adding one `@/` value import to
+# format-rate.ts crash-looped prod while root `vp check`, this service's
+# `tsc` (TS resolves the whole program through the tsconfig above) and its
+# 68 tests were all green. To verify a change here, replicate the image
+# layout — copy exactly this list plus the service dir into an empty tree
+# with no root tsconfig, and `bun run src/index.ts` from the service dir.
 COPY src/lib/service-config.ts ./src/lib/service-config.ts
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 COPY src/lib/event-taxonomy.ts ./src/lib/event-taxonomy.ts
