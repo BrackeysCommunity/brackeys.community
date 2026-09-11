@@ -49,7 +49,7 @@ import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { AVAILABILITY_OPTIONS } from "@/lib/member-vocabulary";
-import { EASE_OUT } from "@/lib/motion";
+import { stepBody, stepBodyTransition } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
@@ -89,28 +89,6 @@ const STEP_IDS: readonly EditStep[] = STEPS.map((s) => s.step);
 
 const DESKTOP_TRANSITION = { type: "spring" as const, stiffness: 480, damping: 36, mass: 0.7 };
 const MOBILE_TRANSITION = { type: "spring" as const, stiffness: 420, damping: 32, mass: 0.65 };
-// Step body cross-fade: short ease-out on opacity/scale so the swap
-// reads as a single soft cut rather than two distinct animations.
-const STEP_BODY_TRANSITION = { duration: 0.16, ease: EASE_OUT };
-// Horizontal nudge a step's body picks up on enter/exit — direction
-// is the sign of (new step - previous step), so a 1→2 move enters
-// from the right and a 2→1 move enters from the left.
-const STEP_SHIFT_PX = 28;
-const STEP_VARIANTS = {
-  enter: (dir: number) => ({
-    opacity: 0,
-    scale: 0.97,
-    x: dir * STEP_SHIFT_PX,
-    filter: "blur(6px)",
-  }),
-  center: { opacity: 1, scale: 1, x: 0, filter: "blur(0px)" },
-  exit: (dir: number) => ({
-    opacity: 0,
-    scale: 0.97,
-    x: -dir * STEP_SHIFT_PX,
-    filter: "blur(6px)",
-  }),
-};
 
 // ── Save status ────────────────────────────────────────────────────
 
@@ -225,7 +203,7 @@ export function ProfileEditFlyout({
           >
             <FlyoutHeader profile={profile} step={step} isMobile={isMobile} onClose={onClose} />
             <Stepper step={step} onSelect={onStepChange} />
-            {/* Step content cross-fades with a slight scale + blur +
+            {/* Step content cross-fades with a slight scale and a
                 directional nudge on each step change. `mode="wait"`
                 holds the new content until the old one finishes its
                 exit so the body never renders two steps stacked. */}
@@ -234,11 +212,11 @@ export function ProfileEditFlyout({
                 <motion.div
                   key={step}
                   custom={direction}
-                  variants={STEP_VARIANTS}
+                  variants={stepBody}
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={STEP_BODY_TRANSITION}
+                  transition={stepBodyTransition}
                   className="h-full overflow-y-auto px-5 py-5"
                 >
                   <StepBody step={step} profile={profile} queryKey={queryKey} save={saveCtx} />

@@ -1,6 +1,7 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
+import { installMotionTiming } from "@/lib/motion-timing";
 import { captureEvent, initAnalytics } from "@/lib/product-insights";
 import { reloadOnChunkError } from "@/lib/reload-on-chunk-error";
 
@@ -92,6 +93,7 @@ export function getRouter() {
   // ready before the first of those fires.
   if (typeof window !== "undefined") {
     initAnalytics();
+    installMotionTiming();
 
     // Whether `onResolved` also fires for the initial load depends on how
     // the app was entered (fresh SSR vs. a client-side transition), so the

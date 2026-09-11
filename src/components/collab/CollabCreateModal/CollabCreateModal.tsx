@@ -20,15 +20,11 @@ import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { isExternalUrl } from "@/lib/external-url";
 import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
+import { stepBody, stepBodyTransition } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 
 import { CollabCreateFooter } from "../CollabCreateFlyout/CollabCreateFooter";
-import {
-  CollabCreateHeader,
-  savePost,
-  STEP_BODY_TRANSITION,
-  STEP_VARIANTS,
-} from "../CollabCreateFlyout/CollabCreateForm";
+import { CollabCreateHeader, savePost } from "../CollabCreateFlyout/CollabCreateForm";
 import { CollabCreateStepper } from "../CollabCreateFlyout/CollabCreateStepper";
 import { CollabCreateUnauth } from "../CollabCreateFlyout/CollabCreateUnauth";
 import { WizardFormContext } from "../CollabCreateFlyout/form-context";
@@ -292,11 +288,11 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
           <motion.div
             key={step.id}
             custom={direction}
-            variants={STEP_VARIANTS}
+            variants={stepBody}
             initial="enter"
             animate="center"
             exit="exit"
-            transition={STEP_BODY_TRANSITION}
+            transition={stepBodyTransition}
             className="h-full overflow-y-auto px-5 py-5"
           >
             <Text

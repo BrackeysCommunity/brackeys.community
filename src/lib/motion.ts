@@ -58,3 +58,24 @@ export const cardRow: Variants = {
   hidden: { opacity: 1 },
   visible: { opacity: 1, transition: { staggerChildren: 0.04 } },
 };
+
+/**
+ * Step-body swap for the wizard flyouts and the create modal: a short
+ * cross-fade with a scale settle and a directional nudge, where `dir` is the
+ * sign of (new step − previous step), so 1→2 enters from the right.
+ *
+ * Opacity and transform only, deliberately. An animated `filter: blur()` rode
+ * along until it was measured: a filter can't be composited, so every frame
+ * re-rasterised the whole step subtree on the main thread — and these bodies
+ * carry several `Well`s, whose `backdrop-blur` has to be resolved again on
+ * each of those passes.
+ */
+export const stepBodyTransition = { duration: 0.16, ease: EASE_OUT };
+
+const STEP_SHIFT_PX = 28;
+
+export const stepBody: Variants = {
+  enter: (dir: number) => ({ opacity: 0, scale: 0.97, x: dir * STEP_SHIFT_PX }),
+  center: { opacity: 1, scale: 1, x: 0 },
+  exit: (dir: number) => ({ opacity: 0, scale: 0.97, x: -dir * STEP_SHIFT_PX }),
+};

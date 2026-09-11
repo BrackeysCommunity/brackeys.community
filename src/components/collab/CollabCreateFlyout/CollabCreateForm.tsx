@@ -14,7 +14,7 @@ import {
 } from "@/lib/collab-store";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
-import { EASE_OUT } from "@/lib/motion";
+import { stepBody, stepBodyTransition } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -37,28 +37,6 @@ import { StepProject } from "./StepProject";
 import { StepReview } from "./StepReview";
 import { StepRoles } from "./StepRoles";
 import { StepTeam } from "./StepTeam";
-
-// Step body cross-fade matches the profile flyout: a short ease-out on
-// opacity/scale plus a directional x nudge so 1→2 enters from the
-// right and 2→1 enters from the left. Shared with the create modal so
-// the two stepped surfaces move the same way.
-export const STEP_BODY_TRANSITION = { duration: 0.16, ease: EASE_OUT };
-const STEP_SHIFT_PX = 28;
-export const STEP_VARIANTS = {
-  enter: (dir: number) => ({
-    opacity: 0,
-    scale: 0.97,
-    x: dir * STEP_SHIFT_PX,
-    filter: "blur(6px)",
-  }),
-  center: { opacity: 1, scale: 1, x: 0, filter: "blur(0px)" },
-  exit: (dir: number) => ({
-    opacity: 0,
-    scale: 0.97,
-    x: -dir * STEP_SHIFT_PX,
-    filter: "blur(6px)",
-  }),
-};
 
 /**
  * Images added during an edit land after whatever the post already has.
@@ -332,11 +310,11 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
           <motion.div
             key={currentTab}
             custom={direction}
-            variants={STEP_VARIANTS}
+            variants={stepBody}
             initial="enter"
             animate="center"
             exit="exit"
-            transition={STEP_BODY_TRANSITION}
+            transition={stepBodyTransition}
             className="h-full overflow-y-auto px-5 py-5"
           >
             {/* Intro prose, not a label: sized above the 11px field

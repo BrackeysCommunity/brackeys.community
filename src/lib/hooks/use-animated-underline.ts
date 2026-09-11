@@ -163,10 +163,16 @@ function animateValue(
   config: AnimateConfig,
 ) {
   let raf = 0;
-  const start = performance.now();
+  // Origin comes from the first rAF timestamp rather than `performance.now()`.
+  // Firefox's resistFingerprinting clamps `performance.now()` to 100ms buckets
+  // but leaves rAF timestamps per-frame, so mixing the two put `elapsed` up to
+  // 100ms out in either direction — far enough to open past 1 and drop the
+  // stretch entirely, or to go negative and send the bezier extrapolating.
+  let start: number | null = null;
   const totalMs = config.duration * 1000;
   const ease = bezier(...config.ease);
   const step = (now: number) => {
+    start ??= now;
     const elapsed = (now - start) / totalMs;
     if (elapsed >= 1) {
       mv.set(values[2]);
