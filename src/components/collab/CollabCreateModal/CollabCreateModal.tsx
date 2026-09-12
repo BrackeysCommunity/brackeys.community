@@ -297,13 +297,15 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
             transition={stepBodyTransition}
             className="px-5 py-5"
           >
+            {/* Tight against the body: on step 1 the explainer follows, and
+                two stacked blocks of prose pushed the picker off-screen. */}
             <Text
               as="p"
               size="md"
               variant="muted"
               density="comfortable"
               textWrap="pretty"
-              className="mb-6"
+              className="mb-4"
             >
               {step.desc}
             </Text>

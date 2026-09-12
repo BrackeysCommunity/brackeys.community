@@ -26,10 +26,16 @@ function writeDismissed(key: string) {
   }
 }
 
+/**
+ * One line each, deliberately. These ran two to three lines apiece, and with
+ * the aside under them the note filled the modal's whole first screen — the
+ * role picker this step exists for was entirely below the fold. Same three
+ * facts: a post is small, a team can wait, a project can wait.
+ */
 const QUICK_POST_STEPS = [
-  "Say who you're looking for, give the post a title and a description, and publish. That's all you need to get started.",
-  "You don't need a team first. When someone responds and you accept them, you can start a team right then, or add them to one you already have.",
-  "If your game has a page on the site, you can link it from the post afterwards. If it doesn't have one yet, that's fine too.",
+  "Pick the roles, add a title and a description, publish. That's the post.",
+  "No team needed — accept a response and start one then, or use one you have.",
+  "Got a game page here? Link it from the post afterwards.",
 ];
 
 /**
@@ -42,7 +48,7 @@ export function CollabFunnelExplainer({
   dismissKey,
   title = "How posting works",
   steps = QUICK_POST_STEPS,
-  note = "Nothing here is final. You can change any of it after the post is live.",
+  note = "Nothing is final — you can change any of it once the post is live.",
   aside,
 }: {
   /** Set to make the note dismissable; the choice persists under this key. */
@@ -62,11 +68,11 @@ export function CollabFunnelExplainer({
   if (dismissed) return null;
 
   return (
-    <Well variant="ghost" className="gap-3 border-primary/30 bg-primary/5 p-4">
+    <Well variant="ghost" className="gap-2.5 border-primary/30 bg-primary/5 p-3.5">
       <Text size="sm" bold>
         {title}
       </Text>
-      <ol className="flex list-decimal flex-col gap-2 pl-5">
+      <ol className="flex list-decimal flex-col gap-1.5 pl-5">
         {steps.map((step) => (
           <li key={step}>
             <Text size="sm" textWrap="pretty" className="text-foreground/90">
@@ -75,7 +81,9 @@ export function CollabFunnelExplainer({
           </li>
         ))}
       </ol>
-      {aside ? <div className="border-t border-dashed border-primary/25 pt-3">{aside}</div> : null}
+      {aside ? (
+        <div className="border-t border-dashed border-primary/25 pt-2.5">{aside}</div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Text size="sm" variant="muted" textWrap="pretty">
           {note}
@@ -115,16 +123,15 @@ export function JoinInsteadNote() {
 
   return (
     <Text size="sm" textWrap="pretty" className="text-foreground/90">
-      <strong className="font-bold">Looking to be hired instead?</strong> This form is for finding
-      people. To be found,{" "}
+      <strong className="font-bold">Looking to be hired instead?</strong>{" "}
       <Link
         to="/profile/$userId"
         params={profileParams}
         className="text-primary underline-offset-4 hover:underline"
       >
-        open your profile to work
+        Open your profile to work
       </Link>{" "}
-      — anything you have typed here is saved.
+      — your draft is saved.
     </Text>
   );
 }
