@@ -3,7 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { NotificationItem } from "@/components/notifications/notification-row";
+import type {
+  NotificationItem,
+  NotificationRowProps,
+} from "@/components/notifications/notification-row";
 
 const markRead = vi.fn((_vars: { ids: number[] }) => Promise.resolve({ ok: true }));
 
@@ -65,11 +68,11 @@ function makeItem(overrides: Partial<NotificationItem> = {}): NotificationItem {
   };
 }
 
-function renderRow(item: NotificationItem) {
+function renderRow(item: NotificationItem, selection?: NotificationRowProps["selection"]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <NotificationRow notification={item} />
+      <NotificationRow notification={item} selection={selection} />
     </QueryClientProvider>,
   );
 }
@@ -85,5 +88,20 @@ describe("NotificationRow", () => {
     renderRow(makeItem({ readAt: new Date() }));
     fireEvent.click(screen.getByRole("link"));
     expect(markRead).not.toHaveBeenCalled();
+  });
+
+  // The checkbox sits beside the link, not inside it, so checking a row
+  // never opens it or marks it read.
+  it("checks a selectable row without opening it", () => {
+    const onSelectedChange = vi.fn();
+    renderRow(makeItem(), { selected: false, onSelectedChange });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select notification" }));
+    expect(onSelectedChange).toHaveBeenCalledWith(true);
+    expect(markRead).not.toHaveBeenCalled();
+  });
+
+  it("renders no checkbox outside a selectable table", () => {
+    renderRow(makeItem());
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 });

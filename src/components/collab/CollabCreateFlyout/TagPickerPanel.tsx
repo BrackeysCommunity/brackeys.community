@@ -13,6 +13,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { usePortalContainer } from "@/components/ui/portal-container";
 import { Text } from "@/components/ui/typography";
+import { isSubmitKey } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 
 import { FieldRow } from "./fields";
@@ -131,6 +132,10 @@ export function TagPickerPanel({
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
+  // Roving highlight over the rows currently showing, so Enter has an
+  // answer without a mouse: the first match by default, or whatever the
+  // arrow keys moved it to.
+  const [activeIndex, setActiveIndex] = useState(0);
   const query = search.trim().toLowerCase();
 
   const listId = useId();
@@ -153,6 +158,23 @@ export function TagPickerPanel({
     return [...map.entries()];
   }, [options, query]);
 
+  // Rows in render order — an entry counts only while its group is open.
+  const visible = useMemo(
+    () =>
+      groups.flatMap(([category, items]) =>
+        query.length > 0 || expanded.includes(category) ? items : [],
+      ),
+    [groups, query, expanded],
+  );
+  const activeOption = visible[Math.min(activeIndex, visible.length - 1)] ?? null;
+  const optionDomId = (id: number) => `${listId}-option-${id}`;
+
+  useEffect(() => {
+    if (!open || !activeOption) return;
+    const row = document.getElementById(`${listId}-option-${activeOption.id}`);
+    if (row && typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "nearest" });
+  }, [open, activeOption, listId]);
+
   const toggle = (id: number) => {
     if (selectedIds.includes(id)) onChange(selectedIds.filter((x) => x !== id));
     else if (atCap) return;
@@ -161,6 +183,15 @@ export function TagPickerPanel({
     // ready for the next search — picking one entry is the end of that
     // query, and the chip below is the confirmation.
     setSearch("");
+    setActiveIndex(0);
+  };
+
+  const moveActive = (delta: number) => {
+    if (visible.length === 0) return;
+    setActiveIndex((i) => {
+      const from = Math.min(i, visible.length - 1);
+      return (from + delta + visible.length) % visible.length;
+    });
   };
 
   const openList = () => {
@@ -175,6 +206,7 @@ export function TagPickerPanel({
       id={listId}
       role="listbox"
       aria-label={label}
+      aria-activedescendant={activeOption ? optionDomId(activeOption.id) : undefined}
       // The house popover surface (`SelectContent`, `ComboboxContent`), and
       // `no-scrollbar` for the same reason those use it: the clipped row at
       // the edge is the affordance, and a bar drawn inside a floating panel
@@ -238,6 +270,7 @@ export function TagPickerPanel({
                 <div className="flex flex-col gap-1 pb-1.5">
                   {items.map((option) => {
                     const selected = selectedIds.includes(option.id);
+                    const active = activeOption?.id === option.id;
                     return (
                       <Chonk
                         key={option.id}
@@ -246,8 +279,10 @@ export function TagPickerPanel({
                         render={
                           <button
                             type="button"
+                            id={optionDomId(option.id)}
                             role="option"
                             aria-selected={selected}
+                            data-active={active || undefined}
                             onClick={() => toggle(option.id)}
                             disabled={!selected && atCap}
                           />
@@ -255,6 +290,7 @@ export function TagPickerPanel({
                         className={cn(
                           "w-full items-center justify-between gap-2 px-2.5 py-1.5 text-xs",
                           "disabled:cursor-not-allowed disabled:opacity-40",
+                          "data-active:ring-1 data-active:ring-ring",
                           selected && "text-primary",
                         )}
                       >
@@ -288,6 +324,7 @@ export function TagPickerPanel({
           aria-autocomplete="list"
           onChange={(e) => {
             setSearch(e.target.value);
+            setActiveIndex(0);
             openList();
           }}
           onFocus={openList}
@@ -297,6 +334,20 @@ export function TagPickerPanel({
           // mousedown — so a blur means the user has genuinely left.
           onBlur={() => setOpen(false)}
           onKeyDown={(e) => {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              if (!open) openList();
+              else moveActive(e.key === "ArrowDown" ? 1 : -1);
+              return;
+            }
+            if (isSubmitKey(e)) {
+              // A bare Enter takes the highlighted row — the first match
+              // unless the arrows moved it — and never submits the form
+              // around the picker.
+              e.preventDefault();
+              if (open && activeOption) toggle(activeOption.id);
+              return;
+            }
             if (e.key !== "Escape" || !open) return;
             // The picker eats its own Escape: the first press closes the
             // list, and only a second one reaches the dialog around it.

@@ -36,9 +36,14 @@ type AutoSaveFieldProps<TSchema extends ZodObject<ZodRawShape>, TName extends st
   saveOn?: "blur" | "change";
   /** Confirmation message before saving. String = always, function = conditional. */
   confirm?: string | ((value: unknown) => string | undefined);
-  /** Render prop receiving the field API. */
+  /**
+   * Render prop receiving the field API. `pending` is true from the moment
+   * the value diverges from what the server last confirmed until the save
+   * settles — for a change-saved control that is the same commit as the
+   * click, so a switch can disable itself before a second click lands.
+   */
   // biome-ignore lint/suspicious/noExplicitAny: TanStack field API
-  children: (field: any) => React.ReactNode;
+  children: (field: any, state: { pending: boolean }) => React.ReactNode;
   className?: string;
 };
 
@@ -47,6 +52,10 @@ type AutoSaveFieldProps<TSchema extends ZodObject<ZodRawShape>, TName extends st
  * Saves on blur (inputs/textarea) or on change (select/switch/checkbox/radio).
  *
  * Shows inline status indicators: spinner (saving), checkmark (success), warning (error).
+ * A blur or change that leaves the value where the server already has it
+ * saves nothing. A change-saved control that fails to save is put back to
+ * the confirmed value, so the control never shows a state the server
+ * doesn't hold.
  */
 function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends string>({
   name,
@@ -64,23 +73,38 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
 }: AutoSaveFieldProps<TSchema, TName>) {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string>("");
+  // The value the server last confirmed: what a no-op save is measured
+  // against, and where a failed change-save falls back to.
+  const [committed, setCommitted] = useState<unknown>(initialValue);
+  const inFlightRef = useRef<unknown>(undefined);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const form = useForm({
     defaultValues: { [name]: initialValue } as Record<string, unknown>,
     validators: { onDynamic: schema },
     onSubmit: async ({ value }) => {
-      // Confirmation dialog
+      const next = value[name];
+      // A label click and the control's own click both schedule a save;
+      // the second one finds the first already carrying the same value.
+      if (Object.is(next, committed) || Object.is(next, inFlightRef.current)) return;
+
+      // Confirmation dialog. A declined change-save puts the control back,
+      // the same as a failed one — it must not sit flipped and locked.
       if (confirm) {
-        const msg = typeof confirm === "function" ? confirm(value[name]) : confirm;
-        if (msg && !(await openConfirmModal({ title: msg }))) return;
+        const msg = typeof confirm === "function" ? confirm(next) : confirm;
+        if (msg && !(await openConfirmModal({ title: msg }))) {
+          if (saveOn === "change") form.setFieldValue(name, committed as never);
+          return;
+        }
       }
 
+      inFlightRef.current = next;
       setStatus("saving");
       setSaveError("");
 
       try {
-        await onSave({ [name]: value[name] });
+        await onSave({ [name]: next });
+        setCommitted(next);
         setStatus("success");
 
         // Fade success indicator after 2s
@@ -88,8 +112,11 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
         successTimeoutRef.current = setTimeout(() => setStatus("idle"), 2000);
       } catch (err) {
         reportMutationError(err, `autosave.${name}`);
+        if (saveOn === "change") form.setFieldValue(name, committed as never);
         setStatus("error");
         setSaveError(errorMessage(err, "Save failed"));
+      } finally {
+        inFlightRef.current = undefined;
       }
     },
   });
@@ -111,6 +138,8 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
       {(field: any) => {
         const errors = field.state.meta.errors as Array<{ message?: string }> | undefined;
         const hasValidationError = errors && errors.length > 0;
+        const pending =
+          status === "saving" || (saveOn === "change" && !Object.is(field.state.value, committed));
 
         return (
           <Field
@@ -171,7 +200,7 @@ function AutoSaveField<TSchema extends ZodObject<ZodRawShape>, TName extends str
                         : undefined
                     }
                   >
-                    {children(field)}
+                    {children(field, { pending })}
                   </div>
                 </SimpleTooltip>
                 <StatusIndicator status={status} errorMessage={saveError} />

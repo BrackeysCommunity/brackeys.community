@@ -6,6 +6,37 @@ import type { NotificationType } from "../db/schema";
  * outside of a router context. The UI bell uses its own JSX variant in
  * `components/notifications/notification-row.tsx`.
  */
+/** One approved skill request, as the approval notice stores it. */
+export type ApprovedSkill = { skillName: string; requestedName: string };
+
+/**
+ * Every approval a `skill_request_approved` row carries. Rows written
+ * before approvals were folded together hold a single pair at the top
+ * level; folded rows carry the list.
+ */
+export function approvedSkillsOf(data: Record<string, unknown>): ApprovedSkill[] {
+  const list = data.approved;
+  if (Array.isArray(list)) {
+    return list.filter(
+      (entry): entry is ApprovedSkill =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof (entry as ApprovedSkill).skillName === "string" &&
+        typeof (entry as ApprovedSkill).requestedName === "string",
+    );
+  }
+  if (typeof data.skillName === "string" || typeof data.requestedName === "string") {
+    const skillName = (data.skillName ?? data.requestedName) as string;
+    return [{ skillName, requestedName: (data.requestedName as string | undefined) ?? skillName }];
+  }
+  return [];
+}
+
+/** "Kotlin", or "kotlin (as Kotlin)" when staff corrected what was typed. */
+export function approvedSkillLabel({ skillName, requestedName }: ApprovedSkill): string {
+  return skillName === requestedName ? skillName : `${requestedName} (as ${skillName})`;
+}
+
 export function renderNotificationText(input: {
   type: NotificationType;
   actorUsername: string | null;
@@ -155,7 +186,14 @@ export function renderNotificationText(input: {
           : `Thanks — we reviewed your report on "${reportSubject}" and left it up`,
         href: (input.data.subjectUrl as string | undefined) ?? null,
       };
-    case "skill_request_approved":
+    case "skill_request_approved": {
+      const approved = approvedSkillsOf(input.data);
+      if (approved.length > 1) {
+        return {
+          headline: `Your skill requests were approved: ${approved.map(approvedSkillLabel).join(", ")}`,
+          href: "/profile",
+        };
+      }
       return {
         headline:
           skillName && requestedName && skillName !== requestedName
@@ -163,6 +201,7 @@ export function renderNotificationText(input: {
             : `Your "${skillName ?? requestedName ?? "skill"}" request was approved`,
         href: "/profile",
       };
+    }
     case "skill_request_rejected":
       return {
         headline: moderationReason

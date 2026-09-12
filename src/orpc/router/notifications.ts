@@ -1,5 +1,18 @@
 import { os } from "@orpc/server";
-import { and, count, desc, eq, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -212,6 +225,37 @@ export const markAllRead = os
       .set({ readAt: new Date() })
       .where(and(...conditions));
     return { ok: true };
+  });
+
+/**
+ * Takes rows out of the inbox for good. Read or unread — a reader dismissing
+ * an unread row has made the same call as reading it. Scoped to the caller;
+ * ids that aren't theirs simply match nothing.
+ */
+export const dismissNotifications = os
+  .use(requireAuth)
+  .input(z.object({ ids: z.array(z.number()).min(1).max(200) }))
+  .handler(async ({ input, context }) => {
+    const gone = await db
+      .delete(notifications)
+      .where(and(eq(notifications.userId, context.user.id), inArray(notifications.id, input.ids)))
+      .returning({ id: notifications.id });
+    return { removed: gone.length };
+  });
+
+/**
+ * "Mark all read" changes a badge; this changes what a person can see.
+ * Unread rows stay — the count that pulled them in is still owed a look.
+ */
+export const clearReadNotifications = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    const gone = await db
+      .delete(notifications)
+      .where(and(eq(notifications.userId, context.user.id), isNotNull(notifications.readAt)))
+      .returning({ id: notifications.id });
+    return { removed: gone.length };
   });
 
 // ── Preferences ─────────────────────────────────────────────────────────────

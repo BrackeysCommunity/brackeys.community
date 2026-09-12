@@ -67,6 +67,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               index="05"
               links={profile.links}
               isOwner={isOwner}
+              profileName={profile.handle}
               onEdit={() => openEdit(4)}
               queryKey={queryKey}
             />
@@ -95,6 +96,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               projects={profile.projects}
               editableProjects={profile.editableProjects}
               isOwner={isOwner}
+              profileName={profile.handle}
               queryKey={queryKey}
               layout="list"
             />
@@ -103,7 +105,13 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
         ) : null}
 
         {tab === "jams" ? (
-          <ProfileJamLogSection index="01" best={profile.jamLogBest} entries={profile.jamLog} />
+          <ProfileJamLogSection
+            index="01"
+            best={profile.jamLogBest}
+            entries={profile.jamLog}
+            isOwner={isOwner}
+            profileName={profile.handle}
+          />
         ) : null}
 
         {tab === "skills" ? (
@@ -111,6 +119,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
             index="01"
             skills={profile.skills}
             isOwner={isOwner}
+            profileName={profile.handle}
             onEdit={() => openEdit(2)}
           />
         ) : null}

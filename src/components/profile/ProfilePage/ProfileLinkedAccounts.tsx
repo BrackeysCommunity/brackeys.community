@@ -37,6 +37,8 @@ interface ProfileLinkedAccountsSectionProps {
   index: string;
   links: ProfileLink[];
   isOwner: boolean;
+  /** Names the member in visitor-facing empty copy. */
+  profileName?: string;
   /** Deep-link into the flyout's LINKS step — used for the trailing
    * "edit URLs" affordance and as a fallback if a provider OAuth
    * isn't available. */
@@ -59,6 +61,7 @@ export function ProfileLinkedAccountsSection({
   index,
   links,
   isOwner,
+  profileName,
   onEdit,
   queryKey,
 }: ProfileLinkedAccountsSectionProps) {
@@ -120,7 +123,11 @@ export function ProfileLinkedAccountsSection({
         <ProfileEmptyState
           glyph="↗"
           title="No linked accounts yet"
-          hint="Wire your GitHub, itch.io, portfolio site, or fediverse handle so collaborators can find you anywhere."
+          hint={
+            isOwner
+              ? "Wire your GitHub, itch.io, portfolio site, or fediverse handle so collaborators can find you anywhere."
+              : `${profileName ?? "This member"} hasn't linked any accounts yet.`
+          }
           cta={
             isOwner
               ? {

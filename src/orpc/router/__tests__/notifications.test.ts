@@ -9,5 +9,7 @@ describe("notifications router", () => {
     expect(router.unreadCount).toBeDefined();
     expect(router.markRead).toBeDefined();
     expect(router.markAllRead).toBeDefined();
+    expect(router.dismissNotifications).toBeDefined();
+    expect(router.clearReadNotifications).toBeDefined();
   });
 });

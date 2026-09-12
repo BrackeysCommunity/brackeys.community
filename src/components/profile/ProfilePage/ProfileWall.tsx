@@ -4,9 +4,11 @@ import { CommentThread } from "@/components/comments/CommentThread";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { signInWithDiscord } from "@/lib/auth-client";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
+import { ProfileEmptyState } from "./ProfileEmptyState";
 import { ProfileSectionHeader } from "./ProfileSectionHeader";
 
 interface ProfileWallSectionProps {
@@ -69,12 +71,25 @@ export function ProfileWallSection({
       placeholder={
         isOwner ? "Reply to a note, or pin a thought…" : `Leave a note on ${profileName}'s wall…`
       }
-      emptyLabel="NO WALL NOTES YET"
-      emptyHint={
-        isOwner
-          ? "Notes from other members land here."
-          : `Be the first to leave ${profileName} a note.`
-      }
+      signInPrompt={`Sign in to leave ${profileName} a note.`}
+      renderEmpty={({ signedIn }) => (
+        <ProfileEmptyState
+          glyph="✎"
+          title="No wall notes yet"
+          hint={
+            isOwner
+              ? "Notes from other members land here."
+              : signedIn
+                ? `Be the first to leave ${profileName} a note.`
+                : `Sign in to be the first to leave ${profileName} a note.`
+          }
+          cta={
+            !isOwner && !signedIn
+              ? { label: "LOGIN", onClick: () => void signInWithDiscord("profile_wall") }
+              : undefined
+          }
+        />
+      )}
       shell={(content, count) => (
         <section className="flex flex-col gap-3">
           <ProfileSectionHeader

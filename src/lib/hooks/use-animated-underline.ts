@@ -50,6 +50,11 @@ const STRETCH_EASE = [0.32, 0.72, 0.24, 1] as const;
  *   `placeNoAnim` on every render.
  * - Opacity stays at 0 until the first measurement so the bar never
  *   paints in its default `(0, underlineWidth)` initial position.
+ * - Positions come from the offset tree, not `getBoundingClientRect`.
+ *   The strip is mounted inside dialogs that open through a scale
+ *   transition, and a rect read mid-transform is scaled; the only
+ *   re-measure is a ResizeObserver, which a transform never triggers,
+ *   so the bar would sit off-centre until the next resize.
  */
 export function useAnimatedUnderline<TabId extends string | number>({
   active,
@@ -81,9 +86,7 @@ export function useAnimatedUnderline<TabId extends string | number>({
     const container = containerRef.current;
     const node = nodeRefs.current.get(activeRef.current);
     if (!container || !node) return;
-    const cRect = container.getBoundingClientRect();
-    const nRect = node.getBoundingClientRect();
-    const center = nRect.left - cRect.left + nRect.width / 2;
+    const center = centerWithin(node, container);
     left.set(center - underlineWidth / 2);
     width.set(underlineWidth);
     opacity.set(1);
@@ -112,11 +115,8 @@ export function useAnimatedUnderline<TabId extends string | number>({
     const nextNode = nodeRefs.current.get(active);
     if (!container || !prevNode || !nextNode) return;
 
-    const cRect = container.getBoundingClientRect();
-    const prevR = prevNode.getBoundingClientRect();
-    const nextR = nextNode.getBoundingClientRect();
-    const prevCenter = prevR.left - cRect.left + prevR.width / 2;
-    const nextCenter = nextR.left - cRect.left + nextR.width / 2;
+    const prevCenter = centerWithin(prevNode, container);
+    const nextCenter = centerWithin(nextNode, container);
 
     const stretchLeft = Math.min(prevCenter, nextCenter) - underlineWidth / 2;
     const stretchWidth = Math.abs(nextCenter - prevCenter) + underlineWidth;
@@ -149,6 +149,21 @@ export function useAnimatedUnderline<TabId extends string | number>({
   void tabIds;
 
   return { containerRef, registerTab, motionStyle: { left, width, opacity } };
+}
+
+/** Horizontal centre of `node` in `container`'s layout space, transform-blind. */
+function centerWithin(node: HTMLElement, container: HTMLElement): number {
+  return layoutLeft(node) - layoutLeft(container) + node.offsetWidth / 2;
+}
+
+function layoutLeft(el: HTMLElement): number {
+  let left = 0;
+  let current: HTMLElement | null = el;
+  while (current) {
+    left += current.offsetLeft;
+    current = current.offsetParent as HTMLElement | null;
+  }
+  return left;
 }
 
 interface AnimateConfig {

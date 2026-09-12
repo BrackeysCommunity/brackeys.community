@@ -168,6 +168,7 @@ export type SigninSource =
   | "collab_post_respond"
   | "contact_value"
   | "profile_builder"
+  | "profile_wall"
   | "teams_discovery"
   | "members_discovery";
 

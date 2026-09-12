@@ -38,6 +38,8 @@ interface ProfileProjectsSectionProps {
    * shaped for the edit dialog flow. */
   editableProjects?: EditableProject[];
   isOwner: boolean;
+  /** Names the member in visitor-facing empty copy. */
+  profileName?: string;
   /** Optional fallback edit handler — used in non-owner contexts
    * where deep-linking somewhere else (e.g. the flyout) is wanted.
    * Owner mode handles its own add/edit/remove via mutations. */
@@ -66,6 +68,7 @@ export function ProfileProjectsSection({
   projects,
   editableProjects,
   isOwner,
+  profileName,
   onEdit,
   showAddAction = true,
   layout = "grid",
@@ -132,7 +135,7 @@ export function ProfileProjectsSection({
         <ProfileEmptyState
           glyph="▢"
           title="No projects yet"
-          hint="Drop a tool, game, or experiment so collaborators can see what you ship."
+          hint={`${profileName ?? "This member"} hasn't shipped anything here yet.`}
         />
       ) : (
         <div className={cn("grid gap-4", gridClass(layout))}>

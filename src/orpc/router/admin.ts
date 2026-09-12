@@ -58,7 +58,8 @@ import { enqueueImageRescan } from "@/lib/media-scan";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { PROPOSABLE_ACTIONS, type ModOverride, type ModPowerAction } from "@/lib/moderation-policy";
-import { notify } from "@/lib/notifications";
+import { approvedSkillsOf, type ApprovedSkill } from "@/lib/notification-copy";
+import { notify, type NotifyParams } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
 import { profileSlug } from "@/lib/profile-links";
 import {
@@ -599,10 +600,20 @@ export const approveSkillRequest = os
 
     // `requestedName` is what they typed; naming both sides is the point
     // when staff corrected the casing or matched an existing entry.
+    const approved: ApprovedSkill = { skillName: skill.name, requestedName: request.name };
     await notifyRequester(request.userId, {
       type: "skill_request_approved",
       requestId: request.id,
-      data: { skillName: skill.name, requestedName: request.name },
+      data: { ...approved, approved: [approved] },
+      // Staff work a requester's batch in one sitting; one line naming
+      // every skill beats eleven bells.
+      coalesceWithin: {
+        ms: SKILL_APPROVAL_COALESCE_MS,
+        merge: (existing) => ({
+          ...existing,
+          approved: [...approvedSkillsOf(existing), approved],
+        }),
+      },
     });
 
     return { success: true, skill };
@@ -619,6 +630,7 @@ async function notifyRequester(
     type: "skill_request_approved" | "skill_request_rejected";
     requestId: number;
     data: Record<string, unknown>;
+    coalesceWithin?: NotifyParams["coalesceWithin"];
   },
 ): Promise<void> {
   await bestEffort("admin.skill_request_notice", { request_id: params.requestId }, () =>
@@ -628,9 +640,12 @@ async function notifyRequester(
       entityType: "skill_request",
       entityId: String(params.requestId),
       data: params.data,
+      coalesceWithin: params.coalesceWithin,
     }),
   );
 }
+
+const SKILL_APPROVAL_COALESCE_MS = 15 * 60_000;
 
 export const rejectSkillRequest = os
   .use(requireStaff)

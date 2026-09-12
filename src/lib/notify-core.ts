@@ -5,7 +5,7 @@
  * imports only, schema + drizzle only, and the caller passes its own
  * drizzle handle so this module works in both environments.
  */
-import { and, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 
 import {
   notificationPreferences,
@@ -37,6 +37,19 @@ export type NotifyParams = {
    * (no duplicate emails / pushes) — `recordNotification` returns null.
    */
   dedupeWithin?: { ms: number };
+  /**
+   * If set, folds this notification into an existing one of the same
+   * (userId, type, actorId) inside the window instead of adding a row:
+   * the existing row's `data` becomes `merge(existing.data)`, it is
+   * bumped to now and marked unread, and no side-effect job is enqueued.
+   * For the case where eleven decisions in one sitting should read as one
+   * line, not eleven. Unlike `dedupeWithin`, the entity is ignored — the
+   * rows being folded are about different entities by design.
+   */
+  coalesceWithin?: {
+    ms: number;
+    merge: (existing: Record<string, unknown>) => Record<string, unknown>;
+  };
 };
 
 /** bullmq options every producer of `side_effects` jobs shares. */
@@ -109,6 +122,35 @@ export async function recordNotification(
       await db
         .update(notifications)
         .set({ createdAt: new Date(), readAt: null })
+        .where(eq(notifications.id, existing.id));
+      return null;
+    }
+  }
+
+  if (params.coalesceWithin) {
+    const cutoff = new Date(Date.now() - params.coalesceWithin.ms);
+    const conditions = [
+      eq(notifications.userId, params.userId),
+      eq(notifications.type, params.type),
+      gte(notifications.createdAt, cutoff),
+    ];
+    if (params.actorId) conditions.push(eq(notifications.actorId, params.actorId));
+
+    const [existing] = await db
+      .select({ id: notifications.id, data: notifications.data })
+      .from(notifications)
+      .where(and(...conditions))
+      .orderBy(desc(notifications.createdAt))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(notifications)
+        .set({
+          data: params.coalesceWithin.merge(existing.data ?? {}),
+          createdAt: new Date(),
+          readAt: null,
+        })
         .where(eq(notifications.id, existing.id));
       return null;
     }

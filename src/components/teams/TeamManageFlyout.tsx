@@ -1,9 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import * as z from "zod";
 
 import { uploadTeamAvatarImage } from "@/components/collab/CollabCreateFlyout/shared";
 import { MarkdownField } from "@/components/moderation/ModerationShell";
+import { AutoSaveField } from "@/components/ui/auto-save-field";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -16,6 +18,7 @@ import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
+import { isSubmitKey } from "@/lib/keyboard";
 import { reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -77,6 +80,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+const recruitingSchema = z.object({ recruiting: z.boolean() });
+const rosterTitleSchema = z.object({ title: z.string().max(100) });
+
 // ── Identity (owner) ─────────────────────────────────────────────────────────
 
 function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void }) {
@@ -103,11 +109,6 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
     },
     onSuccess: onSaved,
     onError: (err) => reportMutationError(err, "team.update"),
-  });
-
-  const recruitingMutation = useMutation({
-    mutationFn: (recruiting: boolean) => client.updateTeam({ teamId: team.id, recruiting }),
-    onSuccess: onSaved,
   });
 
   return (
@@ -155,20 +156,32 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
           />
         </Field>
       </div>
-      <div className="flex items-center gap-3">
-        <Switch
-          id="team-recruiting"
-          checked={team.recruiting}
-          disabled={recruitingMutation.isPending}
-          onCheckedChange={(checked) => recruitingMutation.mutate(!!checked)}
-        />
-        {/* The old copy promised the badge "even between posts", which is
-            exactly the dead end §3.2 closes — the switch is the intent, and
-            an open post is what makes it visible. */}
-        <Label htmlFor="team-recruiting" className="text-sm text-muted-foreground">
-          We're recruiting — show the badge while we have an opening posted.
-        </Label>
-      </div>
+      <AutoSaveField
+        name="recruiting"
+        schema={recruitingSchema}
+        initialValue={team.recruiting}
+        saveOn="change"
+        onSave={async ({ recruiting }) => {
+          await client.updateTeam({ teamId: team.id, recruiting: Boolean(recruiting) });
+          onSaved();
+        }}
+      >
+        {(field, { pending }) => (
+          <div className="flex items-center gap-3">
+            <Switch
+              id="team-recruiting"
+              checked={Boolean(field.state.value)}
+              disabled={pending}
+              onCheckedChange={(checked) => field.handleChange(Boolean(checked))}
+            />
+            {/* The switch is the intent; an open post is what makes the
+                badge visible. */}
+            <Label htmlFor="team-recruiting" className="text-sm text-muted-foreground">
+              We're recruiting — show the badge while we have an opening posted.
+            </Label>
+          </div>
+        )}
+      </AutoSaveField>
       <div className="flex items-center gap-3">
         <Button
           size="sm"
@@ -349,18 +362,10 @@ function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => vo
     mutationFn: (userId: string) => client.transferOwnership({ teamId: team.id, userId }),
     onSuccess: onChanged,
   });
-  const titleMutation = useMutation({
-    mutationFn: (title: string) =>
-      client.updateMemberTitle({ teamId: team.id, title: title || null }),
-    onSuccess: onChanged,
-  });
-
   const memberIds = new Set(team.members.map((m) => m.userId));
   const invitedIds = new Set(team.pendingInvites.map((i) => i.inviteeId));
   const self = team.members.find((m) => m.role === team.viewerRole && m.userId);
-  const [myTitle, setMyTitle] = useState(
-    team.members.find((m) => m.userId === self?.userId)?.title ?? "",
-  );
+  const myTitle = team.members.find((m) => m.userId === self?.userId)?.title ?? "";
 
   return (
     <section className="flex flex-col gap-3">
@@ -405,19 +410,34 @@ function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => vo
         ))}
       </div>
 
-      {/* The member's own craft label on the roster. */}
+      {/* The member's own craft label on the roster. Saves on Enter or on
+          leaving the field; the status mark beside it says when it landed. */}
       <Field label="YOUR ROSTER TITLE" hint="e.g. Composer, Pixel art">
-        <div className="flex items-center gap-2">
-          <Input value={myTitle} onChange={(e) => setMyTitle(e.target.value)} maxLength={100} />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={titleMutation.isPending}
-            onClick={() => titleMutation.mutate(myTitle.trim())}
-          >
-            SET
-          </Button>
-        </div>
+        <AutoSaveField
+          name="title"
+          schema={rosterTitleSchema}
+          initialValue={myTitle}
+          onSave={async ({ title }) => {
+            await client.updateMemberTitle({
+              teamId: team.id,
+              title: (typeof title === "string" ? title.trim() : "") || null,
+            });
+            onChanged();
+          }}
+        >
+          {(field) => (
+            <Input
+              value={typeof field.state.value === "string" ? field.state.value : ""}
+              onChange={(e) => field.handleChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (!isSubmitKey(e)) return;
+                e.preventDefault();
+                e.currentTarget.blur();
+              }}
+              maxLength={100}
+            />
+          )}
+        </AutoSaveField>
       </Field>
 
       {team.status === "active" ? (

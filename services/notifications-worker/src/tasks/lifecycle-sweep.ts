@@ -15,6 +15,7 @@ import {
   TEAM_QUIET_DAYS,
 } from "../../../../src/lib/collab-lifecycle.ts";
 import { sweepJamWatches } from "../../../../src/lib/jam-watch-sweep.ts";
+import { sweepReadNotifications } from "../../../../src/lib/notification-retention.ts";
 import {
   type NotifyParams,
   recordNotification,
@@ -238,6 +239,9 @@ export async function handleLifecycleSweep(): Promise<void> {
   // ── 5. Jam phase notifications for watchers ───────────────────────────────
   const jamPings = await sweepJamWatches(db, notify, now);
 
+  // ── 6. Retention: read notifications past their window ────────────────────
+  const retired = await sweepReadNotifications(db, now);
+
   console.log("[lifecycle_sweep] done", {
     repaired: repaired.length,
     nudged,
@@ -246,5 +250,6 @@ export async function handleLifecycleSweep(): Promise<void> {
     cancelled: cancelled.length,
     archived: archived.length,
     ...jamPings,
+    retired,
   });
 }

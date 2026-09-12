@@ -29,10 +29,12 @@ import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
+import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import type { SubjectRef } from "@/lib/comment-subjects";
 import { timeAgo } from "@/lib/format-time";
 import { useMemberViewer } from "@/lib/hooks/use-member-identity";
+import { isMultilineSubmitKey } from "@/lib/keyboard";
 import {
   memberAvatarUrl,
   memberDisplayName,
@@ -126,6 +128,8 @@ export function CommentThread({
   placeholder = "Write a comment…",
   emptyLabel = "NO COMMENTS YET",
   emptyHint = "Start the conversation.",
+  renderEmpty,
+  signInPrompt,
   shell,
 }: {
   subject: SubjectRef;
@@ -133,6 +137,12 @@ export function CommentThread({
   placeholder?: string;
   emptyLabel?: string;
   emptyHint?: string;
+  /** Replaces the default empty well, for a host with its own empty-state
+   *  idiom. Told whether the viewer is signed in so it can offer the way in. */
+  renderEmpty?: (ctx: { signedIn: boolean }) => React.ReactNode;
+  /** When set, a signed-out viewer sees this line and a LOGIN button where
+   *  the composer would be, instead of nothing. */
+  signInPrompt?: string;
   shell?: (content: React.ReactNode, count: number) => React.ReactElement | null;
 }) {
   const { session } = useStore(authStore);
@@ -229,17 +239,21 @@ export function CommentThread({
           placeholder={placeholder}
           onPosted={invalidate}
         />
+      ) : !viewerId && commentingEnabled && signInPrompt && roots.length > 0 ? (
+        <SignInToComment prompt={signInPrompt} />
       ) : null}
 
       {isLoading ? (
         <CommentThreadSkeleton />
       ) : roots.length === 0 ? (
-        <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
-          <MicroLabel>{emptyLabel}</MicroLabel>
-          <Text size="xs" variant="muted">
-            {emptyHint}
-          </Text>
-        </Well>
+        (renderEmpty?.({ signedIn: viewerId !== null }) ?? (
+          <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
+            <MicroLabel>{emptyLabel}</MicroLabel>
+            <Text size="xs" variant="muted">
+              {emptyHint}
+            </Text>
+          </Well>
+        ))
       ) : (
         <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
           {roots.map((root) => (
@@ -305,6 +319,26 @@ function CommentThreadSkeleton() {
   );
 }
 
+function SignInToComment({ prompt }: { prompt: string }) {
+  return (
+    <Well
+      variant="ghost"
+      className="flex-row flex-wrap items-center justify-between gap-3 p-4 backdrop-blur-none"
+    >
+      <Text size="sm" variant="muted">
+        {prompt}
+      </Text>
+      <Button
+        size="sm"
+        onClick={() => signInWithDiscord("profile_wall")}
+        className="tracking-widest"
+      >
+        LOGIN
+      </Button>
+    </Well>
+  );
+}
+
 function Composer({
   subject,
   maxLength,
@@ -359,12 +393,21 @@ function Composer({
   });
 
   const remaining = maxLength - content.length;
+  const canPost = Boolean(content.trim()) && !post.isPending;
+  const submit = () => {
+    if (canPost) post.mutate(content.trim());
+  };
 
   return (
     <div className="flex flex-col gap-2">
       <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
+        onKeyDown={(e) => {
+          if (!isMultilineSubmitKey(e)) return;
+          e.preventDefault();
+          submit();
+        }}
         placeholder={placeholder}
         rows={parent ? 2 : 3}
         maxLength={maxLength}
@@ -380,12 +423,7 @@ function Composer({
               CANCEL
             </Button>
           ) : null}
-          <Button
-            size="sm"
-            onClick={() => post.mutate(content.trim())}
-            disabled={!content.trim() || post.isPending}
-            className="tracking-widest"
-          >
+          <Button size="sm" onClick={submit} disabled={!canPost} className="tracking-widest">
             <HugeiconsIcon icon={Sent02Icon} size={12} />
             {post.isPending ? "POSTING…" : parent ? "REPLY" : "POST"}
           </Button>
@@ -759,6 +797,11 @@ function CommentItem({
           <Textarea
             value={editDraft}
             onChange={(e) => setEditDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (!isMultilineSubmitKey(e)) return;
+              e.preventDefault();
+              if (editDraft.trim() && !edit.isPending) edit.mutate();
+            }}
             rows={3}
             maxLength={maxLength}
             autoFocus

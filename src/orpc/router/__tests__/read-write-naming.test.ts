@@ -31,6 +31,7 @@ const WRITE_VERBS = [
   "close",
   "create",
   "delete",
+  "dismiss",
   "edit",
   "extend",
   "feature",

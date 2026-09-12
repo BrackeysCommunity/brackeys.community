@@ -105,6 +105,79 @@ describe("the catalogue a cold start sees", () => {
   });
 });
 
+describe("the keyboard", () => {
+  // Cookie: "i wanna be able to press enter here and select the topmost
+  // option instead of using my mouse." Yasahiro: "can you use arrow key?"
+  it("takes the first match on a bare Enter and clears the box", async () => {
+    const user = userEvent.setup();
+    render(<Probe />);
+
+    const box = screen.getByPlaceholderText("Search roles…");
+    await user.click(box);
+    await user.type(box, "composer");
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByRole("button", { name: "Remove Composer" })).toBeDefined();
+    expect((box as HTMLInputElement).value).toBe("");
+  });
+
+  it("moves the highlight with the arrows and Enter takes it", async () => {
+    const user = userEvent.setup();
+    render(<Probe />);
+
+    const box = screen.getByPlaceholderText("Search roles…");
+    await user.click(box);
+    await user.type(box, "artist");
+    expect(list().getAttribute("aria-activedescendant")).toBe(
+      within(list()).getByRole("option", { name: /Pixel artist/ }).id,
+    );
+
+    await user.keyboard("{ArrowDown}");
+    expect(list().getAttribute("aria-activedescendant")).toBe(
+      within(list()).getByRole("option", { name: /3D artist/ }).id,
+    );
+
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "Remove 3D artist" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Remove Pixel artist" })).toBeNull();
+  });
+
+  it("never lets Enter escape to the form around it", async () => {
+    const user = userEvent.setup();
+    const submits: string[] = [];
+    render(
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submits.push("submit");
+        }}
+      >
+        <Probe />
+        <button type="submit">go</button>
+      </form>,
+    );
+
+    const box = screen.getByPlaceholderText("Search roles…");
+    await user.click(box);
+    await user.keyboard("{Enter}");
+    await user.type(box, "composer");
+    await user.keyboard("{Enter}");
+    expect(submits).toEqual([]);
+  });
+
+  it("closes on Escape without picking the highlighted row", async () => {
+    const user = userEvent.setup();
+    render(<Probe />);
+
+    const box = screen.getByPlaceholderText("Search roles…");
+    await user.click(box);
+    await user.type(box, "composer");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+  });
+});
+
 describe("where the list is rendered", () => {
   // Cookie: "i have to scroll down the whole page here to see the dropdown
   // even though there's so much empty space below it." In flow, the modal

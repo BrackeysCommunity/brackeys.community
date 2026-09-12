@@ -68,6 +68,23 @@ describe("moderation notification copy", () => {
     expect(headline).toContain("approved as");
   });
 
+  it("names every skill when a batch of approvals was folded into one row", () => {
+    const { headline } = renderNotificationText({
+      type: "skill_request_approved",
+      actorUsername: null,
+      data: {
+        requestedName: "kotlin",
+        skillName: "Kotlin",
+        approved: [
+          { requestedName: "kotlin", skillName: "Kotlin" },
+          { requestedName: "Godot", skillName: "Godot" },
+          { requestedName: "Blender", skillName: "Blender" },
+        ],
+      },
+    });
+    expect(headline).toBe("Your skill requests were approved: kotlin (as Kotlin), Godot, Blender");
+  });
+
   it("stays single-clause when the name came through unchanged", () => {
     const { headline } = renderNotificationText({
       type: "skill_request_approved",

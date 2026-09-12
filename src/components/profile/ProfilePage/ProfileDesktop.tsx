@@ -55,9 +55,16 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             projects={profile.projects}
             editableProjects={profile.editableProjects}
             isOwner={isOwner}
+            profileName={profile.handle}
             queryKey={queryKey}
           />
-          <ProfileJamLogSection index="03" best={profile.jamLogBest} entries={profile.jamLog} />
+          <ProfileJamLogSection
+            index="03"
+            best={profile.jamLogBest}
+            entries={profile.jamLog}
+            isOwner={isOwner}
+            profileName={profile.handle}
+          />
           <ProfileCreditsSection index="04" credits={profile.credits} />
         </motion.div>
 
@@ -81,6 +88,7 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             index="D"
             skills={profile.skills}
             isOwner={isOwner}
+            profileName={profile.handle}
             onEdit={() => openEdit(2)}
           />
           <ProfileTeamsSection index="E" profileId={profile.profileId} />
@@ -88,6 +96,7 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             index="F"
             links={profile.links}
             isOwner={isOwner}
+            profileName={profile.handle}
             onEdit={() => openEdit(4)}
             queryKey={queryKey}
           />

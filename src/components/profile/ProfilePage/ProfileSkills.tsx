@@ -13,6 +13,8 @@ interface ProfileSkillsSectionProps {
   index: string;
   skills: ProfileSkill[];
   isOwner: boolean;
+  /** Names the member in visitor-facing empty copy. */
+  profileName?: string;
   onEdit: () => void;
 }
 
@@ -26,6 +28,7 @@ export function ProfileSkillsSection({
   index,
   skills,
   isOwner,
+  profileName,
   onEdit,
 }: ProfileSkillsSectionProps) {
   const active = skills.filter((s) => s.state === "active");
@@ -42,7 +45,11 @@ export function ProfileSkillsSection({
         <ProfileEmptyState
           glyph="#"
           title="No skills listed yet"
-          hint="Tag the tools and disciplines you actually ship with so collaborators can match against you."
+          hint={
+            isOwner
+              ? "Tag the tools and disciplines you actually ship with so collaborators can match against you."
+              : `${profileName ?? "This member"} hasn't listed any skills yet.`
+          }
           cta={isOwner ? { label: "+ ADD SKILLS", onClick: onEdit } : undefined}
         />
       ) : (

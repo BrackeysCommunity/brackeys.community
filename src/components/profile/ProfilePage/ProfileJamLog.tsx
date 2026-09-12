@@ -17,6 +17,9 @@ interface ProfileJamLogSectionProps {
   index: string;
   best: JamLogBest | null;
   entries: JamLogEntry[];
+  isOwner: boolean;
+  /** Names the member in visitor-facing empty copy. */
+  profileName?: string;
   onViewAll?: () => void;
 }
 
@@ -29,6 +32,8 @@ export function ProfileJamLogSection({
   index,
   best,
   entries,
+  isOwner,
+  profileName,
   onViewAll,
 }: ProfileJamLogSectionProps) {
   return (
@@ -43,7 +48,11 @@ export function ProfileJamLogSection({
         <ProfileEmptyState
           glyph="◎"
           title="No jam entries yet"
-          hint="Submit your first jam and your finishes will land here automatically."
+          hint={
+            isOwner
+              ? "Submit your first jam and your finishes will land here automatically."
+              : `${profileName ?? "This member"} hasn't logged a jam finish yet.`
+          }
         />
       ) : (
         <Well className="overflow-hidden p-0">

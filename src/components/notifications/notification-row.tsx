@@ -10,11 +10,17 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { timeAgo } from "@/lib/format-time";
-import { NOTIFICATION_CATEGORY, type NotificationCategory } from "@/lib/notification-copy";
+import {
+  approvedSkillLabel,
+  approvedSkillsOf,
+  NOTIFICATION_CATEGORY,
+  type NotificationCategory,
+} from "@/lib/notification-copy";
 import { invalidateNotifications } from "@/lib/notification-queries";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -40,7 +46,7 @@ export function categoryOf(type: string): NotificationCategory | null {
   return (NOTIFICATION_CATEGORY as Record<string, NotificationCategory>)[type] ?? null;
 }
 
-const CATEGORY_ICON: Record<NotificationCategory, IconSvgElement> = {
+export const CATEGORY_ICON: Record<NotificationCategory, IconSvgElement> = {
   collab: Megaphone01Icon,
   teams: UserGroupIcon,
   jams: Calendar03Icon,
@@ -376,6 +382,23 @@ export function renderCopy(n: NotificationItem): {
       };
     }
     case "skill_request_approved": {
+      const approved = approvedSkillsOf(n.data);
+      if (approved.length > 1) {
+        return {
+          line: (
+            <>
+              Your skill requests were approved:{" "}
+              {approved.map((entry, i) => (
+                <span key={entry.skillName}>
+                  {i > 0 ? ", " : null}
+                  <em className="font-medium not-italic">{approvedSkillLabel(entry)}</em>
+                </span>
+              ))}
+            </>
+          ),
+          href: "/profile",
+        };
+      }
       const skillName = n.data.skillName as string | undefined;
       const requestedName = n.data.requestedName as string | undefined;
       // Naming both sides is the whole point when staff corrected the
@@ -421,12 +444,17 @@ export interface NotificationRowProps {
   onNavigate?: () => void;
   /** Visual density — popover uses condensed; inbox uses comfortable. */
   density?: "condensed" | "comfortable";
+  /** When set, the row is a selectable table row: a checkbox sits beside
+   *  the link, and the inbox's action bar acts on what is checked. The bell
+   *  never passes it — removing things is the inbox's job. */
+  selection?: { selected: boolean; onSelectedChange: (selected: boolean) => void };
 }
 
 export function NotificationRow({
   notification: n,
   onNavigate,
   density = "condensed",
+  selection,
 }: NotificationRowProps) {
   const { line, href } = renderCopy(n);
   const isComfortable = density === "comfortable";
@@ -451,6 +479,10 @@ export function NotificationRow({
       className={cn(
         "flex gap-2.5 border-b border-muted/30 transition-colors last:border-b-0 hover:bg-muted/20",
         isComfortable ? "px-4 py-3" : "px-3 py-2.5",
+        // Room on the left for the checkbox, which sits outside the link so
+        // checking a row never opens it.
+        selection && "pl-12",
+        selection?.selected && "bg-primary/10",
         // Unread reads off the left edge in the inbox — a wash alone is
         // hard to see against a full column of rows, and the accent scans
         // as a stack of what's left to deal with.
@@ -492,11 +524,25 @@ export function NotificationRow({
     </div>
   );
 
-  if (!href) return <div>{Body}</div>;
-  return (
+  const linked = href ? (
     <Link to={href} onClick={handleClick} className="block">
       {Body}
     </Link>
+  ) : (
+    <div>{Body}</div>
+  );
+
+  if (!selection) return linked;
+  return (
+    <div className="relative">
+      {linked}
+      <Checkbox
+        aria-label="Select notification"
+        checked={selection.selected}
+        onCheckedChange={(checked) => selection.onSelectedChange(Boolean(checked))}
+        className="absolute top-1/2 left-4 -translate-y-1/2"
+      />
+    </div>
   );
 }
 
