@@ -43,9 +43,11 @@ import { CURRENCY_OPTIONS, type Currency, normalizeCurrency } from "@/lib/curren
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
+import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { useStepScroll } from "@/lib/hooks/use-step-scroll";
 import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { AVAILABILITY_OPTIONS } from "@/lib/member-vocabulary";
@@ -132,6 +134,7 @@ export function ProfileEditFlyout({
     setTrackedStep(step);
   }
   const direction = step >= previousStep ? 1 : -1;
+  const scrollRef = useStepScroll(step);
 
   useEffect(() => {
     if (!open) return;
@@ -207,7 +210,7 @@ export function ProfileEditFlyout({
                 directional nudge on each step change. `mode="wait"`
                 holds the new content until the old one finishes its
                 exit so the body never renders two steps stacked. */}
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
               <AnimatePresence mode="wait" initial={false} custom={direction}>
                 <motion.div
                   key={step}
@@ -217,7 +220,7 @@ export function ProfileEditFlyout({
                   animate="center"
                   exit="exit"
                   transition={stepBodyTransition}
-                  className="h-full overflow-y-auto px-5 py-5"
+                  className="px-5 py-5"
                 >
                   <StepBody step={step} profile={profile} queryKey={queryKey} save={saveCtx} />
                 </motion.div>
@@ -1010,7 +1013,16 @@ function rateProblem(min: number | null, max: number | null): string | null {
 
 function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
-  const [open, setOpen] = useState(profile.availability.state === "open");
+  // Same writer as the hero card and the header's quick toggle, so all three
+  // agree the moment any one of them is flipped. Reports into this flyout's
+  // save indicator rather than a toast, like every other field here.
+  const availability = useAvailabilityToggle({
+    initial: profile.availability.state === "open",
+    queryKey,
+    onStatus: save.setStatus,
+    notify: false,
+  });
+  const open = availability.available;
   // Selects are always controlled — `null` means "no selection" so
   // base-ui doesn't flip between uncontrolled/controlled when the
   // user picks a value (which was triggering the React DevTools
@@ -1050,10 +1062,8 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
         <div className="flex items-center gap-3">
           <Switch
             checked={open}
-            onCheckedChange={(checked) => {
-              setOpen(checked);
-              update.mutate({ availableForWork: checked });
-            }}
+            disabled={availability.isPending}
+            onCheckedChange={availability.setAvailable}
           />
           <Text size="sm" variant="muted">
             {open ? "Visible — you'll get inbound requests." : "Hidden from the directory."}

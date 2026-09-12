@@ -26,7 +26,7 @@ import { fadeIn, fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
-import { TeamCreateDrawer } from "./TeamCreateDrawer";
+import { TeamCreateModal } from "./TeamCreateModal";
 import { TeamDirectoryCard } from "./TeamDirectoryCard";
 import {
   CLEARED_TEAM_FILTERS,
@@ -214,7 +214,7 @@ export function TeamsDiscoveryPage() {
         />
       ) : null}
 
-      <TeamCreateDrawer open={createOpen} onClose={() => setCreateOpen(false)} />
+      <TeamCreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
 
       {/* Same drawer idiom as the collab board's filters — one overlay on
           mobile, dismissed the same way (swipe, scrim, or the panel's own

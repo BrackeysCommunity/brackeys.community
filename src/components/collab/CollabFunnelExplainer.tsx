@@ -1,8 +1,13 @@
+import { Link } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
+import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { authStore } from "@/lib/auth-store";
+import { useMyProfileParams } from "@/lib/hooks/use-my-profile-params";
 
 function readDismissed(key: string): boolean {
   if (typeof window === "undefined") return false;
@@ -38,12 +43,18 @@ export function CollabFunnelExplainer({
   title = "How posting works",
   steps = QUICK_POST_STEPS,
   note = "Nothing here is final. You can change any of it after the post is live.",
+  aside,
 }: {
   /** Set to make the note dismissable; the choice persists under this key. */
   dismissKey?: string;
   title?: string;
   steps?: string[];
   note?: string;
+  /** The other door. Three testers pressed POST A ROLE trying to *join*
+      something, so the surface that explains posting also has to say what
+      it is not for — see §3.1. Rendered under the note, above the
+      dismissal. */
+  aside?: ReactNode;
 }) {
   const [dismissed, setDismissed] = useState(() =>
     dismissKey ? readDismissed(dismissKey) : false,
@@ -64,6 +75,7 @@ export function CollabFunnelExplainer({
           </li>
         ))}
       </ol>
+      {aside ? <div className="border-t border-dashed border-primary/25 pt-3">{aside}</div> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Text size="sm" variant="muted" textWrap="pretty">
           {note}
@@ -83,5 +95,36 @@ export function CollabFunnelExplainer({
         ) : null}
       </div>
     </Well>
+  );
+}
+
+/**
+ * The signpost to the other door, for the explainer's `aside`.
+ *
+ * Yasahiro's two-line summary of the model — form a team with the collab
+ * wizard, join one by opening your profile to work — is the copy, because
+ * three testers in one morning went looking for the second door on the
+ * first one's surface. The draft line is not reassurance for its own sake:
+ * this link navigates out of an open wizard, and the creation draft does
+ * survive it (`persistWizardDraft`).
+ */
+export function JoinInsteadNote() {
+  const { session } = useStore(authStore);
+  const profileParams = useMyProfileParams(session?.user?.id);
+  if (!profileParams) return null;
+
+  return (
+    <Text size="sm" textWrap="pretty" className="text-foreground/90">
+      <strong className="font-bold">Looking to be hired instead?</strong> This form is for finding
+      people. To be found,{" "}
+      <Link
+        to="/profile/$userId"
+        params={profileParams}
+        className="text-primary underline-offset-4 hover:underline"
+      >
+        open your profile to work
+      </Link>{" "}
+      — anything you have typed here is saved.
+    </Text>
   );
 }

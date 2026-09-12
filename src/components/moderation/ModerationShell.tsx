@@ -3,14 +3,12 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { Well } from "@/components/ui/well";
-import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 export type ModerationTab = {
@@ -20,9 +18,10 @@ export type ModerationTab = {
 };
 
 /**
- * The chrome every staff moderation surface shares: a modal on desktop, a
- * drawer on mobile, with the sections behind a tab strip either way. Every
- * panel stays mounted so half-typed fields survive a tab switch.
+ * The chrome every staff moderation surface shares: `ResponsiveModal` — a
+ * modal on desktop, a drawer on mobile — with the sections behind a tab
+ * strip either way. Every panel stays mounted so half-typed fields survive a
+ * tab switch.
  */
 export function ModerationShell({
   open,
@@ -37,7 +36,6 @@ export function ModerationShell({
   description: string;
   tabs: ModerationTab[];
 }) {
-  const isMobile = useIsMobile();
   const [active, setActive] = useState(tabs[0]?.key ?? "");
   // The tab set can shrink under us (the admin-only tabs drop out once the
   // staff query resolves for a mod) — fall back rather than render nothing.
@@ -76,38 +74,16 @@ export function ModerationShell({
     </>
   );
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
-        <DrawerContent className="max-h-[88vh] p-0">
-          <DrawerDescription className="sr-only">{description}</DrawerDescription>
-          <div className="flex min-h-0 flex-1 flex-col pt-3 pb-[env(safe-area-inset-bottom)]">
-            <div className="shrink-0 py-3 pr-3 pl-5">
-              <DrawerTitle className="text-base tracking-widest text-foreground uppercase">
-                {title}
-              </DrawerTitle>
-            </div>
-            {body}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
-      {/* Top-anchored: tabs vary in height, so the top edge stays put and
-          only the bottom grows and shrinks with the active panel. */}
-      <DialogContent className="top-24 flex max-h-[calc(100vh-8rem)] translate-y-0 flex-col gap-0 p-0 sm:max-w-3xl">
-        <DialogDescription className="sr-only">{description}</DialogDescription>
-        <div className="shrink-0 py-4 pr-12 pl-5">
-          <DialogTitle className="text-base tracking-widest text-foreground uppercase">
-            {title}
-          </DialogTitle>
-        </div>
-        {body}
-      </DialogContent>
-    </Dialog>
+    <ResponsiveModal
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={description}
+      className="sm:max-w-3xl"
+    >
+      {body}
+    </ResponsiveModal>
   );
 }
 

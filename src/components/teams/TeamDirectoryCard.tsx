@@ -5,6 +5,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { isRecruiting } from "@/lib/team-recruiting";
 import { cn } from "@/lib/utils";
 import type { client } from "@/orpc/client";
 
@@ -97,7 +98,7 @@ export function TeamDirectoryCard({
             >
               {team.name}
             </Text>
-            {team.recruiting ? (
+            {isRecruiting(team) ? (
               <Badge variant="success" size="label">
                 RECRUITING
               </Badge>

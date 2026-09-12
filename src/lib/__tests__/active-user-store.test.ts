@@ -33,6 +33,7 @@ const mockProfileRow = {
 const mockProfile = {
   ...mockProfileRow,
   urlStub: null as string | null,
+  availableForWork: false,
   isStaff: false,
   isAdmin: false,
 };
@@ -117,6 +118,7 @@ describe("fetchActiveUserProfile", () => {
         "discordUsername",
         "guildNickname",
         "urlStub",
+        "availableForWork",
         "isStaff",
         "isAdmin",
       ].sort(),
@@ -186,9 +188,34 @@ describe("fetchActiveUserProfile", () => {
       avatarUrl: null,
       guildNickname: null,
       urlStub: null,
+      availableForWork: false,
       isStaff: false,
       isAdmin: false,
     });
+  });
+
+  it("mirrors the availability flag the header's quick toggle reads", async () => {
+    mockGetMyProfile.mockResolvedValue({
+      ...fullProfileResponse,
+      profile: { ...fullProfileResponse.profile, availableForWork: true },
+    });
+
+    await fetchActiveUserProfile();
+
+    expect(activeUserStore.state.profile?.availableForWork).toBe(true);
+  });
+
+  // The column is nullable and defaults to false, so a row that predates it
+  // must read as closed rather than as an unset switch.
+  it("reads a null availability flag as closed", async () => {
+    mockGetMyProfile.mockResolvedValue({
+      ...fullProfileResponse,
+      profile: { ...fullProfileResponse.profile, availableForWork: null },
+    });
+
+    await fetchActiveUserProfile();
+
+    expect(activeUserStore.state.profile?.availableForWork).toBe(false);
   });
 });
 

@@ -161,8 +161,11 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
           disabled={recruitingMutation.isPending}
           onCheckedChange={(checked) => recruitingMutation.mutate(!!checked)}
         />
+        {/* The old copy promised the badge "even between posts", which is
+            exactly the dead end §3.2 closes — the switch is the intent, and
+            an open post is what makes it visible. */}
         <Label htmlFor="team-recruiting" className="text-sm text-muted-foreground">
-          We're recruiting — show the badge even between posts.
+          We're recruiting — show the badge while we have an opening posted.
         </Label>
       </div>
       <div className="flex items-center gap-3">

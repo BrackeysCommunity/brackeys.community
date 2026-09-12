@@ -1,4 +1,5 @@
 import {
+  BriefcaseDollarIcon,
   Logout03Icon,
   Settings02Icon,
   Share01Icon,
@@ -12,6 +13,7 @@ import { useStore } from "@tanstack/react-store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -23,6 +25,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { captureEvent, resetIdentity } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
 import { truncateMiddle } from "@/lib/utils";
@@ -43,6 +46,7 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
   const navigate = useNavigate();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
+  const availability = useAvailabilityToggle();
 
   return (
     <DropdownMenu>
@@ -73,6 +77,22 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
           <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
             {truncateMiddle(user.name ?? "USER", 18)}
           </DropdownMenuLabel>
+          {/* The other half of the board's two doors: posting a gig is a
+              wizard, but making yourself hireable was four clicks deep in
+              profile edit and nothing pointed at it (§3.1). Sits above the
+              profile link because it is the reason most people open this
+              menu, and it keeps the menu open — `CheckboxItem` is the same
+              quick-toggle shape the settings menu next door already uses. */}
+          <DropdownMenuCheckboxItem
+            data-testid="availability-toggle"
+            checked={availability.available}
+            disabled={activeProfile == null || availability.isPending}
+            onCheckedChange={availability.setAvailable}
+          >
+            <HugeiconsIcon icon={BriefcaseDollarIcon} size={14} />
+            Open to work
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem render={<Link to="/profile/$userId" params={profileParams} />}>
             <HugeiconsIcon icon={UserIcon} size={14} />
             My profile

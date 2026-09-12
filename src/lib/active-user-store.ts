@@ -8,6 +8,10 @@ export type ActiveUserProfile = {
   avatarUrl: string | null;
   guildNickname: string | null;
   urlStub: string | null;
+  /** The directory's open-to-work flag. Mirrored here so the header's quick
+      toggle can render it without a profile query — see
+      `useAvailabilityToggle`, which is the only thing that writes it. */
+  availableForWork: boolean;
   isStaff: boolean;
   isAdmin: boolean;
 };
@@ -35,6 +39,7 @@ export async function fetchActiveUserProfile() {
             avatarUrl: data.profile.avatarUrl,
             guildNickname: data.profile.guildNickname,
             urlStub: data.urlStub,
+            availableForWork: data.profile.availableForWork ?? false,
             isStaff: data.isStaff,
             isAdmin: data.isAdmin,
           }

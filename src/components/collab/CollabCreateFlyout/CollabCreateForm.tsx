@@ -14,6 +14,7 @@ import {
 } from "@/lib/collab-store";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
+import { useStepScroll } from "@/lib/hooks/use-step-scroll";
 import { stepBody, stepBodyTransition } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
@@ -170,6 +171,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
 
   // Track the previous step so the body's cross-fade can pick a
   // direction (forward vs. back). Same trick the profile flyout uses.
+  const scrollRef = useStepScroll(activeIndex);
   const [trackedIndex, setTrackedIndex] = useState(activeIndex);
   const [previousIndex, setPreviousIndex] = useState(activeIndex);
   if (activeIndex !== trackedIndex) {
@@ -305,7 +307,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
         activeIndex={activeIndex}
         onSelect={(i) => setWizardStep(i)}
       />
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={currentTab}
@@ -315,7 +317,7 @@ export function CollabCreateForm({ onCreated }: CollabCreateFormProps) {
             animate="center"
             exit="exit"
             transition={stepBodyTransition}
-            className="h-full overflow-y-auto px-5 py-5"
+            className="px-5 py-5"
           >
             {/* Intro prose, not a label: sized above the 11px field
                 labels and given room to breathe, so it reads as the

@@ -145,6 +145,11 @@ describe("setTeamHidden", () => {
 
 describe("hidden team visibility", () => {
   it("drops out of getTeam, listTeams, getTeamStats and listUserTeams", async () => {
+    // The recruiting count is now "flag set *and* somewhere to apply"
+    // (§3.2), so the team needs an open post to be counted at all — without
+    // one the baseline reads zero and the hide proves nothing.
+    await seedCollabPost(db, "owner", { teamId });
+
     // Baseline: visible everywhere first, so the exclusion is the hide's doing.
     expect(await call(getTeam, { teamId }, asUser(null))).not.toBeNull();
     expect((await call(listTeams, {}, asUser(null))).teams.map((t) => t.id)).toEqual([teamId]);

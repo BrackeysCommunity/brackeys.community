@@ -1149,6 +1149,17 @@ type TeamFilterInput = {
 };
 
 /**
+ * The SQL half of `isRecruiting` — a team is only recruiting if it says so
+ * *and* has a post someone can respond to. The filter, the default sort and
+ * the home page's count all read this, so the directory can never offer a
+ * team the badge then disowns. Keep it in step with `@/lib/team-recruiting`.
+ */
+const recruitingWithOpenPost = sql`${teams.recruiting} and exists (
+  select 1 from ${collabPosts}
+  where ${collabPosts.teamId} = ${teams.id} and ${collabPosts.status} = 'recruiting'
+)`;
+
+/**
  * Shared WHERE builder for the directory listing and its facet counts, so
  * a number on the stack picker can never disagree with the list it
  * labels. Pass `{ ...input, skillIds: undefined }` to count across stacks.
@@ -1159,7 +1170,7 @@ function buildTeamFilter(input: TeamFilterInput) {
     const pattern = `%${escapeLike(input.search)}%`;
     conditions.push(or(ilike(teams.name, pattern), ilike(teams.tagline, pattern))!);
   }
-  if (input.recruiting) conditions.push(eq(teams.recruiting, true));
+  if (input.recruiting) conditions.push(recruitingWithOpenPost);
   if (input.hasShipped) {
     conditions.push(
       sql`exists (select 1 from ${teamProjects} where ${teamProjects.teamId} = ${teams.id})`,
@@ -1224,7 +1235,7 @@ export const listTeams = os
         ? [desc(teams.createdAt)]
         : input.sort === "shipped"
           ? [sql`${lastShipped} desc nulls last`, desc(teams.lastActivityAt)]
-          : [desc(teams.recruiting), desc(teams.lastActivityAt)];
+          : [sql`${recruitingWithOpenPost} desc`, desc(teams.lastActivityAt)];
 
     const [rows, [totals]] = await Promise.all([
       db
@@ -1259,7 +1270,7 @@ export const getTeamStats = os.route({ method: "GET" }).handler(async () => {
   const [row] = await db
     .select({
       active: count(),
-      recruiting: sql<number>`count(*) filter (where ${teams.recruiting})`.mapWith(Number),
+      recruiting: sql<number>`count(*) filter (where ${recruitingWithOpenPost})`.mapWith(Number),
     })
     .from(teams)
     .where(and(eq(teams.status, "active"), isNull(teams.hiddenAt)));

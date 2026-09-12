@@ -38,6 +38,7 @@ import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeUp } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
+import { isRecruiting, isRecruitingWithoutPosts } from "@/lib/team-recruiting";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -492,6 +493,14 @@ function TeamMasthead({
     },
   ].filter((stat, i) => i === 0 || stat.value > 0);
 
+  // The badge follows the posts, not the switch — see `@/lib/team-recruiting`
+  // for why. `openPostCount` is the card payload's name for the same number.
+  const recruitingState = { recruiting: team.recruiting, openPostCount: team.openPosts.length };
+  const showRecruiting = isRecruiting(recruitingState) && !isArchived;
+  // The owner set a flag that currently shows nothing. Say so, next to the
+  // button that fixes it, rather than letting it read as broken.
+  const showRecruitingNudge = isMember && !isArchived && isRecruitingWithoutPosts(recruitingState);
+
   return (
     <Well
       notchOpts
@@ -533,7 +542,7 @@ function TeamMasthead({
                 <Heading as="h1" className="text-2xl tracking-widest uppercase">
                   {team.name}
                 </Heading>
-                {team.recruiting && !isArchived ? (
+                {showRecruiting ? (
                   <Badge variant="success" size="label">
                     RECRUITING
                   </Badge>
@@ -570,24 +579,32 @@ function TeamMasthead({
               if there is one. A page with neither is simply a read-only
               profile. */}
           {isMember ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {!isArchived ? (
-                // Enters the create wizard with this team pre-linked —
-                // what makes the RECRUITING badge actionable (§8.4).
-                <Button
-                  size="lg"
-                  nativeButton={false}
-                  className="tracking-widest"
-                  render={<Link to="/collab" search={{ new: true, team: team.id }} />}
-                >
-                  <HugeiconsIcon icon={UserGroupIcon} size={14} />
-                  POST AN OPENING
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {!isArchived ? (
+                  // Enters the create wizard with this team pre-linked —
+                  // what makes the RECRUITING badge actionable (§8.4).
+                  <Button
+                    size="lg"
+                    nativeButton={false}
+                    className="tracking-widest"
+                    render={<Link to="/collab" search={{ new: true, team: team.id }} />}
+                  >
+                    <HugeiconsIcon icon={UserGroupIcon} size={14} />
+                    POST AN OPENING
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="lg" onClick={onManage} className="tracking-widest">
+                  <HugeiconsIcon icon={Settings02Icon} size={14} />
+                  MANAGE
                 </Button>
+              </div>
+              {showRecruitingNudge ? (
+                <Text size="xs" variant="muted" textWrap="pretty" className="max-w-64 text-right">
+                  You&rsquo;re marked as recruiting, but there is nothing to apply to — post an
+                  opening to show the badge.
+                </Text>
               ) : null}
-              <Button variant="outline" size="lg" onClick={onManage} className="tracking-widest">
-                <HugeiconsIcon icon={Settings02Icon} size={14} />
-                MANAGE
-              </Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">

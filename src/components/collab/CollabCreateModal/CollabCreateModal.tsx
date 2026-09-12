@@ -20,6 +20,7 @@ import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { isExternalUrl } from "@/lib/external-url";
 import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
+import { useStepScroll } from "@/lib/hooks/use-step-scroll";
 import { stepBody, stepBodyTransition } from "@/lib/motion";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 
@@ -36,7 +37,7 @@ import {
   type QuickFieldErrors,
   type WizardFormValues,
 } from "../CollabCreateFlyout/shared";
-import { CollabFunnelExplainer } from "../CollabFunnelExplainer";
+import { CollabFunnelExplainer, JoinInsteadNote } from "../CollabFunnelExplainer";
 import { ContextChips, KindSection, PitchSection, WhoSection } from "./sections";
 
 const EXPLAINER_DISMISS_KEY = "collab.quickpost.explainer.dismissed";
@@ -232,6 +233,7 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
     setTrackedIndex(activeIndex);
   }
   const direction = activeIndex >= previousIndex ? 1 : -1;
+  const scrollRef = useStepScroll(activeIndex);
 
   const handleNext = () => {
     const v = form.state.values as WizardFormValues;
@@ -283,7 +285,7 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
         }
       />
       <CollabCreateStepper tabs={MODAL_STEPS} activeIndex={activeIndex} onSelect={setActiveIndex} />
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={step.id}
@@ -293,7 +295,7 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
             animate="center"
             exit="exit"
             transition={stepBodyTransition}
-            className="h-full overflow-y-auto px-5 py-5"
+            className="px-5 py-5"
           >
             <Text
               as="p"
@@ -309,7 +311,10 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
               <div className="flex flex-col gap-6">
                 {step.id === "roles" ? (
                   <>
-                    <CollabFunnelExplainer dismissKey={EXPLAINER_DISMISS_KEY} />
+                    <CollabFunnelExplainer
+                      dismissKey={EXPLAINER_DISMISS_KEY}
+                      aside={<JoinInsteadNote />}
+                    />
                     <ContextChips />
                     <WhoSection error={fieldErrors.roles ?? fieldErrors.skills} />
                   </>

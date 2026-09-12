@@ -12,6 +12,7 @@ import { Heading, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
+import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { itchImageUrl } from "@/lib/itch-image";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { play } from "@/lib/sound";
@@ -227,16 +228,11 @@ function AvailabilityToggleCard({
   queryKey?: readonly unknown[];
   compact: boolean;
 }) {
-  const qc = useQueryClient();
-  const open = availability.state === "open";
-  const toggle = useMutation({
-    mutationFn: (next: boolean) => client.updateProfile({ availableForWork: next }),
-    onSuccess: (_data, next) => {
-      if (queryKey) void qc.invalidateQueries({ queryKey });
-      toast.success(next ? "You're shown as available for work" : "Availability turned off");
-    },
-    onError: toastMutationError("profile.toggle_availability", "Failed to update availability"),
+  const toggle = useAvailabilityToggle({
+    initial: availability.state === "open",
+    queryKey,
   });
+  const open = toggle.available;
 
   const commitment = formatCommitment(availability.commitment);
   return (
@@ -248,7 +244,7 @@ function AvailabilityToggleCard({
     >
       <Switch
         checked={open}
-        onCheckedChange={(next) => toggle.mutate(next)}
+        onCheckedChange={toggle.setAvailable}
         disabled={toggle.isPending}
         aria-label="Available for work"
       />
