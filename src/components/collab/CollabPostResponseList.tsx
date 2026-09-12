@@ -226,7 +226,7 @@ export function CollabPostResponseList({ responses, post }: CollabPostResponseLi
                         updateStatus.mutate({ responseId: resp.id, status: "accepted" })
                       }
                       disabled={busy}
-                      title="Accept without a roster invite — you can invite them after"
+                      tooltip="Accept without a roster invite — you can invite them after"
                       className="tracking-widest"
                     >
                       ACCEPT ONLY
@@ -390,7 +390,7 @@ function CrewOnAcceptPrompt({
             size="xs"
             disabled={pending}
             onClick={() => onAccept({ team: null, invite: false })}
-            title="Accept without a crew — you can attach one later"
+            tooltip="Accept without a crew — you can attach one later"
             className="tracking-widest"
           >
             ACCEPT ONLY

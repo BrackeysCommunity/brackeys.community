@@ -533,7 +533,7 @@ export function ImageUploader({
                   onClick={() => onRemoveExisting(img.id)}
                   className="absolute -top-1 -right-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label="Remove image"
-                  title="Remove image"
+                  tooltip="Remove image"
                 >
                   <HugeiconsIcon icon={Delete02Icon} size={10} />
                 </Button>
@@ -554,7 +554,7 @@ export function ImageUploader({
                 onClick={() => onRemove(idx)}
                 className="absolute -top-1 -right-1 opacity-0 transition-opacity group-hover:opacity-100"
                 aria-label="Remove image"
-                title="Remove image"
+                tooltip="Remove image"
               >
                 <HugeiconsIcon icon={Delete02Icon} size={10} />
               </Button>

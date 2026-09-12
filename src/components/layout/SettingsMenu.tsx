@@ -62,8 +62,7 @@ export function SettingsMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Settings"
-        title="Settings"
-        render={<Button variant="outline" size="icon-lg" />}
+        render={<Button variant="outline" size="icon-lg" tooltip="Settings" />}
       >
         <HugeiconsIcon icon={Settings02Icon} size={16} />
       </DropdownMenuTrigger>

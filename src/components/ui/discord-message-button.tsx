@@ -59,6 +59,7 @@ export function DiscordMessageButton({
       variant="outline"
       size={size}
       className={className}
+      tooltip={description}
       nativeButton={false}
       render={
         <a
@@ -66,7 +67,6 @@ export function DiscordMessageButton({
           target="_blank"
           rel="noopener noreferrer"
           aria-label={who ? `Message ${who} on Discord` : "Message on Discord"}
-          title={description}
           onClick={onCopyHandle}
         />
       }

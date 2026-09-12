@@ -173,7 +173,7 @@ function MembersSortMenu({
           <Button
             variant="outline"
             size={large ? "icon-lg" : "icon-sm"}
-            title={`Sort: ${label}`}
+            tooltip={`Sort: ${label}`}
             aria-label={`Sort order: ${label}`}
           />
         }

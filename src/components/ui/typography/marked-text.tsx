@@ -1,6 +1,7 @@
 import { marked, type Tokens } from "marked";
 import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } from "react";
 
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useCensorNodes } from "@/components/ui/typography/censored";
 import { InlineCode } from "@/components/ui/typography/inline-code";
 import { useCensorFn } from "@/lib/hooks/use-censored";
@@ -125,14 +126,11 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     case "link": {
       const link = t as Tokens.Link;
       return (
-        <a
-          href={link.href}
-          rel="noreferrer noopener"
-          target="_blank"
-          title={link.title ?? undefined}
-        >
-          {renderTokens(link.tokens as AnyToken[], censor)}
-        </a>
+        <SimpleTooltip content={link.title}>
+          <a href={link.href} rel="noreferrer noopener" target="_blank">
+            {renderTokens(link.tokens as AnyToken[], censor)}
+          </a>
+        </SimpleTooltip>
       );
     }
     case "image": {
@@ -141,13 +139,14 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       // like any other leaf. The `src` never does — mangling a URL breaks
       // the image instead of cleaning it.
       return (
-        <img
-          src={image.href}
-          alt={censor.plain(image.text ?? "")}
-          title={image.title ?? undefined}
-          loading="lazy"
-          decoding="async"
-        />
+        <SimpleTooltip content={image.title}>
+          <img
+            src={image.href}
+            alt={censor.plain(image.text ?? "")}
+            loading="lazy"
+            decoding="async"
+          />
+        </SimpleTooltip>
       );
     }
     case "escape":

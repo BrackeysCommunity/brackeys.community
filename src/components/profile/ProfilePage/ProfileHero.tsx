@@ -309,7 +309,7 @@ function ActionRow({
         size="sm"
         onClick={onShare}
         aria-label="Copy profile link"
-        title="Copy profile link"
+        tooltip="Copy profile link"
       >
         <HugeiconsIcon icon={Link01Icon} size={14} />
         <span className="tracking-widest">COPY LINK</span>
@@ -360,7 +360,7 @@ function BlockToggle({ profileId }: { profileId: string }) {
         size="sm"
         disabled={toggle.isPending}
         aria-label={blocked ? "Unblock member" : "Block member"}
-        title={blocked ? "Unblock member" : "Block member"}
+        tooltip={blocked ? "Unblock member" : "Block member"}
         className={cn(blocked && "text-destructive")}
       >
         <HugeiconsIcon icon={UserBlock01Icon} size={14} />

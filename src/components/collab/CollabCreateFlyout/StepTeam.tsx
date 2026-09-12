@@ -130,7 +130,7 @@ function NewTeamForm() {
                     onClick={() => field.handleChange(null)}
                     className="absolute -top-1 -right-1 opacity-0 transition-opacity group-hover:opacity-100"
                     aria-label="Remove team image"
-                    title="Remove team image"
+                    tooltip="Remove team image"
                   >
                     <HugeiconsIcon icon={Delete02Icon} size={10} />
                   </Button>

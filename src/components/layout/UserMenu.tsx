@@ -61,8 +61,14 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
           let the avatar run to the border. */}
       <DropdownMenuTrigger
         aria-label="Account menu"
-        title="Account menu"
-        render={<Button variant="outline" size="icon-lg" className="overflow-hidden p-0" />}
+        render={
+          <Button
+            variant="outline"
+            size="icon-lg"
+            className="overflow-hidden p-0"
+            tooltip="Account menu"
+          />
+        }
       >
         <UserAvatar
           avatarUrl={activeProfile?.avatarUrl ?? user.image}

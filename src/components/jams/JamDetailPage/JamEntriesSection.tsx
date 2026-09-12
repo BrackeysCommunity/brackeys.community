@@ -144,12 +144,11 @@ export function JamEntriesSection({
               key={sort.value}
               value={sort.value}
               className="tracking-widest"
-              // Native `title`, not `SimpleTooltip` — that component renders
-              // its own `<button>` trigger, which would nest a button inside
-              // this one (same reason `BoardViewControls` uses `title`).
               // Worth saying at all because an unrated jam's "ranked" order is
               // really submission order.
-              title={sort.value === "rank" ? "Overall placement, then ratings received" : undefined}
+              tooltip={
+                sort.value === "rank" ? "Overall placement, then ratings received" : undefined
+              }
             >
               {sort.label}
             </SegmentedControl.Item>

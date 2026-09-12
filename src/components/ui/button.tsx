@@ -7,6 +7,8 @@ import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { BUTTON_CUES, DESTRUCTIVE_BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
+import { SimpleTooltip } from "./tooltip";
+
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
@@ -65,6 +67,10 @@ type ButtonProps = ButtonPrimitive.Props &
     magneticStrength?: number;
     notchOpts?: NotchOpts | true;
     wrapperClassName?: string;
+    /** Hover hint rendered through the house tooltip. Use this instead of a
+     * native `title`, which the browser draws in its own unstyled bubble. */
+    tooltip?: React.ReactNode;
+    tooltipSide?: "top" | "bottom" | "left" | "right";
   };
 
 function Button({
@@ -75,9 +81,19 @@ function Button({
   magneticStrength = HEADER_MAGNET_STRENGTH,
   notchOpts,
   wrapperClassName,
+  tooltip,
+  tooltipSide,
   ...props
 }: ButtonProps) {
   const { ref, position } = useMagnetic(magneticStrength);
+  const withTooltip = (button: React.ReactElement) =>
+    tooltip ? (
+      <SimpleTooltip content={tooltip} side={tooltipSide}>
+        {button}
+      </SimpleTooltip>
+    ) : (
+      button
+    );
 
   // Every button is a magnet *target* — `data-magnetic` is what the cursor's
   // corner frame latches onto. Physically sliding the button toward the
@@ -98,7 +114,7 @@ function Button({
     const embossColor = notchEmbossColor[variant ?? "default"];
     const bgColor = embossColor ?? "var(--emboss-shadow)";
 
-    const button = (
+    const button = withTooltip(
       <ButtonPrimitive
         data-slot="button"
         data-magnetic={isMagnetic ? "" : undefined}
@@ -109,7 +125,7 @@ function Button({
         )}
         style={{ clipPath: innerClip }}
         {...props}
-      />
+      />,
     );
 
     const frame = (
@@ -149,14 +165,14 @@ function Button({
   }
 
   // ── Standard variant ─────────────────────────────────────────────
-  const button = (
+  const button = withTooltip(
     <ButtonPrimitive
       data-slot="button"
       data-magnetic={isMagnetic ? "" : undefined}
       {...cues}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    />,
   );
 
   if (drifts) {

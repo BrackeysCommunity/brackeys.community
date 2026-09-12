@@ -196,7 +196,7 @@ function CollabDisplayControls({ large }: { large?: boolean }) {
             <Button
               variant="outline"
               size={size}
-              title={`Sort: ${sortLabel}`}
+              tooltip={`Sort: ${sortLabel}`}
               aria-label={`Sort order: ${sortLabel}`}
             />
           }
@@ -223,7 +223,7 @@ function CollabDisplayControls({ large }: { large?: boolean }) {
         variant="outline"
         size={size}
         onClick={() => setCollabLayout(nextLayout)}
-        title={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
+        tooltip={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
         aria-label={`Switch to ${nextLayout === "list" ? "list" : "card"} view`}
       >
         <HugeiconsIcon

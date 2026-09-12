@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { DAY_MS } from "@/lib/format-time";
@@ -303,43 +304,43 @@ function WeekRow({
           // the global accent is only the fallback.
           const barColor = safeThemeColor(bar.jam.themeColor) ?? "var(--color-accent)";
           return (
-            <motion.button
-              key={layoutKey}
-              type="button"
-              layoutId={`tl-row-${layoutKey}`}
-              layout={false}
-              transition={ROW_CLOSE_TRANSITION}
-              onClick={() => onBarClick(bar.jam, layoutKey)}
-              title={bar.jam.title}
-              style={{
-                gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}`,
-                gridRow: bar.lane + 1,
-                opacity: selectedLayoutKey === layoutKey ? 0 : 1,
-                // Submission window in solid tint; the voting tail (if
-                // any) rides the same bar at lower alpha.
-                background: `linear-gradient(to right, color-mix(in srgb, ${barColor} 28%, transparent) ${subPct}%, color-mix(in srgb, ${barColor} 12%, transparent) ${subPct}%)`,
-                borderColor: `color-mix(in srgb, ${barColor} 40%, transparent)`,
-              }}
-              className={cn(
-                "pointer-events-auto z-10 mx-0.5 flex min-w-0 cursor-pointer items-center gap-1 overflow-hidden border px-1.5 text-left transition-[filter] hover:brightness-125",
-                bar.continuesLeft ? "rounded-l-none border-l-0" : "rounded-l",
-                bar.continuesRight ? "rounded-r-none border-r-0" : "rounded-r",
-              )}
-            >
-              {bar.continuesLeft && (
-                <span aria-hidden className="shrink-0 font-mono text-[9px] text-accent">
-                  ‹
+            <SimpleTooltip key={layoutKey} content={bar.jam.title}>
+              <motion.button
+                type="button"
+                layoutId={`tl-row-${layoutKey}`}
+                layout={false}
+                transition={ROW_CLOSE_TRANSITION}
+                onClick={() => onBarClick(bar.jam, layoutKey)}
+                style={{
+                  gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}`,
+                  gridRow: bar.lane + 1,
+                  opacity: selectedLayoutKey === layoutKey ? 0 : 1,
+                  // Submission window in solid tint; the voting tail (if
+                  // any) rides the same bar at lower alpha.
+                  background: `linear-gradient(to right, color-mix(in srgb, ${barColor} 28%, transparent) ${subPct}%, color-mix(in srgb, ${barColor} 12%, transparent) ${subPct}%)`,
+                  borderColor: `color-mix(in srgb, ${barColor} 40%, transparent)`,
+                }}
+                className={cn(
+                  "pointer-events-auto z-10 mx-0.5 flex min-w-0 cursor-pointer items-center gap-1 overflow-hidden border px-1.5 text-left transition-[filter] hover:brightness-125",
+                  bar.continuesLeft ? "rounded-l-none border-l-0" : "rounded-l",
+                  bar.continuesRight ? "rounded-r-none border-r-0" : "rounded-r",
+                )}
+              >
+                {bar.continuesLeft && (
+                  <span aria-hidden className="shrink-0 font-mono text-[9px] text-accent">
+                    ‹
+                  </span>
+                )}
+                <span className="truncate font-mono text-[10px] leading-none font-semibold tracking-wide text-foreground">
+                  {bar.jam.title}
                 </span>
-              )}
-              <span className="truncate font-mono text-[10px] leading-none font-semibold tracking-wide text-foreground">
-                {bar.jam.title}
-              </span>
-              {bar.continuesRight && (
-                <span aria-hidden className="ml-auto shrink-0 font-mono text-[9px] text-accent">
-                  ›
-                </span>
-              )}
-            </motion.button>
+                {bar.continuesRight && (
+                  <span aria-hidden className="ml-auto shrink-0 font-mono text-[9px] text-accent">
+                    ›
+                  </span>
+                )}
+              </motion.button>
+            </SimpleTooltip>
           );
         })}
       </div>

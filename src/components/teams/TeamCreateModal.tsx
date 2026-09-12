@@ -134,7 +134,7 @@ export function TeamCreateModal({ open, onClose }: { open: boolean; onClose: () 
                   variant="outline"
                   size="icon-sm"
                   aria-label="Remove team image"
-                  title="Remove team image"
+                  tooltip="Remove team image"
                   onClick={() => setAvatar(null)}
                 >
                   <HugeiconsIcon icon={Delete02Icon} size={12} />

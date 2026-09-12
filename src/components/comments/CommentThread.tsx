@@ -205,7 +205,7 @@ export function CommentThread({
               size="sm"
               onClick={() => subscription.mutate(!muted)}
               disabled={subscription.isPending}
-              title={muted ? "Turn thread notifications back on" : "Mute this thread"}
+              tooltip={muted ? "Turn thread notifications back on" : "Mute this thread"}
               className="tracking-widest"
             >
               <HugeiconsIcon icon={muted ? NotificationOff03Icon : Notification03Icon} size={12} />
@@ -218,7 +218,7 @@ export function CommentThread({
               size="sm"
               onClick={() => lock.mutate(!locked)}
               disabled={lock.isPending}
-              title={locked ? "Unlock this thread" : "Lock this thread"}
+              tooltip={locked ? "Unlock this thread" : "Lock this thread"}
               className="tracking-widest"
             >
               <HugeiconsIcon icon={SquareLock01Icon} size={12} />

@@ -91,6 +91,9 @@ function TooltipContent({
 }
 
 // ── SimpleTooltip (wrapping API) ───────────────────────────────────
+//
+// The child *is* the trigger: its element gets the hover/focus handlers
+// merged in, so wrapping a button never nests a second button around it.
 
 type SimpleTooltipProps = {
   content: React.ReactNode;
@@ -125,9 +128,7 @@ function SimpleTooltip({
   return (
     <TooltipPrimitive.Provider delay={delay} closeDelay={0}>
       <TooltipPrimitive.Root disableHoverablePopup={!hoverable} open={open}>
-        <TooltipPrimitive.Trigger className="flex w-full [&>*]:w-full">
-          {children}
-        </TooltipPrimitive.Trigger>
+        <TooltipPrimitive.Trigger render={children} />
         <TooltipContent side={side} variant={variant} maxWidth={maxWidth} className={className}>
           {content}
         </TooltipContent>

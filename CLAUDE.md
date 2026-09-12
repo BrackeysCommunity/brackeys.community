@@ -106,6 +106,7 @@ consolidated; new copies undo that.
 | `/profile/$userId` links                                    | `profileSlug` / `profileLinkParams` from `@/lib/profile-links`                     | `urlStub ?? id` inline                      |
 | Toasts                                                      | `toast` from `@/lib/toast` (sonner plus the arrival cue)                           | `toast` from `sonner`                       |
 | Interaction sounds                                          | the cue bundles and `play*` helpers in `@/lib/sound`                               | importing `cuelume` directly                |
+| Hover hint on a control                                     | `Button tooltip="…"`, or `SimpleTooltip` from `@/components/ui/tooltip`            | a native `title` attribute                  |
 
 **Monospace:** `font-mono` is reserved for the command-center surfaces,
 `Badge size="label"`, and `MicroLabel`. Everything else uses the sans and

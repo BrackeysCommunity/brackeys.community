@@ -267,7 +267,7 @@ function FlyoutHeader({
             @{profile.handle.toLowerCase()} · STEP {step}/{STEPS.length}
           </Text>
         </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Close" title="Close" onClick={onClose}>
+        <Button variant="ghost" size="icon-sm" aria-label="Close" tooltip="Close" onClick={onClose}>
           <HugeiconsIcon icon={Cancel01Icon} size={14} />
         </Button>
       </div>
@@ -648,7 +648,7 @@ function TimezoneField({
             size="icon-sm"
             onClick={() => onChange(null)}
             aria-label="Clear timezone"
-            title="Clear timezone"
+            tooltip="Clear timezone"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={12} />
           </Button>

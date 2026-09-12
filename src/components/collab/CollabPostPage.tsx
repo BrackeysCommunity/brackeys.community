@@ -703,7 +703,7 @@ function HeroActions({
               variant="outline"
               size="sm"
               onClick={onEdit}
-              title="Edit this post"
+              tooltip="Edit this post"
               className="tracking-widest"
             >
               <HugeiconsIcon icon={PencilEdit01Icon} size={12} />
@@ -716,7 +716,7 @@ function HeroActions({
               size="sm"
               onClick={() => actions.reopen.mutate()}
               disabled={actions.reopen.isPending}
-              title="Reopen this post for applications"
+              tooltip="Reopen this post for applications"
               className="tracking-widest"
             >
               <HugeiconsIcon icon={Tick01Icon} size={12} />
@@ -730,7 +730,7 @@ function HeroActions({
                   size="sm"
                   onClick={() => actions.extend.mutate()}
                   disabled={actions.extend.isPending}
-                  title="Still looking — push the closing date out 30 days"
+                  tooltip="Still looking — push the closing date out 30 days"
                   className="tracking-widest"
                 >
                   EXTEND
@@ -741,7 +741,7 @@ function HeroActions({
                 size="sm"
                 onClick={() => actions.close.mutate()}
                 disabled={actions.close.isPending}
-                title="Mark this post as no longer recruiting"
+                tooltip="Mark this post as no longer recruiting"
                 className="tracking-widest"
               >
                 <HugeiconsIcon icon={Cancel01Icon} size={12} />

@@ -93,7 +93,7 @@ export function JamWatchToggle({
           onClick={() => set.mutate(entering ? "watching" : "entering")}
           disabled={set.isPending}
           className="tracking-widest"
-          title={
+          tooltip={
             entering
               ? "Stop showing yourself as entering (you'll still watch it)"
               : "Show up on this jam's page as entering"

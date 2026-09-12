@@ -276,8 +276,7 @@ function CollabCreateSteps({ onCreated }: { onCreated: (postId: number) => void 
         restored={draftRestored}
         action={
           <DialogClose
-            title="Close"
-            render={<Button variant="ghost" size="icon-sm" className="-mr-2" />}
+            render={<Button variant="ghost" size="icon-sm" className="-mr-2" tooltip="Close" />}
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
             <span className="sr-only">Close</span>

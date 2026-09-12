@@ -546,7 +546,7 @@ function ImagesSection({
                       variant="outline"
                       size="sm"
                       disabled={!current || pending}
-                      title={current ? undefined : `No ${kind} set`}
+                      tooltip={current ? undefined : `No ${kind} set`}
                     >
                       CLEAR
                     </Button>
@@ -939,7 +939,6 @@ function MemberRow({
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={transferBlocker != null}
-              title={transferBlocker ?? undefined}
               onClick={() => setConfirming("transfer")}
             >
               MAKE OWNER
@@ -948,7 +947,6 @@ function MemberRow({
             <DropdownMenuItem
               variant="destructive"
               disabled={removeBlocker != null}
-              title={removeBlocker ?? undefined}
               onClick={() => setConfirming("remove")}
             >
               REMOVE

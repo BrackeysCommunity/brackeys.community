@@ -26,10 +26,6 @@ const SORT_LABELS: Record<BoardSort, string> = {
  * search field: sort as an icon-triggered popover (the labels are long
  * and only matter at the moment of choosing) and layout as a single
  * icon button showing the mode it will switch *to*.
- *
- * Hover hints use native `title` rather than `SimpleTooltip` — that
- * component renders its own `<button>` trigger, which would nest a
- * button inside these buttons.
  */
 export function BoardViewControls({
   sort,
@@ -53,7 +49,7 @@ export function BoardViewControls({
               variant="outline"
               size="icon-lg"
               className="size-10"
-              title={`Sort: ${SORT_LABELS[sort]}`}
+              tooltip={`Sort: ${SORT_LABELS[sort]}`}
               aria-label={`Sort order: ${SORT_LABELS[sort]}`}
             />
           }
@@ -73,7 +69,7 @@ export function BoardViewControls({
         size="icon-lg"
         className="size-10"
         onClick={() => onLayoutChange(nextLayout)}
-        title={`Switch to ${nextLayoutLabel} view`}
+        tooltip={`Switch to ${nextLayoutLabel} view`}
         aria-label={`Switch to ${nextLayoutLabel} view`}
       >
         <HugeiconsIcon

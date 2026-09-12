@@ -1,6 +1,7 @@
 import { CheckmarkCircle02Icon, EyeIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { useJamWatches } from "./use-jam-watches";
@@ -20,17 +21,19 @@ export function JamWatchMarker({ jamId, className }: { jamId: number; className?
   if (!intent) return null;
 
   const entering = intent === "entering";
+  const label = entering ? "You're entering this jam" : "You're watching this jam";
   return (
-    <span
-      title={entering ? "You're entering this jam" : "You're watching this jam"}
-      aria-label={entering ? "You're entering this jam" : "You're watching this jam"}
-      className={cn(
-        "inline-flex items-center rounded-full p-1 backdrop-blur-sm",
-        entering ? "bg-success/20 text-success" : "bg-background/70 text-muted-foreground",
-        className,
-      )}
-    >
-      <HugeiconsIcon icon={entering ? CheckmarkCircle02Icon : EyeIcon} size={12} />
-    </span>
+    <SimpleTooltip content={label}>
+      <span
+        aria-label={label}
+        className={cn(
+          "inline-flex items-center rounded-full p-1 backdrop-blur-sm",
+          entering ? "bg-success/20 text-success" : "bg-background/70 text-muted-foreground",
+          className,
+        )}
+      >
+        <HugeiconsIcon icon={entering ? CheckmarkCircle02Icon : EyeIcon} size={12} />
+      </span>
+    </SimpleTooltip>
   );
 }

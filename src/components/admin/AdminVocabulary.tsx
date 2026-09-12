@@ -225,7 +225,7 @@ export function VocabularyManager({
                   size="icon-xs"
                   onClick={() => startAddTo(groupName)}
                   aria-label={`Add to ${groupName}`}
-                  title={`Add to ${groupName}`}
+                  tooltip={`Add to ${groupName}`}
                 >
                   <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
                 </Button>
@@ -260,7 +260,7 @@ export function VocabularyManager({
                         size="icon-xs"
                         onClick={() => setEditingId(item.id)}
                         aria-label={`Rename ${item.name}`}
-                        title={`Rename ${item.name}`}
+                        tooltip={`Rename ${item.name}`}
                       >
                         <HugeiconsIcon icon={PencilEdit01Icon} strokeWidth={2} />
                       </Button>
@@ -283,7 +283,7 @@ export function VocabularyManager({
                             size="icon-xs"
                             disabled={remove.isPending}
                             aria-label={`Remove ${item.name}`}
-                            title={`Remove ${item.name}`}
+                            tooltip={`Remove ${item.name}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
                             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />

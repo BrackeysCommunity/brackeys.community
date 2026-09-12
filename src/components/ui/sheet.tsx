@@ -73,8 +73,14 @@ function SheetContent({
         {children}
         {showCloseButton && (
           <SheetClose
-            title="Close"
-            render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}
+            render={
+              <Button
+                variant="ghost"
+                className="absolute top-3 right-3"
+                size="icon-sm"
+                tooltip="Close"
+              />
+            }
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
             <span className="sr-only">Close</span>

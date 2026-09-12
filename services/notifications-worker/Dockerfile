@@ -37,10 +37,12 @@ COPY src/lib/email-utm.ts ./src/lib/email-utm.ts
 COPY src/emails ./src/emails
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 # The lifecycle sweep (tasks/lifecycle-sweep.ts): the same day-count
-# constants the app's write paths stamp with, and the jam-watch pass.
+# constants the app's write paths stamp with, the jam-watch pass, and the
+# read-notification retention pass.
 COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
 COPY src/lib/jam-watch.ts ./src/lib/jam-watch.ts
 COPY src/lib/jam-watch-sweep.ts ./src/lib/jam-watch-sweep.ts
+COPY src/lib/notification-retention.ts ./src/lib/notification-retention.ts
 
 RUN ln -s /app/services/notifications-worker/node_modules /app/node_modules
 

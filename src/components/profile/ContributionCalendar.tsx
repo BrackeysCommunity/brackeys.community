@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel } from "@/components/ui/typography";
 import { formatCount } from "@/lib/format-count";
 import type { ContributionDay } from "@/lib/github";
@@ -352,11 +353,12 @@ function CalendarGrid({
               if (!day) return <div key={k} className="aspect-square w-full" />;
               const intensity = getIntensity(day.contributionCount, maxCount);
               return (
-                <div
+                <SimpleTooltip
                   key={day.date}
-                  className={cn(cellBase, intensityClasses[intensity])}
-                  title={`${day.date}: ${day.contributionCount} contribution${day.contributionCount === 1 ? "" : "s"}`}
-                />
+                  content={`${day.date}: ${day.contributionCount} contribution${day.contributionCount === 1 ? "" : "s"}`}
+                >
+                  <div className={cn(cellBase, intensityClasses[intensity])} />
+                </SimpleTooltip>
               );
             })}
           </Fragment>
@@ -625,7 +627,7 @@ function SnakeFullscreenOverlay({
             variant="outline"
             size="icon-sm"
             aria-label="Close"
-            title="Close"
+            tooltip="Close"
             onClick={onClose}
             className="font-mono"
           >
@@ -682,7 +684,7 @@ function SnakeKeyboardControls() {
           variant="default"
           size="icon-lg"
           aria-label="Up"
-          title="Up"
+          tooltip="Up"
           onClick={() => dispatch("ArrowUp")}
           className="h-12 w-14"
         >
@@ -693,7 +695,7 @@ function SnakeKeyboardControls() {
             variant="default"
             size="icon-lg"
             aria-label="Left"
-            title="Left"
+            tooltip="Left"
             onClick={() => dispatch("ArrowLeft")}
             className="h-12 w-14"
           >
@@ -703,7 +705,7 @@ function SnakeKeyboardControls() {
             variant="default"
             size="icon-lg"
             aria-label="Down"
-            title="Down"
+            tooltip="Down"
             onClick={() => dispatch("ArrowDown")}
             className="h-12 w-14"
           >
@@ -713,7 +715,7 @@ function SnakeKeyboardControls() {
             variant="default"
             size="icon-lg"
             aria-label="Right"
-            title="Right"
+            tooltip="Right"
             onClick={() => dispatch("ArrowRight")}
             className="h-12 w-14"
           >
