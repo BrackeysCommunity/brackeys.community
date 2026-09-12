@@ -32,10 +32,49 @@ type ConfirmProps = ConfirmOptions & {
   bypass?: boolean;
   disabled?: boolean;
   /** Disables only the confirm action — for dialogs whose message collects
-   * required input (the trigger still opens, so the requirement is visible). */
+   * required input (the trigger still opens, so the requirement is visible).
+   * While disabled the action also yields initial focus, so the dialog's
+   * default — the first tabbable element, i.e. that input — takes it. */
   confirmDisabled?: boolean;
-  children: React.ReactElement;
+  /** Controlled mode: the caller owns `open` and renders no trigger — for a
+   * dialog raised from a menu item, which unmounts the moment it's picked. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children?: React.ReactElement;
 };
+
+/**
+ * Title and message, shared by both surfaces. A string message is the
+ * dialog's description; anything else (a reason field, a preview) is block
+ * content and renders after the header instead of inside the description's
+ * `<p>`, which can't legally hold it. A destructive question wears the
+ * colour of its action, so the tint is on the title and not only the
+ * button at the bottom.
+ */
+function ConfirmBody({
+  title,
+  message,
+  variant,
+}: {
+  title: React.ReactNode;
+  message?: React.ReactNode;
+  variant: "default" | "destructive";
+}) {
+  const textMessage = typeof message === "string" || typeof message === "number";
+  return (
+    <>
+      <AlertDialogHeader>
+        <AlertDialogTitle className={variant === "destructive" ? "text-destructive" : undefined}>
+          {title}
+        </AlertDialogTitle>
+        {textMessage ? <AlertDialogDescription>{message}</AlertDialogDescription> : null}
+      </AlertDialogHeader>
+      {message && !textMessage ? (
+        <div className="flex flex-col gap-3 text-xs/relaxed text-muted-foreground">{message}</div>
+      ) : null}
+    </>
+  );
+}
 
 // ── <Confirm> Wrapper Component ────────────────────────────────────
 
@@ -43,15 +82,26 @@ function Confirm({
   title = "Are you sure?",
   message,
   confirmText = "Confirm",
-  cancelText = "Cancel",
+  cancelText = "CANCEL",
   variant = "default",
   onConfirm,
   bypass = false,
   disabled = false,
   confirmDisabled = false,
+  open: openProp,
+  onOpenChange,
   children,
 }: ConfirmProps) {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openState;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!controlled) setOpenState(next);
+      onOpenChange?.(next);
+    },
+    [controlled, onOpenChange],
+  );
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = useCallback(async () => {
@@ -68,7 +118,7 @@ function Confirm({
     } finally {
       setLoading(false);
     }
-  }, [onConfirm]);
+  }, [onConfirm, setOpen]);
 
   const handleTriggerClick = useCallback(
     (e: React.MouseEvent) => {
@@ -95,16 +145,13 @@ function Confirm({
         setOpen(next);
       }}
     >
-      <AlertDialogTrigger onClick={handleTriggerClick} render={children} />
+      {children ? <AlertDialogTrigger onClick={handleTriggerClick} render={children} /> : null}
       <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          {message && <AlertDialogDescription>{message}</AlertDialogDescription>}
-        </AlertDialogHeader>
+        <ConfirmBody title={title} message={message} variant={variant} />
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{cancelText}</AlertDialogCancel>
           <AlertDialogAction
-            autoFocus
+            autoFocus={!confirmDisabled}
             variant={variant === "destructive" ? "destructive" : "default"}
             onClick={(e) => {
               e.preventDefault();
@@ -189,13 +236,14 @@ function ConfirmPortal() {
       }}
     >
       <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{opts.title ?? "Are you sure?"}</AlertDialogTitle>
-          {opts.message && <AlertDialogDescription>{opts.message}</AlertDialogDescription>}
-        </AlertDialogHeader>
+        <ConfirmBody
+          title={opts.title ?? "Are you sure?"}
+          message={opts.message}
+          variant={opts.variant ?? "default"}
+        />
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => handleClose(false)}>
-            {opts.cancelText ?? "Cancel"}
+            {opts.cancelText ?? "CANCEL"}
           </AlertDialogCancel>
           <AlertDialogAction
             variant={opts.variant === "destructive" ? "destructive" : "default"}

@@ -60,6 +60,65 @@ describe("Confirm", () => {
   });
 });
 
+describe("Confirm (body)", () => {
+  it("keeps a block message out of the description paragraph and dims even when nested", () => {
+    render(
+      <Confirm
+        open
+        title="Remove @ada?"
+        message={
+          <label>
+            Reason <input />
+          </label>
+        }
+        onConfirm={() => {}}
+      />,
+    );
+    // A `<div>` inside the description's `<p>` is invalid markup, so block
+    // content renders beside the header rather than inside it.
+    expect(document.querySelector('[data-slot="alert-dialog-description"]')).toBeNull();
+    expect(screen.getByLabelText("Reason")).toBeDefined();
+    // The backdrop is forced: Base UI would otherwise drop it for a dialog
+    // opened over another dialog, which is where most confirms live.
+    expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
+  });
+});
+
+describe("Confirm (controlled)", () => {
+  it("opens without a trigger, holds the action until the caller enables it, and reports close", async () => {
+    const onConfirm = vi.fn();
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <Confirm
+        open
+        onOpenChange={onOpenChange}
+        title="Remove @ada?"
+        confirmText="REMOVE"
+        confirmDisabled
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getByText("Remove @ada?")).toBeDefined();
+    const action = screen.getByRole("button", { name: "REMOVE" }) as HTMLButtonElement;
+    expect(action.disabled).toBe(true);
+
+    rerender(
+      <Confirm
+        open
+        onOpenChange={onOpenChange}
+        title="Remove @ada?"
+        confirmText="REMOVE"
+        onConfirm={onConfirm}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "REMOVE" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce());
+    // A confirmed dialog asks its owner to close it; it never closes itself.
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
 describe("openConfirmModal", () => {
   it("resolves true on confirm and false on cancel", async () => {
     render(<ConfirmPortal />);
@@ -69,7 +128,7 @@ describe("openConfirmModal", () => {
     await expect(first).resolves.toBe(true);
 
     const second = openConfirmModal({ title: "Save changes?" });
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "CANCEL" }));
     await expect(second).resolves.toBe(false);
 
     await waitFor(() => expect(screen.queryByText("Save changes?")).toBeNull());

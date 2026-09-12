@@ -91,6 +91,19 @@ export function renderNotificationText(input: {
           : `A moderator removed a member from ${teamName}`,
         href: teamHref,
       };
+    case "team_member_added_by_staff":
+      // One type, two recipients: the person seated (`placed`) and the owner
+      // whose roster changed under them.
+      return {
+        headline: input.data.placed
+          ? moderationReason
+            ? `Staff added you to ${teamName} — ${moderationReason}`
+            : `Staff added you to ${teamName}`
+          : moderationReason
+            ? `A moderator added a member to ${teamName} — ${moderationReason}`
+            : `A moderator added a member to ${teamName}`,
+        href: teamHref,
+      };
     case "team_ownership_transferred_by_staff":
       return {
         headline: moderationReason
@@ -192,6 +205,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   team_auto_archived: "Teams — your team was archived",
   team_updated_by_staff: "Moderation — staff edited your team",
   team_member_removed_by_staff: "Moderation — staff removed a member from your team",
+  team_member_added_by_staff: "Moderation — staff placed someone on a team",
   team_ownership_transferred_by_staff: "Moderation — staff transferred your team's ownership",
   team_hidden_by_staff: "Moderation — your team was hidden pending review",
   team_unhidden_by_staff: "Moderation — your team is visible again",
@@ -227,6 +241,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "team_auto_archived",
   "team_updated_by_staff",
   "team_member_removed_by_staff",
+  "team_member_added_by_staff",
   "team_ownership_transferred_by_staff",
   "team_hidden_by_staff",
   "team_unhidden_by_staff",
@@ -280,6 +295,9 @@ export const NOTIFICATION_DEFAULTS: Record<
   // comment_removed_by_staff: silence reads as the site being broken.
   team_updated_by_staff: { inApp: true, email: true, digest: false },
   team_member_removed_by_staff: { inApp: true, email: false, digest: false },
+  // Someone was seated on a team without asking to be; that is the one
+  // roster change worth an inbox, for the same reason as a staff edit.
+  team_member_added_by_staff: { inApp: true, email: true, digest: false },
   team_ownership_transferred_by_staff: { inApp: true, email: true, digest: false },
   team_hidden_by_staff: { inApp: true, email: true, digest: false },
   team_unhidden_by_staff: { inApp: true, email: false, digest: false },
@@ -338,6 +356,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   team_auto_archived: "teams",
   team_updated_by_staff: "moderation",
   team_member_removed_by_staff: "moderation",
+  team_member_added_by_staff: "moderation",
   team_ownership_transferred_by_staff: "moderation",
   team_hidden_by_staff: "moderation",
   team_unhidden_by_staff: "moderation",

@@ -30,12 +30,19 @@ function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
   return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />;
 }
 
+/**
+ * `forceRender` is load-bearing: Base UI drops a nested dialog's backdrop by
+ * default, and a confirm's usual home is on top of another modal — the
+ * moderation flyout, the wizard — where the missing dim read as the
+ * confirm being part of the panel rather than a question over it.
+ */
 function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdrop.Props) {
   return (
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
+      forceRender
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0 supports-backdrop-filter:backdrop-blur-xs",
+        "fixed inset-0 isolate z-50 bg-black/15 duration-100 data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0 supports-backdrop-filter:backdrop-blur-xs",
         className,
       )}
       {...props}
@@ -43,21 +50,23 @@ function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdr
   );
 }
 
-function AlertDialogContent({
-  className,
-  size = "default",
-  ...props
-}: AlertDialogPrimitive.Popup.Props & {
-  size?: "default" | "sm";
-}) {
+/**
+ * The same floating surface as `DialogContent` — a pinned emboss panel, not
+ * a well: a question hovering over the page is a floating element in the
+ * layering model, and the debossed frame it used to wear is the vocabulary
+ * of inputs. Top-anchored like `ResponsiveModal` rather than centred, so a
+ * confirm raised from a modal lands over that modal's body instead of
+ * hanging off its bottom edge on a tall screen.
+ */
+function AlertDialogContent({ className, ...props }: AlertDialogPrimitive.Popup.Props) {
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
-        data-size={size}
         className={cn(
-          "chonk-deboss group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded border border-deboss-shadow bg-background p-4 duration-100 outline-none focus-within:border-deboss-shadow! focus-within:shadow-[inset_0_2px_0_0_var(--deboss-shadow)]! data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm",
+          "chonk-emboss-panel [--chonk-y:3px]!",
+          "fixed top-32 left-1/2 z-50 flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col gap-4 rounded-lg bg-background p-5 text-xs/relaxed duration-100 outline-none data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 sm:max-w-md",
           className,
         )}
         {...props}
@@ -70,10 +79,7 @@ function AlertDialogHeader({ className, ...props }: React.ComponentProps<"div">)
   return (
     <div
       data-slot="alert-dialog-header"
-      className={cn(
-        "grid grid-rows-[auto_1fr] place-items-center gap-1.5 text-center has-data-[slot=alert-dialog-media]:grid-rows-[auto_auto_1fr] has-data-[slot=alert-dialog-media]:gap-x-4 sm:group-data-[size=default]/alert-dialog-content:place-items-start sm:group-data-[size=default]/alert-dialog-content:text-left sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-rows-[auto_1fr]",
-        className,
-      )}
+      className={cn("flex flex-col gap-1.5 text-left", className)}
       {...props}
     />
   );
@@ -83,23 +89,7 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<"div">)
   return (
     <div
       data-slot="alert-dialog-footer"
-      className={cn(
-        "flex flex-col-reverse gap-2 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function AlertDialogMedia({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-dialog-media"
-      className={cn(
-        "mb-2 inline-flex size-10 items-center justify-center rounded bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-6",
-        className,
-      )}
+      className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
       {...props}
     />
   );
@@ -112,10 +102,7 @@ function AlertDialogTitle({
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn(
-        "text-sm font-medium sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
-        className,
-      )}
+      className={cn("text-base tracking-widest text-foreground uppercase", className)}
       {...props}
     />
   );
@@ -137,8 +124,16 @@ function AlertDialogDescription({
   );
 }
 
+/** Both footer buttons speak in the house label voice whatever casing the
+ * caller passed — every surface already spells its own buttons this way. */
 function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof Button>) {
-  return <Button data-slot="alert-dialog-action" className={cn(className)} {...props} />;
+  return (
+    <Button
+      data-slot="alert-dialog-action"
+      className={cn("tracking-widest uppercase", className)}
+      {...props}
+    />
+  );
 }
 
 function AlertDialogCancel({
@@ -151,7 +146,7 @@ function AlertDialogCancel({
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-cancel"
-      className={cn(className)}
+      className={cn("tracking-widest uppercase", className)}
       render={<Button variant={variant} size={size} />}
       {...DISMISS_CUES}
       {...props}
@@ -167,7 +162,6 @@ export {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogMedia,
   AlertDialogOverlay,
   AlertDialogPortal,
   AlertDialogTitle,

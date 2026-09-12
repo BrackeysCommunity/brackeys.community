@@ -196,6 +196,38 @@ describe("approveModerationProposal", () => {
     expect((notices[0]!.data as Record<string, unknown>).reason).toBe("impersonates a studio");
   });
 
+  it("seats a proposed member on approval, with the roster insert's own audit and notices", async () => {
+    const proposal = await call(
+      proposeModerationEdit,
+      {
+        action: "team_member_add",
+        targetId: teamId,
+        payload: { userId: "rando", title: "Artist" },
+        reason: "removed by mistake",
+      },
+      asUser("mod"),
+    );
+    expect(proposal.snapshot).toEqual({ alreadyMember: false });
+
+    await call(approveModerationProposal, { proposalId: proposal.id }, asUser("admin"));
+
+    const seats = await db.select().from(teamMembers).where(eq(teamMembers.userId, "rando"));
+    expect(seats).toHaveLength(1);
+    expect(seats[0]!.title).toBe("Artist");
+    const effect = await db
+      .select()
+      .from(moderationActions)
+      .where(eq(moderationActions.action, "team_member_added"));
+    expect(effect).toHaveLength(1);
+    expect(effect[0]!.metadata).toMatchObject({ bypassedInvite: true });
+    const placed = await db
+      .select({ type: notifications.type, data: notifications.data })
+      .from(notifications)
+      .where(eq(notifications.userId, "rando"));
+    expect(placed.map((n) => n.type)).toEqual(["team_member_added_by_staff"]);
+    expect(placed[0]!.data).toMatchObject({ placed: true, reason: "removed by mistake" });
+  });
+
   it("is compare-and-set: the loser of an approve/approve or approve/reject race gets NOT_FOUND", async () => {
     const proposal = await proposeRename();
     await call(approveModerationProposal, { proposalId: proposal.id }, asUser("admin"));

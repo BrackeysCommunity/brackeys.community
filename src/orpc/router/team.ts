@@ -22,6 +22,7 @@ import {
   collabRoles,
   collabPostRoles,
   developerProfiles,
+  imageScans,
   itchJams,
   profileProjects,
   profileUrlStubs,
@@ -60,7 +61,7 @@ import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resoluti
 // The house home for LIKE escaping — this file carried its own copy, which
 // (unlike the shared one) left a backslash in the search term unescaped.
 import { escapeLike } from "@/lib/sql-like";
-import { isTeamProjectImageKey } from "@/lib/stored-image-keys";
+import { describeImageKey, isTeamProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { slugifyTeamName } from "@/lib/team-links";
@@ -523,6 +524,90 @@ export const clearTeamImage = os
     return applyTeamImageClear(
       team,
       input.kind,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
+  });
+
+export const teamImageSetSchema = z.object({
+  kind: z.enum(["avatar", "banner"]),
+  /** An object `/api/team/avatar` already minted under this team's
+   *  namespace — the upload and the attach are two steps so a mod's
+   *  replacement can wait on an admin as a proposal. */
+  key: z.string().min(1).max(500),
+});
+
+/**
+ * The other half of `applyTeamImageClear`: point the team at an object the
+ * upload route minted and left unattached. The object went through the
+ * same scan request as any member upload, so the only extra check is that
+ * the scanner hasn't already pulled it.
+ */
+export async function applyTeamImageSet(
+  team: TeamRow,
+  kind: "avatar" | "banner",
+  key: string,
+  mod?: ModOverride,
+) {
+  const owner = describeImageKey(key);
+  const expectedOwnerType = kind === "banner" ? "team_banner" : "team_avatar";
+  if (!owner || owner.ownerType !== expectedOwnerType || owner.ownerId !== team.id) {
+    throw new ORPCError("BAD_REQUEST", { message: `That upload isn't a ${kind} for this team.` });
+  }
+  const [scan] = await db
+    .select({ status: imageScans.status })
+    .from(imageScans)
+    .where(eq(imageScans.objectKey, key))
+    .limit(1);
+  if (scan && (scan.status === "quarantined" || scan.status === "purged")) {
+    throw new ORPCError("BAD_REQUEST", { message: "The scanner held that image — pick another." });
+  }
+
+  const previousKey = kind === "banner" ? team.bannerKey : team.avatarKey;
+  const previousUrl = kind === "banner" ? team.bannerUrl : team.avatarUrl;
+  if (previousKey === key) return { success: true };
+
+  await db
+    .update(teams)
+    .set({
+      ...(kind === "banner"
+        ? { bannerKey: key, bannerUrl: null }
+        : { avatarKey: key, avatarUrl: null }),
+      updatedAt: new Date(),
+    })
+    .where(eq(teams.id, team.id));
+
+  if (previousKey) {
+    await bestEffort("storage.image_cleanup", { key: previousKey, on: "team_image_set" }, () =>
+      removeProfileProjectImageFromStorage(previousKey),
+    );
+  }
+
+  if (mod) {
+    await recordTeamModAction({
+      action: "team_image_set",
+      mod,
+      team,
+      metadata: { kind, key, previousUrl, previousKey },
+    });
+    await notifyTeamOwner(team, "team_updated_by_staff", mod, { field: kind });
+  }
+  return { success: true };
+}
+
+export const setTeamImage = os
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({ teamId: z.string(), reason: overrideReasonSchema, ...teamImageSetSchema.shape }),
+  )
+  .handler(async ({ input, context }) => {
+    const team = await getTeamRow(input.teamId);
+    const { isOverride } = await requireOwnershipOrOverride("team_image_set", team.id, context);
+    assertNotFrozen(team, isOverride);
+
+    return applyTeamImageSet(
+      team,
+      input.kind,
+      input.key,
       isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
     );
   });
@@ -1778,6 +1863,104 @@ export const removeMember = os
       context.user.id,
       isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
     );
+  });
+
+export const teamMemberAddSchema = z.object({
+  userId: z.string(),
+  title: z.string().trim().max(100).optional().nullable(),
+});
+
+/**
+ * Staff-only roster insert. Members otherwise join by accepting an invite;
+ * this skips that handshake on purpose — it exists for "the owner removed
+ * the wrong person" and similar recoveries — so the audit row says so and
+ * the person hears that staff placed them, not that they were invited.
+ */
+export async function applyMemberAdd(
+  team: TeamRow,
+  userId: string,
+  title: string | null | undefined,
+  mod: ModOverride,
+) {
+  if (team.status !== "active") {
+    throw new ORPCError("BAD_REQUEST", { message: "This team is archived." });
+  }
+  const [profile] = await db
+    .select({ id: developerProfiles.id })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+  if (!profile) {
+    throw new ORPCError("BAD_REQUEST", { message: "That person doesn't have a profile." });
+  }
+  if (await getMembership(team.id, userId)) {
+    throw new ORPCError("BAD_REQUEST", { message: "That person is already on this team." });
+  }
+
+  const [seat] = await db
+    .insert(teamMembers)
+    .values({ teamId: team.id, userId, role: "member", title: title || null })
+    .returning();
+
+  // A pending invite is moot once they're seated; revoking it keeps the
+  // invite list honest without inventing a status.
+  await db
+    .update(teamInvites)
+    .set({ status: "revoked", respondedAt: new Date() })
+    .where(
+      and(
+        eq(teamInvites.teamId, team.id),
+        eq(teamInvites.inviteeId, userId),
+        eq(teamInvites.status, "pending"),
+      ),
+    );
+
+  // Reason, no actor — the same rule as removal: the member sees why, not who.
+  await notify({
+    userId,
+    type: "team_member_added_by_staff",
+    entityType: "team",
+    entityId: team.id,
+    data: {
+      teamId: team.id,
+      teamSlug: team.slug,
+      teamName: team.name,
+      placed: true,
+      ...(mod.reason ? { reason: mod.reason } : {}),
+    },
+  });
+
+  await touchTeamActivity(team.id);
+
+  await recordTeamModAction({
+    action: "team_member_added",
+    mod,
+    team,
+    subjectUserId: userId,
+    metadata: { addedUserId: userId, title: title || null, bypassedInvite: true },
+  });
+  await notifyTeamOwner(team, "team_member_added_by_staff", mod, { addedUserId: userId });
+
+  return seat!;
+}
+
+export const addMember = os
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({ teamId: z.string(), reason: overrideReasonSchema, ...teamMemberAddSchema.shape }),
+  )
+  .handler(async ({ input, context }) => {
+    const team = await getTeamRow(input.teamId);
+    const { isOverride } = await requireOwnershipOrOverride("team_member_add", team.id, context);
+    // Owners have the invite; the direct insert is the staff tool only.
+    if (!isOverride) {
+      throw new ORPCError("BAD_REQUEST", { message: "Invite them — members join by accepting." });
+    }
+
+    return applyMemberAdd(team, input.userId, input.title, {
+      actorId: context.user.id,
+      reason: input.reason ?? null,
+    });
   });
 
 /**

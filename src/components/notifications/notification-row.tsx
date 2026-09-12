@@ -240,6 +240,22 @@ export function renderCopy(n: NotificationItem): {
         href: teamHref,
       };
     }
+    case "team_member_added_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            {n.data.placed ? (
+              <>Staff added you to {teamEm}</>
+            ) : (
+              <>A moderator added a member to {teamEm}</>
+            )}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: teamHref,
+      };
+    }
     case "team_ownership_transferred_by_staff": {
       const reason = n.data.reason as string | undefined;
       return {

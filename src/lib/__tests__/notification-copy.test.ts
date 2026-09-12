@@ -32,6 +32,28 @@ describe("collab notification copy", () => {
   });
 });
 
+describe("team_member_added_by_staff", () => {
+  const data = { teamName: "Alpha", teamSlug: "alpha", reason: "restored" };
+
+  it("tells the seated member it was staff, and the owner that their roster moved", () => {
+    const placed = renderNotificationText({
+      type: "team_member_added_by_staff",
+      actorUsername: null,
+      data: { ...data, placed: true },
+    });
+    expect(placed.headline).toBe("Staff added you to Alpha — restored");
+    expect(placed.href).toBe("/teams/alpha");
+
+    const owner = renderNotificationText({
+      type: "team_member_added_by_staff",
+      actorUsername: null,
+      data: { ...data, addedUserId: "u1" },
+    });
+    expect(owner.headline).toBe("A moderator added a member to Alpha — restored");
+    expect(owner.headline).not.toContain("you");
+  });
+});
+
 describe("moderation notification copy", () => {
   it("names both sides when staff renamed the skill", () => {
     const { headline } = renderNotificationText({

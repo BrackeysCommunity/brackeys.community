@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   developerProfiles,
+  imageScans,
   moderationActions,
   notifications,
+  teamInvites,
   teamMembers,
   teamProjects,
   teams,
@@ -13,11 +15,13 @@ import {
   type ModerationActionType,
 } from "@/db/schema";
 import {
+  addMember,
   clearTeamImage,
   deleteTeam,
   inviteToTeam,
   removeMember,
   removeTeamProject,
+  setTeamImage,
   setTeamSlug,
   transferOwnership,
   updateMemberTitle,
@@ -108,7 +112,12 @@ function proposeTierCalls(): [string, (as: ReturnType<typeof asUser>) => Promise
     ["updateTeam", (as) => call(updateTeam, { teamId, name: "Renamed" }, as)],
     ["setTeamSlug", (as) => call(setTeamSlug, { teamId, slug: "new-handle" }, as)],
     ["clearTeamImage", (as) => call(clearTeamImage, { teamId, kind: "avatar" }, as)],
+    [
+      "setTeamImage",
+      (as) => call(setTeamImage, { teamId, kind: "avatar", key: avatarKey("new") }, as),
+    ],
     ["removeMember", (as) => call(removeMember, { teamId, userId: "member1" }, as)],
+    ["addMember", (as) => call(addMember, { teamId, userId: "invitee" }, as)],
     ["transferOwnership", (as) => call(transferOwnership, { teamId, userId: "member1" }, as)],
     [
       "updateMemberTitle",
@@ -117,6 +126,11 @@ function proposeTierCalls(): [string, (as: ReturnType<typeof asUser>) => Promise
     ["updateTeamProject", (as) => call(updateTeamProject, { teamId, projectId, title: "Neu" }, as)],
     ["removeTeamProject", (as) => call(removeTeamProject, { teamId, projectId }, as)],
   ];
+}
+
+/** A key the upload route would have minted for this team's avatar. */
+function avatarKey(name: string, forTeam = teamId) {
+  return `team-avatars/${forTeam}/${name}.png`;
 }
 
 async function auditRows(action: ModerationActionType) {
@@ -232,6 +246,125 @@ describe("clearTeamImage", () => {
     const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
     expect(team!.avatarUrl).toBeNull();
     expect(await db.select().from(moderationActions)).toHaveLength(0);
+  });
+});
+
+describe("setTeamImage", () => {
+  it("admin override attaches the minted key, sweeps the old one, audits both, and notifies the owner", async () => {
+    await db
+      .update(teams)
+      .set({ avatarKey: avatarKey("old") })
+      .where(eq(teams.id, teamId));
+
+    await call(
+      setTeamImage,
+      { teamId, kind: "avatar", key: avatarKey("new"), reason: "hateful avatar replaced" },
+      asUser("admin"),
+    );
+
+    const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
+    expect(team!.avatarKey).toBe(avatarKey("new"));
+    // The row no longer points at the old CDN url either.
+    expect(team!.avatarUrl).toBeNull();
+
+    const [logged] = await auditRows("team_image_set");
+    expect(logged!.actorId).toBe("admin");
+    expect(logged!.metadata).toMatchObject({
+      kind: "avatar",
+      key: avatarKey("new"),
+      previousKey: avatarKey("old"),
+    });
+    expect((await noticesFor("owner")).map((r) => r.type)).toEqual(["team_updated_by_staff"]);
+  });
+
+  it("refuses a key minted for another team or the other image slot", async () => {
+    await expect(
+      call(
+        setTeamImage,
+        { teamId, kind: "avatar", key: avatarKey("x", "some-other-team"), reason: "r" },
+        asUser("admin"),
+      ),
+    ).rejects.toThrow(/isn't a avatar for this team/);
+    await expect(
+      call(
+        setTeamImage,
+        { teamId, kind: "banner", key: avatarKey("x"), reason: "r" },
+        asUser("admin"),
+      ),
+    ).rejects.toThrow(/isn't a banner for this team/);
+    expect(await auditRows("team_image_set")).toHaveLength(0);
+  });
+
+  it("refuses an object the scanner already held", async () => {
+    const key = avatarKey("held");
+    await db.insert(imageScans).values({
+      objectKey: key,
+      ownerType: "team_avatar",
+      ownerId: teamId,
+      status: "quarantined",
+    });
+    await expect(
+      call(setTeamImage, { teamId, kind: "avatar", key, reason: "r" }, asUser("admin")),
+    ).rejects.toThrow(/scanner held/);
+  });
+
+  it("owner path attaches with no audit row", async () => {
+    await call(
+      setTeamImage,
+      { teamId, kind: "banner", key: `team-banners/${teamId}/b.png` },
+      asUser("owner"),
+    );
+    const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
+    expect(team!.bannerKey).toBe(`team-banners/${teamId}/b.png`);
+    expect(await db.select().from(moderationActions)).toHaveLength(0);
+  });
+});
+
+describe("addMember", () => {
+  it("admin override seats them without an invite, audits the bypass, and tells both sides", async () => {
+    // A pending invite becomes moot the moment they're seated.
+    await db.insert(teamInvites).values({ teamId, inviteeId: "invitee", invitedBy: "owner" });
+
+    const seat = await call(
+      addMember,
+      { teamId, userId: "invitee", title: "Composer", reason: "owner removed them by mistake" },
+      asUser("admin"),
+    );
+    expect(seat).toMatchObject({ teamId, userId: "invitee", role: "member", title: "Composer" });
+
+    const [logged] = await auditRows("team_member_added");
+    expect(logged!.subjectUserId).toBe("invitee");
+    expect(logged!.metadata).toMatchObject({ addedUserId: "invitee", bypassedInvite: true });
+
+    const [invite] = await db
+      .select()
+      .from(teamInvites)
+      .where(eq(teamInvites.inviteeId, "invitee"));
+    expect(invite!.status).toBe("revoked");
+
+    const placed = await noticesFor("invitee");
+    expect(placed.map((r) => r.type)).toEqual(["team_member_added_by_staff"]);
+    expect(placed[0]!.data).toMatchObject({
+      placed: true,
+      reason: "owner removed them by mistake",
+    });
+    const ownerNotices = await noticesFor("owner");
+    expect(ownerNotices.map((r) => r.type)).toEqual(["team_member_added_by_staff"]);
+    expect(ownerNotices[0]!.data).toMatchObject({ addedUserId: "invitee" });
+    expect((ownerNotices[0]!.data as Record<string, unknown>).placed).toBeUndefined();
+  });
+
+  it("refuses someone already on the roster, and the owner path entirely", async () => {
+    await expect(
+      call(addMember, { teamId, userId: "member1", reason: "r" }, asUser("admin")),
+    ).rejects.toThrow(/already on this team/);
+    // Owners have the invite; the direct insert is not theirs.
+    await expect(call(addMember, { teamId, userId: "invitee" }, asUser("owner"))).rejects.toThrow(
+      /Invite them/,
+    );
+    expect(
+      await db.select().from(teamMembers).where(eq(teamMembers.userId, "invitee")),
+    ).toHaveLength(0);
   });
 });
 

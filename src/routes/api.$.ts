@@ -12,7 +12,7 @@ import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
-import { isAdmin } from "@/lib/discord";
+import { isStaffMember } from "@/lib/discord";
 import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import {
   ProfileProjectImageUploadError,
@@ -246,11 +246,13 @@ const handleTeamAvatarUpload = withImageUpload(
       .from(teamMembers)
       .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, session.user.id)))
       .limit(1);
-    // Admins may replace images on any team — the upload half of the
-    // `clearTeamImage` moderation power.
+    // Staff may mint an avatar or banner for any team, but only mint: the
+    // attach happens through `setTeamImage` (admin) or a `team_image_set`
+    // proposal (mod), which is where the reason, the audit row and the
+    // owner's notice live. The object itself is scanned like any upload.
     let isOverride = false;
     if (kind === "project" ? !membership : membership?.role !== "owner") {
-      isOverride = isAdmin(await resolveUserRoles(session.user.id));
+      isOverride = kind !== "project" && isStaffMember(await resolveUserRoles(session.user.id));
       if (!isOverride) {
         return Response.json(
           kind === "project"
@@ -281,6 +283,9 @@ const handleTeamAvatarUpload = withImageUpload(
           ? buildTeamBannerObjectKey(teamId, image.name)
           : buildTeamAvatarObjectKey(teamId, image.name),
     });
+    if (isOverride) {
+      return Response.json(uploaded, { status: 201 });
+    }
 
     const previousKey = kind === "banner" ? team.bannerKey : team.avatarKey;
     await db

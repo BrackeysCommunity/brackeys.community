@@ -61,7 +61,10 @@ import { PROPOSABLE_ACTIONS, type ModOverride, type ModPowerAction } from "@/lib
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
 import { profileSlug } from "@/lib/profile-links";
-import { storedImageStore } from "@/lib/profile-project-image-storage";
+import {
+  removeProfileProjectImageFromStorage,
+  storedImageStore,
+} from "@/lib/profile-project-image-storage";
 import { escapeLike, likeContains } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
@@ -77,15 +80,19 @@ import {
   profileModerationPatchSchema,
 } from "@/orpc/router/profile";
 import {
+  applyMemberAdd,
   applyMemberRemoval,
   applyMemberTitle,
   applyOwnershipTransfer,
   applyTeamImageClear,
+  applyTeamImageSet,
   applyTeamProjectRemoval,
   applyTeamProjectUpdate,
   applyTeamSlug,
   applyTeamUpdate,
   teamImageClearSchema,
+  teamImageSetSchema,
+  teamMemberAddSchema,
   teamMemberRemoveSchema,
   teamProjectPatchSchema,
   teamProjectRemoveSchema,
@@ -941,7 +948,9 @@ const PROPOSAL_SCHEMAS: Record<string, z.ZodType> = {
   team_update: teamUpdatePatchSchema,
   team_slug: teamSlugPatchSchema,
   team_image_clear: teamImageClearSchema,
+  team_image_set: teamImageSetSchema,
   team_member_remove: teamMemberRemoveSchema,
+  team_member_add: teamMemberAddSchema,
   team_transfer: teamTransferSchema,
   team_title_edit: teamTitleEditSchema,
   team_project_update: teamProjectPatchSchema,
@@ -1011,9 +1020,18 @@ async function proposalSnapshot(
       );
     case "team_slug":
       return { slug: team.slug };
-    case "team_image_clear": {
+    case "team_image_clear":
+    case "team_image_set": {
       const kind = payload.kind === "banner" ? "banner" : "avatar";
       return kind === "banner" ? { bannerUrl: team.bannerUrl } : { avatarUrl: team.avatarUrl };
+    }
+    case "team_member_add": {
+      const seat = await db
+        .select({ id: teamMembers.id })
+        .from(teamMembers)
+        .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, String(payload.userId))))
+        .limit(1);
+      return { alreadyMember: seat.length > 0 };
     }
     case "team_member_remove":
     case "team_transfer": {
@@ -1058,6 +1076,24 @@ async function proposalSnapshot(
  * propose and approve — the CAS row flips to rejected instead of erroring. */
 class ProposalTargetGone extends Error {}
 
+/**
+ * A `team_image_set` proposal owns an object nothing references yet. When
+ * the proposal ends without applying — rejected, superseded, target gone —
+ * the object would sit in the bucket forever, so it goes with the row.
+ */
+async function discardProposalArtifacts(
+  proposals: Array<{ action: string; payload: Record<string, unknown> }>,
+): Promise<void> {
+  for (const proposal of proposals) {
+    if (proposal.action !== "team_image_set") continue;
+    const key = proposal.payload.key;
+    if (typeof key !== "string" || !key) continue;
+    await bestEffort("storage.image_cleanup", { key, on: "proposal_discarded" }, () =>
+      removeProfileProjectImageFromStorage(key),
+    );
+  }
+}
+
 async function applyProposalAction(
   proposal: { action: string; targetId: string; payload: Record<string, unknown> },
   mod: ModOverride,
@@ -1090,6 +1126,16 @@ async function applyProposalAction(
     case "team_image_clear":
       await applyTeamImageClear(team, teamImageClearSchema.parse(payload).kind, mod);
       return;
+    case "team_image_set": {
+      const { kind, key } = teamImageSetSchema.parse(payload);
+      await applyTeamImageSet(team, kind, key, mod);
+      return;
+    }
+    case "team_member_add": {
+      const { userId, title } = teamMemberAddSchema.parse(payload);
+      await applyMemberAdd(team, userId, title, mod);
+      return;
+    }
     case "team_member_remove":
       await applyMemberRemoval(
         team,
@@ -1169,8 +1215,8 @@ export const proposeModerationEdit = os
 
     // Supersede-then-insert in one transaction: mods iterate on a draft
     // without an admin having to reject the stale one first.
-    const proposal = await db.transaction(async (tx) => {
-      await tx
+    const { proposal, superseded } = await db.transaction(async (tx) => {
+      const superseded = await tx
         .update(moderationProposals)
         .set({ status: "superseded", reviewedAt: new Date() })
         .where(
@@ -1180,7 +1226,8 @@ export const proposeModerationEdit = os
             eq(moderationProposals.action, input.action),
             eq(moderationProposals.status, "pending"),
           ),
-        );
+        )
+        .returning({ action: moderationProposals.action, payload: moderationProposals.payload });
       const [inserted] = await tx
         .insert(moderationProposals)
         .values({
@@ -1194,8 +1241,9 @@ export const proposeModerationEdit = os
           proposedByName: proposer?.displayName ?? null,
         })
         .returning();
-      return inserted;
+      return { proposal: inserted!, superseded };
     });
+    await discardProposalArtifacts(superseded);
 
     await recordModerationAction({
       action: "moderation_proposed",
@@ -1331,6 +1379,7 @@ export const approveModerationProposal = os
           .update(moderationProposals)
           .set({ status: "rejected", reviewNote: "target gone" })
           .where(eq(moderationProposals.id, claimed.id));
+        await discardProposalArtifacts([claimed]);
         return { success: true, applied: false, message: "Target is gone — proposal rejected." };
       }
       // Release the claim so a transient failure doesn't strand the row as
@@ -1382,6 +1431,7 @@ export const rejectModerationProposal = os
     if (!rejected) {
       throw new ORPCError("NOT_FOUND", { message: "No pending proposal with that id." });
     }
+    await discardProposalArtifacts([rejected]);
 
     await recordModerationAction({
       action: "moderation_proposal_rejected",

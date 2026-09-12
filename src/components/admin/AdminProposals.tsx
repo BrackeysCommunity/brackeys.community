@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
+import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -30,7 +31,9 @@ const ACTION_LABELS: Record<string, string> = {
   team_update: "Team edit",
   team_slug: "Slug change",
   team_image_clear: "Image removal",
+  team_image_set: "Image replacement",
   team_member_remove: "Member removal",
+  team_member_add: "Member addition",
   team_transfer: "Ownership transfer",
   team_title_edit: "Member title edit",
   team_project_update: "Project edit",
@@ -238,6 +241,18 @@ function ProposalRow({
         <Text size="sm" className="max-w-prose italic">
           “{proposal.reason}”
         </Text>
+
+        {proposal.action === "team_image_set" && typeof payload.key === "string" ? (
+          <img
+            src={STORED_IMAGE_ROUTE_PREFIX + payload.key}
+            alt={`Proposed ${payload.kind === "banner" ? "banner" : "avatar"}`}
+            className={
+              payload.kind === "banner"
+                ? "h-16 w-40 border border-muted/40 object-cover"
+                : "size-16 border border-muted/40 object-cover"
+            }
+          />
+        ) : null}
 
         {keys.length > 0 ? (
           <dl className="flex flex-col gap-0.5 border-l-2 border-muted pl-3">

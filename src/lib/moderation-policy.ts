@@ -11,7 +11,12 @@ export const MOD_POWERS = {
   team_update: "propose",
   team_slug: "propose",
   team_image_clear: "propose",
+  team_image_set: "propose",
   team_member_remove: "propose",
+  // A direct roster insert, no invite handshake — the break-glass tool for
+  // "the owner removed the wrong person". Propose-tier so a mod's use of it
+  // still crosses an admin's desk.
+  team_member_add: "propose",
   team_transfer: "propose",
   team_title_edit: "propose",
   team_project_update: "propose",
