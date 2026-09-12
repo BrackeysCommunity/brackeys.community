@@ -10,7 +10,7 @@ import {
   truncate,
 } from "../reply.ts";
 import type { CommandContext } from "./context.ts";
-import { mediaUrl, postUrl, teamUrl } from "./format.ts";
+import { displayName, mediaUrl, postUrl, teamUrl } from "./format.ts";
 
 const ROSTER_MAX = 15;
 const BIO_MAX = 600;
@@ -28,7 +28,8 @@ export async function teamInfo(
 
   const url = teamUrl(ctx.appUrl, team);
   const roster = team.members.slice(0, ROSTER_MAX).map((m) => {
-    const name = m.username ?? "member";
+    // The bot answers inside the guild, so the guild face is the right one.
+    const name = displayName(m);
     const tag = m.role === "owner" ? "owner" : m.title;
     return tag ? `${name} · ${oneLine(tag, 30)}` : name;
   });

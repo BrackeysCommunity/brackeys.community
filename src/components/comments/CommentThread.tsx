@@ -28,9 +28,17 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import { activeUserStore } from "@/lib/active-user-store";
 import { authStore } from "@/lib/auth-store";
 import type { SubjectRef } from "@/lib/comment-subjects";
 import { timeAgo } from "@/lib/format-time";
+import { useMemberViewer } from "@/lib/hooks/use-member-identity";
+import {
+  memberAvatarUrl,
+  memberDisplayName,
+  type MemberIdentityFields,
+  type MemberViewer,
+} from "@/lib/member-name";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { reportMutationError } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -62,9 +70,16 @@ type ThreadData = InfiniteData<ThreadResponse>;
  */
 function optimisticComment(
   user: { id: string; name?: string | null; image?: string | null },
+  self: MemberIdentityFields | null,
+  viewer: MemberViewer,
   parent: CommentRow | undefined,
   content: string,
 ): CommentRow {
+  // The row the server will send back names the author by the house rule,
+  // so the optimistic one does too — `user.name` is the bare handle and
+  // would flash a different name for a member with a nickname.
+  const name = self ? memberDisplayName(self, viewer, user.name ?? "You") : (user.name ?? "You");
+  const avatarUrl = (self ? memberAvatarUrl(self, viewer) : null) ?? user.image ?? null;
   return {
     id: Date.now(),
     parentId: parent?.id ?? null,
@@ -76,7 +91,7 @@ function optimisticComment(
     createdAt: new Date(),
     editedAt: null,
     replyCount: 0,
-    author: { id: user.id, name: user.name ?? "You", avatarUrl: user.image ?? null, urlStub: null },
+    author: { id: user.id, name, avatarUrl, urlStub: null },
     viewer: { isMine: true, canEdit: true, canDelete: true },
   };
 }
@@ -311,6 +326,8 @@ function Composer({
   const queryClient = useQueryClient();
   const queryKey = commentThreadQueryKey(subject);
   const { session } = useStore(authStore);
+  const self = useStore(activeUserStore, (s) => s.profile);
+  const viewer = useMemberViewer();
 
   const post = useMutation({
     mutationFn: (body: string) =>
@@ -324,7 +341,7 @@ function Composer({
       if (previous && user) {
         queryClient.setQueryData(
           queryKey,
-          withOptimisticComment(previous, optimisticComment(user, parent, body)),
+          withOptimisticComment(previous, optimisticComment(user, self, viewer, parent, body)),
         );
       }
       const draft = content;

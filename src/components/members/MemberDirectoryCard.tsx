@@ -6,7 +6,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatRate } from "@/lib/format-rate";
-import { memberName } from "@/lib/member-name";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { profileLinkParams } from "@/lib/profile-links";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import type { client } from "@/orpc/client";
@@ -31,7 +31,8 @@ export type DirectoryMember = MembersPage["members"][number];
  * `rank` is the standing on the most-active rail, shown nowhere else.
  */
 export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember; rank?: number }) {
-  const name = memberName(member, "Unknown");
+  const identity = useMemberIdentity();
+  const name = identity.name(member, "Unknown");
   // Hire terms, not profile facts: closed, they are not on offer.
   const rate = member.availableForWork
     ? formatRate(member.rateType, member.rateMin, member.rateMax, {
@@ -56,7 +57,13 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
     >
       <span className="flex items-start gap-3">
         <span className="relative shrink-0">
-          <UserAvatar avatarUrl={member.avatarUrl} username={name} shape="round" size={44} />
+          <UserAvatar
+            avatarUrl={member.avatarUrl}
+            guildAvatarUrl={member.guildAvatarUrl}
+            username={name}
+            shape="round"
+            size={44}
+          />
           {rank != null ? (
             // Sits on the avatar rather than in the text column: on the
             // rail the tiles are narrow, and a numeral in the heading row

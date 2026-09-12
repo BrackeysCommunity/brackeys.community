@@ -8,7 +8,7 @@ import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { timeAgo } from "@/lib/format-time";
-import { memberName } from "@/lib/member-name";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -37,6 +37,7 @@ export function newestSignupsQueryOptions() {
 }
 
 export function NewestSignups() {
+  const identity = useMemberIdentity();
   const { data, isLoading } = useQuery(newestSignupsQueryOptions());
 
   const users = data?.members ?? [];
@@ -81,10 +82,16 @@ export function NewestSignups() {
                     params={profileLinkParams(u)}
                     className="group flex items-center gap-3 px-3 py-2 text-inherit transition-colors hover:bg-muted/40"
                   >
-                    <UserAvatar avatarUrl={u.avatarUrl} username={handle} shape="round" size={32} />
+                    <UserAvatar
+                      avatarUrl={u.avatarUrl}
+                      guildAvatarUrl={u.guildAvatarUrl}
+                      username={handle}
+                      shape="round"
+                      size={32}
+                    />
                     <div className="min-w-0 flex-1">
                       <Text as="div" bold ellipsis size="md" className="group-hover:text-primary">
-                        {memberName(u, handle)}
+                        {identity.name(u, handle)}
                       </Text>
                       <MicroLabel as="div" ellipsis>
                         {u.tagline ? <Censored>{u.tagline}</Censored> : `@${handle}`}

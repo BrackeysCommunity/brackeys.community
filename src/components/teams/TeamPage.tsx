@@ -34,6 +34,7 @@ import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { isHostOrSubdomainOf } from "@/lib/external-url";
 import { timeAgo } from "@/lib/format-time";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeUp } from "@/lib/motion";
@@ -82,7 +83,9 @@ export interface RpcTeam {
     inviteeId: string;
     createdAt: string | Date;
     inviteeUsername: string | null;
+    inviteeNickname: string | null;
     inviteeAvatar: string | null;
+    inviteeGuildAvatar: string | null;
   }[];
   isOwner: boolean;
   isStaffViewer: boolean;
@@ -93,8 +96,10 @@ export interface TeamMember {
   userId: string;
   role: string;
   title: string | null;
-  username: string | null;
+  discordUsername: string | null;
+  guildNickname: string | null;
   avatarUrl: string | null;
+  guildAvatarUrl: string | null;
   tagline: string | null;
   urlStub: string | null;
 }
@@ -135,6 +140,7 @@ const MAX_STACK_CHIPS = 12;
  * emboss for links, same as on the tiles in `/teams`.
  */
 export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: () => void }) {
+  const identity = useMemberIdentity();
   const { session } = useStore(authStore);
   const [manageOpen, setManageOpen] = useState(false);
   const [moderateOpen, setModerateOpen] = useState(false);
@@ -243,15 +249,21 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                   <Link
                     to="/profile/$userId"
                     params={profileLinkParams({ id: m.userId, urlStub: m.urlStub })}
-                    aria-label={m.username ?? "Unknown"}
+                    aria-label={identity.name(m, "Unknown")}
                   />
                 }
               >
-                <UserAvatar avatarUrl={m.avatarUrl} username={m.username} shape="round" size={36} />
+                <UserAvatar
+                  avatarUrl={m.avatarUrl}
+                  guildAvatarUrl={m.guildAvatarUrl}
+                  username={identity.name(m, "Unknown")}
+                  shape="round"
+                  size={36}
+                />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex items-center gap-2">
                     <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
-                      {m.username ?? "Unknown"}
+                      {identity.name(m, "Unknown")}
                     </Text>
                     {m.role === "owner" ? (
                       <Badge variant="outline" size="label">

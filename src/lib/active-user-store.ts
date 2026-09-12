@@ -7,7 +7,11 @@ export type ActiveUserProfile = {
   discordId: string | null;
   avatarUrl: string | null;
   guildNickname: string | null;
+  guildAvatarUrl: string | null;
   urlStub: string | null;
+  /** Whether the viewer is in the Discord guild — the switch between a
+      member's guild face and global face everywhere (`useMemberViewer`). */
+  inGuild: boolean;
   /** The directory's open-to-work flag. Mirrored here so the header's quick
       toggle can render it without a profile query — see
       `useAvailabilityToggle`, which is the only thing that writes it. */
@@ -38,7 +42,9 @@ export async function fetchActiveUserProfile() {
             discordId: data.profile.discordId,
             avatarUrl: data.profile.avatarUrl,
             guildNickname: data.profile.guildNickname,
+            guildAvatarUrl: data.profile.guildAvatarUrl,
             urlStub: data.urlStub,
+            inGuild: data.inGuild,
             availableForWork: data.profile.availableForWork ?? false,
             isStaff: data.isStaff,
             isAdmin: data.isAdmin,

@@ -49,6 +49,21 @@ export function discordAvatarUrl(discordUser: DiscordApiUser): string {
   return `${DISCORD_CDN}/avatars/${discordUser.id}/${discordUser.avatar}.${format}`;
 }
 
+/**
+ * CDN URL for a member's guild-specific avatar — the one `member.avatar`
+ * names on the guild member payload — or null when they have none, so the
+ * caller falls back to the global avatar rather than a broken image.
+ */
+export function discordGuildAvatarUrl(
+  discordUserId: string,
+  guildAvatarHash: string | null | undefined,
+  guildId: string | undefined = process.env.DISCORD_GUILD_ID,
+): string | null {
+  if (!guildAvatarHash || !guildId) return null;
+  const format = guildAvatarHash.startsWith("a_") ? "gif" : "png";
+  return `${DISCORD_CDN}/guilds/${guildId}/users/${discordUserId}/avatars/${guildAvatarHash}.${format}`;
+}
+
 // Hardcoded role ID → display name map.
 // Update these when guild roles change.
 const GUILD_ROLE_NAMES: Record<string, string> = {

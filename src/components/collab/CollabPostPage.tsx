@@ -331,6 +331,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                   avatar={
                     <UserAvatar
                       avatarUrl={post.author.avatarUrl}
+                      guildAvatarUrl={post.author.guildAvatarUrl}
                       username={post.author.discordUsername}
                       size={40}
                     />

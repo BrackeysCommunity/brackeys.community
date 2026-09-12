@@ -116,6 +116,10 @@ export const developerProfiles = userSchema.table(
     discordUsername: text("discord_username"),
     avatarUrl: text("avatar_url"),
     guildNickname: text("guild_nickname"),
+    /** The server-specific avatar, when they set one. Null means "same as
+     *  `avatarUrl`". Shown only to viewers who are themselves in the guild —
+     *  see `memberAvatarUrl` — since it is the face a DM would not show. */
+    guildAvatarUrl: text("guild_avatar_url"),
     guildJoinedAt: timestamp("guild_joined_at"),
     guildRoles: text("guild_roles").array(),
     bio: text("bio"),

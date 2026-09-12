@@ -72,7 +72,11 @@ import {
   requireGuildMember,
   requireStaff,
 } from "@/orpc/middleware/auth";
-import { profileNameSearch, profileStubJoin } from "@/orpc/profile-projection";
+import {
+  profileIdentityColumns,
+  profileNameSearch,
+  profileStubJoin,
+} from "@/orpc/profile-projection";
 
 /** Postgres `unique_violation`. */
 function isUniqueViolation(err: unknown): boolean {
@@ -789,10 +793,8 @@ async function buildTeamPagePayload(team: TeamRow) {
         title: teamMembers.title,
         sortOrder: teamMembers.sortOrder,
         joinedAt: teamMembers.joinedAt,
-        username: developerProfiles.discordUsername,
-        avatarUrl: developerProfiles.avatarUrl,
+        ...profileIdentityColumns,
         tagline: developerProfiles.tagline,
-        urlStub: profileUrlStubs.stub,
       })
       .from(teamMembers)
       .innerJoin(developerProfiles, eq(teamMembers.userId, developerProfiles.id))
@@ -1065,7 +1067,9 @@ export const getTeamViewerState = os
               status: teamInvites.status,
               createdAt: teamInvites.createdAt,
               inviteeUsername: developerProfiles.discordUsername,
+              inviteeNickname: developerProfiles.guildNickname,
               inviteeAvatar: developerProfiles.avatarUrl,
+              inviteeGuildAvatar: developerProfiles.guildAvatarUrl,
             })
             .from(teamInvites)
             .innerJoin(developerProfiles, eq(teamInvites.inviteeId, developerProfiles.id))
@@ -1110,8 +1114,10 @@ async function withTeamCardExtras<
         teamId: teamMembers.teamId,
         userId: teamMembers.userId,
         role: teamMembers.role,
-        username: developerProfiles.discordUsername,
+        discordUsername: developerProfiles.discordUsername,
+        guildNickname: developerProfiles.guildNickname,
         avatarUrl: developerProfiles.avatarUrl,
+        guildAvatarUrl: developerProfiles.guildAvatarUrl,
       })
       .from(teamMembers)
       .innerJoin(developerProfiles, eq(teamMembers.userId, developerProfiles.id))
@@ -1435,6 +1441,7 @@ export const listMyInvites = os
         inviterUsername: developerProfiles.discordUsername,
         inviterNickname: developerProfiles.guildNickname,
         inviterAvatar: developerProfiles.avatarUrl,
+        inviterGuildAvatar: developerProfiles.guildAvatarUrl,
       })
       .from(teamInvites)
       .innerJoin(teams, eq(teamInvites.teamId, teams.id))

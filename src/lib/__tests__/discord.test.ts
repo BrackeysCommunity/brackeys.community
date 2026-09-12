@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import {
   DiscordBackoffError,
   discordAvatarUrl,
+  discordGuildAvatarUrl,
   fetchDiscordUser,
   fetchGuildMember,
   isDiscordAvatarUrl,
@@ -291,5 +292,21 @@ describe("every Discord call is a read", () => {
       expect(init.method).toBe("GET");
       expect(init.body).toBeUndefined();
     }
+  });
+});
+
+describe("discordGuildAvatarUrl", () => {
+  it("builds the guild-scoped CDN path, gif for animated hashes", () => {
+    expect(discordGuildAvatarUrl("42", "abc", "guild1")).toBe(
+      "https://cdn.discordapp.com/guilds/guild1/users/42/avatars/abc.png",
+    );
+    expect(discordGuildAvatarUrl("42", "a_abc", "guild1")).toBe(
+      "https://cdn.discordapp.com/guilds/guild1/users/42/avatars/a_abc.gif",
+    );
+  });
+
+  it("is null without a hash or a guild — the global avatar is the fallback, never a broken image", () => {
+    expect(discordGuildAvatarUrl("42", null, "guild1")).toBeNull();
+    expect(discordGuildAvatarUrl("42", "abc", "")).toBeNull();
   });
 });

@@ -13,6 +13,7 @@ export const profileIdentityColumns = {
   discordUsername: developerProfiles.discordUsername,
   guildNickname: developerProfiles.guildNickname,
   avatarUrl: developerProfiles.avatarUrl,
+  guildAvatarUrl: developerProfiles.guildAvatarUrl,
   urlStub: profileUrlStubs.stub,
 };
 
@@ -24,6 +25,7 @@ export const jamMemberIdentityColumns = {
   username: developerProfiles.guildNickname,
   discordUsername: developerProfiles.discordUsername,
   avatarUrl: developerProfiles.avatarUrl,
+  guildAvatarUrl: developerProfiles.guildAvatarUrl,
   urlStub: profileUrlStubs.stub,
 };
 

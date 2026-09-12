@@ -19,6 +19,7 @@ import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { captureEvent, resetIdentity } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -36,6 +37,7 @@ import { SettingsSection, SignedOutNotice } from "./SettingsUI";
 export function AccountSection() {
   const { data: session } = authClient.useSession();
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
+  const identity = useMemberIdentity();
   const navigate = useNavigate();
   const user = session?.user;
 
@@ -51,16 +53,22 @@ export function AccountSection() {
   }
 
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
+  const ownName = activeProfile ? identity.name(activeProfile, user.name) : user.name;
 
   return (
     <>
       <SettingsSection index="01" title="Identity">
         <Well className="flex-row flex-wrap items-center gap-4 p-4">
-          <UserAvatar avatarUrl={user.image} username={user.name} size={48} />
+          <UserAvatar
+            avatarUrl={activeProfile?.avatarUrl ?? user.image}
+            guildAvatarUrl={activeProfile?.guildAvatarUrl}
+            username={ownName}
+            size={48}
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex items-center gap-2">
               <Text size="sm" className="truncate font-bold">
-                {user.name ?? "User"}
+                {ownName ?? "User"}
               </Text>
               {activeProfile?.isStaff ? (
                 <Badge size="label" variant="outline">

@@ -1,6 +1,11 @@
 import { normalizeCurrency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
-import { memberName } from "@/lib/member-name";
+import {
+  ANON_VIEWER,
+  memberAvatarUrl,
+  memberDisplayName,
+  type MemberViewer,
+} from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
 
 import type {
@@ -30,6 +35,7 @@ export interface RpcProfile {
     discordUsername: string | null;
     guildNickname: string | null;
     avatarUrl: string | null;
+    guildAvatarUrl: string | null;
     bio: string | null;
     tagline: string | null;
     githubUrl: string | null;
@@ -128,12 +134,15 @@ export interface RpcProfile {
  * come back as `null` / sensible empty defaults so the page's empty
  * states + "—" formatting kick in automatically.
  */
-export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
+export function adaptProfile(
+  rpc: RpcProfile,
+  viewer: MemberViewer = ANON_VIEWER,
+): ProfileViewModel {
   const { profile } = rpc;
   // `||` not `??`, matching `profileSlug`: an empty stub is not a claimed handle.
   const handle = rpc.urlStub || profile.discordUsername || profile.id;
   const slug = profileSlug({ id: profile.id, urlStub: rpc.urlStub });
-  const displayName = memberName(profile, handle).trim();
+  const displayName = memberDisplayName(profile, viewer, handle).trim();
   const tag = profile.tagline?.trim() || null;
   const glyph = (displayName.match(/\S/)?.[0] ?? "?").toUpperCase();
 
@@ -273,7 +282,7 @@ export function adaptProfile(rpc: RpcProfile): ProfileViewModel {
     oneLiner: null,
     bio: profile.bio,
     pinnedNote: null,
-    avatar: { imageUrl: profile.avatarUrl, glyph },
+    avatar: { imageUrl: memberAvatarUrl(profile, viewer), glyph },
     availability: {
       state: profile.availableForWork ? "open" : "closed",
       commitment: profile.availability,

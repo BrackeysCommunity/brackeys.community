@@ -28,7 +28,9 @@ export type NotificationItem = {
   data: Record<string, unknown>;
   readAt: Date | string | null;
   createdAt: Date | string;
-  actorUsername: string | null;
+  /** Already the face this viewer should see — settled server-side, since
+   *  the inbox is a private read that knows who is asking. */
+  actorName: string | null;
   actorAvatarUrl: string | null;
 };
 
@@ -67,7 +69,7 @@ export function renderCopy(n: NotificationItem): {
   line: React.ReactNode;
   href: string | null;
 } {
-  const actor = n.actorUsername ? `@${n.actorUsername}` : "Someone";
+  const actor = n.actorName ?? "Someone";
   const postTitle = (n.data.postTitle as string | undefined) ?? "your post";
   const postId = n.data.postId as number | undefined;
   const href = postId ? `/collab/${postId}` : null;
@@ -462,7 +464,7 @@ export function NotificationRow({
       {n.actorId ? (
         <UserAvatar
           avatarUrl={n.actorAvatarUrl}
-          username={n.actorUsername}
+          username={n.actorName}
           size={isComfortable ? 36 : 28}
         />
       ) : (

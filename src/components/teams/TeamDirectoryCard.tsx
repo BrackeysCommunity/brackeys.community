@@ -5,6 +5,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { isRecruiting } from "@/lib/team-recruiting";
 import { cn } from "@/lib/utils";
 import type { client } from "@/orpc/client";
@@ -162,6 +163,7 @@ export function AvatarStack({
   hidden: number;
   size?: number;
 }) {
+  const identity = useMemberIdentity();
   if (members.length === 0) return null;
   return (
     <span className="flex -space-x-1.5">
@@ -169,7 +171,8 @@ export function AvatarStack({
         <UserAvatar
           key={member.userId}
           avatarUrl={member.avatarUrl}
-          username={member.username}
+          guildAvatarUrl={member.guildAvatarUrl}
+          username={identity.name(member, "Member")}
           shape="round"
           size={size}
           className="ring-2 ring-card"

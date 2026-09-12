@@ -6,6 +6,7 @@ import { account, developerProfiles, profileUrlStubs, user } from "@/db/schema";
 import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import {
   discordAvatarUrl,
+  discordGuildAvatarUrl,
   fetchDiscordUser,
   fetchGuildMember,
   isDiscordAvatarUrl,
@@ -33,6 +34,10 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
   let guildNickname: string | null = null;
   let guildJoinedAt: Date | null = null;
   let guildRoles: string[] | null = null;
+  // Undefined until the member payload is in hand: a failed fetch must not
+  // clear a guild avatar we already stored, but a successful one with no
+  // avatar on it means they removed theirs, and that has to land as null.
+  let guildAvatarUrl: string | null | undefined;
   let latestDiscordAvatarUrl: string | null = null;
   let latestDiscordUsername: string | null = null;
 
@@ -55,6 +60,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
         guildNickname = member.nick;
         guildJoinedAt = new Date(member.joined_at);
         guildRoles = resolveRoleNames(member.roles);
+        guildAvatarUrl = discordGuildAvatarUrl(discordId, member.avatar);
         if (member.user) {
           latestDiscordAvatarUrl = discordAvatarUrl(member.user);
           latestDiscordUsername = member.user.username;
@@ -95,6 +101,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
       discordUsername: userRecord.name,
       avatarUrl,
       guildNickname,
+      guildAvatarUrl: guildAvatarUrl ?? null,
       guildJoinedAt,
       guildRoles,
       createdAt: new Date(),
@@ -107,6 +114,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
         discordUsername: userRecord.name,
         avatarUrl,
         guildNickname: guildNickname ?? undefined,
+        guildAvatarUrl,
         guildJoinedAt: guildJoinedAt ?? undefined,
         guildRoles: guildRoles ?? undefined,
         updatedAt: new Date(),

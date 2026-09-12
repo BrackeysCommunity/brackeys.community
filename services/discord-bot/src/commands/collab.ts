@@ -201,7 +201,7 @@ export async function collabPost(
     ? {
         name: displayName(post.author),
         url: profileUrl(ctx.appUrl, post.author),
-        iconUrl: mediaUrl(ctx.appUrl, post.author.avatarUrl),
+        iconUrl: mediaUrl(ctx.appUrl, post.author.guildAvatarUrl ?? post.author.avatarUrl),
       }
     : undefined;
 

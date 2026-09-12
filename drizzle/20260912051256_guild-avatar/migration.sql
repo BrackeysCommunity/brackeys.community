@@ -1,0 +1,1 @@
+ALTER TABLE "user"."developer_profiles" ADD COLUMN "guild_avatar_url" text;

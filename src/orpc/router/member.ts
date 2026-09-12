@@ -335,6 +335,7 @@ export const listMembers = os
           discordUsername: developerProfiles.discordUsername,
           guildNickname: developerProfiles.guildNickname,
           avatarUrl: developerProfiles.avatarUrl,
+          guildAvatarUrl: developerProfiles.guildAvatarUrl,
           tagline: developerProfiles.tagline,
           lookingFor: developerProfiles.lookingFor,
           availableForWork: developerProfiles.availableForWork,

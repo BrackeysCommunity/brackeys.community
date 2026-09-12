@@ -180,6 +180,8 @@ describe("AppHeader navigation", () => {
       discordId: "123",
       avatarUrl: null,
       guildNickname: null,
+      guildAvatarUrl: null,
+      inGuild: true,
       urlStub: "joshe",
       availableForWork: false,
       isStaff: false,

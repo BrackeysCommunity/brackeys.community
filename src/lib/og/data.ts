@@ -3,7 +3,7 @@ import { itchOriginalUrl } from "@/lib/itch-image";
 import { jamDateLong } from "@/lib/jam-links";
 /** What each kind of page puts on its card. Every card degrades rather than fails. */
 import { safeThemeColor } from "@/lib/jam-palette";
-import { memberName } from "@/lib/member-name";
+import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
 import { censorText } from "@/lib/profanity";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
@@ -191,7 +191,7 @@ export async function collabCard(postId: number): Promise<OgCardInput | null> {
     .slice(0, 3)
     .map((role) => role.name)
     .join(", ");
-  const who = post.team?.name ?? (post.author ? memberName(post.author, null) : null);
+  const who = post.team?.name ?? (post.author ? memberDisplayName(post.author, ANON_VIEWER) : null);
 
   const stats: OgStat[] = [];
   if (post.roles.length > 0) {
@@ -236,7 +236,7 @@ export async function profileCard(handle: string): Promise<OgCardInput | null> {
   return {
     kind: "profile",
     eyebrow: craft || "Member",
-    title: memberName(profile, "A Brackeys member"),
+    title: memberDisplayName(profile, ANON_VIEWER, "A Brackeys member"),
     // Public and cached with no viewer to ask, so the card follows the
     // email rule and censors unconditionally.
     subtitle:

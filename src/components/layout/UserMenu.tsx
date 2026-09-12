@@ -26,6 +26,7 @@ import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { captureEvent, resetIdentity } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
 import { truncateMiddle } from "@/lib/utils";
@@ -47,6 +48,11 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
   const availability = useAvailabilityToggle();
+  // Your own chrome shows the face everyone else in your position sees —
+  // the nickname if you are in the guild, the handle if not. `user.name` is
+  // better-auth's copy of the handle and knows nothing about the guild.
+  const identity = useMemberIdentity();
+  const ownName = activeProfile ? identity.name(activeProfile, user.name) : user.name;
 
   return (
     <DropdownMenu>
@@ -59,8 +65,9 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
         render={<Button variant="outline" size="icon-lg" className="overflow-hidden p-0" />}
       >
         <UserAvatar
-          avatarUrl={user.image}
-          username={user.name}
+          avatarUrl={activeProfile?.avatarUrl ?? user.image}
+          guildAvatarUrl={activeProfile?.guildAvatarUrl}
+          username={ownName}
           // 34px + the button's 1px border each side fills the 36px frame.
           size={34}
           // The button already draws the frame — the avatar's own hairline
@@ -75,7 +82,7 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
               it then labels. */}
         <DropdownMenuGroup>
           <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
-            {truncateMiddle(user.name ?? "USER", 18)}
+            {truncateMiddle(ownName ?? "USER", 18)}
           </DropdownMenuLabel>
           {/* The other half of the board's two doors: posting a gig is a
               wizard, but making yourself hireable was four clicks deep in

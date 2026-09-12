@@ -27,6 +27,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
 import { reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
@@ -809,7 +810,8 @@ function MemberRow({
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(member.title ?? "");
   const [confirming, setConfirming] = useState<RowAction | null>(null);
-  const who = member.username ?? "this member";
+  const identity = useMemberIdentity();
+  const who = identity.name(member, "this member");
 
   const removeBlocker = isOwnerRow
     ? isSoleMember
@@ -893,11 +895,16 @@ function MemberRow({
   return (
     <Well variant="ghost" className="flex-col gap-2 p-2.5">
       <div className="flex items-center gap-3">
-        <UserAvatar avatarUrl={member.avatarUrl} username={member.username} size={28} />
+        <UserAvatar
+          avatarUrl={member.avatarUrl}
+          guildAvatarUrl={member.guildAvatarUrl}
+          username={who}
+          size={28}
+        />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-1.5">
             <Text as="span" size="sm" ellipsis>
-              {member.username ?? "Unknown"}
+              {identity.name(member, "Unknown")}
             </Text>
             {isOwnerRow ? <MicroLabel>OWNER</MicroLabel> : null}
             {member.title ? (

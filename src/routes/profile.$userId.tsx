@@ -8,7 +8,8 @@ import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePag
 import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-overlay";
 import { siteUrl } from "@/env";
 import { authClient } from "@/lib/auth-client";
-import { memberName } from "@/lib/member-name";
+import { useMemberViewer } from "@/lib/hooks/use-member-identity";
+import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { censorText } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
@@ -49,7 +50,9 @@ export const Route = createFileRoute("/profile/$userId")({
       });
     }
     const { profile, roles, skills } = loaderData;
-    const name = memberName(profile, "A Brackeys member");
+    // Server-rendered for whoever asks, so the head follows the anonymous
+    // reading: the handle, never the nickname.
+    const name = memberDisplayName(profile, ANON_VIEWER, "A Brackeys member");
     const craft = roles
       .map((role) => role.name)
       .slice(0, 3)
@@ -142,19 +145,24 @@ function ProfileById() {
     profileQueryKey: queryOptions.queryKey,
   });
 
+  const viewer = useMemberViewer();
+
   if (isLoading) return <ProfilePageSkeleton />;
   if (!data) return <ProfileNotFoundState />;
 
   // The anonymous core, plus what only the owner may see. Until the overlay
   // lands the page renders the public view of your own profile, which is
   // the correct intermediate state rather than a flash of missing sections.
-  const profile = adaptProfile({
-    ...data,
-    isOwner,
-    pendingSkillRequests: overlay?.pendingSkillRequests ?? [],
-    projects: overlay?.projects ?? data.projects,
-    linkedAccounts: overlay?.linkedAccounts ?? data.linkedAccounts,
-  } as unknown as RpcProfile);
+  const profile = adaptProfile(
+    {
+      ...data,
+      isOwner,
+      pendingSkillRequests: overlay?.pendingSkillRequests ?? [],
+      projects: overlay?.projects ?? data.projects,
+      linkedAccounts: overlay?.linkedAccounts ?? data.linkedAccounts,
+    } as unknown as RpcProfile,
+    viewer,
+  );
 
   return <ProfilePage profile={profile} isOwner={isOwner} queryKey={queryOptions.queryKey} />;
 }

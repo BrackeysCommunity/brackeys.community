@@ -59,7 +59,7 @@ function makeItem(overrides: Partial<NotificationItem> = {}): NotificationItem {
     data: { postId: 42, postTitle: "Need a composer" },
     readAt: null,
     createdAt: new Date(),
-    actorUsername: "nova",
+    actorName: "nova",
     actorAvatarUrl: null,
     ...overrides,
   };

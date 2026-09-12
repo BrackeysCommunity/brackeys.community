@@ -14,6 +14,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
 import { reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
@@ -310,6 +311,12 @@ function Field({
 
 function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => void }) {
   const isOwner = team.isOwner;
+  const identity = useMemberIdentity();
+  const inviteeName = (inv: RpcTeam["pendingInvites"][number]) =>
+    identity.name(
+      { discordUsername: inv.inviteeUsername, guildNickname: inv.inviteeNickname },
+      "Unknown",
+    );
   const [search, setSearch] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
 
@@ -362,10 +369,15 @@ function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => vo
       <div className="flex flex-col gap-2">
         {team.members.map((m) => (
           <Well key={m.id} variant="ghost" className="flex-row items-center gap-3 p-2.5">
-            <UserAvatar avatarUrl={m.avatarUrl} username={m.username} size={28} />
+            <UserAvatar
+              avatarUrl={m.avatarUrl}
+              guildAvatarUrl={m.guildAvatarUrl}
+              username={identity.name(m, "Unknown")}
+              size={28}
+            />
             <span className="flex min-w-0 flex-1 items-center gap-1.5">
               <Text as="span" size="sm" ellipsis>
-                {m.username ?? "Unknown"}
+                {identity.name(m, "Unknown")}
               </Text>
               {m.role === "owner" ? <MicroLabel>OWNER</MicroLabel> : null}
             </span>
@@ -456,11 +468,12 @@ function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => vo
               <Well key={inv.id} variant="ghost" className="flex-row items-center gap-3 p-2">
                 <UserAvatar
                   avatarUrl={inv.inviteeAvatar}
-                  username={inv.inviteeUsername}
+                  guildAvatarUrl={inv.inviteeGuildAvatar}
+                  username={inviteeName(inv)}
                   size={24}
                 />
                 <Text as="span" size="sm" ellipsis className="min-w-0 flex-1">
-                  {inv.inviteeUsername ?? "Unknown"}
+                  {inviteeName(inv)}
                 </Text>
                 <Button
                   variant="outline"

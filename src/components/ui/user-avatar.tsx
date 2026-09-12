@@ -1,5 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useHoverPlay } from "@/lib/hooks/use-hover-play";
+import { useMemberViewer } from "@/lib/hooks/use-member-identity";
+import { memberAvatarUrl } from "@/lib/member-name";
 import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +13,10 @@ const AVATAR_TRANSFORM = { width: 128 };
 
 interface UserAvatarProps {
   avatarUrl: string | null | undefined;
+  /** Their server-specific avatar, when the row carries one. Shown in place
+   * of `avatarUrl` only to a viewer who is in the guild — the rule lives in
+   * `memberAvatarUrl`, applied here so no call site has to. */
+  guildAvatarUrl?: string | null;
   /** Drives the initial shown when there is no image, and the alt text. */
   username: string | null | undefined;
   /** Edge length in px. Sizes are per-surface here (6/8/9/…) rather than a
@@ -30,7 +36,8 @@ interface UserAvatarProps {
  * first hover doesn't blink while it loads.
  */
 export function UserAvatar({
-  avatarUrl,
+  avatarUrl: globalAvatarUrl,
+  guildAvatarUrl,
   username,
   size = 32,
   shape = "square",
@@ -40,6 +47,8 @@ export function UserAvatar({
   const square = shape === "square";
   const rounding = square ? "rounded-none" : "rounded-full";
   const initial = (username?.trim()[0] ?? "?").toUpperCase();
+  const viewer = useMemberViewer();
+  const avatarUrl = memberAvatarUrl({ avatarUrl: globalAvatarUrl, guildAvatarUrl }, viewer);
 
   // `animated` is null unless the source animates *and* a still exists;
   // one we can't freeze is left to play. Both copies ride the avatar

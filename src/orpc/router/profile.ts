@@ -73,7 +73,7 @@ import { isOwnedProfileProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { isValidTimezone } from "@/lib/timezones";
 import { discordUsernameToStub, STUB_REGEX } from "@/lib/url-stub";
-import { requireAdmin, requireAuth } from "@/orpc/middleware/auth";
+import { requireAdmin, requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
 import { profileNameSearch } from "@/orpc/profile-projection";
 
 // Imported jam rows (source `itchio-jam`) carry only a jam_id reference;
@@ -577,30 +577,40 @@ export const getMyProfile = os
 
     const roleNames = applyRoleOverrides(profile.discordId, profile.guildRoles ?? []);
 
-    const [skillList, roleList, projects, pendingSkillRequests, urlStub, linkedAccountsList] =
-      await Promise.all([
-        queryUserSkills(userId),
-        queryUserRoles(userId),
-        queryProfileProjects(eq(profileProjects.profileId, userId)),
-        db
-          .select()
-          .from(skillRequests)
-          .where(and(eq(skillRequests.userId, userId), eq(skillRequests.status, "pending"))),
-        db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, userId)).limit(1),
-        db
-          .select({
-            id: linkedAccounts.id,
-            provider: linkedAccounts.provider,
-            providerUserId: linkedAccounts.providerUserId,
-            providerUsername: linkedAccounts.providerUsername,
-            providerAvatarUrl: linkedAccounts.providerAvatarUrl,
-            providerProfileUrl: linkedAccounts.providerProfileUrl,
-            tokenInvalidAt: linkedAccounts.tokenInvalidAt,
-            linkedAt: linkedAccounts.linkedAt,
-          })
-          .from(linkedAccounts)
-          .where(eq(linkedAccounts.profileId, userId)),
-      ]);
+    const [
+      skillList,
+      roleList,
+      projects,
+      pendingSkillRequests,
+      urlStub,
+      linkedAccountsList,
+      inGuild,
+    ] = await Promise.all([
+      queryUserSkills(userId),
+      queryUserRoles(userId),
+      queryProfileProjects(eq(profileProjects.profileId, userId)),
+      db
+        .select()
+        .from(skillRequests)
+        .where(and(eq(skillRequests.userId, userId), eq(skillRequests.status, "pending"))),
+      db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, userId)).limit(1),
+      db
+        .select({
+          id: linkedAccounts.id,
+          provider: linkedAccounts.provider,
+          providerUserId: linkedAccounts.providerUserId,
+          providerUsername: linkedAccounts.providerUsername,
+          providerAvatarUrl: linkedAccounts.providerAvatarUrl,
+          providerProfileUrl: linkedAccounts.providerProfileUrl,
+          tokenInvalidAt: linkedAccounts.tokenInvalidAt,
+          linkedAt: linkedAccounts.linkedAt,
+        })
+        .from(linkedAccounts)
+        .where(eq(linkedAccounts.profileId, userId)),
+      // One cached bot check; it decides which face of every other
+      // member the client renders, so it rides the session read.
+      userIsGuildMember(userId),
+    ]);
 
     return {
       profile,
@@ -616,6 +626,7 @@ export const getMyProfile = os
       // route's own loader re-check server-side.
       isStaff: isStaffMember(roleNames),
       isAdmin: checkIsAdmin(roleNames),
+      inGuild,
     };
   });
 

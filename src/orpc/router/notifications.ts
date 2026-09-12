@@ -10,6 +10,7 @@ import {
   type NotificationType,
 } from "@/db/schema";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { memberAvatarUrl, memberDisplayName } from "@/lib/member-name";
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,
@@ -23,7 +24,7 @@ import {
   isEmailGloballyDisabled,
   setEmailsDisabled as setEmailsDisabledForUser,
 } from "@/lib/unsubscribe";
-import { requireAuth } from "@/orpc/middleware/auth";
+import { requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
 
 const notificationTypeSchema = z.enum(
   NOTIFICATION_TYPES as [NotificationType, ...NotificationType[]],
@@ -72,28 +73,54 @@ export const listNotifications = os
       conditions.push(inArray(notifications.type, TYPES_BY_CATEGORY[input.category]));
     }
 
-    const rows = await db
-      .select({
-        id: notifications.id,
-        type: notifications.type,
-        actorId: notifications.actorId,
-        entityType: notifications.entityType,
-        entityId: notifications.entityId,
-        data: notifications.data,
-        readAt: notifications.readAt,
-        createdAt: notifications.createdAt,
-        actorUsername: developerProfiles.discordUsername,
-        actorAvatarUrl: developerProfiles.avatarUrl,
-      })
-      .from(notifications)
-      .leftJoin(developerProfiles, eq(notifications.actorId, developerProfiles.id))
-      .leftJoin(notificationPreferences, inAppPreferenceJoin)
-      .where(and(...conditions))
-      .orderBy(desc(notifications.id))
-      .limit(input.limit + 1);
+    const [rows, inGuild] = await Promise.all([
+      db
+        .select({
+          id: notifications.id,
+          type: notifications.type,
+          actorId: notifications.actorId,
+          entityType: notifications.entityType,
+          entityId: notifications.entityId,
+          data: notifications.data,
+          readAt: notifications.readAt,
+          createdAt: notifications.createdAt,
+          actorDiscordUsername: developerProfiles.discordUsername,
+          actorGuildNickname: developerProfiles.guildNickname,
+          actorAvatarUrl: developerProfiles.avatarUrl,
+          actorGuildAvatarUrl: developerProfiles.guildAvatarUrl,
+        })
+        .from(notifications)
+        .leftJoin(developerProfiles, eq(notifications.actorId, developerProfiles.id))
+        .leftJoin(notificationPreferences, inAppPreferenceJoin)
+        .where(and(...conditions))
+        .orderBy(desc(notifications.id))
+        .limit(input.limit + 1),
+      userIsGuildMember(context.user.id),
+    ]);
 
     const hasMore = rows.length > input.limit;
-    const items = hasMore ? rows.slice(0, input.limit) : rows;
+    // Private read, so the actor's face is settled here for this viewer:
+    // the same person the team page they link to would show.
+    const viewer = { inGuild };
+    const items = (hasMore ? rows.slice(0, input.limit) : rows).map(
+      ({
+        actorDiscordUsername,
+        actorGuildNickname,
+        actorAvatarUrl,
+        actorGuildAvatarUrl,
+        ...row
+      }) => ({
+        ...row,
+        actorName: memberDisplayName(
+          { discordUsername: actorDiscordUsername, guildNickname: actorGuildNickname },
+          viewer,
+        ),
+        actorAvatarUrl: memberAvatarUrl(
+          { avatarUrl: actorAvatarUrl, guildAvatarUrl: actorGuildAvatarUrl },
+          viewer,
+        ),
+      }),
+    );
     const nextCursor = hasMore ? items[items.length - 1]?.id : null;
 
     return { items, nextCursor };

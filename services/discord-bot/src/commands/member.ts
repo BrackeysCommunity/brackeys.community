@@ -126,11 +126,15 @@ async function renderProfile(
 
   return embedReply(
     {
-      author: { name: displayName(profile), url, iconUrl: mediaUrl(ctx.appUrl, profile.avatarUrl) },
+      author: {
+        name: displayName(profile),
+        url,
+        iconUrl: mediaUrl(ctx.appUrl, profile.guildAvatarUrl ?? profile.avatarUrl),
+      },
       title: profile.tagline ? oneLine(profile.tagline, 200) : undefined,
       url,
       description: profile.bio ? truncate(profile.bio.trim(), BIO_MAX) : undefined,
-      thumbnail: mediaUrl(ctx.appUrl, profile.avatarUrl),
+      thumbnail: mediaUrl(ctx.appUrl, profile.guildAvatarUrl ?? profile.avatarUrl),
       fields,
     },
     { buttons: [{ kind: "link", label: "Open profile", url }], ephemeral },
