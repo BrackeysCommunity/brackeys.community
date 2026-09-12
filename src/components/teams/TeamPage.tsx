@@ -21,6 +21,7 @@ import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
   MarkedText,
   MicroLabel,
@@ -294,6 +295,18 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                   ) : null}
                 </Badge>
               ))}
+              {team.skills.length > MAX_STACK_CHIPS ? (
+                <SimpleTooltip
+                  content={team.skills
+                    .slice(MAX_STACK_CHIPS)
+                    .map((s) => s.name)
+                    .join(", ")}
+                >
+                  <Badge variant="outline" size="label" className="text-muted-foreground uppercase">
+                    +{team.skills.length - MAX_STACK_CHIPS} more
+                  </Badge>
+                </SimpleTooltip>
+              ) : null}
             </div>
           </Section>
         </motion.div>

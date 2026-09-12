@@ -52,6 +52,25 @@ describe("MarkedText tables", () => {
   });
 });
 
+describe("MarkedText headings", () => {
+  it.each([1, 2, 3, 4, 5, 6])("renders a level-%i heading as a real heading element", (depth) => {
+    const { container } = renderMarkdown(`${"#".repeat(depth)} Section\n\nbody`);
+    const heading = container.querySelector(`h${depth}`);
+    expect(heading?.textContent).toBe("Section");
+  });
+
+  it("carries a size rule for every heading level and for rules", () => {
+    const { container } = renderMarkdown("# a\n\n---\n\nb");
+    const root = container.querySelector("[data-slot=marked-text]");
+    const className = root?.className ?? "";
+    for (const level of [1, 2, 3, 4, 5, 6]) {
+      expect(className).toMatch(new RegExp(`\\[&_h${level}\\]:text-`));
+    }
+    expect(className).toContain("[&_hr]:");
+    expect(container.querySelector("hr")).not.toBeNull();
+  });
+});
+
 describe("MarkedText censoring", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => localStorage.clear());

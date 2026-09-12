@@ -1,6 +1,9 @@
+import { useState } from "react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useHoverPlay } from "@/lib/hooks/use-hover-play";
 import { useMemberViewer } from "@/lib/hooks/use-member-identity";
+import { untransformedImageUrl } from "@/lib/itch-image";
 import { memberAvatarUrl } from "@/lib/member-name";
 import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
@@ -58,6 +61,12 @@ export function UserAvatar({
   const animated = (!autoplay ? sources?.animated : null) ?? null;
   const { playing, handlers } = useHoverPlay(animated);
 
+  // A team avatar is an upload, so it rides the transform; when that leg
+  // fails the plain source is tried once (see `TransformedImage`).
+  const [failedStill, setFailedStill] = useState<string | null>(null);
+  const plainStill = untransformedImageUrl(still);
+  const stillSrc = failedStill === still ? plainStill : still;
+
   return (
     <Avatar
       // The primitive draws its own hairline frame via `after:` — no second
@@ -66,8 +75,19 @@ export function UserAvatar({
       style={{ width: size, height: size }}
       {...handlers}
     >
-      {still ? (
-        <AvatarImage src={still} alt="" loading="lazy" decoding="async" className={rounding} />
+      {stillSrc ? (
+        <AvatarImage
+          src={stillSrc}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={rounding}
+          onLoadingStatusChange={(status) => {
+            if (status === "error" && stillSrc === still && plainStill !== still) {
+              setFailedStill(still);
+            }
+          }}
+        />
       ) : null}
       {playing && animated ? (
         <img

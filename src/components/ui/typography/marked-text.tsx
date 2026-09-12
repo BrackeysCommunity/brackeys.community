@@ -182,6 +182,18 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
         data-slot="marked-text"
         className={cn(
           "text-sm/relaxed text-foreground",
+          // Heading scale shared with `Prose`, so a `##` reads the same on a
+          // post, a bio and a legal page. Preflight otherwise resets every
+          // heading to body size, which is what "the markdown is minimal"
+          // looked like.
+          "[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:tracking-tight",
+          "[&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:tracking-tight",
+          "[&_h3]:mt-5 [&_h3]:mb-2 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:tracking-tight",
+          "[&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:text-lg [&_h4]:font-bold [&_h4]:tracking-tight",
+          "[&_h5]:mt-3 [&_h5]:mb-1 [&_h5]:text-base [&_h5]:font-bold",
+          "[&_h6]:mt-3 [&_h6]:mb-1 [&_h6]:text-sm [&_h6]:font-bold",
+          "[&_hr]:my-6 [&_hr]:border-border",
+          "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
           "[&_em]:italic [&_strong]:font-bold",
           "[&_a]:text-accent [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-accent/80",
           "[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-border [&_pre]:bg-card [&_pre]:p-3 [&_pre]:text-xs",

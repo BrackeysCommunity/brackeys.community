@@ -16,12 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
 import { CURRENCY_OPTIONS, type Currency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
-import { itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 import { MAX_COMPENSATION, compensationProblem } from "./shared";
@@ -520,8 +520,9 @@ export function ImageUploader({
         <div className="flex flex-wrap gap-2">
           {existing.map((img) => (
             <div key={`saved-${img.id}`} className="group relative h-16 w-16">
-              <img
-                src={itchImageUrl(img.url, { width: 128 })}
+              <TransformedImage
+                src={img.url}
+                transform={{ width: 128 }}
                 alt={img.alt ?? ""}
                 className="h-full w-full border border-muted/40 object-cover"
               />

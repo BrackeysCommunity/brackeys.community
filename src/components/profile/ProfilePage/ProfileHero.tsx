@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Switch } from "@/components/ui/switch";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { Heading, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
-import { itchImageUrl } from "@/lib/itch-image";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
@@ -150,8 +150,9 @@ function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: 
       )}
     >
       {profile.avatar.imageUrl ? (
-        <img
-          src={itchImageUrl(profile.avatar.imageUrl, { width: 224 })}
+        <TransformedImage
+          src={profile.avatar.imageUrl}
+          transform={{ width: 224 }}
           alt={profile.name}
           decoding="async"
           className="h-full w-full object-cover"

@@ -1,10 +1,11 @@
-import { htmlToPlainText } from "@/lib/html-text";
+/** What each kind of page puts on its card. Every card degrades rather than fails. */
 import { itchOriginalUrl } from "@/lib/itch-image";
 import { jamDateLong } from "@/lib/jam-links";
-/** What each kind of page puts on its card. Every card degrades rather than fails. */
 import { safeThemeColor } from "@/lib/jam-palette";
+import { markdownToPlainText } from "@/lib/markdown-text";
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
+import { ogName } from "@/lib/og/glyphs";
 import { censorText } from "@/lib/profanity";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
 import { isServableImageKey } from "@/lib/stored-image-keys";
@@ -129,7 +130,7 @@ export async function jamCard(slug: string): Promise<OgCardInput | null> {
       : jam.startsAt
         ? `Opens ${jamDateLong(jam.startsAt)}`
         : null;
-  const host = jam.hosts[0]?.name;
+  const host = ogName(jam.hosts[0]?.name);
 
   const stats: OgStat[] = [];
   const entries = jam.entriesCount ?? trackedEntries;
@@ -158,8 +159,9 @@ export async function projectCard(slug: string): Promise<OgCardInput | null> {
   const { project, contributors, jamRecord } = detail;
 
   const credits = contributors
+    .map((contributor) => ogName(contributor.displayName))
+    .filter((name): name is string => name != null)
     .slice(0, 3)
-    .map((contributor) => contributor.displayName)
     .join(", ");
 
   const stats: OgStat[] = [];
@@ -191,7 +193,9 @@ export async function collabCard(postId: number): Promise<OgCardInput | null> {
     .slice(0, 3)
     .map((role) => role.name)
     .join(", ");
-  const who = post.team?.name ?? (post.author ? memberDisplayName(post.author, ANON_VIEWER) : null);
+  const who = ogName(
+    post.team?.name ?? (post.author ? memberDisplayName(post.author, ANON_VIEWER) : null),
+  );
 
   const stats: OgStat[] = [];
   if (post.roles.length > 0) {
@@ -204,7 +208,9 @@ export async function collabCard(postId: number): Promise<OgCardInput | null> {
     kind: "collab",
     eyebrow: "Open role",
     title: post.title,
-    subtitle: censorText(htmlToPlainText(post.description, 150)) ?? null,
+    // The description is markdown, not HTML — the HTML reducer left `##`
+    // in the card art and in the text Discord unfurls beside it.
+    subtitle: censorText(markdownToPlainText(post.description, 150)) ?? null,
     stats,
     art: await fetchArt(
       coverSource(post.images[0]?.url ?? post.project?.imageUrl ?? post.jam?.bannerUrl),
@@ -236,7 +242,7 @@ export async function profileCard(handle: string): Promise<OgCardInput | null> {
   return {
     kind: "profile",
     eyebrow: craft || "Member",
-    title: memberDisplayName(profile, ANON_VIEWER, "A Brackeys member"),
+    title: ogName(memberDisplayName(profile, ANON_VIEWER), "A Brackeys member"),
     // Public and cached with no viewer to ask, so the card follows the
     // email rule and censors unconditionally.
     subtitle:
@@ -364,7 +370,7 @@ export async function teamCard(handle: string): Promise<OgCardInput | null> {
   return {
     kind: "team",
     eyebrow: "Team",
-    title: team.name,
+    title: ogName(team.name, `@${team.slug}`),
     subtitle: censorText(team.tagline) ?? null,
     stats,
     art: await fetchArt(

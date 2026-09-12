@@ -1,5 +1,6 @@
 import { Chonk, type ChonkProps } from "@/components/ui/chonk";
-import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { TransformedImage } from "@/components/ui/transformed-image";
+import { BACKDROP_TRANSFORM } from "@/lib/itch-image";
 import { BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
@@ -103,19 +104,20 @@ export function MediaCardImage({
 }) {
   return (
     <>
-      {/* itchImageUrl is host-gated: it only rewrites img.itch.zone URLs, so
-          the MinIO-presigned collab images that also flow through here pass
-          untouched. */}
-      <img
-        src={itchImageUrl(src, BACKDROP_TRANSFORM)}
+      {/* The transform is host-gated, so the MinIO-presigned collab images
+          that also flow through here pass untouched. */}
+      <TransformedImage
+        src={src}
+        transform={BACKDROP_TRANSFORM}
         alt=""
         aria-hidden
         loading="lazy"
         decoding="async"
         className="absolute inset-0 h-full w-full scale-125 object-cover blur-lg brightness-[0.6] saturate-150"
       />
-      <img
-        src={itchImageUrl(src, { width: 768 })}
+      <TransformedImage
+        src={src}
+        transform={{ width: 768 }}
         alt={alt}
         loading="lazy"
         decoding="async"

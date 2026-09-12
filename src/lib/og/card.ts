@@ -1,3 +1,4 @@
+import { ogText } from "./glyphs";
 import { BG, DIM, FG, MUTED, OG_ACCENT_TEXT, OG_ACCENTS, type OgKind } from "./palette";
 
 export { OG_ACCENTS, OG_ACCENT_TEXT, type OgKind } from "./palette";
@@ -181,9 +182,13 @@ export interface OgCardInput {
   art?: OgArt | null;
 }
 
-/** Cuts on a word boundary when there is one nearby, else mid-word. */
+/**
+ * Cuts on a word boundary when there is one nearby, else mid-word. Every
+ * string the card draws comes through here, so this is also where glyphs
+ * the fonts lack are folded or dropped — see `glyphs.ts`.
+ */
 function clamp(text: string, max: number): string {
-  const clean = text.replace(/\s+/g, " ").trim();
+  const clean = ogText(text);
   if (clean.length <= max) return clean;
   const cut = clean.slice(0, max);
   const space = cut.lastIndexOf(" ");
@@ -366,7 +371,7 @@ function statLine(stats: OgStat[]): OgNode {
       h(
         "div",
         { alignItems: "baseline" },
-        h("div", { fontSize: 21, fontWeight: 700, color: FG }, stat.value),
+        h("div", { fontSize: 21, fontWeight: 700, color: FG }, ogText(stat.value)),
         h(
           "div",
           {
@@ -376,7 +381,7 @@ function statLine(stats: OgStat[]): OgNode {
             color: DIM,
             marginLeft: 9,
           },
-          stat.label.toUpperCase(),
+          ogText(stat.label).toUpperCase(),
         ),
       ),
     );

@@ -7,10 +7,10 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { itchImageUrl } from "@/lib/itch-image";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { type ProfileProjectSubType } from "@/lib/profile-projects";
 import {
@@ -323,8 +323,9 @@ function ProjectCard({
     <Well className="group relative gap-2 p-3 transition-colors hover:bg-card">
       <div className="relative aspect-[16/7] w-full overflow-hidden rounded bg-muted/40">
         {project.bannerUrl ? (
-          <img
-            src={itchImageUrl(project.bannerUrl, { width: 800 })}
+          <TransformedImage
+            src={project.bannerUrl}
+            transform={{ width: 800 }}
             alt=""
             aria-hidden
             loading="lazy"

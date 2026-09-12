@@ -13,10 +13,10 @@ import {
   MediaCardTile,
   mediaCardClasses,
 } from "@/components/ui/media-card";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { Text } from "@/components/ui/typography";
 import { postTypeLabelShort, compensationLabelShort } from "@/lib/collab-vocabulary";
 import { timeAgo } from "@/lib/format-time";
-import { itchImageUrl } from "@/lib/itch-image";
 import { BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
@@ -294,8 +294,9 @@ function CardThumb({ url }: { url: string | null }) {
   return (
     <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded border border-muted/40 bg-muted/30">
       {url ? (
-        <img
-          src={itchImageUrl(url, { width: 112 })}
+        <TransformedImage
+          src={url}
+          transform={{ width: 112 }}
           alt=""
           loading="lazy"
           decoding="async"

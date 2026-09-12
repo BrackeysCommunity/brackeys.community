@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { CollabPostPage } from "@/components/collab/CollabPostPage";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
-import { htmlToPlainText } from "@/lib/html-text";
+import { markdownToPlainText } from "@/lib/markdown-text";
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/collab/$postId")({
       });
     }
     const description =
-      htmlToPlainText(post.description, 180) ??
+      markdownToPlainText(post.description, 180) ??
       `${post.title} — an open collaboration post on the Brackeys community board.`;
     const path = `/collab/${post.id}`;
     const authorName = post.author ? memberDisplayName(post.author, ANON_VIEWER) : null;

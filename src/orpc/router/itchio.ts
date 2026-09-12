@@ -10,7 +10,7 @@ import { describeItchError, fetchCredentialsInfo, validateToken } from "@/lib/it
 import { syncItchIoJamParticipations } from "@/lib/itchio-jam-sync";
 import { ItchIoSyncFetchError, syncItchIoLibrary } from "@/lib/itchio-sync";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { sealToken } from "@/lib/token-crypto";
+import { sealLinkedAccountToken } from "@/orpc/linked-account-tokens";
 import { requireAuth } from "@/orpc/middleware/auth";
 
 export const linkItchIo = os
@@ -43,6 +43,8 @@ export const linkItchIo = os
         return { scopes: "profile:me profile:games", gamesScopeMissing: false };
       });
 
+    const sealed = sealLinkedAccountToken(input.accessToken);
+
     const [linked] = await db
       .insert(linkedAccounts)
       .values({
@@ -53,7 +55,7 @@ export const linkItchIo = os
         providerDisplayName: itchUser.display_name ?? null,
         providerAvatarUrl: itchUser.cover_url ?? null,
         providerProfileUrl: itchUser.url ?? null,
-        accessToken: sealToken(input.accessToken),
+        accessToken: sealed,
         scopes,
         tokenInvalidAt: null,
         providerRaw: itchUser,
@@ -68,7 +70,7 @@ export const linkItchIo = os
           providerDisplayName: itchUser.display_name ?? null,
           providerAvatarUrl: itchUser.cover_url ?? null,
           providerProfileUrl: itchUser.url ?? null,
-          accessToken: sealToken(input.accessToken),
+          accessToken: sealed,
           scopes,
           // Re-linking is the reconnect path: the fresh token clears the flag.
           tokenInvalidAt: null,

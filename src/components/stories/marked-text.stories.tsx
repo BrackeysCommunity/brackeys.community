@@ -213,6 +213,31 @@ This remains true today.`}
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className="font-mono text-sm font-bold text-foreground">Heading Scale</h2>
+        <p className="text-xs text-muted-foreground">
+          All six levels, on the same scale as <code className="text-primary">Prose</code>. A post
+          description, a bio and a legal page render a <code className="text-primary">##</code>{" "}
+          identically.
+        </p>
+        <div className="flex flex-col gap-6 border border-border bg-card p-8">
+          <MarkedText>
+            {`# Heading one
+## Heading two
+### Heading three
+#### Heading four
+##### Heading five
+###### Heading six
+
+Body copy under the smallest heading, for scale.
+
+---
+
+After a rule.`}
+          </MarkedText>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="font-mono text-sm font-bold text-foreground">Full Markdown Document</h2>
         <p className="text-xs text-muted-foreground">
           A complete markdown document showing all supported features together.

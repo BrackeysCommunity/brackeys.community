@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useHoverPlay } from "@/lib/hooks/use-hover-play";
-import { type ItchImageOpts } from "@/lib/itch-image";
+import { type ItchImageOpts, untransformedImageUrl } from "@/lib/itch-image";
 import { hoverPlaySources, isAnimatedImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +45,11 @@ export function HoverPlayImage({
 }: HoverPlayImageProps) {
   const { rendered, still, animated } = hoverPlaySources(src, transform);
   const canvasFrozen = animated == null && isAnimatedImageUrl(src);
+  // The still rides the transform; when that leg fails the plain source is
+  // tried once (see `TransformedImage`) before the caller hears about it.
+  const [failedStill, setFailedStill] = useState<string | null>(null);
+  const plainStill = untransformedImageUrl(still);
+  const stillSrc = failedStill === still ? plainStill : still;
   const playSrc = animated ?? (canvasFrozen ? rendered : null);
   const { playing, armed, play, stop } = useHoverPlay(playSrc);
 
@@ -133,12 +138,18 @@ export function HoverPlayImage({
           ref={(el) => {
             stillRef.current = el;
           }}
-          src={still}
+          src={stillSrc}
           alt={alt}
           aria-hidden={alt === "" || undefined}
           loading={loading}
           decoding="async"
-          onError={onError}
+          onError={() => {
+            if (stillSrc === still && plainStill !== still) {
+              setFailedStill(still);
+              return;
+            }
+            onError?.();
+          }}
           {...selfHandlers}
           className={stillClass}
         />

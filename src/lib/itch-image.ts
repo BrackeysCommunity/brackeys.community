@@ -111,6 +111,26 @@ export function itchImageUrl<T extends string | null | undefined>(
 }
 
 /**
+ * The source behind a `/cdn-cgi/image/<options>/<source>` URL, for the
+ * client-side retry when the transform leg fails outright. `onerror=redirect`
+ * only covers a transform that ran and failed; a zone that refuses the
+ * request (hostname not in the allowed sources, feature off) answers with a
+ * 403 or 404 and nothing to redirect through. Anything not in the
+ * transformed shape passes through unchanged.
+ */
+export function untransformedImageUrl<T extends string | null | undefined>(url: T): T {
+  if (!url) return url;
+  const marker = "/cdn-cgi/image/";
+  const at = url.indexOf(marker);
+  if (at === -1) return url;
+  const rest = url.slice(at + marker.length);
+  const slash = rest.indexOf("/");
+  if (slash === -1) return url;
+  const source = rest.slice(slash + 1);
+  return (/^https?:\/\//i.test(source) ? source : `/${source}`) as T;
+}
+
+/**
  * The `original` master behind an itch derivative URL. Only for a source
  * about to go through {@link itchImageUrl} — the master can be megabytes.
  */

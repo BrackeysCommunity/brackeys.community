@@ -47,6 +47,24 @@ describe("og card renderer", () => {
     expect(pngSize(png)).toEqual({ width: 1200, height: 630 });
   }, 30_000);
 
+  it("folds, drops or strips names the latin subset cannot draw", async () => {
+    // A fullwidth-Latin author, a CJK fragment and an emoji — folded,
+    // dropped and stripped respectively before Satori sees them.
+    const png = await render("glyph-fold", {
+      ...ogCard({
+        kind: "collab",
+        eyebrow: "Open role",
+        title: "Ｃｏｍｐｏｓｅｒ wanted 🎵",
+        subtitle: "About the work — we need a composer for a 山田 jam.",
+        stats: [
+          { value: "Composer", label: "Role" },
+          { value: "ＳＡＬＴＹＳＷＥＥＴ", label: "Posted by" },
+        ],
+      }),
+    });
+    expect(pngSize(png)).toEqual({ width: 1200, height: 630 });
+  }, 30_000);
+
   it("renders without art, stats or a subtitle", async () => {
     const png = await render("bare", {
       ...ogCard({ kind: "site", eyebrow: "Community", title: "Brackeys Community" }),

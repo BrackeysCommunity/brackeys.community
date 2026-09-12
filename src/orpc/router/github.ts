@@ -9,7 +9,8 @@ import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { fetchGitHubUser, fetchContributionCalendar } from "@/lib/github";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { openToken, sealToken } from "@/lib/token-crypto";
+import { openToken } from "@/lib/token-crypto";
+import { sealLinkedAccountToken } from "@/orpc/linked-account-tokens";
 import { requireAuth } from "@/orpc/middleware/auth";
 
 export const syncGitHubLink = os
@@ -40,6 +41,7 @@ export const syncGitHubLink = os
         message: "Failed to fetch GitHub profile. Token may be invalid.",
       });
     });
+    const sealed = sealLinkedAccountToken(ghToken);
 
     const [linked] = await db
       .insert(linkedAccounts)
@@ -50,7 +52,7 @@ export const syncGitHubLink = os
         providerUsername: ghUser.login,
         providerAvatarUrl: ghUser.avatar_url ?? null,
         providerProfileUrl: ghUser.html_url ?? null,
-        accessToken: sealToken(ghToken),
+        accessToken: sealed,
         scopes: "read:user",
         linkedAt: new Date(),
         updatedAt: new Date(),
@@ -62,7 +64,7 @@ export const syncGitHubLink = os
           providerUsername: ghUser.login,
           providerAvatarUrl: ghUser.avatar_url ?? null,
           providerProfileUrl: ghUser.html_url ?? null,
-          accessToken: sealToken(ghToken),
+          accessToken: sealed,
           scopes: "read:user",
           updatedAt: new Date(),
         },
@@ -117,10 +119,18 @@ export const getContributions = os
       return null;
     }
 
-    const calendar = await fetchContributionCalendar(
-      openToken(ghLink.accessToken),
-      ghLink.providerUsername,
-    ).catch(() => null);
+    // A sealed token with no key to open it is a config error, not a
+    // reason to 500 the profile page: the graph is just absent.
+    let token: string;
+    try {
+      token = openToken(ghLink.accessToken);
+    } catch (err) {
+      console.error("[github] cannot open stored token:", err);
+      return null;
+    }
+    const calendar = await fetchContributionCalendar(token, ghLink.providerUsername).catch(
+      () => null,
+    );
 
     return calendar;
   });

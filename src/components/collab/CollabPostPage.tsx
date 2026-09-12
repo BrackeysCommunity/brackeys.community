@@ -25,6 +25,7 @@ import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import {
   Heading,
   Link as TextLink,
@@ -54,7 +55,7 @@ import {
 import { formatCount } from "@/lib/format-count";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
-import { BACKDROP_TRANSFORM, itchImageUrl } from "@/lib/itch-image";
+import { BACKDROP_TRANSFORM } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeLeft, fadeUp } from "@/lib/motion";
@@ -189,9 +190,10 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
             {post.images.length > 1 ? (
               <div className="flex flex-wrap gap-2">
                 {post.images.slice(1).map((img) => (
-                  <img
+                  <TransformedImage
                     key={img.id}
-                    src={itchImageUrl(img.url, { width: 192 })}
+                    src={img.url}
+                    transform={{ width: 192 }}
                     alt={img.alt ?? ""}
                     loading="lazy"
                     decoding="async"

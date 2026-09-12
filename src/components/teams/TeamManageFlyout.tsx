@@ -141,14 +141,14 @@ function IdentitySection({ team, onSaved }: { team: RpcTeam; onSaved: () => void
           onChange={setBio}
           maxLength={5000}
         />
-        <Field label="WEBSITE">
+        <Field label="WEBSITE" hint="optional">
           <Input
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             placeholder="https://…"
           />
         </Field>
-        <Field label="ITCH.IO">
+        <Field label="ITCH.IO" hint="optional — jam entries come from members' itch sync, not this">
           <Input
             value={itchUrl}
             onChange={(e) => setItchUrl(e.target.value)}

@@ -58,7 +58,11 @@ export function htmlToPlainText(
   html: string | null | undefined,
   maxLength = 200,
 ): string | undefined {
-  const text = htmlToParagraphs(html).join(" ");
+  return clipPlainText(htmlToParagraphs(html).join(" "), maxLength);
+}
+
+/** Clip to `maxLength` on a word boundary; `undefined` for empty input. */
+export function clipPlainText(text: string, maxLength: number): string | undefined {
   if (!text) return undefined;
   if (text.length <= maxLength) return text;
   const clipped = text.slice(0, maxLength);

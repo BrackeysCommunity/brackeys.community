@@ -98,6 +98,25 @@ describe("itch-image (gate on)", () => {
   });
 });
 
+describe("untransformedImageUrl", () => {
+  it("recovers the source behind a transformed itch URL and an upload path", async () => {
+    vi.stubEnv("VITE_CF_IMAGES", "1");
+    const { itchImageUrl, untransformedImageUrl } = await loadItchImage();
+    expect(untransformedImageUrl(itchImageUrl(ITCH_URL, { width: 96 }))).toBe(ITCH_URL);
+    expect(untransformedImageUrl(itchImageUrl(UPLOAD_URL, { width: 96 }))).toBe(UPLOAD_URL);
+  });
+
+  it("passes anything else through, including nullish input", async () => {
+    const { untransformedImageUrl } = await loadItchImage();
+    expect(untransformedImageUrl(ITCH_URL)).toBe(ITCH_URL);
+    expect(untransformedImageUrl("https://cdn.discordapp.com/a.png")).toBe(
+      "https://cdn.discordapp.com/a.png",
+    );
+    expect(untransformedImageUrl(null)).toBeNull();
+    expect(untransformedImageUrl(undefined)).toBeUndefined();
+  });
+});
+
 describe("itch-image (gate off)", () => {
   it("passes URLs through and builds no srcSet", async () => {
     const { itchImageUrl, itchImageSrcSet } = await loadItchImage();

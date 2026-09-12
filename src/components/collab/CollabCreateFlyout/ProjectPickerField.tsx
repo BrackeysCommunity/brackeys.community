@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { itchImageUrl } from "@/lib/itch-image";
 import { projectTypeLabel } from "@/lib/project-links";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -175,8 +175,9 @@ function ProjectThumb({ project }: { project: PickableProject | null }) {
   return (
     <span className="block h-10 w-16 shrink-0 overflow-hidden border border-muted/40 bg-muted/30">
       {project?.imageUrl ? (
-        <img
-          src={itchImageUrl(project.imageUrl, { width: 192 })}
+        <TransformedImage
+          src={project.imageUrl}
+          transform={{ width: 192 }}
           alt=""
           loading="lazy"
           className="h-full w-full object-cover"

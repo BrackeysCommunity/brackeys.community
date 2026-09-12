@@ -6,13 +6,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { Heading, Text } from "@/components/ui/typography";
 import type { UploadedImage } from "@/lib/collab-store";
 import type { CollabExperienceLevel, CollabProjectLength } from "@/lib/collab-vocabulary";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useReleaseFocusOnOpen } from "@/lib/hooks/use-release-focus";
-import { itchImageUrl } from "@/lib/itch-image";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { captureEvent } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
@@ -295,8 +295,9 @@ function ArtBody({ post, onDone }: BodyProps) {
           <div className="flex flex-wrap gap-2">
             {post.images.map((img) => (
               <div key={img.id} className="group relative h-16 w-16">
-                <img
-                  src={itchImageUrl(img.url, { width: 128 })}
+                <TransformedImage
+                  src={img.url}
+                  transform={{ width: 128 }}
                   alt={img.alt ?? ""}
                   className="h-full w-full border border-muted/40 object-cover"
                 />
