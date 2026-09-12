@@ -195,7 +195,7 @@ export async function collabPost(
     });
   }
   if (post.createdAt) fields.push({ name: "Posted", value: ts(post.createdAt), inline: true });
-  fields.push({ name: "Responses", value: String(post.responseCount), inline: true });
+  fields.push({ name: "Applications", value: String(post.responseCount), inline: true });
 
   const author = post.author
     ? {

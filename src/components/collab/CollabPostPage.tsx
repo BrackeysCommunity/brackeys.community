@@ -2,8 +2,10 @@ import {
   Cancel01Icon,
   Delete02Icon,
   Flag01Icon,
+  GlobeIcon,
   Login01Icon,
   PencilEdit01Icon,
+  SquareLock02Icon,
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -17,6 +19,7 @@ import { CommentThread } from "@/components/comments/CommentThread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
@@ -135,7 +138,13 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
   return (
     <PageStack className="flex flex-col gap-8 pb-8 selection:bg-primary selection:text-white">
       <motion.div variants={fadeUp}>
-        <PostHero post={post} isClosed={isClosed} closesIn={closesIn} rateDisplay={rateDisplay}>
+        <PostHero
+          post={post}
+          isOwner={isOwner}
+          isClosed={isClosed}
+          closesIn={closesIn}
+          rateDisplay={rateDisplay}
+        >
           <HeroActions
             post={post}
             isOwner={isOwner}
@@ -238,31 +247,32 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
           {isOwner ? (
             <>
               <Section
-                id="responses"
-                title="RESPONSES"
+                id="applications"
+                title="APPLICATIONS"
                 size="sm"
+                badge={<PrivateBadge />}
                 blurb={
                   post.responseCount === 0
-                    ? "Nobody has responded yet."
+                    ? "Nobody has applied yet. Only you see what lands here."
                     : post.responseCount === 1
-                      ? "One person has responded."
-                      : `${post.responseCount} people have responded.`
+                      ? "One person has applied. Only you see what lands here."
+                      : `${post.responseCount} people have applied. Only you see what lands here.`
                 }
               >
                 {responses && responses.length > 0 ? (
                   <CollabPostResponseList responses={responses} post={post} />
                 ) : (
                   <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
-                    <MicroLabel>NO RESPONSES YET</MicroLabel>
+                    <MicroLabel>NO APPLICATIONS YET</MicroLabel>
                     <Text size="xs" variant="muted">
-                      Responses land here as they come in.
+                      Applications land here as they come in.
                     </Text>
                   </Well>
                 )}
               </Section>
             </>
           ) : (
-            <RespondSection
+            <ApplySection
               postId={postId}
               isClosed={isClosed}
               signedIn={currentUserId !== null}
@@ -413,24 +423,26 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
 
       {/* Full-width below the grid, like the profile wall: the column
           above is "the post and how to act on it" (one input — the
-          response form), discussion is page-level commentary underneath.
-          Keeping the two composers apart is deliberate — responses are
-          private applications, comments are public. */}
+          application form), discussion is page-level commentary underneath.
+          Keeping the two composers apart is deliberate — applications are
+          private, comments are public — and each section's badge says
+          which is which, since the two headings otherwise look the same. */}
       <motion.div variants={fadeUp}>
         <CommentThread
           subject={{ type: "collab_post", id: postId }}
           maxLength={2000}
           placeholder="Ask a question or leave a note for the poster…"
-          emptyHint="Questions and discussion land here — applying to the post goes through the response form."
+          emptyHint="Questions and discussion land here, in public — applying to the post goes through the APPLY form above."
           shell={(content, count) => (
             <Section
               id="comments"
               title="COMMENTS"
               size="sm"
+              badge={<PublicBadge />}
               blurb={
                 count === 0
-                  ? "Public discussion about this post."
-                  : `${count} ${count === 1 ? "comment" : "comments"} so far.`
+                  ? "Public discussion about this post — anyone can read it."
+                  : `${count} ${count === 1 ? "comment" : "comments"} so far, in public.`
               }
             >
               {content}
@@ -456,16 +468,18 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
  * The masthead: post art letterboxed the way the jam hero letterboxes
  * banners (user art comes in every aspect ratio), status chip on the art,
  * badges, title, byline, and the numbers that decide whether the post is
- * worth reading — closing countdown, rate, and response count.
+ * worth reading — closing countdown, rate, and application count.
  */
 function PostHero({
   post,
+  isOwner,
   isClosed,
   closesIn,
   rateDisplay,
   children,
 }: {
   post: CollabPostDetailData;
+  isOwner: boolean;
   isClosed: boolean;
   closesIn: { text: string; past: boolean } | null;
   rateDisplay: string;
@@ -537,11 +551,24 @@ function PostHero({
                 {post.title}
               </Heading>
 
-              <MicroLabel as="div" className="uppercase">
-                Posted {timeAgo(post.createdAt)}
-                {post.author ? ` · by @${post.author.discordUsername ?? "unknown"}` : ""}
-                {post.team ? ` · ${post.team.name}` : ""}
-              </MicroLabel>
+              {/* The DM door lives on the byline rather than on a CONTACT
+                  row: new posts no longer carry one, and the author's handle
+                  is public on their profile anyway, so a visitor shouldn't
+                  need the detour through it to find the same button. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <MicroLabel as="div" className="uppercase">
+                  Posted {timeAgo(post.createdAt)}
+                  {post.author ? ` · by @${post.author.discordUsername ?? "unknown"}` : ""}
+                  {post.team ? ` · ${post.team.name}` : ""}
+                </MicroLabel>
+                {post.author && !isOwner ? (
+                  <DiscordMessageButton
+                    discordId={post.author.discordId}
+                    discordUsername={post.author.discordUsername}
+                    size="xs"
+                  />
+                ) : null}
+              </div>
             </div>
 
             {post.compensationType || rateDisplay || post.responseCount > 0 ? (
@@ -554,7 +581,7 @@ function PostHero({
                 ) : null}
                 {rateDisplay ? <HeroStat label="RATE" value={rateDisplay} /> : null}
                 {post.responseCount > 0 ? (
-                  <HeroStat label="RESPONSES" value={formatCount(post.responseCount)} />
+                  <HeroStat label="APPLICATIONS" value={formatCount(post.responseCount)} />
                 ) : null}
               </div>
             ) : null}
@@ -621,7 +648,7 @@ function HeroStat({
 }
 
 /**
- * The masthead's action row: one primary path for a visitor (respond, or
+ * The masthead's action row: one primary path for a visitor (apply, or
  * sign in to), the management set for the owner, and report tucked at the
  * trailing edge — the same "one button that matters" shape as the
  * project hero.
@@ -652,9 +679,9 @@ function HeroActions({
             size="sm"
             className="tracking-widest"
             nativeButton={false}
-            render={<a href="#respond" aria-label="Jump to the response form" />}
+            render={<a href="#apply" aria-label="Jump to the application form" />}
           >
-            RESPOND TO THIS POST
+            APPLY TO THIS POST
           </Button>
         ) : (
           <Button
@@ -663,7 +690,7 @@ function HeroActions({
             onClick={() => signInWithDiscord("collab_post_respond")}
           >
             <HugeiconsIcon icon={Login01Icon} size={12} />
-            SIGN IN TO RESPOND
+            SIGN IN TO APPLY
           </Button>
         )
       ) : null}
@@ -826,15 +853,33 @@ function SpecRow({ label, value }: { label: string; value: ReactNode }) {
 }
 
 /**
- * A destination tile, same grammar as the project page's MADE BY tiles:
- * emboss means clickable, deboss stays for readouts.
+ * The marks that tell the two composers apart at a glance: applications
+ * are between the applicant and the poster, comments are for everyone.
  */
+function PrivateBadge() {
+  return (
+    <Badge variant="outline" size="label">
+      <HugeiconsIcon icon={SquareLock02Icon} />
+      PRIVATE
+    </Badge>
+  );
+}
+
+function PublicBadge() {
+  return (
+    <Badge variant="outline" size="label">
+      <HugeiconsIcon icon={GlobeIcon} />
+      PUBLIC
+    </Badge>
+  );
+}
+
 /**
- * The visitor's half of the responses story. Closed posts say so instead
- * of hiding the section — a shared link shouldn't dead-end silently — and
- * signed-out visitors get the ask, not a blank.
+ * The visitor's half of the applications story. Closed posts say so
+ * instead of hiding the section — a shared link shouldn't dead-end
+ * silently — and signed-out visitors get the ask, not a blank.
  */
-function RespondSection({
+function ApplySection({
   postId,
   isClosed,
   signedIn,
@@ -852,10 +897,11 @@ function RespondSection({
   if (viewerResponse) {
     return (
       <Section
-        id="respond"
-        title="RESPOND"
+        id="apply"
+        title="APPLY"
         size="sm"
-        blurb="You've already responded — here's what you sent."
+        badge={<PrivateBadge />}
+        blurb="You've already applied — here's what you sent. Only the poster sees it."
       >
         <Well className="p-5 backdrop-blur-none">
           <ViewerResponseCard
@@ -871,13 +917,14 @@ function RespondSection({
 
   return (
     <Section
-      id="respond"
-      title="RESPOND"
+      id="apply"
+      title="APPLY"
       size="sm"
+      badge={<PrivateBadge />}
       blurb={
         isClosed
-          ? "This post is no longer taking responses."
-          : "Your reply goes straight to the poster."
+          ? "This post is no longer taking applications."
+          : "Your application goes straight to the poster — nobody else sees it."
       }
     >
       {isClosed ? (
@@ -894,7 +941,7 @@ function RespondSection({
       ) : (
         <Well variant="ghost" className="items-center gap-3 p-8 backdrop-blur-none">
           <Text size="sm" variant="muted">
-            Sign in with Discord to respond to this post.
+            Sign in with Discord to apply to this post.
           </Text>
           <Button
             size="sm"
@@ -902,7 +949,7 @@ function RespondSection({
             onClick={() => signInWithDiscord("collab_post_respond")}
           >
             <HugeiconsIcon icon={Login01Icon} size={12} />
-            SIGN IN TO RESPOND
+            SIGN IN TO APPLY
           </Button>
         </Well>
       )}

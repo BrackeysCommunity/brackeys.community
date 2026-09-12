@@ -195,7 +195,7 @@ export function StepReview() {
             <Text size="sm">{v.isIndividual ? "Just you — solo post" : teamName}</Text>
             <Text size="xs" variant="muted" className="tracking-widest uppercase">
               {v.isIndividual
-                ? "Responses come straight to you"
+                ? "Applications come straight to you"
                 : team
                   ? "Post appears on the team page"
                   : "Team page created with this post"}

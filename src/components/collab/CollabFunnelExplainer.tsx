@@ -34,7 +34,7 @@ function writeDismissed(key: string) {
  */
 const QUICK_POST_STEPS = [
   "Pick the roles, add a title and a description, publish. That's the post.",
-  "No team needed — accept a response and start one then, or use one you have.",
+  "No team needed — accept an application and start one then, or use one you have.",
   "Got a game page here? Link it from the post afterwards.",
 ];
 

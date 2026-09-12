@@ -493,8 +493,8 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                             title="Close this post?"
                             message={
                               row.entries.length > 1
-                                ? `The post stops accepting responses and its author is notified. This resolves all ${row.entries.length} reports on it.`
-                                : "The post stops accepting responses and its author is notified. This resolves the report."
+                                ? `The post stops accepting applications and its author is notified. This resolves all ${row.entries.length} reports on it.`
+                                : "The post stops accepting applications and its author is notified. This resolves the report."
                             }
                             confirmText="Close post"
                             variant="destructive"

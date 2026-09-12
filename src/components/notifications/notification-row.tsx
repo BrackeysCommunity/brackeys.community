@@ -99,7 +99,7 @@ export function renderCopy(n: NotificationItem): {
       return {
         line: (
           <>
-            {actor} responded to <em className="font-medium not-italic">{postTitle}</em>
+            {actor} applied to <em className="font-medium not-italic">{postTitle}</em>
           </>
         ),
         href,
@@ -108,7 +108,7 @@ export function renderCopy(n: NotificationItem): {
       return {
         line: (
           <>
-            {actor} accepted your response on{" "}
+            {actor} accepted your application on{" "}
             <em className="font-medium not-italic">{postTitle}</em>
           </>
         ),
@@ -118,7 +118,7 @@ export function renderCopy(n: NotificationItem): {
       return {
         line: (
           <>
-            {actor} declined your response on{" "}
+            {actor} declined your application on{" "}
             <em className="font-medium not-italic">{postTitle}</em>
           </>
         ),
@@ -128,7 +128,7 @@ export function renderCopy(n: NotificationItem): {
       return {
         line: (
           <>
-            {actor} withdrew their response to{" "}
+            {actor} withdrew their application to{" "}
             <em className="font-medium not-italic">{postTitle}</em>
           </>
         ),

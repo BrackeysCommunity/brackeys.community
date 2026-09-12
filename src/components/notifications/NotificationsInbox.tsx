@@ -26,12 +26,12 @@ export type InboxFilter = "all" | "unread" | NotificationCategory;
 const EMPTY_COPY: Record<InboxFilter, { title: string; hint: string }> = {
   all: {
     title: "No notifications yet.",
-    hint: "Responses, invites, jam deadlines and staff decisions land here.",
+    hint: "Applications, invites, jam deadlines and staff decisions land here.",
   },
   unread: { title: "Nothing unread.", hint: "Everything here has been seen." },
   collab: {
     title: "Nothing from the collab board.",
-    hint: "Responses to your posts show up here.",
+    hint: "Applications to your posts show up here.",
   },
   teams: { title: "Nothing from your teams.", hint: "Invites and roster changes show up here." },
   jams: { title: "Nothing from your jams.", hint: "Watch a jam to hear about its deadlines." },

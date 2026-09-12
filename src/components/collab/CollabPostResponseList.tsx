@@ -69,7 +69,7 @@ const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning"> = {
 };
 
 /**
- * Owner-only list of responses to a post — each row is a `Well`
+ * Owner-only list of applications to a post — each row is a `Well`
  * (debossed) carrying the responder's avatar + handle, message, and the
  * accept/decline actions for pending entries.
  *
@@ -102,7 +102,7 @@ export function CollabPostResponseList({ responses, post }: CollabPostResponseLi
     },
     onError: (err) => {
       reportMutationError(err, "collab.response_status");
-      setStatusError(errorMessage(err, "Could not update the response."));
+      setStatusError(errorMessage(err, "Could not update the application."));
     },
   });
 
@@ -125,7 +125,7 @@ export function CollabPostResponseList({ responses, post }: CollabPostResponseLi
     },
     onError: (err) => {
       reportMutationError(err, "collab.accept_and_invite");
-      setStatusError(errorMessage(err, "Could not accept the response."));
+      setStatusError(errorMessage(err, "Could not accept the application."));
     },
   });
 

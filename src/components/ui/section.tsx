@@ -11,6 +11,10 @@ interface SectionProps {
   id?: string;
   title: string;
   blurb?: string;
+  /** Sits beside the heading — a `Badge size="label"` that qualifies the
+   * title (PRIVATE, PUBLIC) where two sections would otherwise read as the
+   * same kind of thing. */
+  badge?: ReactNode;
   /** Trailing slot on the heading line — the section's "go to the real
    * page" control. Use {@link SectionAction}. */
   action?: ReactNode;
@@ -30,7 +34,15 @@ interface SectionProps {
  * height the section is given — which is how two sections sharing a grid
  * row end their panels on the same line.
  */
-export function Section({ id, title, blurb, action, size = "default", children }: SectionProps) {
+export function Section({
+  id,
+  title,
+  blurb,
+  badge,
+  action,
+  size = "default",
+  children,
+}: SectionProps) {
   // A group divider rather than a page section: the rule runs through the
   // header line instead of a heading sitting above the content, so a dozen
   // of them stack inside one section without reading as a dozen sections.
@@ -39,6 +51,7 @@ export function Section({ id, title, blurb, action, size = "default", children }
       <section id={id} className="flex min-w-0 scroll-mt-20 flex-col gap-2">
         <header className="flex min-h-6 items-center gap-2">
           <MicroLabel as="span">{title.toUpperCase()}</MicroLabel>
+          {badge}
           <span aria-hidden className="h-px flex-1 bg-border/60" />
           {action}
         </header>
@@ -61,12 +74,15 @@ export function Section({ id, title, blurb, action, size = "default", children }
     <section id={id} className="flex min-w-0 scroll-mt-20 flex-col gap-3">
       <header className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between gap-4">
-          <Heading
-            as="h2"
-            className={size === "sm" ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"}
-          >
-            {title}
-          </Heading>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <Heading
+              as="h2"
+              className={size === "sm" ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"}
+            >
+              {title}
+            </Heading>
+            {badge}
+          </div>
           {action}
         </div>
         {blurb && (

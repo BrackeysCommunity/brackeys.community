@@ -42,13 +42,13 @@ export function renderNotificationText(input: {
 
   switch (input.type) {
     case "collab_response_received":
-      return { headline: `${actor} responded to "${postTitle}"`, href };
+      return { headline: `${actor} applied to "${postTitle}"`, href };
     case "collab_response_accepted":
-      return { headline: `${actor} accepted your response on "${postTitle}"`, href };
+      return { headline: `${actor} accepted your application on "${postTitle}"`, href };
     case "collab_response_declined":
-      return { headline: `${actor} declined your response on "${postTitle}"`, href };
+      return { headline: `${actor} declined your application on "${postTitle}"`, href };
     case "collab_response_withdrawn":
-      return { headline: `${actor} withdrew their response to "${postTitle}"`, href };
+      return { headline: `${actor} withdrew their application to "${postTitle}"`, href };
     case "collab_post_featured":
       return { headline: `Your post "${postTitle}" was featured`, href };
     case "collab_post_closed_by_staff":
@@ -176,9 +176,9 @@ export function renderNotificationText(input: {
 }
 
 export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
-  collab_response_received: "Collab — someone responded to your post",
-  collab_response_accepted: "Collab — your response was accepted",
-  collab_response_declined: "Collab — your response was declined",
+  collab_response_received: "Collab — someone applied to your post",
+  collab_response_accepted: "Collab — your application was accepted",
+  collab_response_declined: "Collab — your application was declined",
   collab_response_withdrawn: "Collab — an applicant withdrew",
   collab_post_featured: "Collab — your post was featured",
   collab_post_closed_by_staff: "Collab — staff closed your post",
@@ -270,7 +270,7 @@ export const NOTIFICATION_DEFAULTS: Record<
   collab_post_expired: { inApp: true, email: false, digest: false },
   team_invite_received: { inApp: true, email: true, digest: false },
   team_invite_accepted: { inApp: true, email: true, digest: false },
-  // Low-signal outcomes: in-app only, same reasoning as declined responses.
+  // Low-signal outcomes: in-app only, same reasoning as declined applications.
   team_invite_declined: { inApp: true, email: false, digest: false },
   team_member_removed: { inApp: true, email: false, digest: false },
   team_archive_warning: { inApp: true, email: true, digest: false },

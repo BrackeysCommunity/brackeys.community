@@ -46,8 +46,8 @@ export function NotificationsHero({
             {unread > 0 ? "Someone needs you" : "You're all caught up"}
           </Heading>
           <Text size="sm" variant="muted">
-            Responses to your posts, team invites, jam deadlines, and staff decisions — everything
-            the site did on your behalf while you were away.
+            Applications to your posts, team invites, jam deadlines, and staff decisions —
+            everything the site did on your behalf while you were away.
           </Text>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <Button

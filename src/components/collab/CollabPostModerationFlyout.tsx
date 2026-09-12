@@ -131,7 +131,7 @@ function StatusSection({ post, onChanged }: { post: CollabPostDetailData; onChan
   return (
     <section className="flex flex-col gap-3">
       <Text size="xs" variant="muted" className="tracking-widest uppercase">
-        {isClosed ? "Currently closed — not taking responses." : "Currently open — recruiting."}
+        {isClosed ? "Currently closed — not taking applications." : "Currently open — recruiting."}
       </Text>
       {isClosed ? (
         <div>
@@ -201,7 +201,7 @@ function DeleteSection({ post, onGone }: { post: CollabPostDetailData; onGone: (
             <Confirm
               variant="destructive"
               title="Delete this post permanently?"
-              message="Responses go with it. This can't be undone."
+              message="Applications go with it. This can't be undone."
               confirmText="DELETE POST"
               onConfirm={async () => {
                 await mutation.mutateAsync();

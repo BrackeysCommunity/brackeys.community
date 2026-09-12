@@ -44,7 +44,7 @@ const RESPONSE_STATUS_BADGE: Record<
 /**
  * What a returning responder sees in place of the blank form: the
  * application they already sent, where it stands, and — while it's still
- * pending — the controls to revise or withdraw it. Reviewed responses
+ * pending — the controls to revise or withdraw it. Reviewed applications
  * are frozen readouts (the server enforces the same rule).
  */
 export function ViewerResponseCard({
@@ -108,7 +108,7 @@ export function ViewerResponseCard({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <MicroLabel as="span">YOU RESPONDED</MicroLabel>
+        <MicroLabel as="span">YOU APPLIED</MicroLabel>
         <Badge variant={status.variant} size="label">
           {status.label}
         </Badge>
@@ -215,7 +215,7 @@ export function ViewerResponseCard({
               </Button>
               <Confirm
                 variant="destructive"
-                title="Withdraw your response?"
+                title="Withdraw your application?"
                 message="The poster won't see it anymore."
                 confirmText="WITHDRAW"
                 onConfirm={() => withdraw.mutate()}
@@ -287,7 +287,7 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
   if (success) {
     return (
       <Text size="xs" variant="success" className="tracking-widest uppercase">
-        Response sent.
+        Application sent.
       </Text>
     );
   }
@@ -319,7 +319,7 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
         className="tracking-widest"
       >
         <HugeiconsIcon icon={Sent02Icon} size={12} />
-        {respondMutation.isPending ? "SENDING…" : "SEND RESPONSE"}
+        {respondMutation.isPending ? "SENDING…" : "SEND APPLICATION"}
       </Button>
     </div>
   );

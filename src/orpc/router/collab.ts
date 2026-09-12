@@ -978,6 +978,10 @@ export const getPost = os
       .select({
         id: developerProfiles.id,
         ...profileIdentityColumns,
+        // Public already: `getProfile` hands the same id to anyone who opens
+        // the author's page, so the MESSAGE button on the byline is one
+        // click shorter, not one secret looser.
+        discordId: developerProfiles.discordId,
         tagline: developerProfiles.tagline,
         bio: developerProfiles.bio,
         githubUrl: developerProfiles.githubUrl,
@@ -1632,7 +1636,7 @@ export const featurePost = os
 
 // ── Responses ────────────────────────────────────────────────────────────────
 
-const ALREADY_RESPONDED = "You've already responded to this post.";
+const ALREADY_RESPONDED = "You've already applied to this post.";
 
 /** Postgres `unique_violation`. */
 function isUniqueViolation(err: unknown): boolean {
@@ -1655,24 +1659,24 @@ export const respondToPost = os
     // sweep's `expired` both mean "no longer taking responses".
     if (post.status !== "recruiting") {
       throw new ORPCError("BAD_REQUEST", {
-        message: "This post is no longer accepting responses.",
+        message: "This post is no longer accepting applications.",
       });
     }
 
     if (post.authorId === context.user.id) {
-      throw new ORPCError("BAD_REQUEST", { message: "You cannot respond to your own post." });
+      throw new ORPCError("BAD_REQUEST", { message: "You can't apply to your own post." });
     }
 
     // Neutral on purpose — never reveal a block or its direction.
     if (await blockPairExists(post.authorId, context.user.id)) {
-      throw new ORPCError("FORBIDDEN", { message: "You can't respond to this post." });
+      throw new ORPCError("FORBIDDEN", { message: "You can't apply to this post." });
     }
 
     await assertRateLimit(
       "collab-response",
       context.user.id,
       30,
-      "You've sent a lot of responses today — try again tomorrow.",
+      "You've sent a lot of applications today — try again tomorrow.",
       86400,
     );
 
@@ -1756,11 +1760,11 @@ export const updateMyResponse = os
       .limit(1);
 
     if (!response) {
-      throw new ORPCError("NOT_FOUND", { message: "You haven't responded to this post." });
+      throw new ORPCError("NOT_FOUND", { message: "You haven't applied to this post." });
     }
     if (response.status !== "pending") {
       throw new ORPCError("BAD_REQUEST", {
-        message: "This response has already been reviewed and can't be edited.",
+        message: "This application has already been reviewed and can't be edited.",
       });
     }
 
@@ -1792,11 +1796,11 @@ export const withdrawResponse = os
       .limit(1);
 
     if (!response) {
-      throw new ORPCError("NOT_FOUND", { message: "You haven't responded to this post." });
+      throw new ORPCError("NOT_FOUND", { message: "You haven't applied to this post." });
     }
     if (response.status !== "pending") {
       throw new ORPCError("BAD_REQUEST", {
-        message: "This response has already been reviewed and can't be withdrawn.",
+        message: "This application has already been reviewed and can't be withdrawn.",
       });
     }
 
@@ -1838,7 +1842,7 @@ export const listResponses = os
     await loadOwnedPost(
       input.postId,
       { userId: context.user.id, isStaff: context.isStaff },
-      "Only the post owner or staff can view responses.",
+      "Only the post owner or staff can view applications.",
     );
 
     const rows = await db
@@ -2044,7 +2048,7 @@ export const updateResponseStatus = os
       .limit(1);
 
     if (!response) {
-      throw new ORPCError("NOT_FOUND", { message: "Response not found." });
+      throw new ORPCError("NOT_FOUND", { message: "Application not found." });
     }
 
     const [post] = await db
@@ -2056,7 +2060,7 @@ export const updateResponseStatus = os
     const isOwner = post?.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
       throw new ORPCError("FORBIDDEN", {
-        message: "Only the post owner or staff can manage responses.",
+        message: "Only the post owner or staff can manage applications.",
       });
     }
 
@@ -2125,13 +2129,13 @@ export const acceptAndInvite = os
       .where(eq(collabResponses.id, input.responseId))
       .limit(1);
     if (!response) {
-      throw new ORPCError("NOT_FOUND", { message: "Response not found." });
+      throw new ORPCError("NOT_FOUND", { message: "Application not found." });
     }
     const post = await loadPost(response.postId);
     const isOwner = post.authorId === context.user.id;
     if (!isOwner && !context.isStaff) {
       throw new ORPCError("FORBIDDEN", {
-        message: "Only the post owner or staff can manage responses.",
+        message: "Only the post owner or staff can manage applications.",
       });
     }
 

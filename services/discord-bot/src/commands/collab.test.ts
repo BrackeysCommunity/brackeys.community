@@ -189,7 +189,7 @@ describe("/collab post", () => {
       "Skills",
       "Jam",
       "Posted",
-      "Responses",
+      "Applications",
     ]);
     expect(embed.fields?.find((f) => f.name === "Jam")?.value).toBe(
       "[Brackeys Game Jam 2026.1](https://brackeys.test/jams/brackeys-14)",

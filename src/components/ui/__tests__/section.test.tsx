@@ -16,6 +16,20 @@ describe("Section", () => {
     expect(screen.getByRole("heading", { name: "Recent projects" })).toBeDefined();
   });
 
+  it("sets the badge beside the heading without folding it into the heading's name", () => {
+    render(
+      <Section title="Apply" badge={<span>PRIVATE</span>}>
+        <p>body</p>
+      </Section>,
+    );
+
+    // Two sections with identical headings are told apart by the badge, so
+    // it has to be visible — but an assistive-tech reader should still hear
+    // the section as "Apply", not "Apply PRIVATE".
+    expect(screen.getByRole("heading", { name: "Apply" })).toBeDefined();
+    expect(screen.getByText("PRIVATE")).toBeDefined();
+  });
+
   it("renders the mini variant as a micro-label divider, not a heading", () => {
     render(
       <Section size="mini" title="Design" action={<button type="button">Add</button>}>

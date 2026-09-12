@@ -10,6 +10,28 @@ import {
   TYPES_BY_CATEGORY,
 } from "@/lib/notification-copy";
 
+describe("collab notification copy", () => {
+  // The bell, the email subject and the post page all have to call the
+  // private thing by one name: the post page says APPLY, so the loop that
+  // starts there says "applied". The event keys and the notification types
+  // keep their `response` spelling — renaming those would orphan every
+  // saved insight and stored row.
+  it.each([
+    ["collab_response_received", "@ada applied to"],
+    ["collab_response_accepted", "accepted your application"],
+    ["collab_response_declined", "declined your application"],
+    ["collab_response_withdrawn", "withdrew their application"],
+  ] as const)("%s reads as an application, never a response", (type, expected) => {
+    const { headline } = renderNotificationText({
+      type,
+      actorUsername: "ada",
+      data: { postId: 7, postTitle: "Pixel artist wanted" },
+    });
+    expect(headline).toContain(expected);
+    expect(headline).not.toMatch(/respon/i);
+  });
+});
+
 describe("moderation notification copy", () => {
   it("names both sides when staff renamed the skill", () => {
     const { headline } = renderNotificationText({
