@@ -6,11 +6,13 @@ import {
   count,
   desc,
   eq,
+  exists,
   ilike,
   inArray,
   isNotNull,
   isNull,
   ne,
+  not,
   or,
   sql,
 } from "drizzle-orm";
@@ -32,7 +34,10 @@ import {
   itchJams,
   moderationActions,
   moderationProposals,
+  PROJECT_TYPES,
+  profileProjects,
   profileUrlStubs,
+  projectContributors,
   projects,
   session,
   skillRequests,
@@ -66,6 +71,7 @@ import {
   removeProfileProjectImageFromStorage,
   storedImageStore,
 } from "@/lib/profile-project-image-storage";
+import { fuzzyMatch, fuzzyRank } from "@/lib/sql-fuzzy";
 import { escapeLike, likeContains } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
@@ -1789,6 +1795,122 @@ export const listTeamsAdmin = os
         ...row,
         owner: ownerByTeam.get(row.id) ? (profiles.get(ownerByTeam.get(row.id)!) ?? null) : null,
         openReportCount: reportsByTeam.get(row.id) ?? 0,
+      })),
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
+  });
+
+/**
+ * The project directory staff never had: every canonical row, published or
+ * not, with an ORPHANS filter for the ones nothing points at any more.
+ *
+ * "Anchored" here is `projectHasAnchors` (`lib/projects.ts`) as one query
+ * rather than per row: a scrape-minted row is its own anchor; otherwise a
+ * profile or team placement is. A manual row with neither is what a deleted
+ * team leaves behind, and what the lifecycle sweep collects after its grace
+ * window — this is where staff see it before then.
+ */
+export const PROJECT_ADMIN_SORTS = ["newest", "oldest", "updated", "title", "credits"] as const;
+
+export const listProjectsAdmin = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      /** Fuzzy: containment or trigram similarity on title and handle. */
+      search: z.string().trim().max(100).optional(),
+      orphansOnly: z.boolean().default(false),
+      source: z.enum(["all", "itchio", "manual"]).default("all"),
+      visibility: z.enum(["all", "published", "unpublished"]).default("all"),
+      type: z.enum(["all", ...PROJECT_TYPES]).default("all"),
+      creator: z.enum(["all", "member", "none"]).default("all"),
+      sort: z.enum(PROJECT_ADMIN_SORTS).default("newest"),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(10),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const anchored = or(
+      and(eq(projects.source, "itchio"), isNotNull(projects.sourceGameId)),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(profileProjects)
+          .where(eq(profileProjects.projectId, projects.id)),
+      ),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(teamProjects)
+          .where(eq(teamProjects.projectId, projects.id)),
+      ),
+    )!;
+    const credits = db.$count(projectContributors, eq(projectContributors.projectId, projects.id));
+    const term = input.search || null;
+
+    const filters = [
+      term ? or(fuzzyMatch(projects.title, term), fuzzyMatch(projects.slug, term)) : undefined,
+      input.orphansOnly ? not(anchored) : undefined,
+      input.source === "all" ? undefined : eq(projects.source, input.source),
+      input.visibility === "all"
+        ? undefined
+        : eq(projects.published, input.visibility === "published"),
+      input.type === "all" ? undefined : eq(projects.type, input.type),
+      input.creator === "all"
+        ? undefined
+        : input.creator === "member"
+          ? isNotNull(projects.createdBy)
+          : isNull(projects.createdBy),
+    ].filter((f) => f != null);
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const sortOrder = {
+      newest: [desc(projects.createdAt)],
+      oldest: [asc(projects.createdAt)],
+      updated: [desc(projects.updatedAt)],
+      title: [asc(sql`lower(${projects.title})`)],
+      credits: [desc(credits), desc(projects.createdAt)],
+    }[input.sort];
+    // A search ranks by match quality first; the chosen sort breaks ties.
+    const orderBy = term
+      ? [desc(fuzzyRank([projects.title, projects.slug], term)), ...sortOrder]
+      : sortOrder;
+
+    const [[totals], rows] = await Promise.all([
+      db.select({ total: count() }).from(projects).where(where),
+      db
+        .select({
+          id: projects.id,
+          slug: projects.slug,
+          title: projects.title,
+          type: projects.type,
+          source: projects.source,
+          sourceGameId: projects.sourceGameId,
+          published: projects.published,
+          createdBy: projects.createdBy,
+          createdAt: projects.createdAt,
+          updatedAt: projects.updatedAt,
+          anchored: sql<boolean>`${anchored}`.mapWith(Boolean),
+          contributorCount: credits,
+        })
+        .from(projects)
+        .where(where)
+        .orderBy(...orderBy)
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+    ]);
+
+    const profiles = await profilesByIds(
+      rows.map((row) => row.createdBy).filter((id): id is string => id != null),
+    );
+
+    const total = totals?.total ?? 0;
+    return {
+      items: rows.map(({ createdBy, ...row }) => ({
+        ...row,
+        creator: createdBy ? (profiles.get(createdBy) ?? null) : null,
       })),
       total,
       page: input.page,

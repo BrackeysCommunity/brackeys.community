@@ -24,6 +24,11 @@ export const MOD_POWERS = {
   team_invite: "direct", // consent-gated by acceptance
   team_hide: "direct", // urgent + reversible
   team_delete: "admin", // never proposable
+  // A project's visibility is the same lever as a team's hide: reversible,
+  // and the row stays for staff to look at. Deleting one is a hard delete
+  // with no evidence left but the log row, so it stays with admins.
+  project_unpublish: "direct",
+  project_delete: "admin",
   profile_update: "propose",
   profile_stub_reset: "propose",
 } as const;

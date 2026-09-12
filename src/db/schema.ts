@@ -359,6 +359,8 @@ export type NotificationType =
   | "team_hidden_by_staff"
   | "team_unhidden_by_staff"
   | "team_deleted_by_staff"
+  | "project_unpublished_by_staff"
+  | "project_deleted_by_staff"
   | "profile_updated_by_staff"
   | "comment_received"
   | "comment_reply"
@@ -377,6 +379,7 @@ export type NotificationEntityType =
   | "collab_response"
   | "team"
   | "team_invite"
+  | "project"
   | "thread"
   | "stored_image"
   | "comment"
@@ -1230,6 +1233,11 @@ export const projects = projectSchema.table(
     uniqueIndex("projects_source_game_unique")
       .on(table.sourceGameId)
       .where(sql`${table.sourceGameId} IS NOT NULL`),
+    // Trigram indexes for the admin directory's fuzzy search (`pg_trgm`,
+    // enabled by the same migration). They serve `ILIKE '%…%'` and the
+    // `<%` word-similarity operator — see `lib/sql-fuzzy.ts`.
+    index("projects_title_trgm_idx").using("gin", table.title.op("gin_trgm_ops")),
+    index("projects_slug_trgm_idx").using("gin", table.slug.op("gin_trgm_ops")),
   ],
 );
 
@@ -1613,6 +1621,9 @@ export type ModerationActionType =
   | "team_unhidden"
   | "team_deleted"
   | "team_report_dismissed"
+  | "project_unpublished"
+  | "project_republished"
+  | "project_deleted"
   | "moderation_proposed"
   | "moderation_proposal_approved"
   | "moderation_proposal_rejected"
@@ -1635,6 +1646,7 @@ export type ModerationTargetType =
   | "user"
   | "team"
   | "team_report"
+  | "project"
   | "moderation_proposal"
   | "jam_entry"
   | "stored_image";

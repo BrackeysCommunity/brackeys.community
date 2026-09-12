@@ -40,7 +40,16 @@ export function ProjectPage({
    *  its JAM RECORD row. */
   fromJamId?: number;
 }) {
-  const { project, contributors, teams, jamRecord, viewerCanEdit, openPostCount } = detail;
+  const {
+    project,
+    contributors,
+    teams,
+    jamRecord,
+    viewerCanEdit,
+    viewerCanDelete,
+    deleteBlockers,
+    openPostCount,
+  } = detail;
   const fromJam =
     fromJamId != null ? jamRecord.find((appearance) => appearance.jamId === fromJamId) : undefined;
 
@@ -49,6 +58,8 @@ export function ProjectPage({
       <ProjectHero
         project={project}
         canEdit={viewerCanEdit}
+        canDelete={viewerCanDelete}
+        deleteBlockers={deleteBlockers}
         recruitTeamId={teams.length === 1 ? teams[0]!.teamId : undefined}
         fromJam={fromJam}
       />

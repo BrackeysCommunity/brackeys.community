@@ -41,11 +41,15 @@ import type { ProjectJamAppearance, ProjectRow } from "./types";
 export function ProjectHero({
   project,
   canEdit,
+  canDelete,
+  deleteBlockers,
   recruitTeamId,
   fromJam,
 }: {
   project: ProjectRow;
   canEdit: boolean;
+  canDelete: boolean;
+  deleteBlockers: string[];
   /** Pre-linked team for the RECRUIT entrance — set when exactly one
    *  team claims the project, so the wizard arrives fully seeded. */
   recruitTeamId?: string;
@@ -228,7 +232,13 @@ export function ProjectHero({
       </div>
 
       {canEdit ? (
-        <ProjectDetailsEditor project={project} open={editing} onOpenChange={setEditing} />
+        <ProjectDetailsEditor
+          project={project}
+          canDelete={canDelete}
+          deleteBlockers={deleteBlockers}
+          open={editing}
+          onOpenChange={setEditing}
+        />
       ) : null}
     </Well>
   );

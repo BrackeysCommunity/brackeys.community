@@ -21,6 +21,7 @@ import {
   recordNotification,
   SIDE_EFFECTS_JOB_OPTIONS,
 } from "../../../../src/lib/notify-core.ts";
+import { sweepOrphanProjects } from "../../../../src/lib/project-orphan-sweep.ts";
 import { db } from "../db/client.ts";
 import { notificationsQueue } from "../queue.ts";
 
@@ -242,6 +243,9 @@ export async function handleLifecycleSweep(): Promise<void> {
   // ── 6. Retention: read notifications past their window ────────────────────
   const retired = await sweepReadNotifications(db, now);
 
+  // ── 7. Orphan projects: manual rows nothing has pointed at for 30 days ────
+  const orphansCollected = await sweepOrphanProjects(db, now);
+
   console.log("[lifecycle_sweep] done", {
     repaired: repaired.length,
     nudged,
@@ -251,5 +255,6 @@ export async function handleLifecycleSweep(): Promise<void> {
     archived: archived.length,
     ...jamPings,
     retired,
+    orphansCollected,
   });
 }

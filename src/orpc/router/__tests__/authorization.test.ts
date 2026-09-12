@@ -116,6 +116,10 @@ const STAFF_PROCEDURES = new Set([
   "listTeamReports",
   "resolveTeamReport",
   "listTeamsAdmin",
+  // The project directory (plan 33 §11.2). `deleteProject` and
+  // `setProjectPublished` are creator/editor-or-override like the team
+  // procedures above, and are covered by project-db.test.ts.
+  "listProjectsAdmin",
   // Entry-flag queue (plan 22).
   "listEntryFlags",
   "resolveEntryFlag",

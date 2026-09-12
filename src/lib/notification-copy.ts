@@ -49,6 +49,9 @@ export function renderNotificationText(input: {
   const teamName = (input.data.teamName as string | undefined) ?? "a team";
   const teamSlug = input.data.teamSlug as string | undefined;
   const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
+  const projectTitle = (input.data.projectTitle as string | undefined) ?? "a project";
+  const projectSlug = input.data.projectSlug as string | undefined;
+  const projectHref = projectSlug ? `/projects/${projectSlug}` : null;
   // Comment notifications are self-contained: the subject snapshot is
   // stored on the row at write time so no social-table joins happen here.
   const subjectTitle = (input.data.subjectTitle as string | undefined) ?? "a thread";
@@ -158,6 +161,20 @@ export function renderNotificationText(input: {
           : `Staff removed the team ${teamName}`,
         href: null,
       };
+    case "project_unpublished_by_staff":
+      return {
+        headline: moderationReason
+          ? `Staff unpublished your project ${projectTitle} — ${moderationReason}`
+          : `Staff unpublished your project ${projectTitle}`,
+        href: projectHref,
+      };
+    case "project_deleted_by_staff":
+      return {
+        headline: moderationReason
+          ? `Staff removed your project ${projectTitle} — ${moderationReason}`
+          : `Staff removed your project ${projectTitle}`,
+        href: null,
+      };
     case "profile_updated_by_staff":
       return {
         headline: moderationReason
@@ -249,6 +266,8 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   team_hidden_by_staff: "Moderation — your team was hidden pending review",
   team_unhidden_by_staff: "Moderation — your team is visible again",
   team_deleted_by_staff: "Moderation — your team was removed",
+  project_unpublished_by_staff: "Moderation — your project was unpublished",
+  project_deleted_by_staff: "Moderation — your project was removed",
   profile_updated_by_staff: "Moderation — staff edited your profile",
   comment_received: "Comments — new comment in a thread you follow",
   comment_reply: "Comments — someone replied to your comment",
@@ -285,6 +304,8 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "team_hidden_by_staff",
   "team_unhidden_by_staff",
   "team_deleted_by_staff",
+  "project_unpublished_by_staff",
+  "project_deleted_by_staff",
   "profile_updated_by_staff",
   "comment_received",
   "comment_reply",
@@ -341,6 +362,10 @@ export const NOTIFICATION_DEFAULTS: Record<
   team_hidden_by_staff: { inApp: true, email: true, digest: false },
   team_unhidden_by_staff: { inApp: true, email: false, digest: false },
   team_deleted_by_staff: { inApp: true, email: true, digest: false },
+  // Their page just went dark or vanished without them present — the same
+  // silence-reads-as-broken reasoning as the team notices.
+  project_unpublished_by_staff: { inApp: true, email: true, digest: false },
+  project_deleted_by_staff: { inApp: true, email: true, digest: false },
   profile_updated_by_staff: { inApp: true, email: true, digest: false },
   // Conversational volume: in-app + weekly digest, never transactional
   // email by default — users opt email up, not down.
@@ -400,6 +425,8 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   team_hidden_by_staff: "moderation",
   team_unhidden_by_staff: "moderation",
   team_deleted_by_staff: "moderation",
+  project_unpublished_by_staff: "moderation",
+  project_deleted_by_staff: "moderation",
   profile_updated_by_staff: "moderation",
   comment_received: "comments",
   comment_reply: "comments",

@@ -13,10 +13,20 @@
  *
  * Server only — it opens the database.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
 
 import { db } from "@/db";
-import { projectContributors, projectTeams, projects, teamMembers } from "@/db/schema";
+import {
+  developerProfiles,
+  profileProjects,
+  projectContributors,
+  projectTeams,
+  projects,
+  teamMembers,
+  teamProjects,
+  teams,
+} from "@/db/schema";
+import { memberName } from "@/lib/member-name";
 
 /**
  * The editor check, given a project row and the teams already known to claim
@@ -79,4 +89,76 @@ export async function loadProjectForEditor(
     .where(eq(projectTeams.projectId, projectId));
 
   return { project, canEdit: await canEditProject(project, viewerId, teamRows) };
+}
+
+/**
+ * Everyone *else* still holding a project, named for a confirm dialog: other
+ * members' profile placements, teams (a claim or a showcase placement), and
+ * other profile-linked credits.
+ *
+ * Deleting is the one project write that is not shared by the editor set —
+ * it takes the row out from under every other page pointing at it — so the
+ * caller refuses while this list is non-empty unless staff are acting.
+ * Free-text credits and jam links are not blockers: they have no page of
+ * their own to lose. A scrape-minted row (`itchio` with a game id) is its
+ * own blocker and is reported separately, since the scraper would mint it
+ * again.
+ */
+export async function projectDeleteBlockers(
+  project: { id: string; source: string; sourceGameId: number | null },
+  requesterId: string,
+): Promise<{ synced: boolean; blockers: string[] }> {
+  const synced = project.source === "itchio" && project.sourceGameId != null;
+
+  const [placementOwners, teamClaims, teamPlacements, credited] = await Promise.all([
+    db
+      .selectDistinct({
+        profileId: profileProjects.profileId,
+        discordUsername: developerProfiles.discordUsername,
+        guildNickname: developerProfiles.guildNickname,
+      })
+      .from(profileProjects)
+      .innerJoin(developerProfiles, eq(profileProjects.profileId, developerProfiles.id))
+      .where(
+        and(eq(profileProjects.projectId, project.id), ne(profileProjects.profileId, requesterId)),
+      ),
+    db
+      .select({ teamId: teams.id, name: teams.name })
+      .from(projectTeams)
+      .innerJoin(teams, eq(projectTeams.teamId, teams.id))
+      .where(eq(projectTeams.projectId, project.id)),
+    db
+      .selectDistinct({ teamId: teams.id, name: teams.name })
+      .from(teamProjects)
+      .innerJoin(teams, eq(teamProjects.teamId, teams.id))
+      .where(eq(teamProjects.projectId, project.id)),
+    db
+      .select({
+        profileId: projectContributors.profileId,
+        displayName: projectContributors.displayName,
+      })
+      .from(projectContributors)
+      .where(
+        and(
+          eq(projectContributors.projectId, project.id),
+          isNotNull(projectContributors.profileId),
+          ne(projectContributors.profileId, requesterId),
+        ),
+      ),
+  ]);
+
+  const blockers: string[] = [];
+  for (const owner of placementOwners) {
+    blockers.push(`${memberName(owner, "a member")}'s showcase`);
+  }
+  const teamNames = new Set<string>();
+  for (const team of [...teamClaims, ...teamPlacements]) {
+    if (teamNames.has(team.teamId)) continue;
+    teamNames.add(team.teamId);
+    blockers.push(`the team ${team.name}`);
+  }
+  for (const credit of credited) {
+    blockers.push(`${credit.displayName} (credited)`);
+  }
+  return { synced, blockers };
 }

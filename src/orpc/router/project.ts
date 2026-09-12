@@ -21,20 +21,26 @@ import {
   teams,
 } from "@/db/schema";
 import { externalUrlSchema, optionalExternalUrlSchema } from "@/lib/external-url";
+import { recordModerationAction } from "@/lib/moderation-audit";
+import { canOverride, type ModOverride } from "@/lib/moderation-policy";
+import { notify } from "@/lib/notifications";
+import { bestEffort } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
+  removeProfileProjectImageFromStorage,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { PROFILE_PROJECT_SUBTYPES, getAllowedSubTypesForProjectType } from "@/lib/profile-projects";
-import { canEditProject, loadProjectForEditor } from "@/lib/project-editors";
+import { canEditProject, loadProjectForEditor, projectDeleteBlockers } from "@/lib/project-editors";
 import {
   MANUAL_PROJECT_TYPES,
   RELEASE_STATUSES,
   RESERVED_PROJECT_SLUGS,
 } from "@/lib/project-taxonomy";
 import { ensureProjectForScrapedGame } from "@/lib/projects";
-import { requireAuth } from "@/orpc/middleware/auth";
+import { isProjectImageKey } from "@/lib/stored-image-keys";
+import { requireAuth, requireAuthWithPermissions } from "@/orpc/middleware/auth";
 import { profileStubJoin } from "@/orpc/profile-projection";
 
 /**
@@ -282,7 +288,9 @@ export const getProjectViewerState = os
   .input(z.object({ idOrSlug: z.string().trim().min(1).max(300) }))
   .handler(async ({ input, context }) => {
     const project = await resolveProject(input.idOrSlug);
-    if (!project) return { viewerCanEdit: false, detail: null };
+    if (!project) {
+      return { viewerCanEdit: false, viewerCanDelete: false, deleteBlockers: [], detail: null };
+    }
 
     const teamRows = await db
       .select({ teamId: projectTeams.teamId })
@@ -290,8 +298,19 @@ export const getProjectViewerState = os
       .where(eq(projectTeams.projectId, project.id));
     const viewerCanEdit = await canEditProject(project, context.user.id, teamRows);
 
+    // Delete is the creator's alone (staff act from /admin), and never for a
+    // synced row — the scraper would mint it again. The blockers are what
+    // the danger zone's confirm names, so the refusal is legible before the
+    // click rather than after.
+    const isCreator = project.createdBy === context.user.id;
+    const { synced, blockers } = isCreator
+      ? await projectDeleteBlockers(project, context.user.id)
+      : { synced: false, blockers: [] };
+
     return {
       viewerCanEdit,
+      viewerCanDelete: isCreator && !synced,
+      deleteBlockers: blockers,
       detail: !project.published && viewerCanEdit ? await buildProjectDetail(project) : null,
     };
   });
@@ -572,6 +591,166 @@ export const setProjectSlug = os
       .returning({ id: projects.id, slug: projects.slug });
     return updated ?? null;
   });
+
+// ── Visibility and deletion ─────────────────────────────────────────────────
+//
+// The two writes the editor set does *not* share equally. Unpublishing is any
+// editor's (the read path already honours it: `getProject` returns null and
+// the page is served to editors through `getProjectViewerState`) and is the
+// delete for rows that cannot be deleted. Deleting is the creator's, or an
+// admin's, and is refused while anyone else's page still points at the row.
+
+const overrideReasonSchema = z.string().trim().max(500).optional();
+
+type ProjectRow = typeof projects.$inferSelect;
+
+function projectNotice(project: ProjectRow, mod: ModOverride) {
+  return {
+    projectId: project.id,
+    projectSlug: project.slug,
+    projectTitle: project.title,
+    ...(mod.reason ? { reason: mod.reason } : {}),
+  };
+}
+
+/** Cascades take the credits, claims and jam links; placements go `SET
+ *  NULL` and keep their surface rows. The staff path keeps the row in the
+ *  log, since the delete destroys its own evidence. */
+export async function applyProjectDelete(project: ProjectRow, mod?: ModOverride) {
+  await db.delete(projects).where(eq(projects.id, project.id));
+
+  if (project.imageKey && isProjectImageKey(project.id, project.imageKey)) {
+    const key = project.imageKey;
+    await bestEffort("storage.image_cleanup", { key, on: "project_delete" }, () =>
+      removeProfileProjectImageFromStorage(key),
+    );
+  }
+
+  if (mod) {
+    const { providerRaw: _providerRaw, sourceSnapshot: _sourceSnapshot, ...row } = project;
+    await recordModerationAction({
+      action: "project_deleted",
+      actorId: mod.actorId,
+      targetType: "project",
+      targetId: project.id,
+      subjectUserId: project.createdBy,
+      reason: mod.reason,
+      metadata: { projectTitle: project.title, projectSlug: project.slug, project: row },
+    });
+    if (project.createdBy && project.createdBy !== mod.actorId) {
+      await bestEffort("project_moderation.delete_notice", { project_id: project.id }, () =>
+        notify({
+          userId: project.createdBy!,
+          type: "project_deleted_by_staff",
+          entityType: "project",
+          entityId: project.id,
+          data: projectNotice(project, mod),
+        }),
+      );
+    }
+  }
+  return { success: true };
+}
+
+export const deleteProject = os
+  .use(requireAuthWithPermissions)
+  .input(z.object({ projectId: z.string(), reason: overrideReasonSchema }))
+  .handler(async ({ input, context }) => {
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, input.projectId))
+      .limit(1);
+    if (!project) throw new ORPCError("NOT_FOUND", { message: "Project not found." });
+
+    const isCreator = project.createdBy === context.user.id;
+    const isOverride = !isCreator && canOverride("project_delete", context);
+    if (!isCreator && !isOverride) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "Only the person who added this project, or an admin, can delete it.",
+      });
+    }
+    if (isOverride && !input.reason) {
+      throw new ORPCError("BAD_REQUEST", { message: "A reason is required to delete a project." });
+    }
+
+    const { synced, blockers } = await projectDeleteBlockers(project, context.user.id);
+    if (synced) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "This project is synced from itch.io, so deleting it would only make the next sync mint it again. Unpublish it instead.",
+      });
+    }
+    if (blockers.length > 0 && !isOverride) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `This project is still on ${formatList(blockers)}. Ask them to remove it first, or unpublish it instead.`,
+      });
+    }
+
+    return applyProjectDelete(
+      project,
+      isOverride ? { actorId: context.user.id, reason: input.reason ?? null } : undefined,
+    );
+  });
+
+export const setProjectPublished = os
+  .use(requireAuthWithPermissions)
+  .input(z.object({ projectId: z.string(), published: z.boolean(), reason: overrideReasonSchema }))
+  .handler(async ({ input, context }) => {
+    const loaded = await loadProjectForEditor(input.projectId, context.user.id);
+    if (!loaded) throw new ORPCError("NOT_FOUND", { message: "Project not found." });
+
+    const isOverride = !loaded.canEdit && canOverride("project_unpublish", context);
+    if (!loaded.canEdit && !isOverride) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "Only the people credited on this project can change its visibility.",
+      });
+    }
+    if (isOverride && !input.published && !input.reason) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "A reason is required to unpublish a project.",
+      });
+    }
+
+    const [updated] = await db
+      .update(projects)
+      .set({ published: input.published, updatedAt: new Date() })
+      .where(and(eq(projects.id, input.projectId), eq(projects.published, !input.published)))
+      .returning({ id: projects.id });
+    if (!updated) return { success: true, changed: false };
+
+    if (isOverride) {
+      const mod = { actorId: context.user.id, reason: input.reason ?? null };
+      const project = loaded.project;
+      await recordModerationAction({
+        action: input.published ? "project_republished" : "project_unpublished",
+        actorId: mod.actorId,
+        targetType: "project",
+        targetId: project.id,
+        subjectUserId: project.createdBy,
+        reason: mod.reason,
+        metadata: { projectTitle: project.title, projectSlug: project.slug },
+      });
+      if (!input.published && project.createdBy && project.createdBy !== mod.actorId) {
+        await bestEffort("project_moderation.unpublish_notice", { project_id: project.id }, () =>
+          notify({
+            userId: project.createdBy!,
+            type: "project_unpublished_by_staff",
+            entityType: "project",
+            entityId: project.id,
+            data: projectNotice(project, mod),
+          }),
+        );
+      }
+    }
+    return { success: true, changed: true };
+  });
+
+/** "a", "a and b", "a, b and c". */
+function formatList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
 
 // ── Credits ─────────────────────────────────────────────────────────────────
 //

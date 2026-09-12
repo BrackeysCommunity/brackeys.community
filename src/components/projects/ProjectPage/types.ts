@@ -8,6 +8,10 @@ import type { client } from "@/orpc/client";
  */
 export type ProjectDetail = NonNullable<Awaited<ReturnType<typeof client.getProject>>> & {
   viewerCanEdit: boolean;
+  /** The creator's alone, and never for a synced row — see `deleteProject`. */
+  viewerCanDelete: boolean;
+  /** Who else still holds the row, named for the danger zone's refusal. */
+  deleteBlockers: string[];
 };
 
 export type ProjectRow = ProjectDetail["project"];

@@ -2,35 +2,33 @@ import {
   BookOpen01Icon,
   BubbleChatIcon,
   CheckListIcon,
+  CubeIcon,
   EyeIcon,
   Flag02Icon,
   Image01Icon,
-  PinIcon,
   ScrollIcon,
   StarIcon,
-  TagsIcon,
   UserBlock01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
 import { AdminEntryFlags } from "@/components/admin/AdminEntryFlags";
-import { AdminFeatured } from "@/components/admin/AdminFeatured";
-import { AdminHeroJam } from "@/components/admin/AdminHeroJam";
 import { AdminImageFlags } from "@/components/admin/AdminImageFlags";
 import { AdminLog } from "@/components/admin/AdminLog";
+import { AdminProjects } from "@/components/admin/AdminProjects";
 import { AdminProposals } from "@/components/admin/AdminProposals";
 import { AdminRecentComments } from "@/components/admin/AdminRecentComments";
 import { AdminReportQueue } from "@/components/admin/AdminReportQueue";
-import { AdminSkills } from "@/components/admin/AdminSkills";
+import { AdminSpotlight, SPOTLIGHT_PANES } from "@/components/admin/AdminSpotlight";
+import { AdminTaxonomy, TAXONOMY_PANES } from "@/components/admin/AdminTaxonomy";
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminHero } from "@/components/admin/AdminUI";
-import { AdminVocabulary } from "@/components/admin/AdminVocabulary";
 import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
@@ -40,43 +38,48 @@ import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
 
-// Named `section` rather than `view` so it doesn't widen the router-wide
-// search union that /notifications' own `view` param narrows against.
-const searchSchema = z.object({
-  section: z
-    .enum([
-      "reports",
-      "entry-flags",
-      "image-flags",
-      "proposals",
-      "comments",
-      "teams",
-      "featured",
-      "hero",
-      "skills",
-      "vocab",
-      "bans",
-      "log",
-    ])
-    .default("reports"),
-});
-
-type View = z.infer<typeof searchSchema>["section"];
-
-const SECTIONS: readonly View[] = [
+const SECTIONS = [
   "reports",
   "entry-flags",
   "image-flags",
   "proposals",
   "comments",
   "teams",
-  "featured",
-  "hero",
-  "skills",
-  "vocab",
+  "projects",
+  "spotlight",
+  "taxonomy",
   "bans",
   "log",
-];
+] as const;
+
+type View = (typeof SECTIONS)[number];
+
+// The four sections the rail used to list separately, folded two-and-two
+// into `spotlight` and `taxonomy`. Old links keep landing on the right pane.
+const LEGACY_SECTIONS: Record<string, { section: View; pane: Pane }> = {
+  featured: { section: "spotlight", pane: "featured" },
+  hero: { section: "spotlight", pane: "hero" },
+  skills: { section: "taxonomy", pane: "skills" },
+  vocab: { section: "taxonomy", pane: "roles" },
+};
+
+const PANES = [...SPOTLIGHT_PANES, ...TAXONOMY_PANES] as const;
+type Pane = (typeof PANES)[number];
+
+// Named `section` / `pane` rather than `view` / `tab` so they don't widen
+// the router-wide search union that /notifications' `view` and /settings'
+// `tab` narrow against.
+const searchSchema = z.preprocess(
+  (raw) => {
+    const input = (raw ?? {}) as { section?: unknown; pane?: unknown };
+    const legacy = typeof input.section === "string" ? LEGACY_SECTIONS[input.section] : undefined;
+    return legacy ? { ...input, ...legacy } : input;
+  },
+  z.object({
+    section: z.enum(SECTIONS).default("reports"),
+    pane: z.enum(PANES).optional(),
+  }),
+);
 
 const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgElement }> = {
   reports: { label: "Reports", hint: "Flagged posts, comments, teams", icon: Flag02Icon },
@@ -85,10 +88,9 @@ const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgEle
   proposals: { label: "Proposals", hint: "Mod edits awaiting an admin", icon: CheckListIcon },
   comments: { label: "Comments", hint: "Newest across the site", icon: BubbleChatIcon },
   teams: { label: "Teams", hint: "Directory, hide, delete", icon: UserGroupIcon },
-  featured: { label: "Featured", hint: "Board spotlight", icon: StarIcon },
-  hero: { label: "Hero jam", hint: "Landing page lead", icon: PinIcon },
-  skills: { label: "Skills", hint: "Catalogue, requests", icon: TagsIcon },
-  vocab: { label: "Vocabulary", hint: "Collab roles", icon: BookOpen01Icon },
+  projects: { label: "Projects", hint: "Directory, orphans, unpublish", icon: CubeIcon },
+  spotlight: { label: "Spotlight", hint: "Board featured, home hero", icon: StarIcon },
+  taxonomy: { label: "Taxonomy", hint: "Skills, requests, collab roles", icon: BookOpen01Icon },
   bans: { label: "Bans", hint: "Active, history", icon: UserBlock01Icon },
   log: { label: "Log", hint: "Every staff action", icon: ScrollIcon },
 };
@@ -160,14 +162,17 @@ function useQueueCounts(): Partial<Record<View, number>> {
     "entry-flags": entryFlags.data?.flagCount ?? 0,
     "image-flags": imageFlags.data?.total ?? 0,
     proposals: pendingProposals.data?.total ?? 0,
-    skills: skillRequests.data?.total ?? 0,
+    taxonomy: skillRequests.data?.total ?? 0,
   };
 }
 
 function AdminRoute() {
   const { isAdmin } = Route.useLoaderData();
-  const { section } = Route.useSearch();
+  const { section, pane } = Route.useSearch();
   const counts = useQueueCounts();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const setPane = (next: Pane) =>
+    void navigate({ search: { section, pane: next }, replace: true, viewTransition: false });
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 py-6">
@@ -176,7 +181,7 @@ function AdminRoute() {
         stats={[
           { label: "Open reports", value: counts.reports ?? 0 },
           { label: "Pending proposals", value: counts.proposals ?? 0 },
-          { label: "Skill requests", value: counts.skills ?? 0 },
+          { label: "Skill requests", value: counts.taxonomy ?? 0 },
         ]}
       />
 
@@ -186,7 +191,13 @@ function AdminRoute() {
           the rail's right edge. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[14rem_1fr] lg:items-start lg:gap-10">
         <AdminNav section={section} counts={counts} />
-        <AdminPane section={section} isAdmin={isAdmin} />
+        <AdminPane
+          section={section}
+          pane={pane}
+          onPane={setPane}
+          isAdmin={isAdmin}
+          skillRequestCount={counts.taxonomy ?? 0}
+        />
       </div>
     </div>
   );
@@ -196,7 +207,10 @@ function AdminNav({ section, counts }: { section: View; counts: Partial<Record<V
   return (
     <nav
       aria-label="Admin sections"
-      className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-muted/30 px-1 lg:sticky lg:top-4 lg:mx-0 lg:flex-col lg:overflow-visible lg:border-r lg:border-b-0 lg:px-0 lg:pr-2"
+      // The rail has outgrown a laptop viewport, so from `lg` it scrolls on
+      // its own inside the sticky box rather than pushing the page — the
+      // pane beside it keeps its scroll position either way.
+      className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-muted/30 px-1 lg:sticky lg:top-4 lg:mx-0 lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:overflow-x-visible lg:overflow-y-auto lg:border-r lg:border-b-0 lg:px-0 lg:pr-2"
     >
       {SECTIONS.map((id) => {
         const meta = SECTION_META[id];
@@ -208,7 +222,7 @@ function AdminNav({ section, counts }: { section: View; counts: Partial<Record<V
           <Link
             key={id}
             to="/admin"
-            search={{ section: id }}
+            search={{ section: id, pane: undefined }}
             replace
             // Moving between sections only changes the pane — it animates
             // itself in `AdminPane`, and everything around it holds still.
@@ -254,7 +268,19 @@ function AdminNav({ section, counts }: { section: View; counts: Partial<Record<V
 /** The swapping half. Keyed on the section so React tears the old pane
  * down and the new one animates in on its own — entry-only, like the
  * settings pane. */
-function AdminPane({ section, isAdmin }: { section: View; isAdmin: boolean }) {
+function AdminPane({
+  section,
+  pane,
+  onPane,
+  isAdmin,
+  skillRequestCount,
+}: {
+  section: View;
+  pane: Pane | undefined;
+  onPane: (next: Pane) => void;
+  isAdmin: boolean;
+  skillRequestCount: number;
+}) {
   const reduced = useReducedMotion();
 
   return (
@@ -271,10 +297,18 @@ function AdminPane({ section, isAdmin }: { section: View; isAdmin: boolean }) {
       {section === "proposals" && <AdminProposals isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
       {section === "teams" && <AdminTeams isAdmin={isAdmin} />}
-      {section === "featured" && <AdminFeatured />}
-      {section === "hero" && <AdminHeroJam />}
-      {section === "skills" && <AdminSkills isAdmin={isAdmin} />}
-      {section === "vocab" && <AdminVocabulary isAdmin={isAdmin} />}
+      {section === "projects" && <AdminProjects isAdmin={isAdmin} />}
+      {section === "spotlight" && (
+        <AdminSpotlight pane={pane === "hero" ? "hero" : "featured"} onPane={onPane} />
+      )}
+      {section === "taxonomy" && (
+        <AdminTaxonomy
+          pane={pane === "roles" ? "roles" : "skills"}
+          onPane={onPane}
+          isAdmin={isAdmin}
+          skillRequestCount={skillRequestCount}
+        />
+      )}
       {section === "bans" && <AdminBans isAdmin={isAdmin} />}
       {section === "log" && <AdminLog />}
     </motion.div>

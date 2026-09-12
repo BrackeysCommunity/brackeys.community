@@ -43,6 +43,7 @@ COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
 COPY src/lib/jam-watch.ts ./src/lib/jam-watch.ts
 COPY src/lib/jam-watch-sweep.ts ./src/lib/jam-watch-sweep.ts
 COPY src/lib/notification-retention.ts ./src/lib/notification-retention.ts
+COPY src/lib/project-orphan-sweep.ts ./src/lib/project-orphan-sweep.ts
 
 RUN ln -s /app/services/notifications-worker/node_modules /app/node_modules
 

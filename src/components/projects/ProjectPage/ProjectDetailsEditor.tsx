@@ -5,6 +5,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
 import { toastMutationError } from "@/lib/mutation-errors";
 import {
   PROFILE_PROJECT_SUBTYPE_LABELS,
@@ -51,10 +52,14 @@ const MAX_LINKS = 6;
  */
 export function ProjectDetailsEditor({
   project,
+  canDelete,
+  deleteBlockers,
   open,
   onOpenChange,
 }: {
   project: ProjectRow;
+  canDelete: boolean;
+  deleteBlockers: string[];
   open: boolean;
   onOpenChange: (next: boolean) => void;
 }) {
@@ -306,10 +311,122 @@ export function ProjectDetailsEditor({
               {save.isPending ? "SAVING…" : "SAVE"}
             </Button>
           </div>
+
+          <DangerZone
+            project={project}
+            canDelete={canDelete}
+            deleteBlockers={deleteBlockers}
+            onClose={() => onOpenChange(false)}
+          />
         </div>
       </SheetContent>
     </Sheet>
   );
+}
+
+/**
+ * The two writes the editor set does not share equally.
+ *
+ * Unpublishing is any editor's and reversible from this same panel, so it
+ * stays outline. Deleting is the creator's alone, refused while anyone
+ * else's page still points at the row (the server names them; so does the
+ * text here, before the click), and never offered for a synced row — the
+ * scraper would mint it again, so unpublish is the delete there.
+ */
+function DangerZone({
+  project,
+  canDelete,
+  deleteBlockers,
+  onClose,
+}: {
+  project: ProjectRow;
+  canDelete: boolean;
+  deleteBlockers: string[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const synced = project.source === "itchio" && project.sourceGameId != null;
+  const blocked = deleteBlockers.length > 0;
+
+  const setPublished = useMutation({
+    mutationFn: (published: boolean) =>
+      client.setProjectPublished({ projectId: project.id, published }),
+    onSuccess: async (_result, published) => {
+      toast.success(published ? "Project is public again" : "Project unpublished", {
+        description: published
+          ? undefined
+          : "Only the people credited on it can open the page now.",
+      });
+      onClose();
+      await router.invalidate();
+    },
+    onError: toastMutationError("project.set_published", "Failed to change visibility"),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => client.deleteProject({ projectId: project.id }),
+    onSuccess: async () => {
+      toast.success("Project deleted");
+      onClose();
+      await router.navigate({ to: "/profile", replace: true });
+    },
+    onError: toastMutationError("project.delete", "Failed to delete"),
+  });
+
+  return (
+    <div className="mt-2 flex flex-col gap-3 border-t border-dashed border-muted-foreground/25 pt-4">
+      <MicroLabel className="text-destructive">DANGER ZONE</MicroLabel>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="tracking-widest"
+          disabled={setPublished.isPending}
+          onClick={() => setPublished.mutate(!project.published)}
+        >
+          {project.published ? "UNPUBLISH" : "PUBLISH"}
+        </Button>
+        {canDelete ? (
+          <Confirm
+            title="Delete this project?"
+            message="The page goes away for good and its handle is free again. Credits, jam links and team claims on it go with it; showcase entries that pointed at it stay on their pages, unlinked."
+            confirmText="DELETE PROJECT"
+            variant="destructive"
+            onConfirm={async () => {
+              await remove.mutateAsync().catch(() => null);
+            }}
+          >
+            <Button
+              variant="destructive"
+              size="sm"
+              className="tracking-widest"
+              disabled={blocked || remove.isPending}
+            >
+              DELETE PROJECT
+            </Button>
+          </Confirm>
+        ) : null}
+      </div>
+      <Text size="xs" variant="muted">
+        {project.published
+          ? "Unpublishing keeps the page for the people credited on it and hides it from everyone else."
+          : "Only the people credited on this project can open its page right now."}
+        {synced
+          ? " It's synced from itch.io, so it can't be deleted — the next sync would bring it back."
+          : canDelete && blocked
+            ? ` Deleting is off while it's still on ${formatList(deleteBlockers)} — ask them to remove it first.`
+            : canDelete
+              ? " Deleting removes the page for good."
+              : null}
+      </Text>
+    </div>
+  );
+}
+
+/** "a", "a and b", "a, b and c". */
+function formatList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 function Field({

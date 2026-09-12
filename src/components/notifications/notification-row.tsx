@@ -83,6 +83,10 @@ export function renderCopy(n: NotificationItem): {
   const teamSlug = n.data.teamSlug as string | undefined;
   const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
   const teamEm = <em className="font-medium not-italic">{teamName}</em>;
+  const projectTitle = (n.data.projectTitle as string | undefined) ?? "a project";
+  const projectSlug = n.data.projectSlug as string | undefined;
+  const projectHref = projectSlug ? `/projects/${projectSlug}` : null;
+  const projectEm = <em className="font-medium not-italic">{projectTitle}</em>;
   const jamTitle = (n.data.jamTitle as string | undefined) ?? "a jam";
   const jamHref = (n.data.jamUrl as string | undefined) ?? null;
   const jamEm = <em className="font-medium not-italic">{jamTitle}</em>;
@@ -311,6 +315,30 @@ export function renderCopy(n: NotificationItem): {
         line: (
           <>
             Staff removed the team {teamEm}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: null,
+      };
+    }
+    case "project_unpublished_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            Staff unpublished your project {projectEm}
+            {reason ? <> — {reason}</> : null}
+          </>
+        ),
+        href: projectHref,
+      };
+    }
+    case "project_deleted_by_staff": {
+      const reason = n.data.reason as string | undefined;
+      return {
+        line: (
+          <>
+            Staff removed your project {projectEm}
             {reason ? <> — {reason}</> : null}
           </>
         ),

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 
 import { collabPosts, developerProfiles, user } from "../db/schema";
@@ -21,7 +22,9 @@ import { collabPosts, developerProfiles, user } from "../db/schema";
  * Each call is a fresh database, so parallel test files never share state.
  */
 export async function createTestDb() {
-  const client = new PGlite();
+  // Extensions the migrations `CREATE`: pglite only knows the ones it is
+  // handed at construction.
+  const client = new PGlite({ extensions: { pg_trgm } });
   // Production Postgres runs in UTC; pglite defaults to the host zone,
   // which skews every `default now()` stamp against JS-side Date math
   // (the notification dedupe window, the sweep cutoffs).

@@ -42,7 +42,12 @@ export const Route = createFileRoute("/projects/$projectSlug")({
     // of its editors" — the page shouldn't distinguish those to a stranger.
     if (!detail) throw notFound();
 
-    return { ...detail, viewerCanEdit: viewer?.viewerCanEdit ?? false };
+    return {
+      ...detail,
+      viewerCanEdit: viewer?.viewerCanEdit ?? false,
+      viewerCanDelete: viewer?.viewerCanDelete ?? false,
+      deleteBlockers: viewer?.deleteBlockers ?? [],
+    };
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
