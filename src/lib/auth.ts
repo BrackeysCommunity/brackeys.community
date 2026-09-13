@@ -153,6 +153,13 @@ export const auth = betterAuth({
       });
     },
   },
+  // Every provider-returned error lands in the app rather than on
+  // better-auth's own `/api/auth/error` page, which is outside the router
+  // and offers no way back. The OAuth callbacks short-circuit to this
+  // *before* they parse their state, so a per-call `errorCallbackURL`
+  // never sees a cancelled consent screen — this is the only lever that
+  // does. Per-call ones still cover the errors raised after state parsing.
+  onAPIError: { errorURL: "/auth/error" },
   plugins: [
     tanstackStartCookies(),
     oAuthProxy({

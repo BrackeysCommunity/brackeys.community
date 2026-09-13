@@ -5,6 +5,7 @@ import {
   GithubIcon,
   GitlabIcon,
   Link01Icon,
+  RefreshIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -158,17 +159,8 @@ export function ProfileLinkedAccountsSection({
                   onRemove={isOwner ? () => handleRemove(link) : undefined}
                   // The PORTFOLIO row is the only one whose host nobody has
                   // proved — GITHUB and GITLAB rows are their own proof.
-                  verify={
-                    isOwner && link.id === "website-url" ? (
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => setVerifyOpen(true)}
-                        className="relative z-10 tracking-widest"
-                      >
-                        {link.verifiedAt ? "RECHECK" : "VERIFY"}
-                      </Button>
-                    ) : null
+                  onVerify={
+                    isOwner && link.id === "website-url" ? () => setVerifyOpen(true) : undefined
                   }
                 />
               </li>
@@ -277,6 +269,9 @@ async function linkGithub(): Promise<void> {
     const result = await authClient.signIn.social({
       provider: "github",
       callbackURL: "/oauth/github/callback",
+      // Same handoff as GitLab's: a cancelled consent screen comes back
+      // into the app rather than better-auth's error page.
+      errorCallbackURL: "/oauth/github/callback",
     });
     if (
       result &&
@@ -306,6 +301,9 @@ async function linkGitlab(providerId: string): Promise<void> {
     const result = await authClient.oauth2.link({
       providerId,
       callbackURL: gitlabCallbackPath(providerId),
+      // Without this, cancelling the consent screen lands on better-auth's
+      // own `/api/auth/error` page — outside the app, with no way back.
+      errorCallbackURL: gitlabCallbackPath(providerId),
     });
     if (result?.error) {
       throw new Error(result.error.message || "Failed to start GitLab OAuth");
@@ -319,12 +317,15 @@ async function linkGitlab(providerId: string): Promise<void> {
 function LinkRow({
   link,
   onRemove,
-  verify,
+  onVerify,
 }: {
   link: ProfileLink;
   onRemove?: () => void;
-  /** Owner-only domain-proof control, on the PORTFOLIO row. */
-  verify?: React.ReactNode;
+  /** Owner-only, PORTFOLIO row only: opens the domain-proof dialog. An
+   *  unverified row gets a VERIFY button; a verified one gets the badge,
+   *  which reveals a re-check on hover rather than carrying a second
+   *  control the owner has no reason to look at. */
+  onVerify?: () => void;
 }) {
   // The row is anchor-by-default — clicking opens the linked
   // account in a new tab. When `onRemove` is provided we layer a
@@ -350,9 +351,26 @@ function LinkRow({
             <SimpleTooltip
               content={`Domain control verified on ${new Date(link.verifiedAt).toLocaleDateString()}`}
             >
-              <Badge variant="success" size="label">
-                VERIFIED
-              </Badge>
+              {/* z-10, like the RECONNECT chip: the row's stretched anchor
+                  would otherwise sit above this and swallow the hover that
+                  reveals the re-check. */}
+              <span className="group/verified relative z-10 inline-flex items-center gap-1">
+                <Badge variant="success" size="label">
+                  VERIFIED
+                </Badge>
+                {onVerify ? (
+                  // Collapsed to nothing until the badge is hovered or this
+                  // is tabbed to, so a proof that holds says one thing.
+                  <button
+                    type="button"
+                    onClick={onVerify}
+                    aria-label="Check this domain again"
+                    className="relative z-10 w-0 -translate-x-1 overflow-hidden text-muted-foreground opacity-0 transition-all duration-150 ease-out group-hover/verified:w-3.5 group-hover/verified:translate-x-0 group-hover/verified:opacity-100 hover:text-foreground focus-visible:w-3.5 focus-visible:translate-x-0 focus-visible:opacity-100 motion-reduce:transition-none"
+                  >
+                    <HugeiconsIcon icon={RefreshIcon} size={14} />
+                  </button>
+                ) : null}
+              </span>
             </SimpleTooltip>
           ) : null}
           {link.needsReconnect && isItchProvider(link.provider) ? (
@@ -376,7 +394,18 @@ function LinkRow({
           {link.display}
         </Text>
       </div>
-      {verify ?? <span />}
+      {onVerify && !link.verifiedAt ? (
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={onVerify}
+          className="relative z-10 tracking-widest"
+        >
+          VERIFY
+        </Button>
+      ) : (
+        <span />
+      )}
       {onRemove ? (
         <Button
           variant="ghost"

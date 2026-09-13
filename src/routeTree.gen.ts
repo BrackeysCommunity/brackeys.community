@@ -52,6 +52,7 @@ import { Route as ImagesSplatRouteImport } from './routes/images.$'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
+import { Route as AuthErrorRouteImport } from './routes/auth.error'
 import { Route as ArcadeEnPrisonRouteImport } from './routes/arcade.en-prison'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as ProjectsGameGameIdRouteImport } from './routes/projects.game.$gameId'
@@ -279,6 +280,11 @@ const CollabPostIdRoute = CollabPostIdRouteImport.update({
   path: '/$postId',
   getParentRoute: () => CollabRoute,
 } as any)
+const AuthErrorRoute = AuthErrorRouteImport.update({
+  id: '/auth/error',
+  path: '/auth/error',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ArcadeEnPrisonRoute = ArcadeEnPrisonRouteImport.update({
   id: '/en-prison',
   path: '/en-prison',
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
+  '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
@@ -407,6 +414,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
+  '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
@@ -464,6 +472,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
+  '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/game/$roomId': typeof GameRoomIdRoute
@@ -522,6 +531,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/$'
     | '/arcade/en-prison'
+    | '/auth/error'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
@@ -571,6 +581,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/$'
     | '/arcade/en-prison'
+    | '/auth/error'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
@@ -627,6 +638,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/$'
     | '/arcade/en-prison'
+    | '/auth/error'
     | '/collab/$postId'
     | '/collab/new'
     | '/game/$roomId'
@@ -683,6 +695,7 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  AuthErrorRoute: typeof AuthErrorRoute
   ImagesSplatRoute: typeof ImagesSplatRoute
   JamsJamSlugRoute: typeof JamsJamSlugRoute
   OgSplatRoute: typeof OgSplatRoute
@@ -1002,6 +1015,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollabPostIdRouteImport
       parentRoute: typeof CollabRoute
     }
+    '/auth/error': {
+      id: '/auth/error'
+      path: '/auth/error'
+      fullPath: '/auth/error'
+      preLoaderRoute: typeof AuthErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/arcade/en-prison': {
       id: '/arcade/en-prison'
       path: '/en-prison'
@@ -1204,6 +1224,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
+  AuthErrorRoute: AuthErrorRoute,
   ImagesSplatRoute: ImagesSplatRoute,
   JamsJamSlugRoute: JamsJamSlugRoute,
   OgSplatRoute: OgSplatRoute,
