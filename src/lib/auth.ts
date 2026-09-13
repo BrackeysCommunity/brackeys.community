@@ -15,8 +15,10 @@ import { GITLAB_INSTANCES } from "@/lib/gitlab-instances";
 import { gitlabOAuthConfigs } from "@/lib/gitlab-oauth";
 import { applyGuildBanOnSignIn } from "@/lib/guild-ban-gate";
 import { syncDiscordProfile } from "@/lib/guild-sync";
-import { captureServerEvent } from "@/lib/posthog-server";
+import { personProperties } from "@/lib/person-properties";
+import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { purgePresence } from "@/lib/presence";
+import { readSigninAttempt } from "@/lib/signin-attempt";
 
 export const auth = betterAuth({
   trustedOrigins: [
@@ -175,14 +177,29 @@ export const auth = betterAuth({
         // `emailAndPassword` is disabled, so a user row only ever appears on
         // a first completed OAuth flow — this *is* signup.
         after: async (created) => {
-          captureServerEvent(EVENTS.authSignedUp, created.id, { provider: "discord" });
+          captureServerEvent(EVENTS.authSignedUp, created.id, {
+            provider: "discord",
+            // Carries the CTA across the redirect, which identity cannot —
+            // see `@/lib/signin-attempt`.
+            ...(await readSigninAttempt()),
+          });
         },
       },
     },
     session: {
       create: {
         after: async (session) => {
-          captureServerEvent(EVENTS.authSignedIn, session.userId, { provider: "discord" });
+          // `$set` refreshes the person's cohorting dimensions on every
+          // sign-in — see `@/lib/person-properties`. Best-effort: a failed
+          // read costs the properties, never the sign-in.
+          const person = await bestEffort("auth.personProperties", { userId: session.userId }, () =>
+            personProperties(session.userId),
+          );
+          captureServerEvent(EVENTS.authSignedIn, session.userId, {
+            provider: "discord",
+            ...(await readSigninAttempt()),
+            ...(person ? { $set: person } : {}),
+          });
           // After the sync: the gate is keyed on the Discord id it resolves.
           await syncDiscordProfile(session.userId);
           await applyGuildBanOnSignIn(session.userId);

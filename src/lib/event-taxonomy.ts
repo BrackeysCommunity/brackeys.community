@@ -85,9 +85,15 @@ export const EVENTS = {
 
   // Jams.
   jamViewed: "jam_viewed",
+  // The top of the jam funnel: someone narrowed one of the three listing
+  // surfaces. `jam_viewed` only ever covered the detail page.
+  jamListFiltered: "jam_list_filtered",
   jamWatchToggled: "jam_watch_toggled",
   jamParticipationAdded: "jam_participation_added",
   jamEntryOutboundClicked: "jam_entry_outbound_clicked",
+
+  // Projects. The denominator `jam_entry_outbound_clicked` never had.
+  projectViewed: "project_viewed",
 
   // Comments — the engagement signal for jams and collab posts.
   commentPosted: "comment_posted",
@@ -99,6 +105,16 @@ export const EVENTS = {
   // Notification preferences — email opt-out is the channel-churn canary.
   notificationPrefChanged: "notification_pref_changed",
   notificationEmailsDisabled: "notification_emails_disabled",
+
+  // The in-app half of the notify → return → act loop. Preference changes
+  // are captured server-side and email CTAs carry UTMs; these two are what
+  // says whether a notice was ever looked at and whether it led anywhere.
+  notificationOpened: "notification_opened",
+  notificationClicked: "notification_clicked",
+
+  // Non-browser callers of the public tier (`/api/public/rpc`). Browser
+  // calls are deliberately not captured — see the handler for why.
+  publicApiCalled: "public_api_called",
 
   // Profile editing — the four-step flyout.
   profileEditStarted: "profile_edit_started",
@@ -174,3 +190,32 @@ export type SigninSource =
 
 /** Where a `search_performed` fired from. */
 export type SearchSurface = "members" | "teams" | "collab" | "jams" | "command_palette";
+
+/**
+ * Which jam listing a `jam_list_filtered` came from. Deliberately not the
+ * bare `"jams"` that `SearchSurface` already uses — that value means "searched
+ * one jam's submissions" (`JamEntriesSection`), and collapsing the two would
+ * make a board search indistinguishable from an entries search.
+ */
+export type JamListSurface = "jams_board" | "jams_calendar" | "jams_archive";
+
+/**
+ * Where a notification was read or acted on. The bell and the inbox show the
+ * same rows and answer different questions: a bell click is an interruption
+ * that worked, an inbox click is someone who came back for it.
+ */
+export type NotificationSurface = "bell" | "inbox";
+
+/**
+ * How a visitor arrived at a project page. `jam` is the `?jam=` param the jam
+ * surfaces attach — which is also what the scraped-game redirect forwards, so
+ * a mint-and-redirect arrival carrying no jam is indistinguishable from a
+ * direct one and is counted as `direct`.
+ */
+export type ProjectViewSource = "jam" | "direct";
+
+/**
+ * What kind of client called the public tier. `browser` exists in the type
+ * for completeness but is never captured — see `src/routes/api.public.rpc.$.ts`.
+ */
+export type PublicApiCallerKind = "browser" | "bot" | "unknown";

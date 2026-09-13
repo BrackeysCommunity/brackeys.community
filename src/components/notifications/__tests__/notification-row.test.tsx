@@ -9,6 +9,7 @@ import type {
 } from "@/components/notifications/notification-row";
 
 const markRead = vi.fn((_vars: { ids: number[] }) => Promise.resolve({ ok: true }));
+const captureEvent = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   // jsdom can't navigate, so the stub swallows the default action and
@@ -45,11 +46,16 @@ vi.mock("@/orpc/client", () => ({
   },
 }));
 
+vi.mock("@/lib/product-insights", () => ({
+  captureEvent: (...args: unknown[]) => captureEvent(...args),
+}));
+
 const { NotificationRow } = await import("@/components/notifications/notification-row");
 
 afterEach(() => {
   cleanup();
   markRead.mockClear();
+  captureEvent.mockClear();
 });
 
 function makeItem(overrides: Partial<NotificationItem> = {}): NotificationItem {
@@ -68,11 +74,15 @@ function makeItem(overrides: Partial<NotificationItem> = {}): NotificationItem {
   };
 }
 
-function renderRow(item: NotificationItem, selection?: NotificationRowProps["selection"]) {
+function renderRow(
+  item: NotificationItem,
+  selection?: NotificationRowProps["selection"],
+  surface: NotificationRowProps["surface"] = "inbox",
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <NotificationRow notification={item} selection={selection} />
+      <NotificationRow notification={item} surface={surface} selection={selection} />
     </QueryClientProvider>,
   );
 }
@@ -103,5 +113,34 @@ describe("NotificationRow", () => {
   it("renders no checkbox outside a selectable table", () => {
     renderRow(makeItem());
     expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  // The in-app half of the notify -> return -> act loop. `was_unread` is
+  // what separates a notice that worked from someone going back for one.
+  it("reports a click with the notice's type and the surface it was read on", () => {
+    renderRow(makeItem(), undefined, "bell");
+    fireEvent.click(screen.getByRole("link"));
+    expect(captureEvent).toHaveBeenCalledWith("notification_clicked", {
+      type: "collab_response_received",
+      category: "collab",
+      surface: "bell",
+      was_unread: true,
+    });
+  });
+
+  it("reports a click on an already-read notice as a return, not a first read", () => {
+    renderRow(makeItem({ readAt: new Date() }));
+    fireEvent.click(screen.getByRole("link"));
+    expect(captureEvent).toHaveBeenCalledWith(
+      "notification_clicked",
+      expect.objectContaining({ surface: "inbox", was_unread: false }),
+    );
+  });
+
+  it("reports nothing when a row has nowhere to go", () => {
+    // No href means no link and no click to report — the row still renders.
+    renderRow(makeItem({ type: "profile_skill_rejected", data: {} }));
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(captureEvent).not.toHaveBeenCalled();
   });
 });

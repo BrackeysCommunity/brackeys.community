@@ -41,6 +41,18 @@ export interface ApiClientOptions {
   log?: (line: string) => void;
 }
 
+/** The prefix `callerKind` in `src/routes/api.public.rpc.$.ts` matches on.
+ *  Keep the two in step. */
+export const USER_AGENT = "brackeys-discord-bot/1";
+
+/** `RequestInit.headers` is a `HeadersInit` — three shapes, one of which is
+ *  a `Headers` instance. Flatten whichever arrived so the agent can be merged
+ *  in without dropping what the link already set. */
+function headersOf(init: RequestInit | undefined): Record<string, string> {
+  if (!init?.headers) return {};
+  return Object.fromEntries(new Headers(init.headers).entries());
+}
+
 export function isTimeout(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -69,7 +81,15 @@ export function createPublicApi(origin: string, options: ApiClientOptions = {}):
       const signal = AbortSignal.timeout(timeoutMs);
       let response: Response;
       try {
-        response = await fetchImpl(request, { ...init, signal });
+        response = await fetchImpl(request, {
+          ...init,
+          signal,
+          // Names the bot in the tier's `public_api_called` telemetry, which
+          // has no other way to tell one server-side caller from another —
+          // a browser is recognised by its `Sec-Fetch-*` headers, and
+          // nothing that isn't a browser sends those.
+          headers: { ...headersOf(init), "user-agent": USER_AGENT },
+        });
       } catch (error) {
         const outcome = isTimeout(error) ? "timeout" : "error";
         log(`[api] ${path.join(".")} ${outcome} after ${elapsed(startedAt)}ms`);

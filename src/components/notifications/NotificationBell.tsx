@@ -12,7 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MicroLabel } from "@/components/ui/typography";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { invalidateNotifications } from "@/lib/notification-queries";
+import { captureEvent } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
 
 const REFETCH_INTERVAL_MS = 30_000;
@@ -37,6 +39,27 @@ export function NotificationBell() {
     mutationFn: (vars: { before?: number }) => client.markAllRead(vars),
     onSuccess: () => invalidateNotifications(queryClient),
   });
+
+  // The top of the notify -> return -> act loop. Carries the badge the
+  // reader was answering, so "opened with nothing unread" (a habit check)
+  // separates from "opened because something arrived".
+  //
+  // The latch is what makes one open one event: the badge refetches on an
+  // interval, and the count is in the deps, so without it every refresh
+  // while the popover sat open would report a second opening.
+  const reportedOpen = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      reportedOpen.current = false;
+      return;
+    }
+    if (reportedOpen.current) return;
+    reportedOpen.current = true;
+    captureEvent(EVENTS.notificationOpened, {
+      surface: "bell",
+      unread_count: unread.data?.count ?? 0,
+    });
+  }, [open, unread.data?.count]);
 
   // Auto-mark-read after the popover has been open for AUTO_MARK_DELAY_MS,
   // so a quick open-and-close doesn't silently clear unread state.
@@ -115,7 +138,12 @@ export function NotificationBell() {
             </div>
           ) : (
             items.map((n) => (
-              <NotificationRow key={n.id} notification={n} onNavigate={() => setOpen(false)} />
+              <NotificationRow
+                key={n.id}
+                notification={n}
+                surface="bell"
+                onNavigate={() => setOpen(false)}
+              />
             ))
           )}
         </div>

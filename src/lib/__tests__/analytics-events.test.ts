@@ -25,6 +25,8 @@ describe("event taxonomy", () => {
       "jam",
       "notification",
       "profile",
+      "project",
+      "public",
       "search",
       "bot",
     ]);

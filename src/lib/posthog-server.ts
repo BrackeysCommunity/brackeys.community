@@ -100,6 +100,24 @@ export function captureServerEvent(
   getClient()?.capture({ distinctId, event, properties: { ...COMMON_PROPS, ...properties } });
 }
 
+/**
+ * A product event that belongs to the process rather than to a person — the
+ * same distinct id exception captures use, and for the same reason: an
+ * anonymous machine caller must not mint a person profile. Use it only where
+ * there genuinely is no user; anything a member did has a user id, and
+ * `captureServerEvent` is the one that joins the funnels.
+ */
+export function captureServerOwnedEvent(
+  event: AnalyticsEvent,
+  properties?: Record<string, unknown>,
+) {
+  getClient()?.capture({
+    distinctId: SERVER_DISTINCT_ID,
+    event,
+    properties: { ...COMMON_PROPS, ...properties },
+  });
+}
+
 export function captureServerException(error: unknown, properties?: Record<string, unknown>) {
   getClient()?.captureException(error, SERVER_DISTINCT_ID, { ...COMMON_PROPS, ...properties });
 }

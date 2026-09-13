@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,21 @@ export function ProjectPage({
   } = detail;
   const fromJam =
     fromJamId != null ? jamRecord.find((appearance) => appearance.jamId === fromJamId) : undefined;
+
+  // The denominator `jam_entry_outbound_clicked` never had: without a view
+  // event, "outbound clicks per view" and "which projects get looked at" are
+  // both unanswerable. `source` is only ever as good as the URL — the
+  // scraped-game redirect forwards `?jam=` but nothing else, so an arrival
+  // with no jam reads as direct whichever door it came through.
+  useEffect(() => {
+    captureEvent(EVENTS.projectViewed, {
+      project_id: project.id,
+      project_slug: project.slug,
+      project_type: project.type,
+      source: fromJamId != null ? "jam" : "direct",
+      ...(fromJamId != null ? { jam_id: fromJamId } : {}),
+    } satisfies Record<string, unknown>);
+  }, [project.id, project.slug, project.type, fromJamId]);
 
   return (
     <div className="flex flex-col gap-8 pb-8">

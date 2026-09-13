@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { EVENTS, type NotificationSurface } from "@/lib/event-taxonomy";
 import { timeAgo } from "@/lib/format-time";
 import {
   approvedSkillLabel,
@@ -22,6 +23,7 @@ import {
   type NotificationCategory,
 } from "@/lib/notification-copy";
 import { invalidateNotifications } from "@/lib/notification-queries";
+import { captureEvent } from "@/lib/product-insights";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
@@ -470,6 +472,10 @@ export interface NotificationRowProps {
   notification: NotificationItem;
   /** Called after navigation begins, e.g. to close a popover. */
   onNavigate?: () => void;
+  /** Which surface the row is being read on. Separate from `density` on
+   *  purpose: density is how the row looks, and naming an event after that
+   *  would break the moment either surface changed its mind about spacing. */
+  surface: NotificationSurface;
   /** Visual density — popover uses condensed; inbox uses comfortable. */
   density?: "condensed" | "comfortable";
   /** When set, the row is a selectable table row: a checkbox sits beside
@@ -481,6 +487,7 @@ export interface NotificationRowProps {
 export function NotificationRow({
   notification: n,
   onNavigate,
+  surface,
   density = "condensed",
   selection,
 }: NotificationRowProps) {
@@ -498,6 +505,16 @@ export function NotificationRow({
   });
 
   const handleClick = () => {
+    // Closes the notify -> return -> act loop: a notice that was sent, read
+    // and followed. `was_unread` separates the two readings — a click on an
+    // unread row is the notice doing its job, a click on a read one is
+    // someone coming back to it.
+    captureEvent(EVENTS.notificationClicked, {
+      type: n.type,
+      category,
+      surface,
+      was_unread: !n.readAt,
+    });
     if (!n.readAt) markReadMutate(n.id);
     onNavigate?.();
   };

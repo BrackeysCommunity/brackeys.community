@@ -251,6 +251,7 @@ export function NotificationsInbox({ filter }: NotificationsInboxProps) {
             renderItem={(n) => (
               <NotificationRow
                 notification={n}
+                surface="inbox"
                 density="comfortable"
                 selection={{
                   selected: selectedIds.has(n.id),

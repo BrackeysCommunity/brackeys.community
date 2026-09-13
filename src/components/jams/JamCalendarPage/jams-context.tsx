@@ -5,9 +5,11 @@ import { DAY_MS } from "@/lib/format-time";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { useJamListFiltered } from "@/lib/hooks/use-search-performed";
 
 import { type BoardLayout, type BoardSort } from "./board/build-board";
 import { addMonthsUTC, startOfMonthUTC, type ViewMode } from "./helpers";
+import { jamListReport } from "./jam-list-report";
 import type { JamsPageContextValue } from "./shared-types";
 import {
   type ArchiveQueryState,
@@ -94,6 +96,22 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
       // works for the session.
     }
   };
+
+  // Top of the jam funnel: one event per settled narrowing of whichever view
+  // is up. The provider is the only place that sees all three at once.
+  useJamListFiltered(
+    jamListReport({
+      view,
+      search,
+      boardSort,
+      monthStart,
+      today,
+      archiveState: { ...archiveState, search: debouncedSearch },
+      board,
+      calendar,
+      archive,
+    }),
+  );
 
   const value: JamsPageContextValue = {
     compact: isMobile,

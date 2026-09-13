@@ -3,6 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { z } from "zod";
 
 import { CATEGORY_ICON } from "@/components/notifications/notification-row";
@@ -13,9 +14,11 @@ import {
 } from "@/components/notifications/NotificationsInbox";
 import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { EASE_OUT } from "@/lib/motion";
 import { NOTIFICATION_CATEGORY_LABEL } from "@/lib/notification-copy";
+import { captureEvent } from "@/lib/product-insights";
 import { pageTitle } from "@/lib/site-meta";
 import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -76,6 +79,24 @@ function NotificationsRoute() {
   const reduced = useReducedMotion();
 
   const counts = useQuery(orpc.countNotifications.queryOptions({ input: {} }));
+
+  // The bell's counterpart: someone who came back for their notices rather
+  // than catching one in passing. Once per visit, carrying the filter they
+  // arrived on — switching tabs replaces the search param without
+  // remounting, and a tab switch is not a second opening.
+  const reportedOpen = useRef(false);
+  const unreadCount = counts.data?.unread;
+  useEffect(() => {
+    // Waits for the count, so `unread_count` is a real number rather than a
+    // zero standing in for "not loaded yet".
+    if (reportedOpen.current || unreadCount === undefined) return;
+    reportedOpen.current = true;
+    captureEvent(EVENTS.notificationOpened, {
+      surface: "inbox",
+      filter,
+      unread_count: unreadCount,
+    });
+  }, [unreadCount, filter]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 py-6">
